@@ -110,8 +110,9 @@ egui, eframe, winit or rfd.
   lines nothing in the program reads by name (`mailcraft_model::headers`: those it reads by name
   are `WORKING`, which a test holds to the source), kept apart and in order, read only by View
   Source and what writes a message whole (`Session::loaded_message`). A file in format 3 opens
-  as it is, its blocks put beside it as it is read, and is written in format 4 at its next save,
-  the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
+  as it is; the window puts its blocks beside it as it reads it and writes it in format 4 at
+  once (an opening that only reads it, the command line's or an agent's, holds them in memory
+  until a save), the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
   reads only format 3 calls a format-4 file one from a newer MailCraft. A save appends the records of what changed and a commit in one
   flushed write, on a background thread: a read mark costs a few hundred bytes however large the
   mailbox. What was last written is remembered item by item (its fingerprint, and a weak pointer
