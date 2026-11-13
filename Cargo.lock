@@ -3185,7 +3185,11 @@ dependencies = [
 name = "mailcraft-host"
 version = "0.12.0"
 dependencies = [
+ "log",
  "mailcraft-engine",
+ "mailcraft-i18n",
+ "mailcraft-model",
+ "mailcraft-net",
  "mailcraft-time",
 ]
 
@@ -3222,10 +3226,21 @@ version = "0.12.0"
 dependencies = [
  "log",
  "mailcraft-charset",
+ "mailcraft-jmap-types",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailcraft-jmap-types"
+version = "0.12.0"
+dependencies = [
+ "proptest",
+ "serde",
  "serde_json",
 ]
 

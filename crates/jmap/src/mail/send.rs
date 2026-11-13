@@ -76,7 +76,7 @@ use mailcraft_model::Message;
 use mailcraft_model::sync::{JmapMailResult, MAX_LISTED_FOLDERS, MAX_SENDS, SendDone, SendOutcome, SendUp};
 use serde_json::{Map, Value, json};
 
-use super::{LIST_BYTES, Outcome, Run, Stop, arguments, mail_request, refusal, said};
+use super::{LIST_BYTES, Outcome, Run, Stop, arguments, get, mail_request, refusal, said};
 use crate::connection::unusable;
 use crate::{
     ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind, Redactor,
@@ -411,7 +411,7 @@ impl<H: HttpExchange> Run<'_, H> {
             return Ok(());
         };
         self.check()?;
-        let mailbox = match self.one_call("Mailbox/get", json!({"accountId": self.account(), "properties": ["id", "role"]}), LIST_BYTES).await {
+        let mailbox = match self.one_call("Mailbox/get", arguments(&get(self.account(), None, &["id", "role"]))?, LIST_BYTES).await {
             Ok(answer) => filing_of(&answer),
             Err(stop) => return told(stop),
         };
@@ -443,9 +443,15 @@ impl<H: HttpExchange> Run<'_, H> {
     /// A request of one call that needs the capability of sending, and its answer.
     async fn submission_call(&self, method: &str, args: Value, most: usize) -> Result<Value, Stop> {
         let mut request = submission_request(most)?;
-        let call = request.add_call(method, arguments(args))?;
+        let call = request.add_call(method, arguments(&args)?)?;
         let mut answers = self.post(&request).await?;
         Self::take(&mut answers, &call, method)
+    }
+
+    /// A request of the one call `method` of mail, with the arguments `args` as they are written, and its
+    /// answer.
+    async fn call_of(&self, method: &str, args: Value) -> Result<Value, Stop> {
+        self.one_call(method, arguments(&args)?, SUBMIT_BYTES).await
     }
 
     /// One message: checked, uploaded, imported and submitted.
@@ -488,7 +494,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 json!({"accountId": self.account(), "update": update})
             }
         };
-        match self.one_call("Email/set", args, SUBMIT_BYTES).await {
+        match self.call_of("Email/set", args).await {
             Ok(_) => None,
             Err(stop @ (Stop::Auth | Stop::Busy(..))) => Some(stop),
             Err(_) => {
@@ -519,9 +525,9 @@ impl<H: HttpExchange> Run<'_, H> {
         let failed = |error: BuildError| (None, Some(Stop::from(error)), None);
         if self.two_calls {
             let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
-                let import = request.add_call("Email/import", arguments(import))?;
+                let import = request.add_call("Email/import", arguments(&import)?)?;
                 let submission = submission_arguments(account, &format!("#{EMAIL}"), identity, from, to);
-                let submit = request.add_call("EmailSubmission/set", arguments(submission))?;
+                let submit = request.add_call("EmailSubmission/set", arguments(&submission)?)?;
                 Ok((request, import, submit))
             });
             let (request, import, submit) = match built {
@@ -546,7 +552,7 @@ impl<H: HttpExchange> Run<'_, H> {
         }
         // A server that takes one call to a request: the import first, which sends nothing.
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
-            let call = request.add_call("Email/import", arguments(import))?;
+            let call = request.add_call("Email/import", arguments(&import)?)?;
             Ok((request, call))
         });
         let (request, call) = match built {
@@ -587,7 +593,7 @@ impl<H: HttpExchange> Run<'_, H> {
             return (None, Some(stop), None);
         }
         let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId"]});
-        let same = match self.one_call("Email/get", args, SUBMIT_BYTES).await {
+        let same = match self.call_of("Email/get", args).await {
             Ok(answer) => same_octets(&answer, copy, blob),
             Err(Stop::Failed(_)) => false,
             Err(stop) => return (None, Some(stop), None),
@@ -610,7 +616,7 @@ impl<H: HttpExchange> Run<'_, H> {
     async fn submit_email(&self, email: &str, imported: Result<Map<String, Value>, CallFailure>, identity: &str, to: &[String], ours: bool) -> Step {
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
             let submission = submission_arguments(self.account(), email, identity, self.request.email.as_str(), to);
-            let call = request.add_call("EmailSubmission/set", arguments(submission))?;
+            let call = request.add_call("EmailSubmission/set", arguments(&submission)?)?;
             Ok((request, call))
         });
         let (request, call) = match built {
