@@ -108,8 +108,8 @@ pub const MAX_CONTENT: u64 = 256 << 20;
 /// What the bodies get when the machine's memory can't be read (128 MB).
 pub const FALLBACK_BUDGET: u64 = 128 << 20;
 
-/// Most bytes of fetched content kept in memory for the next time they are wanted (128 MB).
-pub const CACHE_MAX: u64 = 128 << 20;
+/// Most bytes of fetched content kept in memory for the next time they are wanted (64 MB).
+pub const CACHE_MAX: u64 = 64 << 20;
 
 /// A fetched piece larger than this is handed over but not kept.
 const CACHE_ITEM_MAX: u64 = 64 << 20;
@@ -1831,7 +1831,9 @@ fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Pa
     let fp = item.fp;
     let parsed = match key.0 {
         Coll::Message => {
-            let m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            let mut m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            // What nothing reads by name goes to the message's block (`mailcraft_model::headers`).
+            m.split_headers();
             let refs = item.refs();
             let wire = if refs.is_empty() { None } else { Some(load_limit::read_json::<WireParts>(refs, budget).map_err(damaged)?) };
             Parsed::Message(Arc::new(m), wire)
@@ -2008,6 +2010,8 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
         folder.uid_from = 0;
         // Fetched again, it is a first download: the junk lists leave it alone (#504).
         folder.whole = Some(false);
+        // What STATUS said can't pass over a folder whose mail is to be fetched again (#276).
+        folder.imap_status = None;
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;
@@ -3057,6 +3061,8 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
     } else if !m.has_original() {
         lean.original = None;
     }
+    // Every header line in `headers`, as the file has always had them.
+    lean.join_headers();
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
     let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;
@@ -3420,11 +3426,30 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
                 saved.blob_bytes += r.len;
             }
             Some(Ok(false)) => {}
+            // A virus scanner took the file away as it was written: that one part is left out
+            // (it reads as unavailable, like any missing content) and the rest of the mailbox is
+            // saved, rather than every save failing for as long as the message is open.
+            Some(Err(e)) if refused_by_scanner(&dir, r, &e) => {
+                log::warn!("content file {}: removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
+            }
             Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
             None => return Err("the content couldn't be written".into()),
         }
     }
     Ok(())
+}
+
+/// Whether writing the content `r` under `dir` failed because something on this computer (a
+/// virus scanner) refused it or took it away: Windows says so (`ERROR_VIRUS_INFECTED`,
+/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice.
+/// Anything else (a full disk, a folder that went) still fails the save.
+fn refused_by_scanner(dir: &Path, r: &Ref, e: &std::io::Error) -> bool {
+    const VIRUS_INFECTED: i32 = 225;
+    const VIRUS_DELETED: i32 = 226;
+    if cfg!(windows) && matches!(e.raw_os_error(), Some(VIRUS_INFECTED | VIRUS_DELETED)) {
+        return true;
+    }
+    e.kind() == std::io::ErrorKind::NotFound && blob_path(dir, &r.hash).is_some_and(|(sub, _)| sub.is_dir())
 }
 
 /// Append `group` to the mailbox file at `path`, which must be `at` bytes long, flushed to the

@@ -402,7 +402,7 @@ fn clipboard(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         return Err(fail("nothing is selected in the message"));
     }
     let part = d.body.text().slice(sel.start(), sel.end()).map_err(model)?;
-    let html = (!d.plain).then(|| mailcraft_mime::rich::to_html(&part));
+    let html = (!d.plain).then(|| mailcraft_mime_model::rich::to_html(&part));
     Ok(json!({"text": part.to_plain(), "html": html}))
 }
 
@@ -436,7 +436,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let from_html = match html {
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
-            let rich = mailcraft_mime::rich::from_html(html);
+            let rich = mailcraft_mime_model::rich::from_html(html);
             Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
         }
         None => None,

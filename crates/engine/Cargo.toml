@@ -17,6 +17,7 @@ mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
 # Format characters made visible in View Source (`cmd::source`).
 mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 # S/MIME Digital signatures checked where a message is read (#30).
 mailcraft-smime = { workspace = true }
 # OpenPGP Digital signatures checked where a message is read, and Public keys read for import (#30).

@@ -190,3 +190,198 @@ fn the_device_budget_caps_what_the_session_keeps() {
     assert_eq!(mailcraft_engine::store::body_budget(), 1 << 20);
     assert_eq!(core.memory_budget(), 1 << 20);
 }
+
+/// Hold the session thread inside a job until the returned sender is used.
+fn hold_session(core: &Arc<crate::Core>) -> (std::sync::mpsc::Sender<()>, std::thread::JoinHandle<()>) {
+    let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
+    let (started_tx, started) = std::sync::mpsc::channel::<()>();
+    let c = core.clone();
+    let hold = std::thread::spawn(move || {
+        let _ = block_on(c.call(move |_| {
+            let _ = started_tx.send(());
+            let _ = gate_rx.recv();
+            Ok(())
+        }));
+    });
+    started.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+    (gate_tx, hold)
+}
+
+type Waiting<'a> = Vec<std::pin::Pin<Box<dyn Future<Output = Result<(), CoreError>> + 'a>>>;
+
+#[test]
+fn a_call_past_the_waiting_bound_is_refused_not_waited_for() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    let mut waiting: Waiting<'_> = Vec::new();
+    let mut refused = false;
+    for _ in 0..(crate::core::MAX_WAITING_JOBS + 2) {
+        let mut future = Box::pin(core.call(|_| Ok(())));
+        match future.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Pending => waiting.push(future),
+            Poll::Ready(r) => {
+                assert!(matches!(r, Err(CoreError::Failed { .. })));
+                refused = true;
+                break;
+            }
+        }
+    }
+    assert!(refused);
+    assert_eq!(waiting.len(), crate::core::MAX_WAITING_JOBS);
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    wait_until_accepted(&core);
+}
+
+/// Cancelled jobs keep their queue slots until the session thread receives them: a call is
+/// retried, to a deadline, until the queue has drained.
+fn wait_until_accepted(core: &crate::Core) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while block_on(core.folders(0)).is_err() {
+        assert!(std::time::Instant::now() < deadline, "the session queue did not drain");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn a_language_set_while_the_queue_is_full_reaches_the_session() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    let mut waiting: Waiting<'_> = Vec::new();
+    for _ in 0..crate::core::MAX_WAITING_JOBS {
+        let mut future = Box::pin(core.call(|_| Ok(())));
+        assert!(future.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        waiting.push(future);
+    }
+    core.set_language("fr".into());
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let lang = loop {
+        match block_on(core.call(|s| Ok(s.interface_language))) {
+            Ok(l) => break l,
+            Err(_) => {
+                assert!(std::time::Instant::now() < deadline, "the session queue did not drain");
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+    };
+    assert_eq!(lang, mailcraft_i18n::Lang::from_pref("fr", None));
+    assert_eq!(core.t("Inbox".into()), mailcraft_i18n::Lang::from_pref("fr", None).t("Inbox"));
+}
+
+#[test]
+fn caller_strings_waiting_for_the_session_count_against_the_byte_bound() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    // A long search is cut, a list id or a picture reference past its cap is refused: none of
+    // them can be held 256 times over for 8 MB each.
+    let huge = "x".repeat(8 * 1024 * 1024);
+    assert!(matches!(block_on(core.tasks(0, huge.clone(), false, 0, 10)), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.picture(1, huge.clone())), Err(CoreError::BadRequest { .. })));
+    // What is kept is counted: searches of the longest size fill the byte bound only through it.
+    let mut waiting: Vec<std::pin::Pin<Box<dyn Future<Output = Result<crate::records::PeopleWindow, CoreError>> + '_>>> = Vec::new();
+    for _ in 0..crate::core::MAX_WAITING_JOBS {
+        let mut future = Box::pin(core.people(huge.clone(), 0, 10));
+        if future.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending() {
+            waiting.push(future);
+        }
+    }
+    assert!(!waiting.is_empty());
+    assert!(core.waiting_bytes() >= waiting.len() * 200);
+    assert!(core.waiting_bytes() <= waiting.len() * 800);
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    wait_until_accepted(&core);
+}
+
+#[test]
+fn parameters_waiting_past_the_byte_bound_are_refused() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    let big = format!("{{\"k\":\"{}\"}}", "x".repeat(7 * 1024 * 1024));
+    let mut waiting: Vec<std::pin::Pin<Box<dyn Future<Output = Result<String, CoreError>> + '_>>> = Vec::new();
+    let mut refused = false;
+    for _ in 0..8 {
+        let mut future = Box::pin(core.execute("view.today".into(), big.clone()));
+        match future.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Pending => waiting.push(future),
+            Poll::Ready(r) => {
+                assert!(matches!(r, Err(CoreError::Failed { .. })));
+                refused = true;
+                break;
+            }
+        }
+    }
+    assert!(refused);
+    assert!(!waiting.is_empty());
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    // What was refused and what was dropped gave their share back.
+    assert!(exec_today(&core));
+}
+
+fn exec_today(core: &crate::Core) -> bool {
+    block_on(core.execute("view.today".into(), String::new())).is_ok()
+}
+
+#[test]
+fn the_enforced_budget_is_the_lowest_of_the_cores_alive() {
+    let mut budgets = crate::core::Budgets::default();
+    assert_eq!(budgets.add(1, 8 << 20), Some(8 << 20));
+    assert_eq!(budgets.add(2, 2 << 20), Some(2 << 20));
+    // A later core with more does not raise it.
+    assert_eq!(budgets.add(3, 16 << 20), Some(2 << 20));
+    // The one with the least ends: the next lowest stands.
+    assert_eq!(budgets.remove(2), Some(8 << 20));
+    assert_eq!(budgets.remove(1), Some(16 << 20));
+    assert_eq!(budgets.remove(3), None);
+}
+
+#[test]
+fn a_category_heading_says_it_is_one() {
+    let core = crate::Core::start(FakePlatform::new(), || {
+        let mut mailbox = sample::mailbox(now(), 0);
+        let inbox = mailbox.inbox().unwrap();
+        mailbox
+            .add_message(Message { folder: inbox, subject: "Tagged".into(), date: now() - 5, categories: vec!["Today".into()], ..Default::default() })
+            .unwrap();
+        let mut session = Session::at(mailbox, now(), 0);
+        session.view.sort = mailcraft_engine::SortBy::Categories;
+        session
+    })
+    .unwrap();
+    let folder = block_on(core.call(|s| Ok(s.mailbox.inbox()))).unwrap().unwrap();
+    let window = block_on(core.messages(folder, "all".into(), 0, 200)).unwrap();
+    let row = window.rows.iter().find(|r| r.subject == "Tagged").unwrap();
+    assert_eq!(row.group.as_deref(), Some("Today"));
+    assert!(row.group_is_category);
+}
+
+#[test]
+fn a_selected_message_that_fails_the_filter_is_not_listed() {
+    let core = sample_core();
+    let folder = block_on(core.call(|s| Ok(s.mailbox.inbox()))).unwrap().unwrap();
+    let unread = block_on(core.messages(folder, "unread".into(), 0, 200)).unwrap();
+    let id = unread.rows[0].id;
+    // Select it in the unread list, then read it: the engine keeps it in that list while selected.
+    block_on(core.call(move |s| {
+        s.view.folder = folder;
+        s.view.filter = mailcraft_engine::Filter::Unread;
+        s.sel.messages = vec![id];
+        let rows = mailcraft_engine::list::rows(s);
+        s.keep_selected(&rows);
+        s.run("mail.markRead", &serde_json::json!({"ids": [id]}))?;
+        assert!(mailcraft_engine::list::rows(s).iter().any(|r| r.id == id));
+        Ok(())
+    }))
+    .unwrap();
+    let after = block_on(core.messages(folder, "unread".into(), 0, 200)).unwrap();
+    assert!(!after.rows.iter().any(|r| r.id == id));
+    // The session's own selection and list are as they were.
+    assert!(block_on(core.call(move |s| Ok(s.kept().is_some_and(|k| k.contains(&id))))).unwrap());
+}
