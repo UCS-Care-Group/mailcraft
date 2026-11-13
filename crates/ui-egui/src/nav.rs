@@ -171,7 +171,7 @@ pub fn module_foot(app: &mut MailApp, ui: &mut Ui) {
                 let icon_x = if named { r.center().x - (text_w + 20.0) / 2.0 + 9.0 } else { r.center().x };
                 icons::paint(ui.painter(), Rect::from_center_size(pos2(icon_x, r.center().y), vec2(18.0, 18.0)), icon, ink, ink);
                 if named {
-                    let at = pos2(icon_x + 11.0, r.center().y + TEXT_RISE);
+                    let at = pos2(icon_x + 11.0, r.center().y);
                     ui.painter().text(at, Align2::LEFT_CENTER, name, regular(FOOT_NAME), if active { t.accent_text } else { t.text });
                 }
                 app.hit.add("moduleFoot", i as u64, r);

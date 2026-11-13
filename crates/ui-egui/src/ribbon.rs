@@ -1031,7 +1031,7 @@ fn view_of_any(app: &MailApp) -> Tab {
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
-        Item::big_menu("navigationBar", "folderPane", "Navigation\nBar", "Navigation Bar", Menu::NavigationBar).at(0, 3),
+        Item::big_menu("navigationBar", "navigationBar", "Navigation\nBar", "Navigation Bar", Menu::NavigationBar).at(0, 3),
     ];
     // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
     if mailcraft_engine::gmail::offered(&app.session).is_none() {
