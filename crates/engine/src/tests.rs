@@ -767,6 +767,85 @@ fn accounts_that_sign_in_on_the_providers_page() {
         (mx["known"].as_bool(), mx["via"].as_str(), mx["incoming"]["host"].as_str()),
         (Some(false), Some("guess"), Some("imap.lumen.example"))
     );
+    // What the host found in the domain's own records (#1063): for the owner to confirm, so not
+    // "known"; the address as the user name (RFC 6186); the usual names for what it lacks; and a
+    // found host outside the address's domain said to be so, for an agent to ask the owner.
+    let found = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "mx": ["mx.lumen.example"], "found": {
+            "incoming": {"host": "Mail.Hosted.Example.", "port": 993, "security": "tls", "via": "srv"},
+            "outgoing": {"host": "smtp.lumen.example", "security": "starttls", "via": "srv"}
+        }}),
+    );
+    assert_eq!(
+        (found["known"].as_bool(), found["via"].as_str(), found["username"].as_str()),
+        (Some(false), Some("srv"), Some("Avery@lumen.example"))
+    );
+    assert_eq!(
+        (
+            found["incoming"]["host"].as_str(),
+            found["incoming"]["port"].as_u64(),
+            found["incoming"]["security"].as_str(),
+            found["incoming"]["via"].as_str(),
+            found["incoming"]["outside"].as_bool()
+        ),
+        (Some("mail.hosted.example"), Some(993), Some("tls"), Some("srv"), Some(true))
+    );
+    assert_eq!(
+        (
+            found["outgoing"]["host"].as_str(),
+            found["outgoing"]["port"].as_u64(),
+            found["outgoing"]["security"].as_str(),
+            found["outgoing"]["via"].as_str(),
+            found["outgoing"]["outside"].as_bool()
+        ),
+        (Some("smtp.lumen.example"), Some(587), Some("starttls"), Some("srv"), Some(false))
+    );
+    let half = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "found": {"outgoing": {"host": "smtp.lumen.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (half["via"].as_str(), half["incoming"]["via"].as_str(), half["incoming"]["host"].as_str()),
+        (Some("srv"), Some("guess"), Some("imap.lumen.example"))
+    );
+    assert_eq!(
+        (half["outgoing"]["port"].as_u64(), half["outgoing"]["via"].as_str(), half["username"].as_str()),
+        (Some(465), Some("srv"), Some("avery@lumen.example"))
+    );
+    // A guess is never "outside": it is made from the address's own domain.
+    assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
+    // usual names stand in.
+    for (bad, why) in [
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "none", "via": "srv"}}), "plain"),
+        (json!({"incoming": {"host": "imap.hosted.example", "via": "srv"}}), "no security"),
+        (json!({"incoming": {"host": "imap.hosted.example/path", "security": "tls", "via": "srv"}}), "not a host"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "rumour"}}), "unknown source"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 0}}), "port 0"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 70000}}), "port too big"),
+        (json!({"incoming": "imap.hosted.example"}), "not an object"),
+        (json!([]), "a list"),
+    ] {
+        let preset = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": bad}));
+        assert_eq!(
+            (preset["via"].as_str(), preset["incoming"]["host"].as_str(), preset["incoming"]["security"].as_str()),
+            (Some("guess"), Some("imap.lumen.example"), Some("tls")),
+            "{why}"
+        );
+    }
+    // A provider the domain or its exchangers name needs nothing found.
+    let known = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "mx": ["aspmx.l.google.com"], "found": {"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (known["via"].as_str(), known["incoming"]["host"].as_str(), known["incoming"]["via"].as_str(), known["incoming"]["outside"].as_bool()),
+        (Some("mx"), Some("imap.gmail.com"), Some("mx"), Some(false))
+    );
     // Or the owner says whose it is.
     let named = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "Outlook.com"}));
     assert_eq!((named["via"].as_str(), named["outgoing"]["host"].as_str()), (Some("asked"), Some("smtp-mail.outlook.com")));
@@ -1766,13 +1845,14 @@ mod two_way {
         apply(&mut s, came_back(a, two, archive, 5));
         assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "Archive".into(), uid: 5 }]);
 
-        // When the server didn't say where it put the message, there is nothing to go on: the
-        // server's copy comes down as a message of its own, and nothing is asked that could hit
-        // another message.
+        // When the server didn't say where it put the message, there is no UID to go on, and
+        // nothing is asked that could hit another message: the deletion waits for the server's
+        // copy to come down, to be found by its Message-ID.
         let (mut s, a, _, archive, two) = left();
         run(&mut s, "mail.deletePermanently", json!({"id": two}));
         apply(&mut s, came_back(a, two, archive, 0));
-        assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
+        assert_eq!(request(&s, a).ops.len(), 0);
+        assert!(matches!(&s.mailbox.pending[..], [Pending::Delete { from, uid: 0, .. }] if from == "Archive"), "{:?}", s.mailbox.pending);
 
         // A deletion the owner took back while it was carried out: the server no longer has the
         // message, so the one here is the only one. It stays, and goes on the server again (#451).
@@ -2303,28 +2383,6 @@ fn options_validate() {
     assert_eq!(session::enum_code(&CalView::WorkWeek), "workWeek");
 }
 
-#[test]
-fn parity_has_a_floor_that_only_rises() {
-    let s = session();
-    let p = catalog::parity(&s.registry);
-    let percent = p["percent"].as_f64().unwrap();
-    assert!(percent >= 60.0, "catalog parity fell to {percent}%");
-    // Every catalog id is spelled like a command id.
-    for f in catalog::features() {
-        assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
-    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
-    for (id, why) in catalog::OUT_OF_SCOPE {
-        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
-        assert!(!why.is_empty());
-        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
-        assert!(!listed("missing"), "{id} isn't missing");
-        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
-}
-
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
 #[test]
 fn hostile_params_never_panic() {
@@ -2345,6 +2403,13 @@ fn hostile_params_never_panic() {
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        // Snooze (#949): Return times that are none, far, past or the end of time.
+        json!({"ids": [1, 2, 3], "until": i64::MAX}),
+        json!({"ids": [1], "until": i64::MIN}),
+        json!({"ids": [1, 1, 1], "until": 1e300}),
+        json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
+        json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
+        json!({"ids": [1], "until": {"deep": [[[]]]}}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),

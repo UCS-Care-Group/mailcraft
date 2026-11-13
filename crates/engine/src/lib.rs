@@ -418,6 +418,8 @@ mod agent_ids_tests;
 #[cfg(test)]
 mod agent_tests;
 #[cfg(test)]
+mod catalog_tests;
+#[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;

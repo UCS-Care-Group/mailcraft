@@ -284,6 +284,10 @@ pub struct Message {
     pub forwarded: bool,
     pub draft: bool,
     pub pinned: bool,
+    /// Its snooze (#949): when it comes back and where it came from; once it has come back, the
+    /// mark it wears until opened. `None` for a message never snoozed.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub snooze: Option<crate::Snooze>,
     /// The kinds of sender warning ([`crate::sender_warnings::Warning::kind`]) the owner dismissed
     /// the banner for (#508). The banner is hidden while every kind it would show is among these;
     /// a kind that appears later brings it back.

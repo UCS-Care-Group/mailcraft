@@ -61,6 +61,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("net", Class::Layer(3)),
     ("engine", Class::Layer(4)),
     ("mcp", Class::Layer(5)),
+    // Host services (credential store, platform entries) below the window, over engine and net.
+    ("host", Class::Layer(5)),
     ("ui-egui", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
