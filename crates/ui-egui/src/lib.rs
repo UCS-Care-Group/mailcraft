@@ -2729,32 +2729,7 @@ impl MailApp {
     /// file calls shared is not, and gets the name of its servers, never the owner's token).
     /// The one place this name is made.
     pub(crate) fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
-        let address = a.email.trim().to_ascii_lowercase();
-        let server = |s: &Option<mailcraft_model::Server>| match s {
-            Some(s) => format!("{}:{}", s.host.trim().to_ascii_lowercase(), s.port),
-            None => "none".to_string(),
-        };
-        if a.kind == mailcraft_model::AccountKind::Microsoft {
-            format!("{kind}:{address}|graph")
-        } else if a.kind == mailcraft_model::AccountKind::Jmap {
-            // (Its whole session address: another one, on the same server or not, is another server;
-            // and a bearer token is no password.)
-            let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
-            format!("{kind}:{address}|jmap={session}|bearer={bearer}")
-        } else if a.kind == mailcraft_model::AccountKind::Exchange {
-            // (Its whole EWS address: another one, on the same server or not, is another server;
-            // the user name it signs in with: a password is for one name; and the certificate it
-            // trusts besides the system's, when it does: a password remembered for the server the
-            // system vouches for is never handed to a connection that a pin lets through, AU3-02.)
-            let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
-            let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
-            match a.ews.as_ref().map(|e| e.trusted.trim().to_ascii_lowercase()).filter(|pin| !pin.is_empty()) {
-                Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
-                None => format!("{kind}:{address}|ews={url}|user={user}"),
-            }
-        } else {
-            format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
-        }
+        mailcraft_host::secrets::secret_key(kind, a)
     }
 
     /// Whether a pending sign-in still belongs to the saved account. The storage key binds
@@ -2963,27 +2938,16 @@ impl MailApp {
 
     /// The sign-in settings as the host should use them: an account that names no application id
     /// of its own takes this installation's.
-    pub(crate) fn effective_oauth(&self, mut oauth: mailcraft_model::OAuth) -> mailcraft_model::OAuth {
-        if oauth.client_id.is_empty() {
-            let own = match oauth.provider {
-                mailcraft_model::OAuthProvider::Microsoft => {
-                    if self.ui.microsoft_client_id.is_empty() {
-                        &self.services.microsoft_client_id
-                    } else {
-                        &self.ui.microsoft_client_id
-                    }
-                }
-                mailcraft_model::OAuthProvider::Google => {
-                    if self.ui.google_client_id.is_empty() {
-                        &self.services.google_client_id
-                    } else {
-                        &self.ui.google_client_id
-                    }
-                }
-            };
-            oauth.client_id.clone_from(own);
-        }
-        oauth
+    pub(crate) fn effective_oauth(&self, oauth: mailcraft_model::OAuth) -> mailcraft_model::OAuth {
+        mailcraft_engine::sync_driver::effective_oauth(
+            oauth,
+            &mailcraft_engine::sync_driver::ClientIds {
+                microsoft_chosen: &self.ui.microsoft_client_id,
+                microsoft_built_in: &self.services.microsoft_client_id,
+                google_chosen: &self.ui.google_client_id,
+                google_built_in: &self.services.google_client_id,
+            },
+        )
     }
 
     /// The host's Desktop registration value. UI preferences never supply or retain it.
@@ -3120,14 +3084,7 @@ impl MailApp {
     /// who to sign in as. Tokens that name nobody are the account's, as they always were.
     pub(crate) fn signed_in_as_other(&mut self, account: Id, tokens: &Tokens) -> bool {
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        // A Google identity must match the account's address, not an alternate IMAP user
-        // name: that name is plain editable mailbox data and cannot authorize another owner.
-        let wrong = if a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google) && !tokens.email.trim().is_empty() {
-            !tokens.email.trim().eq_ignore_ascii_case(a.email.trim())
-        } else {
-            tokens.someone_else(&a.email, &a.username)
-        };
-        if !wrong {
+        if !mailcraft_engine::sync_driver::signed_in_as_other(a, tokens) {
             return false;
         }
         let who = tokens.email.trim();
@@ -3356,20 +3313,22 @@ impl MailApp {
         if self.session.mailbox.account(account).is_some_and(|a| a.is_shared()) {
             return self.start_shared_mail(account, quiet);
         }
-        let owner = self.session.mailbox.account(account).cloned().ok_or_else(|| tl!("The account is gone").to_string())?;
-        let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        let address = owner.email.clone();
-        let kept = self.tokens.get(&account).or(self.graph_tokens.get(&account)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", account)).unwrap_or_default();
-        if refresh.is_empty() {
+        use mailcraft_engine::sync_driver::{MailRefusal, MailStart, plan_graph_mail};
+        let kept = self.tokens.get(&account).or(self.graph_tokens.get(&account)).map(|t| t.refresh.clone());
+        let refresh = mailcraft_engine::sync_driver::refresh_token(kept.as_deref(), self.remembered("refresh", account));
+        let plan = match plan_graph_mail(&self.session, account, quiet, refresh) {
+            Ok(MailStart::Run(plan)) => *plan,
             // Nobody asked for this run: no page is put in front of the owner.
-            if quiet {
-                return Err(i18n::fmt(tl!("Use Send/Receive to sign in to {address}"), &[("address", &address)]));
+            Ok(MailStart::Quiet { address }) => return Err(i18n::fmt(tl!("Use Send/Receive to sign in to {address}"), &[("address", &address)])),
+            Ok(MailStart::SignIn { oauth, address }) => {
+                self.begin_sign_in(account, oauth, &address, String::new(), false, true)?;
+                return Ok(json!({"pending": "signIn", "account": account}));
             }
-            self.begin_sign_in(account, oauth, &address, String::new(), false, true)?;
-            return Ok(json!({"pending": "signIn", "account": account}));
-        }
-        let mail = mailcraft_engine::cmd::graph_mail::graph_mail_request(&self.session, account).map_err(|e| e.to_string())?;
+            Err(MailRefusal::AccountGone) => return Err(tl!("The account is gone").to_string()),
+            Err(MailRefusal::NoSignIn) => return Err(tl!("This account has no sign-in with Microsoft").to_string()),
+            Err(MailRefusal::NotGraph(why)) => return Err(why),
+        };
+        let (owner, oauth, refresh, mail) = (plan.owner, plan.oauth, plan.refresh, plan.mail);
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
@@ -3433,15 +3392,7 @@ impl MailApp {
     /// How much of `account` waits to go to its server: mail in the Outbox, and changes made here
     /// that the server hasn't been told.
     pub(crate) fn waiting_to_go(&self, account: Id) -> usize {
-        let mb = &self.session.mailbox;
-        // (A held message waits for the owner, not for a run; and so does mail in a shared
-        // mailbox's Outbox that may not be sent from it yet, #70.)
-        let outbox = if self.session.shared_send_waits(account) {
-            0
-        } else {
-            mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
-        };
-        outbox + mailcraft_engine::cmd::account::unpushed(&self.session, account)
+        mailcraft_engine::sync_driver::waiting_to_go(&self.session, account)
     }
 
     /// A run of `account` is over: what still waits to go to its server, and when that was seen.
@@ -3551,12 +3502,11 @@ impl MailApp {
             && self.syncing()
             && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
             && self.session.driver.round.run_look_due(true, now_ms())
+            && self.waiting_to_go(whose) > baseline
         {
-            if self.waiting_to_go(whose) > baseline {
-                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                self.sync_run = Some((whose, Some(baseline), true, quiet));
-                self.session.sync_status = tl!("Sending your changes…").to_string();
-            }
+            self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.sync_run = Some((whose, Some(baseline), true, quiet));
+            self.session.sync_status = tl!("Sending your changes…").to_string();
         }
         let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         // (Working offline, nothing starts by itself either: mail waits in the Outbox.)
@@ -3792,8 +3742,7 @@ impl MailApp {
                     mail.refresh = tokens.refresh.clone();
                 }
             }
-            let now = mailcraft_time::now();
-            self.graph_tokens.insert(account, Tokens { expires_at: tokens.expires_at.clamp(now, now.saturating_add(86_400)), ..tokens });
+            self.graph_tokens.insert(account, mailcraft_engine::sync_driver::kept_for_session(tokens, mailcraft_time::now()));
         }
         let kept_in_step = self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
         if result.consent_needed {

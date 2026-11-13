@@ -19,6 +19,9 @@ pub mod calendar_plan;
 mod calendar_plan_tests;
 #[cfg(test)]
 mod calendar_tests;
+pub mod credentials;
+#[cfg(test)]
+mod credentials_tests;
 pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
@@ -31,6 +34,9 @@ mod fetch_tests;
 pub mod free_busy;
 #[cfg(test)]
 mod free_busy_tests;
+pub mod graph_mail;
+#[cfg(test)]
+mod graph_mail_tests;
 pub mod jobs;
 #[cfg(test)]
 mod jobs_tests;
@@ -56,12 +62,14 @@ pub use ask::{AskWindow, TasksQuestion};
 pub use auto_replies::{AutoRepliesDriver, RepliesAnswer, RepliesCame, RepliesFacts, RepliesLook, RepliesPlan, Trouble as RepliesTrouble};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
+pub use credentials::{ClientIds, KEEP_ACCESS_S, effective_oauth, kept_for_session, refresh_token, signed_in_as_other};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use free_busy::FreeBusyDriver;
+pub use graph_mail::{MailPlan, MailStart, Refusal as MailRefusal, plan_graph_mail};
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
-pub use round::{Next, PUSH_LOOK_MS, PUSH_RETRY_MS, RUN_LOOK_MS, RoundDriver, Waiting};
+pub use round::{Next, PUSH_LOOK_MS, PUSH_RETRY_MS, RUN_LOOK_MS, RoundDriver, Waiting, server_accounts, waiting_to_go};
 pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
 pub use sending::{GateStep, Pressed, SendingDriver};
 pub use tasks::{TasksCame, TasksDriver, TasksFacts};

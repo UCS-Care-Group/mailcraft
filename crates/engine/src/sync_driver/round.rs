@@ -189,3 +189,21 @@ impl RoundDriver {
         was
     }
 }
+
+/// How much of `account` waits to go to its server: mail in the Outbox, and changes made here that
+/// the server hasn't been told. (A held message waits for the owner, not for a run; and so does
+/// mail in a shared mailbox's Outbox that may not be sent from it yet, #70.)
+pub fn waiting_to_go(s: &crate::Session, account: Id) -> usize {
+    let mb = &s.mailbox;
+    let outbox = if s.shared_send_waits(account) {
+        0
+    } else {
+        mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
+    };
+    outbox + crate::cmd::account::unpushed(s, account)
+}
+
+/// The accounts that have a server to be sent and received with, in the mailbox's order.
+pub fn server_accounts(s: &crate::Session) -> Vec<Id> {
+    s.mailbox.accounts.iter().filter(|a| a.kind.has_server()).map(|a| a.id).collect()
+}
