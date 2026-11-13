@@ -13,6 +13,8 @@ use crate::Session;
 
 /// What Avery's server writes for mail from the Lumen News list that passed its checks.
 const PASSED: &str = "mx.lumen.example; spf=pass smtp.mailfrom=news.example; dkim=pass header.d=news.example; dmarc=pass header.from=news.example";
+/// The list's DKIM signature, covering both unsubscribe headers (RFC 8058, 4).
+const SIGNED: &str = "v=1; a=rsa-sha256; d=news.example; s=s1; h=from:subject:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB";
 const FAILED: &str = "mx.lumen.example; spf=fail smtp.mailfrom=elsewhere.example; dmarc=fail header.from=news.example";
 
 /// A session with Avery's IMAP account, whose Inbox has one message from the list with `headers`.
@@ -67,6 +69,7 @@ fn a_vouched_message_says_its_way() {
         ("Authentication-Results", PASSED),
         ("List-Unsubscribe", "<https://news.example/u/7f3a>, <mailto:leave@news.example>"),
         ("List-Unsubscribe-Post", "List-Unsubscribe=One-Click"),
+        ("DKIM-Signature", SIGNED),
     ]);
     let said = run(&mut s, id, json!({})).unwrap();
     assert_eq!(said["way"], "oneClick");
@@ -127,4 +130,23 @@ fn a_message_with_a_sender_warning_offers_nothing() {
         std::sync::Arc::make_mut(m).from.name = "billing@bank.example".into();
     }
     assert!(run(&mut s, id, json!({})).is_err_and(|e| e.contains("warning")));
+    // A warning about its links alone (the banner the reading pane shows) counts too.
+    let (mut s, id) = with(&[("Authentication-Results", PASSED), ("List-Unsubscribe", "<https://news.example/u/7f3a>")]);
+    if let Some(m) = s.mailbox.messages.get_mut(&id) {
+        std::sync::Arc::make_mut(m).body.html = Some(r#"<p><a href="https://collect.example/x">https://news.example/account</a></p>"#.into());
+    }
+    assert!(run(&mut s, id, json!({})).is_err_and(|e| e.contains("warning")));
+}
+
+#[test]
+fn mail_in_junk_offers_nothing() {
+    let (mut s, id) = with(&[("Authentication-Results", PASSED), ("List-Unsubscribe", "<mailto:leave@news.example>")]);
+    assert!(run(&mut s, id, json!({})).is_ok());
+    let account = s.mailbox.message(id).map(|m| m.account).unwrap();
+    let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": junk})).unwrap();
+    let said = run(&mut s, id, json!({"send": true}));
+    assert!(said.as_ref().is_err_and(|e| e.contains("Junk")), "{said:?} {:?}", s.mailbox.message(id).map(|m| m.folder));
+    let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
 }

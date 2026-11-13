@@ -65,9 +65,7 @@ fn poll(app: &mut MailApp) {
 /// Whether the engine would offer `m` a way to unsubscribe (its server vouches for it, and it has
 /// no sender warning): the bar and the right-click menu offer it only then.
 pub(crate) fn offered(app: &mut MailApp, m: &Message) -> bool {
-    way(m).is_some()
-        && mailcraft_model::auth_results::vouched(app.session.mailbox.account(m.account), m)
-        && mailcraft_model::sender_warnings::banner_level(&app.session.sender_warnings(m, true)).is_none()
+    app.session.unsubscribe_way(m.id).is_ok()
 }
 
 /// The bar above a message from a mailing list: Unsubscribe, how it is going, or what came of it.
@@ -133,13 +131,22 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
     });
 }
 
+/// The way this window takes: one click where it has a host to post with, else (the browser
+/// build) the same address opened as a page.
+fn shown(app: &MailApp, way: Way) -> Way {
+    match way {
+        Way::OneClick { url } if app.services.unsubscribe.is_none() => Way::Page { url },
+        way => way,
+    }
+}
+
 /// The question asked before `ui.unsubscribe` goes ahead: what will be sent, to whom, or opened.
 /// `None` when the message offers nothing (the command then says why).
 pub(crate) fn question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Question> {
     let id = p.get("message").and_then(Value::as_u64).or_else(|| app.session.sel.focus())?;
     let m = app.session.mailbox.messages.get(&id)?;
     let host = |url: &str| mailcraft_link::WebLink::parse(url).map_or_else(String::new, |l| l.host().to_string());
-    let (text, action) = match way(m)? {
+    let (text, action) = match shown(app, way(app.session.mailbox.account(m.account), m)?) {
         Way::OneClick { url } => (
             crate::i18n::fmt(
                 tl!(
@@ -188,7 +195,12 @@ fn unsubscribe(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     }
     let told = app.session.run("mail.unsubscribe", &json!({"id": id})).map_err(|e| e.to_string())?;
     let url = told.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
-    match told.get("way").and_then(Value::as_str) {
+    // Without a host to post with (the browser build), one click is the same address opened as a page.
+    let way = match told.get("way").and_then(Value::as_str) {
+        Some("oneClick") if app.services.unsubscribe.is_none() => Some("page"),
+        way => way,
+    };
+    match way {
         Some("oneClick") => {
             let Some(post) = &app.services.unsubscribe else { return Err(tl!("This build can't unsubscribe in one click.").to_string()) };
             app.unsubscribing.flying = Some((id, post(url)));

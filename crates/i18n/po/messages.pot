@@ -12685,6 +12685,11 @@ msgid "This message hasn't been sent."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "This message isn't an invitation that can be answered."
 msgstr ""

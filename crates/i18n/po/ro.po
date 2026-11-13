@@ -15319,6 +15319,12 @@ msgid "This message hasn't been sent."
 msgstr "Acest mesaj nu a fost trimis."
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Acest mesaj este în E-mail nedorit: ștergeți-l în loc să vă dezabonați."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."

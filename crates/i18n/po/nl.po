@@ -15130,6 +15130,12 @@ msgid "This message hasn't been sent."
 msgstr "Dit bericht is nog niet verzonden."
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Dit bericht staat in Ongewenste e-mail: verwijder het in plaats van u af te melden."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."
