@@ -52,8 +52,8 @@ use crate::{CalendarCheckRequest, CalendarCheckResult, GraphRequest, GraphResult
 const MARGIN_DAYS: i64 = 7;
 /// The wide stretch a Send/Receive brings down, as the host has it: a month back, a year ahead
 /// (seconds).
-const WIDE_BEHIND: i64 = 31 * 86_400;
-const WIDE_AHEAD: i64 = 366 * 86_400;
+pub(crate) const WIDE_BEHIND: i64 = 31 * 86_400;
+pub(crate) const WIDE_AHEAD: i64 = 366 * 86_400;
 /// Most calendars of one account that a job asks for, and takes in.
 const MAX_ASKED: usize = 20;
 
@@ -176,9 +176,13 @@ impl MailApp {
         accounts
     }
 
-    /// The accounts whose calendar a Microsoft server keeps.
+    /// The accounts whose calendar a Microsoft server keeps. (Never one kept in step over JMAP,
+    /// whatever sign-in a file says it has: its calendars are its own server's,
+    /// [`crate::jmap_calendar`].)
     fn microsoft_accounts(&self) -> Vec<Id> {
-        let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
+        let microsoft = |a: &&mailcraft_model::Account| {
+            a.kind != mailcraft_model::AccountKind::Jmap && a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft)
+        };
         self.session.mailbox.accounts.iter().filter(microsoft).map(|a| a.id).collect()
     }
 
@@ -581,7 +585,7 @@ impl MailApp {
     /// Take in what the server has in a stretch of one calendar. What was sent and isn't there
     /// is put back by the merge: the owner is told which item, and the log how many (and of
     /// each calendar how much came down). Whether it was taken in.
-    fn take_in_events(&mut self, account: Id, events: &mailcraft_model::remote::EventsDownload, errors: &mut Vec<String>) -> bool {
+    pub(crate) fn take_in_events(&mut self, account: Id, events: &mailcraft_model::remote::EventsDownload, errors: &mut Vec<String>) -> bool {
         match remote::take_in_events(&mut self.session, events) {
             Ok(merged) => {
                 if let Some(first) = merged.messages.first() {

@@ -11096,6 +11096,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
@@ -11256,7 +11261,7 @@ msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/jmap_contacts.rs crates/ui-egui/src/lib.rs
 msgid "The contacts couldn't be taken in: {error}"
 msgstr ""
 
@@ -11433,7 +11438,7 @@ msgid "The link is on the clipboard: send it to your organisation's administrato
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/jmap_calendar.rs
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr ""
 

@@ -10,6 +10,7 @@ mod i18n;
 mod ico;
 mod icon;
 mod layers;
+mod live;
 mod parity;
 mod release_key;
 mod release_notes;
@@ -53,6 +54,8 @@ commands:
                   only checks they join; --write (in the release's pull request) joins them and removes them
   release-key new <dir>
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
+  live [--keep]   run the desktop app's JMAP code against a throwaway mail server in Docker, on a
+                  loopback port (the `#[ignore]`d `live_` tests; never part of `ci`; docs/live-tests.md)
   release-key sign <file>
                   sign <file> into <file>.sig with the key in MAILCRAFT_RELEASE_KEY (base64 PKCS#8)
 ";
@@ -78,6 +81,7 @@ fn main() -> ExitCode {
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
+        Some("live") => live::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

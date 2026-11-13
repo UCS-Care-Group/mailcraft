@@ -1460,6 +1460,83 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert!(s.mailbox.clone().repair().is_empty());
 }
 
+/// An account kept in step over JMAP takes in its server's contacts as a Microsoft account does.
+#[test]
+fn a_jmap_accounts_contacts_are_merged() {
+    let (mut s, _) = session();
+    let server = mailcraft_model::JmapServer { session: "https://jmap.example.org/.well-known/jmap".into(), ..Default::default() };
+    let jmap = s.mailbox.add_account(mailcraft_model::Account {
+        email: "cy@example.org".into(),
+        kind: mailcraft_model::AccountKind::Jmap,
+        jmap: Some(server),
+        ..Default::default()
+    });
+    assert!(crate::cmd::people::keeps_contacts(&s.mailbox, jmap));
+    let download = ContactsDownload { email: "cy@example.org".into(), ..everybody(jmap, vec![person("K1", "Dee", "dee@example.org")]) };
+    assert_eq!(counts(&apply_contacts(&mut s, &download).unwrap()), (1, 0, 0, 0, 0));
+    let kept = contact_called(&s, jmap, "K1");
+    assert_eq!((kept.first.as_str(), kept.origin.account), ("Dee", jmap));
+    // It is the server's: not changed here.
+    assert!(refused(&mut s, "people.edit", json!({"id": kept.id, "first": "Di"})).contains("kept by the server of cy@example.org"));
+}
+
+/// A JMAP account's calendars are read from its server and shown; nothing in them is changed
+/// here, and they are never where an event made without saying where goes.
+#[test]
+fn a_jmap_accounts_calendar_is_shown_and_only_read() {
+    use super::apply_calendars;
+    use mailcraft_model::Rights;
+    use mailcraft_model::remote::{CalendarsDownload, RemoteCalendar};
+    let now = at(2026, 10, 14, 16, 0);
+    let mut s = Session::at(crate::sample::mailbox(now, -240), now, -240);
+    let server = mailcraft_model::JmapServer { session: "https://jmap.example.org/.well-known/jmap".into(), ..Default::default() };
+    let jmap = s.mailbox.add_account(mailcraft_model::Account {
+        email: "cy@example.org".into(),
+        kind: mailcraft_model::AccountKind::Jmap,
+        jmap: Some(server),
+        ..Default::default()
+    });
+    let list = CalendarsDownload {
+        account: jmap,
+        email: "cy@example.org".into(),
+        complete: true,
+        calendars: vec![
+            RemoteCalendar { id: "cal-1".into(), name: "Calendar".into(), rights: Rights::Read, main: true, ..Default::default() },
+            RemoteCalendar { id: "cal-2".into(), name: "Team".into(), rights: Rights::Read, ..Default::default() },
+        ],
+        ..Default::default()
+    };
+    let listed = apply_calendars(&mut s, &list).unwrap();
+    assert_eq!((listed["added"].as_u64(), listed["complete"].as_bool()), (Some(2), Some(true)));
+    let theirs: Vec<_> = s.mailbox.calendars.iter().filter(|c| c.origin.account == jmap).cloned().collect();
+    assert_eq!(theirs.len(), 2);
+    assert!(theirs.iter().all(|c| !c.can_edit()));
+    // Its events come into them: the main calendar's, and the other's by its name on the server.
+    let main = EventsDownload { email: "cy@example.org".into(), ..october(jmap, vec![remote("ev-1", "Review", at(2026, 10, 12, 13, 0), 30)]) };
+    let team = EventsDownload {
+        email: "cy@example.org".into(),
+        calendar: "cal-2".into(),
+        ..october(jmap, vec![remote("ev-2", "Stand-up", at(2026, 10, 13, 9, 0), 15)])
+    };
+    apply_events(&mut s, &main).unwrap();
+    apply_events(&mut s, &team).unwrap();
+    assert_eq!(titles(&s, jmap), ["Review", "Stand-up"]);
+    let review = from_server(&s, jmap).into_iter().find(|e| e.title == "Review").unwrap();
+    // Read only: neither changed nor deleted here, and nothing waits to go up.
+    for (command, params) in [("calendar.edit", json!({"id": review.id, "title": "Mine"})), ("calendar.delete", json!({"id": review.id}))] {
+        let why = refused(&mut s, command, params);
+        assert!(why.contains("is kept by the server of cy@example.org") && why.contains("not sent back yet"), "{command}: {why}");
+    }
+    assert!(s.mailbox.event_changes.is_empty());
+    assert_eq!(from_server(&s, jmap).len(), 2);
+    // It is no place for what is made without saying where, and it makes nothing else "only here".
+    assert_eq!(super::server_calendar_id(&s.mailbox), None);
+    assert!(super::only_here(&s.mailbox).is_empty());
+    let made = run(&mut s, "calendar.new", json!({"title": "Lunch", "start": "2026-10-15T12:00", "end": "2026-10-15T13:00"}))["id"].as_u64().unwrap();
+    assert!(s.mailbox.event(made).is_some_and(|e| e.origin.is_local()));
+    assert!(s.mailbox.event_changes.is_empty());
+}
+
 #[test]
 fn an_account_can_be_forgotten() {
     let (mut s, account) = session();
