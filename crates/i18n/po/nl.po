@@ -279,7 +279,6 @@ msgstr "3 maanden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "3D Models"
 msgstr "3D-modellen"
 
@@ -562,13 +561,11 @@ msgstr "a.m."
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "About"
 msgstr "Info"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "About\n"
 "MailCraft"
@@ -590,7 +587,6 @@ msgstr "Ongeveer {size} aan e-mail ouder dan {window} wordt van deze computer ve
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Above the status bar"
 msgstr "Boven de statusbalk"
 
@@ -602,13 +598,11 @@ msgstr "Accent"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Accent Colour"
 msgstr "Accentkleur"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Accept"
 msgstr "Accepteren"
 
@@ -650,29 +644,23 @@ msgstr "Toegangstoken voor {account}"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Accessibility"
 msgstr "Toegankelijkheid"
 
 #. command label, interface
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Account"
 msgstr "Account"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Account\n"
 "Settings"
-msgstr ""
-"Account\n"
-"instellingen"
+msgstr "Accountinstellingen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Account Settings"
 msgstr "Accountinstellingen"
 
@@ -684,13 +672,11 @@ msgstr "Accountnaam"
 
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Accounts"
 msgstr "Accounts"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Actions"
 msgstr "Acties"
 
@@ -702,7 +688,6 @@ msgstr "Actief"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
-#, fuzzy
 msgid "Actual Size"
 msgstr "Werkelijke grootte"
 
@@ -714,7 +699,6 @@ msgstr "Toevoegen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Add\n"
 "Account"
@@ -724,13 +708,11 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Add Account"
 msgstr "Account toevoegen"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Add Calendar"
 msgstr "Agenda toevoegen"
 
@@ -742,7 +724,6 @@ msgstr "Regel toevoegen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Add Sender"
 msgstr "Afzender toevoegen"
 
@@ -754,7 +735,6 @@ msgstr "Afzender toevoegen aan contactpersonen"
 
 #. command label, interface
 #: crates/engine/src/cmd/shared.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Add Shared Mailbox"
 msgstr "Gedeeld postvak toevoegen"
 
@@ -879,7 +859,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Add to\n"
 "Favorites"
@@ -889,25 +868,21 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Add to Contacts"
 msgstr "Toevoegen aan contactpersonen"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "Add to Favorites"
 msgstr "Toevoegen aan favorieten"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
-#, fuzzy
 msgid "Add to Safe or Blocked Senders"
 msgstr "Toevoegen aan veilige of geblokkeerde afzenders"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Add to Tasks"
 msgstr "Toevoegen aan taken"
 
@@ -936,7 +911,6 @@ msgstr "Adressen gescheiden door ; (leeg laten als antwoorden naar u moeten kome
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Advanced Search"
 msgstr "Geavanceerd zoeken"
 
@@ -972,7 +946,6 @@ msgstr "Alle deelnemers"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "All Categories"
 msgstr "Alle categorieën"
 
@@ -1020,19 +993,16 @@ msgstr "Toestaan"
 
 #. command label, interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Allow Changing Automatic Replies"
 msgstr "Wijzigen van automatische antwoorden toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Allow Keeping Rules on the Server"
 msgstr "Regels op de server bewaren toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr "Taken bijhouden met Microsoft To Do toestaan"
 
@@ -1086,13 +1056,11 @@ msgstr "Nieuwe tijdvoorstellen toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Allow Reading Other People's Calendars"
 msgstr "Lezen van agenda's van anderen toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Allow Sending from Shared Mailboxes"
 msgstr "Verzenden vanuit gedeelde postvakken toestaan"
 
@@ -1110,13 +1078,11 @@ msgstr "Ook Hotmail, Live en MSN"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Always Download Pictures from Sender"
 msgstr "Altijd afbeeldingen van de afzender downloaden"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Always Move Messages From"
 msgstr "Berichten altijd verplaatsen van"
 
@@ -1320,127 +1286,106 @@ msgstr "Toepassen"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
-#, fuzzy
 msgid "Apply Downloaded Automatic Replies"
 msgstr "Gedownloade automatische antwoorden toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Downloaded Calendar"
 msgstr "Gedownloade agenda toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Downloaded Calendar List"
 msgstr "Gedownloade agendalijst toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Downloaded Categories"
 msgstr "Gedownloade categorieën toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Downloaded Contacts"
 msgstr "Gedownloade contactpersonen toepassen"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
 msgid "Apply Downloaded Exchange Messages"
 msgstr "Gedownloade Exchange-berichten toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Downloaded Favorites"
 msgstr "Gedownloade favorieten toepassen"
 
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
-#, fuzzy
 msgid "Apply Downloaded JMAP Messages"
 msgstr "Gedownloade JMAP-berichten toepassen"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "Apply Downloaded Mailbox Settings"
 msgstr "Gedownloade postvakinstellingen toepassen"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Apply Downloaded Messages"
 msgstr "Gedownloade berichten toepassen"
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
-#, fuzzy
 msgid "Apply Downloaded Rules"
 msgstr "Gedownloade regels toepassen"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
-#, fuzzy
 msgid "Apply Downloaded To-dos"
 msgstr "Gedownloade to-do's toepassen"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
 msgid "Apply Results from the Server"
 msgstr "Resultaten van de server toepassen"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Apply Send/Receive"
 msgstr "Verzenden/ontvangen toepassen"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
 msgid "Apply Send/Receive with Exchange Web Services"
 msgstr "Verzenden/ontvangen met Exchange Web Services toepassen"
 
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
-#, fuzzy
 msgid "Apply Send/Receive with JMAP"
 msgstr "Verzenden/ontvangen met JMAP toepassen"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Apply Sent Calendar Changes"
 msgstr "Verzonden agendawijzigingen toepassen"
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
-#, fuzzy
 msgid "Apply Sent Rule Changes"
 msgstr "Verzonden regelwijzigingen toepassen"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
-#, fuzzy
 msgid "Apply Sent To-do Changes"
 msgstr "Verzonden to-dowijzigingen toepassen"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Appointment"
 msgstr "Afspraak"
 
@@ -1452,7 +1397,6 @@ msgstr "Terugkeerpatroon van afspraak"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Appointment Window"
 msgstr "Afspraakvenster"
 
@@ -1482,7 +1426,6 @@ msgstr "april"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Archive"
 msgstr "Archiveren"
 
@@ -1494,13 +1437,11 @@ msgstr "Arial"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Arrange"
 msgstr "Rangschikken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Arrange\n"
 "By"
@@ -1510,25 +1451,21 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Arrange By"
 msgstr "Rangschikken op"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Arrange Contacts By"
 msgstr "Contactpersonen rangschikken op"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "Arrange Tasks By"
 msgstr "Taken rangschikken op"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Arrangement"
 msgstr "Rangschikking"
 
@@ -1618,7 +1555,6 @@ msgstr "Vraag de server van het account nu om de agenda rond deze vergadering."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Ask to be told when the message is read"
 msgstr "Laten weten wanneer het bericht is gelezen"
 
@@ -1689,7 +1625,6 @@ msgstr "Bijvoegen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Attach\n"
 "File"
@@ -1699,13 +1634,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Attach File"
 msgstr "Bestand bijvoegen"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
-#, fuzzy
 msgid "Attach Item"
 msgstr "Item bijvoegen"
 
@@ -1749,7 +1682,6 @@ msgstr "Opties voor bijlagen voor {name}"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Attachments"
 msgstr "Bijlagen"
 
@@ -1767,7 +1699,6 @@ msgstr "Aanwezigheid"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
-#, fuzzy
 msgid "Attendees"
 msgstr "Deelnemers"
 
@@ -1797,7 +1728,6 @@ msgstr "Automatisch"
 
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgid "Automatic Replies"
 msgstr "Automatische antwoorden"
 
@@ -1951,7 +1881,6 @@ msgstr "Beschikbare indelingen:"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Back"
 msgstr "Terug"
 
@@ -1986,7 +1915,6 @@ msgstr "Basic (gebruikersnaam en wachtwoord over een beveiligde verbinding)"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Basic Text"
 msgstr "Basistekst"
 
@@ -2022,7 +1950,6 @@ msgstr "Verjaardag"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Block Sender"
 msgstr "Afzender blokkeren"
 
@@ -2046,19 +1973,16 @@ msgstr "Hoofdtekst bevat"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bold"
 msgstr "Vet"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bookmark"
 msgstr "Bladwijzer"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "Bring Calendar to Front"
 msgstr "Agenda naar voren brengen"
 
@@ -2076,7 +2000,6 @@ msgstr "De index waar zoeken de antwoorden uit haalt, wordt opgebouwd; totdat di
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bullets"
 msgstr "Opsommingstekens"
 
@@ -2130,19 +2053,16 @@ msgstr "Op onderwerp"
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Calendar"
 msgstr "Agenda"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Calendar Changes to Send"
 msgstr "Agendawijzigingen om te verzenden"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "Calendar Colour"
 msgstr "Agendakleur"
 
@@ -2237,7 +2157,6 @@ msgstr "Annuleren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Cancel\n"
 "All"
@@ -2247,7 +2166,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
-#, fuzzy
 msgid "Cancel All"
 msgstr "Alles annuleren"
 
@@ -2265,19 +2183,16 @@ msgstr "Vergadering annuleren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Cancel Opening the Mailbox"
 msgstr "Openen van het postvak annuleren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Cancel Send/Receive"
 msgstr "Verzenden/ontvangen annuleren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Cancel Sign-In"
 msgstr "Aanmelden annuleren"
 
@@ -2307,7 +2222,6 @@ msgstr "Categorieën:"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Categorize"
 msgstr "Categoriseren"
 
@@ -2336,7 +2250,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Change\n"
 "View"
@@ -2346,7 +2259,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
-#, fuzzy
 msgid "Change Automatic Replies"
 msgstr "Automatische antwoorden wijzigen"
 
@@ -2364,7 +2276,6 @@ msgstr "Deze vergadering wijzigen?"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Change View"
 msgstr "Weergave wijzigen"
 
@@ -2466,13 +2377,11 @@ msgstr "Tekens (met spaties)"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Chart"
 msgstr "Grafiek"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Check\n"
 "Names"
@@ -2482,25 +2391,21 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Check Accessibility"
 msgstr "Toegankelijkheid controleren"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
-#, fuzzy
 msgid "Check Again"
 msgstr "Opnieuw controleren"
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Check Calendar Connection"
 msgstr "Agendaverbinding controleren"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Check Names"
 msgstr "Namen controleren"
 
@@ -2523,13 +2428,11 @@ msgstr "Wilt u dagelijks controleren op nieuwe versies van MailCraft, en die dow
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Check for New Versions"
 msgstr "Controleren op nieuwe versies"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
-#, fuzzy
 msgid "Check for Updates"
 msgstr "Controleren op updates"
 
@@ -2600,7 +2503,6 @@ msgstr "Bezig met controleren…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Choose Default Signature"
 msgstr "Standaardhandtekening kiezen"
 
@@ -2666,7 +2568,6 @@ msgstr "Klassiek lint"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clean Up"
 msgstr "Opruimen"
 
@@ -2678,31 +2579,26 @@ msgstr "Wissen"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clear All Categories"
 msgstr "Alle categorieën wissen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clear All Formatting"
 msgstr "Alle opmaak wissen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Clear Downloaded Pictures"
 msgstr "Gedownloade afbeeldingen wissen"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clear Flag"
 msgstr "Markering wissen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clear Formatting"
 msgstr "Opmaak wissen"
 
@@ -2743,19 +2639,16 @@ msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Clipboard"
 msgstr "Klembord"
 
 #. interface, ribbon
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
-#, fuzzy
 msgid "Close"
 msgstr "Sluiten"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Close Dialog"
 msgstr "Dialoogvenster sluiten"
 
@@ -2767,25 +2660,21 @@ msgstr "Sluit MailCraft, installeer de nieuwe versie en start het programma opni
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "Close Message"
 msgstr "Bericht sluiten"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Close Search"
 msgstr "Zoeken sluiten"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Close Signature"
 msgstr "Handtekening sluiten"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Close Window"
 msgstr "Venster sluiten"
 
@@ -2814,13 +2703,11 @@ msgstr "Sluit dit venster. Er wordt niets bewaard."
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Collapse Conversation"
 msgstr "Gesprek samenvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Collapse the Ribbon"
 msgstr "Het lint samenvouwen"
 
@@ -2832,7 +2719,6 @@ msgstr "Kleur"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Communicate"
 msgstr "Communiceren"
 
@@ -2888,7 +2774,6 @@ msgstr "Voltooid."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
-#, fuzzy
 msgid "Confirm Servers"
 msgstr "Servers bevestigen"
 
@@ -2906,7 +2791,6 @@ msgstr "Verbinden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Connect Calendar and Contacts"
 msgstr "Agenda en contactpersonen verbinden"
 
@@ -2942,29 +2826,23 @@ msgstr "Bezig verbinding te maken met de e-mailserver"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Contact"
 msgstr "Contactpersoon"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Contact\n"
 "Card"
-msgstr ""
-"Visite\n"
-"kaartje"
+msgstr "Visitekaartje"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Contact Attendees"
 msgstr "Deelnemers contacteren"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "Contact Card"
 msgstr "Visitekaartje"
 
@@ -3011,13 +2889,11 @@ msgstr "Kopieert een kort bericht met het adres van de pagina van Microsoft waar
 
 #. command label, interface, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
-#, fuzzy
 msgid "Copy"
 msgstr "Kopiëren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Copy\n"
 "Diagnostics"
@@ -3027,13 +2903,11 @@ msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Copy Diagnostics"
 msgstr "Diagnose kopiëren"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "Copy Event"
 msgstr "Gebeurtenis kopiëren"
 
@@ -3051,25 +2925,21 @@ msgstr "Koppeling kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Copy Link Address"
 msgstr "Koppelingsadres kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Copy Selected Text"
 msgstr "Geselecteerde tekst kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Copy a Link for Your Administrator"
 msgstr "Een koppeling voor uw beheerder kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Copy a Message for My Administrator"
 msgstr "Een bericht voor mijn beheerder kopiëren"
 
@@ -3105,7 +2975,6 @@ msgstr "Kopieer de versie, het platform en het einde van het eigen logboek van M
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Copy to Folder"
 msgstr "Kopiëren naar map"
 
@@ -3326,13 +3195,11 @@ msgstr "Bericht maken"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Create Rule"
 msgstr "Regel maken"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Create from Details"
 msgstr "Maken vanuit details"
 
@@ -3356,13 +3223,11 @@ msgstr "Huidig postvak"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Current View"
 msgstr "Huidige weergave"
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Cut"
 msgstr "Knippen"
 
@@ -3392,7 +3257,6 @@ msgstr "Datum"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Date &\n"
 "Time"
@@ -3402,7 +3266,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/writing_tools.rs
-#, fuzzy
 msgid "Date & Time"
 msgstr "Datum & tijd"
 
@@ -3426,7 +3289,6 @@ msgstr "Ontvangstdatum"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Day"
 msgstr "Dag"
 
@@ -3444,7 +3306,6 @@ msgstr "december"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Decline"
 msgstr "Afwijzen"
 
@@ -3486,7 +3347,6 @@ msgstr "Afgewezen: {title}"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Decrease Indent"
 msgstr "Inspringing verkleinen"
 
@@ -3498,13 +3358,11 @@ msgstr "Standaard"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Delete"
 msgstr "Verwijderen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Delete\n"
 "Folder"
@@ -3514,13 +3372,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Delete Calendar"
 msgstr "Agenda verwijderen"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "Delete Category"
 msgstr "Categorie verwijderen"
 
@@ -3538,13 +3394,11 @@ msgstr "Gesprek verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Delete Folder"
 msgstr "Map verwijderen"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
 msgid "Delete Meeting Requests after Responding"
 msgstr "Vergaderverzoeken verwijderen na het reageren"
 
@@ -3556,7 +3410,6 @@ msgstr "Mijn exemplaar verwijderen"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Delete Permanently"
 msgstr "Definitief verwijderen"
 
@@ -3568,19 +3421,16 @@ msgstr "Terugkerend item verwijderen"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Delete Rule"
 msgstr "Regel verwijderen"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Delete Signature"
 msgstr "Handtekening verwijderen"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
-#, fuzzy
 msgid "Delete Text"
 msgstr "Tekst verwijderen"
 
@@ -3657,7 +3507,6 @@ msgstr "Beschrijving"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Desktop Alerts"
 msgstr "Bureaubladmeldingen"
 
@@ -3705,13 +3554,11 @@ msgstr "Diagnose gekopieerd. Er is niets verzonden."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Diagram"
 msgstr "Diagram"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Digital Signature"
 msgstr "Digitale ondertekening"
 
@@ -3763,13 +3610,11 @@ msgstr "Digitaal ondertekend, ondertekenaar niet geverifieerd"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Direct Replies To"
 msgstr "Antwoorden rechtstreeks naar"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Discard"
 msgstr "Verwerpen"
 
@@ -3787,13 +3632,11 @@ msgstr "Alles negeren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Dismiss Reminder"
 msgstr "Herinnering negeren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Dismiss Settings Notice"
 msgstr "Instellingenmelding negeren"
 
@@ -3804,13 +3647,11 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Dismiss Update Notice"
 msgstr "Updatemelding negeren"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Dismiss Warnings"
 msgstr "Waarschuwingen negeren"
 
@@ -3918,31 +3759,26 @@ msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
-#, fuzzy
 msgid "Download"
 msgstr "Downloaden"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
 msgid "Download Exchange Messages in Full"
 msgstr "Exchange-berichten volledig downloaden"
 
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
-#, fuzzy
 msgid "Download JMAP Messages in Full"
 msgstr "JMAP-berichten volledig downloaden"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Download Messages in Full"
 msgstr "Berichten volledig downloaden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Download Pictures"
 msgstr "Afbeeldingen downloaden"
 
@@ -3954,7 +3790,6 @@ msgstr "Afbeeldingen in alle e-mail downloaden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
 
@@ -4058,7 +3893,6 @@ msgstr "Bezig {done} van {all} te downloaden · {large} grote berichten worden g
 
 #. interface, ribbon
 #: crates/ui-egui/src/compose.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Draft"
 msgstr "Concept"
 
@@ -4082,7 +3916,6 @@ msgstr "Concepten die u nog niet hebt verzonden, gaan naar uw Concepten op de se
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Drop Cap"
 msgstr "Initiaal"
 
@@ -4112,25 +3945,21 @@ msgstr "Vervaldatum:"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Due next week"
 msgstr "Vervalt volgende week"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Due this week"
 msgstr "Vervalt deze week"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Due today"
 msgstr "Vervalt vandaag"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Due tomorrow"
 msgstr "Vervalt morgen"
 
@@ -4165,7 +3994,6 @@ msgstr "Bewerken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Edit\n"
 "Contact"
@@ -4175,7 +4003,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Edit\n"
 "Task"
@@ -4185,37 +4012,31 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Edit Contact"
 msgstr "Contactpersoon bewerken"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Edit Event"
 msgstr "Gebeurtenis bewerken"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "Edit Message"
 msgstr "Bericht bewerken"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Edit Signature"
 msgstr "Handtekening bewerken"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "Edit Signature as Text"
 msgstr "Handtekening bewerken als tekst"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "Edit Task"
 msgstr "Taak bewerken"
 
@@ -4227,7 +4048,6 @@ msgstr "Handtekening bewerken als tekst"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Editing"
 msgstr "Bewerken"
 
@@ -4239,13 +4059,11 @@ msgstr "Beide knoppen schrijven aan {name}: uw antwoord en de tijd die u voorste
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Email"
 msgstr "E-mail"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Email\n"
 "Calendar"
@@ -4255,7 +4073,6 @@ msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
-#, fuzzy
 msgid "Email Calendar"
 msgstr "Agenda e-mailen"
 
@@ -4273,13 +4090,11 @@ msgstr "E-mailadres"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Email the people of this meeting"
 msgstr "De personen van deze vergadering e-mailen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Emoji"
 msgstr "Emoji"
 
@@ -4291,7 +4106,6 @@ msgstr "Leegmaken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Empty\n"
 "Folder"
@@ -4301,7 +4115,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Empty Folder"
 msgstr "Map leegmaken"
 
@@ -4313,7 +4126,6 @@ msgstr "Postvak leegmaken"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Enable Rule"
 msgstr "Regel inschakelen"
 
@@ -4343,9 +4155,8 @@ msgstr "Eindigt voordat het begint"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Equation"
-msgstr "Vergelijking"
+msgstr "Formule"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4475,19 +4286,16 @@ msgstr "Exchange-server · geen bruikbaar serveradres"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Expand Conversation"
 msgstr "Gesprek uitvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Expand or Collapse Calendar Group"
 msgstr "Agendagroep uitvouwen of samenvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Expand or Collapse Folder"
 msgstr "Map uitvouwen of samenvouwen"
 
@@ -4498,13 +4306,11 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Export"
 msgstr "Exporteren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Export\n"
 "Contacts"
@@ -4514,7 +4320,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Export\n"
 "Folder"
@@ -4524,13 +4329,11 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Export Contacts"
 msgstr "Contactpersonen exporteren"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Export Folder"
 msgstr "Map exporteren"
 
@@ -4560,19 +4363,16 @@ msgstr "Controle mislukt."
 
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Favorite"
 msgstr "Favoriet"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Favorites"
 msgstr "Favorieten"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Favorites from Outlook"
 msgstr "Favorieten uit Outlook"
 
@@ -4596,7 +4396,6 @@ msgstr "februari"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Feedback"
 msgstr "Feedback"
 
@@ -4608,7 +4407,6 @@ msgstr "Er zijn nog minder dan twee van deze contactpersonen, dus er is niets om
 
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "File"
 msgstr "Bestand"
 
@@ -4631,13 +4429,11 @@ msgstr "Bestanden zoals deze kunnen macro's bevatten, die net als programma's wo
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Filter"
 msgstr "Filteren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Filter\n"
 "Email"
@@ -4647,25 +4443,21 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Filter Email"
 msgstr "E-mail filteren"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Filter Tasks"
 msgstr "Taken filteren"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Find"
 msgstr "Zoeken"
 
 #. command label
 #: crates/engine/src/cmd/people_merge.rs
-#, fuzzy
 msgid "Find Duplicate Contacts"
 msgstr "Dubbele contactpersonen zoeken"
 
@@ -4677,7 +4469,6 @@ msgstr "Volgende zoeken"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Find Related Messages"
 msgstr "Gerelateerde berichten zoeken"
 
@@ -4718,7 +4509,6 @@ msgstr "Rond eerst het aanmelden af (uw browser wacht)"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "First Message"
 msgstr "Eerste bericht"
 
@@ -4742,7 +4532,6 @@ msgstr "Markering"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Flag Message"
 msgstr "Bericht markeren"
 
@@ -4766,39 +4555,30 @@ msgstr "De agenda's van deze groep invouwen"
 
 #. interface, name, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Folder"
 msgstr "Map"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Folder\n"
 "Pane"
-msgstr ""
-"Mappen\n"
-"venster"
+msgstr "Mappenvenster"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Folder\n"
 "Properties"
-msgstr ""
-"Map\n"
-"eigenschappen"
+msgstr "Mapeigenschappen"
 
 #. command label, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Folder Properties"
 msgstr "Mapeigenschappen"
 
@@ -4846,7 +4626,6 @@ msgstr "Map…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Follow\n"
 "Up"
@@ -4854,7 +4633,6 @@ msgstr "Opvolgen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Follow Up"
 msgstr "Opvolgen"
 
@@ -4872,19 +4650,16 @@ msgstr "Opvolgen. Vervalt op {date}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "Font"
 msgstr "Lettertype"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Font Color"
 msgstr "Tekstkleur"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Font Size"
 msgstr "Lettergrootte"
 
@@ -4913,13 +4688,11 @@ msgstr "Vergeten"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
-#, fuzzy
 msgid "Forget Downloaded Calendar and Contacts"
 msgstr "Gedownloade agenda en contactpersonen vergeten"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Forget Trusted Certificate"
 msgstr "Vertrouwd certificaat vergeten"
 
@@ -4931,31 +4704,26 @@ msgstr "De bewaarde afbeeldingen vergeten; ze worden opnieuw gedownload wanneer 
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Format"
 msgstr "Opmaak"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Format Painter"
 msgstr "Opmaak kopiëren"
 
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
-#, fuzzy
 msgid "Format Text"
 msgstr "Tekst opmaken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Format as HTML"
 msgstr "Opmaken als HTML"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Format as Plain Text"
 msgstr "Opmaken als tekst zonder opmaak"
 
@@ -4967,13 +4735,11 @@ msgstr "Forums"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Forward"
 msgstr "Doorsturen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Forward\n"
 "Contact"
@@ -4983,7 +4749,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Forward Contact"
 msgstr "Contactpersoon doorsturen"
 
@@ -4995,7 +4760,6 @@ msgstr "Dit exemplaar doorsturen…"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Forward as Attachment"
 msgstr "Doorsturen als bijlage"
 
@@ -5040,7 +4804,6 @@ msgstr "Vrij"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Free and Busy Times"
 msgstr "Vrije en bezette tijden"
 
@@ -5064,9 +4827,8 @@ msgstr "Van"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "From Sender"
-msgstr "Van afzender"
+msgstr "Van de afzender"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -5118,7 +4880,6 @@ msgstr "Georgia"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Get\n"
 "Support"
@@ -5128,13 +4889,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Get Contact"
 msgstr "Contactpersoon ophalen"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Get Event"
 msgstr "Gebeurtenis ophalen"
 
@@ -5145,7 +4904,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Get Message"
 msgstr "Bericht ophalen"
 
@@ -5156,13 +4914,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/help.rs
-#, fuzzy
 msgid "Get Support"
 msgstr "Ondersteuning krijgen"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "Get Task"
 msgstr "Taak ophalen"
 
@@ -5213,7 +4969,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Gmail\n"
 "Categories"
@@ -5223,7 +4978,6 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Gmail Categories"
 msgstr "Gmail-categorieën"
 
@@ -5284,13 +5038,11 @@ msgstr "Starten"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Go Back to the Previous Version"
 msgstr "Teruggaan naar de vorige versie"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Go To"
 msgstr "Ga naar"
 
@@ -5302,13 +5054,11 @@ msgstr "Teruggaan naar versie {version}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Go to Date"
 msgstr "Naar datum gaan"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Go to Folder"
 msgstr "Naar map gaan"
 
@@ -5338,7 +5088,6 @@ msgstr "Google"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Google Desktop Application ID"
 msgstr "ID van de Google-bureaubladtoepassing"
 
@@ -5460,13 +5209,11 @@ msgstr "Groep {n} van {total}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "HTML"
 msgstr "HTML"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "HTML Signature"
 msgstr "HTML-handtekening"
 
@@ -5490,7 +5237,6 @@ msgstr "Antwoorden laten verzenden naar"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
 
@@ -5526,7 +5272,6 @@ msgstr ""
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Help"
 msgstr "Help"
 
@@ -5538,7 +5283,6 @@ msgstr "Verbergen"
 
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
-#, fuzzy
 msgid "Hide Calendar Listed Twice"
 msgstr "Twee keer vermelde agenda verbergen"
 
@@ -5604,13 +5348,11 @@ msgstr "Hoog"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "High Contrast"
 msgstr "Hoog contrast"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "High Importance"
 msgstr "Hoog belang"
 
@@ -5634,19 +5376,16 @@ msgstr "Hoog bovenaan"
 
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
-#, fuzzy
 msgid "Hold Unsent Mail"
 msgstr "Onverzonden e-mail vasthouden"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Home"
 msgstr "Start"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Horizontal Line"
 msgstr "Horizontale lijn"
 
@@ -5670,7 +5409,6 @@ msgstr "Hoeveel berichten elke map bevat en hoeveel ruimte ze innemen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "I'm an Administrator: Approve MailCraft for My Organisation"
 msgstr "Ik ben beheerder: MailCraft voor mijn organisatie goedkeuren"
 
@@ -5682,7 +5420,6 @@ msgstr "Ik ben beheerder: het voor mijn organisatie goedkeuren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Icons"
 msgstr "Pictogrammen"
 
@@ -5758,13 +5495,11 @@ msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit ee
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Illustrations"
 msgstr "Illustraties"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
-#, fuzzy
 msgid "Import"
 msgstr "Importeren"
 
@@ -5792,7 +5527,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Import a .pst File"
 msgstr "Een .pst-bestand importeren"
 
@@ -5803,7 +5537,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Import a Folder of Mailboxes"
 msgstr "Een map met postvakken importeren"
 
@@ -6025,7 +5758,6 @@ msgstr "Postvak IN"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Include"
 msgstr "Opnemen"
 
@@ -6049,7 +5781,6 @@ msgstr "Inkomende e-mail (IMAP)"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Increase Indent"
 msgstr "Inspringing vergroten"
 
@@ -6061,25 +5792,21 @@ msgstr "E-mail indexeren: {percent}%"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Info"
 msgstr "Info"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Info and File"
 msgstr "Info en bestand"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/symbol.rs
-#, fuzzy
 msgid "Insert"
 msgstr "Invoegen"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Insert Calendar"
 msgstr "Agenda invoegen"
 
@@ -6091,7 +5818,6 @@ msgstr "Koppeling invoegen"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "Insert Picture"
 msgstr "Afbeelding invoegen"
 
@@ -6103,13 +5829,11 @@ msgstr "Binnen mijn organisatie"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Inspect View"
 msgstr "Weergave inspecteren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Install Updates Automatically"
 msgstr "Updates automatisch installeren"
 
@@ -6121,19 +5845,16 @@ msgstr "Updates automatisch installeren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Interface Language"
 msgstr "Taal van de interface"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Interface Size"
 msgstr "Grootte van de interface"
 
 #. command label, ribbon
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Interface Theme"
 msgstr "Thema van de interface"
 
@@ -6293,13 +6014,11 @@ msgstr "Deze wacht op deze computer tot To Do voor dit account is toegestaan"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Italic"
 msgstr "Cursief"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Item"
 msgstr "Item"
 
@@ -6379,13 +6098,11 @@ msgstr "Functie"
 
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Join"
 msgstr "Deelnemen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Join Online Meeting"
 msgstr "Deelnemen aan onlinevergadering"
 
@@ -6426,13 +6143,11 @@ msgstr "juni"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Junk"
 msgstr "Ongewenste e-mail"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Junk E-mail Options"
 msgstr "Opties voor ongewenste e-mail"
 
@@ -6467,7 +6182,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Keep Rule on Server"
 msgstr "Regel op de server bewaren"
 
@@ -6588,7 +6302,6 @@ msgstr "Label"
 
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Language"
 msgstr "Taal"
 
@@ -6606,7 +6319,6 @@ msgstr "Grootste bovenaan"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Last Message"
 msgstr "Laatste bericht"
 
@@ -6648,7 +6360,6 @@ msgstr "Deze agenda over de andere leggen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Layout"
 msgstr "Indeling"
 
@@ -6701,49 +6412,41 @@ msgstr "Beperkte details: en de titels"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Line Spacing"
 msgstr "Regelafstand"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "Link"
 msgstr "Koppeling"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Links"
 msgstr "Koppelingen"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "List Accounts"
 msgstr "Accounts opsommen"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "List Calendars"
 msgstr "Agenda's opsommen"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "List Contacts"
 msgstr "Contactpersonen opsommen"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "List Events"
 msgstr "Gebeurtenissen opsommen"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "List Folders"
 msgstr "Mappen opsommen"
 
@@ -6754,7 +6457,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "List Messages"
 msgstr "Berichten opsommen"
 
@@ -6765,7 +6467,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "List Tasks"
 msgstr "Taken opsommen"
 
@@ -6795,7 +6496,6 @@ msgstr "Bekijk het certificaat dat de server nu toont. Er wordt niet aangemeld z
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Look for This Meeting on the Calendar"
 msgstr "Deze vergadering in de agenda zoeken"
 
@@ -6842,7 +6542,6 @@ msgstr "Laag"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Low Importance"
 msgstr "Laag belang"
 
@@ -6872,7 +6571,6 @@ msgstr "Gemaakt in een ander programma of op het web, met onderdelen die MailCra
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Mail"
 msgstr "E-mail"
 
@@ -6961,7 +6659,6 @@ msgstr "Alleen e-mail"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Mail to Keep Offline"
 msgstr "E-mail om offline te bewaren"
 
@@ -7253,13 +6950,11 @@ msgstr "Maakt één testafspraak een jaar na vandaag in de agenda van uw account
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Manage Calendars"
 msgstr "Agenda's beheren"
 
 #. command label, interface
 #: crates/engine/src/cmd/rules.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Manage Rules"
 msgstr "Regels beheren"
 
@@ -7271,7 +6966,6 @@ msgstr "Regels beheren…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Manage Task"
 msgstr "Taak beheren"
 
@@ -7289,7 +6983,6 @@ msgstr "maart"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Mark\n"
 "Complete"
@@ -7299,7 +6992,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Mark All\n"
 "as Read"
@@ -7309,13 +7001,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Mark All as Read"
 msgstr "Alles als gelezen markeren"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Mark Complete"
 msgstr "Als voltooid markeren"
 
@@ -7338,13 +7028,11 @@ msgstr "Een bericht als gelezen markeren wanneer het in het leesvenster wordt ge
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Mark as Read"
 msgstr "Als gelezen markeren"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Mark as Unread"
 msgstr "Als ongelezen markeren"
 
@@ -7379,7 +7067,6 @@ msgstr "mei"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Meeting"
 msgstr "Vergadering"
 
@@ -7391,7 +7078,6 @@ msgstr "Samenvoegen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Merge\n"
 "Duplicates"
@@ -7401,7 +7087,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people_merge.rs
-#, fuzzy
 msgid "Merge Contacts"
 msgstr "Contactpersonen samenvoegen"
 
@@ -7427,29 +7112,23 @@ msgstr[1] "{n} contactpersonen samenvoegen…"
 
 #. interface, name, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Message"
 msgstr "Bericht"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Message\n"
 "Preview"
-msgstr ""
-"Bericht\n"
-"voorbeeld"
+msgstr "Berichtvoorbeeld"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Message Preview"
 msgstr "Berichtvoorbeeld"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Messages"
 msgstr "Berichten"
 
@@ -7473,9 +7152,8 @@ msgstr "Uit \"{name}\" verwijderde berichten staan nog in \"{trash}\""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Messages from Sender"
-msgstr "Berichten van afzender"
+msgstr "Berichten van de afzender"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -7509,7 +7187,6 @@ msgstr "Van \"{name}\" naar \"{to}\" verplaatste berichten staan ook nog in \"{n
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Messages on a Light Background"
 msgstr "Berichten op een lichte achtergrond"
 
@@ -7539,7 +7216,6 @@ msgstr "E-mail van Microsoft 365 wordt toegevoegd als een Microsoft-account: u m
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Microsoft Application ID"
 msgstr "Toepassings-id van Microsoft"
 
@@ -7659,19 +7335,16 @@ msgstr "maandag"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Month"
 msgstr "Maand"
 
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "More Options"
 msgstr "Meer opties"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "More Results on the Server"
 msgstr "Meer resultaten op de server"
 
@@ -7713,13 +7386,11 @@ msgstr "Het grootste deel van de naam van de afzender bestaat uit tekens die nie
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Move"
 msgstr "Verplaatsen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Move\n"
 "Folder"
@@ -7729,7 +7400,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Move Account"
 msgstr "Account verplaatsen"
 
@@ -7747,13 +7417,11 @@ msgstr "Omlaag"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Move Event"
 msgstr "Gebeurtenis verplaatsen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Move Folder"
 msgstr "Map verplaatsen"
 
@@ -7771,7 +7439,6 @@ msgstr "Terugkerend item verplaatsen"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
-#, fuzzy
 msgid "Move Rule"
 msgstr "Regel verplaatsen"
 
@@ -7819,19 +7486,16 @@ msgstr "Naar agenda verplaatsen"
 
 #. command label, interface
 #: crates/engine/src/cmd/gmail_move.rs crates/ui-egui/src/gmail_move.rs
-#, fuzzy
 msgid "Move to Category"
-msgstr "Verplaatsen naar categorie"
+msgstr "Naar categorie verplaatsen"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Move to Folder"
 msgstr "Naar map verplaatsen"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Move to Junk"
 msgstr "Naar ongewenste e-mail verplaatsen"
 
@@ -7855,7 +7519,6 @@ msgstr "Naar map verplaatsen"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Move to the Account's Calendar"
 msgstr "Naar de agenda van het account verplaatsen"
 
@@ -7914,7 +7577,6 @@ msgstr "Geef op naar wie het moet. Er wordt niemand aangeschreven totdat u op Ve
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Names"
 msgstr "Namen"
 
@@ -7932,7 +7594,6 @@ msgstr "Namen of adressen, gescheiden door ;"
 
 #. ribbon location
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Navigation"
 msgstr "Navigatie"
 
@@ -7972,13 +7633,11 @@ msgstr "Heeft aanmelding bij Google nodig"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Never Block Sender"
 msgstr "Afzender nooit blokkeren"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Never Block Sender's Domain"
 msgstr "Domein van de afzender nooit blokkeren"
 
@@ -7990,13 +7649,11 @@ msgstr "Nooit afspelen"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "New"
 msgstr "Nieuw"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Appointment"
@@ -8006,7 +7663,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Contact"
@@ -8016,7 +7672,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Email"
@@ -8026,7 +7681,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Folder"
@@ -8036,7 +7690,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Items"
@@ -8046,7 +7699,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Meeting"
@@ -8056,7 +7708,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "New\n"
 "Task"
@@ -8072,55 +7723,46 @@ msgstr "Nieuwe gebeurtenis voor de hele dag"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "New Appointment"
 msgstr "Nieuwe afspraak"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "New Category"
 msgstr "Nieuwe categorie"
 
 #. command label, interface
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "New Contact"
 msgstr "Nieuwe contactpersoon"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "New Email"
 msgstr "Nieuwe e-mail"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "New Folder"
 msgstr "Nieuwe map"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "New Items"
 msgstr "Nieuwe items"
 
 #. command label
 #: crates/engine/src/cmd/file.rs
-#, fuzzy
 msgid "New Mailbox"
 msgstr "Nieuw postvak"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "New Meeting"
 msgstr "Nieuwe vergadering"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "New Task"
 msgstr "Nieuwe taak"
 
@@ -8180,7 +7822,6 @@ msgstr "Volgende"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Next 7\n"
 "Days"
@@ -8190,13 +7831,11 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "Next 7 Days"
 msgstr "Komende 7 dagen"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Next Message"
 msgstr "Volgend bericht"
 
@@ -8213,7 +7852,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Next Week"
 msgstr "Volgende week"
 
@@ -8243,7 +7881,6 @@ msgstr "Geen kleur"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "No Date"
 msgstr "Geen datum"
 
@@ -8390,7 +8027,6 @@ msgstr "Er worden geen gedownloade afbeeldingen op deze computer bewaard."
 
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "No due date"
 msgstr "Geen vervaldatum"
 
@@ -8598,7 +8234,6 @@ msgstr "Normaal"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Not Junk"
 msgstr "Geen ongewenste e-mail"
 
@@ -8709,7 +8344,6 @@ msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Notes"
 msgstr "Notities"
 
@@ -8823,13 +8457,11 @@ msgstr "november"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "Number of Days"
 msgstr "Aantal dagen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Numbering"
 msgstr "Nummering"
 
@@ -8841,7 +8473,6 @@ msgstr "OK"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Object"
 msgstr "Object"
 
@@ -9107,13 +8738,11 @@ msgstr "Alleen wanneer MailCraft niet het voorste venster is, en alleen voor de 
 
 #. interface, ribbon
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Open"
 msgstr "Openen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Open\n"
 "Calendar"
@@ -9123,31 +8752,26 @@ msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open & Export"
 msgstr "Openen & exporteren"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Open Attachment"
 msgstr "Bijlage openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open Data Folder"
 msgstr "Gegevensmap openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open Dialog"
 msgstr "Dialoogvenster openen"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
-#, fuzzy
 msgid "Open Draft"
 msgstr "Concept openen"
 
@@ -9159,7 +8783,6 @@ msgstr "Gegevensmap van MailCraft openen"
 
 #. command label
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open Mailbox"
 msgstr "Postvak openen"
 
@@ -9177,19 +8800,16 @@ msgstr "Terugkerend item openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open Replies and Forwards in a New Window"
 msgstr "Antwoorden en doorgestuurde berichten in een nieuw venster openen"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
 msgid "Open Result from the Server"
 msgstr "Resultaat van de server openen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
-#, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Gedeelde agenda openen"
 
@@ -9201,7 +8821,6 @@ msgstr "Een postvak van uw organisatie openen waartoe u Volledige toegang hebt g
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Open a message you sent as a new one"
 msgstr "Een bericht dat u hebt verzonden, openen als een nieuw bericht"
 
@@ -9213,7 +8832,6 @@ msgstr "In een venster openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Open in a Window of Its Own"
 msgstr "In een eigen venster openen"
 
@@ -9351,7 +8969,6 @@ msgstr "Optioneel"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Options"
 msgstr "Opties"
 
@@ -9441,7 +9058,6 @@ msgstr "Uitgaande e-mail (SMTP)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Outlook's Favorites"
 msgstr "Favorieten van Outlook"
 
@@ -9495,7 +9111,6 @@ msgstr "Achterstallig: moest klaar zijn op {when}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Overlay"
 msgstr "Overlappen"
 
@@ -9513,13 +9128,11 @@ msgstr "p.m."
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Page Down"
 msgstr "Page Down"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Page Up"
 msgstr "Page Up"
 
@@ -9537,7 +9150,6 @@ msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoe
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Paragraph"
 msgstr "Alinea"
 
@@ -9585,7 +9197,6 @@ msgstr "Wachtwoord:"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Paste"
 msgstr "Plakken"
 
@@ -9615,7 +9226,6 @@ msgstr "In ontwikkeling"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
-#, fuzzy
 msgid "People"
 msgstr "Personen"
 
@@ -9669,13 +9279,11 @@ msgstr "Afbeelding"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Picture Layout"
 msgstr "Indeling van de afbeelding"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Picture Size and Description"
 msgstr "Grootte en beschrijving van de afbeelding"
 
@@ -9693,7 +9301,6 @@ msgstr "Afbeelding naast de tekst"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Pictures"
 msgstr "Afbeeldingen"
 
@@ -9741,13 +9348,11 @@ msgstr "Afbeeldingen: {n} KB van {max} KB"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Pin"
 msgstr "Vastmaken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Pin to the top of the list"
 msgstr "Bovenaan de lijst vastmaken"
 
@@ -9759,7 +9364,6 @@ msgstr "Vastgemaakt"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Plain\n"
 "Text"
@@ -9769,7 +9373,6 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Plain Text"
 msgstr "Tekst zonder opmaak"
 
@@ -9799,7 +9402,6 @@ msgstr "Beleid"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Pop\n"
 "Out"
@@ -9809,7 +9411,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
-#, fuzzy
 msgid "Pop Out"
 msgstr "Loskoppelen"
 
@@ -9821,7 +9422,6 @@ msgstr "Postcode"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Preferences"
 msgstr "Voorkeuren"
 
@@ -9876,7 +9476,6 @@ msgstr "Vorige"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Previous Message"
 msgstr "Vorig bericht"
 
@@ -9905,7 +9504,6 @@ msgstr "Primair, Social, Promoties, Updates en Forums, zoals Gmail uw Postvak IN
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Private"
 msgstr "Persoonlijk"
 
@@ -9917,13 +9515,11 @@ msgstr "Promoties"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Proofing"
 msgstr "Controle"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Properties"
 msgstr "Eigenschappen"
 
@@ -9941,7 +9537,6 @@ msgstr "Voorstellen"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Propose New Time"
 msgstr "Nieuwe tijd voorstellen"
 
@@ -10038,7 +9633,6 @@ msgstr "Zet de dagen die u kiest van uw agenda in het bericht, op de plaats van 
 
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs
-#, fuzzy
 msgid "Quick Access"
 msgstr "Snelle toegang"
 
@@ -10062,7 +9656,6 @@ msgstr "Gelezen"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
 msgid "Read Invitation"
 msgstr "Uitnodiging lezen"
 
@@ -10092,17 +9685,13 @@ msgstr "Alleen-lezen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reading\n"
 "Pane"
-msgstr ""
-"Lees\n"
-"venster"
+msgstr "Leesvenster"
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Reading Pane"
 msgstr "Leesvenster"
 
@@ -10156,7 +9745,6 @@ msgstr "Recent"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Recent\n"
 "Searches"
@@ -10166,7 +9754,6 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Recent Searches"
 msgstr "Recente zoekopdrachten"
 
@@ -10207,13 +9794,11 @@ msgstr "Terugkeerpatroon"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Redo"
 msgstr "Opnieuw"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
-#, fuzzy
 msgid "Redo Typing"
 msgstr "Typen opnieuw"
 
@@ -10235,13 +9820,11 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Related"
 msgstr "Gerelateerd"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Remember Passwords and Sign-Ins"
 msgstr "Wachtwoorden en aanmeldingen onthouden"
 
@@ -10265,7 +9848,6 @@ msgstr "Mij later opnieuw herinneren"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Reminder"
 msgstr "Herinnering"
 
@@ -10277,23 +9859,18 @@ msgstr "Herinnering voor nieuwe afspraken"
 
 #. interface, ribbon location
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Reminders"
 msgstr "Herinneringen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reminders\n"
 "Window"
-msgstr ""
-"Herinneringen\n"
-"venster"
+msgstr "Herinneringenvenster"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Reminders Window"
 msgstr "Herinneringenvenster"
 
@@ -10305,13 +9882,11 @@ msgstr "Verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Remove Account"
 msgstr "Account verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
-#, fuzzy
 msgid "Remove Attachment"
 msgstr "Bijlage verwijderen"
 
@@ -10335,7 +9910,6 @@ msgstr "Gegevens van MailCraft verwijderen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Remove MailCraft's Data from This Computer"
 msgstr "Gegevens van MailCraft van deze computer verwijderen"
 
@@ -10347,13 +9921,11 @@ msgstr "Gegevens van MailCraft van deze computer verwijderen…"
 
 #. command label
 #: crates/engine/src/cmd/offline.rs
-#, fuzzy
 msgid "Remove Older Mail from This Computer"
 msgstr "Oudere e-mail van deze computer verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "Remove Picture"
 msgstr "Afbeelding verwijderen"
 
@@ -10370,13 +9942,11 @@ msgstr "Terugkeerpatroon verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Remove Shared Calendar"
 msgstr "Gedeelde agenda verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/shared.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Gedeeld postvak verwijderen"
 
@@ -10398,7 +9968,6 @@ msgstr "Deelnemers verwijderen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Remove from\n"
 "Favorites"
@@ -10408,7 +9977,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
-#, fuzzy
 msgid "Remove from Calendar"
 msgstr "Verwijderen uit agenda"
 
@@ -10420,7 +9988,6 @@ msgstr "Verwijderen uit favorieten"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
-#, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Verwijderen uit veilige of geblokkeerde afzenders"
 
@@ -10461,7 +10028,6 @@ msgstr "Hernoemen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Rename\n"
 "Folder"
@@ -10471,19 +10037,16 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/category.rs
-#, fuzzy
 msgid "Rename Category"
 msgstr "Categorie hernoemen"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Rename Folder"
 msgstr "Map hernoemen"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Rename Signature"
 msgstr "Handtekening hernoemen"
 
@@ -10501,7 +10064,6 @@ msgstr "Herhaling"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Replace"
 msgstr "Vervangen"
 
@@ -10531,13 +10093,11 @@ msgstr "Antwoorden en doorsturen"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Reply"
 msgstr "Beantwoorden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reply\n"
 "All"
@@ -10547,7 +10107,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
-#, fuzzy
 msgid "Reply All"
 msgstr "Allen beantwoorden"
 
@@ -10559,13 +10118,11 @@ msgstr "Allen beantwoorden"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Reply and Delete"
 msgstr "Beantwoorden en verwijderen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Reply by Email"
 msgstr "Beantwoorden per e-mail"
 
@@ -10583,13 +10140,11 @@ msgstr "Personen buiten mijn organisatie beantwoorden"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Reply with Meeting"
 msgstr "Beantwoorden met vergadering"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Report a\n"
 "Problem"
@@ -10599,7 +10154,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Report a Problem"
 msgstr "Een probleem melden"
 
@@ -10611,7 +10165,6 @@ msgstr "Antwoorden vragen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Leesbevestiging aanvragen"
 
@@ -10623,29 +10176,25 @@ msgstr "Vereist"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Resend Message"
 msgstr "Bericht opnieuw verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reset\n"
 "View"
 msgstr ""
-"Beeld\n"
+"Weergave\n"
 "herstellen"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Reset View"
-msgstr "Beeld herstellen"
+msgstr "Weergave herstellen"
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Respond"
 msgstr "Reageren"
 
@@ -10663,7 +10212,6 @@ msgstr "Antwoord"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Response Options"
 msgstr "Antwoordopties"
 
@@ -10675,7 +10223,6 @@ msgstr "Antwoordopties zijn voor een vergadering: nodig eerst iemand uit."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Restart to Update"
 msgstr "Opnieuw starten om bij te werken"
 
@@ -10703,7 +10250,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Reverse\n"
 "Sort"
@@ -10713,7 +10259,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
-#, fuzzy
 msgid "Reverse Sort"
 msgstr "Sortering omkeren"
 
@@ -10725,7 +10270,6 @@ msgstr "De volgorde omkeren"
 
 #. ribbon location
 #: crates/engine/src/cmd/writing_tools.rs
-#, fuzzy
 msgid "Review"
 msgstr "Controleren"
 
@@ -10749,13 +10293,11 @@ msgstr "Intrekking:"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Ribbon"
 msgstr "Lint"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Ribbon\n"
 "Layout"
@@ -10765,13 +10307,11 @@ msgstr ""
 
 #. command label, interface, ribbon
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Ribbon Layout"
 msgstr "Lintindeling"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Rich Text"
 msgstr "Tekst met opmaak"
 
@@ -10789,13 +10329,11 @@ msgstr "Meteen ervoor of erna: {items}"
 
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
-#, fuzzy
 msgid "Rule Changes to Send"
-msgstr "Te verzenden regelwijzigingen"
+msgstr "Regelwijzigingen om te verzenden"
 
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Rules"
 msgstr "Regels"
 
@@ -10879,7 +10417,6 @@ msgstr "Regels: wacht op uw toestemming om ze op de server te bewaren"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Run Rules\n"
 "Now"
@@ -10889,7 +10426,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Run Rules Now"
 msgstr "Regels nu uitvoeren"
 
@@ -10949,7 +10485,6 @@ msgstr "Opslaan"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Save\n"
 "Calendar"
@@ -10959,7 +10494,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Save\n"
 "Draft"
@@ -10975,7 +10509,6 @@ msgstr "Opslaan & sluiten"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Save All Attachments"
 msgstr "Alle bijlagen opslaan"
 
@@ -10987,7 +10520,6 @@ msgstr "Alle bijlagen opslaan…"
 
 #. ribbon location
 #: crates/engine/src/cmd/file.rs
-#, fuzzy
 msgid "Save As"
 msgstr "Opslaan als"
 
@@ -10999,37 +10531,31 @@ msgstr "Opslaan als…"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Save Attachment"
 msgstr "Bijlage opslaan"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Save Calendar"
 msgstr "Agenda opslaan"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Save Draft"
 msgstr "Concept opslaan"
 
 #. command label
 #: crates/engine/src/cmd/file.rs
-#, fuzzy
 msgid "Save Mailbox"
 msgstr "Postvak opslaan"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Save Mailbox As"
 msgstr "Postvak opslaan als"
 
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Save Message As"
 msgstr "Bericht opslaan als"
 
@@ -11041,13 +10567,11 @@ msgstr "Bericht opslaan als…"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Save Message File As"
 msgstr "Berichtbestand opslaan als"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
-#, fuzzy
 msgid "Save Signature"
 msgstr "Handtekening opslaan"
 
@@ -11095,7 +10619,6 @@ msgstr "Wegschrijven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Saved Text"
 msgstr "Opgeslagen tekst"
 
@@ -11221,7 +10744,6 @@ msgstr "Geeft aan wat u en de beheerder van uw organisatie kunnen doen, en laat 
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Screenshot"
 msgstr "Schermopname"
 
@@ -11233,13 +10755,11 @@ msgstr "Scripts en agenten"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Search"
 msgstr "Zoeken"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Search\n"
 "Calendar"
@@ -11249,7 +10769,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Search\n"
 "Commands"
@@ -11259,7 +10778,6 @@ msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
-#, fuzzy
 msgid "Search Calendar"
 msgstr "Agenda zoeken"
 
@@ -11271,13 +10789,11 @@ msgstr "Opdrachten zoeken"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Search People"
 msgstr "Personen zoeken"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Search Suggestions"
 msgstr "Zoeksuggesties"
 
@@ -11365,43 +10881,36 @@ msgstr "Zien wanneer andere personen bezet zijn, vereist uw toestemming: Bestand
 
 #. command label, name
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Select All"
 msgstr "Alles selecteren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Select All Text in Message"
 msgstr "Alle tekst in het bericht selecteren"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
-#, fuzzy
 msgid "Select Contact"
 msgstr "Contactpersoon selecteren"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Select Event"
 msgstr "Gebeurtenis selecteren"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Select Message"
 msgstr "Bericht selecteren"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "Select Task"
 msgstr "Taak selecteren"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
-#, fuzzy
 msgid "Select Text"
 msgstr "Tekst selecteren"
 
@@ -11442,25 +10951,21 @@ msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Send"
 msgstr "Verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/reading.rs
-#, fuzzy
 msgid "Send Again"
 msgstr "Opnieuw verzenden"
 
@@ -11472,13 +10977,11 @@ msgstr "Annulering verzenden"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
-#, fuzzy
 msgid "Send Local Tasks to To Do"
 msgstr "Lokale taken naar To Do verzenden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Send Status\n"
 "Report"
@@ -11488,7 +10991,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
-#, fuzzy
 msgid "Send Status Report"
 msgstr "Statusrapport verzenden"
 
@@ -11631,13 +11133,11 @@ msgstr[1] "Uw {n} lokale taken naar To Do van {address} verzenden?"
 
 #. interface, ribbon
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Send/Receive"
 msgstr "Verzenden/ontvangen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Send/Receive\n"
 "All Folders"
@@ -11647,7 +11147,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "Verzenden/ontvangen alle mappen"
 
@@ -11683,19 +11182,16 @@ msgstr "Verzenden/ontvangen is onverwacht gestopt"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
-#, fuzzy
 msgid "Send/Receive with Exchange Web Services"
 msgstr "Verzenden/ontvangen met Exchange Web Services"
 
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
-#, fuzzy
 msgid "Send/Receive with JMAP"
 msgstr "Verzenden/ontvangen met JMAP"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph"
 
@@ -11867,13 +11363,11 @@ msgstr "Instellingen…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Shapes"
 msgstr "Vormen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Share"
 msgstr "Delen"
 
@@ -11915,13 +11409,11 @@ msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar/share.rs
-#, fuzzy
 msgid "Show"
 msgstr "Weergeven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Show\n"
 "Progress"
@@ -11931,7 +11423,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Show\n"
 "Training"
@@ -11941,19 +11432,16 @@ msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Show As"
 msgstr "Weergeven als"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Show Calendar"
 msgstr "Agenda weergeven"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Show Contacts Of"
 msgstr "Contactpersonen tonen van"
 
@@ -11976,25 +11464,21 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
-#, fuzzy
 msgid "Show Only This Calendar"
 msgstr "Alleen deze agenda weergeven"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
-#, fuzzy
 msgid "Show Outlook's Favorites"
 msgstr "Favorieten van Outlook weergeven"
 
 #. command label
 #: crates/engine/src/cmd/sync_progress.rs
-#, fuzzy
 msgid "Show Progress"
 msgstr "Voortgang weergeven"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Show Ribbon Tab"
 msgstr "Linttabblad weergeven"
 
@@ -12006,19 +11490,16 @@ msgstr "Voortgang van verzenden/ontvangen weergeven"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Show Sender Images"
 msgstr "Afbeeldingen van afzenders tonen"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
-#, fuzzy
 msgid "Show Tasks Of"
 msgstr "Taken tonen van"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
-#, fuzzy
 msgid "Show Training"
 msgstr "Training weergeven"
 
@@ -12048,7 +11529,6 @@ msgstr "Weergeven als"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Show as\n"
 "Conversations"
@@ -12058,19 +11538,16 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
-#, fuzzy
 msgid "Show as Conversations"
 msgstr "Weergeven als gesprekken"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
 msgid "Show in Calendar"
 msgstr "Weergeven in agenda"
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Show in Groups"
 msgstr "Weergeven in groepen"
 
@@ -12214,7 +11691,6 @@ msgstr "Toont {path}, met het postvak dat nu open is, in uw bestandsbeheerder. D
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Side-by-\n"
 "Side"
@@ -12224,7 +11700,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "Side-by-Side"
 msgstr "Naast elkaar"
 
@@ -12242,7 +11717,6 @@ msgstr "Opnieuw aanmelden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Sign In Again for Automatic Replies"
 msgstr "Opnieuw aanmelden voor automatische antwoorden"
 
@@ -12380,7 +11854,6 @@ msgstr "Aanmelding geannuleerd"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Signature"
 msgstr "Handtekening"
 
@@ -12392,7 +11865,6 @@ msgstr "Ondertekingsbestand:"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
-#, fuzzy
 msgid "Signatures"
 msgstr "Handtekeningen"
 
@@ -12488,7 +11960,6 @@ msgstr "Vereenvoudigd lint"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Single Line"
 msgstr "Eén regel"
 
@@ -12500,7 +11971,6 @@ msgstr "Grootte"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
-#, fuzzy
 msgid "Skip"
 msgstr "Overslaan"
 
@@ -12535,13 +12005,11 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
-#, fuzzy
 msgid "Snooze"
 msgstr "Uitstellen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Snooze Reminders"
 msgstr "Herinneringen uitstellen"
 
@@ -12612,13 +12080,11 @@ msgstr "Bron van {subject}"
 
 #. command label
 #: crates/engine/src/cmd/offline.rs
-#, fuzzy
 msgid "Space Older Mail Takes"
 msgstr "Ruimte die oudere e-mail inneemt"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Spelling & Grammar"
 msgstr "Spelling & grammatica"
 
@@ -12690,13 +12156,11 @@ msgstr "Staat of regio"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Status bar"
 msgstr "Statusbalk"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Status bar · File"
 msgstr "Statusbalk · Bestand"
 
@@ -12797,7 +12261,6 @@ msgstr "Sterkere tekst en randen, in het lichte of het donkere thema."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Styles"
 msgstr "Stijlen"
 
@@ -12827,13 +12290,11 @@ msgstr "Onderwerp:"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "Suggest Account Settings"
 msgstr "Accountinstellingen voorstellen"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
-#, fuzzy
 msgid "Suggest Recipients"
 msgstr "Geadresseerden voorstellen"
 
@@ -12863,7 +12324,6 @@ msgstr "Overschakelen naar aanmelden met Google"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Switch to Microsoft Graph"
 msgstr "Overschakelen naar Microsoft Graph"
 
@@ -12880,13 +12340,11 @@ msgstr "Bij het overschakelen naar aanmelden met Google blijven uw gedownloade b
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Symbol"
 msgstr "Symbool"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Symbols"
 msgstr "Symbolen"
 
@@ -12904,19 +12362,16 @@ msgstr "System"
 
 #. interface, ribbon
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Table"
 msgstr "Tabel"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Tables"
 msgstr "Tabellen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Tags"
 msgstr "Labels"
 
@@ -12944,7 +12399,6 @@ msgstr ""
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Task"
 msgstr "Taak"
 
@@ -12962,7 +12416,6 @@ msgstr "Taak:"
 
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
-#, fuzzy
 msgid "Tasks"
 msgstr "Taken"
 
@@ -13034,7 +12487,6 @@ msgstr "Teams"
 
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Teams Meeting"
 msgstr "Teams-vergadering"
 
@@ -13058,7 +12510,6 @@ msgstr "Tenant"
 
 #. interface, name, ribbon
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Tentative"
 msgstr "Voorlopig"
 
@@ -13088,25 +12539,21 @@ msgstr "Testers worden vermeld wanneer zij dat aangeven; zie docs/contributors.m
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Text"
 msgstr "Tekst"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Text Box"
 msgstr "Tekstvak"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Text Effects"
 msgstr "Teksteffecten"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Text Highlight Color"
 msgstr "Tekstmarkeringskleur"
 
@@ -14412,7 +13859,6 @@ msgstr "De gegevens zijn hetzelfde; de behouden contactpersoon verliest niets."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Theme"
 msgstr "Thema"
 
@@ -14472,7 +13918,6 @@ msgstr "Er is geen postvak op {address}."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Thesaurus"
 msgstr "Synoniemenlijst"
 
@@ -14544,7 +13989,6 @@ msgstr "Ze delen {what}."
 
 #. name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "This Week"
 msgstr "Deze week"
 
@@ -15342,7 +14786,6 @@ msgstr "Inhoudsmap van het postvak wordt opgeruimd…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Tighter\n"
 "Spacing"
@@ -15352,7 +14795,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
-#, fuzzy
 msgid "Tighter Spacing"
 msgstr "Kleinere afstand"
 
@@ -15364,29 +14806,23 @@ msgstr "Tijd"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Time\n"
 "Scale"
-msgstr ""
-"Tijd\n"
-"schaal"
+msgstr "Tijdschaal"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Time Scale"
 msgstr "Tijdschaal"
 
 #. command label
 #: crates/engine/src/cmd/zones.rs
-#, fuzzy
 msgid "Time Zone"
 msgstr "Tijdzone"
 
 #. command label, interface
 #: crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs
-#, fuzzy
 msgid "Time Zones"
 msgstr "Tijdzones"
 
@@ -15535,7 +14971,6 @@ msgstr "Om een andere server of gebruikersnaam te gebruiken, verwijdert u het ac
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
-#, fuzzy
 msgid "To-do Changes to Send"
 msgstr "To-dowijzigingen om te verzenden"
 
@@ -15553,13 +14988,11 @@ msgstr "Aan: {names}"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Today"
 msgstr "Vandaag"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
-#, fuzzy
 msgid "Tomorrow"
 msgstr "Morgen"
 
@@ -15601,13 +15034,11 @@ msgstr "Totale grootte"
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Tracking"
 msgstr "Bijhouden"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Translate"
 msgstr "Vertalen"
 
@@ -15637,13 +15068,11 @@ msgstr "Vertrouwd certificaat (SHA-256-vingerafdruk):"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Try Downloading Pictures Again"
 msgstr "Afbeeldingen opnieuw downloaden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
@@ -15708,7 +15137,6 @@ msgstr "Twee of meer van deze accounts hebben hetzelfde adres. Bevestig alleen a
 
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
-#, fuzzy
 msgid "Type"
 msgstr "Typen"
 
@@ -15749,19 +15177,16 @@ msgstr "Onder een map op deze computer:"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Underline"
 msgstr "Onderstrepen"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "Undo"
 msgstr "Ongedaan maken"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
-#, fuzzy
 msgid "Undo Typing"
 msgstr "Typen ongedaan maken"
 
@@ -15785,7 +15210,6 @@ msgstr "Ongelezen berichten in de map zelf"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Unread/\n"
 "Read"
@@ -15795,7 +15219,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
-#, fuzzy
 msgid "Unread/ Read"
 msgstr "Ongelezen/ Gelezen"
 
@@ -16019,13 +15442,11 @@ msgstr "Versie {version} is gereed:"
 
 #. name, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
-#, fuzzy
 msgid "View"
 msgstr "Beeld"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/reading/invitation.rs
-#, fuzzy
 msgid "View All Proposals"
 msgstr "Alle voorstellen weergeven"
 
@@ -16037,7 +15458,6 @@ msgstr "Alle voorstellen weergeven…"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "View Source"
 msgstr "Bron weergeven"
 
@@ -16102,13 +15522,11 @@ msgstr "woensdag"
 
 #. command label, name, ribbon
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Week"
 msgstr "Week"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
-#, fuzzy
 msgid "Week Numbers"
 msgstr "Weeknummers"
 
@@ -16155,7 +15573,6 @@ msgstr "Wat van de genodigden wordt gevraagd, is aan de organisator."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Wat te doen wanneer uw organisatie MailCraft moet goedkeuren"
 
@@ -16207,7 +15624,6 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "What's\n"
 "New"
@@ -16217,7 +15633,6 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/help.rs
-#, fuzzy
 msgid "What's New"
 msgstr "Wat is nieuw"
 
@@ -16269,9 +15684,8 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Who has answered, and how"
-msgstr "Wie heeft geantwoord, en hoe"
+msgstr "Wie heeft geantwoord en hoe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -16293,7 +15707,6 @@ msgstr "Breedte"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Window"
 msgstr "Venster"
 
@@ -16315,7 +15728,6 @@ msgstr "Zonder dit gebruikt de agenda de werktijden van uw Microsoft 365-postvak
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Word\n"
 "Count"
@@ -16325,7 +15737,6 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "Word Count"
 msgstr "Aantal woorden"
 
@@ -16349,7 +15760,6 @@ msgstr "Werk"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Work\n"
 "Offline"
@@ -16359,29 +15769,23 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Work\n"
 "Week"
-msgstr ""
-"Werk\n"
-"week"
+msgstr "Werkweek"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
-#, fuzzy
 msgid "Work Offline"
 msgstr "Offline werken"
 
 #. command label, name
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs
-#, fuzzy
 msgid "Work Week"
 msgstr "Werkweek"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
-#, fuzzy
 msgid "Work in Calendar"
 msgstr "In de agenda werken"
 
@@ -16399,7 +15803,6 @@ msgstr "Elders werkzaam"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
-#, fuzzy
 msgid "Working Hours"
 msgstr "Werktijden"
 
@@ -16423,7 +15826,6 @@ msgstr "Offline: e-mail die u verzendt, wacht in het Postvak UIT"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Write to the organizer without answering"
 msgstr "De organisator schrijven zonder te antwoorden"
 
@@ -16841,25 +16243,21 @@ msgstr "Z bovenaan"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Zoom"
 msgstr "Zoom"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
-#, fuzzy
 msgid "Zoom In"
 msgstr "Inzoomen"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
-#, fuzzy
 msgid "Zoom Out"
 msgstr "Uitzoomen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Zoom the Message"
 msgstr "Het bericht zoomen"
 
