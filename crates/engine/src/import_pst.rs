@@ -949,7 +949,7 @@ pub fn categories(xml: &str) -> Vec<(String, Rgb)> {
         }
         let Some(name) = attribute(tag, "name").and_then(|n| mailcraft_model::clean_name(&n)) else { continue };
         let color = attribute(tag, "color").and_then(|c| c.trim().parse::<i64>().ok()).and_then(mailcraft_model::preset_category_color);
-        if !out.iter().any(|(n, _)| n.eq_ignore_ascii_case(&name)) {
+        if !out.iter().any(|(n, _)| mailcraft_model::sync::same_category(n, &name)) {
             out.push((name, color.unwrap_or(mailcraft_model::GREY_CATEGORY)));
         }
         if out.len() >= MAX_CATEGORIES {

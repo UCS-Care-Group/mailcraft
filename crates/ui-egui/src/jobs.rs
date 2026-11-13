@@ -39,6 +39,7 @@ impl MailApp {
             calendar: self.calendar.rx.is_some(),
             tasks: self.tasks.busy(),
             rules: self.rules.busy(),
+            categories: self.category_sync.busy(),
             auto_replies: self.auto_replies.busy(),
             free_busy: self.free_busy.busy(),
             graph: self.graph_rx.is_some(),
@@ -69,6 +70,7 @@ impl MailApp {
             JobKind::FreeBusy => self.free_busy.busy(),
             JobKind::Tasks => self.tasks.busy(),
             JobKind::Rules => self.rules.busy(),
+            JobKind::Categories => self.category_sync.busy(),
             JobKind::AutoReplies => self.auto_replies.busy(),
             JobKind::SignIn => self.signing_in.is_some(),
             JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..)))),
@@ -89,6 +91,8 @@ impl MailApp {
                 // ids may name others here (#566).
                 JobKind::Tasks => self.tasks = Default::default(),
                 JobKind::Rules => self.rules = Default::default(),
+                // And of the categories, with whether each list may be changed (#661).
+                JobKind::Categories => self.category_sync = Default::default(),
                 JobKind::AutoReplies => self.auto_replies_forget_if_replaced(),
                 JobKind::SignIn => {
                     if let Some(s) = self.signing_in.take() {

@@ -719,7 +719,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
                 account.as_slice(),
                 &carried,
                 "people.categorize",
-                |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
+                |app, name| {
+                    app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
+                },
                 None,
             );
         });

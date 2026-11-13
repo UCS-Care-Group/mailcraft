@@ -204,3 +204,22 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
+
+/// An agent's ask for keeping an account in step with Outlook (#661) names the account and what
+/// it covers, for the one question's id and the older ones that put it; `account` is read as the
+/// window reads it.
+#[test]
+fn an_agents_ask_to_keep_in_step_with_outlook_names_the_account_and_what_it_covers() {
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), 1_791_993_600, 0);
+    let graph = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let imap = json!({"email": "sam@example.org", "auth": "oauth2", "provider": "microsoft", "kind": "imap"});
+    let imap = s.run("account.add", &imap).unwrap()["id"].as_u64().unwrap();
+    for id in ["ui.allowSync", "ui.allowTasks", "ui.allowRules", "ui.allowAutomaticReplies"] {
+        let d = describe(&s, id, &json!({"account": graph, "confirmed": true}));
+        assert!(d.contains("noor@example.org") && d.contains("tasks, rules, automatic replies and categories"), "{id}: {d}");
+        let d = describe(&s, id, &json!({"account": imap, "confirmed": true}));
+        assert!(d.contains("sam@example.org") && d.contains("the tasks and automatic replies of"), "{id}: {d}");
+        let d = describe(&s, id, &json!({"account": format!("{graph}.0").parse::<f64>().unwrap(), "confirmed": true}));
+        assert!(d.contains("isn't there") && !d.contains("noor@example.org"), "{id}: {d}");
+    }
+}

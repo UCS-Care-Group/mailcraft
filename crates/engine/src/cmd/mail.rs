@@ -872,20 +872,28 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
     })
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the category, the accounts of the messages it
+/// is put on or taken off, and whether it is put on. The agent gate reads them through this too
+/// (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(String, BTreeSet<Id>, bool), crate::CmdError> {
     let name = mailcraft_model::clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     let ids = targets(s, v)?;
     let all_have = ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.has_category(&name));
     let on = p::bool(v, "value").unwrap_or(!all_have);
+    let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
+    Ok((name, accounts, on))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (name, accounts, on) = categorizing(s, v)?;
     // Each message takes the spelling of its account's list. A category nobody defined yet joins
     // that list as it is put on, in grey, so it can be given a colour.
-    let accounts: BTreeSet<Id> = ids.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| m.account).collect();
     let mut spelled = HashMap::new();
     for account in accounts {
         spelled.insert(account, super::category::spelled(s, account, &name, on)?);
     }
     each(s, v, |m| {
-        m.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
+        m.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));
         if on {
             m.categories.push(spelled.get(&m.account).unwrap_or(&name).clone());
         }

@@ -2567,6 +2567,7 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
             mailcraft_model::Category { name: "Project X\r\n".into(), color: Rgb(7, 7, 7) },
             mailcraft_model::Category { name: " ".into(), color: Rgb(1, 1, 1) },
         ],
+        complete: true,
     };
     assert_eq!(super::apply_categories(&mut s, &categories).unwrap()["changed"], 2);
     assert_eq!(s.mailbox.category("red category").map(|c| (c.name.as_str(), c.color)), Some(("RED Category", Rgb(9, 9, 9))));

@@ -87,6 +87,23 @@ fn a_server_that_does_not_answer_is_given_longer_each_time_and_an_answer_ends_it
 }
 
 #[test]
+fn a_job_that_came_to_nothing_waits_from_when_its_answer_was_read() {
+    // (#661: a job that ran long, or an answer read after the window went a while without a
+    // frame, is not made to have waited already.)
+    let mut d = CalendarDriver::default();
+    let p = Pacing::CALENDAR;
+    d.clock = 50_000.0;
+    d.answered(1, true, 0.0);
+    assert!(!d.book.patient(&p, 1, p.first_retry_ms));
+    assert!(!d.book.patient(&p, 1, 50_000.0 + p.first_retry_ms - 1.0));
+    assert!(d.book.patient(&p, 1, 50_000.0 + p.first_retry_ms));
+    // (Never from before the job started.)
+    d.clock = 0.0;
+    d.answered(2, true, 70_000.0);
+    assert!(!d.book.patient(&p, 2, 70_000.0 + p.first_retry_ms - 1.0));
+}
+
+#[test]
 fn the_wide_stretch_is_due_every_quarter_of_an_hour_and_at_start_up() {
     assert!(CalendarDriver::directory_due(None, 0.0));
     assert!(!CalendarDriver::directory_due(Some(0.0), CALENDAR_DIRECTORY_MS));

@@ -397,3 +397,37 @@ fn any_change_to_a_meeting_in_a_shared_mailbox_waits_for_sending_from_it() {
     let upload = crate::cmd::remote::event_upload(&s, shared).unwrap();
     assert!(!upload.ops.is_empty() && upload.ops.iter().all(mailcraft_model::remote::EventOp::mails_others), "{upload:?}");
 }
+
+#[test]
+fn an_account_added_by_an_alias_is_reminded_of_its_other_calendars_and_lists_them_as_its_own() {
+    // Added by an alias (or a sign-in name): its server names the owner of its calendars by the
+    // mailbox's main address, the main calendar's owner too (#661).
+    const ALIAS: &str = "o.wner@example.org";
+    let mut s = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let a = s.run("account.add", &json!({"email": ALIAS, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let me = Some(CalendarOwner { address: OWNER.into(), name: "Owner".into() });
+    let bo = Some(CalendarOwner { address: "bo@example.org".into(), name: "Bo".into() });
+    let calendars = vec![
+        RemoteCalendar { id: "own-main".into(), name: "Calendar".into(), main: true, rights: Rights::Edit, owner: me.clone(), ..Default::default() },
+        RemoteCalendar { id: "work".into(), name: "Work".into(), rights: Rights::Edit, owner: me, ..Default::default() },
+        RemoteCalendar { id: "bo".into(), name: "Bo".into(), rights: Rights::Read, owner: bo, ..Default::default() },
+    ];
+    apply_calendars(&mut s, &CalendarsDownload { account: a, email: ALIAS.into(), complete: true, calendars, ..Default::default() }).unwrap();
+    let soon = NOW + 600;
+    apply_events(&mut s, &download(a, ALIAS, "work", vec![event("w", "Work's", soon)])).unwrap();
+    apply_events(&mut s, &download(a, ALIAS, "bo", vec![event("b", "Bo's", soon)])).unwrap();
+    let due: Vec<String> = due_reminders(&s, s.local_now()).into_iter().map(|r| r.title).collect();
+    assert_eq!(due, ["Work's"], "the owner's other calendar reminds, a colleague's doesn't");
+    let groups: Vec<(String, Vec<String>)> = calendar_groups(&s)
+        .iter()
+        .filter(|g| g.account != 0)
+        .map(|g| (g.title.clone(), g.calendars.iter().map(|id| s.mailbox.calendar(*id).map(|c| c.name.clone()).unwrap_or_default()).collect()))
+        .collect();
+    assert_eq!(
+        groups,
+        vec![
+            ("My Calendars".to_string(), vec!["Calendar".to_string(), "Work".to_string()]),
+            ("Shared Calendars".to_string(), vec!["Bo".to_string()]),
+        ]
+    );
+}

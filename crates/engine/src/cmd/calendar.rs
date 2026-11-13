@@ -406,7 +406,9 @@ fn default_start(s: &Session) -> DateTime {
     }
 }
 
-fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+/// A new event as `calendar.new` or `calendar.newMeeting` with `v` has it, before the calendar
+/// it goes into is settled.
+fn drafted(s: &Session, v: &Value) -> Result<Event, CmdError> {
     let start = default_start(s);
     let mut e = Event { start, end: start.add_minutes(30), reminder_minutes: s.prefs.default_reminder, ..Default::default() };
     if p::bool(v, "allDay") == Some(true) {
@@ -416,6 +418,11 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         e.show_as = ShowAs::Free;
     }
     apply(s, &mut e, v)?;
+    Ok(e)
+}
+
+fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
+    let mut e = drafted(s, v)?;
     if e.title.is_empty() {
         return Err(bad("`title` is required"));
     }
@@ -638,6 +645,46 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     let people = before.attendees.len().max(e.attendees.len());
     let seen = remote::seen_by_others(&remote::changed_fields(&before, &e, &remote::offset_of(s)));
     (people > 0 && seen).then_some(Mail::Update(people))
+}
+
+/// What `calendar.new`, `calendar.newMeeting` or `calendar.edit` with `v` does to an event's
+/// categories, read as the commands read it, for the agent gate (#661): the account whose list
+/// they use (that of the calendar the event ends up in), the names given, the names it had and
+/// the account of the calendar it was in. `None` when it gives none, or names a calendar or an
+/// event the command would refuse.
+pub(crate) fn categories_given(s: &Session, id: &str, v: &Value) -> Option<(Id, Vec<String>, Vec<String>, Id)> {
+    let given = p::strings(v, "categories")?;
+    let account_of = |calendar: Id| s.mailbox.calendar(calendar).map_or(0, |c| c.origin.account);
+    match id {
+        "calendar.new" | "calendar.newMeeting" => {
+            // The calendar it goes into, as `create` finds it: a meeting kept on this computer
+            // (`send`: false) goes into one of this computer's, and one that says neither is
+            // refused.
+            let e = drafted(s, v).ok()?;
+            let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
+            let people = served(s, calendar) && !e.attendees.is_empty();
+            let account = match p::bool(v, "send") {
+                Some(false) if people => 0,
+                None if people => return None,
+                _ => account_of(calendar),
+            };
+            Some((account, given, Vec::new(), account))
+        }
+        "calendar.edit" => {
+            let before = changing(s, v).ok()?;
+            let was = s.mailbox.event_account(&before);
+            // One day of a series stays in the series' calendar, whatever `calendar` says.
+            let calendar = match part(s, &before, v).ok()? {
+                Part::One(_) => before.calendar,
+                Part::Series => match p::id(v, "calendar") {
+                    Some(c) => s.mailbox.calendar(c)?.id,
+                    None => before.calendar,
+                },
+            };
+            Some((account_of(calendar), given, before.categories, was))
+        }
+        _ => None,
+    }
 }
 
 /// The categories `v` gives the event `before` becomes as `e` take the spelling of the list of
@@ -982,20 +1029,28 @@ fn private(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "private": private}))
 }
 
-fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+/// What a Categorize call does, as its params say: the event as it is before, the category, the
+/// account whose list the event uses, and whether it is put on. The agent gate reads them
+/// through this too (#661), so that the two never differ.
+pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Event, String, Id, bool), CmdError> {
     let before = changing(s, v)?;
-    let id = before.id;
     let name = clean_name(p::req_str(v, "category")?).ok_or_else(|| bad("`category` is empty"))?;
     if kept_by(s, &before).is_some() {
         writable(s, before.calendar)?;
     }
-    let has = before.categories.iter().any(|c| c.eq_ignore_ascii_case(&name));
+    let has = before.categories.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
     let on = p::bool(v, "value").unwrap_or(!has);
-    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let account = s.mailbox.event_account(&before);
+    Ok((before, name, account, on))
+}
+
+fn categorize(s: &mut Session, v: &Value) -> CmdResult {
+    let (before, name, account, on) = categorizing(s, v)?;
+    let id = before.id;
+    // The event takes the spelling of its calendar's account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let e = s.mailbox.event_mut(id)?;
-    e.categories.retain(|c| !c.eq_ignore_ascii_case(&name));
+    e.categories.retain(|c| !mailcraft_model::sync::same_category(c, &name));
     if on {
         e.categories.push(spelling);
     }

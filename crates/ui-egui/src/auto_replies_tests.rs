@@ -25,7 +25,7 @@ const NOW: i64 = 1_791_993_600;
 
 type Jobs = Arc<Mutex<Vec<(Id, Option<AutoReplies>)>>>;
 type Answers = Arc<Mutex<VecDeque<AutoRepliesResult>>>;
-type SignIns = Arc<Mutex<Vec<(Id, bool, bool)>>>;
+type SignIns = Arc<Mutex<Vec<(Id, bool)>>>;
 
 fn tokens(refresh: &str) -> Tokens {
     Tokens { access: "a".into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
@@ -48,7 +48,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.replies, req.tasks));
+        log.lock().unwrap().push((req.account, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("ref-2"))).unwrap();
         rx
@@ -129,7 +129,7 @@ fn a_change_without_the_permission_asks_the_owner_and_goes_once_he_allows_it() {
     app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
     app.poll_auto_replies();
     let Some(Dialog::Confirm { command, params, .. }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowAutomaticReplies", Some(owner)));
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
     assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Asking));
     assert!(sign_ins.lock().unwrap().is_empty(), "no page before a yes");
     // Not meant without a yes.
@@ -143,7 +143,7 @@ fn a_change_without_the_permission_asks_the_owner_and_goes_once_he_allows_it() {
         ..Default::default()
     });
     app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
-    assert_eq!(sign_ins.lock().unwrap()[0], (owner, true, false));
+    assert_eq!(sign_ins.lock().unwrap()[0], (owner, true));
     app.poll_sign_in();
     // The change that waited goes now, with the new sign-in, and is said.
     let (account, change) = jobs.lock().unwrap().last().cloned().unwrap();
@@ -168,11 +168,13 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
     assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Declined));
     assert!(said(&app).contains("weren't changed"), "{}", said(&app));
     let (line, again) = app.auto_replies_line(owner).unwrap();
-    assert!(again == Some(Again::Ask) && line.contains("waits for your permission"), "{line}");
+    assert!(again.is_none() && line.contains("waits for your permission"), "{line}");
+    // File › Info's one line offers Ask again (#661).
+    assert!(app.sync_line(owner).unwrap().2);
     // The next change asks at once, without a job.
     let before = jobs.lock().unwrap().len();
     app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
-    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies"));
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"));
     assert_eq!(jobs.lock().unwrap().len(), before);
     // And Microsoft's no: dropped, said, offered again.
     app.dialog = None;
@@ -184,9 +186,31 @@ fn a_question_that_goes_away_drops_the_change_and_file_info_asks_again() {
     app.run("ui.allowAutomaticReplies", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
     assert!(matches!(app.auto_replies.perm.get(&owner), Some(Permission::Refused(_))));
-    assert_eq!(app.auto_replies_line(owner).unwrap().1, Some(Again::Ask));
+    assert!(app.sync_line(owner).unwrap().2);
     assert_eq!(jobs.lock().unwrap().len(), before);
     assert!(sign_ins.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_change_after_the_question_was_closed_for_something_else_asks_again_and_waits() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    // At the start, another of the four (the categories, say) put the question, and it was closed.
+    app.sync_not_now(owner);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    // The owner's own change: asked again, and it waits for the answer, not dropped.
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"), "the owner is asked");
+    assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Asking));
+    assert!(!said(&app).contains("weren't changed"), "{}", said(&app));
+    let before = jobs.lock().unwrap().len();
+    app.dialog = None;
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, changed: true, ..Default::default() });
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let (_, change) = jobs.lock().unwrap().last().cloned().unwrap();
+    assert!(jobs.lock().unwrap().len() > before && change.and_then(|c| c.status) == Some(AutoReplyStatus::Disabled));
 }
 
 #[test]
@@ -414,7 +438,7 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
             assert!(app.signing_in());
         }
         app.poll_auto_replies();
-        assert!(!matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies"), "{busy}");
+        assert!(!matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"), "{busy}");
         assert_eq!(app.auto_replies.perm.get(&owner), Some(&Permission::Needed), "{busy}");
         assert!(said(&app).contains("weren't changed"), "{busy}: {}", said(&app));
         // Asked again later: the permission alone; the old change never goes.
@@ -481,4 +505,40 @@ fn why_automatic_replies_werent_changed_is_one_heading_and_a_reason() {
     // A reason with braces in it is said as it came, not filled in again.
     set_current(Lang::English);
     assert_eq!(Unchanged::Failed("{heading}".to_string()).said(), "Your automatic replies weren't changed: {heading}");
+}
+
+#[test]
+fn a_sign_in_as_somebody_else_drops_the_change_that_waited_and_a_later_yes_sends_nothing_of_it() {
+    let (mut app, owner, answers, jobs, _) = window();
+    read(&mut app, owner, &answers);
+    answers.lock().unwrap().push_back(AutoRepliesResult { account: owner, write_consent_needed: true, ..Default::default() });
+    app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
+    app.poll_auto_replies();
+    assert!(matches!(&app.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowSync"));
+    // The page signs in another mailbox: the change is dropped and said, as main did.
+    app.dialog = None;
+    app.services.sign_in = Some(Box::new(|_| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(Tokens { email: "someone@example.org".into(), ..tokens("ref-x") })).unwrap();
+        rx
+    }));
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    assert!(said(&app).contains("weren't changed"), "{}", said(&app));
+    // A later yes, as the owner: nothing of the old change goes.
+    let before = jobs.lock().unwrap().len();
+    app.services.sign_in = Some(Box::new(|_| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Ok(tokens("ref-2"))).unwrap();
+        rx
+    }));
+    app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    app.auto_replies_tick_at(10.0);
+    // And when the next read is due, it reads, and sends nothing of it either.
+    app.poll_auto_replies();
+    app.auto_replies_tick_at(1e15);
+    let jobs = jobs.lock().unwrap();
+    assert!(jobs.len() > before, "read again when due");
+    assert!(jobs.iter().skip(before).all(|(_, change)| change.is_none()), "nothing of the old change goes");
 }

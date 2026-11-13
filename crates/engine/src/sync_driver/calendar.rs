@@ -51,6 +51,10 @@ pub struct CalendarDriver {
     /// When each account's calendar was last asked for, the failures since the last answer and
     /// the changes waiting.
     pub book: JobBook,
+    /// The time as the front end's last look read it (milliseconds): a job's answer is taken in
+    /// within a frame of it, so a job that came to nothing waits from when it ended, however long
+    /// it ran (#661).
+    pub clock: f64,
     /// What an account's server was last told, and when: the very same again right away would
     /// mean that the telling doesn't settle anything, and is left for later.
     sent: HashMap<Id, (EventsUpload, f64)>,
@@ -194,10 +198,11 @@ impl CalendarDriver {
         }
     }
 
-    /// The job answered: it brought nothing (`nothing`, which the failures count), or it worked.
+    /// The job answered: it brought nothing (`nothing`, which the failures count, from when the
+    /// answer was read: [`clock`](Self::clock), and never before the job `started`), or it worked.
     pub fn answered(&mut self, account: Id, nothing: bool, started: f64) {
         if nothing {
-            self.book.failed(account, started);
+            self.book.failed(account, self.clock.max(started));
         } else {
             self.book.worked(account);
         }

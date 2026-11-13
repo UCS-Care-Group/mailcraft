@@ -149,21 +149,22 @@ const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send
 const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 /// What keeping the owner's to-dos in step with Microsoft To Do takes (#248): reading and
 /// changing the lists and tasks of the signed-in owner. Put to the owner on the page of a new
-/// sign-in beside the rest ([`Endpoints::consent`]; a page that won't have it is asked again
-/// without), and on the administrator's list. It is **not** part of [`MICROSOFT_GRAPH`]: a sign-in
-/// from before it was asked for would get no token at all for calendar and contacts. A job for
-/// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
-/// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
+/// sign-in beside the rest, as an extra a page that won't have it is asked again without
+/// ([`Endpoints::consent`], [`Endpoints::lesser`]), and on the administrator's list. It is **not**
+/// part of [`MICROSOFT_GRAPH`]: a sign-in from before it was asked for would get no token at all
+/// for calendar and contacts. A job for the to-dos asks for it by itself ([`refresh_graph_tasks`]);
+/// a sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_SETTINGS_WRITE`] together ([`sign_in_for_sync`]).
 const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 /// What changing the mailbox's settings takes: its automatic replies (File › Info › Automatic
-/// Replies) and the rules of its Inbox (`messageRules`, #566). Asked for by itself, the first
-/// time the owner changes either and after the window has asked him, never with a sign-in, so
-/// that a sign-in never waits on it, and on the administrator's list; a sign-in reads both with
-/// [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks for it
-/// ([`refresh_graph_replies`], [`refresh_graph_rules`]); a sign-in that doesn't cover it gets
-/// [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_replies`],
-/// [`sign_in_for_rules`]). The categories and the working hours are never written with it, nor
-/// anything else of the settings.
+/// Replies), the rules of its Inbox (`messageRules`, #566) and its list of categories
+/// (`masterCategories`, #661). Put to the owner on the page of a new sign-in beside the rest, as
+/// an extra a page that won't have it is asked again without, and on the administrator's list; a
+/// sign-in reads all three with [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks
+/// for it ([`refresh_graph_replies`], [`refresh_graph_rules`], [`refresh_graph_categories`]); a
+/// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_TASKS`] together ([`sign_in_for_sync`]). The working
+/// hours are never written with it, nor anything else of the settings.
 const MICROSOFT_GRAPH_SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
@@ -274,15 +275,17 @@ impl Endpoints {
                 // The optional extras are only ever put to the owner on the page, beside what the
                 // tokens are for: a provider that won't have them there is asked again without
                 // them ([`sign_in`]), so that asking for more never costs what was to be had.
-                let (scope, consent) = match resource {
+                let (scope, lesser) = match resource {
                     Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS}")),
                     Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                     Resource::GraphMail => (format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                 };
-                // (With the Favorites' permissions on the same page, were that wanted: what was
-                // asked for before them is then what a refused page falls back to.)
-                let (consent, lesser) =
-                    if FAVORITES_AT_SIGN_IN { (format!("{consent} {MICROSOFT_GRAPH_FAVORITES}"), consent) } else { (consent, String::new()) };
+                // Keeping the to-dos, the rules, the automatic replies and the categories in step
+                // with the server (#661): a page that won't have them is asked again for what
+                // was asked before them, and then for the tokens alone.
+                let consent = format!("{lesser} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE}");
+                // (With the Favorites' permissions on the same page, were that wanted.)
+                let consent = if FAVORITES_AT_SIGN_IN { format!("{consent} {MICROSOFT_GRAPH_FAVORITES}") } else { consent };
                 Endpoints {
                     authorize: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/authorize"),
                     token: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/token"),
@@ -430,9 +433,9 @@ fn sign_in_refused_via(
     let (mut consent, lesser) = (endpoints.consent.trim(), endpoints.lesser.trim());
     let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     // The page won't have all it was asked for (the provider has no such permission for this
-    // kind of account, or it is not the owner's to give), and there is less that is known to be
-    // had: once more, for that.
-    let unwilling = |refused: &Refused| matches!(refused.about, About::Scope | About::Consent);
+    // kind of account, or it is not the owner's to give, or an administrator has to approve it),
+    // and there is less that is known to be had: once more, for that.
+    let unwilling = |refused: &Refused| matches!(refused.about, About::Scope | About::Consent) || refused.policy == Policy::Approval;
     if !lesser.is_empty() && lesser != consent && outcome.as_ref().is_err_and(unwilling) {
         log::debug!("the sign-in was refused for what it asked for; asking again for what it asked for before");
         consent = lesser;
@@ -853,21 +856,10 @@ fn tasks_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_TASKS} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program read and change the to-dos of the
-/// signed-in owner (`Tasks.ReadWrite`). Only when a to-do job found the sign-in doesn't cover
-/// it, after the window has asked him, and never with an ordinary sign-in of an account that
-/// was made before it was asked for. A no says whose it is ([`FavoritesRefusal`]); nothing is
-/// tried a second time.
-pub fn sign_in_for_tasks(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: tasks_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph`] for a to-do job (#248): the tokens are asked for with `Tasks.ReadWrite`,
 /// and for nothing less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the
 /// to-dos are neither read nor sent, everything else goes on, and the window asks the owner
-/// ([`sign_in_for_tasks`]). Microsoft says no to a personal account that never agreed in the
+/// ([`sign_in_for_sync`]). Microsoft says no to a personal account that never agreed in the
 /// words of a sign-in that is over (#520), so a no is put to the account's mail with the same
 /// refresh token, as [`refresh_graph_at`] does: if it still takes it, it is the permission.
 /// `mail` is how the account's mail is had: [`Resource::Mail`] (IMAP and SMTP) or
@@ -925,21 +917,10 @@ fn rules_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program change the rules his server keeps
-/// (`MailboxSettings.ReadWrite`, the permission the automatic replies are changed with). Only
-/// when a rule is to go to the server and the sign-in doesn't cover it, after the window has
-/// asked him, and never with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]);
-/// nothing is tried a second time.
-pub fn sign_in_for_rules(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: rules_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph_mail`] for a rules job with changes to send (#566): the tokens are asked for
 /// with `MailboxSettings.ReadWrite`, and for nothing less. A sign-in that doesn't cover it gets
 /// [`NetError::ConsentNeeded`]: nothing of the rules is sent, everything else goes on, and the
-/// window asks the owner ([`sign_in_for_rules`]).
+/// window asks the owner ([`sign_in_for_sync`]).
 pub fn refresh_graph_rules(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints::for_resource(oauth, Resource::GraphMail);
     refresh_graph_rules_at(&endpoints, &endpoints, oauth, refresh_token)
@@ -956,16 +937,6 @@ pub fn refresh_graph_rules_at(endpoints: &Endpoints, mail: &Endpoints, oauth: &O
 /// asked for, and changing the mailbox's settings on top.
 fn replies_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
-}
-
-/// Ask the owner, on the provider's page, to let this program change the mailbox's settings
-/// (`MailboxSettings.ReadWrite`), for its automatic replies. Only when a job that changes them
-/// found the sign-in doesn't cover it, after the window has asked him; never with a sign-in.
-/// A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
-pub fn sign_in_for_replies(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: replies_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
 /// Tokens for changing the automatic replies (and reading them back): asked for with
@@ -985,6 +956,55 @@ pub fn refresh_graph_replies_at(
     refresh_token: &str,
 ) -> Result<GraphTokens, NetError> {
     refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the automatic replies")
+}
+
+/// What the one question of the window for an account signed in before #661 asks for: what
+/// keeping the to-dos, the rules, the automatic replies and the categories in step with the
+/// server takes, together; with `mail_write`, for an account kept in step through Graph (R3),
+/// reading and changing its mail as well, and for no other.
+fn sync_scope(mail_write: bool) -> String {
+    let mail = if mail_write { format!(" {MICROSOFT_GRAPH_MAIL}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, once, for everything that keeping the account's
+/// to-dos, rules, automatic replies and categories in step with its server takes
+/// (`Tasks.ReadWrite`, `MailboxSettings.ReadWrite`): for an account that signed in before they
+/// were put on a sign-in's page, after the window has asked him; `mail_write` as for
+/// [`sync_scope`]. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
+pub fn sign_in_for_sync(
+    oauth: &OAuth,
+    login_hint: &str,
+    mail_write: bool,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+) -> Result<Tokens, FavoritesRefusal> {
+    sign_in_for_favorites_within(&sync_endpoints(oauth, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// The page and the tokens [`sign_in_for_sync`] asks for: [`sync_scope`], in one request, with
+/// nothing less to fall back to.
+fn sync_endpoints(oauth: &OAuth, mail_write: bool) -> Endpoints {
+    let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
+    Endpoints { scope: sync_scope(mail_write), consent: String::new(), lesser: String::new(), ..plain }
+}
+
+/// Tokens for changing the account's list of categories (#661), and for reading it back: asked
+/// for with `MailboxSettings.ReadWrite`, and for nothing less, as [`refresh_graph_replies`] is.
+/// A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the list is read-only here.
+pub fn refresh_graph_categories(oauth: &OAuth, refresh_token: &str, mail: Resource) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_categories_at(&endpoints, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_categories`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_categories_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
+    refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the categories")
 }
 
 /// One go at signing in: the page (asked for the tokens' scopes and for `consent`), the wait for

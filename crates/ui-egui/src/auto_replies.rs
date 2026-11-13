@@ -15,12 +15,12 @@
 //! being asked (a Send/Receive, a sign-in, the calendar's job).
 //!
 //! **The permission.** Reading them takes the `MailboxSettings.Read` a sign-in asks for.
-//! Changing them takes `MailboxSettings.ReadWrite`, which no sign-in page asks for: the first
-//! change that finds the sign-in without it is held, the window asks the owner, and Microsoft's
-//! page asks for that permission alone (`ui.allowAutomaticReplies`); the change goes once it is
-//! given and is dropped, and said, when it isn't. File › Info shows whether it was given, with
-//! Ask again. Nothing else waits on it: mail, the calendar, the categories and the working
-//! hours go on as they were.
+//! Changing them takes `MailboxSettings.ReadWrite`, which a new sign-in's page asks for beside the
+//! rest (#661): for an account that signed in before, the first change that finds the sign-in
+//! without it is held, the window asks the owner the one question of [`crate::server_sync`], and
+//! Microsoft's page asks for it with what the to-dos take (`ui.allowSync`); the change goes once it
+//! is given and is dropped, and said, when it isn't. File › Info shows whether it was given, with
+//! Ask again. Nothing else waits on it: mail, the calendar and the working hours go on as they were.
 //!
 //! **Another mailbox.** Everything here is about the accounts of the mailbox that is open (by
 //! id): when another takes its place, all of it is forgotten, and an answer still on its way is
@@ -40,7 +40,6 @@ use mailcraft_model::auto_replies::{AutoReplies, AutoReplyStatus, ExternalAudien
 use mailcraft_model::{Account, Id};
 use serde_json::{Value, json};
 
-use crate::dialogs::{Dialog, Question};
 use crate::forms::kit;
 use crate::task_sync::fingerprint;
 use crate::theme::{Tokens, regular};
@@ -153,8 +152,6 @@ pub(crate) enum Permission {
 pub(crate) enum Again {
     /// Sign in again (the sign-in doesn't read them, or is over).
     SignIn,
-    /// Ask for the permission to change them.
-    Ask,
 }
 
 /// Why a change the owner asked for didn't reach the server: said as "Your automatic replies
@@ -387,7 +384,7 @@ impl MailApp {
             return Ok(());
         }
         if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
-            if self.dialog.is_some() || self.signing_in.is_some() || !self.ask_replies(account) {
+            if self.dialog.is_some() || self.signing_in.is_some() || !self.ask_sync_again(account) {
                 return Err(tl!("MailCraft needs your permission to change your automatic replies first: File › Info › Ask again.").to_string());
             }
             self.auto_replies.held.insert(account, change);
@@ -442,10 +439,13 @@ impl MailApp {
         } else if result.write_consent_needed {
             // The owner is asked, once, by itself; the change goes when he allows it. When he can't
             // be asked now (another window, a sign-in under way), the change is dropped and said:
-            // a later Ask again never sends a change made long before.
+            // a later Ask again never sends a change made long before. A change is the owner's
+            // own doing: it is asked about even when the question was closed earlier for another
+            // of the four (#661).
             log::info!("automatic replies: changing them needs the owner's permission");
             self.auto_replies.perm.insert(account, Permission::Needed);
-            asked = self.dialog.is_none() && self.signing_in.is_none() && self.ask_replies(account);
+            let free = self.dialog.is_none() && self.signing_in.is_none();
+            asked = free && if change.is_some() { self.ask_sync_again(account) } else { self.ask_sync(account) };
             if let Some(change) = change.clone().filter(|_| asked) {
                 self.auto_replies.held.insert(account, change);
             }
@@ -501,31 +501,6 @@ impl MailApp {
         self.status(said);
     }
 
-    /// The question before Microsoft's page: what is asked of the owner and why. Returns whether
-    /// it asked.
-    pub(crate) fn ask_replies(&mut self, account: Id) -> bool {
-        let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
-        let text = crate::i18n::fmt(
-            tl!(
-                "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n\nMailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-            ),
-            &[("address", &address)],
-        );
-        let ask = Question {
-            title: tl!("Allow Changing Automatic Replies").to_string(),
-            text,
-            action: tl!("Continue").to_string(),
-            with: Value::Null,
-            more: Vec::new(),
-            note: None,
-            cancel: None,
-            tick: None,
-        };
-        self.auto_replies.perm.insert(account, Permission::Asking);
-        self.dialog = Some(Dialog::Confirm { command: "ui.allowAutomaticReplies".to_string(), params: json!({"account": account}), ask });
-        true
-    }
-
     /// Forget everything about the mailbox that was open when another has taken its place: its
     /// accounts are other accounts, whatever their ids. A job's answer still on its way is
     /// thrown away, and a change that waited never goes.
@@ -552,104 +527,84 @@ impl MailApp {
         }
     }
 
-    /// The owner allowed changing the mailbox's settings on Microsoft's page for the rules (#566):
-    /// the automatic replies are changed with the same permission, so they no longer wait for it.
+    /// The owner allowed changing the mailbox's settings on Microsoft's page ([`crate::server_sync`]):
+    /// the automatic replies no longer wait for it, and the change that waited goes now.
     pub(crate) fn auto_replies_allowed(&mut self, account: Id) {
-        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+        if matches!(
+            self.auto_replies.perm.get(&account),
+            Some(Permission::Needed | Permission::Asking | Permission::Declined | Permission::Refused(_))
+        ) {
             self.auto_replies.perm.remove(&account);
         }
-    }
-
-    /// File › Info's "Ask again".
-    pub(crate) fn auto_replies_ask_again(&mut self, account: Id) {
-        if self.dialog.is_none() && self.signing_in.is_none() {
-            self.ask_replies(account);
+        if let Some(change) = self.auto_replies.held.remove(&account) {
+            self.auto_replies.waiting = Some((account, change));
+            self.auto_replies_tick_at(now_ms());
         }
     }
 
-    /// A question that went away unanswered: the change that waited for it is dropped, and said.
+    /// (A question that went away unanswered is a no: `sync_ask_tick`.)
     fn auto_replies_ask_tick(&mut self) {
-        let still =
-            self.signing_in.is_some() || matches!(&self.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowAutomaticReplies");
-        if still {
-            return;
+        self.sync_ask_tick();
+    }
+
+    /// The one question is put: a change that waits for it is being asked about.
+    pub(crate) fn auto_replies_sync_asking(&mut self, account: Id) {
+        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+            self.auto_replies.perm.insert(account, Permission::Asking);
         }
-        let asking: Vec<Id> = self.auto_replies.perm.iter().filter(|(_, p)| **p == Permission::Asking).map(|(a, _)| *a).collect();
-        for account in asking {
+    }
+
+    /// The one question went away unanswered: the change that waited for it is dropped, and said.
+    pub(crate) fn auto_replies_sync_not_now(&mut self, account: Id) {
+        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Asking)) {
             self.auto_replies.perm.insert(account, Permission::Declined);
-            if self.auto_replies.held.remove(&account).is_some() {
-                self.status(Unchanged::NotAllowed.said());
-            }
+        }
+        if self.auto_replies.held.remove(&account).is_some() {
+            self.status(Unchanged::NotAllowed.said());
         }
     }
 
-    /// `ui.allowAutomaticReplies`: Microsoft's page, for changing the mailbox's settings, by
-    /// itself, because the owner said go ahead.
-    pub(crate) fn begin_replies_sign_in(&mut self, account: Id) -> Result<Value, String> {
-        mailcraft_engine::cmd::auto_replies::can_reply(&self.session.mailbox, account).map_err(|e| e.to_string())?;
-        let owner = self.session.mailbox.account(account).cloned();
-        let owner = owner.ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        self.replies_next = true;
-        let begun = self.begin_sign_in(owner.id, oauth, &owner.email, String::new(), false, true);
-        self.replies_next = false;
-        if let Err(e) = begun {
+    /// The page signed in somebody else: the question waits as it did, but a change that waited
+    /// for it is dropped and said, as for a no, so that a later yes never sends a change made long
+    /// before.
+    pub(crate) fn auto_replies_sync_waits(&mut self, account: Id) {
+        if self.auto_replies.perm.get(&account) == Some(&Permission::Asking) {
             self.auto_replies.perm.insert(account, Permission::Needed);
-            self.auto_replies.held.remove(&account);
-            return Err(e);
         }
-        self.auto_replies.perm.insert(account, Permission::Asking);
-        self.session.sync_status = tl!("Allow MailCraft to change your automatic replies on the page that opened in your browser…").to_string();
-        Ok(json!({"pending": "signIn", "account": owner.id}))
+        if self.auto_replies.held.remove(&account).is_some() {
+            self.status(Unchanged::Failed(tl!("you signed in as somebody else").to_string()).said());
+        }
     }
 
-    /// The owner answered on Microsoft's page about changing the settings: with the tokens, the
-    /// change that waited goes now; without, it is dropped and why is said.
-    pub(crate) fn replies_signed_in(&mut self, account: Id, answer: Result<SignIn, String>) {
-        use crate::approval::NO_BROWSER;
-        use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
-        self.session.sync_status.clear();
-        let refused = match answer {
-            // (Somebody else's tokens are neither used nor remembered, #103.)
-            Ok(tokens) if self.signed_in_as_other(account, &tokens) => Some((Permission::Needed, None)),
-            Ok(tokens) => {
-                if !tokens.refresh.is_empty() {
-                    self.remember("refresh", account, &tokens.refresh);
-                    if let Some(kept) = self.tokens.get_mut(&account) {
-                        kept.refresh = tokens.refresh.clone();
-                    }
-                }
-                // Allowed, as far as is known: the change that waited finds out.
-                log::info!("automatic replies: the owner allowed changing them");
-                self.auto_replies.perm.remove(&account);
-                // The rules are changed with the same permission (#566).
-                if self.rules_held(account) {
-                    self.rules_allowed(account);
-                }
-                if let Some(change) = self.auto_replies.held.remove(&account) {
-                    self.auto_replies.waiting = Some((account, change));
-                    self.auto_replies_tick_at(now_ms());
-                }
-                None
-            }
-            Err(e) if e == NEEDS_APPROVAL => {
-                let said = tl!("Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info");
-                let _ = self.run("ui.approvalHelp", json!({"account": account}));
-                Some((Permission::Refused(said.to_string()), Some(said.to_string())))
-            }
-            Err(e) if e == REFUSED_BY_ORGANISATION || e == REFUSED_FOR_ACCOUNT => {
-                let said = tl!("Your organisation doesn't let MailCraft change automatic replies");
-                Some((Permission::Refused(said.to_string()), Some(said.to_string())))
-            }
-            Err(e) if e == NO_BROWSER => Some((Permission::Declined, Some(e))),
-            Err(e) => Some((Permission::Refused(e.clone()), Some(e))),
-        };
-        let Some((perm, said)) = refused else { return };
-        self.auto_replies.perm.insert(account, perm);
-        if self.auto_replies.held.remove(&account).is_some() || said.is_some() {
-            let why = said.unwrap_or_else(|| tl!("you signed in as somebody else").to_string());
-            self.status(Unchanged::Failed(why).said());
+    /// Asked, and no: why, in a few words (said once, for all four). The change that waited is
+    /// dropped.
+    pub(crate) fn auto_replies_sync_refused(&mut self, account: Id, why: &str) {
+        if matches!(self.auto_replies.perm.get(&account), Some(Permission::Needed | Permission::Asking | Permission::Declined)) {
+            self.auto_replies.perm.insert(account, Permission::Refused(why.to_string()));
         }
+        self.auto_replies.held.remove(&account);
+    }
+
+    /// The automatic replies' part of File › Info's line about keeping in step with Outlook:
+    /// whether MailCraft may change them. `None` while nothing is known of it.
+    pub(crate) fn auto_replies_sync_part(&self, account: Id) -> Option<(String, bool, crate::server_sync::Perm)> {
+        use crate::server_sync::Perm;
+        self.services.graph_auto_replies.as_ref()?;
+        if !reply_accounts(&self.session.mailbox).contains(&account) {
+            return None;
+        }
+        let shown = |why: &str| kit::shown(why, crate::server_sync::REASON_SHOWN);
+        Some(match self.auto_replies.perm.get(&account)? {
+            Permission::Given => (tl!("Automatic replies: MailCraft may change them").to_string(), false, Perm::Fine),
+            Permission::Needed | Permission::Declined => {
+                (tl!("Automatic replies: changing them waits for your permission").to_string(), true, Perm::Waits)
+            }
+            Permission::Asking => (tl!("Automatic replies: asking for your permission to change them…").to_string(), false, Perm::Asking),
+            Permission::Denied => (tl!("Automatic replies: your organisation doesn't let MailCraft change them").to_string(), false, Perm::Waits),
+            Permission::Refused(why) => {
+                (crate::i18n::fmt(tl!("Automatic replies: changing them not allowed ({why})"), &[("why", shown(why).as_str())]), true, Perm::Waits)
+            }
+        })
     }
 
     /// Sign in again for `account` (its sign-in doesn't read the mailbox's settings, or is over):
@@ -670,7 +625,7 @@ impl MailApp {
         if !reply_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| kit::shown(why, 90);
+        let shown = |why: &str| kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.auto_replies.trouble.get(&account) {
             Some(Trouble::SignInToRead) => {
                 (tl!("Automatic replies: MailCraft needs you to sign in again to read them").to_string(), Some(Again::SignIn))
@@ -681,12 +636,12 @@ impl MailApp {
             }
             None => match self.auto_replies.perm.get(&account) {
                 Some(Permission::Needed | Permission::Declined) => {
-                    (tl!("Automatic replies: changing them waits for your permission").to_string(), Some(Again::Ask))
+                    (tl!("Automatic replies: changing them waits for your permission").to_string(), None)
                 }
                 Some(Permission::Asking) => (tl!("Automatic replies: asking for your permission to change them…").to_string(), None),
                 Some(Permission::Denied) => (tl!("Automatic replies: your organisation doesn't let MailCraft change them").to_string(), None),
                 Some(Permission::Refused(why)) => {
-                    (crate::i18n::fmt(tl!("Automatic replies: changing them not allowed ({why})"), &[("why", shown(why).as_str())]), Some(Again::Ask))
+                    (crate::i18n::fmt(tl!("Automatic replies: changing them not allowed ({why})"), &[("why", shown(why).as_str())]), None)
                 }
                 given => {
                     let line = match self.auto_replies_known(account) {

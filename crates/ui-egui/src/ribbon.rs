@@ -1224,6 +1224,21 @@ pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
 /// Most names off the list that the Categorize menu shows.
 const MAX_OFF_LIST: usize = 32;
 
+/// The rows of [`category_menu`]: the categories of `accounts`, then the names of `carried` that
+/// none of them lists (at most [`MAX_OFF_LIST`]), each once as the lists compare names (any
+/// alphabet's capitals, #790), in grey unless a list gives it a colour.
+pub(crate) fn category_rows(mailbox: &mailcraft_model::Mailbox, accounts: &[Id], carried: &[String]) -> Vec<mailcraft_model::Category> {
+    let mut cats = mailbox.categories_for(accounts);
+    let listed = cats.len();
+    for name in carried {
+        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) {
+            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
+            cats.push(mailcraft_model::Category { name: name.clone(), color });
+        }
+    }
+    cats
+}
+
 /// The categories of `accounts`, those of the selection's items (#633), and the names of `carried`
 /// (what the items have) that aren't on those lists, as menu items that toggle one on the
 /// selection through `command`: an item moved from another account, or a name its server stopped
@@ -1237,15 +1252,8 @@ pub fn category_menu(
     has: impl Fn(&MailApp, &str) -> bool,
     clear: Option<&str>,
 ) {
-    let mailbox = &app.session.mailbox;
-    let mut cats: Vec<(String, egui::Color32)> = mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
-    let listed = cats.len();
-    for name in carried {
-        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|(c, _)| c.eq_ignore_ascii_case(name)) {
-            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
-            cats.push((name.clone(), crate::theme::c32(color)));
-        }
-    }
+    let cats: Vec<(String, egui::Color32)> =
+        category_rows(&app.session.mailbox, accounts, carried).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1411,7 +1419,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeEvent => {
             let id = app.session.sel.event;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.event(id))
+                    .is_some_and(|e| e.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let event = id.and_then(|id| app.session.mailbox.event(id));
             let account = event.map(|e| app.session.mailbox.event_account(e));
@@ -1421,7 +1430,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.contact(id))
+                    .is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
             };
             let contact = id.and_then(|id| app.session.mailbox.contact(id));
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
@@ -1430,7 +1440,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.task(id))
+                    .is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let task = id.and_then(|id| app.session.mailbox.task(id));
             let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
@@ -2292,6 +2303,9 @@ mod fit_tests;
 
 #[cfg(test)]
 mod plain_tests;
+
+#[cfg(test)]
+mod category_rows_tests;
 
 #[cfg(test)]
 mod tests {

@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use mailcraft_model::{Account, Calendar, Id, Rgb};
+use mailcraft_model::{Account, Calendar, Id, Mailbox, Rgb};
 use mailcraft_time::Weekday;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -104,8 +104,9 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let accounts: Vec<&Account> = mailbox.accounts_in_order().into_iter().filter(|a| keepers.contains(&a.id)).take(50).collect();
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
+        let main_owner = mailbox.main_calendar_owner(account.id).unwrap_or_default();
         let group_of = |c: &Calendar| {
-            if is_shared_with(account, c) {
+            if c.is_shared_with(&[&account.email, main_owner]) {
                 SHARED_CALENDARS.to_string()
             } else if c.group.trim().is_empty() {
                 MY_CALENDARS.to_string()
@@ -152,12 +153,11 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
 }
 
 /// Whether `calendar`, one that `account`'s server lists, is somebody else's, shared with the
-/// account: its owner is a person other than the account's own address. Never the account's main
-/// calendar, and never one whose owner the server didn't say.
-pub(crate) fn is_shared_with(account: &Account, calendar: &Calendar) -> bool {
-    let own = account.email.trim();
-    let Some(owner) = calendar.owner.as_ref() else { return false };
-    !calendar.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
+/// account: its owner is a person other than the account, by the address it was added with or by
+/// the one its server names as its main calendar's owner (#661), or one opened by address. Never
+/// the account's main calendar, and never one of its list whose owner the server didn't say.
+pub(crate) fn is_shared_with(mailbox: &Mailbox, account: &Account, calendar: &Calendar) -> bool {
+    calendar.is_shared_with(&[&account.email, mailbox.main_calendar_owner(account.id).unwrap_or_default()])
 }
 
 /// The calendars that are shown, in the order of the list.

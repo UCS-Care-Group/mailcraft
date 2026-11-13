@@ -48,6 +48,8 @@ job_kinds! {
     Tasks,
     /// The rules kept on the server.
     Rules,
+    /// The list of categories kept in step with Outlook (#661).
+    Categories,
     /// The automatic replies.
     AutoReplies,
     /// A sign-in on a provider's page.
@@ -71,6 +73,8 @@ pub enum Start {
     Tasks,
     /// The rules' job.
     Rules,
+    /// The categories' job (#661).
+    Categories,
     /// An Inbox pass by itself, between rounds.
     InboxCheck,
     /// A look at other people's free and busy times.
@@ -86,6 +90,8 @@ pub struct Busy {
     pub tasks: bool,
     /// The rules' job is in flight.
     pub rules: bool,
+    /// The categories' job is in flight (#661).
+    pub categories: bool,
     /// The automatic replies' job is in flight.
     pub auto_replies: bool,
     /// A free and busy look is in flight.
@@ -112,8 +118,10 @@ impl Busy {
         let signing = self.signing_in;
         match job {
             // A Send/Receive that is about to ask Graph, or is asking, goes first: an answer
-            // asked for before a change went up could otherwise be taken in after it.
-            Start::Calendar => self.calendar || self.graph || self.mail_run || signing || self.queued,
+            // asked for before a change went up could otherwise be taken in after it. So does a
+            // job telling a server what was done to its categories: a list read meanwhile could
+            // be from before the change, and put it back here until the next read (#661).
+            Start::Calendar => self.calendar || self.graph || self.mail_run || signing || self.queued || self.categories,
             Start::CalendarAround => self.calendar || self.graph || signing || self.queued,
             Start::CalendarCheck => self.calendar || self.graph || signing,
             // The calendar's job, a Send/Receive and a sign-in go first.
@@ -121,6 +129,9 @@ impl Busy {
             // The calendar's job, the to-dos', the automatic replies', a Send/Receive and a
             // sign-in go first (the jobs renew the same sign-in).
             Start::Rules => self.calendar || self.tasks || self.auto_replies || self.graph || self.mail_run || signing || self.queued,
+            // The calendar's, the to-dos' and the rules' jobs, a Send/Receive and a sign-in go
+            // first (#661).
+            Start::Categories => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || signing || self.queued,
             Start::InboxCheck => self.mail_run || self.graph || self.queued || self.inbox_queued || signing || self.approving || self.switching,
             // One question at a time, and not while the account's sign-in or calendar is being seen to.
             Start::FreeBusy => self.free_busy || signing || self.graph || self.calendar,

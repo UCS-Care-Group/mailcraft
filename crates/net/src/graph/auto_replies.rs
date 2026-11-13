@@ -3,11 +3,12 @@
 //! The automatic replies of the mailbox (File › Info › Automatic Replies): read with
 //! `GET /me/mailboxSettings/automaticRepliesSetting`, and changed with
 //! `PATCH /me/mailboxSettings`, which is told the automatic replies and nothing else of the
-//! settings (the categories and the working hours are never written).
+//! settings (this request carries the automatic replies alone: never the working hours).
 //!
 //! Reading takes `MailboxSettings.Read`, which a sign-in asks for; changing takes
-//! `.ReadWrite`, which is asked for by itself ([`crate::oauth::refresh_graph_replies`]). A token
-//! without it gets [`NetError::Forbidden`], and nothing has changed.
+//! `.ReadWrite`, which a new sign-in's page asks for as an extra and an older sign-in is given by
+//! the one question of keeping in step with Outlook (#661; [`crate::oauth::refresh_graph_replies`]).
+//! A token without it gets [`NetError::Forbidden`], and nothing has changed.
 //!
 //! What comes back is hostile JSON like everything else from a server: the answer is capped, a
 //! status or an audience that isn't one is none, and each reply is cut to

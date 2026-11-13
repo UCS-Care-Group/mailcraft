@@ -5,8 +5,9 @@
 //! one.
 //!
 //! Reading them needs `MailboxSettings.Read`, which every sign-in has; changing them needs
-//! `MailboxSettings.ReadWrite`, which is asked for by itself: a sign-in that doesn't cover it is
-//! answered 403, which is [`RuleResult::Denied`]. Nothing of a rule (its name, the words it looks
+//! `MailboxSettings.ReadWrite`, which a new sign-in's page asks for as an extra and an older
+//! sign-in is given by the one question of keeping in step with Outlook (#661): a sign-in that
+//! doesn't cover it is answered 403, which is [`RuleResult::Denied`]. Nothing of a rule (its name, the words it looks
 //! for, its id) is written to a log.
 //!
 //! Folders are named by their immutable ids, as the account's mail has them: every request asks

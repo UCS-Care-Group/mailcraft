@@ -361,6 +361,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
+  On a Microsoft account whose categories are kept in step with Outlook, an agent is asked
+  (`send`) before it writes a category there: one kept on this computer only sent there, a rename
+  of one that is there already, a name new to the list (given to an item, or by a rule) or another
+  colour; so is an Undo or Redo that would make one there again or give one there another colour,
+  and one that would have a category deleted there is asked as `delete`; the question names the
+  category.
   A copy that the server of a Microsoft account (Outlook.com, Microsoft 365) or an Exchange
   server account has made goes to Deleted Items on undo and is not counted as a removal; on any
   other account (IMAP, JMAP, one on this computer) the copy is removed and `delete` is asked. A step
@@ -424,7 +430,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   taken its place; a mailbox waiting for confirmation starts no switch (AU2-15, AU2-16). So does
   every background job of the window, listed in one place (`crates/ui-egui/src/jobs.rs`): each
   Send/Receive (IMAP, Microsoft Graph, Exchange, JMAP, Inbox passes, shared mailboxes), the
-  calendar and its check, free and busy times, the to-dos, the rules and the automatic replies.
+  calendar and its check, free and busy times, the to-dos, the rules, the automatic replies and the
+  categories.
   When another mailbox takes the place of the open one they are all called off, an answer that
   still comes for the old one is let go of whole, and no answer is taken in for an account under
   the address of the account open now; a shared mailbox's sign-in is checked against its owner's

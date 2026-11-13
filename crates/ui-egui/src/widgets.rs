@@ -371,6 +371,18 @@ pub fn pane_heading(ui: &mut Ui, text: &str) {
 /// under it, which takes the colour away. Answers what was picked there: `Some(Some(colour))`, or
 /// `Some(None)` for the button; `None` when nothing was.
 pub fn color_swatch(ui: &mut Ui, size: f32, color: Option<mailcraft_model::Rgb>, none: Option<&str>) -> Option<Option<mailcraft_model::Rgb>> {
+    color_swatch_in(ui, size, color, none, &mailcraft_model::PALETTE)
+}
+
+/// [`color_swatch`] with the colours of `palette` to choose from: the Categories window's list
+/// kept in step with Outlook offers Outlook's 25 (#661).
+pub fn color_swatch_in(
+    ui: &mut Ui,
+    size: f32,
+    color: Option<mailcraft_model::Rgb>,
+    none: Option<&str>,
+    palette: &[mailcraft_model::Rgb],
+) -> Option<Option<mailcraft_model::Rgb>> {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     let edge = Stroke::new(1.0, if resp.hovered() { t.text_dim } else { t.border_strong });
@@ -389,7 +401,8 @@ pub fn color_swatch(ui: &mut Ui, size: f32, color: Option<mailcraft_model::Rgb>,
     let mut picked = None;
     egui::Popup::menu(&resp).show(|ui| {
         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
-        for line in mailcraft_model::PALETTE.chunks(6) {
+        // (The twelve in two rows of six, Outlook's 25 in five rows of five.)
+        for line in palette.chunks(if palette.len() == mailcraft_model::PALETTE.len() { 6 } else { 5 }) {
             ui.horizontal(|ui| {
                 for choice in line {
                     let (cell, cell_resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());

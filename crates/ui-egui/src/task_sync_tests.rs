@@ -43,7 +43,7 @@ fn window() -> (MailApp, Id, Answers, Jobs, SignIns) {
     }));
     let log = sign_ins.clone();
     app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
-        log.lock().unwrap().push((req.account, req.tasks));
+        log.lock().unwrap().push((req.account, req.sync));
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(tokens("tasks-access", "ref-2"))).unwrap();
         rx
@@ -114,7 +114,7 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_tasks() {
     assert!(again && line.contains("waiting for your permission"), "{line}");
     assert!(!app.tasks_tick_at(10.0 * 60_000.0) || jobs.lock().unwrap().len() == 1);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
-    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowTasks", Some(owner)));
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSync", Some(owner)));
     assert!(ask.text.contains(OWNER) && ask.text.contains("stay on this computer"), "{}", ask.text);
     assert!(sign_ins.lock().unwrap().is_empty(), "no page yet");
     assert_eq!(jobs.lock().unwrap().len(), 1);
@@ -304,7 +304,7 @@ fn a_refusal_that_lasts_after_allowing_asks_the_owner_in_the_end() {
         at += 1_000.0;
     }
     let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("the owner was never asked") };
-    assert_eq!(command, "ui.allowTasks");
+    assert_eq!(command, "ui.allowSync");
 }
 
 /// #520: a sign-in Microsoft no longer takes, for mail either, leaves a way back in File › Info,
@@ -325,9 +325,9 @@ fn a_refused_sign_in_for_tasks_leaves_ask_again() {
     assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
     assert_eq!(jobs.lock().unwrap().len(), 1);
     // Ask again: the question, then Microsoft's page.
-    app.ask_tasks_again(owner);
+    app.ask_sync_again(owner);
     let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Ask again asks") };
-    assert_eq!(command, "ui.allowTasks");
+    assert_eq!(command, "ui.allowSync");
     app.dialog = None;
     app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
@@ -440,4 +440,28 @@ fn the_question_offers_the_first_account_added_first() {
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("the owner is asked") };
     assert_eq!(ask.with, json!({"account": owner}));
     assert_eq!(ask.more.iter().map(|(_, with)| with.clone()).collect::<Vec<_>>(), [json!({"account": zoe})]);
+}
+
+/// A job that takes long to come to nothing waits its whole wait from when it ended, not from
+/// when it began (#661).
+#[test]
+fn a_change_whose_answer_comes_late_waits_from_the_answer() {
+    let (mut app, owner, answers, jobs, _) = window();
+    let nothing =
+        TasksResult { account: owner, download: Some(TasksDownload { account: owner, complete: true, ..Default::default() }), ..Default::default() };
+    answers.lock().unwrap().push_back(nothing);
+    answers.lock().unwrap().push_back(TasksResult { account: owner, errors: vec!["Microsoft Graph is busy".into()], ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    app.execute("tasks.sendLocal", json!({"account": owner})).unwrap();
+    app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    assert!(!app.tasks_tick_at(1_000.0));
+    assert!(app.tasks_tick_at(10_000.0));
+    // The answer comes 40 seconds later.
+    assert!(!app.tasks_tick_at(50_000.0));
+    app.poll_tasks();
+    assert!(!app.tasks_tick_at(51_000.0), "not at once");
+    assert!(!app.tasks_tick_at(79_000.0));
+    assert!(app.tasks_tick_at(81_000.0), "after the wait");
+    assert_eq!(jobs.lock().unwrap().len(), 3);
 }

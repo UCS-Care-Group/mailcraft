@@ -529,28 +529,40 @@ fn categories_changed_on_both_sides_merge_when_the_servers_come_down_first() {
 }
 
 #[test]
-fn outlooks_colours_win_for_the_categories_on_its_list() {
+fn a_microsoft_accounts_list_is_read_only_until_the_server_may_be_changed_and_takes_outlooks_colours() {
     let (mut s, account, _, _) = setup();
     let download = mailcraft_model::remote::CategoriesDownload {
         account,
         email: "owner@example.org".into(),
         categories: vec![mailcraft_model::Category { name: "Blue category".into(), color: mailcraft_model::Rgb(1, 2, 3) }],
+        complete: true,
     };
     s.run("sync.applyCategories", &json!({"download": download})).unwrap();
     assert_eq!(s.mailbox.server_categories[&account], ["Blue category"]);
+    // Read-only: nothing changes, and the refusal says whose list it is.
     let refused = s.run("category.set", &json!({"account": account, "name": "blue category", "color": "#2E8B57"})).unwrap_err();
-    assert_eq!(refused.to_string(), super::super::category::COLOUR_IN_OUTLOOK);
+    assert!(refused.to_string().contains("owner@example.org"), "{refused}");
+    assert!(s.run("category.remove", &json!({"account": account, "name": "Blue category"})).is_err());
+    assert!(s.run("category.rename", &json!({"account": account, "from": "Blue category", "to": "Navy"})).is_err());
     assert_eq!(s.mailbox.category_of(account, "Blue category").unwrap().color, mailcraft_model::Rgb(1, 2, 3));
-    // One that isn't on Outlook's list takes the colour, and says it isn't there.
+    let list = s.run("category.list", &json!({"account": account})).unwrap();
+    assert_eq!(list["readOnly"], json!(true));
+    assert_eq!(list["colors"].as_array().unwrap().len(), 25);
+    // Allowed: one of Outlook's colours is taken, any other refused.
+    s.run("sync.categoryWrites", &json!({"account": account, "allowed": true})).unwrap();
+    assert!(s.run("category.set", &json!({"account": account, "name": "Travel", "color": "#123456"})).is_err());
+    s.run("category.set", &json!({"account": account, "name": "blue category", "color": "#2E8B57"})).unwrap();
     s.run("category.set", &json!({"account": account, "name": "Travel", "color": "#2E8B57"})).unwrap();
     let list = s.run("category.list", &json!({"account": account})).unwrap();
+    assert_eq!(list["readOnly"], json!(false));
     let outlook = |name: &str| list["categories"].as_array().unwrap().iter().find(|c| c["name"] == name).unwrap()["outlook"].clone();
-    assert_eq!((outlook("Blue category"), outlook("Travel")), (json!(true), json!(false)));
+    assert_eq!((outlook("Blue category"), outlook("Travel")), (json!(true), json!(true)));
     // An account that isn't kept in step through Graph has no such list.
     let (mut s, _, _, _) = setup();
     let list = s.run("category.list", &json!({})).unwrap();
     assert!(list["categories"].as_array().unwrap().iter().all(|c| c["outlook"].is_null()));
-    s.run("category.set", &json!({"name": "Blue category", "color": "#2E8B57"})).unwrap();
+    assert!(list.get("readOnly").is_none());
+    s.run("category.set", &json!({"name": "Blue category", "color": "#123456"})).unwrap();
 }
 
 #[test]

@@ -93,7 +93,6 @@ crates/time/src/text.rs
 crates/time/src/zone.rs
 crates/ui-egui/src/account_setup.rs
 crates/ui-egui/src/agent_gate.rs
-crates/ui-egui/src/calendar_sync.rs
 crates/ui-egui/src/calendar_view.rs
 crates/ui-egui/src/chrome.rs
 crates/ui-egui/src/compose/editor.rs

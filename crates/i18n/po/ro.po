@@ -81,6 +81,12 @@ msgstr "„{name}” este păstrat de serverul lui {who}. Modificările făcute 
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
 msgstr "„{name}” face parte dintr-o serie. Vă referiți doar la cea din {day} sau la toată seria?"
 
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "\"{name}\" isn't a category kept on this computer only"
+msgstr "„{name}” nu este o categorie păstrată doar pe acest computer"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -877,6 +883,12 @@ msgstr "Adăugare filtre"
 msgid "Add from file…"
 msgstr "Adăugare din fișier…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add this category to Outlook's list, in the nearest of Outlook's colours"
+msgstr "Adăugați această categorie în lista Outlook, în cea mai apropiată dintre culorile Outlook"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -898,6 +910,12 @@ msgstr "Adăugare la Contacte"
 #, fuzzy
 msgid "Add to Favorites"
 msgstr "Adăugare la Favorite"
+
+#. command label, interface
+#: crates/engine/src/cmd/category.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Add to Outlook"
+msgstr "Adăugare la Outlook"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
@@ -1014,13 +1032,13 @@ msgid "All the conditions must hold"
 msgstr "Toate condițiile trebuie îndeplinite"
 
 #. interface
-#: crates/ui-egui/src/agent_gate.rs
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Allow"
 msgstr "Permitere"
 
-#. command label, interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Changing Automatic Replies"
 msgstr "Permiteți modificarea răspunsurilor automate"
@@ -1038,22 +1056,10 @@ msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr "Permiteți sincronizarea sarcinilor cu Microsoft To Do"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să vă modifice răspunsurile automate, din pagina deschisă în browser…"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să vă păstreze regulile pe server, din pagina deschisă în browser…"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să vă sincronizeze sarcinile cu Microsoft To Do, din pagina deschisă în browser…"
+msgid "Allow MailCraft to keep this mailbox in step with Outlook on the page that opened in your browser…"
+msgstr "Permiteți ca MailCraft să sincronizeze această cutie poștală cu Outlook, din pagina deschisă în browser…"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -1436,6 +1442,12 @@ msgid "Apply Sent Calendar Changes"
 msgstr "Aplicare modificări de calendar trimise"
 
 #. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Apply Sent Category Changes"
+msgstr "Aplicare modificări de categorii trimise"
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -1590,19 +1602,31 @@ msgid "Ask before downloading this sender's pictures again"
 msgstr "Întreabă din nou înainte de a descărca imaginile acestui expeditor"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
-msgstr "Cereți permisiunea de a modifica regulile de pe server: pagina Microsoft se deschide în browser. Fără ea, regulile noi rămân pe acest computer și nu se trimite nimic din ele."
+msgid "Ask for permission to keep your automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, your automatic replies aren't changed."
+msgstr "Cereți permisiunea de a sincroniza răspunsurile automate cu Outlook: pagina Microsoft se deschide în browser. Fără ea, răspunsurile automate nu sunt modificate."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
-msgstr "Cereți permisiunea de a vă modifica răspunsurile automate: pagina Microsoft se deschide în browser. Pentru citirea lor nu e nevoie."
+msgid "Ask for permission to keep your rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, rules stay on this computer and the categories can't be changed here."
+msgstr "Cereți permisiunea de a sincroniza regulile, răspunsurile automate și categoriile cu Outlook: pagina Microsoft se deschide în browser. Fără ea, regulile rămân pe acest computer, iar categoriile nu pot fi modificate aici."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks and automatic replies in step with Outlook: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+msgstr "Cereți permisiunea de a sincroniza sarcinile și răspunsurile automate cu Outlook: pagina Microsoft se deschide în browser. Fără ea, sarcinile rămân pe acest computer."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Ask for permission to keep your tasks, rules, automatic replies and categories in step with Outlook: Microsoft's page opens in your browser. Without it, tasks and rules stay on this computer and the categories can't be changed here."
+msgstr "Cereți permisiunea de a sincroniza sarcinile, regulile, răspunsurile automate și categoriile cu Outlook: pagina Microsoft se deschide în browser. Fără ea, sarcinile și regulile rămân pe acest computer, iar categoriile nu pot fi modificate aici."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
 msgstr "Cereți permisiunea de a citi și modifica listele și sarcinile To Do: pagina Microsoft se deschide în browser. Fără ea, sarcinile rămân pe acest computer."
@@ -1852,6 +1876,12 @@ msgstr "Răspunsurile automate sunt pornite"
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "Răspunsurile automate sunt setate pentru intervalul ales"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft may change them"
+msgstr "Răspunsuri automate: MailCraft are voie să le modifice"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2300,17 +2330,107 @@ msgstr "Anulat"
 msgid "Categories"
 msgstr "Categorii"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Asking for your permission to change them…"
+msgstr "Categorii de pe serverul lui {address}. Se cere permisiunea dvs. de a le modifica…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Checking whether MailCraft may change them…"
+msgstr "Categorii de pe serverul lui {address}. Se verifică dacă MailCraft are voie să le modifice…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Microsoft no longer takes the sign-in, so they can't be changed"
+msgstr "Categorii de pe serverul lui {address}. Microsoft nu mai acceptă conectarea, așa că nu pot fi modificate"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them"
+msgstr "Categorii de pe serverul lui {address}. Nu există permisiunea de a le modifica"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. No permission to change them ({why})"
+msgstr "Categorii de pe serverul lui {address}. Nu există permisiunea de a le modifica ({why})"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories from {address}'s server. Read-only here until MailCraft can check whether it may change them"
+msgstr "Categorii de pe serverul lui {address}. Doar citire aici până când MailCraft poate verifica dacă are voie să le modifice"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
 msgid "Categories:"
 msgstr "Categorii:"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: Microsoft no longer takes the sign-in"
+msgstr "Categorii: Microsoft nu mai acceptă conectarea"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: asking for your permission…"
+msgstr "Categorii: se cere permisiunea dvs.…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: checking…"
+msgstr "Categorii: se verifică…"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: kept in step with Outlook"
+msgstr "Categorii: sincronizate cu Outlook"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here (MailCraft may not change them)"
+msgstr "Categorii: doar citire aici (MailCraft nu are voie să le modifice)"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here ({why})"
+msgstr "Categorii: doar citire aici ({why})"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr "Categorii: doar citire aici până când MailCraft poate verifica dacă are voie să le modifice"
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categorize"
 msgstr "Clasificare"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes Allowed"
+msgstr "Modificări de categorii permise"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes to Send"
+msgstr "Modificări de categorii de trimis"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2973,7 +3093,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Contactele nu ajung în Elemente șterse."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Continuare"
@@ -4909,6 +5029,30 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Pentru un cont care se conectează cu Microsoft: dosarele pe care le țineți la Favorite în Outlook, în aceeași ordine. Sunt citite de pe server și nu sunt modificate niciodată acolo. Fără aceasta, se afișează favoritele marcate în MailCraft."
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Deocamdată, regulile rămân pe acest computer, răspunsurile automate nu sunt modificate, iar categoriile nu pot fi modificate aici: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Deocamdată, sarcinile și regulile rămân pe acest computer, răspunsurile automate nu sunt modificate, iar categoriile nu pot fi modificate aici: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
+msgstr "Deocamdată, sarcinile rămân pe acest computer, iar răspunsurile automate nu sunt modificate: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, your automatic replies aren't changed: {error}"
+msgstr "Deocamdată, răspunsurile automate nu sunt modificate: {error}"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Forget"
@@ -6505,22 +6649,16 @@ msgid "Keep Rule on Server"
 msgstr "Păstrare regulă pe server"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Keep Rules on the Server"
-msgstr "Păstrare reguli pe server"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Keep Tasks in Step with Microsoft To Do"
-msgstr "Sincronizare sarcini cu Microsoft To Do"
-
-#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Keep Waiting"
 msgstr "Mai aștept"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Keep in Step with Outlook"
+msgstr "Sincronizare cu Outlook"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6599,6 +6737,12 @@ msgstr "Păstrat în spațiul de stocare al acestui browser, salvat pe parcurs. 
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Păstrat în {path}, salvat pe parcurs."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Kept on this computer only"
+msgstr "Păstrată doar pe acest computer"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7200,6 +7344,12 @@ msgstr[1] "MailCraft a fost pornit cu {n} elemente care nu sunt linkuri de e-mai
 msgstr[2] "MailCraft a fost pornit cu {n} de elemente care nu sunt linkuri de e-mail sau fișiere pe care le deschide: au fost ignorate"
 
 #. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
+msgstr "MailCraft nu a primit permisiunea să sincronizeze această cutie poștală cu Outlook: {error}"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
@@ -7655,6 +7805,12 @@ msgstr "Pagina de aprobare Microsoft este deschisă în browser…"
 #, fuzzy
 msgid "Microsoft's page came back without the approval: it was declined there, or left before it was given."
 msgstr "Pagina Microsoft a revenit fără aprobare: a fost refuzată acolo sau părăsită înainte de a fi dată."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Microsoft's page opens in your browser to ask for your permission, once."
+msgstr "Pagina Microsoft se deschide în browser ca să vă ceară permisiunea, o singură dată."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8711,7 +8867,7 @@ msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Încă nu e păstrat nicăieri: folosiți Deschidere și export › Salvare cutie poștală ca."
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Nu acum"
@@ -8721,6 +8877,12 @@ msgstr "Nu acum"
 #, fuzzy
 msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Nu acum: se instalează când închideți MailCraft."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
+msgstr "Nu este în lista Outlook: e-mailurile, evenimentele și sarcinile cărora le-o atribuiți îi trimit totuși numele către serverul contului, unde nu are culoare"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -10857,18 +11019,6 @@ msgstr "Reguli pentru"
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
-msgid "Rules stay on this computer for now: {error}"
-msgstr "Regulile rămân deocamdată pe acest computer: {error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Rules weren't allowed on the server: {error}"
-msgstr "Regulile nu au fost permise pe server: {error}"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
 msgid "Rules: Microsoft no longer takes the sign-in"
 msgstr "Reguli: Microsoft nu mai acceptă conectarea"
 
@@ -11501,7 +11651,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -12944,6 +13094,30 @@ msgstr "Simbol"
 msgid "Symbols"
 msgstr "Simboluri"
 
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: asking for your permission…"
+msgstr "Sincronizare cu Outlook: se cere permisiunea dvs.…"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: off"
+msgstr "Sincronizare cu Outlook: dezactivată"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: on"
+msgstr "Sincronizare cu Outlook: activată"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Sync with Outlook: partly on"
+msgstr "Sincronizare cu Outlook: parțial activată"
+
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -13023,16 +13197,10 @@ msgid "Tasks"
 msgstr "Sarcini"
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid "Tasks stay on this computer for now: {error}"
 msgstr "Sarcinile rămân deocamdată pe acest computer: {error}"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Tasks weren't allowed to be kept in step: {error}"
-msgstr "Sincronizarea sarcinilor nu a fost permisă: {error}"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -13550,10 +13718,28 @@ msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Calendarele cutiei poștale partajate așteaptă: {error}"
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "The categories couldn't be kept in step: the job stopped unexpectedly"
+msgstr "Categoriile nu au putut fi sincronizate: operația s-a oprit neașteptat"
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/category_sync.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Categoriile nu au putut fi preluate: {error}"
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "The categories sent couldn't be noted: {error}"
+msgstr "Categoriile trimise nu au putut fi înregistrate: {error}"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "The category '{name}' couldn't be put back: the list of categories is full."
+msgstr "Categoria „{name}” nu a putut fi pusă la loc: lista de categorii este plină."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -13596,12 +13782,6 @@ msgstr "Certificatul pe care îl arată serverul de la {host} nu este cel în ca
 #, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "Certificatul nu a fost emis de o autoritate de certificare în care are încredere acest computer."
-
-#. what a command says
-#: crates/engine/src/cmd/category.rs
-#, fuzzy
-msgid "The colour is set in Outlook"
-msgstr "Culoarea se setează în Outlook"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -14642,12 +14822,6 @@ msgid "This account does not use Google sign-in."
 msgstr "Acest cont nu folosește conectarea Google."
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "This account doesn't keep its rules on its server"
-msgstr "Acest cont nu își păstrează regulile pe server"
-
-#. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "This account doesn't sign in with Microsoft"
@@ -14660,7 +14834,7 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Acest cont nu are un server de e-mail prin care să trimită răspunsul."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Acest cont nu are conectare cu Microsoft"
@@ -14670,6 +14844,12 @@ msgstr "Acest cont nu are conectare cu Microsoft"
 #, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "Acest cont nu mai este în cutia poștală."
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "This account may not change its categories through Microsoft Graph"
+msgstr "Acest cont nu are voie să își modifice categoriile prin Microsoft Graph"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -14855,6 +15035,12 @@ msgstr "Acest calendar poate fi doar citit: elementele noi nu pot merge în el"
 #, fuzzy
 msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
 msgstr "Acest calendar nu este încă conectat la contul dvs. Ce se schimbă în altă parte nu apare aici, iar ce schimbați aici rămâne pe acest computer."
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
+msgstr "Această categorie se află pe mai multe evenimente din calendare păstrate pe un server decât pot aștepta să fie trimise deodată: nu s-a modificat nimic."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15555,31 +15741,43 @@ msgstr ""
 "Dacă răspunsul pleacă ca {address} sau în numele ei decide organizația dvs. Până permiteți, răspunsul așteaptă pe acest computer și nu se trimite nimic de la propria dvs. adresă."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+"Until you allow it, your automatic replies aren't changed."
 msgstr ""
-"Ca să modifice răspunsurile automate ale {address}, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+"Ca să sincronizeze cu Outlook răspunsurile automate ale lui {address}, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
 "\n"
-"MailCraft modifică astfel doar răspunsurile automate și regulile dosarului Mesaje primite, niciodată categoriile sau programul de lucru. Pentru citirea răspunsurilor automate nu e nevoie."
+"Până permiteți, răspunsurile automate nu sunt modificate."
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
-"To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+"To keep the rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
-"Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+"Until you allow it, rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
 msgstr ""
-"Ca să păstreze regulile lui {address} pe server, unde rulează chiar și când MailCraft e închis și apar în Outlook pe web și pe telefon, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale, unde Microsoft păstrează regulile. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+"Ca să sincronizeze cu Outlook regulile, răspunsurile automate și categoriile lui {address}, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
 "\n"
-"Până permiteți, regulile rămân pe acest computer și nu se trimite nimic din ele către Microsoft."
+"Până permiteți, regulile rămân pe acest computer și nu se trimite nimic din ele către Microsoft, răspunsurile automate nu sunt modificate, iar categoriile acestei cutii poștale nu pot fi modificate aici."
 
 #. interface
-#: crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks and automatic replies of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks stay on this computer and nothing of them is sent to Microsoft, and your automatic replies aren't changed."
+msgstr ""
+"Ca să sincronizeze cu Outlook sarcinile și răspunsurile automate ale lui {address}, MailCraft are nevoie de permisiunea dvs. de a modifica listele To Do și setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+"\n"
+"Până permiteți, sarcinile rămân pe acest computer și nu se trimite nimic din ele către Microsoft, iar răspunsurile automate nu sunt modificate."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""
 "To keep the tasks of {address} in step with Microsoft To Do, MailCraft needs your permission to read and change your To Do lists and tasks. Microsoft's page opens in your browser to ask you, once.\n"
@@ -15589,6 +15787,18 @@ msgstr ""
 "Ca să sincronizeze sarcinile lui {address} cu Microsoft To Do, MailCraft are nevoie de permisiunea dvs. de a citi și modifica listele și sarcinile To Do. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
 "\n"
 "Până permiteți, sarcinile rămân pe acest computer și nu se trimite nimic din ele către Microsoft."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid ""
+"To keep the tasks, rules, automatic replies and categories of {address} in step with Outlook, MailCraft needs your permission to change your To Do lists and your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, tasks and rules stay on this computer and nothing of them is sent to Microsoft, your automatic replies aren't changed, and the categories of this mailbox can't be changed here."
+msgstr ""
+"Ca să sincronizeze cu Outlook sarcinile, regulile, răspunsurile automate și categoriile lui {address}, MailCraft are nevoie de permisiunea dvs. de a modifica listele To Do și setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+"\n"
+"Până permiteți, sarcinile și regulile rămân pe acest computer și nu se trimite nimic din ele către Microsoft, răspunsurile automate nu sunt modificate, iar categoriile acestei cutii poștale nu pot fi modificate aici."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -16818,18 +17028,6 @@ msgid "Your organisation doesn't allow Exchange Web Services for this account. A
 msgstr "Organizația dvs. nu permite Exchange Web Services pentru acest cont. Întrebați administratorul."
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
-msgstr "Organizația dvs. nu permite ca MailCraft să păstreze reguli pe server"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
-msgstr "Organizația dvs. nu permite ca MailCraft să sincronizeze sarcinile cu Microsoft To Do"
-
-#. interface
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
 msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
@@ -16838,14 +17036,14 @@ msgstr "Organizația dvs. nu permite ca MailCraft să citească calendarele cuti
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
-msgid "Your organisation doesn't let MailCraft change automatic replies"
-msgstr "Organizația dvs. nu permite ca MailCraft să modifice răspunsurile automate"
-
-#. interface
-#: crates/ui-egui/src/auto_replies.rs
-#, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
 msgstr "Organizația dvs. nu permite ca MailCraft să vă modifice răspunsurile automate. Întrebați administratorul."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
+msgstr "Organizația dvs. nu permite ca MailCraft să sincronizeze această cutie poștală cu Outlook"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16890,22 +17088,10 @@ msgid "Your organisation then lets only an administrator approve a new program. 
 msgstr "Organizația dvs. permite în acest caz doar unui administrator să aprobe un program nou. Contul și parola dvs. sunt în regulă."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/server_sync.rs
 #, fuzzy
-msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată ca MailCraft să modifice răspunsurile automate: Fișier › Informații"
-
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată păstrarea regulilor pe server: Fișier › Informații"
-
-#. interface
-#: crates/ui-egui/src/task_sync.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată sincronizarea sarcinilor cu Microsoft To Do: Fișier › Informații"
+msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
+msgstr "Administratorul organizației dvs. trebuie să aprobe, o singură dată, ca MailCraft să sincronizeze această cutie poștală cu Outlook: Fișier › Informații"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -19339,6 +19525,18 @@ msgid "this account may not save it"
 msgstr "acest cont nu are voie să-l salveze"
 
 #. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with a server"
+msgstr "categoriile acestui cont nu sunt sincronizate cu niciun server"
+
+#. what a command says
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "this account's categories aren't kept in step with its server"
+msgstr "categoriile acestui cont nu sunt sincronizate cu serverul său"
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "this contact has no e-mail address"
@@ -20280,6 +20478,15 @@ msgstr[0] "{n} element de calendar"
 msgstr[1] "{n} elemente de calendar"
 msgstr[2] "{n} de elemente de calendar"
 
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} category couldn't be put back: the list of categories is full."
+msgid_plural "{n} categories couldn't be put back: the list of categories is full."
+msgstr[0] "{n} categorie nu a putut fi pusă la loc: lista de categorii este plină."
+msgstr[1] "{n} categorii nu au putut fi puse la loc: lista de categorii este plină."
+msgstr[2] "{n} de categorii nu au putut fi puse la loc: lista de categorii este plină."
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -20375,6 +20582,15 @@ msgid_plural "{n} events in view"
 msgstr[0] "{n} eveniment afișat"
 msgstr[1] "{n} evenimente afișate"
 msgstr[2] "{n} de evenimente afișate"
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
+msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
+msgstr[0] "{n} eveniment își păstrează categoriile cum erau pe serverul său: prea multe modificări așteaptă să fie trimise."
+msgstr[1] "{n} evenimente își păstrează categoriile cum erau pe serverele lor: prea multe modificări așteaptă să fie trimise."
+msgstr[2] "{n} de evenimente își păstrează categoriile cum erau pe serverele lor: prea multe modificări așteaptă să fie trimise."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -21161,6 +21377,98 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
+#~ msgstr "Permiteți ca MailCraft să vă modifice răspunsurile automate, din pagina deschisă în browser…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
+#~ msgstr "Permiteți ca MailCraft să vă păstreze regulile pe server, din pagina deschisă în browser…"
+
+#, fuzzy
+#~ msgid "Allow MailCraft to keep your tasks in step with Microsoft To Do on the page that opened in your browser…"
+#~ msgstr "Permiteți ca MailCraft să vă sincronizeze sarcinile cu Microsoft To Do, din pagina deschisă în browser…"
+
+#, fuzzy
+#~ msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+#~ msgstr "Cereți permisiunea de a modifica regulile de pe server: pagina Microsoft se deschide în browser. Fără ea, regulile noi rămân pe acest computer și nu se trimite nimic din ele."
+
+#, fuzzy
+#~ msgid "Ask for permission to change your automatic replies: Microsoft's page opens in your browser. Reading them doesn't need it."
+#~ msgstr "Cereți permisiunea de a vă modifica răspunsurile automate: pagina Microsoft se deschide în browser. Pentru citirea lor nu e nevoie."
+
+#, fuzzy
+#~ msgid "Keep Rules on the Server"
+#~ msgstr "Păstrare reguli pe server"
+
+#, fuzzy
+#~ msgid "Keep Tasks in Step with Microsoft To Do"
+#~ msgstr "Sincronizare sarcini cu Microsoft To Do"
+
+#, fuzzy
+#~ msgid "Rules stay on this computer for now: {error}"
+#~ msgstr "Regulile rămân deocamdată pe acest computer: {error}"
+
+#, fuzzy
+#~ msgid "Rules weren't allowed on the server: {error}"
+#~ msgstr "Regulile nu au fost permise pe server: {error}"
+
+#, fuzzy
+#~ msgid "Tasks weren't allowed to be kept in step: {error}"
+#~ msgstr "Sincronizarea sarcinilor nu a fost permisă: {error}"
+
+#, fuzzy
+#~ msgid "The colour is set in Outlook"
+#~ msgstr "Culoarea se setează în Outlook"
+
+#, fuzzy
+#~ msgid "This account doesn't keep its rules on its server"
+#~ msgstr "Acest cont nu își păstrează regulile pe server"
+
+#, fuzzy
+#~ msgid ""
+#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
+#~ msgstr ""
+#~ "Ca să modifice răspunsurile automate ale {address}, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+#~ "\n"
+#~ "MailCraft modifică astfel doar răspunsurile automate și regulile dosarului Mesaje primite, niciodată categoriile sau programul de lucru. Pentru citirea răspunsurilor automate nu e nevoie."
+
+#, fuzzy
+#~ msgid ""
+#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+#~ "\n"
+#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+#~ msgstr ""
+#~ "Ca să păstreze regulile lui {address} pe server, unde rulează chiar și când MailCraft e închis și apar în Outlook pe web și pe telefon, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale, unde Microsoft păstrează regulile. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
+#~ "\n"
+#~ "Până permiteți, regulile rămân pe acest computer și nu se trimite nimic din ele către Microsoft."
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
+#~ msgstr "Organizația dvs. nu permite ca MailCraft să păstreze reguli pe server"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
+#~ msgstr "Organizația dvs. nu permite ca MailCraft să sincronizeze sarcinile cu Microsoft To Do"
+
+#, fuzzy
+#~ msgid "Your organisation doesn't let MailCraft change automatic replies"
+#~ msgstr "Organizația dvs. nu permite ca MailCraft să modifice răspunsurile automate"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve MailCraft changing automatic replies once: File › Info"
+#~ msgstr "Administratorul organizației trebuie să aprobe o dată ca MailCraft să modifice răspunsurile automate: Fișier › Informații"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
+#~ msgstr "Administratorul organizației trebuie să aprobe o dată păstrarea regulilor pe server: Fișier › Informații"
+
+#, fuzzy
+#~ msgid "Your organisation's administrator has to approve keeping tasks in step with Microsoft To Do once: File › Info"
+#~ msgstr "Administratorul organizației trebuie să aprobe o dată sincronizarea sarcinilor cu Microsoft To Do: Fișier › Informații"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

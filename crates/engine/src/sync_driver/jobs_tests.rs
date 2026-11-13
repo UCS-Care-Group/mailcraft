@@ -3,8 +3,8 @@
 
 use super::jobs::*;
 
-const ALL: [Start; 7] =
-    [Start::Calendar, Start::CalendarAround, Start::CalendarCheck, Start::Tasks, Start::Rules, Start::InboxCheck, Start::FreeBusy];
+const ALL: [Start; 8] =
+    [Start::Calendar, Start::CalendarAround, Start::CalendarCheck, Start::Tasks, Start::Rules, Start::Categories, Start::InboxCheck, Start::FreeBusy];
 
 #[test]
 fn nothing_at_work_blocks_nothing() {
@@ -17,7 +17,7 @@ fn nothing_at_work_blocks_nothing() {
 fn every_kind_is_listed_once() {
     let mut seen = std::collections::HashSet::new();
     assert!(JobKind::ALL.iter().all(|k| seen.insert(*k)));
-    assert_eq!(JobKind::ALL.len(), 15);
+    assert_eq!(JobKind::ALL.len(), 16);
 }
 
 #[test]
@@ -64,5 +64,27 @@ fn the_inbox_check_waits_for_what_the_round_waits_for() {
         Busy { switching: true, ..Default::default() },
     ] {
         assert!(busy.blocks(Start::InboxCheck) && !busy.blocks(Start::Calendar));
+    }
+}
+
+#[test]
+fn the_categories_job_waits_for_the_other_jobs_of_the_sign_in_and_the_calendar_for_it() {
+    // (#661: a list of the calendar read while the categories change on the server could be from
+    // before the change.)
+    let categories = Busy { categories: true, ..Default::default() };
+    assert!(categories.blocks(Start::Calendar));
+    assert!(ALL.iter().filter(|j| **j != Start::Calendar).all(|j| !categories.blocks(*j)));
+    for busy in [
+        Busy { calendar: true, ..Default::default() },
+        Busy { tasks: true, ..Default::default() },
+        Busy { rules: true, ..Default::default() },
+        Busy { graph: true, ..Default::default() },
+        Busy { mail_run: true, ..Default::default() },
+        Busy { queued: true, ..Default::default() },
+    ] {
+        assert!(busy.blocks(Start::Categories), "{busy:?}");
+    }
+    for busy in [Busy { auto_replies: true, ..Default::default() }, Busy { free_busy: true, ..Default::default() }] {
+        assert!(!busy.blocks(Start::Categories), "{busy:?}");
     }
 }

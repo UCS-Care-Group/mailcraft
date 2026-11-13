@@ -568,6 +568,10 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // Another server or another user name is another mailbox: where the folder list and the
     // folders went on from is the old one's, and is forgotten with it (below).
     let other_mailbox = a.kind == AccountKind::Exchange && (url(&before) != url(&a) || login(&before) != login(&a));
+    // (And a Microsoft account's address is its mailbox: what its server had of its categories is
+    // the old one's, #661.)
+    let was_address = before.email.trim().to_string();
+    let was_microsoft = before.kind == AccountKind::Microsoft;
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
@@ -611,6 +615,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // (Whatever its kind now: it may be a Microsoft account again later.)
+    let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
     // A shorter window: what is outside it now is thinned at the next tick, for any host.
     let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
@@ -619,6 +625,13 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
+    }
+    // So is one that isn't a Microsoft account any more: nothing keeps its list in step with
+    // Outlook, and it is the owner's to change here; should it be one again, its server's list is
+    // read as a new address's is.
+    let left_microsoft = was_microsoft && s.mailbox.account(id).is_some_and(|x| x.kind != AccountKind::Microsoft);
+    if readdressed || left_microsoft {
+        s.mailbox.restart_category_sync(id);
     }
     Ok(json!({"id": id}))
 }

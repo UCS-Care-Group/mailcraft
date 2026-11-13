@@ -10,13 +10,13 @@
 //! ([`mailcraft_engine::cmd::rules_remote`]).
 //!
 //! **The permission.** Reading the server's rules takes `MailboxSettings.Read`, which a sign-in
-//! asks for; changing them takes `MailboxSettings.ReadWrite`, which no sign-in page asks for.
-//! The first job that has something to send finds its sign-in doesn't cover it
-//! ([`RulesResult::consent_needed`]): nothing of the rules is sent, and the window asks the
-//! owner, by itself, with a question first and then Microsoft's page ([`MailApp::ask_rules`]).
-//! Until it is allowed the account's rules stay on this computer and run here, and the server's
-//! are still read and shown: only the changes wait. File › Info says where it stands, with a way
-//! to ask again.
+//! asks for; changing them takes `MailboxSettings.ReadWrite`, which a new sign-in's page asks for
+//! beside the rest, as an extra a page that won't have it is asked again without (#661). For an
+//! account that signed in before, the first job that has something to send finds its sign-in
+//! doesn't cover it ([`RulesResult::consent_needed`]): nothing of the rules is sent, and the window
+//! asks the owner the one question of [`crate::server_sync`], then Microsoft's page. Until it is
+//! allowed the account's rules stay on this computer and run here, and the server's are still read
+//! and shown: only the changes wait. File › Info says where it stands, with Ask again.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -27,9 +27,7 @@ use mailcraft_engine::cmd::rules_remote;
 use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote_rules::{RulesDownload, RulesUpload, RulesUploaded};
 use mailcraft_model::{Account, Id};
-use serde_json::{Value, json};
 
-use crate::dialogs::{Dialog, Question};
 use crate::task_sync::fingerprint;
 use crate::{MailApp, Tokens, now_ms};
 
@@ -107,6 +105,9 @@ pub struct RuleSync {
     /// When each account's rules were last asked for, and the failures since the last answer.
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
+    /// The time as the last look read it: a job's answer is taken in within a frame of it, so a
+    /// job that came to nothing waits from when it ended, however long it ran (#661).
+    pub(crate) clock: f64,
     pub(crate) perm: HashMap<Id, Permission>,
     settling: HashMap<Id, u32>,
     /// Which mailbox the job under way is for ([`Session::openings`]): its answer is for that one
@@ -149,6 +150,7 @@ impl MailApp {
     /// Look whether any account's rules are due, and start a job when they are. Called every
     /// frame. (Public for a host's tests, which have no window.)
     pub fn rules_tick_at(&mut self, now: f64) -> bool {
+        self.rules.clock = now;
         self.rules_ask_tick();
         if !self.auto_sync || self.services.graph_rules.is_none() || self.rules.rx.is_some() {
             return false;
@@ -300,7 +302,7 @@ impl MailApp {
             log::info!("rules: refused just after the owner allowed them; trying again ({settling} more)");
             self.rules.settling.insert(account, settling - 1);
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.rules.failures.insert(account, (n.saturating_add(1), started));
+            self.rules.failures.insert(account, (n.saturating_add(1), self.rules.clock.max(started)));
             self.rules.checked.remove(&account);
         } else if result.consent_needed {
             log::info!("rules: the sign-in doesn't cover changing the rules; the owner is to be asked");
@@ -346,11 +348,27 @@ impl MailApp {
                 Err(e) => errors.push(crate::i18n::fmt(tl!("The rules on the server couldn't be taken in: {error}"), &[("error", &e.to_string())])),
             }
         }
-        if worked && errors.is_empty() {
+        // A change the server couldn't take now (busy, or changed there meanwhile) goes again
+        // after the wait, as a job that came to nothing does.
+        if result.uploaded.as_ref().is_some_and(|u| u.outcomes.iter().any(|o| o.result == mailcraft_model::remote_rules::RuleResult::Failed)) {
+            worked = false;
+        }
+        if result.consent_needed && settling > 0 {
+            // (Tried again after the wait noted above.)
+        } else if worked && errors.is_empty() && !result.sign_in_refused {
             self.rules.failures.remove(&account);
-        } else if !result.consent_needed && !result.sign_in_refused && !result.unreadable {
+        } else if !result.consent_needed && (result.tokens.is_some() || !result.sign_in_refused) && (!result.unreadable || result.uploaded.is_some())
+        {
+            // (A renewed token the server refused is a failure too, and so is a change that
+            // couldn't go when the rules then couldn't be read: what waits goes again after the
+            // wait, not at the next look.)
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
-            self.rules.failures.insert(account, (n.saturating_add(1), started));
+            self.rules.failures.insert(account, (n.saturating_add(1), self.rules.clock.max(started)));
+            // (A job that came to nothing is tried again after the wait, not after the time
+            // between reads.)
+            if !worked {
+                self.rules.checked.remove(&account);
+            }
         }
         self.note_problems_from("rules", account, &errors, None, false);
     }
@@ -359,20 +377,14 @@ impl MailApp {
     /// changing the rules: a question first, then Microsoft's page. Not while another dialog is
     /// up or File is open.
     fn rules_ask_tick(&mut self) {
-        // A question that went away unanswered is not asked again by itself.
-        let asking: Vec<Id> = self.rules.perm.iter().filter(|(_, p)| **p == Permission::Asking).map(|(a, _)| *a).collect();
-        let still = self.signing_in.is_some() || matches!(&self.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowRules");
-        if !still {
-            for account in asking {
-                self.rules.perm.insert(account, Permission::Declined);
-            }
-        }
+        // (A question that went away unanswered is a no: `sync_ask_tick`.)
+        self.sync_ask_tick();
         // (Working offline, Microsoft's page can't be had: the question waits.)
         if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() || self.offline() {
             return;
         }
         if let Some(account) = self.rules.perm.iter().find(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a) {
-            self.ask_rules(account);
+            self.ask_sync(account);
         }
     }
 
@@ -386,101 +398,46 @@ impl MailApp {
         }
     }
 
-    /// The question before Microsoft's page: what is asked of the owner and why.
-    pub(crate) fn ask_rules(&mut self, account: Id) -> bool {
-        let Some(address) = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()) else { return false };
-        let text = crate::i18n::fmt(
-            tl!(
-                "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n\nUntil you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-            ),
-            &[("address", &address)],
-        );
-        let ask = Question {
-            title: tl!("Keep Rules on the Server").to_string(),
-            text,
-            action: tl!("Continue").to_string(),
-            with: Value::Null,
-            more: Vec::new(),
-            note: None,
-            // Closing it is the same as Not now (`rules_ask_tick`).
-            cancel: Some(tl!("Not now").to_string()),
-            tick: None,
-        };
-        self.rules.perm.insert(account, Permission::Asking);
-        self.dialog = Some(Dialog::Confirm { command: "ui.allowRules".to_string(), params: json!({"account": account}), ask });
-        true
-    }
-
-    /// File › Info's "Ask again".
-    pub(crate) fn ask_rules_again(&mut self, account: Id) {
-        if self.dialog.is_none() && self.signing_in.is_none() {
-            self.ask_rules(account);
+    /// The one question is put ([`crate::server_sync`]): the rules that wait for it are being
+    /// asked about.
+    pub(crate) fn rules_sync_asking(&mut self, account: Id) {
+        if matches!(self.rules.perm.get(&account), Some(Permission::Needed | Permission::Declined | Permission::Refused(_))) {
+            self.rules.perm.insert(account, Permission::Asking);
         }
     }
 
-    /// `ui.allowRules`: Microsoft's page, for changing the rules, because the owner said go ahead.
-    pub(crate) fn begin_rules_sign_in(&mut self, account: Id) -> Result<Value, String> {
-        let owner = self.session.mailbox.account(account).filter(|a| a.oauth.is_some() && !a.is_shared()).cloned();
-        let owner = owner.ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        if !self.session.mailbox.keeps_rules(owner.id) {
-            return Err(tl!("This account doesn't keep its rules on its server").to_string());
+    /// The one question went away unanswered: the rules stay here, and nobody is asked again by
+    /// itself (File › Info has Ask again).
+    pub(crate) fn rules_sync_not_now(&mut self, account: Id) {
+        if matches!(self.rules.perm.get(&account), Some(Permission::Needed | Permission::Asking)) {
+            self.rules.perm.insert(account, Permission::Declined);
         }
-        let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
-        self.rules_next = true;
-        let begun = self.begin_sign_in(owner.id, oauth, &owner.email, String::new(), false, true);
-        self.rules_next = false;
-        if let Err(e) = begun {
+    }
+
+    /// The page signed in somebody else: the rules wait as they did.
+    pub(crate) fn rules_sync_waits(&mut self, account: Id) {
+        if self.rules.perm.get(&account) == Some(&Permission::Asking) {
             self.rules.perm.insert(account, Permission::Needed);
-            return Err(e);
         }
-        self.rules.perm.insert(account, Permission::Asking);
-        self.session.sync_status = tl!("Allow MailCraft to keep your rules on the server on the page that opened in your browser…").to_string();
-        Ok(json!({"pending": "signIn", "account": owner.id}))
     }
 
-    /// The owner answered on Microsoft's page about the rules: with the tokens, those waiting go
-    /// at once; without, why not is said.
-    pub(crate) fn rules_signed_in(&mut self, account: Id, answer: Result<Tokens, String>) {
-        use crate::approval::NO_BROWSER;
-        use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
-        self.session.sync_status.clear();
-        match answer {
-            // (Somebody else's tokens are neither used nor remembered, #103.)
-            Ok(tokens) if self.signed_in_as_other(account, &tokens) => {
-                self.rules.perm.insert(account, Permission::Needed);
-            }
-            Ok(tokens) => {
-                if !tokens.refresh.is_empty() {
-                    self.remember("refresh", account, &tokens.refresh);
-                    if let Some(kept) = self.tokens.get_mut(&account) {
-                        kept.refresh = tokens.refresh.clone();
-                    }
-                }
-                log::info!("rules: the owner allowed changing the rules; the next job finds out");
-                self.rules_allowed(account);
-                self.auto_replies_allowed(account);
-            }
-            Err(e) if e == NEEDS_APPROVAL => {
-                let said = tl!("Your organisation's administrator has to approve keeping rules on the server once: File › Info");
-                self.rules.perm.insert(account, Permission::Refused(said.to_string()));
-                self.status(said);
-                let _ = self.run("ui.approvalHelp", json!({"account": account}));
-            }
-            Err(e) if e == REFUSED_BY_ORGANISATION || e == REFUSED_FOR_ACCOUNT => {
-                let said = tl!("Your organisation doesn't allow MailCraft to keep rules on the server");
-                self.rules.perm.insert(account, Permission::Refused(said.to_string()));
-                self.status(said);
-            }
-            Err(e) if e == NO_BROWSER => {
-                self.rules.perm.insert(account, Permission::Declined);
-                self.status(crate::i18n::fmt(tl!("Rules stay on this computer for now: {error}"), &[("error", &e)]));
-            }
-            Err(e) => {
-                let said = crate::i18n::fmt(tl!("Rules weren't allowed on the server: {error}"), &[("error", &e)]);
-                self.rules.perm.insert(account, Permission::Refused(said.clone()));
-                self.status(said);
-            }
+    /// Asked, and no: why, in a few words.
+    pub(crate) fn rules_sync_refused(&mut self, account: Id, why: &str) {
+        if matches!(self.rules.perm.get(&account), Some(Permission::Needed | Permission::Asking | Permission::Declined)) {
+            self.rules.perm.insert(account, Permission::Refused(why.to_string()));
         }
+    }
+
+    /// The rules' part of File › Info's line about keeping in step with Outlook.
+    pub(crate) fn rules_sync_part(&self, account: Id) -> Option<(String, bool, crate::server_sync::Perm)> {
+        use crate::server_sync::Perm;
+        let (line, again) = self.rules_line(account)?;
+        let perm = match self.rules.perm.get(&account) {
+            Some(Permission::Asking) => Perm::Asking,
+            Some(Permission::Given) | None => Perm::Fine,
+            Some(_) => Perm::Waits,
+        };
+        Some((line, again, perm))
     }
 
     /// The owner allowed changing the mailbox's settings on Microsoft's page, for the rules or for
@@ -512,7 +469,7 @@ impl MailApp {
         if !rules_remote::rule_accounts(&self.session.mailbox).contains(&account) {
             return None;
         }
-        let shown = |why: &str| crate::forms::kit::shown(why, 90);
+        let shown = |why: &str| crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.rules.perm.get(&account) {
             Some(Permission::Given) => (tl!("Rules: kept on the server").to_string(), false),
             Some(Permission::Needed) => (tl!("Rules: waiting for your permission to keep them on the server").to_string(), true),
