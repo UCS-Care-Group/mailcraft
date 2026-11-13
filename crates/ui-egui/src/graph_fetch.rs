@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::{compose, ews_mail, graph_mail, imap_fetch, jmap_mail};
-use mailcraft_model::sync::{GraphFetchRequest, GraphFetchResult, ImapFetchRequest};
+use mailcraft_model::sync::{GraphFetchResult, ImapFetchRequest};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
@@ -31,19 +31,14 @@ use crate::{MailApp, now_ms};
 
 /// Messages asked for at a time: in the background, and for a forward of several (#360).
 const BATCH: usize = 10;
-/// How long the background waits before looking again when there was nothing to fetch.
-const IDLE_MS: f64 = 20_000.0;
-/// The longest the background waits after batches that brought nothing, one after another: the
-/// wait doubles from [`IDLE_MS`] up to this.
-const MOST_IDLE_MS: f64 = 15.0 * 60_000.0;
+// How long the background waits before looking again when there was nothing to fetch, and how
+// long at most after batches that brought nothing, one after another, are the engine's.
+#[cfg(test)]
+use mailcraft_engine::sync_driver::FETCH_IDLE_MS as IDLE_MS;
+use mailcraft_engine::sync_driver::{FETCH_IDLE_MS, fetch_backoff_ms};
 
 /// What the host is asked to fetch ([`crate::Services::graph_fetch`]).
-pub struct GraphFetchJob {
-    pub request: GraphFetchRequest,
-    /// A Graph token of this session that covers the mail.
-    pub access: String,
-    pub cancel: Arc<AtomicBool>,
-}
+pub use mailcraft_host::fetch::GraphFetchJob;
 
 /// What the host is asked to fetch of an IMAP account ([`crate::Services::imap_fetch`], #653):
 /// messages its mail to keep offline left as their headers and preview.
@@ -460,7 +455,7 @@ impl MailApp {
             self.fetching.background = Some((account, self.session.openings(), answer));
             return;
         }
-        self.fetching.idle_until = now_ms() + IDLE_MS;
+        self.fetching.idle_until = now_ms() + FETCH_IDLE_MS;
         self.fetching.progress.clear();
     }
 
@@ -563,7 +558,7 @@ impl MailApp {
             // Not now: this account is tried again in a while, longer each time it stops again
             // (a Send/Receive renews the token too, and starts the waits afresh); the others go on.
             let times = self.fetching.stuck.get(&account).map_or(0, |(times, _)| *times);
-            let wait = backoff(times).max(f64::from(result.busy_for.unwrap_or(0)) * 1_000.0);
+            let wait = fetch_backoff_ms(times).max(f64::from(result.busy_for.unwrap_or(0)) * 1_000.0);
             self.fetching.stuck.insert(account, (times.saturating_add(1), now_ms() + wait));
             // Said once, when it first stops, not every time it tries again.
             if times == 0 {
@@ -664,12 +659,6 @@ fn asked<R>(messages: &[Id], request: impl Fn(Option<Id>) -> Option<R>, ids: fn(
         ids(&mut all).append(ids(&mut more));
     }
     if ids(&mut all).is_empty() { None } else { Some(all) }
-}
-
-/// How long the background waits after `stuck` batches one after another brought nothing:
-/// [`IDLE_MS`], doubling each time, at most [`MOST_IDLE_MS`].
-fn backoff(stuck: u32) -> f64 {
-    (IDLE_MS * 2f64.powi(i32::try_from(stuck.min(10)).unwrap_or(10))).min(MOST_IDLE_MS)
 }
 
 #[cfg(test)]
