@@ -850,7 +850,7 @@ fn run_rules_now_doesnt_act_on_jmap_mail_past_an_exception_its_listing_cut() {
     );
 }
 
-/// Run Rules Now with a rule that copies and flags a JMAP server's mail (#566): a message not
+/// Run Rules Now with a rule that copies and flags a JMAP account's mail (#566): a message not
 /// downloaded yet isn't copied, in its account or onto this computer, where the copy would never
 /// be whole (its server isn't asked to make it), as one out of a Microsoft or an Exchange server
 /// account isn't; the rest of the rule acts on it. One downloaded is copied.
@@ -867,6 +867,9 @@ fn run_rules_now_doesnt_copy_jmap_mail_not_downloaded_yet() {
         GraphFetchResult { account, email: ME.into(), fetched: vec![GraphFetched { id: "E2".into(), mime }], ..Default::default() },
     )
     .unwrap();
+    // (And a copy of the one not downloaded, as `mail.copy` makes it: no server id, and it never
+    // fills in either.)
+    s.mailbox.copy_message(here(&s, account, "E1").unwrap().id, inbox).unwrap();
     let rule = json!({"name": "Keep", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}],
         "actions": [{"type": "copyTo", "value": projects}, {"type": "copyTo", "value": elsewhere}, {"type": "flag"}]});
     s.run("rules.add", &rule).unwrap();

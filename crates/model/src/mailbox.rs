@@ -3302,10 +3302,12 @@ impl Mailbox {
                 }
                 Action::CopyTo(folder) => {
                     let at = u64::try_from(clock.now).unwrap_or_default();
-                    // Nor copies a JMAP server's message not downloaded yet: its server isn't
-                    // asked to make the copy, which would never be whole, as one out of a
-                    // Microsoft or an Exchange server account isn't made (#566).
-                    let never_whole = self.message(id).is_some_and(|m| m.unfetched) && self.on_jmap_server(id);
+                    // Nor copies a JMAP account's message not downloaded yet (a copy made here of
+                    // one too, which has no server id): its server isn't asked to make the copy,
+                    // which would never be whole, as one out of a Microsoft or an Exchange server
+                    // account isn't made (#566).
+                    let jmap = |m: &Message| self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap);
+                    let never_whole = self.message(id).is_some_and(|m| m.unfetched && jmap(m));
                     let copy = if self.is_send_queue(*folder) || never_whole { None } else { self.copy_message_marked(id, *folder, at).ok() };
                     if let Some(account) = copy.and_then(|c| self.message(c)).map(|m| m.account)
                         && !copied_into.contains(&account)
