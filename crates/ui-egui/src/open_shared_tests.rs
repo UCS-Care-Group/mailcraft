@@ -34,7 +34,7 @@ fn window(answer: Result<Tokens, String>) -> (MailApp, Id, Answers, Jobs, SignIn
     app.autosave = false;
     let owner = app.execute("account.add", json!({"email": OWNER, "kind": "microsoft", "tenant": "organizations"})).unwrap()["id"].as_u64().unwrap();
     app.tokens.insert(owner, tokens("own-access", "ref-1"));
-    app.graph_checked.insert(owner, f64::MAX);
+    app.session.driver.calendar.checked.insert(owner, f64::MAX);
     let (answers, jobs, sign_ins): (Answers, Jobs, SignIns) = Default::default();
     let (to_answer, log) = (answers.clone(), jobs.clone());
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
@@ -191,7 +191,7 @@ fn a_person_the_server_lists_as_well_is_offered_for_removal_once() {
     };
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar(), server_has_it.clone()], vec![]));
     app.session.driver.calendar.book.forget_all_checked();
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.checked.remove(&owner);
     job(&mut app);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("offered") };
     assert_eq!((command.as_str(), params["address"].as_str()), ("calendar.removeShared", Some(CY)));
@@ -199,7 +199,7 @@ fn a_person_the_server_lists_as_well_is_offered_for_removal_once() {
     // Said no: not asked again.
     app.dialog = None;
     answers.lock().unwrap().push_back(listed(owner, vec![main_calendar(), cy_calendar(), server_has_it], vec![]));
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.checked.remove(&owner);
     job(&mut app);
     assert!(app.dialog.is_none(), "offered once");
     // Yes: the copy opened by address goes, the server's stays.
@@ -250,7 +250,7 @@ fn ops_copy() -> RemoteCalendar {
 fn list_again(app: &mut MailApp, owner: Id, answers: &Answers, calendars: Vec<RemoteCalendar>) {
     answers.lock().unwrap().push_back(listed(owner, calendars, vec![]));
     app.session.driver.calendar.book.forget_all_checked();
-    app.graph_checked.remove(&owner);
+    app.session.driver.calendar.checked.remove(&owner);
     job(app);
 }
 
