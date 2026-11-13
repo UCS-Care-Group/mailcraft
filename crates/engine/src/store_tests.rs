@@ -2022,6 +2022,9 @@ mod undo_body;
 #[path = "store_budget_tests.rs"]
 mod budget;
 
+#[path = "store_history_memory_tests.rs"]
+mod history_memory;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
