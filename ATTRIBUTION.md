@@ -65,5 +65,6 @@ Generated-in-code art is original and has no file to list: the UI icon set (`cra
 | `crates/smime/testdata/noattr.eml` | MailCraft contributors | as `detached.eml`, `-noattr` (no signed attributes) | MIT OR Apache-2.0 | Test vector (#30) |
 | `crates/smime/testdata/pss.eml` | MailCraft contributors | as `detached.eml`, `-md sha384 -keyopt rsa_padding_mode:pss` | MIT OR Apache-2.0 | Test vector (#30) |
 | `crates/smime/testdata/nocerts.eml` | MailCraft contributors | as `detached.eml`, `-nocerts` | MIT OR Apache-2.0 | Test vector (#30): no certificate in the message |
+| `fuzz/seeds/autoconfig/document.xml` | MailCraft contributors | an autoconfig document of our own, for an invented domain | MIT OR Apache-2.0 | Fuzz seed (#1112) |
 | `fuzz/seeds/smime/detached` | MailCraft contributors | the CMS of a detached signature as `detached.eml`'s, in DER | MIT OR Apache-2.0 | Fuzz seed (#30) |
 | `fuzz/seeds/smime/opaque-ber` | MailCraft contributors | the CMS of `opaque-ber.eml` | MIT OR Apache-2.0 | Fuzz seed (#30) |

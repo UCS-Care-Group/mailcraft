@@ -110,6 +110,8 @@ mod native {
     use mailcraft_model::Account;
 
     pub use crate::anchors::system_trust_anchors;
+    #[doc(hidden)]
+    pub use crate::autoconfig::read_for_fuzzing as read_autoconfig_for_fuzzing;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
     pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};

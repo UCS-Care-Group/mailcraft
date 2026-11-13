@@ -14720,6 +14720,11 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
+msgid "its address is on this computer or a private network"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
 msgid "its name isn't one a certificate can be checked against"
 msgstr ""
 

@@ -17777,6 +17777,11 @@ msgstr "scrie altor persoane sau accesează webul"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
+msgid "its address is on this computer or a private network"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "numele lui nu este unul cu care se poate verifica un certificat"

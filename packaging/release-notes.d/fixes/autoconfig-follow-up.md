@@ -1,0 +1,1 @@
+- Add Account finds the servers of a domain that Mozilla's ISP database lists with a placeholder for the domain in the host name (`imap.%EMAILDOMAIN%`), and no longer asks for a domain's autoconfig document at an address inside your own network ([#1112](https://github.com/GITHUB_REPOSITORY/issues/1112)).

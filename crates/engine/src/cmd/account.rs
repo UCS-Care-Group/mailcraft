@@ -243,7 +243,8 @@ fn found_server(v: Option<&Value>, usual: (u16, u16)) -> Option<(Server, Via)> {
 /// source's placeholders make of it. Anything else that still has a placeholder in it, or that
 /// no field could hold, is the address.
 fn found_username(template: &str, email: &str, domain: &str) -> String {
-    let template: String = template.trim().chars().filter(|c| !c.is_control()).take(254).collect();
+    // (Neither control characters nor the ones that show nothing or turn the text round.)
+    let template: String = template.trim().chars().filter(|c| !c.is_control() && !mailcraft_names::is_format(*c)).take(254).collect();
     if template.is_empty() {
         return email.to_string();
     }

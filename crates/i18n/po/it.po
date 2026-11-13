@@ -16769,6 +16769,11 @@ msgstr "scrive ad altre persone o si collega al web"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
+msgid "its address is on this computer or a private network"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "il suo nome non è uno con cui si possa verificare un certificato"

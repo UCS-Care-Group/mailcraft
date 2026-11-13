@@ -845,6 +845,8 @@ fn accounts_that_sign_in_on_the_providers_page() {
         ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
         ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
         ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+        // Characters that show nothing, or turn the text round, are not part of a user name.
+        ("avery@lumen.example", "\u{202e}%EMAILLOCALPART%\u{200b}\u{2066}", "avery"),
     ] {
         let filled = run(
             &mut s,

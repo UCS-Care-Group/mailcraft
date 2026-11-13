@@ -69,7 +69,7 @@ fn document(incoming: &[&str], outgoing: &[&str]) -> String {
 
 #[test]
 fn the_imap_and_smtp_servers_are_taken_implicit_tls_first() {
-    let config = read(DOCUMENT.as_bytes()).unwrap().unwrap();
+    let config = read(DOCUMENT.as_bytes(), "example.org").unwrap().unwrap();
     // The SSL one of the two IMAP servers, lower-cased without its dot; the POP3 one is passed over.
     assert_eq!(config.incoming, server("imap.example.org", 993, Security::Tls));
     assert_eq!(config.outgoing, server("smtp.example.org", 587, Security::StartTls));
@@ -77,14 +77,14 @@ fn the_imap_and_smtp_servers_are_taken_implicit_tls_first() {
     assert_eq!(config.username, "%EMAILADDRESS%");
     // An outgoing server's user name is not the account's: without an incoming server, none.
     let outgoing_only = document(&[], &["<hostname>smtp.example.org</hostname><socketType>SSL</socketType><username>%EMAILLOCALPART%</username>"]);
-    let config = read(outgoing_only.as_bytes()).unwrap().unwrap();
+    let config = read(outgoing_only.as_bytes(), "example.org").unwrap().unwrap();
     assert_eq!((config.incoming, config.outgoing, config.username.as_str()), (None, server("smtp.example.org", 465, Security::Tls), ""));
 }
 
 #[test]
 fn a_server_without_encryption_is_never_taken() {
     let plain = document(&["<hostname>imap.example.org</hostname><port>143</port><socketType>plain</socketType>"], &[]);
-    assert_eq!(read(plain.as_bytes()), Ok(None));
+    assert_eq!(read(plain.as_bytes(), "example.org"), Ok(None));
     // STARTTLS is taken when nothing better is listed; plain beside it changes nothing.
     let mixed = document(
         &[
@@ -93,7 +93,7 @@ fn a_server_without_encryption_is_never_taken() {
         ],
         &["<hostname>smtp.example.org</hostname><socketType>plain</socketType>"],
     );
-    let config = read(mixed.as_bytes()).unwrap().unwrap();
+    let config = read(mixed.as_bytes(), "example.org").unwrap().unwrap();
     assert_eq!(
         (config.incoming, config.outgoing, config.username.as_str()),
         (server("imap.example.org", 143, Security::StartTls), None, "%EMAILLOCALPART%")
@@ -101,7 +101,7 @@ fn a_server_without_encryption_is_never_taken() {
     // No socket type, or one nobody knows, is no encryption.
     for socket in ["", "<socketType></socketType>", "<socketType>TLS</socketType>", "<socketType>none</socketType>"] {
         let doc = document(&[&format!("<hostname>imap.example.org</hostname>{socket}")], &[]);
-        assert_eq!(read(doc.as_bytes()), Ok(None), "{socket}");
+        assert_eq!(read(doc.as_bytes(), "example.org"), Ok(None), "{socket}");
     }
 }
 
@@ -111,14 +111,14 @@ fn the_usual_port_stands_in_and_a_bad_one_drops_the_server() {
         &["<hostname>imap.example.org</hostname><socketType>SSL</socketType>"],
         &["<hostname>smtp.example.org</hostname><socketType>STARTTLS</socketType>"],
     );
-    let config = read(none.as_bytes()).unwrap().unwrap();
+    let config = read(none.as_bytes(), "example.org").unwrap().unwrap();
     assert_eq!(
         (config.incoming, config.outgoing),
         (server("imap.example.org", 993, Security::Tls), server("smtp.example.org", 587, Security::StartTls))
     );
     for port in ["0", "70000", "-1", "993a", "9 93"] {
         let doc = document(&[&format!("<hostname>imap.example.org</hostname><port>{port}</port><socketType>SSL</socketType>")], &[]);
-        assert_eq!(read(doc.as_bytes()), Ok(None), "{port}");
+        assert_eq!(read(doc.as_bytes(), "example.org"), Ok(None), "{port}");
     }
 }
 
@@ -136,39 +136,66 @@ fn a_hostile_document_gives_a_host_name_or_nothing() {
         &"a".repeat(300),
     ] {
         let doc = document(&[&format!("<hostname>{host}</hostname><socketType>SSL</socketType>")], &[]);
-        assert_eq!(read(doc.as_bytes()), Ok(None), "{host:?}");
+        assert_eq!(read(doc.as_bytes(), "example.org"), Ok(None), "{host:?}");
     }
     // A reference to something that isn't a character spoils the field; a character is a character.
     let entity = document(&["<hostname>&evil;imap.example.org</hostname><socketType>SSL</socketType>"], &[]);
-    assert_eq!(read(entity.as_bytes()), Ok(None));
+    assert_eq!(read(entity.as_bytes(), "example.org"), Ok(None));
     let char_ref = document(&["<hostname>imap&#46;example.org</hostname><socketType>SSL</socketType>"], &[]);
-    assert_eq!(read(char_ref.as_bytes()).unwrap().unwrap().incoming, server("imap.example.org", 993, Security::Tls));
+    assert_eq!(read(char_ref.as_bytes(), "example.org").unwrap().unwrap().incoming, server("imap.example.org", 993, Security::Tls));
     // A DTD is not read; nor is a document that ends in the middle, or one with ends that don't match.
     let dtd = format!("<!DOCTYPE clientConfig [<!ENTITY evil SYSTEM \"file:///etc/passwd\">]>{}", document(&[], &[]));
-    assert_eq!(read(dtd.as_bytes()), Err(Malformed));
-    assert_eq!(read(b"<clientConfig><emailProvider><incomingServer type=\"imap\"><hostname>imap.example.org"), Err(Malformed));
-    assert_eq!(read(b"<clientConfig><emailProvider></clientConfig></emailProvider>"), Err(Malformed));
+    assert_eq!(read(dtd.as_bytes(), "example.org"), Err(Malformed));
+    assert_eq!(read(b"<clientConfig><emailProvider><incomingServer type=\"imap\"><hostname>imap.example.org", "example.org"), Err(Malformed));
+    assert_eq!(read(b"<clientConfig><emailProvider></clientConfig></emailProvider>", "example.org"), Err(Malformed));
     // Nesting without end.
     let deep = format!("{}{}", "<a>".repeat(5_000), "</a>".repeat(5_000));
-    assert_eq!(read(deep.as_bytes()), Err(Malformed));
+    assert_eq!(read(deep.as_bytes(), "example.org"), Err(Malformed));
     // Servers in the wrong place are not servers; a field too long is not taken.
     let elsewhere = r#"<clientConfig><incomingServer type="imap"><hostname>imap.example.org</hostname><socketType>SSL</socketType></incomingServer></clientConfig>"#;
-    assert_eq!(read(elsewhere.as_bytes()), Ok(None));
+    assert_eq!(read(elsewhere.as_bytes(), "example.org"), Ok(None));
     let long =
         document(&[&format!("<hostname>imap.example.org</hostname><socketType>SSL</socketType><username>{}</username>", "u".repeat(600))], &[]);
-    assert_eq!(read(long.as_bytes()).unwrap().unwrap().username, "");
+    assert_eq!(read(long.as_bytes(), "example.org").unwrap().unwrap().username, "");
     // Not XML at all.
     for garbage in ["", "not xml", "{\"hostname\":\"imap.example.org\"}", "<html><body>blocked</body></html>"] {
-        assert!(matches!(read(garbage.as_bytes()), Ok(None) | Err(Malformed)), "{garbage:?}");
+        assert!(matches!(read(garbage.as_bytes(), "example.org"), Ok(None) | Err(Malformed)), "{garbage:?}");
     }
     // Servers beyond the cap are not read; the first of a field is the one taken.
     let many: Vec<String> = (1..=100).map(|n| format!("<hostname>imap{n}.example.org</hostname><socketType>STARTTLS</socketType>")).collect();
     let mut many: Vec<&str> = many.iter().map(String::as_str).collect();
     many.push("<hostname>imap.example.org</hostname><socketType>SSL</socketType>");
     let doc = document(&many, &[]);
-    assert_eq!(read(doc.as_bytes()).unwrap().unwrap().incoming, server("imap1.example.org", 143, Security::StartTls));
+    assert_eq!(read(doc.as_bytes(), "example.org").unwrap().unwrap().incoming, server("imap1.example.org", 143, Security::StartTls));
     let twice = document(&["<hostname>imap.example.org</hostname><hostname>evil.example.org</hostname><socketType>SSL</socketType>"], &[]);
-    assert_eq!(read(twice.as_bytes()).unwrap().unwrap().incoming, server("imap.example.org", 993, Security::Tls));
+    assert_eq!(read(twice.as_bytes(), "example.org").unwrap().unwrap().incoming, server("imap.example.org", 993, Security::Tls));
+}
+
+#[test]
+fn a_host_written_with_the_domains_placeholder_is_that_host_in_the_domain() {
+    // As the ISP database writes some of its entries.
+    let doc = document(
+        &["<hostname>imap.%EMAILDOMAIN%</hostname><socketType>SSL</socketType>"],
+        &["<hostname>%EMAILDOMAIN%</hostname><port>587</port><socketType>STARTTLS</socketType>"],
+    );
+    let config = read(doc.as_bytes(), "lumen.example").unwrap().unwrap();
+    assert_eq!(config.incoming, server("imap.lumen.example", 993, Security::Tls));
+    assert_eq!(config.outgoing, server("lumen.example", 587, Security::StartTls));
+    // No other placeholder makes a host, and what is put in is not read again.
+    for host in ["imap.%EMAILLOCALPART%.example", "%EMAILADDRESS%", "imap.%EMAILDOMAIN", "imap.%emaildomain%"] {
+        let doc = document(&[&format!("<hostname>{host}</hostname><socketType>SSL</socketType>")], &[]);
+        assert_eq!(read(doc.as_bytes(), "lumen.example"), Ok(None), "{host}");
+    }
+}
+
+#[test]
+fn a_document_is_asked_for_only_at_addresses_of_the_public_internet() {
+    // An address in a private network, written as one: refused before anything is sent.
+    for url in ["https://10.0.0.1/mail/config-v1.1.xml", "https://192.168.1.1/x", "https://169.254.169.254/x"] {
+        let started = std::time::Instant::now();
+        assert!(matches!(fetch(url, "example.org", PATIENCE), Err(NetError::Connect { .. })), "{url}");
+        assert!(started.elapsed() < Duration::from_secs(2), "{url}");
+    }
 }
 
 #[test]
@@ -177,7 +204,7 @@ fn the_document_is_fetched_with_the_domain_alone_and_nothing_is_a_document_but_a
         format!("HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{DOCUMENT}", DOCUMENT.len())
             .into_bytes(),
     );
-    let config = fetch(&server.url("/mail/config-v1.1.xml"), PATIENCE).unwrap().unwrap();
+    let config = fetch(&server.url("/mail/config-v1.1.xml"), "example.org", PATIENCE).unwrap().unwrap();
     assert_eq!(config.incoming.map(|s| s.host), Some("imap.example.org".to_string()));
     let request = server.request(0);
     assert!(request.starts_with("GET /mail/config-v1.1.xml HTTP/1.1\r\n"), "{request}");
@@ -188,19 +215,19 @@ fn the_document_is_fetched_with_the_domain_alone_and_nothing_is_a_document_but_a
     {
         let server =
             FakeHttp::answering(format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes());
-        assert_eq!(fetch(&server.url("/x"), PATIENCE), Ok(None), "{status}");
+        assert_eq!(fetch(&server.url("/x"), "example.org", PATIENCE), Ok(None), "{status}");
     }
     // Only an encrypted address, or one on this machine.
-    assert!(matches!(fetch("http://autoconfig.example.org/mail/config-v1.1.xml", PATIENCE), Err(NetError::Config(_))));
-    assert!(matches!(fetch("not an address", PATIENCE), Err(NetError::Config(_))));
+    assert!(matches!(fetch("http://autoconfig.example.org/mail/config-v1.1.xml", "example.org", PATIENCE), Err(NetError::Config(_))));
+    assert!(matches!(fetch("not an address", "example.org", PATIENCE), Err(NetError::Config(_))));
     // Nothing listens there.
-    assert!(matches!(fetch("http://127.0.0.1:1/x", PATIENCE), Err(NetError::Connect { .. })));
+    assert!(matches!(fetch("http://127.0.0.1:1/x", "example.org", PATIENCE), Err(NetError::Connect { .. })));
 }
 
 proptest! {
     #[test]
     fn arbitrary_documents_never_panic(body in proptest::collection::vec(any::<u8>(), 0..400)) {
-        let _ = read(&body);
+        let _ = read(&body, "example.org");
     }
 
     #[test]
@@ -217,7 +244,7 @@ proptest! {
     ) {
         let incoming: Vec<String> = servers.iter().map(|(kind, host, port, socket)| format!(r#"<incomingServer type="{kind}"><hostname>{host}</hostname><port>{port}</port><socketType>{socket}</socketType></incomingServer>"#)).collect();
         let body = format!(r#"<clientConfig><emailProvider>{}</emailProvider></clientConfig>"#, incoming.join(""));
-        if let Ok(Some(config)) = read(body.as_bytes()) {
+        if let Ok(Some(config)) = read(body.as_bytes(), "example.org") {
             let server = config.incoming.unwrap();
             let checked = domain_name(&server.host);
             prop_assert_eq!(checked.as_ref(), Some(&server.host));

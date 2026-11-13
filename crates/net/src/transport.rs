@@ -67,11 +67,24 @@ pub(crate) struct Patience {
     pub(crate) io: Duration,
     /// For a command and its answer, before the bytes that moved are counted in.
     pub(crate) command: Duration,
+    /// For the TLS handshake.
+    pub(crate) handshake: Duration,
+}
+
+/// Which of the addresses a name has may be connected to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Reach {
+    /// Any of them (only those of this machine without encryption).
+    Any,
+    /// Only the public internet's ([`crate::pictures::is_public`]), and none when one of them
+    /// isn't: a name that points both at the internet and into the owner's network is up to
+    /// no good. For a host the owner neither typed nor agreed to.
+    Public,
 }
 
 impl Default for Patience {
     fn default() -> Self {
-        Patience { connect: CONNECT_TIMEOUT, io: IO_TIMEOUT, command: COMMAND_TIMEOUT }
+        Patience { connect: CONNECT_TIMEOUT, io: IO_TIMEOUT, command: COMMAND_TIMEOUT, handshake: HANDSHAKE_TIMEOUT }
     }
 }
 
@@ -243,11 +256,23 @@ pub(crate) fn open_with<'a>(
     patience: &Patience,
     tls: Option<Arc<ClientConfig>>,
 ) -> Result<(Stream<'a>, String), NetError> {
+    open_reaching(server, service, patience, tls, Reach::Any)
+}
+
+/// [`open_with`], connecting only to the addresses `reach` allows.
+pub(crate) fn open_reaching<'a>(
+    server: &Server,
+    service: Service,
+    patience: &Patience,
+    tls: Option<Arc<ClientConfig>>,
+    reach: Reach,
+) -> Result<(Stream<'a>, String), NetError> {
     let host = checked_host(server)?;
     log::debug!("connecting to {host}:{} ({service:?}, {})", port(server, service), server.security.code());
     let (connect, io) = (patience.connect.min(CONNECT_TIMEOUT), patience.io.min(IO_TIMEOUT));
-    let tcp = dial(&host, port(server, service), server.security == Security::None, connect, io)?;
-    let mut stream = if server.security == Security::Tls { secure(tcp, &host, tls)? } else { Stream::over(Io::Plain(tcp)) };
+    let tcp = dial(&host, port(server, service), server.security == Security::None, reach, connect, io)?;
+    let handshake = patience.handshake.min(HANDSHAKE_TIMEOUT);
+    let mut stream = if server.security == Security::Tls { secure(tcp, &host, tls, handshake)? } else { Stream::over(Io::Plain(tcp)) };
     stream.patience = patience.command.min(COMMAND_TIMEOUT);
     Ok((stream, host))
 }
@@ -262,7 +287,7 @@ pub(crate) fn open_within<'a>(server: &Server, service: Service, connect: Durati
 pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, NetError> {
     let Stream { io, cancel, patience, .. } = stream;
     let mut secured = match io {
-        Io::Plain(tcp) => secure(tcp, host, None)?,
+        Io::Plain(tcp) => secure(tcp, host, None, HANDSHAKE_TIMEOUT)?,
         tls @ Io::Tls(_) => Stream::over(tls),
     };
     (secured.cancel, secured.patience) = (cancel, patience);
@@ -271,15 +296,12 @@ pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, 
 
 /// A TCP connection with timeouts: `connect` for connecting, over all of the server's addresses,
 /// and `io` for each read and write after. With `loopback_only`, whatever the name resolves to,
-/// only addresses of this machine are connected to.
-fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Duration) -> Result<TcpStream, NetError> {
+/// only addresses of this machine are connected to; with [`Reach::Public`], only addresses of
+/// the public internet, and the very ones that were checked.
+fn dial(host: &str, port: u16, loopback_only: bool, reach: Reach, connect: Duration, io: Duration) -> Result<TcpStream, NetError> {
     let failed = |reason: Text| NetError::Connect { host: host.to_string(), reason };
-    let addresses: Vec<SocketAddr> = (host, port)
-        .to_socket_addrs()
-        .map_err(|_| failed(said!("the name couldn't be looked up")))?
-        .filter(|a| !loopback_only || a.ip().is_loopback())
-        .take(MAX_ADDRESSES)
-        .collect();
+    let found: Vec<SocketAddr> = (host, port).to_socket_addrs().map_err(|_| failed(said!("the name couldn't be looked up")))?.collect();
+    let addresses = allowed(found, loopback_only, reach).map_err(failed)?;
     let tcp = connect_first(&addresses, connect).map_err(failed)?;
     // No time at all would mean "wait for ever".
     let io = Some(io.max(Duration::from_millis(1)));
@@ -290,6 +312,14 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
     }
     let _ = tcp.set_nodelay(true);
     Ok(tcp)
+}
+
+/// Those of the addresses a name has that may be connected to, or why none of them may.
+fn allowed(found: Vec<SocketAddr>, loopback_only: bool, reach: Reach) -> Result<Vec<SocketAddr>, Text> {
+    if reach == Reach::Public && !found.iter().all(|address| crate::pictures::is_public(address.ip())) {
+        return Err(said!("its address is on this computer or a private network"));
+    }
+    Ok(found.into_iter().filter(|a| !loopback_only || a.ip().is_loopback()).take(MAX_ADDRESSES).collect())
 }
 
 /// Connect using the bounded fallback loop shared with the deterministic regressions.
@@ -342,8 +372,8 @@ fn tls_config() -> Result<Arc<ClientConfig>, String> {
     crate::tls::client_config(crate::tls::Purpose::Mail)
 }
 
-/// Shake hands over `tcp` and check the server's certificate against `host`.
-fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) -> Result<Stream<'a>, NetError> {
+/// Shake hands over `tcp`, within `handshake`, and check the server's certificate against `host`.
+fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>, handshake: Duration) -> Result<Stream<'a>, NetError> {
     let failed = |reason: Text| NetError::Tls { host: host.to_string(), reason };
     let config = match tls {
         Some(config) => config,
@@ -360,7 +390,7 @@ fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) ->
         let wait = Some(wait.max(Duration::from_millis(1)));
         tcp.set_read_timeout(wait).and_then(|()| tcp.set_write_timeout(wait)).map_err(|_| failed(said!("the connection couldn't be set up")))
     };
-    let deadline = Instant::now() + HANDSHAKE_TIMEOUT;
+    let deadline = Instant::now() + handshake;
     while connection.is_handshaking() {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
@@ -498,7 +528,7 @@ mod tests {
         // A name no certificate could be for is refused before anything is sent.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let tcp = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        assert!(matches!(secure(tcp, "not a host name", None), Err(NetError::Tls { .. })));
+        assert!(matches!(secure(tcp, "not a host name", None, HANDSHAKE_TIMEOUT), Err(NetError::Tls { .. })));
     }
 
     /// A server on this machine that does with its one connection what `serve` says.
@@ -525,6 +555,40 @@ mod tests {
 
     fn patience(io: u64, command: u64) -> Patience {
         Patience { io: Duration::from_millis(io), command: Duration::from_millis(command), ..Patience::default() }
+    }
+
+    #[test]
+    fn a_handshake_gets_no_more_time_than_it_is_given() {
+        // It takes the connection and never shakes hands.
+        let (hold, held) = std::sync::mpsc::channel::<()>();
+        let quiet = Server {
+            security: Security::Tls,
+            ..serving(move |peer| {
+                let _ = held.recv();
+                drop(peer);
+            })
+        };
+        let started = Instant::now();
+        let brief = Patience { handshake: Duration::from_millis(300), ..Patience::default() };
+        assert!(matches!(open(&quiet, Service::Http, &brief), Err(NetError::Tls { .. })));
+        assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+        drop(hold);
+    }
+
+    #[test]
+    fn a_name_with_an_address_that_is_not_public_is_not_reached_when_only_public_ones_may_be() {
+        let at = |text: &str| -> SocketAddr { text.parse().unwrap() };
+        let public = at("93.184.216.34:443");
+        assert_eq!(allowed(vec![public], false, Reach::Public).ok(), Some(vec![public]));
+        for inside in
+            ["127.0.0.1:443", "10.1.2.3:443", "192.168.0.10:443", "169.254.169.254:443", "[::1]:443", "[fd00::1]:443", "[::ffff:10.0.0.1]:443"]
+        {
+            // One such address refuses them all.
+            assert!(allowed(vec![public, at(inside)], false, Reach::Public).is_err(), "{inside}");
+            assert_eq!(allowed(vec![at(inside)], false, Reach::Any).ok(), Some(vec![at(inside)]), "{inside}");
+        }
+        // Without encryption, this machine alone, as ever.
+        assert_eq!(allowed(vec![public, at("127.0.0.1:80")], true, Reach::Any).ok(), Some(vec![at("127.0.0.1:80")]));
     }
 
     #[test]

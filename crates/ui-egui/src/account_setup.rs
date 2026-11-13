@@ -955,9 +955,6 @@ impl AccountSetup {
         self.agreed_hosts.clear();
     }
 
-    /// The hosts among the servers that the domain's records named (#1063) and that lie outside
-    /// the owner's domain, which the owner hasn't agreed to yet: the password goes to none of
-    /// them before the owner has been asked, naming them. A host the owner typed is their own.
     /// Where the servers that were found came from, each source once, the incoming server's
     /// first; none for a guess or a provider this program knows.
     fn sources(&self) -> Vec<Via> {
@@ -975,6 +972,9 @@ impl AccountSetup {
         self.found_hosts.iter().find(|(found, _)| found == host).map(|(_, via)| *via).or(self.found).unwrap_or(Via::Srv)
     }
 
+    /// The hosts among the servers that the domain's records named (#1063) and that lie outside
+    /// the owner's domain, which the owner hasn't agreed to yet: the password goes to none of
+    /// them before the owner has been asked, naming them. A host the owner typed is their own.
     fn hosts_to_ask(&self) -> Vec<String> {
         let Some((_, domain)) = address(&self.email) else { return Vec::new() };
         let domain = domain.to_ascii_lowercase();

@@ -95,16 +95,18 @@ pub fn discover_at(places: &Places<'_>, domain: &str) -> Result<Discovered, NetE
         if found.incoming.is_some() && found.outgoing.is_some() {
             break;
         }
-        // What is left of the search's time is all a fetch gets, for connecting and for the answer.
+        // What is left of the search's time is all a fetch gets, for connecting, for the
+        // handshake and for the answer.
         let left = BUDGET.saturating_sub(started.elapsed());
         if left.is_zero() {
             log::debug!("the search for the servers took too long: the {} step is skipped", via.code());
             break;
         }
-        match autoconfig::fetch(&url, autoconfig::PATIENCE.min(left)) {
+        match autoconfig::fetch(&url, &domain, autoconfig::PATIENCE.min(left)) {
             Ok(Some(config)) => take(&mut found, config, via),
             Ok(None) => {}
-            Err(e) => log::debug!("a settings document couldn't be fetched ({}): {e}", via.code()),
+            // (Why not is not logged: the error names the host, and a found host is not for a log.)
+            Err(_) => log::debug!("a settings document couldn't be fetched ({})", via.code()),
         }
     }
     Ok(found)

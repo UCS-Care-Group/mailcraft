@@ -51,16 +51,18 @@ pub(crate) struct ClientConfig {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Malformed;
 
-/// Fetch the document at `url` and read it. `Ok(None)` when there is none there (any status
-/// but 200), or what is there is no document with a server in it. Connecting may take
-/// `patience`, and so may the answer ([`PATIENCE`], or what is left of the search's time).
-pub(crate) fn fetch(url: &str, patience: Duration) -> Result<Option<ClientConfig>, NetError> {
+/// Fetch the document at `url` and read it for the mail of `domain`. `Ok(None)` when there is
+/// none there (any status but 200), or what is there is no document with a server in it.
+/// Connecting may take `patience`, and so may the handshake and the answer ([`PATIENCE`], or
+/// what is left of the search's time). The host is one the domain's name led to, not one the
+/// owner chose: it is asked only at addresses of the public internet.
+pub(crate) fn fetch(url: &str, domain: &str, patience: Duration) -> Result<Option<ClientConfig>, NetError> {
     let url = Url::parse(url)?;
-    let answer = http::get(&url, &[("Accept", "application/xml, text/xml")], patience)?;
+    let answer = http::get_public(&url, &[("Accept", "application/xml, text/xml")], patience)?;
     if answer.status != 200 {
         return Ok(None);
     }
-    Ok(read(&answer.body).ok().flatten())
+    Ok(read(&answer.body, domain).ok().flatten())
 }
 
 /// The kind of element the reader is in, as far as it cares.
@@ -87,9 +89,11 @@ struct Listed {
 }
 
 impl Listed {
-    /// The server, when it is a host at an encrypted port.
-    fn server(&self, usual: (u16, u16)) -> Option<Server> {
-        let host = domain_name(&self.hostname)?;
+    /// The server, when it is a host at an encrypted port. A host may be written with the
+    /// placeholder for the domain of the address (`imap.%EMAILDOMAIN%`, as the ISP database
+    /// writes some): `domain`, which is known and checked, stands in for it.
+    fn server(&self, usual: (u16, u16), domain: &str) -> Option<Server> {
+        let host = domain_name(&self.hostname.replace("%EMAILDOMAIN%", domain))?;
         let security = match self.socket_type.trim().to_ascii_uppercase().as_str() {
             "SSL" => Security::Tls,
             "STARTTLS" => Security::StartTls,
@@ -202,13 +206,14 @@ fn kind_of(element: &BytesStart<'_>) -> String {
 
 /// The best of the servers listed: implicit TLS over STARTTLS, else the first listed; one
 /// without encryption or without a host is passed over.
-fn best(listed: &[Listed], usual: (u16, u16)) -> Option<(Server, &Listed)> {
-    let servers: Vec<(Server, &Listed)> = listed.iter().filter_map(|listed| listed.server(usual).map(|server| (server, listed))).collect();
+fn best<'a>(listed: &'a [Listed], usual: (u16, u16), domain: &str) -> Option<(Server, &'a Listed)> {
+    let servers: Vec<(Server, &Listed)> = listed.iter().filter_map(|listed| listed.server(usual, domain).map(|server| (server, listed))).collect();
     servers.iter().find(|(server, _)| server.security == Security::Tls).or_else(|| servers.first()).cloned()
 }
 
-/// The servers in the document `xml`. `Ok(None)` when it names no server that can be used.
-pub(crate) fn read(xml: &[u8]) -> Result<Option<ClientConfig>, Malformed> {
+/// The servers in the document `xml`, read for the mail of `domain`. `Ok(None)` when it names
+/// no server that can be used.
+pub(crate) fn read(xml: &[u8], domain: &str) -> Result<Option<ClientConfig>, Malformed> {
     let xml = String::from_utf8_lossy(xml);
     let mut reader = Reader::from_str(&xml);
     let config = reader.config_mut();
@@ -235,14 +240,21 @@ pub(crate) fn read(xml: &[u8]) -> Result<Option<ClientConfig>, Malformed> {
     if !walk.stack.is_empty() {
         return Err(Malformed);
     }
-    let incoming = best(&walk.incoming, (993, 143));
-    let outgoing = best(&walk.outgoing, (465, 587));
+    let incoming = best(&walk.incoming, (993, 143), domain);
+    let outgoing = best(&walk.outgoing, (465, 587), domain);
     if incoming.is_none() && outgoing.is_none() {
         return Ok(None);
     }
     // The user name is the incoming server's, and goes with it alone.
     let username = incoming.as_ref().map(|(_, listed)| listed.username.clone()).unwrap_or_default();
     Ok(Some(ClientConfig { incoming: incoming.map(|(server, _)| server), outgoing: outgoing.map(|(server, _)| server), username }))
+}
+
+/// For the fuzz target (`fuzz/fuzz_targets/autoconfig.rs`): the servers and the user name
+/// [`read`] takes from a document for the mail of `domain`, or nothing.
+#[doc(hidden)]
+pub fn read_for_fuzzing(xml: &[u8], domain: &str) -> Option<(Option<Server>, Option<Server>, String)> {
+    read(xml, domain).ok().flatten().map(|config| (config.incoming, config.outgoing, config.username))
 }
 
 #[cfg(test)]
