@@ -179,7 +179,7 @@ internal class MailListController(
 }
 
 /** Runs [triage] on [rows] as commands: a conversation's row is selected first, so that it takes all its messages. */
-private suspend fun MailSource.focusedRun(triage: Triage, rows: List<InboxRow>): Boolean {
+internal suspend fun MailSource.focusedRun(triage: Triage, rows: List<InboxRow>): Boolean {
     val whole = rows.size == 1 && rows.first().members > 1
     if (whole && !run("mail.select", jsonText(mapOf("id" to rows.first().id)))) return false
     val ids = rows.map { it.id }

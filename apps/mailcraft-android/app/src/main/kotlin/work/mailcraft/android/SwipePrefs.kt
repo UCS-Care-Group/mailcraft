@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.annotation.SuppressLint
 import android.content.Context
 
 /** Where the owner's two swipes are kept: on this device only (nothing is backed up). */
@@ -19,6 +20,8 @@ internal class DeviceSwipePrefs(context: Context) : SwipePrefs {
         SwipeConfig.fromCodes(prefs?.getString(START, null), prefs?.getString(END, null))
     }.getOrDefault(SwipeConfig())
 
+    // (The KTX `edit {}` would be a dependency for one line.)
+    @SuppressLint("UseKtx")
     override fun save(config: SwipeConfig) {
         runCatching { prefs?.edit()?.putString(START, config.start.code)?.putString(END, config.end.code)?.apply() }
     }

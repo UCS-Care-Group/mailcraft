@@ -105,7 +105,7 @@ internal class CoreMailSource(
     override suspend fun offline(): Boolean = withContext(dispatcher) { core.network() == NetworkKind.Offline }
 }
 
-private fun MailQuery.toCore() = ListQuery(
+internal fun MailQuery.toCore() = ListQuery(
     folder = folder,
     filter = filter.code,
     split = split,
@@ -114,7 +114,7 @@ private fun MailQuery.toCore() = ListQuery(
     everywhere = everywhere,
 )
 
-private fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
+internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     id = id,
     sender = senderLabel(fromName, fromAddress),
     subject = subject,
