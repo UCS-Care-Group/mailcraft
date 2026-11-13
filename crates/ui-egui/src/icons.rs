@@ -585,6 +585,10 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(7.5, 2.5), (12.5, 2.5), (12.0, 8.0), (14.5, 10.5), (5.5, 10.5), (8.0, 8.0)], true, 0.5, c);
             pen.line(&[(10.0, 10.5), (10.0, 17.5)]);
         }
+        // Bookmark: ribbon marker banner with notched bottom.
+        "bookmark" => {
+            pen.rounded(&[(5.5, 3.0), (14.5, 3.0), (14.5, 17.0), (10.0, 13.0), (5.5, 17.0)], true, 0.5, c);
+        }
         // A message, and an arrow that takes it somewhere.
         "rules" | "createRule" => {
             pen.envelope(2.5, 2.5, 12.5, 9.5, c);
@@ -1315,6 +1319,7 @@ pub const NAMES: &[&str] = &[
     "category",
     "categories",
     "pin",
+    "bookmark",
     "rules",
     "createRule",
     "attach",

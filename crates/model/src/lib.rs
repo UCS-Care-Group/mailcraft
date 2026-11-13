@@ -11,6 +11,9 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod bookmark;
+#[cfg(test)]
+mod bookmark_tests;
 mod calendar;
 pub mod confusables;
 mod contact;
@@ -55,6 +58,7 @@ pub mod zoned;
 use serde::{Deserialize, Serialize};
 
 pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
+pub use bookmark::{Bookmark, MAX_BOOKMARK_NAME, MAX_BOOKMARK_OFFSET, MAX_BOOKMARK_QUOTE, MAX_BOOKMARKS};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
