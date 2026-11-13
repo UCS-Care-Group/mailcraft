@@ -371,7 +371,7 @@ fn look_for(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info, as
         // Looked at again when the next asking is due.
         let wait = if tries == 0 { 0.0 } else { BETWEEN_MS - (now - last) };
         if wait > 0.0 {
-            ctx.request_repaint_after(std::time::Duration::from_millis(wait.clamp(100.0, BETWEEN_MS) as u64));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(wait.clamp(100.0, BETWEEN_MS) as u64));
             return Ok(());
         }
     }

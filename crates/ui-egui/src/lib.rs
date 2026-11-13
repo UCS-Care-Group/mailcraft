@@ -157,6 +157,7 @@ mod pick_item_tests;
 mod platform;
 #[cfg(test)]
 mod platform_tests;
+mod problem_log;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -202,6 +203,7 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+pub mod software;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -999,6 +1001,9 @@ pub struct UiState {
     pub update_skip: String,
     /// The owner has been told, once, that MailCraft now installs its updates itself.
     pub update_install_told: bool,
+    /// The owner has been told, once, that the window is drawn without the graphics card
+    /// ([`software`]).
+    pub software_told: bool,
     /// Show a desktop alert when new mail arrives in an Inbox of the owner's own accounts while
     /// the window isn't in front ([`alerts`]): on unless the owner turns it off.
     pub alert_new_mail: bool,
@@ -1059,6 +1064,7 @@ impl Default for UiState {
             update_install: true,
             update_skip: String::new(),
             update_install_told: false,
+            software_told: false,
             alert_new_mail: true,
             alert_reminders: true,
             imported_keys: Vec::new(),
@@ -1463,6 +1469,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
     ),
     (
+        "ui.dismissSoftwareNotice",
+        "Dismiss Software Drawing Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the window is drawn by the processor, not the graphics card, which uses a lot of processor time; said once, kept in the settings. Answers {"dismissed": bool}"#,
+    ),
+    (
         "ui.dismissUpdateNotice",
         "Dismiss Update Notice",
         "Above the status bar",
@@ -1573,6 +1585,9 @@ pub struct MailApp {
     /// The settings file couldn't be read at start, and the line saying so hasn't been put away
     /// ([`settings_notice`]).
     pub settings_unread: Option<settings_notice::SettingsUnread>,
+    /// The window is drawn by the processor, not the graphics card (the host says so at start):
+    /// said once, and the window's own repaints are held to a few a second ([`software`]).
+    pub software_drawing: bool,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1798,6 +1813,8 @@ pub struct MailApp {
     /// the account, its name, when, and the lines, as texts said in the interface's language
     /// when they are shown (#872).
     sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
+    /// The problem texts the log has had from each account's last run (`problem_log`).
+    logged_problems: problem_log::ProblemLog,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -1898,6 +1915,7 @@ impl MailApp {
             unconfirmed: false,
             shared_address_judged: None,
             settings_unread: None,
+            software_drawing: false,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -1994,6 +2012,7 @@ impl MailApp {
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
+            logged_problems: Default::default(),
             sync_panel: None,
             by_hand: false,
             last_error: None,
@@ -2467,6 +2486,7 @@ impl MailApp {
             "ui.openDataFolder" => self.open_data_folder(),
             "ui.confirmServers" => self.confirm_servers(),
             "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
+            "ui.dismissSoftwareNotice" => software::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -4254,27 +4274,51 @@ impl MailApp {
         self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.iter().map(problem_line).collect()).unwrap_or_default()
     }
 
-    /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
+    /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
+        self.note_problems_from("mail", account, errors, None, finished);
+    }
+
+    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
+    /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
+    /// log for `errors`, line for line: only texts told as [`mailcraft_i18n::Text`] have any (with
+    /// their values put aside); a free text names subjects and folders in quotes that nothing
+    /// here can be sure of, so of those the log has the count alone.
+    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: Option<&[String]>, finished: bool) {
+        // Mail's answers come piece by piece and its run ends with `finished`; another job's
+        // answer is its whole run.
+        let ends = finished || source != "mail";
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
             }
+            if ends {
+                self.logged_problems.forget(account, source);
+                self.logged_problems.end_run(account, source);
+            }
             return;
         }
-        // The lines name subjects, addresses and folders: they are for the owner to read in the
-        // problems report, and the log says only how many there were.
-        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
+        // The lines name subjects, addresses and folders: the log gets how many there were and,
+        // for a text told with its values apart, each new text cut short (see `problem_log`).
+        log::warn!("send/receive, account {account} ({source}): {} problem(s) reported", errors.len());
+        if let Some(logged) = logged {
+            self.logged_problems.log_new(account, source, logged);
+        }
+        if ends {
+            self.logged_problems.end_run(account, source);
+        }
         self.keep_sync_problems(account, errors);
     }
 
     /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
     /// interface's language (#872). It goes through that, which logs and keeps them in English,
-    /// and then puts the texts in place of the lines it kept.
+    /// and then puts the texts in place of the lines it kept. What is logged has every value of
+    /// the texts put aside.
     fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
         let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
-        self.note_sync_problems(account, &english, finished);
+        let logged: Vec<String> = errors.iter().map(problem_log::masked).collect();
+        self.note_problems_from("mail", account, &english, Some(&logged), finished);
         let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
         // (The newest lines are the last; of a very long run only the last ones were kept.)
         let kept = errors.len().min(lines.len());
@@ -4403,6 +4447,8 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 (self.sync_rx, self.sync_run, self.sync_password, self.sync_refused) = (None, None, None, false);
                 self.sync_totals = Default::default();
+                // Its accounts are other accounts: what the log said of the old ones isn't theirs.
+                self.logged_problems = Default::default();
                 return;
             }
             let piece = match rx.try_recv() {
@@ -4410,6 +4456,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
+                    self.logged_problems.end_run(*whose, "mail");
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
@@ -4462,6 +4509,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);
@@ -4701,14 +4749,14 @@ impl MailApp {
         self.offline_tick();
         self.drive_server_search();
         if self.server_searching.busy() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
         if self.fetching.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         // The pieces of a Graph mail run come without waking the window: it looks again soon.
         if self.graph_pieces.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
         self.poll_tasks();
@@ -4759,7 +4807,7 @@ impl MailApp {
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
         } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
             // something waits to go out.
@@ -5182,6 +5230,7 @@ impl MailApp {
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
             settings_notice::bar(self, ui);
+            software::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
@@ -5613,6 +5662,8 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
 #[cfg(test)]
