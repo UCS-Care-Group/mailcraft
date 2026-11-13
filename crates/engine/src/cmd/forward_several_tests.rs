@@ -36,7 +36,7 @@ fn three(s: &mut Session) -> [Id; 3] {
 
 /// The message being written's attachments: their names and types, and each parsed back.
 fn attached(s: &Session) -> Vec<(String, String, Message)> {
-    s.compose.as_ref().unwrap().attachments.iter().map(|a| (a.name.clone(), a.mime.clone(), mailcraft_mime::parse(&a.data))).collect()
+    s.compose.as_ref().unwrap().attachments.iter().map(|a| (a.name.clone(), a.mime.clone(), mailcraft_mime_model::parse(&a.data))).collect()
 }
 
 /// Why the command is greyed, if it is.
@@ -406,8 +406,9 @@ fn each_original_is_marked_forwarded_once_it_has_gone() {
         let sent = s.mailbox.message(r["id"].as_u64().unwrap()).unwrap();
         assert!(sent.answers.is_none(), "{command}: marked, so done with");
         // As it goes out, both are in it whole.
-        let out = mailcraft_mime::write(&s.loaded_message(sent.id).unwrap(), &mailcraft_mime::WriteOptions::default());
-        let subjects: Vec<String> = mailcraft_mime::parse(&out).attachments.iter().map(|eml| mailcraft_mime::parse(&eml.data).subject).collect();
+        let out = mailcraft_mime_model::write(&s.loaded_message(sent.id).unwrap(), &mailcraft_mime_model::WriteOptions::default());
+        let subjects: Vec<String> =
+            mailcraft_mime_model::parse(&out).attachments.iter().map(|eml| mailcraft_mime_model::parse(&eml.data).subject).collect();
         assert_eq!(subjects, [MOCKUPS, INVOICE], "{command}");
     }
 }

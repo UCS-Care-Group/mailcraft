@@ -169,7 +169,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
             if html.len() > super::format::MAX_PASTE {
                 return Err(bad("`html` is too long"));
             }
-            mailcraft_mime::rich::from_html(html)
+            mailcraft_mime_model::rich::from_html(html)
         }
         (None, None, Some(text)) => Signature::plain_text("", text).body().clone(),
         (None, None, None) => return Err(bad("`text`, `body` or `html` is required")),
@@ -375,7 +375,7 @@ fn html(s: &mut Session, v: &Value) -> CmdResult {
     // What a message being written shows of it: its words and look as rich text, or for HTML
     // with no words (a logo alone) its pictures' descriptions.
     let stand_in = html.as_deref().map(|h| {
-        let rich = mailcraft_mime::rich::from_html(h);
+        let rich = mailcraft_mime_model::rich::from_html(h);
         if rich.to_plain().trim().is_empty() { RichText::from_plain(mailcraft_html::to_text(h).trim()) } else { rich }
     });
     if let Some(text) = &stand_in {
