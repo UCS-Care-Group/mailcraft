@@ -263,13 +263,13 @@ msgstr ""
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr ""
 
@@ -11099,8 +11099,8 @@ msgstr ""
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr ""
 
@@ -11129,8 +11129,8 @@ msgstr ""
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The calendar couldn't be taken in: {error}"
 msgstr ""
 
@@ -11190,8 +11190,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The categories couldn't be taken in: {error}"
 msgstr ""
 
@@ -11255,8 +11255,8 @@ msgstr ""
 msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 msgid "The contacts couldn't be taken in: {error}"
 msgstr ""
 
@@ -11432,8 +11432,8 @@ msgstr ""
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr ""
 
@@ -11642,13 +11642,13 @@ msgstr ""
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 msgid "The rules sent couldn't be noted: {error}"
 msgstr ""
 
@@ -11952,13 +11952,13 @@ msgstr ""
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr ""
 
@@ -12127,13 +12127,13 @@ msgstr ""
 msgid "This account is no longer in the mailbox."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 msgid "This account may not change its rules on the server"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr ""
 
@@ -15623,8 +15623,8 @@ msgstr ""
 msgid "the server continued a cancelled password authentication"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "the server couldn't be reached"
 msgstr ""
 
