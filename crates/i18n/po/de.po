@@ -113,7 +113,7 @@ msgstr "„{subject}“ wurde möglicherweise gesendet: Sehen Sie in „Gesendet
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
 msgid "'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."
-msgstr ""
+msgstr "'{subject}' bleibt im Ordner für zurückgestellte Nachrichten: Der Server hat das Zurückverschieben abgelehnt, daher ist die Nachricht nicht mehr zurückgestellt."
 
 #. what a command says
 #: crates/engine/src/undo.rs
@@ -282,7 +282,7 @@ msgstr "Eine .pst-Datei wird gerade importiert: Versuchen Sie es erneut, sobald 
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "A JMAP account's mail can't be snoozed yet."
-msgstr ""
+msgstr "E-Mails eines JMAP-Kontos können noch nicht zurückgestellt werden."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -3554,7 +3554,7 @@ msgstr "Einstellungshinweis schließen"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Dismiss Software Drawing Notice"
-msgstr ""
+msgstr "Hinweis zum Software-Rendering schließen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5336,12 +5336,12 @@ msgstr "Wenn Sie das nicht tun, werden keine Daten dorthin gesendet und die Such
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
-msgstr ""
+msgstr "Wenn Sie das nicht tun, wird nichts gesendet, und Sie können die Server in den Servereinstellungen ändern."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."
-msgstr ""
+msgstr "Wenn Sie fortfahren, werden Ihr Benutzername und Ihr Passwort an {hosts} gesendet. Fahren Sie nur fort, wenn Sie sicher sind, dass diese zu Ihrem Anbieter gehören."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6532,7 +6532,7 @@ msgstr "MailCraft konnte Ihren Browser für die Genehmigungsseite von Microsoft 
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
-msgstr ""
+msgstr "MailCraft löscht die Ordner eines JMAP-Kontos noch nicht: Beim nächsten Senden/Empfangen würden sie wiederhergestellt"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6554,7 +6554,7 @@ msgstr "MailCraft unterstützt POP noch nicht. Verwenden Sie stattdessen den IMA
 #. interface
 #: crates/ui-egui/src/software.rs
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
-msgstr ""
+msgstr "MailCraft verwendet zum Rendern nicht die Grafikkarte, wodurch viel Prozessorleistung beansprucht wird. Durch die Installation oder Aktualisierung des Grafiktreibers lässt sich dieses Problem normalerweise beheben."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -6603,7 +6603,7 @@ msgstr "MailCraft speichert die Regeln dieses Kontos auf diesem Computer: Die Re
 #. what a command says
 #: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
-msgstr ""
+msgstr "MailCraft verschiebt E-Mails eines JMAP-Kontos nur zwischen den Ordnern, die auf seinem Server vorhanden sind: Beim nächsten Senden/Empfangen würden sie wiederhergestellt"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -8069,7 +8069,7 @@ msgstr "Nicht jedes Layout wurde geprüft."
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
-msgstr ""
+msgstr "Es wurden nicht alle Server gefunden: Die übrigen Angaben sind lediglich Vermutungen auf Grundlage der Domäne. Überprüfen Sie diese bei Ihrem Anbieter oder Administrator, bevor Sie eine Verbindung herstellen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9946,12 +9946,12 @@ msgstr "„Zum Aktualisieren neu starten“ kann nur der Besitzer anklicken."
 #. command label
 #: crates/engine/src/cmd/snooze.rs
 msgid "Return Now"
-msgstr ""
+msgstr "Jetzt zurückholen"
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
 msgid "Return Snoozed Mail"
-msgstr ""
+msgstr "Zurückgestellte E-Mails zurückholen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10827,7 +10827,7 @@ msgstr "Ihre Antwort an den Organisator senden? Sie können eine Notiz dazu schr
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Send your password to another server?"
-msgstr ""
+msgstr "Ihr Passwort an einen anderen Server senden?"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11714,7 +11714,7 @@ msgstr "Erinnerungen zurückstellen"
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
 msgid "Snoozed"
-msgstr ""
+msgstr "Zurückgestellt"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -12351,7 +12351,7 @@ msgstr "Die .pst-Datei enthält {what} zum Importieren; es wurde nichts importie
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
-msgstr ""
+msgstr "Die DNS-Einträge von {domain} geben {hosts} als Mailserver an, der nicht zur eigenen Domäne Ihrer Adresse gehört."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -13256,7 +13256,7 @@ msgstr "Der Name des Servers"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
-msgstr ""
+msgstr "Die folgenden Server wurden in den DNS-Einträgen von {domain} gefunden (den SRV-Einträgen). Überprüfen Sie diese, bevor Sie eine Verbindung herstellen."
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -15919,7 +15919,7 @@ msgstr "Eine Liste kann höchstens {n} Einträge enthalten"
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "a message being written or waiting to be sent can't be snoozed"
-msgstr ""
+msgstr "eine gerade verfasste oder auf den Versand wartende Nachricht kann nicht zurückgestellt werden"
 
 #. what a command says
 #: crates/engine/src/session.rs
@@ -15991,7 +15991,7 @@ msgstr "ein freigegebenes Postfach kann kein anderes öffnen: Geben Sie das Kont
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "a shared mailbox has no Snoozed folder"
-msgstr ""
+msgstr "ein freigegebenes Postfach hat keinen Ordner für zurückgestellte Nachrichten"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -16773,7 +16773,7 @@ msgstr "niemand sonst ist zu diesem Termin eingeladen"
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
 msgid "none of these messages is snoozed"
-msgstr ""
+msgstr "keine dieser Nachrichten ist zurückgestellt"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18053,7 +18053,7 @@ msgstr "diese Nachricht hat keinen Betreff, nach dem gesucht werden kann"
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "this message is in the Snoozed folder already"
-msgstr ""
+msgstr "diese Nachricht befindet sich bereits im Ordner für zurückgestellte Nachrichten"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
