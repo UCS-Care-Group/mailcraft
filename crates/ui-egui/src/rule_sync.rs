@@ -354,11 +354,27 @@ impl MailApp {
                 Err(e) => errors.push(crate::i18n::fmt(tl!("The rules on the server couldn't be taken in: {error}"), &[("error", &e.to_string())])),
             }
         }
-        if worked && errors.is_empty() {
+        // A change the server couldn't take now (busy, or changed there meanwhile) goes again
+        // after the wait, as a job that came to nothing does.
+        if result.uploaded.as_ref().is_some_and(|u| u.outcomes.iter().any(|o| o.result == mailcraft_model::remote_rules::RuleResult::Failed)) {
+            worked = false;
+        }
+        if result.consent_needed && settling > 0 {
+            // (Tried again after the wait noted above.)
+        } else if worked && errors.is_empty() && !result.sign_in_refused {
             self.rules.failures.remove(&account);
-        } else if !result.consent_needed && !result.sign_in_refused && !result.unreadable {
+        } else if !result.consent_needed && (result.tokens.is_some() || !result.sign_in_refused) && (!result.unreadable || result.uploaded.is_some())
+        {
+            // (A renewed token the server refused is a failure too, and so is a change that
+            // couldn't go when the rules then couldn't be read: what waits goes again after the
+            // wait, not at the next look.)
             let (n, _) = self.rules.failures.get(&account).copied().unwrap_or((0, 0.0));
             self.rules.failures.insert(account, (n.saturating_add(1), self.rules.clock.max(started)));
+            // (A job that came to nothing is tried again after the wait, not after the time
+            // between reads.)
+            if !worked {
+                self.rules.checked.remove(&account);
+            }
         }
         self.note_problems_from("rules", account, &errors, None, false);
     }

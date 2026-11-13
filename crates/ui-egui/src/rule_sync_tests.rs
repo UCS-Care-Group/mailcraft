@@ -448,3 +448,110 @@ fn a_rule_whose_answer_comes_late_waits_from_the_answer() {
     assert!(app.rules_tick_at(71_000.0), "after the wait");
     assert_eq!(jobs.lock().unwrap().len(), 2);
 }
+
+#[test]
+fn a_read_of_the_servers_rules_that_failed_is_tried_again_after_the_wait() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(RulesResult { account: owner, errors: vec!["Microsoft Graph is busy".into()], ..Default::default() });
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    // Nothing waits to go: the wait after the failure decides alone, not the five minutes between reads.
+    assert!(!app.rules_tick_at(29_000.0), "not before the wait");
+    assert!(app.rules_tick_at(31_000.0), "after the wait");
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 0), (owner, 0)]);
+}
+
+#[test]
+fn a_rule_whose_renewed_sign_in_the_server_refuses_waits_before_it_goes_again() {
+    let (mut app, owner, answers, jobs, _) = window();
+    add_rule(&mut app, owner);
+    // The token was renewed, and the server refused it as the rule went: nothing was sent.
+    let uploaded = RulesUploaded { account: owner, email: OWNER.into(), outcomes: Vec::new(), token_refused: true };
+    let refused = RulesResult {
+        account: owner,
+        tokens: Some(tokens("rules-access", "ref-1")),
+        sign_in_refused: true,
+        uploaded: Some(uploaded),
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back(refused);
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    // A refusal is a failure: the rule waits as after any, and doesn't go again at every look.
+    assert!(!app.rules_tick_at(4_000.0), "not at once");
+    assert!(!app.rules_tick_at(29_000.0), "not before the wait");
+    assert!(app.rules_tick_at(31_000.0), "after the wait");
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 1), (owner, 1)]);
+}
+
+#[test]
+fn a_refusal_just_after_the_owner_allowed_the_rules_waits_before_the_next_try() {
+    let (mut app, owner, answers, jobs, _) = window();
+    add_rule(&mut app, owner);
+    app.rules_allowed(owner);
+    // Microsoft hasn't taken the yes in yet: the rule isn't sent, and the server's rules are read.
+    let download = RulesDownload { account: owner, email: OWNER.into(), complete: true, rules: Vec::new() };
+    answers.lock().unwrap().push_back(RulesResult { account: owner, consent_needed: true, download: Some(download), ..Default::default() });
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    // Tried again after the wait, not at the next look.
+    assert!(!app.rules_tick_at(4_000.0), "not at once");
+    assert!(app.rules_tick_at(31_000.0), "after the wait");
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 1), (owner, 1)]);
+}
+
+#[test]
+fn a_rule_the_server_is_too_busy_to_take_waits_before_it_goes_again() {
+    let (mut app, owner, answers, jobs, _) = window();
+    let rule = add_rule(&mut app, owner);
+    // The server answers "busy" for the rule, and its rules are read all the same: it hasn't it.
+    let busy = RuleOutcome { kind: RuleOpKind::Create, rule, result: RuleResult::Failed, status: 503, error: "busy".into(), ..Default::default() };
+    let uploaded = RulesUploaded { account: owner, email: OWNER.into(), outcomes: vec![busy], token_refused: false };
+    let download = RulesDownload { account: owner, email: OWNER.into(), complete: true, rules: Vec::new() };
+    let answer = RulesResult {
+        account: owner,
+        tokens: Some(tokens("rules-access", "ref-1")),
+        uploaded: Some(uploaded),
+        download: Some(download),
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back(answer);
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    assert!(app.session.mailbox.rules.iter().any(|r| r.id == rule && r.waiting()), "it still waits");
+    // It goes again after the wait, not at the next look.
+    assert!(!app.rules_tick_at(4_000.0), "not at once");
+    assert!(!app.rules_tick_at(29_000.0), "not before the wait");
+    assert!(app.rules_tick_at(31_000.0), "after the wait");
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 1), (owner, 1)]);
+}
+
+#[test]
+fn a_deletion_the_server_is_too_busy_to_take_waits_when_the_rules_then_cannot_be_read() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(read_whole(owner, vec![server_rule("S1", "From the shop", 1)]));
+    assert!(app.rules_tick_at(0.0));
+    app.poll_rules();
+    let there = app.session.mailbox.rules.iter().find(|r| r.name == "From the shop").unwrap().id;
+    app.execute("rules.remove", json!({"id": there})).unwrap();
+    // The server answers "busy" for the deletion, and then won't let its rules be read.
+    let busy = RuleOutcome { kind: RuleOpKind::Delete, result: RuleResult::Failed, status: 503, error: "busy".into(), ..Default::default() };
+    let uploaded = RulesUploaded { account: owner, email: OWNER.into(), outcomes: vec![busy], token_refused: false };
+    let answer = RulesResult {
+        account: owner,
+        tokens: Some(tokens("rules-access", "ref-1")),
+        uploaded: Some(uploaded),
+        unreadable: true,
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back(answer);
+    // (The deletion goes once it has waited the few quiet seconds.)
+    assert!(!app.rules_tick_at(6_000.0));
+    assert!(app.rules_tick_at(10_000.0));
+    app.poll_rules();
+    // It goes again after the wait, not at the next look.
+    assert!(!app.rules_tick_at(14_000.0), "not at once");
+    assert!(!app.rules_tick_at(39_000.0), "not before the wait");
+    assert!(app.rules_tick_at(41_000.0), "after the wait");
+    assert_eq!(*jobs.lock().unwrap(), [(owner, 0), (owner, 1), (owner, 1)]);
+}
