@@ -5149,9 +5149,8 @@ msgstr "L'accesso con Google non è configurato in questa versione. Usa invece u
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Finché Google esamina MailCraft, l'accesso con Google è aperto solo ai tester invitati. Per partecipare, scrivi a systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19912,6 +19911,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Finché Google esamina MailCraft, l'accesso con Google è aperto solo ai tester invitati. Per partecipare, scrivi a systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

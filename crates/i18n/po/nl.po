@@ -5387,9 +5387,8 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20833,6 +20832,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

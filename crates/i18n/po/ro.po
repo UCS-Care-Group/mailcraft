@@ -5437,9 +5437,8 @@ msgstr "Conectarea Google nu este configurată pentru această versiune. Folosi�
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Conectarea Google este deschisă doar testerilor invitați cât timp Google analizează MailCraft. Ca să vă alăturați, scrieți la systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21161,6 +21160,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Conectarea Google este deschisă doar testerilor invitați cât timp Google analizează MailCraft. Ca să vă alăturați, scrieți la systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
