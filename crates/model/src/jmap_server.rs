@@ -26,6 +26,16 @@ pub struct JmapServer {
     pub bearer: bool,
 }
 
+/// Longest a JMAP id may be, in octets (RFC 8620 §1.2).
+pub const MAX_JMAP_ID: usize = 255;
+
+/// Whether `id` may be a JMAP id: 1 to [`MAX_JMAP_ID`] octets of `A-Z a-z 0-9 - _` (RFC 8620
+/// §1.2). The one test of it for what is kept here: a folder or a message whose server id is none
+/// is not one a JMAP server has ([`crate::Mailbox::jmap_mailbox`]), whatever a file says.
+pub fn is_jmap_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= MAX_JMAP_ID && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 /// The address stays out of debug output, which may reach a log.
 impl std::fmt::Debug for JmapServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
