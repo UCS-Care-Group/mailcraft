@@ -13,21 +13,19 @@ import uniffi.mailcraft_mobile.AddressRecord
 class LinkRequestTest {
     @Test
     fun aWebAddressGoesToTheBrowserAndANumberToTheDialer() {
-        val web = requestFor(LinkInfo(LinkGoes.Browser, "https://example.org/a?b=c"))
+        val web = requestFor("https://example.org/a?b=c")
         assertEquals(Intent.ACTION_VIEW, web?.action)
         assertEquals("https://example.org/a?b=c", web?.address)
-        assertEquals(Intent.ACTION_DIAL, requestFor(LinkInfo(LinkGoes.Dialer, "tel:+15550100"))?.action)
+        assertEquals(Intent.ACTION_DIAL, requestFor("tel:+15550100")?.action)
     }
 
     @Test
     fun nothingElseIsHandedToTheSystem() {
-        assertNull(requestFor(LinkInfo(LinkGoes.Composer, "mailto:ada@example.org")))
-        assertNull(requestFor(LinkInfo(LinkGoes.Part, "cid:logo")))
-        // Even if a wrong kind were paired with a wrong scheme, nothing is launched.
+        assertNull(requestFor("mailto:ada@example.org"))
+        assertNull(requestFor("cid:logo"))
         for (shown in listOf("intent://x#Intent;end", "file:///etc/passwd", "javascript:alert(1)", "content://x/y", "ftp://x.example/")) {
-            assertNull(shown, requestFor(LinkInfo(LinkGoes.Browser, shown)))
+            assertNull(shown, requestFor(shown))
         }
-        assertNull(requestFor(LinkInfo(LinkGoes.Dialer, "https://example.org/")))
     }
 
     @Test

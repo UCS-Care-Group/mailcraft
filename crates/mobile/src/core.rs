@@ -16,7 +16,8 @@ use serde_json::Value;
 use crate::events::{Event, EventSink};
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
-use crate::{CoreError, android};
+use crate::records::{LinkKind, LinkTarget};
+use crate::{CoreError, HostError, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
@@ -196,6 +197,17 @@ impl Core {
         match self.platform.network() {
             Ok(n) => n,
             Err(_) => NetworkKind::Unknown,
+        }
+    }
+
+    /// Follow a link of a message: a web address goes to the browser and a telephone number to the
+    /// dialer, through the platform. Only an address [`crate::links::link_target`] vouches for is
+    /// handed on; anything else (another scheme, a mail address, a part of the message) is refused
+    /// here and the platform is never asked.
+    pub fn open_link(&self, url: String) -> Result<(), HostError> {
+        match crate::links::link_target(url) {
+            Some(LinkTarget { kind: LinkKind::Web | LinkKind::Phone, shown }) => self.platform.open_link(shown).map_err(|_| HostError::Failed),
+            _ => Err(HostError::Unsupported),
         }
     }
 

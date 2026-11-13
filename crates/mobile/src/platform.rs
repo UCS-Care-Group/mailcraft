@@ -84,6 +84,9 @@ pub trait Platform: Send + Sync {
     fn schedule_reminder(&self, at: i64, notification: NotificationRecord) -> Result<(), HostError>;
     /// Open an attachment with the system's program for its kind; `name` is already made safe.
     fn open_file(&self, name: String, bytes: Vec<u8>) -> Result<(), HostError>;
+    /// Show a web address or a telephone number the owner followed in a message: the browser, or
+    /// the dialer (which only shows the number). The core has checked it already.
+    fn open_link(&self, url: String) -> Result<(), HostError>;
     /// Now, in seconds since 1970 (UTC).
     fn now(&self) -> Result<i64, HostError>;
     /// Minutes east of UTC of the owner's time zone at `at`, daylight saving included.
@@ -168,6 +171,10 @@ impl mailcraft_host::Platform for Native {
 
     fn open_file(&self, name: &str, bytes: &[u8]) -> Result<(), mailcraft_host::PlatformError> {
         self.inner.open_file(name.to_string(), bytes.to_vec()).map_err(Into::into)
+    }
+
+    fn open_link(&self, url: &str) -> Result<(), mailcraft_host::PlatformError> {
+        self.inner.open_link(url.to_string()).map_err(Into::into)
     }
 
     fn now(&self) -> mailcraft_time::Timestamp {

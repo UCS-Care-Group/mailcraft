@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import android.app.Activity
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -84,7 +83,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val prefs = remember { DeviceSwipePrefs(appContext) }
     val scope = rememberCoroutineScope()
     val reading = remember(core) { ReadingController(CoreReadSource(core), scope) }
-    val links = remember { AndroidLinks(appContext) { hostContext as? Activity } }
+    val links = remember(core) { CoreLinks(core) }
     val readingUi by reading.ui.collectAsState()
     var outlined by remember { mutableStateOf<Outlined?>(null) }
     var swipe by remember { mutableStateOf(prefs.load()) }

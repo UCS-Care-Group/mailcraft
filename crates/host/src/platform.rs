@@ -125,6 +125,12 @@ pub trait Platform {
         Err(PlatformError::Unsupported)
     }
 
+    /// Show a web address, or a telephone number, the owner followed in a message: the system's
+    /// browser, or the dialer (which only shows the number). The caller has checked the address.
+    fn open_link(&self, _url: &str) -> Result<(), PlatformError> {
+        Err(PlatformError::Unsupported)
+    }
+
     /// Now, in seconds since 1970 (UTC).
     fn now(&self) -> Timestamp {
         mailcraft_time::now()

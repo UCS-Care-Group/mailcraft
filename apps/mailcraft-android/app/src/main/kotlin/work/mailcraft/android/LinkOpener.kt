@@ -7,6 +7,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
+import uniffi.mailcraft_mobile.Core
+import uniffi.mailcraft_mobile.HostException
 
 /** What following a link came to. */
 internal enum class LinkResult {
@@ -31,44 +33,55 @@ internal interface LinkOpener {
 internal class LinkRequest(val action: String, val address: String)
 
 /**
- * Where [link] is handed. A web address goes to the browser and a phone number to the dialer (which
- * only shows the number: nothing is dialled). The address is the one the core checked and wrote, and
- * a scheme other than the five the core follows is never handed on.
+ * Where the address [url] is handed. A web address goes to the browser and a phone number to the dialer
+ * (which only shows the number: nothing is dialled). The core has checked and written the address
+ * already; a scheme other than these is never handed on here either.
  */
-internal fun requestFor(link: LinkInfo): LinkRequest? {
-    val lower = link.shown.lowercase()
-    return when (link.goes) {
-        LinkGoes.Browser ->
-            if (lower.startsWith("http://") || lower.startsWith("https://")) {
-                LinkRequest(Intent.ACTION_VIEW, link.shown)
-            } else {
-                null
-            }
-        LinkGoes.Dialer -> if (lower.startsWith("tel:")) LinkRequest(Intent.ACTION_DIAL, link.shown) else null
-        LinkGoes.Composer, LinkGoes.Part -> null
+internal fun requestFor(url: String): LinkRequest? {
+    val lower = url.lowercase()
+    return when {
+        lower.startsWith("http://") || lower.startsWith("https://") -> LinkRequest(Intent.ACTION_VIEW, url)
+        lower.startsWith("tel:") -> LinkRequest(Intent.ACTION_DIAL, url)
+        else -> null
     }
 }
 
-/** [LinkOpener] over the system's own ways of opening an address, from the window in front. */
-internal class AndroidLinks(
+/**
+ * The part of the platform that shows an address to the system, from the window in front. The core
+ * asks for it through `Platform.openLink`, after it has checked the address.
+ */
+internal class SystemLinks(
     private val context: Context,
     private val foreground: () -> Activity?,
-) : LinkOpener {
-    override fun open(link: LinkInfo): LinkResult {
-        if (link.goes == LinkGoes.Composer) return LinkResult.ComposerPending
-        val request = requestFor(link) ?: return LinkResult.Ignored
+) {
+    fun launch(url: String) {
+        val request = requestFor(url) ?: throw HostException.Unsupported()
         val intent = Intent(request.action, request.address.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
-        return try {
+        try {
             val activity = foreground()
             if (activity != null) {
                 activity.startActivity(intent)
             } else {
                 context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            LinkResult.Opened
         } catch (_: ActivityNotFoundException) {
-            LinkResult.NoApp
+            throw HostException.Failed()
         } catch (_: SecurityException) {
+            throw HostException.Failed()
+        }
+    }
+}
+
+/** [LinkOpener] over the core: it checks the address and has the platform show it. */
+internal class CoreLinks(private val core: Core) : LinkOpener {
+    override fun open(link: LinkInfo): LinkResult {
+        if (link.goes == LinkGoes.Composer) return LinkResult.ComposerPending
+        return try {
+            core.openLink(link.shown)
+            LinkResult.Opened
+        } catch (_: HostException.Unsupported) {
+            LinkResult.Ignored
+        } catch (_: HostException) {
             LinkResult.NoApp
         }
     }

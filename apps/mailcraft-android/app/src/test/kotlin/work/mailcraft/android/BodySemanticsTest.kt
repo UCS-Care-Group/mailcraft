@@ -4,68 +4,98 @@
 
 package work.mailcraft.android
 
+import app.cash.paparazzi.DeviceConfig
+import app.cash.paparazzi.Paparazzi
+import com.android.ide.common.rendering.api.SessionParams
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
-/** What a screen reader is told of the corpus messages: the semantics, apart from how they are drawn. */
+/** What a screen reader is told of the corpus messages, read from the semantics tree that was really drawn. */
 class BodySemanticsTest {
-    private fun say(items: List<Announced>): List<String> = items.map {
-        when (it) {
-            is Announced.Heading -> "heading${it.level}:${it.text}"
-            is Announced.Text -> "text:${it.text}"
-            is Announced.Picture -> "picture:${it.description}"
-            is Announced.Table -> "table:${it.rows}x${it.columns}"
-            is Announced.Cell -> "cell:${it.row},${it.column}${if (it.header) ",header" else ""}"
-            Announced.Separator -> "separator"
-        }
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 3_400),
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+    )
+
+    private fun draw(ui: ReadingUi): List<Said> {
+        val probe = SemanticsProbe()
+        paparazzi.snapshot { probe.Watch { ReadingShots.Pane(ui) } }
+        return probe.said
+    }
+
+    private fun draw(entry: Corpus.Entry) = draw(ReadingShots.ui(entry))
+
+    @Test
+    fun headingsAreHeadingsAndTheSubjectIsOne() {
+        val nodes = draw(Corpus.newsletter)
+        val headings = nodes.filter { it.heading }.map { it.text }
+        assertTrue(headings.toString(), "Spring planting" in headings && "New this week" in headings)
+        assertTrue(headings.toString(), Corpus.newsletter.view.subject in headings)
     }
 
     @Test
-    fun aLayoutTableIsReadAsPlainBlocksInOrderWithNoWordOfATable() {
-        val said = say(announced(Corpus.newsletter.view.blocks))
-        assertTrue(said.none { it.startsWith("table") || it.startsWith("cell") })
-        assertEquals(
-            listOf(
-                "picture:Fern Hollow nursery",
-                "heading2:Spring planting", "text:Bare-root roses, now half price.", "text:Order by Friday",
-                "heading2:New this week", "text:Hardy ferns in three sizes.",
-                "text:Free delivery", "text:30-day returns", "text:Gift cards",
-                "text:You get this because you signed up. Unsubscribe",
+    fun aLayoutTableIsReadAsPlainBlocksWithNoWordOfATable() {
+        val nodes = draw(Corpus.newsletter)
+        assertTrue(nodes.isNotEmpty())
+        // (The message's own list is a one-column collection; a table has more columns.)
+        assertTrue(nodes.none { (it.tableColumns ?: 0) > 1 || (it.cellColumn ?: 0) > 0 })
+        val said = nodes.map { it.text }.filter { it.isNotEmpty() }
+        val order = listOf("Spring planting", "Bare-root roses, now half price.", "Order by Friday", "New this week", "Hardy ferns in three sizes.", "Free delivery", "30-day returns", "Gift cards")
+        assertTrue(said.toString(), order.all { it in said })
+        assertEquals(order, order.sortedBy { said.indexOf(it) })
+    }
+
+    @Test
+    fun aDataTableIsReadAsATableWithItsCellsAndHeaders() {
+        val nodes = draw(Corpus.dataTable)
+        // (The message's own list is a one-column collection, its items sit in column 0: a table has more columns.)
+        val table = nodes.filter { (it.tableColumns ?: 0) > 1 }
+        assertEquals(1, table.size)
+        assertEquals(3, table[0].tableRows)
+        assertEquals(6, table[0].tableColumns)
+        val cells = nodes.filter { (it.cellColumn ?: 0) > 0 }
+        assertEquals(15, cells.size)
+        assertEquals(5, cells.count { it.heading })
+        assertTrue(cells.filter { it.heading }.all { it.cellRow == 0 })
+        assertTrue(nodes.any { it.heading && it.cellRow == 0 && it.cellColumn == 0 })
+    }
+
+    @Test
+    fun aPictureIsSaidByItsDescriptionAndATinyOrUndescribedOneNotAtAll() {
+        val ui = ReadingUi(
+            id = 9uL,
+            load = LoadState.Ready,
+            opened = Corpus.opened(
+                Corpus.Entry(
+                    "pictures",
+                    Corpus.plain.view.copy(
+                        blocks = listOf(
+                            B.image("https://a.example/1.png", "A described picture", 100u, 50u),
+                            B.image("https://a.example/2.png", "", 100u, 50u),
+                            B.image("https://a.example/3.png", "Spacer", 1u, 1u),
+                            B.image("https://a.example/4.png", "Thin", 200u, 2u),
+                            B.image("cid:logo", "   ", picture = "cid:logo"),
+                        ),
+                    ),
+                    emptyList(),
+                ),
             ),
-            said,
         )
-    }
-
-    @Test
-    fun aDataTableIsReadAsATableWithItsCells() {
-        val said = say(announced(Corpus.dataTable.view.blocks))
-        assertEquals("text:The figures for the garden project are below.", said.first())
-        assertTrue("table:3x6" in said)
-        assertEquals(6, said.count { it.endsWith(",header") })
-        assertEquals(18, said.count { it.startsWith("cell:") })
-        assertEquals("cell:1,1,header", said[said.indexOf("table:3x6") + 1])
-        assertEquals("text:Item", said[said.indexOf("table:3x6") + 2])
-    }
-
-    @Test
-    fun picturesWithNoDescriptionOrTwoPixelsOrSmallerAreLeftOut() {
-        val blocks = listOf(
-            B.image("https://a.example/1.png", "A described picture", 100u, 50u),
-            B.image("https://a.example/2.png", "", 100u, 50u),
-            B.image("https://a.example/3.png", "Spacer", 1u, 1u),
-            B.image("https://a.example/4.png", "Thin", 200u, 2u),
-            B.image("cid:logo", "   ", picture = "cid:logo"),
-        )
-        assertEquals(listOf("picture:A described picture"), say(announced(blocks)))
+        val said = draw(ui).mapNotNull { it.description }
+        assertTrue(said.toString(), "A described picture" in said)
+        assertTrue(said.toString(), said.none { it.contains("Spacer") || it.contains("Thin") })
         assertTrue(isDecorative("") && isDecorative("  ") && !isDecorative("x"))
     }
 
     @Test
-    fun headingsAndRulesAreSaidAsWhatTheyAre() {
-        val said = say(announced(listOf(B.h(1u, "Title"), B.p("Body"), B.block(uniffi.mailcraft_mobile.BlockKindView.Rule))))
-        assertEquals(listOf("heading1:Title", "text:Body", "separator"), said)
+    fun aLinkOffersAnActionThatNamesItsRealDestination() {
+        val labels = draw(Corpus.longLinks).flatMap { it.actions }
+        assertTrue(labels.toString(), "Open link: https://evil.example/collect" in labels)
+        assertTrue(labels.toString(), labels.any { it.endsWith("export?format=pdf&section=beds&lang=en&token=abcdefghijklmnopqrstuvwxyz0123456789") })
     }
 
     @Test

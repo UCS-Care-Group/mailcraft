@@ -30,6 +30,7 @@ internal class AndroidPlatform(
     )
     private val page = SignInPage(context, handback, foreground)
     private val files = OpenedFiles(context)
+    private val links = SystemLinks(context, foreground)
 
     override fun secrets(): SecretStore? = secrets
 
@@ -46,6 +47,8 @@ internal class AndroidPlatform(
     }
 
     override fun openFile(name: String, bytes: ByteArray) = guarded { files.open(name, bytes) }
+
+    override fun openLink(url: String) = guarded { links.launch(url) }
 
     override fun now(): Long = System.currentTimeMillis() / MILLIS_PER_SECOND
 

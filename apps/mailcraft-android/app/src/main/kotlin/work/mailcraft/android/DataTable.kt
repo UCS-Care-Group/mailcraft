@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.collectionInfo
 import androidx.compose.ui.semantics.collectionItemInfo
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -70,7 +71,13 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper) {
                     val info = CollectionItemInfo(p.row, 1, p.col, p.cols)
                     val plain = p.cell.header && p.cell.background == null
                     val tint = if (plain) Modifier.background(headerTint(paper)) else Modifier
-                    Box(modifier = Modifier.layoutId(CellPlace(p)).then(tint).semantics { collectionItemInfo = info }) {
+                    val head = p.cell.header
+                    Box(
+                        modifier = Modifier.layoutId(CellPlace(p)).then(tint).semantics {
+                            collectionItemInfo = info
+                            if (head) heading()
+                        },
+                    ) {
                         CellBox(table, p.cell, env, paper, DataMaxColumn, Modifier.fillMaxWidth())
                     }
                 }

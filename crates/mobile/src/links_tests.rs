@@ -39,3 +39,20 @@ fn the_host_shown_is_the_host_reached() {
     // A letter from another script shows as Punycode, so that a look-alike is seen for what it is.
     assert!(shown("https://exаmple.org/").contains("xn--"));
 }
+
+#[test]
+fn the_platform_is_handed_only_web_addresses_and_phone_numbers() {
+    use crate::Core;
+    use crate::HostError;
+    use crate::fake_tests::FakePlatform;
+    let platform = FakePlatform::new();
+    let core = Core::new(platform.clone()).unwrap();
+    assert!(core.open_link("https://example.org/a".to_string()).is_ok());
+    assert!(core.open_link("tel:+15550100".to_string()).is_ok());
+    for refused in
+        ["mailto:ada@example.org", "cid:logo", "javascript:alert(1)", "file:///etc/passwd", "intent://x#Intent;scheme=http;end", "", "https://"]
+    {
+        assert_eq!(core.open_link(refused.to_string()), Err(HostError::Unsupported), "{refused:?}");
+    }
+    assert_eq!(*platform.opened.lock().unwrap(), vec!["https://example.org/a".to_string(), "tel:+15550100".to_string()]);
+}

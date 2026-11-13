@@ -68,15 +68,26 @@ pub(crate) struct FakePlatform {
     pub(crate) budget: Option<u64>,
     pub(crate) secrets: Arc<FakeSecrets>,
     pub(crate) notified: AtomicUsize,
+    pub(crate) opened: Mutex<Vec<String>>,
 }
 
 impl FakePlatform {
     pub(crate) fn new() -> Arc<FakePlatform> {
-        Arc::new(FakePlatform { budget: None, secrets: Arc::new(FakeSecrets::default()), notified: AtomicUsize::new(0) })
+        Arc::new(FakePlatform {
+            budget: None,
+            secrets: Arc::new(FakeSecrets::default()),
+            notified: AtomicUsize::new(0),
+            opened: Mutex::new(Vec::new()),
+        })
     }
 
     pub(crate) fn with_budget(budget: u64) -> Arc<FakePlatform> {
-        Arc::new(FakePlatform { budget: Some(budget), secrets: Arc::new(FakeSecrets::default()), notified: AtomicUsize::new(0) })
+        Arc::new(FakePlatform {
+            budget: Some(budget),
+            secrets: Arc::new(FakeSecrets::default()),
+            notified: AtomicUsize::new(0),
+            opened: Mutex::new(Vec::new()),
+        })
     }
 }
 
@@ -104,6 +115,11 @@ impl Platform for FakePlatform {
 
     fn open_file(&self, _name: String, _bytes: Vec<u8>) -> Result<(), HostError> {
         Err(HostError::Unsupported)
+    }
+
+    fn open_link(&self, url: String) -> Result<(), HostError> {
+        self.opened.lock().unwrap().push(url);
+        Ok(())
     }
 
     fn now(&self) -> Result<i64, HostError> {

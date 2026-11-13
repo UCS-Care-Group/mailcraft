@@ -26,6 +26,12 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
 
+/** The text of a block's spans. */
+internal fun plainText(block: BlockView): String = block.spans.joinToString("") { it.text }.trim()
+
+/** A picture is decorative (and hidden from a screen reader) when it has no description. */
+internal fun isDecorative(alt: String): Boolean = alt.isBlank()
+
 /**
  * A picture in a message: a plain box of the declared size, clamped to the column, with the picture's
  * description, or the description alone when the message gives no size. Pictures are not drawn yet: a
