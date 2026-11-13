@@ -562,6 +562,11 @@ msgstr ""
 msgid "Account Settings"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Account name"
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 msgid "Accounts"
@@ -946,6 +951,11 @@ msgstr ""
 msgid "Always from @{domain}"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/motion.rs
+msgid "Always play"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 msgid "An Agent Is Asking"
@@ -1027,6 +1037,11 @@ msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
 msgstr[0] ""
 msgstr[1] ""
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Animations"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -6594,6 +6609,11 @@ msgstr ""
 msgid "Never Block Sender's Domain"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/motion.rs
+msgid "Never play"
+msgstr ""
+
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 msgid "New"
@@ -10083,6 +10103,11 @@ msgid "Shown beside the account's name, and on its mail where mail of several ac
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 msgid "Shows the signature as it was designed again, as long as its text is unchanged"
 msgstr ""
@@ -13212,8 +13237,13 @@ msgid "Use my own working hours"
 msgstr ""
 
 #. name
-#: crates/ui-egui/src/theme.rs
+#: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 msgid "Use system setting"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
 msgstr ""
 
 #. interface

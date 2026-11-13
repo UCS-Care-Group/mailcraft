@@ -228,11 +228,8 @@ impl<H: HttpExchange> Run<'_, H> {
             // takes in a `set`: a look for more would be refused as too large, at every run.)
             for looked_for in silent.chunks(get_at_once) {
                 let ids: Vec<&str> = looked_for.iter().map(|(_, id)| id.as_str()).collect();
-                let looked = match self.check() {
-                    Ok(()) => match arguments(&get(self.account(), Some(&ids), &["id"])) {
-                        Ok(args) => self.one_call("Email/get", args, SET_BYTES).await,
-                        Err(error) => Err(error.into()),
-                    },
+                let looked = match self.check().and_then(|()| Ok(arguments(&get(self.account(), Some(&ids), &["id"]))?)) {
+                    Ok(args) => self.one_call("Email/get", args, SET_BYTES).await,
                     Err(stop) => Err(stop),
                 };
                 match looked {

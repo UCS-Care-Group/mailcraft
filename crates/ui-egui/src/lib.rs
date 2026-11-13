@@ -137,6 +137,9 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 mod merge_contacts;
+pub mod motion;
+#[cfg(test)]
+mod motion_tests;
 pub mod nav;
 #[cfg(test)]
 mod on_top_tests;
@@ -388,6 +391,10 @@ pub struct Services {
     /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
     /// a new Gmail account starts on an app password, Google sign-in second with how to join.
     pub google_testers_only: bool,
+    /// Desktop: whether the system plays animations (Windows' Animation effects), for
+    /// File › Options › Animations › Use system setting (#1183). `None` where the system says
+    /// nothing MailCraft reads: animations then play unless the owner turns them off.
+    pub animations_enabled: Option<Box<dyn Fn() -> bool>>,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -732,50 +739,7 @@ pub struct SignInRequest {
     pub replies: bool,
 }
 
-/// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
-pub struct CalendarCheckRequest {
-    pub account: mailcraft_model::Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token, to get a Graph token with when `access` is empty.
-    pub refresh: String,
-    /// A Graph access token from earlier in this session that is still good; else empty.
-    pub access: String,
-}
-
-/// One step of a calendar connection check, as the host reports it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CalendarCheckStep {
-    /// What was done ("Make an appointment", "Read it back"…).
-    pub what: String,
-    /// The server did it, and what it has is what was sent.
-    pub ok: bool,
-    /// The status of the server's answer; 0 when there was none.
-    pub status: u16,
-    /// What was sent and what the server has, or the server's own words for its refusal.
-    pub said: String,
-}
-
-/// What a [`CalendarCheckRequest`] came to.
-#[derive(Default)]
-pub struct CalendarCheckResult {
-    pub account: Id,
-    /// A Graph token that was obtained for this (kept for the session).
-    pub tokens: Option<Tokens>,
-    /// The owner hasn't allowed this program to use the calendar.
-    pub consent_needed: bool,
-    /// The token that was handed in is no longer taken.
-    pub token_refused: bool,
-    /// The steps that were taken, in order.
-    pub steps: Vec<CalendarCheckStep>,
-    /// Every step went through, and every reading was what was sent.
-    pub ok: bool,
-    /// The appointment the check made is gone again (or none was made).
-    pub cleaned_up: bool,
-    /// Why the check couldn't start, when it couldn't.
-    pub error: String,
-}
-
+pub use mailcraft_host::calendar::{CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep};
 pub use mailcraft_host::graph::{GraphRequest, GraphResult};
 
 /// A sign-in the host is busy with.
@@ -827,6 +791,8 @@ pub struct UiState {
     /// High contrast: a stronger version of whichever theme is in use.
     #[serde(deserialize_with = "theme::lenient_bool")]
     pub high_contrast: bool,
+    /// File › Options › General › Animations (#1183): as the system says, on or off.
+    pub animations: motion::Motion,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -943,6 +909,7 @@ impl Default for UiState {
             ribbon_mode: ribbon::Mode::default(),
             theme: theme::Appearance::default(),
             high_contrast: false,
+            animations: motion::Motion::default(),
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1022,6 +989,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
+    (
+        "ui.animations",
+        "Animations",
+        "File › Options",
+        r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
+    ),
     ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
     (
         "ui.lightMessages",
@@ -1623,6 +1596,8 @@ pub struct MailApp {
     styled: bool,
     /// The interface theme last installed in egui ([`theme::apply`]).
     applied_theme: Option<(egui::ThemePreference, theme::ThemeChoice)>,
+    /// Whether animations play, and the system's answer as last asked ([`motion`], #1183).
+    motion: motion::Tracker,
     /// The interface language last told the host ([`Services::on_language`]).
     applied_language: Option<i18n::Lang>,
     fonts_frames: u32,
@@ -1894,6 +1869,7 @@ impl MailApp {
             asking: Default::default(),
             styled: false,
             applied_theme: None,
+            motion: motion::Tracker::default(),
             applied_language: None,
             fonts_frames: 0,
             frame_ms: 0.0,
@@ -2508,6 +2484,13 @@ impl MailApp {
                     Ok(json!({"value": a.code()}))
                 }
                 None => Err("`value` is light, dark or system".into()),
+            },
+            "ui.animations" => match s("value").and_then(motion::Motion::from_code) {
+                Some(m) => {
+                    self.ui.animations = m;
+                    Ok(json!({"value": m.code()}))
+                }
+                None => Err("`value` is system, on or off".into()),
             },
             "ui.highContrast" => match p.get("on").and_then(Value::as_bool) {
                 Some(on) => {
@@ -4655,7 +4638,11 @@ impl MailApp {
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));
+            // (In case a theme ever sets them: its styles are told again whether animations play.)
+            self.motion.applied = None;
         }
+        let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
             ctx.set_zoom_factor(zoom);
