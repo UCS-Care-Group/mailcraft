@@ -281,3 +281,20 @@ fn a_send_receive_of_a_jmap_account_is_its_own_request() {
     let why = crate::cmd::account::sync_request(&s, jmap).unwrap_err().to_string();
     assert_eq!(why, "ada@jmap.example is a JMAP account, and this version doesn't send and receive with one yet");
 }
+
+#[test]
+fn a_message_never_dated_is_dated_once_before_a_run_so_that_every_run_offers_the_same() {
+    let (mut s, _, jmap, _) = mailbox();
+    let id = written(&mut s, jmap, "Undated");
+    s.mailbox.message_mut(id).unwrap().date = 0;
+    let date_offered = |s: &Session| jmap_mail_request(s, jmap, true).unwrap().sends[0].mime.as_ref().unwrap().date;
+    // The first run's request dates it with the clock, and keeps the date in the mailbox.
+    s.clock.now = Some(1_791_993_600);
+    s.run("sync.jmapRequest", &json!({"account": jmap})).unwrap();
+    assert_eq!((s.mailbox.message(id).unwrap().date, date_offered(&s)), (1_791_993_600, 1_791_993_600));
+    // A later run, by either way of asking, offers the same date: the same octets go up again.
+    s.clock.now = Some(1_791_997_200);
+    s.run("sync.jmapRequest", &json!({"account": jmap})).unwrap();
+    s.run("sync.request", &json!({"account": jmap})).unwrap();
+    assert_eq!((s.mailbox.message(id).unwrap().date, date_offered(&s)), (1_791_993_600, 1_791_993_600));
+}

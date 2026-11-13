@@ -150,6 +150,9 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = named_account(s, v)?;
+    // What goes up for a message is the same at every run (`graph_send::date_undated`).
+    let now = s.now();
+    super::graph_send::date_undated(&mut s.mailbox, account, now);
     let mut request = jmap_mail_request(s, account, p::bool(v, "light").unwrap_or(false))?;
     // A run begins: what one that never came to its end read is no part of it, and neither is
     // what such a run was refused (it would be said at this run's end as if it were its own).

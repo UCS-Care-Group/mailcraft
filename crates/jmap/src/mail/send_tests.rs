@@ -1333,3 +1333,35 @@ proptest! {
         prop_assert!(!last(&pieces).partial);
     }
 }
+
+// RFC 8621 §4.8: `alreadyExists` is of the whole account. §7.5: `onSuccessUpdateEmail` is a patch of the
+// email once it is sent.
+#[test]
+fn an_email_the_server_has_already_in_another_mailbox_is_filed_in_sent_too_once_it_is_sent() {
+    for calls in [1, 16] {
+        // The first run's submission is turned away unread, so its copy stays, a draft in Sent.
+        let (stand_in, ids) = world();
+        let archive = stand_in.with(|d| {
+            d.max_calls = 1;
+            d.no_duplicates = true;
+            d.refuse_next.extend([None, None, None, Some((401, None))]);
+            d.mailbox("Archive", None, Some("archive"))
+        });
+        assert!(sent_of(&send(&stand_in, vec![simple(41)])).is_empty(), "{calls}: it waits");
+        // Another program moves the copy to Archive.
+        stand_in.with(|d| {
+            d.max_calls = calls;
+            d.emails[0].mailboxes = [archive.clone()].into_iter().collect();
+        });
+        let pieces = send(&stand_in, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
+        stand_in.with(|d| {
+            assert_eq!((d.submitted.len(), d.emails.len()), (1, 1), "{calls}");
+            let email = d.email(&d.submitted[0].email).unwrap();
+            // Filed in Sent as well, left in Archive, and no draft any more.
+            assert!(email.mailboxes.contains(&ids.sent) && email.mailboxes.contains(&archive), "{calls}: {:?}", email.mailboxes);
+            assert!(!email.keywords.contains("$draft"), "{calls}");
+        });
+        assert!(last(&pieces).whole, "{calls}");
+    }
+}

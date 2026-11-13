@@ -79,6 +79,21 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
         .collect()
 }
 
+/// Date every message of `account` that waits in its Outbox and was never dated (`date` 0), with
+/// `now`, before it is offered to a run: what is uploaded for a message is then the same octets at
+/// every run, and a server that already has a copy from a run that ended early knows it for the
+/// same (a JMAP server that keeps no two emails alike, RFC 8621 §4.8). Whether anything changed.
+pub fn date_undated(mb: &mut Mailbox, account: Id, now: i64) -> bool {
+    let Some(outbox) = mb.folder_of_kind(account, FolderKind::Outbox) else { return false };
+    let undated: Vec<Id> = mb.messages_in(outbox).filter(|m| m.date == 0 && m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
+    for id in &undated {
+        if let Ok(m) = mb.message_mut(*id) {
+            m.date = now;
+        }
+    }
+    !undated.is_empty()
+}
+
 /// How many messages of `account` wait in its Outbox to be sent (held ones aren't).
 pub fn waiting(mb: &Mailbox, account: Id) -> usize {
     mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).count())

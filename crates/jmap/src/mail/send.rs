@@ -50,7 +50,9 @@
 //!   submitted instead, once it is seen to hold the very octets that were just uploaded (`Email/get`: its
 //!   `blobId` is the upload's; or, a server being free to name the same octets by another id (RFC 8620
 //!   §6), its `size` is the upload's and its blob, downloaded with no more octets taken than were
-//!   uploaded, is the same octet for octet): never an email that only resembles the message. One that
+//!   uploaded, is the same octet for octet): never an email that only resembles the message. Once sent,
+//!   it is filed in the Sent (or Drafts) mailbox as well, and left in any other another program moved it
+//!   to (`alreadyExists` is of the whole account). One that
 //!   cannot be told to be the same holds the message with the server's refusal. A copy that was there
 //!   already is never destroyed. (A
 //!   server that lets two emails be alike makes a second one, which is sent; the first stays in Sent with
@@ -155,7 +157,9 @@ pub(super) fn recipients(message: &Message) -> Result<Vec<String>, &'static str>
     if out.is_empty() { Err(NO_RECIPIENTS) } else { Ok(out) }
 }
 
-/// The octets `message` goes as: without its Bcc field, and dated now when it never was.
+/// The octets `message` goes as: without its Bcc field, and dated now when it never was. (The engine
+/// dates such a message in the Outbox before it offers it to a run, so that the octets are the same at
+/// every run; the date here is for a host that offers one undated all the same.)
 pub(super) fn written(message: &Message) -> Vec<u8> {
     let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
     let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
@@ -205,12 +209,25 @@ pub(super) fn import_arguments(account: &str, blob: &str, mailbox: &str) -> Valu
     })
 }
 
+/// What is changed of an email once it is sent: its draft mark taken off, and, when `filing` names a
+/// mailbox, the email put in it too (RFC 8620 §5.3: a patch that adds the one mailbox and leaves the
+/// email in every mailbox it was in).
+pub(super) fn sent_patch(filing: Option<&str>) -> Value {
+    let mut patch = Map::new();
+    patch.insert("keywords/$draft".to_string(), Value::Null);
+    if let Some(mailbox) = filing {
+        patch.insert(format!("mailboxIds/{mailbox}"), Value::Bool(true));
+    }
+    Value::Object(patch)
+}
+
 /// The arguments of the `EmailSubmission/set` that sends the email `email` (an id, or `#` and the creation
-/// id of its import in the same request) as `identity`, from `from` to `to`.
-pub(super) fn submission_arguments(account: &str, email: &str, identity: &str, from: &str, to: &[String]) -> Value {
+/// id of its import in the same request) as `identity`, from `from` to `to`, filing it in `filing` as well
+/// when that names a mailbox.
+pub(super) fn submission_arguments(account: &str, email: &str, identity: &str, from: &str, to: &[String], filing: Option<&str>) -> Value {
     let to: Vec<Value> = to.iter().map(|email| json!({"email": email, "parameters": null})).collect();
     let mut on_success = Map::new();
-    on_success.insert(format!("#{SUBMISSION}"), json!({"keywords/$draft": null}));
+    on_success.insert(format!("#{SUBMISSION}"), sent_patch(filing));
     json!({
         "accountId": account,
         "create": {SUBMISSION: {
@@ -389,8 +406,9 @@ type Fate = (Option<SendOutcome>, Option<Stop>);
 enum Tidy {
     /// Destroy the email this run imported for a message the server would not send.
     Destroy(String),
-    /// Take the draft mark off the email of a message that was sent, where the server did not.
-    Unmark(String),
+    /// Take the draft mark off the email of a message that was sent, where the server did not, and file it
+    /// in the mailbox named, when one is.
+    Unmark(String, Option<String>),
 }
 
 /// A message's [`Fate`], and what is left to tidy up.
@@ -518,9 +536,9 @@ impl<H: HttpExchange> Run<'_, H> {
     async fn tidy(&self, tidy: Tidy) -> Option<Stop> {
         let args = match &tidy {
             Tidy::Destroy(email) => json!({"accountId": self.account(), "destroy": [email]}),
-            Tidy::Unmark(email) => {
+            Tidy::Unmark(email, filing) => {
                 let mut update = Map::new();
-                update.insert(email.clone(), json!({"keywords/$draft": null}));
+                update.insert(email.clone(), sent_patch(filing.as_deref()));
                 json!({"accountId": self.account(), "update": update})
             }
         };
@@ -556,7 +574,7 @@ impl<H: HttpExchange> Run<'_, H> {
         if self.two_calls {
             let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
                 let import = request.add_call("Email/import", arguments(&import)?)?;
-                let submission = submission_arguments(account, &format!("#{EMAIL}"), identity, from, to);
+                let submission = submission_arguments(account, &format!("#{EMAIL}"), identity, from, to, None);
                 let submit = request.add_call("EmailSubmission/set", arguments(&submission)?)?;
                 Ok((request, import, submit))
             });
@@ -576,9 +594,9 @@ impl<H: HttpExchange> Run<'_, H> {
             // The server has the message already, and says the submission was not made for want of it.
             if let Some(copy) = existing_of(&imported).filter(|_| not_made(&submitted)) {
                 let refused = settled(&self.secrets, imported, submitted).outcome.unwrap_or_else(lost);
-                return self.submit_copy(&copy, blob, octets, identity, to, refused).await;
+                return self.submit_copy(&copy, blob, octets, identity, mailbox, to, refused).await;
             }
-            return self.concluded(imported, submitted, &rest, after.as_ref(), true);
+            return self.concluded(imported, submitted, &rest, after.as_ref(), true, None);
         }
         // A server that takes one call to a request: the import first, which sends nothing.
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
@@ -602,7 +620,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 _ => return (None, Some(Stop::Failed(unusable("the answer does not say what became of the message").into())), None),
             };
             return match copy {
-                Some(copy) => self.submit_copy(&copy, blob, octets, identity, to, refused).await,
+                Some(copy) => self.submit_copy(&copy, blob, octets, identity, mailbox, to, refused).await,
                 None => (Some(refused), None, None),
             };
         };
@@ -611,7 +629,7 @@ impl<H: HttpExchange> Run<'_, H> {
         if let Err(stop) = self.check() {
             return (None, Some(stop), None);
         }
-        self.submit_email(&email, imported, identity, to, true).await
+        self.submit_email(&email, imported, identity, to, true, None).await
     }
 
     /// The server would not import the message because it has it already, as the email `copy`. When that
@@ -619,8 +637,11 @@ impl<H: HttpExchange> Run<'_, H> {
     /// blob is `blob`, or it is a blob of as many octets under another id (which RFC 8620 §6 lets a server
     /// give the same octets) that is read and found the same, octet for octet. When that cannot be seen,
     /// the message is held with the server's refusal, `refused`. The copy was there before this request,
-    /// and is never destroyed.
-    async fn submit_copy(&self, copy: &str, blob: &str, octets: &[u8], identity: &str, to: &[String], refused: SendOutcome) -> Step {
+    /// and is never destroyed. It may lie in another mailbox than `mailbox` (`alreadyExists` is of the whole
+    /// account, and another program may have moved it): once it is sent, it is filed in `mailbox` too, and
+    /// left in the others.
+    #[allow(clippy::too_many_arguments)]
+    async fn submit_copy(&self, copy: &str, blob: &str, octets: &[u8], identity: &str, mailbox: &str, to: &[String], refused: SendOutcome) -> Step {
         if let Err(stop) = self.check() {
             return (None, Some(stop), None);
         }
@@ -648,7 +669,7 @@ impl<H: HttpExchange> Run<'_, H> {
         created.insert(EMAIL.to_string(), json!({"id": copy}));
         let mut imported = Map::new();
         imported.insert("created".to_string(), Value::Object(created));
-        self.submit_email(copy, Ok(imported), identity, to, false).await
+        self.submit_email(copy, Ok(imported), identity, to, false, Some(mailbox)).await
     }
 
     /// Whether the blob `blob` holds `octets` and nothing else: downloaded (RFC 8620 §6.2), with no more
@@ -669,9 +690,18 @@ impl<H: HttpExchange> Run<'_, H> {
 
     /// Submit the email `email` in a request of its own. `imported` is the answer that made it, and `ours`
     /// whether this run did (an email of this run's is destroyed again when the server will not send it).
-    async fn submit_email(&self, email: &str, imported: Result<Map<String, Value>, CallFailure>, identity: &str, to: &[String], ours: bool) -> Step {
+    /// Once sent, it is filed in `filing` too, when that names a mailbox.
+    async fn submit_email(
+        &self,
+        email: &str,
+        imported: Result<Map<String, Value>, CallFailure>,
+        identity: &str,
+        to: &[String],
+        ours: bool,
+        filing: Option<&str>,
+    ) -> Step {
         let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
-            let submission = submission_arguments(self.account(), email, identity, self.request.email.as_str(), to);
+            let submission = submission_arguments(self.account(), email, identity, self.request.email.as_str(), to, filing);
             let call = request.add_call("EmailSubmission/set", arguments(&submission)?)?;
             Ok((request, call))
         });
@@ -687,13 +717,14 @@ impl<H: HttpExchange> Run<'_, H> {
             }
         };
         let (submitted, rest, after) = answers.take_named_before_error(&call, "EmailSubmission/set");
-        self.concluded(imported, submitted, &rest, after.as_ref(), ours)
+        self.concluded(imported, submitted, &rest, after.as_ref(), ours, filing)
     }
 
     /// What the answers come to ([`settled`]), and what is left to tidy up: the email of a message the
     /// server would not send, when this run made it (`ours`); the draft mark of one that was sent, when the
     /// implicit `Email/set` (RFC 8621 §7.5) did not take it off: the call failed after the submission's own
-    /// answer (`after`), or what it answered besides (`rest`) says the email was not updated.
+    /// answer (`after`), or what it answered besides (`rest`) says the email was not updated; the filing in
+    /// `filing` is then asked for with it.
     fn concluded(
         &self,
         imported: Result<Map<String, Value>, CallFailure>,
@@ -701,6 +732,7 @@ impl<H: HttpExchange> Run<'_, H> {
         rest: &[MethodResponse],
         after: Option<&MethodError>,
         ours: bool,
+        filing: Option<&str>,
     ) -> Step {
         let email = made_of(&imported);
         let Settled { outcome, orphan, later } = settled(&self.secrets, imported, submitted);
@@ -709,7 +741,7 @@ impl<H: HttpExchange> Run<'_, H> {
             Some(SendOutcome::Sent) if marked => {
                 let why = after.map_or("notUpdated", |error| error.kind().as_str());
                 log::info!("jmap mail: a message was sent, and the server did not take its draft mark off ({why})");
-                email.map(Tidy::Unmark)
+                email.map(|email| Tidy::Unmark(email, filing.map(str::to_string)))
             }
             _ => orphan.filter(|_| ours).map(Tidy::Destroy),
         };
