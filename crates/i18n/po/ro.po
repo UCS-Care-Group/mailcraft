@@ -2231,7 +2231,7 @@ msgid "Can't sign"
 msgstr "Nu se poate semna"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Anulare"
@@ -2988,6 +2988,11 @@ msgstr "Continuare"
 #, fuzzy
 msgid "Continue editing"
 msgstr "Continuați editarea"
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Continue in tray"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6916,6 +6921,11 @@ msgstr "Creat în alt program sau pe web, cu părți pe care MailCraft nu le poa
 msgid "Mail"
 msgstr "E-mail"
 
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
@@ -7202,6 +7212,11 @@ msgstr[2] "MailCraft a fost pornit cu {n} de elemente care nu sunt linkuri de e-
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr "MailCraft nu va mai avea niciun cont după aceea: Fișier › Adăugare cont configurează din nou unul."
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "MailCraft will keep running"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8887,6 +8902,11 @@ msgstr "Cele mai vechi deasupra"
 #, fuzzy
 msgid "On"
 msgstr "Pe"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11683,7 +11703,7 @@ msgstr ""
 "toate dosarele"
 
 #. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "Trimitere/primire toate dosarele"

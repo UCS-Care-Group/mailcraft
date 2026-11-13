@@ -9,24 +9,30 @@ use tray_icon::menu::MenuEvent;
 use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
-use super::{QUIT, SHOW, Signals};
+#[cfg(target_os = "windows")]
+use super::{QUIT, SYNC};
+use super::{SHOW, Signals};
+use mailcraft_ui_egui::i18n::{self, Lang};
 
 pub struct Backend {
     icon: Option<TrayIcon>,
     show: MenuItem,
+    sync: MenuItem,
     quit: MenuItem,
+    lang: Lang,
 }
 
 impl Backend {
     pub fn start(signals: Arc<Signals>) -> Self {
-        let (show, quit) = mailcraft_ui_egui::menubar::tray_text();
+        let (show, sync, quit) = mailcraft_ui_egui::menubar::tray_text();
         let show = MenuItem::with_id("mailcraft.tray.show", show, true, None);
+        let sync = MenuItem::with_id("mailcraft.tray.sync", sync, true, None);
         let quit = MenuItem::with_id("mailcraft.tray.quit", quit, true, None);
         let build = || -> Result<TrayIcon, Box<dyn std::error::Error>> {
             let image = crate::app_icon().ok_or("MailCraft icon couldn't be read")?;
             let image = tray_icon::Icon::from_rgba(image.rgba, image.width, image.height)?;
             let menu = Menu::new();
-            menu.append_items(&[&show, &PredefinedMenuItem::separator(), &quit])?;
+            menu.append_items(&[&show, &sync, &PredefinedMenuItem::separator(), &quit])?;
             Ok(TrayIconBuilder::new()
                 .with_icon(image)
                 .with_tooltip("MailCraft")
@@ -58,13 +64,18 @@ impl Backend {
                 clicks.send(SHOW);
             }
         }));
-        Self { icon, show, quit }
+        Self { icon, show, sync, quit, lang: i18n::current() }
     }
 
     pub fn poll(&mut self) {
-        let (show, quit) = mailcraft_ui_egui::menubar::tray_text();
-        self.show.set_text(show);
-        self.quit.set_text(quit);
+        let lang = i18n::current();
+        if self.lang != lang {
+            self.lang = lang;
+            let (show, sync, quit) = mailcraft_ui_egui::menubar::tray_text();
+            self.show.set_text(show);
+            self.sync.set_text(sync);
+            self.quit.set_text(quit);
+        }
     }
     pub fn ready(&self) -> bool {
         self.icon.is_some()
@@ -76,6 +87,7 @@ fn menu_action(id: &str) -> Option<u8> {
     match id {
         "mailcraft.tray.show" => Some(SHOW),
         "mailcraft.tray.quit" => Some(QUIT),
+        "mailcraft.tray.sync" => Some(SYNC),
         _ => None,
     }
 }

@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-13 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see

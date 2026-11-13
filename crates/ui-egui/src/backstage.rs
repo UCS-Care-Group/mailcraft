@@ -567,6 +567,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if switch.changed() {
             let _ = app.run("ui.closeToTray", json!({"value": on}));
         }
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
     }
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;

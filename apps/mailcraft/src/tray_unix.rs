@@ -9,11 +9,13 @@ use std::sync::{
 
 use ksni::blocking::TrayMethods;
 
-use super::{QUIT, SHOW, Signals};
+use super::{QUIT, SHOW, SYNC, Signals};
+use mailcraft_ui_egui::i18n::{self, Lang};
 
 pub struct Backend {
     arriving: Receiver<Result<ksni::blocking::Handle<Item>, String>>,
     handle: Option<ksni::blocking::Handle<Item>>,
+    lang: Lang,
     #[cfg(test)]
     stand_in: bool,
 }
@@ -24,8 +26,7 @@ impl Backend {
         let wake = signals.clone();
         // Connecting to a desktop that is slow or absent must never hold the window up.
         if let Err(e) = std::thread::Builder::new().name("system-tray".into()).spawn(move || {
-            let result = make_item(signals.clone()).and_then(|item| item.spawn().map_err(|e| e.to_string()));
-            signals.online(result.is_ok());
+            let result = start_item(signals.clone(), |item| item.spawn().map_err(|e| e.to_string()));
             if let Err(unsent) = tx.send(result)
                 && let Ok(handle) = unsent.0
             {
@@ -39,6 +40,7 @@ impl Backend {
         Self {
             arriving,
             handle: None,
+            lang: i18n::current(),
             #[cfg(test)]
             stand_in: false,
         }
@@ -49,6 +51,12 @@ impl Backend {
             match result {
                 Ok(handle) => self.handle = Some(handle),
                 Err(e) => log::warn!("system tray unavailable; closing will exit MailCraft: {e}"),
+            }
+        }
+        if self.lang != i18n::current() {
+            self.lang = i18n::current();
+            if let Some(handle) = &self.handle {
+                handle.update(|_| ());
             }
         }
     }
@@ -64,8 +72,19 @@ impl Backend {
     #[cfg(test)]
     pub fn stand_in() -> Self {
         let (_, arriving) = channel();
-        Self { arriving, handle: None, stand_in: true }
+        Self { arriving, handle: None, lang: i18n::current(), stand_in: true }
     }
+}
+
+fn start_item<T>(signals: Arc<Signals>, spawn: impl FnOnce(Item) -> Result<T, String>) -> Result<T, String> {
+    let result = make_item(signals.clone()).and_then(|item| {
+        signals.online(true);
+        spawn(item)
+    });
+    if result.is_err() {
+        signals.online(false);
+    }
+    result
 }
 
 impl Drop for Backend {
@@ -112,9 +131,10 @@ impl ksni::Tray for Item {
         self.signals.send(SHOW);
     }
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        let (show, quit) = mailcraft_ui_egui::menubar::tray_text();
+        let (show, sync, quit) = mailcraft_ui_egui::menubar::tray_text();
         vec![
             ksni::menu::StandardItem { label: show, activate: Box::new(|item: &mut Self| item.signals.send(SHOW)), ..Default::default() }.into(),
+            ksni::menu::StandardItem { label: sync, activate: Box::new(|item: &mut Self| item.signals.send(SYNC)), ..Default::default() }.into(),
             ksni::MenuItem::Separator,
             ksni::menu::StandardItem { label: quit, activate: Box::new(|item: &mut Self| item.signals.send(QUIT)), ..Default::default() }.into(),
         ]
@@ -127,3 +147,7 @@ impl ksni::Tray for Item {
         self.signals.online(true);
     }
 }
+
+#[cfg(test)]
+#[path = "tray_unix_tests.rs"]
+mod tests;

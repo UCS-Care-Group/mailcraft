@@ -140,6 +140,9 @@ windows = { version = "0.62", features = [
 base64 = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+# Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
+# Already part of winit's X11 backend; the pure Rust connector performs authentication too.
+x11rb = { version = "0.13", default-features = false }
 # S/MIME keys on PKCS#11 tokens (`key_holders/pkcs11.rs`, #30): smartcards through OpenSC and what
 # p11-kit's proxy gathers. Apache-2.0 (the Parsec project's); loading the module and calling it
 # are its unsafe, behind a safe API. Under it: cryptoki-sys (Apache-2.0), libloading (ISC) and

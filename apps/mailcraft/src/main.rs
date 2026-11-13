@@ -641,7 +641,7 @@ impl winit::application::ApplicationHandler<eframe::UserEvent> for WithTokens<'_
 
 /// Run the window: on Linux and FreeBSD on an event loop of our own, so that the activation
 /// tokens reach `WithTokens`; elsewhere as eframe runs it.
-fn run_window(options: eframe::NativeOptions, creator: eframe::AppCreator<'_>) -> eframe::Result {
+fn run_window(options: eframe::NativeOptions, creator: eframe::AppCreator<'_>, close_to_tray: bool) -> eframe::Result {
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
         let _ = BROWSER.set(browser::Browser::new(std::sync::Arc::new(browser::Desktop)));
@@ -649,7 +649,7 @@ fn run_window(options: eframe::NativeOptions, creator: eframe::AppCreator<'_>) -
         // winit 0.30's native Wayland set_visible is a no-op. X11 (including XWayland)
         // lets a close really hide the window, removing its taskbar button. Both backends
         // are already built; pure Wayland still runs, with close-to-tray unavailable.
-        if std::env::var_os("DISPLAY").is_some_and(|display| !display.is_empty()) {
+        if tray::prefer_x11(close_to_tray, tray::x11_reachable) {
             use winit::platform::x11::EventLoopBuilderExtX11;
             builder.with_x11();
         }
@@ -671,7 +671,10 @@ fn run_window(options: eframe::NativeOptions, creator: eframe::AppCreator<'_>) -
         }
     }
     #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-    eframe::run_native("MailCraft", options, creator)
+    {
+        let _ = close_to_tray;
+        eframe::run_native("MailCraft", options, creator)
+    }
 }
 
 /// Sign an account's owner in: quietly with what was kept from last time when there is any, on
@@ -1541,6 +1544,7 @@ fn main() -> eframe::Result {
     #[cfg(target_os = "windows")]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
     let (prefs, settings_unread) = load_prefs();
+    let close_to_tray = prefs.as_ref().is_some_and(|ui| ui.close_to_tray);
     let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
@@ -1703,6 +1707,7 @@ fn main() -> eframe::Result {
                 menu_bar,
             )))
         }),
+        close_to_tray,
     )
 }
 

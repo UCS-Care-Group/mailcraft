@@ -161,6 +161,7 @@ fn elsewhere_eframe_closes_the_window() {
 }
 
 fn tray_frame(ctx: &Context, app: &mut MailApp, close: bool, available: bool) -> (bool, Vec<ViewportCommand>) {
+    app.ui.close_to_tray_notice_seen = true;
     let mut input = RawInput::default();
     if close {
         input.viewports.entry(ViewportId::ROOT).or_default().events.push(ViewportEvent::Close);
@@ -184,6 +185,23 @@ fn close_hides_only_when_both_the_option_and_a_working_tray_are_present() {
             assert!(commands.contains(&ViewportCommand::CancelClose));
         }
     }
+}
+
+#[test]
+fn the_first_close_stays_visible_until_the_owner_has_seen_the_tray_notice() {
+    let mut app = app();
+    app.ui.close_to_tray = true;
+    let ctx = Context::default();
+    let mut input = RawInput::default();
+    input.viewports.entry(ViewportId::ROOT).or_default().events.push(ViewportEvent::Close);
+    let out = ctx.run_logic(&input, |ctx| {
+        on_frame_with_tray(ctx, &mut app, true, |_| panic!("a tray close must not terminate"));
+    });
+    let commands = out.viewport_commands.get(&ViewportId::ROOT).unwrap();
+    assert!(commands.contains(&ViewportCommand::CancelClose));
+    assert!(!commands.contains(&ViewportCommand::Visible(false)));
+    assert!(!app.ui.close_to_tray_notice_seen);
+    assert!(!app.quit_requested);
 }
 
 #[test]

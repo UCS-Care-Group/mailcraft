@@ -78,11 +78,23 @@ fn on_frame_with(ctx: &Context, app: &mut MailApp, take_over: impl FnOnce(&Conte
 }
 
 fn on_frame_with_tray(ctx: &Context, app: &mut MailApp, tray_available: bool, take_over: impl FnOnce(&Context) -> bool) -> bool {
+    let after_notice = mailcraft_ui_egui::close_to_tray::take_hide_request(ctx);
+    if after_notice && !ctx.input(|i| i.viewport().close_requested()) && !app.quit_requested {
+        if tray_available && app.ui.close_to_tray {
+            crate::tray::hide(ctx);
+        }
+        return false;
+    }
     if ctx.input(|i| i.viewport().close_requested()) {
         let explicit = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("mailcraft.explicitQuit"))).unwrap_or(false);
+        if explicit || app.quit_requested {
+            mailcraft_ui_egui::close_to_tray::cancel_notice(ctx);
+        }
         if tray_available && app.ui.close_to_tray && !explicit && !app.quit_requested {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            if mailcraft_ui_egui::close_to_tray::confirm_hide(ctx, app) {
+                crate::tray::hide(ctx);
+            }
             return false;
         }
     }
@@ -98,6 +110,8 @@ fn on_frame_with_tray(ctx: &Context, app: &mut MailApp, tray_available: bool, ta
 /// request, decided on the next frame like any other.
 fn decide(ctx: &Context, app: &mut MailApp) {
     if ctx.input(|i| i.viewport().close_requested()) && !app.close_requested() {
+        #[cfg(target_os = "macos")]
+        crate::tray::unhide_app();
         ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         if ctx.input(|i| i.viewport().minimized == Some(true)) {
