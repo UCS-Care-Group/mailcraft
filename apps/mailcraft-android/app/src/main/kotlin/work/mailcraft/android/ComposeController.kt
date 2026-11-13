@@ -117,6 +117,8 @@ internal data class ComposeUi(
     val sending: Boolean = false,
     val saved: Boolean = false,
     val notice: ComposeNotice? = null,
+    /** What was left out of a share, in the program's words, kept on the screen until the owner has read it. */
+    val skipped: String? = null,
     val done: ComposeDone? = null,
     /** The message could not be started; the owner's words. */
     val failed: String? = null,
@@ -170,8 +172,11 @@ internal class ComposeController(
     @Volatile
     private var finished = false
 
-    /** Opens a message: nothing else is open here at once. */
-    fun start(start: ComposeStart) {
+    /**
+     * Opens a message: nothing else is open here at once. [files] are attached once it is open (shared from
+     * another app, already read under the caps), and [told] is what is said about what was refused.
+     */
+    fun start(start: ComposeStart, files: List<SharedFile> = emptyList(), told: String? = null) {
         if (started) return
         started = true
         scope.launch {
@@ -182,6 +187,10 @@ internal class ComposeController(
                     state.value = shown(first.view, ComposeUi(accounts = accounts))
                     loadPictures(first.view)
                     run()
+                    files.forEach { enqueue(Op.Attach(it.name, it.bytes)) }
+                    if (files.isNotEmpty() || told != null) {
+                        state.update { it.copy(edits = it.edits + files.size, saved = false, skipped = told) }
+                    }
                 }
                 is ComposeResult.Failed -> {
                     started = false
@@ -351,6 +360,8 @@ internal class ComposeController(
     private fun leave(discard: Boolean) {
         if (state.value.view == null) state.update { it.copy(done = ComposeDone.Closed) } else enqueue(Op.Close(discard))
     }
+
+    fun dismissSkipped() = state.update { it.copy(skipped = null) }
 
     fun noticeShown() = state.update { it.copy(notice = null) }
 

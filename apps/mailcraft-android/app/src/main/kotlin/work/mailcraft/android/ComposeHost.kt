@@ -10,7 +10,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.collectAsState
 import uniffi.mailcraft_mobile.ComposeStart
@@ -34,6 +38,7 @@ internal fun composerActions(c: ComposeController?): ComposerActions = if (c == 
         onSend = c::send,
         onSave = c::save,
         onNoticeShown = c::noticeShown,
+        onSkippedDismissed = c::dismissSkipped,
         onFrom = c::from,
         onSubject = c::onSubject,
         onBody = c::onBody,
@@ -50,7 +55,12 @@ private val Idle = MutableStateFlow(ComposeUi())
  * message button or a `mailto:` link, ended when it is sent, kept as a draft or discarded, with what is said
  * about that left for the shell to show once.
  */
-internal class ComposeHost(private val core: Core, private val texts: Texts, private val scope: CoroutineScope) {
+internal class ComposeHost(
+    private val core: Core,
+    private val texts: Texts,
+    private val scope: CoroutineScope,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
+) {
     private var controller by mutableStateOf<ComposeController?>(null)
 
     /** What is to be said once. */
@@ -63,6 +73,35 @@ internal class ComposeHost(private val core: Core, private val texts: Texts, pri
     }
 
     fun newMessage() = begin(ComposeStart.New(0uL, null))
+
+    /**
+     * Another app asked for a message: a `mailto:` link (the core reads it, and the message is only ever
+     * started, never sent), or something shared (text, links, files, read off the main thread under the caps).
+     * With a message already open nothing is taken in, and the owner is told so.
+     */
+    fun beginIncoming(incoming: Incoming, reader: ShareReader, ownAuthority: String) {
+        when (incoming) {
+            is Incoming.Mailto -> if (controller == null) begin(ComposeStart.New(0uL, incoming.link)) else busy()
+            is Incoming.Share -> {
+                if (controller != null) return busy()
+                scope.launch {
+                    val load = withContext(io) { loadShared(incoming.files, reader, ownAuthority) }
+                    if (controller != null) return@launch busy()
+                    val start = if (incoming.text == null && incoming.subject == null) {
+                        ComposeStart.New(0uL, null)
+                    } else {
+                        ComposeStart.Shared(0uL, incoming.subject, incoming.text.orEmpty())
+                    }
+                    val told = load.refusals.takeIf { it.isNotEmpty() }?.let { refusalText(texts, it) }
+                    controller = ComposeController(CoreCompose(core), scope).also { it.start(start, load.files, told) }
+                }
+            }
+        }
+    }
+
+    private fun busy() {
+        snack = texts.t("Finish or close the message you are writing, then try again.")
+    }
 
     fun snackShown() {
         snack = null

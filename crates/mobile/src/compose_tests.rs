@@ -630,6 +630,8 @@ fn every_call_with_junk_answers_and_never_panics() {
         ComposeStart::Draft { id: message },
         ComposeStart::New { account: u64::MAX, mailto: Some("mailto:\0@\u{202e}?subject=%ZZ&body=%".into()) },
         ComposeStart::New { account: 0, mailto: Some("MAILTO:a@example.org?cc=&&&==&subject".into()) },
+        ComposeStart::Shared { account: u64::MAX, subject: Some("\0\r\n".into()), text: "https://\0 http:// \u{202e}https://x".into() },
+        ComposeStart::Shared { account: 0, subject: None, text: String::new() },
     ] {
         assert!(!matches!(block_on(core.compose_start(how)), Err(CoreError::Internal)));
     }

@@ -57,8 +57,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +100,7 @@ internal class FileActions(
 }
 
 /** What the composer asks of the app. */
+@Suppress("LongParameterList")
 internal class ComposerActions(
     /** Leave the message: it is kept in Drafts when it has changes. */
     val onClose: () -> Unit,
@@ -112,6 +115,8 @@ internal class ComposerActions(
     val onFormat: (ComposeFormat) -> Unit,
     val lines: LineActions = LineActions.None,
     val files: FileActions = FileActions.None,
+    /** The owner has read what was left out of a share. */
+    val onSkippedDismissed: () -> Unit = {},
 ) {
     companion object {
         val None = ComposerActions({}, {}, {}, {}, {}, {}, {}, {}, {})
@@ -223,6 +228,7 @@ private fun ComposerBody(
 ) {
     var more by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())) {
+        ui.skipped?.let { SkippedBanner(texts, it, actions.onSkippedDismissed) }
         if (ui.accounts.size > 1) {
             FromRow(texts, ui.accounts, view.account, actions.onFrom)
             HorizontalDivider()
@@ -244,6 +250,22 @@ private fun ComposerBody(
         PicturesStrip(texts, view, ui)
         FilesList(texts, view, actions)
         QuoteBlock(texts, view)
+    }
+}
+
+/** What a share left out, said in words and kept until it is dismissed: a snackbar would be gone before it was read. */
+@Composable
+private fun SkippedBanner(texts: Texts, text: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(start = Gutter, end = 4.dp, top = 4.dp, bottom = 4.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
+        TextButton(onClick = onDismiss) { Text(texts.t("Dismiss")) }
     }
 }
 

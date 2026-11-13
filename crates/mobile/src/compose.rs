@@ -39,6 +39,9 @@ pub const MAX_COMPOSE_FILES: usize = 50 * 1024 * 1024;
 const MAX_COMPOSE_PICTURE: usize = 20 * 1024 * 1024;
 /// The most bytes of a `mailto:` link that is read.
 const MAX_MAILTO: usize = 8 * 1024;
+/// The most characters of shared text taken, and the most web addresses in it made links.
+const MAX_SHARED_CHARS: usize = 100_000;
+const MAX_SHARED_LINKS: usize = 20;
 const MAX_SUGGEST_QUERY: usize = 200;
 const MAX_ALT: usize = 500;
 /// The most characters of a signature written on a phone.
@@ -156,6 +159,14 @@ pub enum ComposeStart {
     New {
         account: u64,
         mailto: Option<String>,
+    },
+    /// Text another app shared (`text`, and the `subject` it gave): the text is the body, with any web
+    /// address in it made a link. Hostile like a `mailto:` link: control characters are dropped, and the
+    /// subject and the body are capped.
+    Shared {
+        account: u64,
+        subject: Option<String>,
+        text: String,
     },
     Reply {
         id: u64,
@@ -438,6 +449,44 @@ fn select(s: &mut Session, id: u64, from: u32, to: u32) -> Result<(usize, usize)
     Ok((a, b))
 }
 
+/// Shared text as a body: line breaks are `\n`, no other control character but the tab is kept, and it
+/// is cut to [`MAX_SHARED_CHARS`].
+fn shared_text(text: &str) -> String {
+    let text = text.replace("\r\n", "\n").replace('\r', "\n");
+    text::clip(&text, MAX_SHARED_CHARS).chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\t')).collect()
+}
+
+/// A header line's worth of a shared subject.
+fn one_line(subject: &str) -> String {
+    let line: String = subject.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    text::clip(line.trim(), MAX_SUBJECT)
+}
+
+/// The web addresses in `body` (`http` and `https` only, at most [`MAX_SHARED_LINKS`]), as the range of
+/// characters each takes and the address, without the punctuation that ends a sentence.
+fn web_addresses(body: &str) -> Vec<(usize, usize, String)> {
+    let mut found = Vec::new();
+    let (mut start, mut at) = (0usize, 0usize);
+    let chars: Vec<char> = body.chars().collect();
+    while at <= chars.len() && found.len() < MAX_SHARED_LINKS {
+        let ends = at == chars.len() || chars.get(at).is_some_and(|c| c.is_whitespace());
+        if ends {
+            let mut end = at;
+            while end > start && chars.get(end - 1).is_some_and(|c| matches!(c, '.' | ',' | ';' | ':' | '!' | '?' | ')' | '>' | '"' | '\'')) {
+                end -= 1;
+            }
+            let word: String = chars.get(start..end).unwrap_or_default().iter().collect();
+            let lower = word.to_ascii_lowercase();
+            if (lower.starts_with("http://") || lower.starts_with("https://")) && word.len() > 8 && word.len() <= text::MAX_URL {
+                found.push((start, end, word));
+            }
+            start = at + 1;
+        }
+        at += 1;
+    }
+    found
+}
+
 fn cap_line(people: &[AddressRecord]) -> String {
     let list: Vec<Address> =
         people.iter().take(MAX_RECIPIENTS).map(|p| Address::new(text::clip(&p.name, MAX_NAME), text::clip(&p.address, MAX_ADDRESS))).collect();
@@ -463,6 +512,28 @@ impl Core {
                         params.insert("mailto".to_string(), json!(link));
                     }
                     s.run("mail.new", &Value::Object(params))?
+                }
+                ComposeStart::Shared { account, subject, text } => {
+                    let body = shared_text(&text);
+                    let mut params = serde_json::Map::new();
+                    if account != 0 {
+                        params.insert("account".to_string(), json!(account));
+                    }
+                    if let Some(subject) = subject {
+                        params.insert("subject".to_string(), json!(one_line(&subject)));
+                    }
+                    params.insert("body".to_string(), json!(body));
+                    let answered = s.run("mail.new", &Value::Object(params))?;
+                    if let Some(id) = answered.get("compose").and_then(Value::as_u64).or_else(|| s.compose_id()) {
+                        for (from, to, url) in web_addresses(&body) {
+                            // A link that can't be made leaves its address as plain text.
+                            if s.run("compose.select", &json!({"from": from, "to": to})).is_ok() {
+                                let _ = s.run("compose.link", &json!({"url": url}));
+                            }
+                        }
+                        let _ = run(s, id, "compose.select", json!({"from": 0, "to": 0}));
+                    }
+                    answered
                 }
                 ComposeStart::Reply { id } => s.run("mail.reply", &json!({"id": id}))?,
                 ComposeStart::ReplyAll { id } => s.run("mail.replyAll", &json!({"id": id}))?,

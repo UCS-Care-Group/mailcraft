@@ -42,6 +42,8 @@ pub mod text;
 #[cfg(test)]
 mod attachments_tests;
 #[cfg(test)]
+mod compose_share_tests;
+#[cfg(test)]
 mod compose_tests;
 #[cfg(test)]
 mod fake_tests;

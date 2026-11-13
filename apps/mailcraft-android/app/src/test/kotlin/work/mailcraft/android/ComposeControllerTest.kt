@@ -9,6 +9,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -325,5 +326,30 @@ class ComposeControllerTest {
         c.reset()
         assertEquals(ComposeUi(), c.ui.value)
         c.onSubject("nothing happens")
+    }
+
+    @Test
+    fun sharedFilesAreAttachedOnceTheMessageIsOpenAndWhatWasRefusedIsSaid() {
+        val source = FakeCompose(composeView())
+        val c = ComposeController(source, CoroutineScope(Dispatchers.Unconfined))
+        val files = listOf(SharedFile("a.txt", byteArrayOf(1), ShareKind.Other), SharedFile("b.png", byteArrayOf(2), ShareKind.Png))
+        c.start(ComposeStart.Shared(0uL, "A page", "text"), files, "big.iso was not attached: it is larger than 25 MB.")
+        assertEquals(listOf("start Shared"), source.calls.take(1))
+        assertEquals(2, source.calls.count { it.startsWith("attach") })
+        val ui = c.ui.value
+        assertEquals("big.iso was not attached: it is larger than 25 MB.", ui.skipped)
+        assertTrue(ui.edits >= 2)
+        assertFalse(ui.saved)
+        // It stays until the owner has read it.
+        c.dismissSkipped()
+        assertNull(c.ui.value.skipped)
+    }
+
+    @Test
+    fun aShareWithNothingRefusedSaysNothing() {
+        val source = FakeCompose(composeView())
+        val c = ComposeController(source, CoroutineScope(Dispatchers.Unconfined))
+        c.start(ComposeStart.New(0uL, null), listOf(SharedFile("a.txt", byteArrayOf(1), ShareKind.Other)), null)
+        assertNull(c.ui.value.skipped)
     }
 }

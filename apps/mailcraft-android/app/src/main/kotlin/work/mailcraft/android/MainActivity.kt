@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.IntentCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -33,8 +37,13 @@ import uniffi.mailcraft_mobile.Event
  * Android 12 and before.
  */
 class MainActivity : AppCompatActivity() {
+    /** What another app asked for, until the window has taken it up. */
+    private val incoming = mutableStateOf<Incoming?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A window built again (turned, or its language changed) has already taken its intent up.
+        if (savedInstanceState == null) incoming.value = incomingOf(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         val started = application?.started ?: Started.Failed
@@ -49,7 +58,7 @@ class MainActivity : AppCompatActivity() {
             MailCraftTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var chosen by remember { mutableStateOf(LanguageChoice.current()) }
-                    Root(started, version, chosen) {
+                    Root(started, version, chosen, { incoming.value }, { incoming.value = null }) {
                         chosen = it
                         LanguageChoice.choose(it)
                     }
@@ -57,12 +66,54 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incoming.value = incomingOf(intent)
+    }
+}
+
+/**
+ * What an intent from another app asks for ([routeIncoming] decides; nothing here is believed): its action,
+ * link, text, subject and the addresses of the files it carries. A bundle that can't be read is nothing.
+ * An intent restored from the recent apps list is not asked for again.
+ */
+internal fun incomingOf(intent: Intent?): Incoming? {
+    if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+    return try {
+        routeIncoming(
+            action = intent.action,
+            data = intent.dataString,
+            text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
+            subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString(),
+            streams = streamsOf(intent).map { it.toString() },
+        )
+    } catch (_: RuntimeException) {
+        // A hostile extra that will not unparcel: the intent is ignored.
+        null
+    }
+}
+
+/** The addresses of the files an intent carries: one for a send, a list for several. */
+private fun streamsOf(intent: Intent): List<Uri> = when (intent.action) {
+    Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+    Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+    else -> emptyList()
 }
 
 @Composable
-internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
+internal fun Root(
+    started: Started,
+    version: String,
+    chosenLanguage: String,
+    incoming: () -> Incoming? = { null },
+    onIncomingHandled: () -> Unit = {},
+    onLanguage: (String) -> Unit,
+) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, version, chosenLanguage, onLanguage)
+        is Started.Ready -> CoreShell(started.core, version, chosenLanguage, incoming, onIncomingHandled, onLanguage)
         Started.Failed -> Centered(stringResource(R.string.start_failed))
     }
 }
@@ -74,7 +125,14 @@ private class Outlined(val outline: MailboxOutline?)
 private const val TICK_MILLIS = 30_000L
 
 @Composable
-private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
+private fun CoreShell(
+    core: Core,
+    version: String,
+    chosenLanguage: String,
+    incoming: () -> Incoming?,
+    onIncomingHandled: () -> Unit,
+    onLanguage: (String) -> Unit,
+) {
     val texts = remember(core) { CoreTexts(core) }
     val source = remember(core) { CoreMailSource(core) }
     val controller = remember(core) { MailListController(source) }
@@ -85,6 +143,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val reader = remember(core) { ReadingStack(core, appContext, scope) }
     val pictures = reader.pictures
     val writing = rememberComposeHost(core, texts, scope)
+    TakeIncoming(incoming, onIncomingHandled, writing, appContext)
     val attachmentUi by reader.attachments.ui.collectAsState()
     val reading by pictures.reading.ui.collectAsState()
     val avatars by pictures.senderImages.images.collectAsState()
@@ -130,6 +189,19 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
             prefs.save(it)
         },
     )
+}
+
+/** Starts the message another app asked for (a mailto: link or a share), once. */
+@Composable
+private fun TakeIncoming(incoming: () -> Incoming?, handled: () -> Unit, writing: ComposeHost, context: Context) {
+    val shareReader = remember(context) { ResolverShareReader(context) }
+    val asked = incoming()
+    LaunchedEffect(asked) {
+        if (asked != null) {
+            handled()
+            writing.beginIncoming(asked, shareReader, context.packageName + ".files")
+        }
+    }
 }
 
 /** What the shell asks of the app: the list, the reading pane, the composer, Settings. */
