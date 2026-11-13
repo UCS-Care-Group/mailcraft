@@ -39,7 +39,7 @@ impl MailApp {
     /// job that came to nothing waits from when its answer is read, even after the window went
     /// a long time without a frame (#661).
     pub fn take_in_sync_answers(&mut self, now: f64) {
-        self.calendar.clock = now;
+        self.session.driver.calendar.clock = now;
         self.tasks.clock = now;
         self.rules.clock = now;
         self.category_sync.clock = now;

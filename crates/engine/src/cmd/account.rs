@@ -617,7 +617,12 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     // (Whatever its kind now: it may be a Microsoft account again later.)
     let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
+    // A shorter window: what is outside it now is thinned at the next tick, for any host.
+    let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
+    if shortened {
+        s.driver.thinning.now = true;
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }

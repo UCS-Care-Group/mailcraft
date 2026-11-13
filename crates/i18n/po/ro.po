@@ -3117,7 +3117,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Contribuitorii își aleg singuri numele; vedeți docs/contributors.md."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Copiază un mesaj scurt cu adresa paginii Microsoft unde un administrator al organizației aprobă MailCraft, o dată pentru toți. Nu se trimite nimic: lipiți-l chiar dvs. într-un e-mail sau chat."
@@ -3150,6 +3150,12 @@ msgstr "Copiere diagnostic"
 msgid "Copy Event"
 msgstr "Copiere eveniment"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Copiere elemente"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3181,7 +3187,7 @@ msgid "Copy a Message for My Administrator"
 msgstr "Copiere mesaj pentru administratorul meu"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Copy a message for my administrator"
 msgstr "Copiați un mesaj pentru administratorul meu"
@@ -3197,6 +3203,12 @@ msgstr "Copiere integrală"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Copiere probleme"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "Copiați elementele selectate în dosarul:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -7943,6 +7955,12 @@ msgid "Move Folder"
 msgstr "Mutare dosar"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Mutare elemente"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7971,6 +7989,12 @@ msgstr "Mutare doar programări"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Mutați mesajul într-un dosar ca să-i deschideți sau salvați atașamentele"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "Mutați elementele selectate în dosarul:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8569,7 +8593,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Nu a putut fi pornit niciun manager de fișiere pentru afișarea dosarului."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Niciun dosar nu se potrivește"
@@ -8999,7 +9023,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11386,7 +11410,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr "Spuneți da doar dacă i-ați cerut agentului asta. Textul dintr-un mesaj poate cere unui agent să facă lucruri pe care nu le-ați cerut."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Arată ce puteți face dvs. și administratorul organizației și îi permite unui administrator să aprobe MailCraft de aici, pe pagina Microsoft."
@@ -11477,7 +11501,7 @@ msgid "Search contacts"
 msgstr "Căutare contacte"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Căutare dosare"
@@ -16459,7 +16483,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Ce trebuie făcut când organizația dvs. trebuie să aprobe MailCraft"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Ce urmează"

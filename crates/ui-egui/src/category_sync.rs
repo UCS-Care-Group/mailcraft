@@ -21,6 +21,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::categories_remote;
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote::{CategoriesDownload, CategoriesUpload, CategoriesUploaded};
 use mailcraft_model::{Account, AccountKind, Id, Mailbox};
 
@@ -153,14 +154,7 @@ impl MailApp {
         }
         // One thing at a time: the calendar's, the to-dos' and the rules' jobs, a Send/Receive and
         // a sign-in go first.
-        if self.calendar.rx.is_some()
-            || self.tasks.busy()
-            || self.rules.busy()
-            || self.graph_rx.is_some()
-            || self.sync_rx.is_some()
-            || self.signing_in.is_some()
-            || !self.sync_queue.is_empty()
-        {
+        if self.job_busy().blocks(Start::Categories) {
             return false;
         }
         for account in kept {

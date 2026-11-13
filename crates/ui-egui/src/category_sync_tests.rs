@@ -512,7 +512,7 @@ fn an_answer_read_after_a_long_gap_waits_from_when_it_was_read() {
     assert!(app.categories_tick_at(at + 5_000.0));
     // No frame for 40 seconds; then the answer is read before any look.
     app.take_in_sync_answers(at + 45_000.0);
-    assert_eq!([app.calendar.clock, app.tasks.clock, app.rules.clock], [at + 45_000.0; 3]);
+    assert_eq!([app.session.driver.calendar.clock, app.tasks.clock, app.rules.clock], [at + 45_000.0; 3]);
     assert!(!app.categories_tick_at(at + 46_000.0), "not at once");
     assert!(!app.categories_tick_at(at + 74_000.0));
     assert!(app.categories_tick_at(at + 76_000.0), "after the wait");

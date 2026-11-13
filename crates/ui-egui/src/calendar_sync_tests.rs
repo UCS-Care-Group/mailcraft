@@ -430,7 +430,7 @@ fn a_series_is_asked_about_and_one_day_or_all_of_it_changes_on_the_server() {
     assert!(crate::dialogs::confirmation(&app, "ui.openWindow", &json!({"event": id})).is_some_and(|ask| ask.title == "Open Recurring Item"));
     answer(&mut app, "Just This One", "");
     assert!(matches!(app.dialog, Some(Dialog::Form(_))) || app.windows.of_event(id).is_some(), "the form opens once the question is answered");
-    assert_eq!(app.calendar.opened, Some((id, Some(day(21)))));
+    assert_eq!(app.session.driver.calendar.opened, Some((id, Some(day(21)))));
     app.dialog = None;
     // The form saves as forms do: asked first when there is a question, and here there is
     // always something to say (which of the series), whatever is selected by now.
@@ -438,7 +438,7 @@ fn a_series_is_asked_about_and_one_day_or_all_of_it_changes_on_the_server() {
     let fields = json!({"id": id, "title": "Stand-up (long)", "start": "2026-10-05T13:30", "end": "2026-10-05T15:00"});
     assert!(crate::dialogs::confirmation(&app, "calendar.edit", &fields).is_some());
     let saved = app.run("calendar.edit", fields).unwrap();
-    assert_eq!((saved["occurrence"].as_str(), asked(&app), app.calendar.opened), (Some("2026-10-21"), None, None));
+    assert_eq!((saved["occurrence"].as_str(), asked(&app), app.session.driver.calendar.opened), (Some("2026-10-21"), None, None));
     let long = titled(&app, "Stand-up (long)");
     assert_eq!((long.len(), long[0].start.date, long[0].duration_minutes()), (1, day(21), 90));
     // A script that says which is meant is asked nothing.
