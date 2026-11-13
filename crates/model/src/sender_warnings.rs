@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
+use crate::brands;
 use crate::confusables::{as_seen, hides, skeleton};
 use crate::{Account, FolderKind, Message, provider};
 
@@ -92,6 +93,18 @@ pub enum Warning {
     /// The message lays itself out in more ways (pane widths and themes) than were looked at, so
     /// a link only one of the others shows was not compared.
     LinksUnchecked,
+    /// The sender's name names `brand` ([`brands::BRANDS`]), but the sender's registrable
+    /// `domain` is none of the brand's.
+    BrandName { brand: String, domain: String },
+    /// The sender's registrable `domain` is made to look like `brand`'s: the brand's name read as
+    /// its skeleton, one character away from it, or one of its words (`microsoft-support`).
+    BrandLookalike { domain: String, brand: String },
+    /// The sender's name is a domain, `shown`, of another organisation than the sender's `domain`.
+    DomainInName { shown: String, domain: String },
+    /// The sender's `domain` looks made by a machine (a long run of consonants, letters and
+    /// digits mixed), or can't exist (a label that starts or ends with `-`, digits in the
+    /// top-level part).
+    MadeUpDomain { domain: String },
 }
 
 impl Warning {
@@ -104,14 +117,23 @@ impl Warning {
             Warning::LookalikeSender { .. } => "lookalikeSender",
             Warning::LinkMismatch { .. } => "linkMismatch",
             Warning::LinksUnchecked => "linksUnchecked",
+            Warning::BrandName { .. } => "brandName",
+            Warning::BrandLookalike { .. } => "brandLookalike",
+            Warning::DomainInName { .. } => "domainInName",
+            Warning::MadeUpDomain { .. } => "madeUpDomain",
         }
     }
 
     pub fn level(&self) -> Level {
         match self {
             Warning::FailedCheck(Failed::DmarcPolicyNone) => Level::Caution,
-            Warning::FailedCheck(_) | Warning::NameHidesAddress { .. } => Level::Warning,
-            Warning::LookalikeSender { .. } | Warning::LinkMismatch { .. } | Warning::LinksUnchecked => Level::Caution,
+            Warning::FailedCheck(_) | Warning::NameHidesAddress { .. } | Warning::BrandName { .. } => Level::Warning,
+            Warning::LookalikeSender { .. }
+            | Warning::LinkMismatch { .. }
+            | Warning::LinksUnchecked
+            | Warning::BrandLookalike { .. }
+            | Warning::DomainInName { .. }
+            | Warning::MadeUpDomain { .. } => Level::Caution,
             Warning::External { .. } => Level::Tag,
         }
     }
@@ -132,6 +154,9 @@ impl Warning {
             Warning::LookalikeSender { domain, like } => json!({"domain": domain, "like": like}),
             Warning::LinkMismatch { text_host, host, url } => json!({"textHost": text_host, "host": host, "url": detail(url)}),
             Warning::LinksUnchecked => json!({}),
+            Warning::BrandName { brand, domain } | Warning::BrandLookalike { brand, domain } => json!({"brand": brand, "domain": domain}),
+            Warning::DomainInName { shown, domain } => json!({"shown": shown, "domain": domain}),
+            Warning::MadeUpDomain { domain } => json!({"domain": domain}),
         };
         if let (Some(o), Value::Object(more)) = (v.as_object_mut(), detail) {
             o.extend(more);
@@ -344,6 +369,121 @@ fn lookalike(facts: &Facts, domain: &str) -> Option<String> {
         .flat_map(|(_, domains)| domains)
         .find(|(theirs, like)| like.split('.').next().is_some_and(|n| n.chars().count() >= MIN_LOOKALIKE_NAME) && within_one_edit(&chars, theirs))
         .map(|(_, like)| like.clone())
+}
+
+/// A brand's name shorter than this is never measured one character away: names and words are
+/// one letter from short ones (`amelie` from `ameli`).
+const MIN_BRAND_EDIT: usize = 6;
+/// The most words of a sender's name looked at for a brand's name.
+const MAX_NAME_WORDS: usize = 64;
+/// A run of this many consonants in a domain's name is no word of any language mail is written in.
+const MACHINE_CONSONANTS: usize = 6;
+/// Letters and digits that change places this many times in a domain's name (`k7x9q2`) are a
+/// machine's choice.
+const MACHINE_SWITCHES: usize = 4;
+
+/// The brand the sender's name names, when the sender's registrable domain is none of its own
+/// and not an organisation's the owner corresponds with (a public mail provider's is anybody's,
+/// so knowing somebody there counts for nothing): each word of the name, as it reads, against
+/// [`brands::BRANDS`]; a brand whose name is also an ordinary word only when it opens a name of
+/// two words at most ("Apple", "Apple Support", not "Apple Valley Farm"). Not for a list's
+/// "<member> via <list>".
+fn brand_name(facts: &Facts, m: &Message, domain: &str) -> Option<Warning> {
+    let seen = as_seen(&m.from.name, MAX_NAME_CHARS);
+    let mine = registrable(domain);
+    if via_list(&seen) || facts.domains.contains(mine) && !provider::is_mail_provider(mine) {
+        return None;
+    }
+    let words: Vec<&str> = seen.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).take(MAX_NAME_WORDS).collect();
+    let brand = words.iter().enumerate().find_map(|(at, word)| brands::named(word).filter(|b| !b.common_word || at == 0 && words.len() <= 2))?;
+    (!brand.owns(mine)).then(|| Warning::BrandName { brand: brand.name.to_string(), domain: wire(mine) })
+}
+
+/// The brand whose domain the sender's is made to look like: its name, read as its skeleton,
+/// is the brand's, one character away from it (for names of [`MIN_BRAND_EDIT`] or more), or
+/// has it as one of its words (`microsoft-support`); for a brand whose name is also an ordinary
+/// word, only the first. Never a domain of the brand's, one the owner
+/// corresponds with, or a public mail provider's.
+fn brand_lookalike(facts: &Facts, domain: &str) -> Option<Warning> {
+    let mine = registrable(domain);
+    if facts.domains.contains(mine) || provider::is_mail_provider(mine) {
+        return None;
+    }
+    let name = skeleton(mine.split('.').next().unwrap_or(mine));
+    let chars: Vec<char> = name.chars().collect();
+    let brand = brands::BRANDS.iter().filter(|b| !b.owns(mine)).find(|b| {
+        let label = skeleton(&b.label());
+        let theirs: Vec<char> = label.chars().collect();
+        name == label
+            || !b.common_word && (name.split('-').any(|word| word == label) || theirs.len() >= MIN_BRAND_EDIT && within_one_edit(&chars, &theirs))
+    })?;
+    Some(Warning::BrandLookalike { domain: wire(mine), brand: brand.name.to_string() })
+}
+
+/// The domain the sender's name is, when it is one (`MyShop.example`, nothing else in it) of
+/// another organisation than the sender's: another registrable name, not the same name under
+/// another suffix (`lumen.example` and `lumen.test` are one organisation's). The name's
+/// top-level part must be a country's two letters or a common generic one, and its name three
+/// characters or more, so that `J.Smith` or `Dr.No` are names and not domains.
+fn domain_in_name(m: &Message, domain: &str) -> Option<Warning> {
+    let seen = as_seen(&m.from.name, MAX_NAME_CHARS);
+    let shown = seen.trim();
+    if shown.contains('@') {
+        return None;
+    }
+    let host = normal_domain(host_key(&named_host(shown)?))?;
+    let theirs = registrable(&host);
+    let (name, top) = theirs.split_once('.')?;
+    let top_level = top.rsplit('.').next().unwrap_or(top);
+    let common = top_level.chars().count() == 2 || GENERIC_TOP_LEVELS.contains(&top_level);
+    let mine = registrable(domain);
+    let other = mine.split('.').next() != Some(name);
+    (common && name.chars().count() >= 3 && other).then(|| Warning::DomainInName { shown: detail(shown), domain: wire(mine) })
+}
+
+/// The generic top-level domains a shop or a service names itself by.
+const GENERIC_TOP_LEVELS: [&str; 12] = ["com", "net", "org", "info", "biz", "shop", "store", "online", "site", "app", "io", "co"];
+
+/// Whether the sender's `domain` can't exist (a label that starts or ends with `-`, digits in
+/// its top-level part) or its registrable name looks made by a machine ([`machine_made`]). Never
+/// for a domain the owner corresponds with.
+fn made_up(facts: &Facts, domain: &str) -> Option<Warning> {
+    let mine = registrable(domain);
+    if facts.domains.contains(mine) {
+        return None;
+    }
+    let impossible = domain.split('.').any(|label| label.starts_with('-') || label.ends_with('-'))
+        || domain.rsplit('.').next().is_some_and(|top| top.chars().any(|c| c.is_ascii_digit()));
+    let machine = machine_made(mine.split('.').next().unwrap_or(mine));
+    (impossible || machine).then(|| Warning::MadeUpDomain { domain: wire(domain) })
+}
+
+/// Whether a domain's name (ASCII only: a name in another script is measured as a lookalike
+/// instead) has a run of [`MACHINE_CONSONANTS`] consonants, or letters and digits changing
+/// places [`MACHINE_SWITCHES`] times with two digits or more. `y` counts as a vowel, and a `-`
+/// ends a run.
+pub fn machine_made(name: &str) -> bool {
+    if !name.is_ascii() {
+        return false;
+    }
+    let (mut run, mut longest, mut switches, mut digits, mut last) = (0usize, 0usize, 0usize, 0usize, None::<bool>);
+    for c in name.chars().take(MAX_NAME_CHARS) {
+        if !c.is_ascii_alphanumeric() {
+            run = 0;
+            last = None;
+            continue;
+        }
+        let digit = c.is_ascii_digit();
+        digits += usize::from(digit);
+        if last.is_some_and(|was| was != digit) {
+            switches += 1;
+        }
+        last = Some(digit);
+        let consonant = c.is_ascii_alphabetic() && !matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u' | 'y');
+        run = if consonant { run + 1 } else { 0 };
+        longest = longest.max(run);
+    }
+    longest >= MACHINE_CONSONANTS || switches >= MACHINE_SWITCHES && digits >= 2
 }
 
 /// `domain` written the way it goes over the wire (`xn--…` for letters outside ASCII), so that a
@@ -627,10 +767,14 @@ pub fn check<'a>(
     }
     out.extend(name_hides(facts, m));
     let domain = sender_domain(&m.from.email);
-    if let Some(domain) = &domain
-        && let Some(like) = lookalike(facts, domain)
-    {
-        out.push(Warning::LookalikeSender { domain: wire(registrable(domain)), like: wire(&like) });
+    if let Some(domain) = &domain {
+        out.extend(brand_name(facts, m, domain));
+        if let Some(like) = lookalike(facts, domain) {
+            out.push(Warning::LookalikeSender { domain: wire(registrable(domain)), like: wire(&like) });
+        }
+        out.extend(brand_lookalike(facts, domain));
+        out.extend(domain_in_name(m, domain));
+        out.extend(made_up(facts, domain));
     }
     if let Some(links) = links {
         out.extend(link_mismatches(links));

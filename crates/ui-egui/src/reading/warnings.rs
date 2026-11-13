@@ -93,6 +93,31 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
                 tl!("Point at a link to see where it goes.")
             ),
         ),
+        Warning::BrandName { brand, domain } => (
+            tl!("A brand's name on another address.").to_string(),
+            fill(
+                tl!("The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."),
+                &[("brand", &short(brand)), ("real", &real), ("domain", &short(domain))],
+            ),
+        ),
+        Warning::BrandLookalike { domain, brand } => (
+            tl!("Looks like a brand.").to_string(),
+            fill(
+                tl!("The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."),
+                &[("domain", &short(domain)), ("brand", &short(brand))],
+            ),
+        ),
+        Warning::DomainInName { shown, .. } => (
+            tl!("The name is another domain.").to_string(),
+            fill(tl!("The sender's name shows {shown}, but the message came from {real}."), &[("shown", &short(shown)), ("real", &real)]),
+        ),
+        Warning::MadeUpDomain { domain } => (
+            tl!("A made-up domain.").to_string(),
+            fill(
+                tl!("The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."),
+                &[("domain", &short(domain))],
+            ),
+        ),
         Warning::External { domain } => {
             (tl!("From outside your organisation.").to_string(), fill(tl!("The sender's address is at {domain}."), &[("domain", &short(domain))]))
         }

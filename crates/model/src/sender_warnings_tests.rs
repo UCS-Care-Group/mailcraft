@@ -7,10 +7,11 @@
 use proptest::prelude::*;
 
 use crate::auth_results::{Failed, failed_check};
+use crate::brands::{BRANDS, named};
 use crate::confusables::{as_seen, skeleton};
 use crate::sender_warnings::{
-    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, link_targets, name_key, registrable, sender_domain,
-    within_one_edit,
+    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, link_targets, machine_made, name_key, registrable,
+    sender_domain, within_one_edit,
 };
 use crate::{Account, AccountKind, Address, FolderKind, Message, Security, Server};
 
@@ -680,6 +681,213 @@ fn a_last_clause_cut_off_or_left_open_is_not_read() {
     assert_eq!(says(&format!("{head}{pad}{tail}")), Some(Failed::Dmarc));
     assert_eq!(says("mx.lumen.example; dmarc=fail header.from=shop.example (unclosed"), None);
     assert_eq!(says("mx.lumen.example; dmarc=fail header.from=\"shop.example"), None);
+}
+
+// ---- a brand's name on another address ----
+
+#[test]
+fn a_brands_name_on_another_domain_is_a_warning() {
+    let found = warnings(&from("PayPal Service", "service@pay-secure.example"));
+    assert!(found.contains(&Warning::BrandName { brand: "PayPal".into(), domain: "pay-secure.example".into() }));
+    assert_eq!(banner_level(&found), Some(Level::Warning));
+    // Drawn like it: a Cyrillic a.
+    assert!(kinds(&from("P\u{430}yPal", "x@account-check.example")).contains(&"brandName"));
+    // From a public mail provider too.
+    assert!(kinds(&from("Amazon", "orders.amazon@gmail.com")).contains(&"brandName"));
+    assert!(kinds(&from("Microsoft Account Team", "security@account-alerts.example")).contains(&"brandName"));
+    // A brand whose name is also a word: alone, or with one more word.
+    assert!(kinds(&from("Apple", "id@verify-now.example")).contains(&"brandName"));
+    assert!(kinds(&from("Apple Support", "id@verify-now.example")).contains(&"brandName"));
+    assert!(kinds(&from("Tesla", "orders@delivery-desk.example")).contains(&"brandName"));
+}
+
+#[test]
+fn a_brand_whose_name_is_a_word_is_said_only_when_the_name_is_about_it() {
+    for name in ["Apple Valley Farm", "Big Apple Bagels", "Nikola Tesla Museum", "The Tesla Owners Club"] {
+        assert!(!kinds(&from(name, "hello@orchard.example")).contains(&"brandName"), "{name}");
+    }
+    // Their domains are compared only when the name is theirs exactly.
+    for sender in ["x@apple-orchard.example", "x@appie.example", "x@tesla-coil.example"] {
+        assert!(!kinds(&from("Someone", sender)).contains(&"brandLookalike"), "{sender}");
+    }
+    assert!(kinds(&from("Someone", "x@apple.example")).contains(&"brandLookalike"));
+}
+
+#[test]
+fn a_brands_own_mail_gives_no_warning() {
+    for (name, sender) in [
+        ("PayPal", "service@paypal.com"),
+        ("PayPal", "service@paypal.de"),
+        ("Amazon.co.jp", "order-update@amazon.co.jp"),
+        ("Amazon", "shipment-tracking@amazon.fr"),
+        ("Prime Video", "no-reply@primevideo.com"),
+        // Its subdomains, as the mailing services sending for it use them.
+        ("Microsoft account team", "account-security-noreply@accountprotection.microsoft.com"),
+        ("Microsoft", "msa@communication.microsoft.com"),
+        ("Microsoft 365", "no-reply@microsoft365.com"),
+        // Under a top-level domain of its own.
+        ("Microsoft", "news@mail.microsoft"),
+        ("Google", "no-reply@accounts.google.com"),
+        ("Google Calendar", "calendar-notification@google.com"),
+        ("Apple", "no_reply@email.apple.com"),
+        ("Apple", "appleid@id.apple.com"),
+        ("PayPal", "service@paypal.it"),
+        ("Amazon.com.tr", "siparis@amazon.com.tr"),
+        ("LinkedIn", "messages-noreply@linkedin.com"),
+        ("Dropbox", "no-reply@dropboxmail.com"),
+        ("Facebook", "security@facebookmail.com"),
+        ("WhatsApp", "no-reply@whatsapp.com"),
+        ("Tesla", "noreply@tesla.com"),
+        ("YouTube", "no-reply@youtube.com"),
+        ("Adobe Acrobat Sign", "adobesign@adobesign.com"),
+        ("ChatGPT", "noreply@tm.openai.com"),
+        ("OpenAI", "noreply@email.openai.com"),
+    ] {
+        let found = kinds(&from(name, sender));
+        assert!(!found.iter().any(|k| ["brandName", "brandLookalike", "madeUpDomain", "domainInName"].contains(k)), "{name} <{sender}>: {found:?}");
+    }
+}
+
+#[test]
+fn words_that_are_not_a_brands_name_give_no_warning() {
+    for name in ["Amazonas Coffee", "Paypalooza Festival", "Micro Soft Toys", "Maya Okafor", "DH Lawrence"] {
+        assert!(!kinds(&from(name, "hello@coffee.example")).contains(&"brandName"), "{name}");
+    }
+}
+
+#[test]
+fn a_brand_name_is_not_said_for_a_list_or_a_correspondent() {
+    // A list writing a member's name.
+    let mut m = from("Maya via PayPal Users", "list@groups.example");
+    m.headers = vec![("List-Id".into(), "<paypal-users.groups.example>".into())];
+    assert!(!kinds(&m).contains(&"brandName"));
+    // A domain the owner corresponds with.
+    assert!(!kinds(&from("Microsoft partners at Harbor Works", "lin.zhao@harborworks.example")).contains(&"brandName"));
+}
+
+// ---- a domain made to look like a brand's ----
+
+#[test]
+fn a_domain_made_to_look_like_a_brands_is_a_caution() {
+    for (sender, brand) in [
+        ("x@paypa1.example", "PayPal"),
+        ("x@rnicrosoft.example", "Microsoft"),
+        ("x@microsoft-support.example", "Microsoft"),
+        ("x@amazom.example", "Amazon"),
+        ("x@linkedln.example", "LinkedIn"),
+        ("x@g00gle.example", "Google"),
+        ("x@dropbox-share.example", "Dropbox"),
+        ("x@whatsapp-verify.example", "WhatsApp"),
+        ("x@chatgpt-plus.example", "ChatGPT"),
+        ("x@paypal.example", "PayPal"),
+    ] {
+        let found = warnings(&from("Someone", sender));
+        let like = found.iter().find_map(|w| match w {
+            Warning::BrandLookalike { brand, .. } => Some(brand.as_str()),
+            _ => None,
+        });
+        assert_eq!(like, Some(brand), "{sender}");
+    }
+    let found = warnings(&from("Someone", "x@paypa1.example"));
+    assert_eq!(banner_level(&found), Some(Level::Caution));
+}
+
+#[test]
+fn a_domain_far_from_a_brands_is_no_lookalike() {
+    // Two characters away, a short name one character away, a public mail provider, a brand's own.
+    // A name one letter from a short brand's (`abode`, `adobe`) is a word.
+    for sender in
+        ["x@amazonia.example", "x@abobe.example", "x@gmail.com", "x@email.microsoft.com", "x@paypal.co.uk", "x@lumen.example", "x@youtube.com"]
+    {
+        assert!(!kinds(&from("Someone", sender)).contains(&"brandLookalike"), "{sender}");
+    }
+}
+
+// ---- a domain as the name ----
+
+#[test]
+fn a_name_that_is_another_organisations_domain_is_a_caution() {
+    let found = warnings(&from("LumenShop.com", "news@mailer.example"));
+    assert!(found.contains(&Warning::DomainInName { shown: "LumenShop.com".into(), domain: "mailer.example".into() }));
+    assert!(kinds(&from("https://lumenshop.fr", "news@mailer.example")).contains(&"domainInName"));
+}
+
+#[test]
+fn a_name_that_is_the_senders_domain_or_no_domain_is_none() {
+    for (name, sender) in [
+        // The sender's own, under another suffix too.
+        ("LumenShop.com", "news@lumenshop.example"),
+        ("lumenshop.fr", "news@mail.lumenshop.com"),
+        // Names with a dot in them.
+        ("J.Smith", "j@mailer.example"),
+        ("Dr.No", "x@mailer.example"),
+        ("Maya Okafor", "maya@mailer.example"),
+    ] {
+        assert!(!kinds(&from(name, sender)).contains(&"domainInName"), "{name}");
+    }
+}
+
+// ---- a made-up domain ----
+
+#[test]
+fn a_machine_made_name_is_told_from_words() {
+    for name in ["k7x9q2w8", "bxkrtzqw", "zq3x8p1v", "lmnbvcxz-shop"] {
+        assert!(machine_made(name), "{name}");
+    }
+    for name in ["lumen", "harborworks", "schwarzkopf", "web2print", "1und1", "rsgsv", "mp3store", "strengths", "xn--bcher-kva", "bücher"] {
+        assert!(!machine_made(name), "{name}");
+    }
+}
+
+#[test]
+fn a_made_up_or_impossible_domain_is_a_caution() {
+    for sender in ["x@k7x9q2w8.example", "x@shop-.example", "x@-shop.example", "x@mail.shop.123"] {
+        let found = warnings(&from("Someone", sender));
+        assert!(found.iter().any(|w| matches!(w, Warning::MadeUpDomain { .. })), "{sender}");
+        assert_eq!(banner_level(&found), Some(Level::Caution), "{sender}");
+    }
+    // Not for a domain the owner corresponds with.
+    let mut b = FactsBuilder::default().accounts([&imap("avery@lumen.example", "Avery Quinn")]);
+    b.known("ops@k7x9q2w8.example", "");
+    let known = b.build();
+    let m = from("Ops", "ops@k7x9q2w8.example");
+    assert!(check(&m, None, Some(FolderKind::Inbox), &known, None::<Vec<(&str, &str)>>).iter().all(|w| w.kind() != "madeUpDomain"));
+}
+
+// ---- the brands ----
+
+#[test]
+fn every_brand_owns_its_domains_and_is_found_by_its_name() {
+    for brand in BRANDS {
+        assert!(named(brand.name).is_some_and(|b| b.name == brand.name), "{}", brand.name);
+        for domain in brand.domains {
+            assert_eq!(*domain, domain.to_ascii_lowercase());
+            assert_eq!(registrable(domain), *domain, "{domain} is a registrable domain");
+            assert!(brand.owns(domain), "{domain}");
+        }
+    }
+    let paypal = named("paypal");
+    assert!(paypal.is_some_and(|b| !b.owns("paypal.example") && !b.owns("paypal")));
+    // A top-level domain of its own: every name under it, and nothing else.
+    assert!(named("Google").is_some_and(|b| b.owns("mail.google") && !b.owns("google.example")));
+    assert!(named("LinkedIn").is_some_and(|b| !b.owns("mail.linkedin")));
+}
+
+#[test]
+fn new_warnings_as_data() {
+    let json = Warning::BrandName { brand: "PayPal".into(), domain: "pay-secure.example".into() }.json();
+    assert_eq!(json["kind"], "brandName");
+    assert_eq!(json["level"], "warning");
+    assert_eq!(json["brand"], "PayPal");
+    let json = Warning::BrandLookalike { domain: "paypa1.example".into(), brand: "PayPal".into() }.json();
+    assert_eq!(
+        (json["kind"].as_str(), json["level"].as_str(), json["domain"].as_str()),
+        (Some("brandLookalike"), Some("caution"), Some("paypa1.example"))
+    );
+    let json = Warning::DomainInName { shown: "LumenShop.com".into(), domain: "mailer.example".into() }.json();
+    assert_eq!((json["kind"].as_str(), json["shown"].as_str()), (Some("domainInName"), Some("LumenShop.com")));
+    let json = Warning::MadeUpDomain { domain: "k7x9q2w8.example".into() }.json();
+    assert_eq!((json["kind"].as_str(), json["level"].as_str()), (Some("madeUpDomain"), Some("caution")));
 }
 
 proptest! {

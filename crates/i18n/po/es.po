@@ -302,6 +302,12 @@ msgid "A .pst file is being imported: try again when it is done"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A brand's name on another address."
+msgstr "El nombre de una marca en otra dirección."
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
@@ -368,18 +374,27 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A link goes somewhere else."
-msgstr ""
+msgstr "Un enlace lleva a otro sitio."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A link that reads {named} goes to {host}."
-msgstr ""
+msgstr "Un enlace que muestra {named} lleva a {host}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
-msgstr ""
+msgstr "Un enlace cuyo texto son sobre todo caracteres que no se muestran lleva a {host}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A made-up domain."
+msgstr "Un dominio inventado."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1165,10 +1180,11 @@ msgstr "Un elemento periódico no se puede llevar a otro calendario de esta form
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Y {n} enlace más como este."
+msgstr[1] "Y {n} enlaces más como este."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1851,8 +1867,9 @@ msgstr "CCO: {names}"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Be careful with this message."
-msgstr ""
+msgstr "Tenga cuidado con este mensaje."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -3558,8 +3575,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Dismiss this warning for this message. It comes back if a new kind of warning appears."
-msgstr ""
+msgstr "Descartar esta advertencia para este mensaje. Vuelve si aparece un nuevo tipo de advertencia."
 
 #. interface, name
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -4251,8 +4269,9 @@ msgstr "Exportar…"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "External"
-msgstr ""
+msgstr "Externo"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -4262,8 +4281,9 @@ msgstr "ERROR"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Failed check."
-msgstr ""
+msgstr "Comprobación fallida."
 
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
@@ -4755,8 +4775,9 @@ msgstr "De contiene"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "From outside your organisation."
-msgstr ""
+msgstr "Desde fuera de su organización."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -5175,8 +5196,9 @@ msgstr "Ayuda"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Hide"
-msgstr ""
+msgstr "Ocultar"
 
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -5228,8 +5250,9 @@ msgstr "Ocultar este calendario"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Hide this message's warning again"
-msgstr ""
+msgstr "Volver a ocultar la advertencia de este mensaje"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -6379,8 +6402,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Lookalike address."
-msgstr ""
+msgstr "Dirección que imita a otra."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6402,6 +6426,12 @@ msgstr ""
 #: crates/ui-egui/src/import_tree.rs
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Looks like a brand."
+msgstr "Parece una marca."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7221,8 +7251,9 @@ msgstr "Ahora no se pueden pedir más resultados al servidor"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
-msgstr ""
+msgstr "El nombre del remitente son sobre todo caracteres que no se muestran, y el mensaje vino de {real}."
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -8107,8 +8138,9 @@ msgstr "Sin conexión: el resto de este mensaje está en el servidor"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Not every layout checked."
-msgstr ""
+msgstr "No se comprobaron todas las presentaciones."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9156,8 +9188,9 @@ msgstr "Texto sin formato"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Point at a link to see where it goes."
-msgstr ""
+msgstr "Señale un enlace para ver adónde lleva."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -11404,8 +11437,9 @@ msgstr "Mostrar las imágenes de este mensaje, solo esta vez. Quien lo envió po
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Show this message's warning"
-msgstr ""
+msgstr "Mostrar la advertencia de este mensaje"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13011,18 +13045,27 @@ msgstr "Los mensajes de la carpeta mostrada, como .mbox"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name hides another address."
-msgstr ""
+msgstr "El nombre oculta otra dirección."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name hides characters."
-msgstr ""
+msgstr "El nombre oculta caracteres."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name is another domain."
+msgstr "El nombre es otro dominio."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name of someone you know."
-msgstr ""
+msgstr "El nombre de alguien que conoce."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13163,23 +13206,45 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
-msgstr ""
+msgstr "El remitente usa su nombre, pero este mensaje vino de {real}, que no es una de sus direcciones."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}."
-msgstr ""
+msgstr "La dirección del remitente está en {domain}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "El dominio del remitente, {domain}, se parece al de {brand}, pero no es uno de los dominios de {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
-msgstr ""
+msgstr "El dominio del remitente, {domain}, se parece a {like}, con el que mantiene correspondencia, pero no es el mismo."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "El dominio del remitente, {domain}, parece generado por una máquina o no puede existir: las organizaciones reales rara vez envían desde uno así."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "El nombre del remitente dice {brand}, pero este mensaje vino de {real}, y {domain} no es uno de los dominios de {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's name shows {shown}, but the message came from {real}."
-msgstr ""
+msgstr "El nombre del remitente muestra {shown}, pero el mensaje vino de {real}."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14154,8 +14219,9 @@ msgstr "El vínculo de esta reunión no se puede abrir."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "This message came from outside your organisation."
-msgstr ""
+msgstr "Este mensaje vino de fuera de su organización."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
@@ -14223,13 +14289,15 @@ msgstr "Este mensaje todavía no está en este equipo. Se descargará cuando ten
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
-msgstr ""
+msgstr "Este mensaje se presenta de más formas de las que MailCraft pudo comprobar, así que un enlace en alguna de ellas puede llevar a otro sitio distinto del que dice su texto."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "This message may not be what it seems."
-msgstr ""
+msgstr "Puede que este mensaje no sea lo que parece."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -15589,13 +15657,15 @@ msgstr "Su correo se está descargando. La primera vez puede tardar unos minutos
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Your mail server checked where this message came from, and the check failed, though the sender's domain asks for nothing to be done about it: the sender's address may be forged."
-msgstr ""
+msgstr "Su servidor de correo comprobó de dónde venía este mensaje y la comprobación falló, aunque el dominio del remitente pide que no se haga nada al respecto: la dirección del remitente puede estar falsificada."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
-msgstr ""
+msgstr "Su servidor de correo comprobó de dónde venía este mensaje y la comprobación falló: la dirección del remitente puede estar falsificada."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15753,8 +15823,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "Your own name."
-msgstr ""
+msgstr "Su propio nombre."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18701,8 +18772,9 @@ msgstr "{name} ocupa más de {mb} MB"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."
-msgstr ""
+msgstr "{name} es el nombre de alguien que conoce, pero este mensaje vino de {real}, que no es una de sus direcciones."
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
