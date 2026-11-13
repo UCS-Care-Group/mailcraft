@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("MaxLineLength")
+
 package work.mailcraft.android
 
 import java.io.File

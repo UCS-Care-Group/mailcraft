@@ -72,7 +72,7 @@ internal class MailListContext(
     val swipe: SwipeConfig,
     val accounts: List<AccountItem>,
     val categories: List<CategoryItem>,
-    /** Senders' pictures by row id, for the rows whose own message may show one (null: sender images are off and rows have no avatar). */
+    /** Senders' pictures by row id, for the rows whose own message may show one (null: sender images are off). */
     val avatars: Map<ULong, ByteArray>? = null,
 )
 

@@ -51,7 +51,11 @@ internal class ReadingController(
         val mine = generation.incrementAndGet()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         state.update {
-            if (it.id == id) it.copy(pictures = it.pictures.filterValues { v -> v !is PictureState.Pending }) else ReadingUi(id = id)
+            if (it.id != id) {
+                ReadingUi(id = id)
+            } else {
+                it.copy(pictures = it.pictures.filterValues { p -> p !is PictureState.Pending })
+            }
         }
         scope.launch {
             val opened = source.open(id, widthDp, dark)

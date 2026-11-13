@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -27,15 +28,15 @@ internal fun sampleSize(width: Int, height: Int): Int {
     return sample
 }
 
-/** Where pictures are decoded: off the main thread. (A test of what is drawn puts it on its own thread.) */
-internal val LocalDecoder = staticCompositionLocalOf<CoroutineDispatcher> { Dispatchers.Default }
+/** Pictures are decoded off the main thread; a test of what is drawn decodes in place (its shot has them). */
+internal val LocalDecodeInPlace = staticCompositionLocalOf { false }
 
 /** [bytes] decoded off the main thread: null until it is done (and for what is no picture the phone can draw). */
 @Composable
-internal fun rememberDecoded(bytes: ByteArray?): Decoded? {
-    val dispatcher = LocalDecoder.current
-    return produceState<Decoded?>(null, bytes, dispatcher) {
-        value = if (bytes == null) null else withContext(dispatcher) { decode(bytes) }
+internal fun rememberDecoded(bytes: ByteArray?, background: CoroutineDispatcher = Dispatchers.Default): Decoded? {
+    if (LocalDecodeInPlace.current) return remember(bytes) { bytes?.let(::decode) }
+    return produceState<Decoded?>(null, bytes) {
+        value = if (bytes == null) null else withContext(background) { decode(bytes) }
     }.value
 }
 

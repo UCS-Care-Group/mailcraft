@@ -63,7 +63,7 @@ internal class SenderImages(
         }
     }
 
-    /** What the rules say may have changed (the owner allowed a message's pictures, or a choice changed): decide again. */
+    /** What the rules say may have changed (the owner allowed pictures, or a choice changed): decide again. */
     fun redecide() {
         val rows = synchronized(lock) {
             decisions.clear()

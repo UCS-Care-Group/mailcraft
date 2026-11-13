@@ -7,7 +7,6 @@ package work.mailcraft.android
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import kotlinx.coroutines.Dispatchers
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -40,7 +39,7 @@ internal object ReadingShots {
     @Composable
     fun Pane(ui: ReadingUi) {
         // (The pictures are decoded where the drawing is, so that the shot has them.)
-        CompositionLocalProvider(LocalDecoder provides Dispatchers.Unconfined) {
+        CompositionLocalProvider(LocalDecodeInPlace provides true) {
             MailCraftTheme {
                 Surface {
                     ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
