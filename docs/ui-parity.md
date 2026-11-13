@@ -60,15 +60,14 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 ## Themes, sizes, input
 
-- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light. In the dark theme, the owner may keep messages on a light page in their own colours while the rest of the window stays dark (File › Options, #634).
+- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. The dark theme is neutral greys, as in the other Craft programs, with only the accent and its washes coloured. Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light. In the dark theme, the owner may keep messages on a light page in their own colours while the rest of the window stays dark (File › Options, #634).
 - **Interface size** 80–200 % on top of the system scale.
 - **Keyboard:** the registry's shortcuts follow the target's where it has them (Ctrl+N, Ctrl+R,
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish, Italian, Dutch and Romanian as preview languages (named
-  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)", "Română (previzualizare)" and so on in File › Options, every text translated, not
-  yet reviewed by a native speaker; see `docs/translating.md`); Automatic follows the system. Every
+- **Languages:** English, and French, German, Spanish, Italian, Dutch, Romanian and Simplified Chinese as preview languages (named
+  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)", "Română (previzualizare)" and "简体中文（预览）" in File › Options; the initial Chinese catalogue was reviewed by its contributor and is offered on desktop only until the browser has a CJK font, and the others await native-speaker review; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named
   places for what fills it, and a standard folder still called by its default name is shown in the
   interface language (one the owner named keeps its name), by its own word where the command of
