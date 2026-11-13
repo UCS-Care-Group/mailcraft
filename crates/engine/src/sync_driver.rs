@@ -39,6 +39,9 @@ mod reset_tests;
 pub mod rules;
 #[cfg(test)]
 mod rules_tests;
+pub mod sending;
+#[cfg(test)]
+mod sending_tests;
 pub mod tasks;
 #[cfg(test)]
 mod tasks_tests;
@@ -52,6 +55,7 @@ pub use free_busy::FreeBusyDriver;
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
+pub use sending::{GateStep, Pressed, SendingDriver};
 pub use tasks::{TasksCame, TasksDriver, TasksFacts};
 
 use mailcraft_model::Id;
@@ -405,6 +409,9 @@ pub struct Driver {
     pub auto_replies: AutoRepliesDriver,
     /// What was found out of other people's free and busy times.
     pub free_busy: FreeBusyDriver,
+    /// What is marked as being sent, and the shared mailboxes whose Outbox waits for the
+    /// permission to send from them.
+    pub sending: SendingDriver,
     /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
     /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
     auto_sync_off: bool,

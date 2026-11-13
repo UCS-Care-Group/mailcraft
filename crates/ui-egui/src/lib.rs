@@ -1546,13 +1546,6 @@ pub struct MailApp {
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
-    /// Shared mailboxes whose Outbox waits for the owner's permission to send from shared
-    /// mailboxes (#70): a run that starts by itself neither takes that mail along nor starts for
-    /// it, until the owner asks for a run, presses Send in it, or allows it.
-    shared_send_waits: std::collections::HashSet<Id>,
-    /// Shared mailboxes the owner pressed Send in since their last run: when that run finds
-    /// sending from shared mailboxes isn't allowed yet, the window asks, whoever started it (#70).
-    shared_send_pressed: std::collections::HashSet<Id>,
     /// Shared mailboxes whose server won't let the owner in, and why (no Full Access, no such
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
@@ -1751,10 +1744,7 @@ pub struct MailApp {
     pub(crate) swapping: bool,
     /// A Send/Receive that waits for the "sending" marks of what it sends to be written to the
     /// mailbox file before it is handed to the host ([`sending`], AU3-26).
-    pub(crate) send_gate: Option<sending::SendGate>,
-    /// A piece of the mail run under way was refused (AU3-26): at its end, the marks of what it
-    /// sent are left for the next run to hold, not taken off.
-    pub(crate) send_doubt: bool,
+    pub(crate) send_gate: Option<sending::Waiting>,
 }
 
 /// A Send/Receive of one account in flight, its pieces to come. A JMAP account's run takes the place
@@ -1837,8 +1827,6 @@ impl MailApp {
             auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_tokens: Default::default(),
-            shared_send_waits: Default::default(),
-            shared_send_pressed: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
@@ -1923,7 +1911,6 @@ impl MailApp {
             reading_ahead: None,
             swapping: false,
             send_gate: None,
-            send_doubt: false,
         }
     }
 
@@ -3260,7 +3247,9 @@ impl MailApp {
         };
         // A message an earlier run handed to the server, whose answer never came back, may have
         // gone: it is held for the owner to look at, never sent again by itself (AU3-26).
-        self.hold_unanswered(account);
+        if let Some(first) = self.session.send_hold_unanswered(account) {
+            self.status(first);
+        }
         // An Exchange server account is kept in step through Exchange Web Services (#252).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
             return self.start_ews_mail(account, quiet, p);
@@ -3471,7 +3460,7 @@ impl MailApp {
         let mb = &self.session.mailbox;
         // (A held message waits for the owner, not for a run; and so does mail in a shared
         // mailbox's Outbox that may not be sent from it yet, #70.)
-        let outbox = if self.shared_send_waits.contains(&account) {
+        let outbox = if self.session.shared_send_waits(account) {
             0
         } else {
             mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
@@ -3731,7 +3720,7 @@ impl MailApp {
                     }
                     Err(e) => {
                         self.graph_problems.push(e.to_string());
-                        self.send_doubt = true;
+                        self.session.driver.sending.doubted();
                     }
                 }
                 if let Some((progress, status)) = kept {
@@ -3797,7 +3786,7 @@ impl MailApp {
         // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
         // as they are taken in; one it didn't try is held at the next run.
         if answered && result.mail.is_none() {
-            self.run_answered(account);
+            self.session.send_run_answered(account);
         }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
@@ -4421,7 +4410,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
-                    self.send_doubt = true;
+                    self.session.driver.sending.doubted();
                 }
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
@@ -4436,7 +4425,7 @@ impl MailApp {
             self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.run_answered(account);
+            self.session.send_run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {

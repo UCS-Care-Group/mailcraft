@@ -123,6 +123,7 @@ impl MailApp {
         self.push_only_next.clear();
         self.shared_checking.clear();
         self.session.sync_progress = Default::default();
+        self.session.driver.sending.forget_gate();
         self.session.sync_status.clear();
     }
 }
