@@ -21,14 +21,15 @@ The browser build has no control channel (a page can't listen on a port).
 
 Any local program (and possibly a web page) can reach a loopback port, so every request needs the
 window's key. Once the port is bound, the app writes a random key (256 bits, as hex) to
-`<settings>/control-key.<instance>` and removes the file when the window closes; a new start
+`<settings>/control-key.local-<port>` and removes the file when the window closes; a new start
 writes a new key. `<settings>` is the folder that holds the preferences: on Linux
 `$XDG_CONFIG_HOME/mailcraft` (by default `~/.config/mailcraft`), on macOS
-`~/Library/Application Support/MailCraft`, on Windows `%APPDATA%\MailCraft`. `<instance>` is the
-Flatpak instance id inside Flatpak, and `local-<port>` otherwise. On Unix the file has mode 0600.
+`~/Library/Application Support/MailCraft`, on Windows `%APPDATA%\MailCraft`. The name holds the port, in Flatpak too, so a bridge (which may run as
+a Flatpak instance of its own) finds the key of the app on the port it connects to. On Unix the
+file has mode 0600.
 
 ```sh
-cat ~/.config/mailcraft/control-key.local-7991   # Linux, outside Flatpak, port 7991
+cat ~/.config/mailcraft/control-key.local-7991   # Linux, port 7991
 ```
 
 - Send the key as top-level `"key"` with every request, or once per connection with

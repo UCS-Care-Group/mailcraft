@@ -31,7 +31,7 @@ fn window() -> (MailApp, u64, Rc<Cell<usize>>) {
         mpsc::channel::<SyncResult>().1
     }));
     let looks = asked.clone();
-    a.services.lookup_mx = Some(Box::new(move |_| {
+    a.services.discover = Some(Box::new(move |_| {
         looks.set(looks.get() + 1);
         mpsc::channel().1
     }));

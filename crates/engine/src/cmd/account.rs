@@ -9,6 +9,7 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::gmail::MAX_GMAIL_REFUSALS;
+use mailcraft_model::provider::Via;
 use mailcraft_model::sync::{
     Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_GMAIL_MOVES, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags,
     RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
@@ -34,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"}, "outgoing"?: same} (what the host found in the domain's own SRV records, RFC 6186, #1063; taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -132,7 +133,9 @@ fn directory_of(v: &Value) -> Result<Option<Directory>, CmdError> {
 
 /// The servers and sign-in an address usually takes. Nothing is looked up here: the answer comes
 /// from the address's domain, or from the domain's mail exchangers when a host that could ask the
-/// DNS passes them in (`mx`), which is how a company's own domain is known to be, say, Microsoft's.
+/// DNS passes them in (`mx`), which is how a company's own domain is known to be, say, Microsoft's;
+/// or, for a domain nobody here knows, from what that host found in the domain's own records
+/// (`found`, #1063), checked here as anything from outside is, and else the usual names.
 fn preset(_: &mut Session, v: &Value) -> CmdResult {
     use mailcraft_model::provider;
     let email: String = p::req_str(v, "email")?.trim().chars().take(254).collect();
@@ -167,20 +170,68 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         (None, None) => (by_mx(), "mx"),
     };
     let known = found.is_some();
+    // A domain nobody here knows: the servers a host found in its own records (#1063), for the
+    // owner to confirm, and the usual names for whichever it lacks.
+    let (mut incoming, mut outgoing) = (None, None);
+    if !known && let Some(records) = v.get("found").filter(|f| f.is_object()) {
+        incoming = found_server(records.get("incoming"), (993, 143));
+        outgoing = found_server(records.get("outgoing"), (465, 587));
+    }
     let preset = found.unwrap_or_else(|| provider::guess(&domain));
-    // In the words `account.add` takes.
-    let server = |s: &Server| json!({"host": s.host, "port": s.port, "security": s.security.code()});
+    let via_of = |server: &Option<(Server, Via)>| server.as_ref().map(|(_, via)| via.code()).unwrap_or("guess");
+    let (incoming_via, outgoing_via) = (via_of(&incoming), via_of(&outgoing));
+    let via = match (known, incoming_via, outgoing_via) {
+        (true, ..) => via,
+        (false, "guess", other) => other,
+        (false, own, _) => own,
+    };
+    // In the words `account.add` takes, and whether a found host lies outside the address's
+    // domain, so that an agent asks the owner before a password goes there as the window does.
+    let server = |s: &Server, via: &str| {
+        let outside = Via::parse(via).is_some() && !mailcraft_model::is_within(&s.host, &domain);
+        json!({"host": s.host, "port": s.port, "security": s.security.code(), "via": via, "outside": outside})
+    };
     Ok(json!({
         "known": known,
-        "via": if known { via } else { "guess" },
+        "via": via,
         "service": preset.service,
         "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
         "provider": preset.oauth.map(OAuthProvider::code),
         "username": email,
-        "incoming": server(&preset.incoming),
-        "outgoing": server(&preset.outgoing),
+        "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
+        "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),
         "note": preset.note,
     }))
+}
+
+/// A server a host found, as `account.preset` is told of it: a host name, an encrypted
+/// connection (never a plain one, whatever the record says), a port (the usual one of that
+/// encryption when none is said: `tls`'s then `starttls`'s of `usual`) and where it was found.
+/// `None` for anything short of that: the usual names stand in.
+fn found_server(v: Option<&Value>, usual: (u16, u16)) -> Option<(Server, Via)> {
+    use mailcraft_model::provider::is_domain;
+    let v = v.filter(|v| v.is_object())?;
+    let host = p::str(v, "host")?.trim().trim_end_matches('.').to_ascii_lowercase();
+    if !is_domain(&host) {
+        return None;
+    }
+    let security = match Security::parse(p::str(v, "security")?) {
+        Some(Security::Tls) => Security::Tls,
+        Some(Security::StartTls) => Security::StartTls,
+        _ => return None,
+    };
+    let port = match v.get("port") {
+        None | Some(Value::Null) => {
+            if security == Security::Tls {
+                usual.0
+            } else {
+                usual.1
+            }
+        }
+        Some(port) => u16::try_from(port.as_u64()?).ok().filter(|port| *port != 0)?,
+    };
+    let via = Via::parse(p::str(v, "via")?)?;
+    Some((Server { host, port, security }, via))
 }
 
 fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
@@ -1218,7 +1269,14 @@ pub const MAX_PIECES_TOGETHER: usize = 256;
 /// Taking in a piece that brings anything reads the whole account once, however little the
 /// piece brings; a run that reads thousands of folders hands over a piece or more for each, so
 /// a host with several pieces waiting takes them in together ([`apply_sync_parts`], #991).
-pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
+pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, result: SyncResult) -> CmdResult {
+    let mut taken = apply_sync_piece(s, run, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
     let account = result.account;
     let Some(a) = s.mailbox.account(account) else { return Err(failed!("no account with id {id}", id = account)) };
     // No run here asks a server anything of it, so nothing that comes back is for it.

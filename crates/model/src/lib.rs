@@ -69,8 +69,8 @@ pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_NOT_DELETED_YET,
     FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_RULES,
-    MAX_SHARED, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued,
-    Security, Server, ServerFavorites, ServerFolder, preset_category_color,
+    MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider,
+    ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -208,6 +208,8 @@ mod search_tests;
 mod sender_warnings_tests;
 #[cfg(test)]
 mod shown_tests;
+#[cfg(test)]
+mod snooze_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 

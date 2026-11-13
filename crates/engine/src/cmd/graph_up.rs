@@ -504,4 +504,4 @@ pub fn missing(mb: &mut Mailbox, account: Id, ids: &[String]) -> usize {
 
 #[cfg(test)]
 #[path = "graph_up_tests.rs"]
-mod tests;
+pub(crate) mod tests;

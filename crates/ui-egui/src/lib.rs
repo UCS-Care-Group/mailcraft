@@ -154,6 +154,9 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod platform;
+#[cfg(test)]
+mod platform_tests;
 mod problem_log;
 pub mod reading;
 mod reminders;
@@ -200,6 +203,7 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+mod snooze_tick;
 pub mod software;
 mod symbol;
 mod sync_panel;
@@ -342,10 +346,11 @@ pub struct Services {
     /// owner in to its server): for such an account the window never asks for a password, and its
     /// jobs go without one. Absent, or false for an account: the owner types it.
     pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
-    /// Desktop: ask the DNS for a domain's mail exchangers on a background thread (best first),
-    /// so account setup can tell whose servers an address at a company's own domain uses. Only
-    /// the domain is given, never the mailbox name.
-    pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: find out about a domain on a background thread, so account setup can tell whose
+    /// servers an address at a company's own domain uses: its mail exchangers (best first), and,
+    /// when they name no provider this program knows, the servers its own SRV records name
+    /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
+    pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -510,6 +515,9 @@ pub struct Services {
     /// when it can't, and hands back which were clicked. Only the window asks for one, never a
     /// command. Absent in the browser and the tests: nothing is shown.
     pub alert: Option<Box<dyn alerts::AlertHost>>,
+    /// Desktop: open an address in the system's browser, and say whether one could be started
+    /// (the page a sign-in is made on). Absent in the browser and the tests.
+    pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
@@ -619,41 +627,16 @@ impl Delivered {
     }
 }
 
-/// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
-/// and `refresh:<address>`.
-pub trait SecretStore: Send + Sync {
-    fn get(&self, key: &str) -> Option<String>;
-    fn set(&self, key: &str, secret: &str) -> Result<(), String>;
-    fn delete(&self, key: &str);
-    /// Why the store itself couldn't be used the last time something was asked of it (none is
-    /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
-    /// itself, only a background thread does, [`secret_read`].)
-    fn take_trouble(&self) -> Option<StoreTrouble> {
-        None
-    }
-}
+pub use mailcraft_host::{SecretError, SecretStore, StoreTrouble};
 
-/// Why the system's credential store couldn't keep or give back a sign-in
-/// ([`SecretStore::take_trouble`]). Then nothing is remembered between runs: the owner is asked
-/// at each start, as on a system without a store, and is told why once a session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StoreTrouble {
-    /// No store answered: on Linux, no Secret Service (GNOME Keyring, KWallet) is running.
-    Unavailable,
-    /// The store is locked, or unlocking it was refused.
-    Locked,
-}
-
-impl StoreTrouble {
-    /// What the owner is told: in the status bar once, and under the switch in File › Options.
-    pub fn notice(self) -> String {
-        let why = match self {
-            StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
-            StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
-        };
-        i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
-    }
+/// What the owner is told when the system's credential store couldn't keep or give back a
+/// sign-in: in the status bar once, and under the switch in File › Options.
+pub fn store_trouble_notice(trouble: StoreTrouble) -> String {
+    let why = match trouble {
+        StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
+        StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
+    };
+    i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
 }
 
 /// The pictures from the web that the host keeps on disk between runs
@@ -1780,6 +1763,8 @@ pub struct MailApp {
     inbox_run: Option<Id>,
     /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
     inbox_check: inbox_pass::InboxCheck,
+    /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
+    snooze_last: i64,
     /// When it was last looked whether something made here waits to go to a server (milliseconds).
     push_checked: f64,
     /// Accounts whose next run that nobody asked for only tells the server what changed here
@@ -2014,6 +1999,7 @@ impl MailApp {
             inbox_queue: Default::default(),
             inbox_run: None,
             inbox_check: Default::default(),
+            snooze_last: 0,
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
@@ -3070,7 +3056,7 @@ impl MailApp {
     fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
-            self.status(trouble.notice());
+            self.status(store_trouble_notice(trouble));
         }
     }
 
@@ -4819,6 +4805,8 @@ impl MailApp {
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }
+        // Snoozed mail whose Return time has come (#949).
+        self.snooze_tick();
         reminders::tick(self, ctx);
         // What was done in the Reminders window, which has passes of its own (#771).
         reminders::carry_out(self, ctx);

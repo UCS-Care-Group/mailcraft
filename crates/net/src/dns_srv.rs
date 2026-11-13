@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Where a domain's Autodiscover is, by its `_autodiscover._tcp.<domain>` SRV record (RFC 2782;
-//! the third place MS-OXDSCLI looks), asked of the same DNS-over-HTTPS name servers as
+//! the third place MS-OXDSCLI looks), and where its mail servers are, by the SRV records of
+//! RFC 6186 ([`discover`](crate::discover)), asked of the same DNS-over-HTTPS name servers as
 //! [`lookup_mx`](crate::lookup_mx). Only the domain goes out (inside the fixed name of the
-//! service), never a mailbox name, and only when the owner has pressed Connect for an Exchange
-//! server account.
+//! service), never a mailbox name, and only when the owner has pressed Connect.
 //!
 //! The answer is a name server's JSON and as hostile as anything from the network: its size is
 //! capped by the HTTP layer, the records looked at and the hosts handed back are capped, and a
@@ -21,8 +21,8 @@ use crate::http::{self, Answer, Url};
 const MAX_HOSTS: usize = 8;
 /// The record type of a service location.
 const SRV: u64 = 33;
-/// The service asked after, whatever the domain.
-const SERVICE: &str = "_autodiscover._tcp";
+/// The service Autodiscover is found by, whatever the domain.
+const AUTODISCOVER: &str = "_autodiscover._tcp";
 
 /// A place an SRV record names: the host (lower case, without the trailing dot) and the port.
 #[derive(Clone, PartialEq, Eq)]
@@ -52,11 +52,17 @@ pub fn lookup_autodiscover(domain: &str) -> Result<Vec<SrvTarget>, NetError> {
 /// [`lookup_autodiscover`], asking the name servers at `endpoints` instead (`https://` addresses,
 /// or `http://` ones on this machine).
 pub fn lookup_autodiscover_at(endpoints: &[&str], domain: &str) -> Result<Vec<SrvTarget>, NetError> {
+    lookup_srv_at(endpoints, AUTODISCOVER, domain)
+}
+
+/// The places that serve `service` (`_imaps._tcp`, say: a label pair without the domain) for
+/// `domain`, best first, as [`lookup_autodiscover_at`] gives Autodiscover's.
+pub(crate) fn lookup_srv_at(endpoints: &[&str], service: &str, domain: &str) -> Result<Vec<SrvTarget>, NetError> {
     let Some(domain) = domain_name(domain) else {
         let shown: String = domain.chars().filter(|c| !c.is_control()).take(80).collect();
         return Err(NetError::Config(format!("\"{shown}\" isn't a domain that mail could go to").into()));
     };
-    let name = format!("{SERVICE}.{domain}");
+    let name = format!("{service}.{domain}");
     let mut failure = None;
     for endpoint in endpoints.iter().take(MAX_RESOLVERS) {
         match ask(endpoint, &name) {

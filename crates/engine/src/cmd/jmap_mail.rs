@@ -243,6 +243,13 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, session: &str) -> Result<St
 /// the end of a run `refused`, how many lines its pieces said of what the server wouldn't do (a
 /// run that went well otherwise still has those to show).
 pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
+    let mut taken = apply_jmap_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     let account = result.account;
     let name = receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded(result);
