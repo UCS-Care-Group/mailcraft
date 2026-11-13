@@ -15,8 +15,8 @@ use mailcraft_model::sync::{
     RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
-    Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
-    Pending, Queued, Rgb, Security, Server, clean_name,
+    Account, AccountKind, DavServer, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth,
+    OAuthProvider, Pending, Queued, Rgb, Security, Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -262,6 +262,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.outgoing = o;
     }
     sign_in(a, v)?;
+    a.dav = dav_server(v, a.dav.as_ref())?;
     // Which messages are fetched whole in the background (R3 spec S12).
     if let Some(limit) = p::str(v, "downloadInFull") {
         a.download_in_full =

@@ -282,7 +282,7 @@ fn a_calendar_only_account_signs_in_with_its_own_name_and_password() {
     let (mut app, account) = calendar_app();
     app.passwords.insert(account, "mail password".into());
     app.adopt_dav_password(account, "calendar password".into());
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.services.dav = Some(Box::new(move |job: DavJob| {
         assert_eq!(job.username, "ada-cloud");
         assert_eq!(job.password, "calendar password");
@@ -302,7 +302,7 @@ fn calendars_at_another_provider_never_get_the_mail_password() {
         ..Default::default()
     });
     app.adopt_password(account, "the mail account's password".into());
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let count = asked.clone();
     app.services.dav = Some(Box::new(move |job: DavJob| {
@@ -324,7 +324,7 @@ fn calendars_at_another_provider_never_get_the_mail_password() {
 fn a_mail_account_whose_calendars_share_its_sign_in_uses_its_password() {
     let (mut app, account) = app();
     app.adopt_password(account, "the account's password".into());
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.services.dav = Some(Box::new(move |job: DavJob| {
         assert_eq!(job.username, "ada@example.org");
         assert_eq!(job.password, "the account's password");
@@ -348,7 +348,7 @@ fn an_event_made_here_is_asked_for_at_once() {
     });
     app.dav.main.insert(account, "https://mail.example.org/caldav/ada@example.org/calendar/".into());
     app.passwords.insert(account, "invented".into());
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.services.dav = Some(Box::new(move |job: DavJob| {
         assert!(job.changes.as_ref().is_some_and(|upload| upload.ops.iter().any(|op| op.calendar.is_empty())), "the event made here is in the run");
         let (tx, rx) = mpsc::channel();
@@ -365,7 +365,7 @@ fn days_that_come_into_view_are_read_at_once() {
     use std::sync::{Arc, Mutex};
     let (mut app, account) = app();
     app.passwords.insert(account, "invented".into());
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     let asked: Arc<Mutex<Vec<(Timestamp, Timestamp)>>> = Arc::default();
     let seen = asked.clone();
     app.services.dav = Some(Box::new(move |job: DavJob| {

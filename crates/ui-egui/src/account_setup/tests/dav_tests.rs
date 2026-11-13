@@ -88,7 +88,7 @@ fn a_caldav_and_carddav_account_is_added_without_mail_and_signs_in_on_its_own() 
     assert!(!h.state().passwords.contains_key(&account.id));
 
     // Its calendars are read at once, without a mail sync to wait for.
-    h.state_mut().auto_sync = true;
+    h.state_mut().session.driver.set_auto_sync(true);
     h.state_mut().dav_sync_soon(account.id);
     assert!(h.state_mut().dav_tick_at(1_800_000_000_000.0), "the first read starts");
     assert_eq!(read.lock().unwrap().as_slice(), [account.id]);

@@ -27,7 +27,9 @@ use std::time::Duration;
 
 use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
 use mailcraft_model::provider::{Discovered, Via};
-use mailcraft_model::{Account, AccountKind, DavServer, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, is_within, provider};
+use mailcraft_model::{
+    Account, AccountKind, DavServer, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, is_within, provider,
+};
 use serde_json::{Map, Value, json};
 
 use crate::approval::SignInEnd;

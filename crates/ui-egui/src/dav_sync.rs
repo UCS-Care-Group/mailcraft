@@ -134,11 +134,11 @@ impl MailApp {
     pub(crate) fn dav_tick_at(&mut self, now: f64) -> bool {
         // A mailbox from a file names its own servers: nothing is fetched until the owner has
         // seen where each account connects.
-        if !self.auto_sync || self.unconfirmed || self.services.dav.is_none() || self.dav.rx.is_some() || self.offline() {
+        if !self.session.driver.auto_sync() || self.unconfirmed || self.services.dav.is_none() || self.dav.rx.is_some() || self.offline() {
             return false;
         }
         self.dav.requested.retain(|id| self.session.mailbox.account(*id).is_some_and(Account::is_dav));
-        let window = self.calendar_window();
+        let window = self.session.calendar_window();
         for account in self.session.mailbox.accounts.iter().filter(|a| a.is_dav()).map(|a| a.id).collect::<Vec<_>>() {
             let Some(found) = self.session.mailbox.account(account).cloned() else { continue };
             let due = self.dav.requested.remove(&account);
