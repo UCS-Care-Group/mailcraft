@@ -33,9 +33,6 @@ internal interface MailSource {
     /** The tabs of the Inbox split over [folder]; none when it has no split. */
     suspend fun splitTabs(folder: ULong): List<SplitTabItem>
 
-    /** Makes the core's own view show [query]'s folder, so that a command on a conversation reaches all of it. */
-    suspend fun focus(query: MailQuery)
-
     /** Runs a command by its id; whether it was done. */
     suspend fun run(command: String, params: String): Boolean
 
@@ -68,15 +65,6 @@ internal class CoreMailSource(
         } catch (_: CoreException) {
             emptyList()
         }
-    }
-
-    override suspend fun focus(query: MailQuery) {
-        val folder = buildMap<String, Any> {
-            put("id", query.folder)
-            if (query.split.isNotEmpty()) put("gmail", query.split)
-        }
-        run("folder.select", jsonText(folder))
-        run("view.conversations", jsonText(mapOf("value" to query.conversations)))
     }
 
     override suspend fun run(command: String, params: String): Boolean = withContext(dispatcher) {
@@ -125,6 +113,7 @@ internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     hasAttachments = hasAttachments,
     important = important,
     members = members.toInt(),
+    memberIds = memberIds,
     group = group,
     categories = categories,
     account = account,

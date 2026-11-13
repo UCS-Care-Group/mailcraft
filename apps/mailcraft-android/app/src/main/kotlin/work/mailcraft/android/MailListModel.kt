@@ -77,6 +77,8 @@ internal data class InboxRow(
     val important: Boolean = false,
     /** Messages the row stands for: more than one for a conversation. */
     val members: Int = 1,
+    /** The ids of those messages (capped by the core), which a command on the row names. */
+    val memberIds: List<ULong> = emptyList(),
     /** The heading above the row when it starts a group, in English (the screen translates it). */
     val group: String? = null,
     val categories: List<String> = emptyList(),

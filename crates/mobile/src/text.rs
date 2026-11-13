@@ -16,6 +16,8 @@ pub const MAX_PEOPLE_IN_ITEM: usize = 100;
 pub const MAX_CATEGORIES: usize = 32;
 
 pub const MAX_NAME: usize = 200;
+/// The most message ids a list row carries.
+pub const MAX_ROW_MEMBERS: usize = 200;
 pub const MAX_ADDRESS: usize = 320;
 pub const MAX_SUBJECT: usize = 500;
 pub const MAX_PREVIEW: usize = 200;

@@ -27,7 +27,6 @@ class MailListControllerTest {
         assertEquals("Subject 1", ui.snapshot.row(0)?.subject)
         assertNull(ui.snapshot.row(PAGE_SIZE))
         assertEquals(listOf("primary"), ui.tabs.map { it.code })
-        assertEquals(listOf(inbox), source.focused)
     }
 
     @Test
@@ -101,7 +100,17 @@ class MailListControllerTest {
         c.show(inbox.copy(filter = ListFilter.Unread))
         assertEquals(setOf(0), c.ui.value.snapshot.heldPages)
         assertEquals(ListFilter.Unread, c.ui.value.query?.filter)
-        assertEquals(2, source.focused.size)
+    }
+
+    @Test
+    fun changingTheQueryLeavesTheListReadyWithTheNewRows() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(30))
+        val c = controller(source)
+        c.show(inbox)
+        source.rows = FakeMailSource.rows(5)
+        c.show(inbox.copy(search = "x"))
+        assertEquals(LoadState.Ready, c.ui.value.load)
+        assertEquals(5, c.ui.value.snapshot.total)
     }
 
     @Test
@@ -155,13 +164,13 @@ class MailListControllerTest {
     }
 
     @Test
-    fun aConversationsRowIsSelectedSoThatTheCommandTakesAllItsMessages() = runBlocking {
+    fun aConversationsRowNamesAllItsMessagesWhateverTheSessionsView() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(3))
         val c = controller(source)
         c.show(inbox.copy(conversations = true))
         val row = FakeMailSource.row(2, members = 4)
         c.triage(Triage.Delete, listOf(row))
-        assertEquals(listOf("mail.select" to """{"id":2}""", "mail.delete" to "{}"), source.commands)
+        assertEquals(listOf("mail.delete" to """{"ids":[200,201,202,203]}"""), source.commands)
     }
 
     @Test

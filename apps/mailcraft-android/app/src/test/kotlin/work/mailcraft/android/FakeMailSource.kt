@@ -9,7 +9,6 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var rev = 1uL
     val windows = mutableListOf<Pair<Int, Int>>()
     val commands = mutableListOf<Pair<String, String>>()
-    val focused = mutableListOf<MailQuery>()
     var tabs: List<SplitTabItem> = emptyList()
     var failWindows = false
     var failCommands = false
@@ -30,10 +29,6 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     }
 
     override suspend fun splitTabs(folder: ULong) = tabs
-
-    override suspend fun focus(query: MailQuery) {
-        focused += query
-    }
 
     override suspend fun run(command: String, params: String): Boolean {
         commands += command to params
@@ -61,6 +56,7 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
             unread = n % 2 == 0,
             whenSeconds = 1_730_000_000L - n,
             members = members,
+            memberIds = if (members > 1) (0 until members).map { (n * 100 + it).toULong() } else emptyList(),
         )
 
         fun rows(count: Int) = (1..count).map { row(it) }

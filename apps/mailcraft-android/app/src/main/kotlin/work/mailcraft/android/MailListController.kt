@@ -39,30 +39,38 @@ internal class MailListController(
     @Volatile
     private var hasServer = false
 
+    /** Whether the rows held are of an earlier query, its first page not yet in: nothing is read into them. */
+    @Volatile
+    private var switching = false
+
     /** Whether any account is kept in step with a server: what a pull to refresh can do. */
     fun accountsHaveServer(value: Boolean) {
         hasServer = value
     }
 
-    /** Shows the list [query] asks for: reads its first page and its tabs. */
+    /**
+     * Shows the list [query] asks for: reads its first page and its tabs. The rows of the list that
+     * was shown stay until that page arrives, so that a keystroke in the search or a change of filter
+     * does not blank the screen.
+     */
     suspend fun show(query: MailQuery) {
         val mine = generation.incrementAndGet()
         val before = state.value
         val sameFolder = before.query?.folder == query.folder
+        switching = true
         state.update {
             it.copy(
                 query = query,
-                load = LoadState.Loading,
-                snapshot = ListSnapshot.Empty,
+                load = if (it.snapshot.total > 0) it.load else LoadState.Loading,
                 tabs = if (sameFolder) it.tabs else emptyList(),
             )
         }
         visible = 0..0
-        source.focus(query)
         val first = source.window(query, 0, PAGE_SIZE)
         if (mine != generation.get()) return
+        switching = false
         if (first == null) {
-            state.update { it.copy(load = LoadState.Failed) }
+            state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty) }
             return
         }
         val snapshot = ListSnapshot.Empty.with(first) ?: ListSnapshot.Empty
@@ -78,17 +86,17 @@ internal class MailListController(
     /** The rows [first] to [last] are on screen: reads the pages of them (and the next) that are missing. */
     suspend fun showRange(first: Int, last: Int) {
         visible = first..last
+        val query = state.value.query
         val mine = generation.get()
-        val query = state.value.query ?: return
         val ahead = last + PAGE_SIZE / 2
-        val wanted = state.value.snapshot.missing(first, ahead).filter { reading.add(mine to it) }
-        if (wanted.isEmpty()) return
+        val missing = if (switching || query == null) emptyList() else state.value.snapshot.missing(first, ahead)
+        val wanted = missing.filter { reading.add(mine to it) }
         try {
             val windows = coroutineScope {
-                wanted.map { page -> async { source.window(query, page * PAGE_SIZE, PAGE_SIZE) } }.awaitAll()
+                wanted.map { page -> async { query?.let { q -> source.window(q, page * PAGE_SIZE, PAGE_SIZE) } } }
+                    .awaitAll()
             }
-            if (mine != generation.get()) return
-            windows.filterNotNull().forEach { w -> state.update { it.merged(w) } }
+            if (mine == generation.get()) windows.filterNotNull().forEach { w -> state.update { it.merged(w) } }
         } finally {
             wanted.forEach { reading.remove(mine to it) }
         }
@@ -178,12 +186,13 @@ internal class MailListController(
     }
 }
 
-/** Runs [triage] on [rows] as commands: a conversation's row is selected first, so that it takes all its messages. */
+/**
+ * Runs [triage] on [rows] as commands, naming the messages: a conversation's row stands for the
+ * messages it lists, which are the ones that command takes, whatever filter or search made the list.
+ */
 internal suspend fun MailSource.focusedRun(triage: Triage, rows: List<InboxRow>): Boolean {
-    val whole = rows.size == 1 && rows.first().members > 1
-    if (whole && !run("mail.select", jsonText(mapOf("id" to rows.first().id)))) return false
-    val ids = rows.map { it.id }
-    val withIds = if (whole) emptyMap() else mapOf("ids" to ids)
+    val ids = rows.flatMap { it.memberIds.ifEmpty { listOf(it.id) } }.distinct()
+    val withIds = mapOf("ids" to ids)
     val (command, params) = when (triage) {
         is Triage.MarkRead -> (if (triage.read) "mail.markRead" else "mail.markUnread") to withIds
         is Triage.Flag -> (if (triage.on) "mail.flag" else "mail.clearFlag") to withIds

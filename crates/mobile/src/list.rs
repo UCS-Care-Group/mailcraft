@@ -53,12 +53,8 @@ pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>
     let rows = mailcraft_engine::list::rows(s);
     s.view = saved;
     let start = usize::try_from(offset).unwrap_or(usize::MAX);
-    let window = rows
-        .iter()
-        .skip(start)
-        .take(count)
-        .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
-        .collect();
+    let window =
+        rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, &r.members, r.unread, r.group.clone()))).collect();
     Ok(MessageWindow { rev: s.rev(), folder: q.folder, total: text::count_of(rows.len()), offset, rows: window })
 }
 

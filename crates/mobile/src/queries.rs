@@ -87,7 +87,7 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-pub(crate) fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
+pub(crate) fn row(m: &Message, members: &[u64], unread: usize, group: Option<String>) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -106,7 +106,8 @@ pub(crate) fn row(m: &Message, members: usize, unread: usize, group: Option<Stri
         draft: m.draft,
         pinned: m.pinned,
         categories: categories(&m.categories),
-        members: text::count_of(members),
+        members: text::count_of(members.len()),
+        member_ids: members.iter().copied().take(text::MAX_ROW_MEMBERS).collect(),
         group: group.map(|g| text::clip(&g, MAX_NAME)),
     }
 }

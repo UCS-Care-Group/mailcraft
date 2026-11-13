@@ -242,3 +242,37 @@ fn an_account_says_whether_it_has_a_server_and_a_refresh_with_none_is_refused() 
     let gmail = block_on(gmail_core().folders(0)).unwrap();
     assert!(gmail.accounts.iter().all(|a| a.server));
 }
+
+fn zebra_core() -> Arc<Core> {
+    use crate::fake_tests::now;
+    Core::start(FakePlatform::new(), || {
+        let mut mailbox = mailcraft_engine::sample::mailbox(now(), 0);
+        let inbox = mailbox.inbox().unwrap();
+        for (date, read) in [(now() - 100, false), (now() - 50, true), (now() - 10, false)] {
+            mailbox.add_message(Message { folder: inbox, subject: "Zebra planning".into(), date, read, ..Default::default() }).unwrap();
+        }
+        Session::at(mailbox, now(), 0)
+    })
+    .unwrap()
+}
+
+#[test]
+fn a_conversation_row_names_its_messages_under_a_filter_and_under_a_search() {
+    let core = zebra_core();
+    let folder = inbox(&core);
+    let zebra = |q: ListQuery| all(&core, q).into_iter().find(|r| r.subject == "Zebra planning").unwrap();
+    let plain = zebra(ListQuery { conversations: true, ..query(folder) });
+    assert_eq!((plain.members, plain.member_ids.len()), (3, 3));
+    assert!(plain.member_ids.contains(&plain.id));
+    // Under a filter the row stands for the messages the filter keeps, and names those.
+    let unread = zebra(ListQuery { conversations: true, filter: "unread".into(), ..query(folder) });
+    assert_eq!((unread.members, unread.member_ids.len()), (2, 2));
+    assert!(unread.member_ids.iter().all(|id| plain.member_ids.contains(id)));
+    let found = zebra(ListQuery { conversations: true, search: "zebra".into(), everywhere: true, ..query(folder) });
+    assert_eq!(found.member_ids.len(), usize::try_from(found.members).unwrap());
+    // A command on those ids takes those messages and leaves the session's view alone.
+    exec(&core, "mail.delete", json!({"ids": unread.member_ids})).unwrap();
+    let after = zebra(ListQuery { conversations: true, ..query(folder) });
+    assert_eq!(after.members, 1);
+    assert!(!after.member_ids.iter().any(|id| unread.member_ids.contains(id)));
+}

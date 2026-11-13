@@ -59,6 +59,9 @@ pub struct MessageRow {
     pub categories: Vec<String>,
     /// Messages the row stands for (1 outside a conversation).
     pub members: u32,
+    /// The ids of those messages (the first 200 at most), newest first, so that a command on the row
+    /// names them and never depends on the session's own view of the list.
+    pub member_ids: Vec<u64>,
     /// The heading above the row when it starts a group (`Today`, `Last Week`), in English: the
     /// app translates it with `t`.
     pub group: Option<String>,
