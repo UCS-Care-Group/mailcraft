@@ -229,6 +229,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.updateInstall", "{}", Setup::None),
     ("ui.dismissUpdateNotice", "{}", Setup::None),
     ("ui.dismissSettingsNotice", "{}", Setup::None),
+    ("ui.dismissSoftwareNotice", "{}", Setup::None),
     // What is asked about only now and then (`agent::classify`).
     ("edit.undo", "{}", Setup::Step(false)),
     ("edit.redo", "{}", Setup::Step(true)),

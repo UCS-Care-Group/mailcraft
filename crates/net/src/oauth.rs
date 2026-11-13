@@ -414,8 +414,21 @@ fn sign_in_refused(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`sign_in_refused`], coming back the way `via` says.
+fn sign_in_refused_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
     let (mut consent, lesser) = (endpoints.consent.trim(), endpoints.lesser.trim());
-    let mut outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+    let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     // The page won't have all it was asked for (the provider has no such permission for this
     // kind of account, or it is not the owner's to give), and there is less that is known to be
     // had: once more, for that.
@@ -423,14 +436,14 @@ fn sign_in_refused(
     if !lesser.is_empty() && lesser != consent && outcome.as_ref().is_err_and(unwilling) {
         log::debug!("the sign-in was refused for what it asked for; asking again for what it asked for before");
         consent = lesser;
-        outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+        outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     }
     match outcome {
         // The provider won't have what was asked for, and more was asked for than the tokens
         // need: once more, for the tokens alone.
         Err(refused) if refused.about == About::Scope && !consent.is_empty() => {
             log::debug!("the sign-in was refused for what it asked for; asking again without the extra permissions");
-            attempt(endpoints, "", oauth, login_hint, open, cancel, patience)
+            attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via)
         }
         outcome => outcome,
     }
@@ -588,13 +601,30 @@ pub fn admin_consent(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &
 
 /// [`admin_consent`], waiting no longer than `patience` for each page.
 fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`admin_consent`], with the answer coming back the way `via` says (a program on a phone has
+/// no loopback port to be sent back to: [`RedirectStrategy::CustomScheme`]).
+pub fn admin_consent_via(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, via: &RedirectStrategy) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, SIGN_IN_TIMEOUT, via)
+}
+
+fn admin_consent_within_via(
+    oauth: &OAuth,
+    tenant: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), AdminRefusal> {
     let all = admin_scope();
-    match ask_administrator(oauth, tenant, &all, open, cancel, patience) {
+    match ask_administrator(oauth, tenant, &all, open, cancel, patience, via) {
         // The page won't have what it was asked for together: once more, a page for each service.
         Err(refused) if refused.about == About::Scope && apart(&all).len() > 1 => {
             log::debug!("the approval page was refused for what it asked for; asking service by service");
             for part in apart(&all) {
-                ask_administrator(oauth, tenant, &part, open, cancel, patience)?;
+                ask_administrator(oauth, tenant, &part, open, cancel, patience, via)?;
             }
             Ok(())
         }
@@ -603,22 +633,32 @@ fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel
 }
 
 /// One go at an administrator's approval of `scope`: the page, and the wait for its answer.
-fn ask_administrator(oauth: &OAuth, tenant: &str, scope: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), Refused> {
+fn ask_administrator(
+    oauth: &OAuth,
+    tenant: &str,
+    scope: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), Refused> {
     let client_id = client_id(oauth)?;
     let page = admin_consent_page(oauth, tenant)?;
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
+    let redirect = Landing::open(via)?;
     // As for a sign-in: the registered address, on whichever port is free here.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect_uri = redirect.uri();
     // Only the page that was given the state can send it back: nobody else on this machine can
     // say yes or no in its place.
     let state = random(24)?;
-    log::debug!("waiting on port {} for the administrator's approval to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the administrator's approval to come back");
+    }
     let fields = [("client_id", client_id), ("scope", scope), ("redirect_uri", redirect_uri.as_str()), ("state", state.as_str())];
     open(&format!("{page}?{}", http::form(&fields)));
-    redirect.wait_for(&state, cancel, patience, judge_consent)
+    redirect.wait_consent(&state, cancel, patience)
 }
 
 /// Ask the owner, on the provider's page, to let this program read the Favorites of Outlook
@@ -959,6 +999,21 @@ fn attempt(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
+    attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`attempt`], coming back the way `via` says.
+#[allow(clippy::too_many_arguments)]
+fn attempt_via(
+    endpoints: &Endpoints,
+    consent: &str,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
     let client_id = client_id(oauth)?;
     tenant(oauth)?;
     // Both addresses are checked before the owner is sent anywhere.
@@ -967,16 +1022,18 @@ fn attempt(
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
-    // As it is registered with the provider (`http://localhost`), which ignores the port of a
-    // loopback address but compares the rest exactly: no path, no trailing slash.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect = Landing::open(via)?;
+    // Loopback: as it is registered with the provider (`http://localhost`), which ignores the
+    // port of a loopback address but compares the rest exactly: no path, no trailing slash.
+    let redirect_uri = redirect.uri();
     // PKCE: only who knows the verifier can trade the code in, and only its hash goes through the browser.
     let verifier = random(32)?;
     let state = random(24)?;
-    log::debug!("waiting on port {} for the sign-in to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the sign-in to come back");
+    }
     open(&authorize_url(endpoints, consent, client_id, &redirect_uri, &state, &challenge(&verifier), login_hint));
-    let code = redirect.wait(&state, cancel, patience)?;
+    let code = redirect.wait_code(&state, cancel, patience)?;
     drop(redirect);
     let fields = [
         ("grant_type", "authorization_code"),
@@ -1569,16 +1626,39 @@ fn judge_consent(request: &[u8], state: &str) -> (&'static Page, Option<Result<(
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    if let Some(refused) = page_refusal(&fields) {
-        return (&NOT_APPROVED, Some(Err(refused)));
+    match consent_of(&fields) {
+        Ok(()) => (&APPROVED, Some(Ok(()))),
+        Err(refused) => (&NOT_APPROVED, Some(Err(refused))),
+    }
+}
+
+/// The answer in what the approval page sent back (`fields`, once `state` is known to be ours).
+fn consent_of(fields: &[(String, String)]) -> Result<(), Refused> {
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
     }
     let said = fields.iter().find(|(name, _)| name == "admin_consent").map_or("", |(_, value)| value.as_str());
     if said.trim().eq_ignore_ascii_case("true") {
-        (&APPROVED, Some(Ok(())))
+        Ok(())
     } else {
         let broken = ProtoError::Protocol("the approval page came back without an answer".into());
-        (&NOT_APPROVED, Some(Err(NetError::Proto(broken).into())))
+        Err(NetError::Proto(broken).into())
     }
+}
+
+/// The code in what the provider's page sent back (`fields`, once `state` is known to be ours),
+/// or why there is none.
+fn code_of(fields: &[(String, String)]) -> Result<String, Refused> {
+    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
+    }
+    let code = field("code");
+    if code.is_empty() || !usable(code) {
+        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
+        return Err(NetError::Proto(broken).into());
+    }
+    Ok(code.to_string())
 }
 
 /// The page a request is answered with and, when it is the one waited for, how the sign-in
@@ -1588,16 +1668,10 @@ fn judge(request: &[u8], state: &str) -> (&'static Page, Option<Result<String, R
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
-    if let Some(refused) = page_refusal(&fields) {
-        return (&FAILED, Some(Err(refused)));
+    match code_of(&fields) {
+        Ok(code) => (&DONE, Some(Ok(code))),
+        Err(refused) => (&FAILED, Some(Err(refused))),
     }
-    let code = field("code");
-    if code.is_empty() || !usable(code) {
-        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
-        return (&FAILED, Some(Err(NetError::Proto(broken).into())));
-    }
-    (&DONE, Some(Ok(code.to_string())))
 }
 
 /// A connection to the loopback port and what it has sent so far.
@@ -1793,10 +1867,55 @@ pub fn sign_in_google_explained_at(
     google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
+mod scheme;
+use scheme::Landing;
+pub use scheme::{CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
+
+/// [`sign_in_at`], coming back the way `via` says: through a loopback port (what a desktop does)
+/// or through a custom scheme the platform hands back ([`RedirectStrategy::CustomScheme`]).
+/// Everything else (PKCE, the state, the consent, the trade of the code) is the same. Google's
+/// registration comes back through loopback only.
+pub fn sign_in_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, NetError> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_at(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(NetError::Config("Google sign-in comes back through a loopback port only".into()));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(|refused| refused.error)
+}
+
+/// [`sign_in_via`], saying how a sign-in that brought no tokens ended ([`SignInEnd`]).
+pub fn sign_in_explained_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, SignInEnd> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_explained(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(SignInEnd::Other(NetError::Config("Google sign-in comes back through a loopback port only".into())));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(SignInEnd::from)
+}
+
 mod google;
 pub use google::{refresh_google_at, sign_in_google_at};
 
 #[cfg(test)]
 mod google_tests;
+#[cfg(test)]
+mod scheme_tests;
 #[cfg(test)]
 mod tests;

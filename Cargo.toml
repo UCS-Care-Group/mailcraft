@@ -34,6 +34,7 @@ mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-mcp = { path = "crates/mcp" }
 mailcraft-control-key = { path = "crates/control-key" }
+mailcraft-host = { path = "crates/host" }
 mailcraft-ui-egui = { path = "crates/ui-egui" }
 
 # foundation

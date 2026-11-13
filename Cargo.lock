@@ -3052,6 +3052,7 @@ dependencies = [
  "mailcraft-control-key",
  "mailcraft-engine",
  "mailcraft-ews",
+ "mailcraft-host",
  "mailcraft-jmap",
  "mailcraft-link",
  "mailcraft-model",
@@ -3179,6 +3180,10 @@ dependencies = [
  "proptest",
  "quick-xml 0.42.0",
 ]
+
+[[package]]
+name = "mailcraft-host"
+version = "0.12.0"
 
 [[package]]
 name = "mailcraft-html"
@@ -3381,6 +3386,7 @@ dependencies = [
  "js-sys",
  "log",
  "mailcraft-engine",
+ "mailcraft-host",
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
