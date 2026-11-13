@@ -43,9 +43,9 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 ## Architecture (see `docs/architecture.md`)
 | Layer | Crate | Job |
 |---|---|---|
-| L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; web addresses as they are shown and launched; one list of format characters, and a name coming in and being shown; interface text in other languages (`.po` catalogues, plural rules) |
+| L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n`, `ber` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; web addresses as they are shown and launched; one list of format characters, and a name coming in and being shown; interface text in other languages (`.po` catalogues, plural rules); bounded BER/DER reading for signed messages |
 | L1 | `model`, `html` | the mailbox and its edit primitives, recurrence, search, sync data; hostile HTML to display blocks |
-| L2 | `mime`, `ical`, `vcard`, `pst` | Internet messages and mbox; iCalendar; vCard; Outlook data files (.pst), read |
+| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst` | Internet messages and mbox on their own types (no `model`); the mailbox's messages to and from them; iCalendar; vCard; Outlook data files (.pst), read |
 | L3 | `proto`, `net`, `jmap`, `dav` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising; JMAP requests and answers, no I/O of its own; bounded DAV documents and XML, no I/O |
 | L4 | `engine` | Session, undo, **command registry**, Outlook feature catalog, sample, I/O dispatch |
 | L5 | `mcp` | MCP server (headless or bridged to the app) |

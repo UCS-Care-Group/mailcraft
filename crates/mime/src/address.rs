@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Address lists (RFC 5322 §3.4): `Ada <ada@example.org>, "Hopper, Grace" <grace@example.org>`.
 
-use mailcraft_model::Address;
+use crate::Address;
 
 use crate::header::clean;
 use crate::words::{decode_words, encode_words, is_plain};

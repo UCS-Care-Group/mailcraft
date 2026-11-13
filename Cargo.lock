@@ -3094,6 +3094,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-ber"
+version = "0.12.0"
+
+[[package]]
 name = "mailcraft-charset"
 version = "0.12.0"
 dependencies = [
@@ -3149,6 +3153,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-openpgp",
@@ -3171,7 +3176,7 @@ version = "0.12.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "md-5 0.11.0",
@@ -3213,7 +3218,7 @@ version = "0.12.0"
 dependencies = [
  "log",
  "mailcraft-charset",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
@@ -3242,13 +3247,25 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.12.0"
 dependencies = [
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-html",
- "mailcraft-model",
  "mailcraft-time",
  "proptest",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailcraft-mime-model"
+version = "0.12.0"
+dependencies = [
+ "mailcraft-html",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-time",
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]
@@ -3282,6 +3299,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-proto",
  "mailcraft-time",
@@ -3341,6 +3359,7 @@ dependencies = [
  "der 0.8.3",
  "des 0.9.0",
  "hmac 0.13.0",
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-model",
  "mailcraft-time",
@@ -3384,7 +3403,7 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",

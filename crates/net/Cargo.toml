@@ -13,6 +13,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 mailcraft-proto = { workspace = true }
 mailcraft-i18n = { workspace = true }
 thiserror = { workspace = true }

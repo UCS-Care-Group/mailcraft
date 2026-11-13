@@ -14,7 +14,7 @@ workspace = true
 # MIME reader, and an arrival date by the time crate (all of them lower layers, all of them wasm-ready).
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
-mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
 # The stand-in reads the Basic credentials it is sent.
