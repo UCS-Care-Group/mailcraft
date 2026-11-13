@@ -248,10 +248,16 @@ impl Date {
     /// From `YYYY-MM-DD` (or `YYYYMMDD`).
     pub fn parse_iso(s: &str) -> Option<Date> {
         let s = s.trim();
-        let digits: String = s.chars().filter(char::is_ascii_digit).collect();
-        if digits.len() != 8 || s.chars().any(|c| !c.is_ascii_digit() && c != '-') {
+        let b = s.as_bytes();
+        let ok = match b.len() {
+            8 => b.iter().all(u8::is_ascii_digit),
+            10 => b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() }),
+            _ => false,
+        };
+        if !ok {
             return None;
         }
+        let digits: String = s.chars().filter(char::is_ascii_digit).collect();
         Date::new(digits.get(0..4)?.parse().ok()?, digits.get(4..6)?.parse().ok()?, digits.get(6..8)?.parse().ok()?)
     }
 

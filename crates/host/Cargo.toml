@@ -8,6 +8,10 @@ description = "MailCraft host services below the window: what a platform gives t
 [lints]
 workspace = true
 
+[features]
+# The seams the flow tests of the app run through (a renewal of their own): a test's build only.
+test-support = []
+
 [dependencies]
 log = { workspace = true }
 # The engine's own memory cap, which the device's budget is held against.
