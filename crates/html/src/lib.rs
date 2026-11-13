@@ -24,6 +24,7 @@
 //! [`MAX_TABLE_DEPTH`], [`MAX_CELLS`]), and the work is linear in the input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod bidi;
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;
@@ -600,6 +601,8 @@ mod float_tests;
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
+#[cfg(test)]
+mod rtl_tests;
 #[cfg(test)]
 mod text_link_tests;
 

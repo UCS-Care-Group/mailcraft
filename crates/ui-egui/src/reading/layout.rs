@@ -774,7 +774,11 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
-    let (x, width) = (x + indent, (width - indent).max(MIN_CELL.min(width)));
+    // An item at the right edge hangs its marker there too, so that the two stay together: its
+    // text is indented from the right instead of the left (#603).
+    let hung_right = matches!(block.kind, BlockKind::ListItem { .. }) && block.align == Align::Right;
+    let (edge, room) = (x + width, (width - indent).max(MIN_CELL.min(width)));
+    let (x, width) = if hung_right { (x, room) } else { (x + indent, room) };
     let quoted = block.quote > 0;
     let mut y = y;
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
@@ -800,7 +804,8 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
             let first = piece.first();
             let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from) * cx.zoom;
             let ink = paper.ink(&cx.t, first.and_then(|s| s.color).filter(|_| first.is_some_and(|s| s.link.is_none())), false, quoted);
-            list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
+            let side = if hung_right { Hang::Right { text: x + width, edge } } else { Hang::Left { text: x, edge: left } };
+            list_marker(cx, marker, *depth, y, side, row, size, ink, paper.fill);
         }
         let anchor = match block.align {
             Align::Left => 0.0,
@@ -849,13 +854,25 @@ fn copied_marker(marker: &Marker, depth: u8) -> String {
     }
 }
 
-/// What stands in front of a list item whose text starts at `at`: a bullet or a number, never
-/// further left than `left`.
-fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left: f32, row: f32, size: f32, ink: Color32, paper: Color32) {
+/// Which edge a list item's marker hangs at, with the edge of its text beside it and the limit it
+/// may not pass (the item's own edge).
+#[derive(Clone, Copy)]
+enum Hang {
+    Left { text: f32, edge: f32 },
+    Right { text: f32, edge: f32 },
+}
+
+/// What stands in front of a list item: a bullet or a number, beside its text at `side`, never
+/// past the item's edge.
+fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, y: f32, side: Hang, row: f32, size: f32, ink: Color32, paper: Color32) {
     let Some(label) = marker_label(marker) else {
         if matches!(marker, Marker::Bullet) {
             let r = (size * 0.19).clamp(2.0, 4.0);
-            let center = pos2((at.x - 11.0).max(left + r), at.y + row / 2.0);
+            let cx_at = match side {
+                Hang::Left { text, edge } => (text - 11.0).max(edge + r),
+                Hang::Right { text, edge } => (text + 11.0).min(edge - r),
+            };
+            let center = pos2(cx_at, y + row / 2.0);
             cx.push(Rect::from_center_size(center, Vec2::splat(r * 2.0)), ItemKind::Bullet { depth, color: ink });
         }
         return;
@@ -863,7 +880,11 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left
     let format = TextFormat { font_id: regular(size), color: ink, line_height: Some((size * LINE).round()), ..TextFormat::default() };
     let job = LayoutJob { wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() }, ..LayoutJob::single_section(label, format) };
     let galley = cx.measure(job.clone());
-    let rect = Rect::from_min_size(pos2((at.x - 6.0 - galley.size().x).max(left), at.y), galley.size());
+    let at_x = match side {
+        Hang::Left { text, edge } => (text - 6.0 - galley.size().x).max(edge),
+        Hang::Right { text, edge } => (text + 6.0).min(edge - galley.size().x),
+    };
+    let rect = Rect::from_min_size(pos2(at_x, y), galley.size());
     // Not a text of the message: it is not selected, and a copy writes it with its item.
     let number = TextItem { job: Arc::new(job), anchor: 0.0, links: Vec::new(), paper, chars: 0, join: Join::default(), lead: String::new() };
     cx.push(rect, ItemKind::Text(number));

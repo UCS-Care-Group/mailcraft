@@ -10,6 +10,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::bidi::{self, AlignFrom, Dir};
 use crate::data::{self, Budget};
 use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
@@ -214,6 +215,10 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    /// Whether that alignment names a side or follows the direction ([`bidi::placed`]).
+    align_from: AlignFrom,
+    /// The direction asked for (`dir`, `direction`), inherited as in a browser.
+    dir: Dir,
     /// The alignment in force comes from the `align` of a cell, a row, a `<div>` or a `<p>`, or
     /// from a `<center>`, not from a style: a table inside starts again at the left, as in a
     /// browser (its `-webkit-` alignments).
@@ -296,6 +301,9 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    align_from: AlignFrom,
+    dir: Option<Dir>,
     /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
     align_attr: bool,
     /// A table: the `align` of a cell, a row, a `<div>` or a `<p>`, or a `<center>`, outside does
@@ -327,6 +335,8 @@ impl Delta {
             size: css.size,
             font: css.font.as_deref().map(Rc::from),
             align: css.align,
+            align_from: css.align_from,
+            dir: css.direction,
             line_height: css.line_height,
             ..Delta::default()
         }
@@ -334,11 +344,22 @@ impl Delta {
 
     /// The alignment the `align` of a cell, a row, a `<div>` or a `<p>` (or a `<center>`) asks
     /// for, unless a style asks for one.
-    fn or_attr_align(&mut self, align: Option<Align>) {
-        if self.align.is_none() && align.is_some() {
-            self.align = align;
+    fn or_attr_align(&mut self, value: Option<&str>) {
+        if self.align.is_none() && self.or_attr_side(value) {
             self.align_attr = true;
         }
+    }
+
+    /// The side an `align` attribute names, for an element whose style names none; whether it
+    /// gave one. `justify` is not a side: the text stays at the start of its line, as a style's
+    /// `text-align: justify` does ([`AlignFrom::Flow`]).
+    fn or_attr_side(&mut self, value: Option<&str>) -> bool {
+        let Some(align) = value.and_then(style::attr_align) else {
+            return false;
+        };
+        self.align = Some(align);
+        self.align_from = if value.is_some_and(style::attr_justify) { AlignFrom::Flow } else { AlignFrom::Side };
+        true
     }
 
     /// The style inside the element.
@@ -369,13 +390,19 @@ impl Delta {
         }
         if self.table && style.align_attr {
             style.align = Align::Left;
+            style.align_from = AlignFrom::Nothing;
             style.align_attr = false;
             style.align_reset = true;
         }
         if let Some(align) = self.align {
             style.align = align;
+            // (`align`, given as an attribute, names a side.)
+            style.align_from = if self.align_from == AlignFrom::Flow { AlignFrom::Flow } else { AlignFrom::Side };
             style.align_attr = self.align_attr;
             style.align_reset = false;
+        }
+        if let Some(dir) = self.dir {
+            style.dir = dir;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -610,6 +637,10 @@ struct Builder {
     spans: Vec<Span>,
     kind: BlockKind,
     align: Align,
+    /// Where that alignment came from, and the direction asked for: with the block's text, the
+    /// side it stands at ([`bidi`]).
+    align_from: AlignFrom,
+    dir: Dir,
     line_height: Option<LineHeight>,
     /// The enclosing block's value, when an inline element supplies a tentative override.
     block_line_height: Option<LineHeight>,
@@ -681,6 +712,8 @@ impl Builder {
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
             align: Align::Left,
+            align_from: AlignFrom::Nothing,
+            dir: Dir::Ltr,
             line_height: None,
             block_line_height: None,
             inline_line_height: None,
@@ -770,11 +803,11 @@ impl Builder {
         }
     }
 
-    /// The alignment of text or a picture that starts here. One written in a table or a row
-    /// outside its cells (bare, or in an element there that doesn't align it) stands before the
-    /// table, as in a browser, aligned as what is round the table is (a table starts again at
-    /// the left from some alignments: [`Style::align_attr`]).
-    fn loose_align(&self) -> Align {
+    /// The style whose alignment and direction text or a picture that starts here takes. One
+    /// written in a table or a row outside its cells (bare, or in an element there that doesn't
+    /// align it) stands before the table, as in a browser, aligned as what is round the table is
+    /// (a table starts again at the left from some alignments: [`Style::align_attr`]).
+    fn loose_style(&self) -> &Style {
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match node.kind {
                 // (A table too deep to be laid out holds its cells' content itself.)
@@ -782,13 +815,13 @@ impl Builder {
                 Kind::Table(ref t) if t.flat => break,
                 Kind::Table(_) | Kind::Row(_) => {
                     let table = self.nodes.get(..=i).and_then(|below| below.iter().rposition(|n| matches!(n.kind, Kind::Table(_))));
-                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align;
+                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style);
                 }
                 _ if node.delta.align.is_some() => break,
                 _ => {}
             }
         }
-        self.style().align
+        self.style()
     }
 
     // ---- text ----
@@ -904,7 +937,8 @@ impl Builder {
             } else {
                 BlockKind::Paragraph
             };
-            self.align = self.loose_align();
+            let loose = self.loose_style();
+            (self.align, self.align_from, self.dir) = (loose.align, loose.align_from, loose.dir);
             self.start_line_height();
             self.fresh = true;
         }
@@ -1055,7 +1089,12 @@ impl Builder {
                 }
             }
         }
-        let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        // Text in the line of a picture stays in that line, at the picture's side, unless the
+        // message says which way it reads.
+        let dir = if beside && self.dir == Dir::Auto { Dir::Ltr } else { self.dir };
+        let rtl = bidi::rtl(dir, spans.iter().flat_map(|s| s.text.chars()));
+        let align = bidi::placed(self.align, self.align_from, rtl);
+        let block = Block { quote: self.quote_depth(), align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -1167,9 +1206,13 @@ impl Builder {
                 };
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
+                // A picture where the message says its text reads from the right stands where
+                // that text does, so that it and the text beside it keep to one line.
+                let loose = self.loose_style();
+                let align = if css.centred() { Align::Center } else { bidi::placed(loose.align, loose.align_from, loose.dir == Dir::Rtl) };
                 let block = Block {
                     quote: self.quote_depth(),
-                    align: if css.centred() { Align::Center } else { self.loose_align() },
+                    align,
                     beside,
                     image_padding: css.padding_insets().filter(|padding| padding.any()),
                     ..Block::new(kind, spans)
@@ -1829,7 +1872,7 @@ impl Builder {
         let css = css_of(tag);
         let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(attr("align").as_deref());
         let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
@@ -1910,7 +1953,7 @@ impl Builder {
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
-        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(attr("align").as_deref());
         if header && delta.align.is_none() && self.style().align_reset {
             delta.align = Some(Align::Center);
         }
@@ -2225,12 +2268,12 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        let align = if name == "center" { Some(Align::Center) } else { tag.attr("align").and_then(|a| style::attr_align(&a)) };
+        let align = if name == "center" { Some("center".into()) } else { tag.attr("align") };
         if matches!(name, "div" | "p" | "center") {
-            delta.or_attr_align(align);
-        } else {
+            delta.or_attr_align(align.as_deref());
+        } else if delta.align.is_none() {
             // (`<body align>`, `<section align>` and the like align as a style does.)
-            delta.align = delta.align.or(align);
+            delta.or_attr_side(align.as_deref());
         }
         let mut background = css.background;
         if name == "body" {
@@ -2354,7 +2397,9 @@ impl Builder {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         // (A heading's or a list's `align` aligns as a style does, into a table too.)
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        if delta.align.is_none() {
+            delta.or_attr_side(tag.attr("align").as_deref());
+        }
         // A heading is bold unless it says it is not.
         if matches!(kind, Kind::Heading(_)) {
             delta.bold = delta.bold.or(Some(true));
@@ -2512,7 +2557,14 @@ impl Builder {
             "td" => self.open_cell(tag, "td", false),
             "th" => self.open_cell(tag, "th", true),
             "caption" | "thead" | "tfoot" => self.table_part(true),
-            "tbody" | "html" | "head" | "option" | "optgroup" => self.table_part(false),
+            "html" => {
+                // (The whole message reads the way `<html dir>` says, under what its body says.)
+                if let Some(dir) = css_of(tag).direction {
+                    self.base.dir = dir;
+                }
+                self.table_part(false);
+            }
+            "tbody" | "head" | "option" | "optgroup" => self.table_part(false),
             name => {
                 if let Some(name) = block_name(name) {
                     self.open_block(name, tag);
@@ -2623,10 +2675,13 @@ pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
 /// What an element's style sheet rules and its `style` attribute say, in the order of the
 /// cascade (`sheet::css_with`).
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
-    match &tag.sheet {
+    let mut css = match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),
         Some(applied) => sheet::css_with(applied, tag.attr("style").as_deref()),
-    }
+    };
+    // (`dir` is a style a browser gives the element, which the message's own beats.)
+    css.direction = css.direction.or_else(|| tag.attr("dir").as_deref().and_then(Dir::attr));
+    css
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
