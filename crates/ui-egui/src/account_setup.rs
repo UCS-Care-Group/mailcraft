@@ -2084,9 +2084,26 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
-            // (One line a source, when the two servers came from different ones.)
-            for via in self.sources() {
-                let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            let sources = self.sources();
+            let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            // Two sources: each server by its name, with the source that named it.
+            if sources.len() > 1 {
+                let mut said: Vec<&(String, Via)> = Vec::new();
+                for found in &self.found_hosts {
+                    if said.contains(&found) {
+                        continue;
+                    }
+                    said.push(found);
+                    let what = match found.1 {
+                        Via::Srv => tl!("{host} was found in the DNS records of {domain} (its SRV records)."),
+                        Via::Autoconfig => tl!("{host} is what {domain} publishes for mail programs (its autoconfig document)."),
+                        Via::Ispdb => tl!("{host} is what Mozilla's ISP database lists for {domain}."),
+                    };
+                    note(ui, &fmt(what, &[("host", &found.0), ("domain", &domain)]), t.text);
+                }
+                note(ui, tl!("Check both servers before you connect."), t.text);
+            }
+            for via in sources.into_iter().filter(|_| self.sources().len() == 1) {
                 let what = match via {
                     Via::Srv => tl!("The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."),
                     Via::Autoconfig => tl!(

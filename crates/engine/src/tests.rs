@@ -869,6 +869,10 @@ fn accounts_that_sign_in_on_the_providers_page() {
             json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
             "half a placeholder",
         ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}),
+            "an SRV record writes no user name",
+        ),
     ] {
         let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
         assert_eq!(odd["username"], "avery@lumen.example", "{why}");

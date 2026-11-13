@@ -195,7 +195,10 @@ fn each_server_is_said_to_come_from_the_source_that_named_it() {
     };
     let mut h = with_found(a, discovered);
     assert_eq!(wizard(&h).map(|w| (w.found, w.guessed)), Some((Some(Via::Autoconfig), false)));
-    assert!(says(&h, "publishes for mail programs") && says(&h, "Mozilla's ISP database lists"));
+    // Each server by its name, with its own source; no line that speaks of both at once.
+    assert!(says(&h, "imap.lumen.example is what lumen.example publishes for mail programs"), "the incoming server's source isn't said");
+    assert!(says(&h, "smtp.hosted.example is what Mozilla's ISP database lists for lumen.example"), "the outgoing server's source isn't said");
+    assert!(says(&h, "Check both servers before you connect.") && !says(&h, "The servers below"));
     type_password(&mut h);
     press(&mut h, Key::Enter);
     assert_eq!(page(&h), Some(Page::ServerConsent));

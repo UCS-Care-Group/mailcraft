@@ -2343,6 +2343,11 @@ msgid "Check Now"
 msgstr "Comprobar ahora"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -18599,6 +18604,21 @@ msgstr ""
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} está configurado sin cifrado, lo que mostraría la contraseña a cualquiera en la red; elija TLS o STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
