@@ -75,7 +75,7 @@ pub struct JobBook {
 impl JobBook {
     /// Note that `account` has `ready` changes waiting at `now`, and say whether the account's job
     /// is due: changes that have waited out the quiet time, or nothing asked for since the refresh
-    /// time, and not within the wait a failure asks for.
+    /// time, and, after a failure, the wait it asks for decides alone.
     pub fn due(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
         let since = match self.waiting.get(&account) {
             Some((seen, since)) if *seen == ready => *since,
@@ -84,13 +84,15 @@ impl JobBook {
                 now
             }
         };
+        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
+        if failures > 0 {
+            // After a failure the back-off alone decides: it is the retry, so the refresh time
+            // (counted from the failed check) is not waited out on top of it.
+            return now - at >= pacing.patience_ms(failures);
+        }
         let pushes = ready > 0 && now - since >= pacing.quiet_ms;
         let asked = self.checked.get(&account).copied();
-        if !(pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)) {
-            return false;
-        }
-        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
-        !(failures > 0 && now - at < pacing.patience_ms(failures))
+        pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)
     }
 
     /// A job for `account` was started at `now`.

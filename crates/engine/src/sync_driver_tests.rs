@@ -59,6 +59,19 @@ fn a_failure_holds_the_job_back_until_the_patience_is_over() {
 }
 
 #[test]
+fn a_failed_read_with_nothing_waiting_retries_when_the_patience_is_over() {
+    let mut book = JobBook::default();
+    // Checked at 100 s, and it failed: the refresh time (5 minutes) is not waited out on top.
+    book.started(1, 100_000.0);
+    book.failed(1, 100_000.0);
+    assert!(!book.due(&P, 1, 0, 120_000.0));
+    assert!(book.due(&P, 1, 0, 131_000.0));
+    book.failed(1, 131_000.0);
+    assert!(!book.due(&P, 1, 0, 131_000.0 + 59_000.0));
+    assert!(book.due(&P, 1, 0, 131_000.0 + 61_000.0));
+}
+
+#[test]
 fn permissions_block_as_they_did_in_the_window() {
     assert!(!Permission::blocks(None, None));
     assert!(!Permission::blocks(Some(&Permission::Given), None));
