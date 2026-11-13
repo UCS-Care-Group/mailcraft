@@ -2599,7 +2599,7 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 
 fn google_testers_note() -> &'static str {
-    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft.")
 }
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).

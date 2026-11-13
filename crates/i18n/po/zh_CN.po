@@ -5418,9 +5418,8 @@ msgstr "此版本未配置 Google 登录。请改用应用密码。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20938,6 +20937,10 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
