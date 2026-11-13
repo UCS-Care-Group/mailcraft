@@ -31,8 +31,8 @@ private val Gutter = 16.dp
 private val Gap = 8.dp
 private val IconBox = 24.dp
 
-/** The project's privacy statement, which About links to. */
-internal const val PRIVACY_URL = "https://github.com/UCS-Care-Group/mailcraft/blob/main/PRIVACY.md"
+/** The app's privacy notice on the project's site, which About links to. */
+internal const val PRIVACY_URL = "https://mailcraft.work/privacy/app/"
 
 @Composable
 internal fun Hint(text: String) {
