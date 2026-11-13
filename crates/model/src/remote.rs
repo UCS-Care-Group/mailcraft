@@ -21,6 +21,8 @@ use crate::{
 /// Most events and most contacts one download is taken to hold; what is beyond is left out.
 pub const MAX_EVENTS: usize = 20_000;
 pub const MAX_CONTACTS: usize = 20_000;
+/// Most days of a series a download may say it skips (as the mailbox keeps them).
+pub const MAX_EXCEPTIONS: usize = 5_000;
 /// Longest id or change key a server may give an item. A longer one is no id at all: cut short,
 /// two items could end up with the same.
 pub const MAX_KEY: usize = 1_024;
@@ -204,6 +206,12 @@ pub struct RemoteEvent {
     /// day of the first occurrence there, which may be the day before or after it here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub series_day: Option<Date>,
+    /// For a series: the days its rule names that have no occurrence, as the series itself says
+    /// them (`EXDATE`, and the days a changed instance stands in for). A server that lists the
+    /// occurrences of a series says which days it has that way; one that hands the series alone
+    /// ([`EventsDownload::masters_only`]) says it here.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<Date>,
     /// For an occurrence or an exception: when the series has it (Unix seconds), whenever it
     /// happens now.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -262,6 +270,14 @@ impl RemoteEvent {
         self.end_zone = line(&self.end_zone, crate::zoned::MAX_ZONE);
         self.recurrence = self.recurrence.take().map(tidy_rule);
         self.series_day = self.series_day.and_then(|day| Date::new(day.year, day.month, day.day));
+        // A day no calendar has is no day, and the same day twice is one.
+        self.exceptions = std::mem::take(&mut self.exceptions)
+            .into_iter()
+            .filter_map(|day| Date::new(day.year, day.month, day.day))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .take(MAX_EXCEPTIONS)
+            .collect();
         self.categories = names(std::mem::take(&mut self.categories));
         // A link to join by is an `https` address or it is none.
         self.online = self.online.take().map(OnlineMeeting::tidied);
@@ -304,6 +320,9 @@ pub struct RemoteContact {
     /// The server's mark of this version of it ([`Origin::change_key`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub change_key: String,
+    /// Its vCard `UID`, when the server gives one.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub uid: String,
     pub display_name: String,
     pub first: String,
     pub middle: String,
@@ -320,6 +339,11 @@ pub struct RemoteContact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birthday: Option<Date>,
     pub notes: String,
+    /// The address book it is in, as its server names it (an account's personal book, a book
+    /// shared with the owner, or the organization directory); empty when the server has one
+    /// list.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub book: String,
     /// When it was last changed on the server (Unix seconds); 0 when the server didn't say.
     pub modified: Timestamp,
 }
@@ -330,6 +354,8 @@ impl RemoteContact {
     pub fn tidy(&mut self) {
         self.id = key(&self.id);
         self.change_key = key(&self.change_key);
+        self.uid = line(&self.uid, MAX_KEY);
+        self.book = line(&self.book, MAX_NAME);
         for name in [
             &mut self.display_name,
             &mut self.first,
@@ -343,6 +369,7 @@ impl RemoteContact {
             *name = line(name, MAX_LINE);
         }
         self.notes = text(&self.notes, MAX_TEXT);
+        self.book = line(&self.book, MAX_NAME);
         // A day that no calendar has is no birthday.
         self.birthday = self.birthday.and_then(|day| Date::new(day.year, day.month, day.day));
         // Entries with nothing in them go before the count is taken: they are how a server says
@@ -400,6 +427,12 @@ pub struct EventsDownload {
     /// than is taken, or said something that couldn't be read), what is here is still merged, but
     /// nothing is removed from the mailbox for not being here.
     pub complete: bool,
+    /// The download hands each series as itself alone, without the occurrences of its rule in
+    /// the stretch (as a CalDAV server does, one resource for the whole series). A day the rule
+    /// names that has no occurrence here is then not a day the series was deleted on; the days
+    /// it really skips come with the series ([`RemoteEvent::exceptions`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub masters_only: bool,
     pub events: Vec<RemoteEvent>,
     /// Series the server was asked for by name and no longer has: they go here too.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -798,6 +831,9 @@ pub struct EventOp {
     /// The mark a new event is made with ([`EventChange::token`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub token: String,
+    /// The server's `ETag` for the event this change was made from; empty for a creation.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub etag: String,
     /// A new event whole, or what changed of one the server has; nothing for a deletion.
     pub fields: EventFields,
     /// For one occurrence of a series that has no name of its own here ([`EventChange::series`]):
@@ -839,6 +875,7 @@ impl EventOp {
     pub fn tidy(&mut self) {
         self.remote = key(&self.remote);
         self.token = mark(&self.token);
+        self.etag = key(&self.etag);
         self.series = key(&self.series);
         self.calendar = key(&self.calendar);
         self.comment = text(&self.comment, MAX_COMMENT);

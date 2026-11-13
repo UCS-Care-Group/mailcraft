@@ -1353,6 +1353,23 @@ fn snapshot_without_changes(s: &Session) -> mailcraft_model::Mailbox {
 }
 
 #[test]
+fn an_event_is_matched_when_the_server_names_a_different_url() {
+    let (mut s, account, first, _, calendar) = served();
+    let absolute = "https://mail.example.org/caldav/ada%40example.org/Calendar/e-1.ics";
+    s.mailbox.event_mut(first).unwrap().origin.id = absolute.into();
+    let merged = apply_events(
+        &mut s,
+        &october(account, vec![remote("/caldav/ada%40example.org/Calendar/e-1.ics", "Budget review", at(2026, 10, 12, 13, 0), 60)]),
+    )
+    .unwrap();
+    assert_eq!(merged["updated"].as_u64(), Some(1));
+    let matches: Vec<_> = s.mailbox.events.values().filter(|event| event.title == "Budget review").collect();
+    assert_eq!(matches.len(), 1, "the answer and the download are one event");
+    assert_eq!((matches[0].id, matches[0].calendar, matches[0].origin.id.as_str()), (first, calendar, "/caldav/ada%40example.org/Calendar/e-1.ics"));
+    assert!(s.mailbox.event_changes.is_empty(), "nothing waits to be sent");
+}
+
+#[test]
 fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     let (mut s, account) = session();
     let before = own(&s);
@@ -1878,6 +1895,43 @@ fn a_series_made_elsewhere_keeps_its_days_of_the_week_here() {
     assert_eq!((here.by_day.clone(), here.until, series.start), (vec![mailcraft_time::Weekday::Mon], Some(day(10, 26)), clock(2026, 10, 5, 20, 0)));
     assert_eq!((series.exceptions.len(), from_server(&s, account).len()), (0, 1));
     assert_eq!(shown(&s, "Tokyo call"), [(5, 20), (12, 20), (19, 20), (26, 20)]);
+}
+
+#[test]
+fn a_series_that_comes_alone_keeps_the_days_it_says_it_skips() {
+    let (mut s, account) = session();
+    let rule = Recurrence {
+        by_day: vec![mailcraft_time::Weekday::Mon, mailcraft_time::Weekday::Wed, mailcraft_time::Weekday::Fri],
+        ..Recurrence::every(Freq::Weekly)
+    };
+    // One resource for the whole series, as CalDAV hands it: its `EXDATE`s and the day of its
+    // changed instance are in the series itself, and no occurrence is listed beside it.
+    let master = RemoteEvent { exceptions: vec![day(10, 16), day(10, 21)], ..master("s-1", "Stand-up", at(2026, 10, 5, 13, 0), 30, rule) };
+    let late = RemoteEvent {
+        id: "x-21".into(),
+        kind: RemoteEventKind::Exception,
+        original: Some(at(2026, 10, 21, 13, 0)),
+        ..instance("s-1", "Stand-up (late)", at(2026, 10, 21, 15, 0), 30)
+    };
+    let download = EventsDownload { masters_only: true, ..october(account, vec![master.clone(), late.clone()]) };
+    apply_events(&mut s, &download).unwrap();
+    // Only the two days the series names are skipped: the days its rule keeps are not taken for
+    // days the server deleted.
+    let series = event_called(&s, account, "s-1");
+    assert_eq!(series.exceptions, [day(10, 16), day(10, 21)]);
+    let nine: Vec<(u8, u8)> = [5, 7, 9, 12, 14, 19, 23, 26, 28, 30].into_iter().map(|d| (d, 9)).collect();
+    assert_eq!(shown(&s, "Stand-up"), nine);
+    assert_eq!(shown(&s, "Stand-up (late)"), [(21, 11)]);
+
+    // The same series again, and a stretch that reaches past October: what it skips stays what
+    // it says, and no other day goes.
+    let wider =
+        EventsDownload { from: at(2026, 10, 10, 0, 0), to: at(2026, 11, 15, 0, 0), masters_only: true, ..october(account, vec![master, late]) };
+    apply_events(&mut s, &wider).unwrap();
+    let series = event_called(&s, account, "s-1");
+    assert_eq!(series.exceptions, [day(10, 16), day(10, 21)]);
+    assert_eq!(shown(&s, "Stand-up"), nine);
+    assert_eq!(from_server(&s, account).len(), 2);
 }
 
 #[test]
@@ -2882,6 +2936,71 @@ fn a_change_that_cannot_be_sent_is_given_up_with_a_word_and_put_back() {
     // (The next download moves it as the server has it.)
     apply_events(&mut s, &october(account, both(at(2026, 10, 13, 13, 0), "ck-2"))).unwrap();
     assert_eq!(s.mailbox.event(first).map(|e| e.start), Some(clock(2026, 10, 13, 9, 0)));
+}
+
+#[test]
+fn a_calendar_whose_owner_the_server_names_is_shown_and_keeps_its_tick() {
+    use mailcraft_model::CalendarOwner;
+    use mailcraft_model::remote::{CalendarsDownload, RemoteCalendar};
+    let (mut s, account, _, _, _) = served();
+    let list = |calendars: Vec<RemoteCalendar>| CalendarsDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete: true,
+        calendars,
+        ..Default::default()
+    };
+    let owned = |id: &str, name: &str, address: &str, main: bool| RemoteCalendar {
+        id: id.into(),
+        name: name.into(),
+        main,
+        owner: CalendarOwner { address: address.into(), name: String::new() }.cleaned(),
+        ..Default::default()
+    };
+    let team = owned("cal-team", "Team", "ada@example.org", false);
+    let shared = RemoteCalendar { rights: mailcraft_model::Rights::Read, ..owned("cal-bob", "Bob's calendar", "bob@example.org", false) };
+    // Holidays name no person: the server's owner is absent, so the calendar waits to be ticked.
+    let holidays = RemoteCalendar { id: "cal-holidays".into(), name: "Holidays".into(), ..Default::default() };
+    super::apply_calendars(
+        &mut s,
+        &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), team.clone(), shared.clone(), holidays.clone()]),
+    )
+    .unwrap();
+    let of_account = |s: &Session, id: &str| s.mailbox.calendars.iter().find(|c| c.origin.account == account && c.origin.id == id).cloned().unwrap();
+    let shown = |s: &Session, id: &str| of_account(s, id).visible;
+    // The account's own other calendar and the one shared with it are shown; the main one of
+    // course is, and a calendar with no owner does not take that as a reason to be.
+    assert_eq!((shown(&s, ""), shown(&s, "cal-team"), shown(&s, "cal-bob"), shown(&s, "cal-holidays")), (true, true, true, false));
+    assert_eq!(
+        (of_account(&s, "cal-bob").rights, of_account(&s, "cal-bob").owner.map(|o| o.address)),
+        (mailcraft_model::Rights::Read, Some("bob@example.org".into()))
+    );
+    // Shared means somebody else's: it is listed under Shared Calendars, not among its own.
+    let bob_id = of_account(&s, "cal-bob").id;
+    let groups = super::super::calendar_settings::calendar_groups(&s);
+    let shared_group = groups.iter().find(|group| group.title == "Shared Calendars").expect("a group of shared calendars");
+    assert!(shared_group.calendars.contains(&bob_id));
+    let own_group = groups.iter().find(|group| group.title == "My Calendars").expect("a group of the account's calendars");
+    assert!(!own_group.calendars.contains(&bob_id));
+
+    // A tick is the owner's, from then on: the next list does not put a shared calendar back.
+    let bob = of_account(&s, "cal-bob").id;
+    run(&mut s, "calendar.showCalendar", json!({"id": bob, "value": false}));
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), team, shared, holidays])).unwrap();
+    assert!(!shown(&s, "cal-bob"));
+
+    // A calendar listed before its owner was read is shown once when the owner arrives, and
+    // after that its tick is the owner's again.
+    let late = RemoteCalendar { id: "cal-late".into(), name: "Late".into(), ..Default::default() };
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late])).unwrap();
+    assert!(!shown(&s, "cal-late"));
+    let late_owned = owned("cal-late", "Late", "ada@example.org", false);
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late_owned.clone()])).unwrap();
+    assert!(shown(&s, "cal-late"));
+    let late_id = of_account(&s, "cal-late").id;
+    run(&mut s, "calendar.showCalendar", json!({"id": late_id, "value": false}));
+    super::apply_calendars(&mut s, &list(vec![owned("cal-main", "Calendar", "ada@example.org", true), late_owned])).unwrap();
+    assert!(!shown(&s, "cal-late"));
 }
 
 #[test]

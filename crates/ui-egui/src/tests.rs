@@ -2299,6 +2299,37 @@ fn an_account_a_newer_version_added_is_said_to_be_one_and_left_out_of_send_recei
     assert!(h.state().ui.backstage && h.state().session.mailbox.account(newer).is_some());
 }
 
+/// A CalDAV and CardDAV account, or calendars at another provider than the mail: File › Info
+/// names the hosts alone, never the addresses' paths.
+#[test]
+fn a_calendar_account_card_names_its_services_and_not_the_paths() {
+    let mut a = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    a.autosave = false;
+    let dav = json!({
+        "caldav": "https://cloud.example.org/remote.php/dav/calendars/ada/",
+        "carddav": "https://cloud.example.org/remote.php/dav/addressbooks/ada/"
+    });
+    let calendar = a.execute("account.add", json!({"email": "ada@calendar.example", "kind": "dav", "dav": dav})).unwrap()["id"].as_u64().unwrap();
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(calendar).unwrap());
+    assert_eq!(card, "Calendars and address books on cloud.example.org");
+    assert!(a.server_accounts().is_empty(), "a calendar account has no mail server to send or receive with");
+
+    let mail = a
+        .execute(
+            "account.add",
+            json!({
+                "email": "ada@mail.example",
+                "incoming": {"host": "imap.mail.example"},
+                "dav": {"caldav": "https://cloud.example.org/caldav/", "carddav": "https://cloud.example.org/carddav/"}
+            }),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let card = crate::backstage::account_detail(&a, a.session.mailbox.account(mail).unwrap());
+    assert!(card.contains("IMAP imap.mail.example") && card.contains("Calendars and address books on cloud.example.org"), "{card}");
+}
+
 /// A JMAP account (M6): no Send/Receive of the window takes it in until the window has a runner
 /// for one. Asked for by name, it is refused with its reason, nothing is handed to the host and
 /// nothing is asked of the owner; the accounts beside it go on as before. Deleting its mail for

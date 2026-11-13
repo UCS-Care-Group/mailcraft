@@ -21,6 +21,49 @@ fn an_edit_preserves_unknown_bytes_photos_folding_and_nested_components() {
 }
 
 #[test]
+fn a_writer_normalised_email_type_does_not_refuse_an_address_change() {
+    // Nextcloud writes EMAIL;TYPE=work, the vCard writer writes EMAIL;TYPE=INTERNET,WORK for the
+    // same address. Changing the address must still be possible, and the untouched bytes stay.
+    let source = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nEMAIL;TYPE=work:ada@example.org\r\nX-KEEP:opaque\r\nEND:VCARD\r\n";
+    let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nEMAIL;TYPE=INTERNET,WORK:ada@example.org\r\nX-KEEP:opaque\r\nEND:VCARD\r\n";
+    let after = before.replace("ada@example.org", "ada.updated@example.org");
+    let got = patch(source, before, &after, Component::Card).unwrap();
+    assert!(got.contains("ada.updated@example.org"), "{got}");
+    assert!(!got.contains("ada@example.org"), "{got}");
+    assert!(got.contains("X-KEEP:opaque"), "{got}");
+}
+
+#[test]
+fn an_all_day_event_can_become_a_timed_one() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:all-day\r\nDTSTART;VALUE=DATE:20261120\r\nDTEND;VALUE=DATE:20261121\r\nSUMMARY:Day off\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let before = source;
+    let after =
+        source.replace("DTSTART;VALUE=DATE:20261120", "DTSTART:20261120T100000Z").replace("DTEND;VALUE=DATE:20261121", "DTEND:20261120T110000Z");
+    let got = patch(source, before, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTART:20261120T100000Z"), "{got}");
+    assert!(got.contains("DTEND:20261120T110000Z"), "{got}");
+    assert!(!got.contains("VALUE=DATE"), "{got}");
+}
+
+#[test]
+fn a_timed_event_can_become_all_day() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:timed\r\nDTSTART:20261120T100000Z\r\nDTEND:20261120T110000Z\r\nSUMMARY:Meeting\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let after =
+        source.replace("DTSTART:20261120T100000Z", "DTSTART;VALUE=DATE:20261120").replace("DTEND:20261120T110000Z", "DTEND;VALUE=DATE:20261121");
+    let got = patch(source, source, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTART;VALUE=DATE:20261120"), "{got}");
+    assert!(got.contains("DTEND;VALUE=DATE:20261121"), "{got}");
+}
+
+#[test]
+fn a_different_type_parameter_is_still_refused() {
+    let source = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nTEL;TYPE=HOME:+1-555-0101\r\nEND:VCARD\r\n";
+    let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:Ada\r\nTEL;TYPE=CELL:+1-555-0101\r\nEND:VCARD\r\n";
+    let after = before.replace("+1-555-0101", "+1-555-0199");
+    assert!(patch(source, before, &after, Component::Card).is_err());
+}
+
+#[test]
 fn changed_properties_can_be_added_removed_or_repeated() {
     let before = CARD.replace("FN:Old", "FN:Old\r\nEMAIL:one@example.org\r\nEMAIL:two@example.org");
     let after = CARD.replace("FN:Old", "FN:New\r\nTEL:123");
@@ -366,6 +409,36 @@ fn timing_guards_allow_lossless_recurrence_and_unrelated_title_edits() {
     let got = real_writer_edit(&series, |event| event.title = "New".into()).unwrap();
     assert!(got.contains("SUMMARY:New\r\n"));
     assert!(got.contains("RDATE:20261110T120000Z\r\n"));
+}
+
+#[test]
+fn moving_an_event_keeps_an_alarm_the_writer_words_its_own_way() {
+    // The server's alarm says `Erinnerung`; the writer calls the same alarm `Reminder`. Moving
+    // the event changes neither its trigger nor its delay, so the alarm is no reason to refuse.
+    let alarm = "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Erinnerung\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\n";
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z")
+        .replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    let got = real_writer_edit(&source, |e| {
+        e.start = e.start.add_minutes(120);
+        e.end = e.end.add_minutes(120);
+    })
+    .unwrap();
+    assert!(got.contains("DTSTART:20261024T140000Z"), "{got}");
+    assert!(got.contains(alarm), "{got}");
+}
+
+#[test]
+fn an_edit_stamps_the_revision_and_moves_a_sequence_on() {
+    let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:stable\r\nDTSTAMP:20260101T000000Z\r\nSEQUENCE:2\r\nLAST-MODIFIED:20260101T000000Z\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z\r\nSUMMARY:Old\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let before = source.replace("DTSTAMP:20260101T000000Z", "DTSTAMP:20260102T000000Z");
+    let after = before.replace("SUMMARY:Old", "SUMMARY:New");
+    let got = patch(source, &before, &after, Component::Event).unwrap();
+    assert!(got.contains("DTSTAMP:20260102T000000Z\r\n"), "{got}");
+    assert!(!got.contains("20260101T000000Z"), "{got}");
+    assert!(got.contains("SEQUENCE:3\r\n"), "{got}");
+    assert!(got.contains("LAST-MODIFIED:20260102T000000Z\r\n"), "{got}");
+    assert!(got.contains("SUMMARY:New\r\n"), "{got}");
 }
 
 #[test]

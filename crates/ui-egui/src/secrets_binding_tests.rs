@@ -354,7 +354,7 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
         ("lib.rs", "legacy_secret_key(", 2),
         ("secret_read.rs", "legacy_secret_key(", 1),
         ("lib.rs", "secret_cache.get(", 2),
-        ("secret_read.rs", "secret_cache.contains_key(", 2),
+        ("secret_read.rs", "secret_cache.contains_key(", 3),
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![root.clone()];

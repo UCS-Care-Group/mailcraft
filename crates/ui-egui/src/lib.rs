@@ -73,6 +73,7 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+pub mod dav_sync;
 #[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
@@ -367,10 +368,23 @@ pub struct Services {
     /// so account setup can tell an address on an Exchange server from one on an IMAP server.
     /// Only the domain is given, and none of the hosts is asked anything.
     pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: ask a domain's mail exchangers, in turn, whether one publishes CalDAV and
+    /// CardDAV services (it answers its RFC 6764 well-known addresses). Nothing of the owner's is
+    /// sent: only the exchanger names are given. The service roots are answered when one is.
+    pub probe_dav: Option<Box<dyn Fn(Vec<String>) -> Receiver<Result<Option<mailcraft_model::DavServer>, String>>>>,
+    /// Desktop: read an account's calendars and address books over CalDAV and CardDAV on a
+    /// background thread ([`dav_sync`]): the calendars it may read (shared ones too), their
+    /// events in the stretch asked for, and every card of every address book it may read. The
+    /// password is the account's, in memory for this session only.
+    pub dav: Option<Box<dyn Fn(dav_sync::DavJob) -> Receiver<dav_sync::DavResult>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
     pub test_account: Option<Box<dyn Fn(mailcraft_model::Account, String) -> Receiver<Result<(), mailcraft_i18n::Text>>>>,
+    /// Desktop: try a name and a secret against an account's CalDAV and CardDAV services on a
+    /// background thread, before a CalDAV and CardDAV account (or the services of another) is
+    /// added. Nothing is read but whether they take the sign-in.
+    pub test_dav: Option<Box<dyn Fn(mailcraft_model::DavServer, String, String) -> Receiver<Result<(), mailcraft_i18n::Text>>>>,
     /// Desktop: the operating system's credential store (Windows Credential Manager, the macOS
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
@@ -565,7 +579,7 @@ pub struct Services {
 impl Services {
     /// Whether this build reaches mail servers at all: with mail connections, over JMAP, or through Exchange Web Services.
     pub fn can_sync(&self) -> bool {
-        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some()
+        self.sync.is_some() || self.jmap.is_some() || self.ews.is_some() || self.dav.is_some()
     }
 }
 
@@ -1459,6 +1473,10 @@ pub struct MailApp {
     pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
+    /// Passwords for accounts' CalDAV and CardDAV services, per account, when they are not the
+    /// account's own password. Never saved here; the operating system's credential store keeps
+    /// them between runs when the owner wants that (`davpassword`).
+    dav_passwords: std::collections::HashMap<Id, String>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
     /// knows them; no id), for File › Info. Not saved.
     pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
@@ -1523,6 +1541,8 @@ pub struct MailApp {
     pub(crate) server_searching: server_search::ServerSearching,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
+    /// Calendars and address books of DAV accounts, over CalDAV and CardDAV ([`dav_sync`]).
+    dav: dav_sync::DavSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
     /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
@@ -1790,6 +1810,7 @@ impl MailApp {
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
+            dav_passwords: Default::default(),
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
@@ -1815,6 +1836,7 @@ impl MailApp {
             fetching: Default::default(),
             server_searching: Default::default(),
             calendar: Default::default(),
+            dav: Default::default(),
             favorites_next: false,
             shared_next: None,
             shared_send_next: false,
@@ -2222,7 +2244,7 @@ impl MailApp {
         let edited =
             if id == "account.edit" { params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned() } else { None };
         // Undo and Redo may put an account's servers back as they were before an edit.
-        let keys = |a: &mailcraft_model::Account| ["password", "refresh"].map(|k| Self::secret_key(k, a));
+        let keys = |a: &mailcraft_model::Account| ["password", "refresh", "davpassword"].map(|k| Self::secret_key(k, a));
         let undone =
             matches!(id, "edit.undo" | "edit.redo").then(|| self.session.mailbox.accounts.iter().map(|a| (a.id, keys(a))).collect::<Vec<_>>());
         if let Some(r) = self.through_saver(id, &params) {
@@ -2251,6 +2273,16 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
+        // An event made or changed in a DAV account's calendar: written to its server now,
+        // not only at the next Send/Receive.
+        if r.is_ok() && id.starts_with("calendar.") {
+            let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|account| account.is_dav()).map(|account| account.id).collect();
+            for account in accounts {
+                if mailcraft_engine::cmd::remote::event_upload(&self.session, account).is_ok_and(|upload| !upload.ops.is_empty()) {
+                    self.dav_sync_soon(account);
+                }
+            }
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
@@ -2289,6 +2321,7 @@ impl MailApp {
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
             self.passwords.remove(&account);
+            self.dav_passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
             self.ews_unreadable.remove(&account);
@@ -2304,31 +2337,43 @@ impl MailApp {
             self.cancel_pending_sign_in(before.id);
         }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
-        // is asked again.
+        // is asked again. The mail's sign-in and the calendars' are for different servers, so one
+        // changing leaves the other alone.
         if let (Ok(_), Some(before)) = (&r, edited)
             && let Some(after) = self.session.mailbox.account(before.id).cloned()
-            && (before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
-                != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
-                || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            self.forget_account_secrets(&before);
-            self.passwords.remove(&before.id);
-            self.tokens.remove(&before.id);
-            self.graph_tokens.remove(&before.id);
-            self.forget_favorites(before.id);
-            self.jmap_refused.remove(&before.id);
-            self.ews_signed_in.remove(&before.id);
-            self.ews_certificate.remove(&before.id);
+            let oauth = |a: &mailcraft_model::Account| a.oauth.as_ref().map(|o| (o.provider, o.client_id.clone(), o.tenant.clone()));
+            let mail = oauth(&before) != oauth(&after)
+                || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after));
+            let dav = Self::secret_key("davpassword", &before) != Self::secret_key("davpassword", &after);
+            if mail {
+                self.forget_account_secrets_of(&before, &["password", "refresh"]);
+                self.passwords.remove(&before.id);
+                self.tokens.remove(&before.id);
+                self.graph_tokens.remove(&before.id);
+                self.forget_favorites(before.id);
+                self.jmap_refused.remove(&before.id);
+                self.ews_signed_in.remove(&before.id);
+                self.ews_certificate.remove(&before.id);
+            }
+            if dav {
+                self.forget_account_secrets_of(&before, &["davpassword"]);
+                self.dav_passwords.remove(&before.id);
+            }
         }
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
         if let (Ok(_), Some(before)) = (&r, undone) {
             for (account, was) in before {
-                if self.session.mailbox.account(account).map(keys) != Some(was) {
+                let Some(now) = self.session.mailbox.account(account).map(keys) else { continue };
+                if now[0] != was[0] || now[1] != was[1] {
                     self.passwords.remove(&account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
                     self.jmap_refused.remove(&account);
+                }
+                if now[2] != was[2] {
+                    self.dav_passwords.remove(&account);
                 }
             }
         }
@@ -2742,9 +2787,16 @@ impl MailApp {
         })
     }
 
-    /// The name a secret is kept under in the system's credential store: its kind (`password` or
-    /// `refresh`), the account's address and the servers it goes to, so that an account that
-    /// names other servers (a mailbox from a file, a changed setting) is not given the secret.
+    /// The name a secret is kept under in the system's credential store: its kind (`password`,
+    /// `refresh` or `davpassword`), the account's address and the servers it goes to, so that an
+    /// account that names other servers (a mailbox from a file, a changed setting) is not given
+    /// the secret.
+    ///
+    /// A mail password (`password`, `refresh`) is bound to the mail servers alone: calendars and
+    /// address books may live at another provider, and adding or changing them must neither
+    /// invalidate the mail password nor hand it to them. A `davpassword` is bound to the CalDAV
+    /// and CardDAV roots and the name they know the owner by, and to nothing of the mail.
+    ///
     /// A Microsoft account kept in step through Graph goes to Microsoft alone: its sign-in page
     /// and Graph are fixed (a shared mailbox is such an account too; one of another kind that a
     /// file calls shared is not, and gets the name of its servers, never the owner's token).
@@ -2755,7 +2807,15 @@ impl MailApp {
             Some(s) => format!("{}:{}", s.host.trim().to_ascii_lowercase(), s.port),
             None => "none".to_string(),
         };
-        if a.kind == mailcraft_model::AccountKind::Microsoft {
+        if kind == "davpassword" {
+            // (Its whole CalDAV and CardDAV roots: another one, on the same server or not, is
+            // another server. And the name it signs in with: a password is for one name.)
+            let (caldav, carddav, user) = a
+                .dav
+                .as_ref()
+                .map_or(("none", "none", String::new()), |dav| (dav.caldav.trim(), dav.carddav.trim(), dav.username.trim().to_ascii_lowercase()));
+            format!("{kind}:{address}|caldav={caldav}|carddav={carddav}|user={user}")
+        } else if a.kind == mailcraft_model::AccountKind::Microsoft {
             format!("{kind}:{address}|graph")
         } else if a.kind == mailcraft_model::AccountKind::Jmap {
             // (Its whole session address: another one, on the same server or not, is another server;
@@ -2851,11 +2911,12 @@ impl MailApp {
             .is_some()
     }
 
-    /// What the owner had the operating system remember (`password` or `refresh`) for the
-    /// account `account` of this mailbox, with the servers it has now: that account's own, never
-    /// one found by its address (another may have it too, with other servers, AU3-03).
+    /// What the owner had the operating system remember (`password`, `refresh` or `davpassword`)
+    /// for the account `account` of this mailbox, with the servers it has now: that account's
+    /// own, never one found by its address (another may have it too, with other servers,
+    /// AU3-03).
     fn remembered(&self, kind: &str, account: Id) -> Option<String> {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | "davpassword") || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
         let a = self.session.mailbox.account(account)?;
@@ -2867,7 +2928,12 @@ impl MailApp {
     /// Have the operating system remember a secret for the account `account`, when the owner
     /// wants that: under that account's own name.
     fn remember(&mut self, kind: &str, account: Id, secret: &str) {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | "davpassword")
+            || !self.ui.remember_sign_in
+            || secret.is_empty()
+            || self.data_removed
+            || self.unconfirmed
+        {
             return;
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
@@ -2902,7 +2968,7 @@ impl MailApp {
     pub(crate) fn forget_every_secret(&mut self) -> Vec<String> {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
-            for kind in ["password", "refresh"] {
+            for kind in ["password", "refresh", "davpassword"] {
                 keys.extend(Self::secret_keys_of(kind, a));
             }
         }
@@ -2942,9 +3008,15 @@ impl MailApp {
     /// name whose entry is still there stays, for the full removal to try again; so does every
     /// name when the store couldn't be used (locked, or not answering), which says nothing then.
     pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
+        self.forget_account_secrets_of(a, &["password", "refresh", "davpassword"]);
+    }
+
+    /// Forget the entries of these kinds alone: a mail sign-in and a calendar sign-in are for
+    /// different servers, and one changing says nothing of the other.
+    fn forget_account_secrets_of(&mut self, a: &mailcraft_model::Account, kinds: &[&str]) {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
-        for kind in ["password", "refresh"] {
+        for kind in kinds {
             for key in Self::secret_keys_of(kind, a) {
                 store.delete(&key);
                 if store.get(&key).is_none() {
@@ -3169,6 +3241,39 @@ impl MailApp {
         self.passwords.insert(account, password);
     }
 
+    /// Account setup: the password for the account's CalDAV and CardDAV services, when they are
+    /// not the account's own (calendars at another provider, with a sign-in of their own). Kept
+    /// for this session, and by the operating system when the owner has it remember sign-ins.
+    pub(crate) fn adopt_dav_password(&mut self, account: Id, password: String) {
+        if password.is_empty() {
+            return;
+        }
+        self.dav_passwords.insert(account, password.clone());
+        self.remember("davpassword", account, &password);
+    }
+
+    /// Whether a DAV account's password is known: this session's, or the store's.
+    fn dav_password_known(&self, account: Id) -> bool {
+        self.dav_passwords.contains_key(&account) || self.remembered("davpassword", account).is_some()
+    }
+
+    /// Send/Receive of an account that keeps calendars and address books alone: its DAV job is
+    /// the whole run. Asks for its password when that isn't known.
+    fn start_dav_sync(&mut self, account: Id, p: &Value) -> Result<Value, String> {
+        if self.services.dav.is_none() {
+            return Err(tl!("This build can't connect to calendars and address books (a browser can't open DAV connections).").to_string());
+        }
+        if let Some(password) = p.get("password").and_then(Value::as_str) {
+            self.adopt_dav_password(account, password.to_string());
+        }
+        if !self.dav_password_known(account) {
+            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            return Ok(json!({"pending": "password", "account": account}));
+        }
+        self.dav_sync_soon(account);
+        Ok(json!({"started": true, "account": account, "dav": true}))
+    }
+
     /// Start a Send/Receive for an account (default: the first one with a server). Asks for the
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
@@ -3211,6 +3316,38 @@ impl MailApp {
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
         if target.is_some_and(|account| self.calendar_job_for(account)) {
             return Err(tl!("The calendar is being updated already.").to_string());
+        }
+        // An account of calendars and address books alone has no mail round: its DAV job is
+        // what Send/Receive starts.
+        let dav_only = |app: &Self, id: Id| app.session.mailbox.account(id).is_some_and(|a| a.is_dav() && !a.kind.has_server());
+        if let Some(account) = p.get("account").and_then(Value::as_u64).filter(|id| dav_only(self, *id)) {
+            return self.start_dav_sync(account, p);
+        }
+        // A Send/Receive of every account reads the calendars and address books of those with
+        // no mail too; when there is no mail account at all, they are the whole run.
+        if p.get("account").is_none() {
+            let only: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| a.is_dav() && !a.kind.has_server()).map(|a| a.id).collect();
+            if !only.is_empty() {
+                let missing = only.iter().copied().find(|account| !self.dav_password_known(*account));
+                if self.server_accounts().is_empty() {
+                    if let Some(account) = missing {
+                        return self.start_dav_sync(account, p);
+                    }
+                    for account in &only {
+                        self.dav_sync_soon(*account);
+                    }
+                    return Ok(json!({"started": true, "dav": true, "accounts": only}));
+                }
+                // The mail round goes on; the DAV-only accounts are read beside it, and one whose
+                // sign-in is missing asks for it now instead of waiting unseen.
+                if let Some(account) = missing {
+                    self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+                }
+                let known: Vec<Id> = only.iter().copied().filter(|account| self.dav_password_known(*account)).collect();
+                for account in known {
+                    self.dav_sync_soon(account);
+                }
+            }
         }
         // A run starts, the owner's or one by itself: full messages paused by Stop go on.
         self.resume_fetch();
@@ -3497,6 +3634,7 @@ impl MailApp {
             // The automatic replies' jobs and what waits to go up are the old mailbox's too.
             self.auto_replies_forget_if_replaced();
             self.passwords.clear();
+            self.dav_passwords.clear();
             self.sync_password = None;
             self.secret_cache.clear();
             self.secret_read = None;
@@ -4673,6 +4811,7 @@ impl MailApp {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
+        self.poll_dav();
         self.poll_tasks();
         self.poll_rules();
         self.poll_auto_replies();
@@ -4701,6 +4840,8 @@ impl MailApp {
             self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // Calendars and address books of DAV accounts ([`dav_sync`]).
+            self.dav_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).

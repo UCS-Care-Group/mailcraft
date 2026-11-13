@@ -130,18 +130,42 @@ pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> Str
         AccountKind::Exchange => ews_line(app, a),
         // Kept as its file has it: this version neither sends nor receives with it.
         AccountKind::Unknown => tl!("Added by a newer version of MailCraft: send and receive with it there").to_string(),
+        // Calendars and address books alone, with no mail to name.
+        AccountKind::Dav => dav_line(a),
         AccountKind::Imap => {
-            let servers = format!(
+            let mut servers = format!(
                 "{} · {}",
                 server(&a.incoming).map_or(tl!("no incoming server").to_string(), |h| format!("IMAP {h}")),
                 server(&a.outgoing).map_or(tl!("no outgoing server").to_string(), |h| format!("SMTP {h}"))
             );
+            // Calendars and address books may be beside the mail or at another provider.
+            if a.dav.is_some() {
+                servers = format!("{servers} · {}", dav_line(a));
+            }
             // How the owner signs in, when it isn't with a password.
             match &a.oauth {
                 Some(o) => format!("{} · {servers}", crate::i18n::fmt(tl!("Signs in with {provider}"), &[("provider", o.provider.label())])),
                 None => servers,
             }
         }
+    }
+}
+
+/// The line about an account's CalDAV and CardDAV services: the names of the hosts alone, as
+/// the addresses may carry the owner's own path.
+pub(crate) fn dav_line(a: &mailcraft_model::Account) -> String {
+    let caldav = a.dav.as_ref().and_then(|dav| mailcraft_model::DavServer::host(&dav.caldav));
+    let carddav = a.dav.as_ref().and_then(|dav| mailcraft_model::DavServer::host(&dav.carddav));
+    match (caldav, carddav) {
+        (Some(caldav), Some(carddav)) if caldav.eq_ignore_ascii_case(carddav) => {
+            crate::i18n::fmt(tl!("Calendars and address books on {host}"), &[("host", caldav)])
+        }
+        (Some(caldav), Some(carddav)) => {
+            crate::i18n::fmt(tl!("Calendars on {caldav} · address books on {carddav}"), &[("caldav", caldav), ("carddav", carddav)])
+        }
+        (Some(host), None) => crate::i18n::fmt(tl!("Calendars on {host}"), &[("host", host)]),
+        (None, Some(host)) => crate::i18n::fmt(tl!("Address books on {host}"), &[("host", host)]),
+        (None, None) => tl!("CalDAV and CardDAV · no usable service address").to_string(),
     }
 }
 

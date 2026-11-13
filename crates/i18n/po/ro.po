@@ -452,6 +452,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "O întâlnire care se repetă și sare peste unele zile nu poate fi pusă de aici în calendarul serverului: fiecare invitat ar primi câte o anulare pentru fiecare zi sărită. Păstrați-o într-un calendar de pe acest computer sau creați-o din nou fără zilele sărite."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A name that isn't an e-mail address can set up calendars and address books alone for now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -922,6 +927,16 @@ msgstr "Adăugat de o versiune mai nouă a MailCraft: trimiteți și primiți cu
 #, fuzzy
 msgid "Address"
 msgstr "Adresă"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Address books on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2128,6 +2143,26 @@ msgstr "După dimensiune"
 msgid "By Subject"
 msgstr "După subiect"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV / CardDAV"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV and CardDAV account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "CalDAV and CardDAV · no usable service address"
+msgstr ""
+
 #. command label, interface, name, ribbon, ribbon location, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2169,6 +2204,31 @@ msgstr "Calendar și contacte"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Calendarul și contactele au nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books (CalDAV / CardDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars and address books on {host}"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books, without mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {caldav} · address books on {carddav}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -2293,6 +2353,11 @@ msgstr "Anulați această întâlnire?"
 #, fuzzy
 msgid "Cancelled"
 msgstr "Anulat"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CardDAV address"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -2553,6 +2618,11 @@ msgstr "Verificat cu autoritatea sa de certificare"
 #, fuzzy
 msgid "Checking for a new version…"
 msgstr "Se caută o versiune nouă…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Checking the CalDAV and CardDAV account…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5579,6 +5649,11 @@ msgid "Hide This Copy"
 msgstr "Ascundere această copie"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Hide calendar password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/secret_field.rs
 #, fuzzy
 msgid "Hide password"
@@ -6576,6 +6651,11 @@ msgid "Keeping a copy of what was sent"
 msgstr "Se păstrează o copie a ce s-a trimis"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keeps calendars and address books over CalDAV and CardDAV"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Kept Public key"
@@ -6691,9 +6771,19 @@ msgstr "Aspect"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Leave both empty to keep no calendars or address books for this account. They may be on another server than the mail, with a sign-in of their own."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Leave empty to keep the one in use"
 msgstr "Lăsați gol ca să păstrați cel folosit"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Leave empty to use the account's password when they are on your mail server"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9596,6 +9686,11 @@ msgid "Password"
 msgstr "Parolă"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Password for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Password for {account}"
@@ -12112,6 +12207,11 @@ msgstr ""
 msgid "Show as Conversations"
 msgstr "Afișare ca conversații"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show calendar password"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -13293,6 +13393,16 @@ msgstr "Fișierul .pst are {what} de importat; nu s-a importat nimic"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The CalDAV address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The CardDAV address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
 msgstr ""
 
@@ -13434,8 +13544,8 @@ msgstr "Calendarul „{name}” poate fi doar citit: proprietarul lui nu permite
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Calendarul „{name}” arată doar când proprietarul e ocupat: acest cont nu îl poate modifica."
 
-#. what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/dav_sync.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Modificările de calendar nu au putut fi preluate: {error}"
@@ -13475,6 +13585,11 @@ msgstr "Conexiunea calendarului funcționează: ce s-a trimis a ajuns, iar serve
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Calendarul nu a putut fi preluat: {error}"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendar events couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -13541,6 +13656,16 @@ msgstr ""
 "Calendarul lui {name} este acum în lista dvs. de calendare, pentru că vi s-a partajat și l-ați acceptat. L-ați deschis și după adresă, deci apare de două ori.\n"
 "\n"
 "Eliminați copia deschisă după adresă? Cealaltă rămâne, iar pe server nu se schimbă nimic."
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars and address books need their sign-in again: press Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -13627,7 +13752,7 @@ msgid "The contact's form was closed: open it again to add the key"
 msgstr "Formularul contactului a fost închis: deschideți-l din nou ca să adăugați cheia"
 
 #. interface, what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/dav_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Contactele nu au putut fi preluate: {error}"
@@ -14012,6 +14137,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "Proprietarul nu a permis verificarea actualizărilor."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The password above is for these calendars and address books."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
@@ -14214,6 +14344,11 @@ msgstr "Serverul are {total} dosare: o rulare citește primele {max} și omite c
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "Serverul sau organizația nu a vrut să-și dea setările. Cereți administratorului adresa serverului și scrieți-o în Setări server."
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The server refused the sign-in for the calendars and address books: type it again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14473,6 +14608,11 @@ msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "Sarcinile trimise nu au putut fi înregistrate: {error}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The user name for calendars and address books {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The user name is too long or has a character in it that a name can't have"
@@ -14670,6 +14810,11 @@ msgstr "Acest cont nu are conectare cu Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr "Acest cont nu mai este în cutia poștală."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account keeps calendars and address books only. Your mail can be another account."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
@@ -14753,6 +14898,11 @@ msgstr "Această versiune nu poate întreba un server când sunt ocupate alte pe
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "Această versiune nu se poate conecta la Microsoft"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't connect to calendars and address books (a browser can't open DAV connections)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
@@ -15046,6 +15196,11 @@ msgstr "Aceasta este o cheie RSA, pe care MailCraft nu o folosește singur: păs
 #, fuzzy
 msgid "This is not somebody else's meeting: a message can't call it off."
 msgstr "Aceasta nu este întâlnirea altcuiva: un mesaj nu o poate anula."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This isn't an e-mail address, so only calendars and address books can be set up for now."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -15819,6 +15974,11 @@ msgstr "Tip"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Type the CalDAV and CardDAV addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
 msgstr "Scrieți numele serverului de e-mail de intrare"
@@ -16050,6 +16210,11 @@ msgid "User name"
 msgstr "Nume de utilizator"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "User name for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "User name: {name}"
@@ -16060,6 +16225,11 @@ msgstr "Nume de utilizator: {name}"
 #, fuzzy
 msgid "Username"
 msgstr "Nume de utilizator"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Usually the same as the account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16730,6 +16900,11 @@ msgid "Your calendar: {day}"
 msgstr "Calendarul dvs.: {day}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your calendars and address books are downloading now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Your certificates and keys"
@@ -16947,6 +17122,16 @@ msgstr "Cheia dvs. proprie o eliminați doar dvs., din fereastră"
 #, fuzzy
 msgid "Your own name."
 msgstr "Numele dvs."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your provider's CalDAV and CardDAV addresses, usually under /remote.php/dav/ for Nextcloud and /dav/ for many others."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your system's credential store keeps it for next time. It is never written to the mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -17544,6 +17729,11 @@ msgstr "are prea multe fișiere: restul nu a fost eliminat"
 #, fuzzy
 msgid "hours"
 msgstr "ore"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "https://cloud.example.org/remote.php/dav/"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

@@ -16,6 +16,29 @@ fn mail(folder: Id, subject: &str, date: i64) -> Message {
 }
 
 #[test]
+fn a_dav_only_account_has_no_mail_folders_and_repair_makes_none() {
+    let mut mb = Mailbox::with_local_account("", "");
+    let id = mb.add_account(Account {
+        email: "admin@example.org".into(),
+        kind: AccountKind::Dav,
+        dav: Some(DavServer {
+            caldav: "https://cloud.example.org/dav/".into(),
+            carddav: "https://cloud.example.org/dav/".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    assert!(mb.folders.iter().all(|folder| folder.account != id), "no mail folders are made for it");
+    // A folder an older repair made for it goes, and repair makes none again.
+    let inbox = mb.alloc_id();
+    mb.folders.push(Folder { id: inbox, account: id, name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() });
+    let fixed = mb.repair();
+    assert!(fixed.iter().any(|line| line.contains("without mail")), "{fixed:?}");
+    assert!(mb.folders.iter().all(|folder| folder.account != id));
+    assert!(mb.repair().is_empty(), "{:?}", mb.folders.iter().map(|f| (f.account, f.name.clone())).collect::<Vec<_>>());
+}
+
+#[test]
 fn junk_includes_its_subfolders() {
     let (mut mb, account) = mailbox();
     let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();

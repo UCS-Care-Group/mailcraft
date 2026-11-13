@@ -15,6 +15,24 @@ fn names(folders: &[&Folder]) -> Vec<String> {
     folders.iter().map(|f| f.name.clone()).collect()
 }
 
+#[test]
+fn a_dav_only_account_is_not_in_the_mail_section() {
+    let mut mb = Mailbox::with_local_account("Ada", "ada@example.org");
+    let dav = mb.add_account(mailcraft_model::Account {
+        email: "admin@example.org".into(),
+        kind: mailcraft_model::AccountKind::Dav,
+        dav: Some(mailcraft_model::DavServer {
+            caldav: "https://cloud.example.org/dav/".into(),
+            carddav: "https://cloud.example.org/dav/".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    assert!(!mail_accounts(&mb).iter().any(|account| account.id == dav), "no mail heading for it");
+    assert!(!owners(&mb).contains(&dav), "nor among the accounts a drag orders");
+    assert_eq!(mail_accounts(&mb).len(), 1, "the account that keeps mail stays");
+}
+
 /// A standard folder still called by its default name, or the server's folder of its kind,
 /// is named in the interface language; one the owner named keeps its name; English shows
 /// every folder by its own name. What is kept never changes.
