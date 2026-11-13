@@ -109,11 +109,14 @@ fn an_upload_becomes_a_blob_for_the_credentials_it_lets_in() {
     let busy = stand_in.answer("POST", UPLOAD, &[("Authorization", &bearer())], b"x").unwrap();
     assert_eq!((busy.status(), busy.retry_after()), (503, Some("7")));
     assert_eq!((upload(&stand_in, b"x").0, upload(&stand_in, b"x").0), (400, 201));
-    // Only so many are kept.
-    for _ in 0..1_010 {
-        upload(&stand_in, b"x");
-    }
-    assert_eq!(stand_in.with(|d| d.uploads.len()), 1_000);
+    // Only so many are kept: the last ones, by when they came and not by how their ids sort.
+    let ids: Vec<String> = (0..1_010).map(|_| upload(&stand_in, b"x").1["blobId"].as_str().unwrap().to_string()).collect();
+    let kept: Vec<String> = stand_in.with(|d| d.uploads.keys().cloned().collect());
+    assert_eq!(kept.len(), 1_000);
+    let mut newest = ids[10..].to_vec();
+    newest.sort();
+    assert_eq!(kept, newest, "the ten oldest of these, and everything before them, are gone");
+    assert!(stand_in.with(|d| !d.uploads.contains_key(&blob)));
 }
 
 #[test]

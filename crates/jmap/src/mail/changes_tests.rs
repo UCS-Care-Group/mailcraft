@@ -103,14 +103,16 @@ pub(super) enum Answer {
 /// The session of a scripted server: its core limits as `core` says, and sending when `submission`.
 pub(super) fn session_reply(core: Value, submission: bool) -> Reply {
     let mut capabilities = json!({CORE: core, MAIL: {}});
+    let mut account = json!({MAIL: {}});
     if submission {
         capabilities[SUBMISSION] = json!({});
+        account[SUBMISSION] = json!({"maxDelayedSend": 0, "submissionExtensions": {}});
     }
     json_reply(
         200,
         &json!({
             "capabilities": capabilities,
-            "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": {MAIL: {}}}},
+            "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": account}},
             "primaryAccounts": {MAIL: "A1"},
             "apiUrl": "https://jmap.example.org/jmap/api",
             "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?type={type}",

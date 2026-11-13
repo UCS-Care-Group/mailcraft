@@ -6,7 +6,9 @@
 //! - **The upload** (`POST /jmap/upload/{accountId}/`) keeps the octets as a blob and answers `201` with its
 //!   id; more than `maxSizeUpload` is a `413`.
 //! - **`Email/import`** makes an email of a blob that was uploaded (or that an email has), in the mailboxes
-//!   and with the keywords named. A blob or a mailbox it does not have is `invalidProperties`.
+//!   and with the keywords named. A blob or a mailbox it does not have is `invalidProperties`. With
+//!   [`Data::no_duplicates`](super::Data::no_duplicates), an email it has already is `alreadyExists` with
+//!   the `existingId`, and octets uploaded again keep their blob's id.
 //! - **`Identity/get`** lists the identities the test gave ([`Data::identity`](super::Data::identity); one
 //!   for [`USER`](super::USER) is there from the start).
 //! - **`EmailSubmission/set`** makes submissions and nothing else. `emailId` may name an email made earlier
@@ -105,11 +107,25 @@ impl Data {
         if body.len() > self.max_upload {
             return (413, problem(413, "about:blank", "the upload is larger than maxSizeUpload"));
         }
+        // The oldest goes first: by when it came, which the order of the ids (`B10` before `B9`) is not.
         while self.uploads.len() >= MAX_UPLOADS {
-            self.uploads.pop_first();
+            let Some(oldest) = self.upload_order.pop_front() else { break };
+            self.uploads.remove(&oldest);
         }
-        let blob = self.id("B");
-        self.uploads.insert(blob.clone(), body.to_vec());
+        // Octets it has already keep the id they have, on a server that names content by one id.
+        let had = || {
+            let uploaded = self.uploads.iter().find(|(_, octets)| octets.as_slice() == body).map(|(id, _)| id.clone());
+            uploaded.or_else(|| self.emails.iter().find(|email| email.raw == body).map(|email| email.blob.clone()))
+        };
+        let blob = match self.no_duplicates.then(had).flatten() {
+            Some(blob) => blob,
+            None => {
+                let blob = self.id("B");
+                self.uploads.insert(blob.clone(), body.to_vec());
+                self.upload_order.push_back(blob.clone());
+                blob
+            }
+        };
         let media_type = header(fields, "content-type").unwrap_or("application/octet-stream");
         (201, json!({"accountId": ACCOUNT, "blobId": blob, "type": media_type, "size": body.len()}))
     }
@@ -167,6 +183,11 @@ impl Data {
             None | Some(Value::Null) => BTreeSet::new(),
             Some(value) => truths(value).filter(|all| all.iter().all(|k| is_keyword(k))).ok_or_else(|| wrong("keywords"))?,
         };
+        if self.no_duplicates
+            && let Some(has) = self.emails.iter().find(|email| email.raw == raw)
+        {
+            return Err(json!({"type": "alreadyExists", "description": "the account has this email already", "existingId": has.id}));
+        }
         let received = match entry.get("receivedAt") {
             None | Some(Value::Null) => self.now.clone(),
             Some(Value::String(at)) if mailcraft_time::iso_to_timestamp(at, 0).is_some() => at.clone(),

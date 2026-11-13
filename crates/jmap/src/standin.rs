@@ -211,6 +211,8 @@ pub struct Data {
     pub identities: Vec<Identity>,
     /// The blobs that were uploaded, by id (the last 1,000).
     pub uploads: BTreeMap<String, Vec<u8>>,
+    /// The ids of those blobs, oldest first: which goes when one more than are kept comes.
+    upload_order: VecDeque<String>,
     /// What the stand-in was asked to send, oldest first. Nothing left the process.
     pub submitted: Vec<Submission>,
     /// Most recipients a submission may have (`tooManyRecipients` beyond).
@@ -223,6 +225,11 @@ pub struct Data {
     pub passes_over_unknown: bool,
     /// Every submission is refused with the error of this `type` and `description`.
     pub refuse_submission: Option<(String, String)>,
+    /// The server keeps no two emails of the same octets, and names octets it has by one blob id, as a
+    /// store that addresses its content does: an upload of octets it has answers with the id they have
+    /// (RFC 8620 §6.1), and an import of an email it has is refused with `alreadyExists` and the
+    /// `existingId` (RFC 8621 §4.8).
+    pub no_duplicates: bool,
     /// What the next uploads are answered with instead of being taken, oldest first: an HTTP status and
     /// a `Retry-After` of that many seconds.
     pub refuse_next_upload: VecDeque<(u16, Option<u32>)>,
@@ -284,11 +291,13 @@ impl Data {
             submission: true,
             identities: vec![Identity { id: "I0".into(), name: String::new(), email: USER.into() }],
             uploads: BTreeMap::new(),
+            upload_order: VecDeque::new(),
             submitted: Vec::new(),
             max_recipients: 100,
             refused_changes: BTreeMap::new(),
             passes_over_unknown: false,
             refuse_submission: None,
+            no_duplicates: false,
             refuse_next_upload: VecDeque::new(),
             now: "2026-10-15T12:00:00Z".into(),
             token: Some(TOKEN.into()),

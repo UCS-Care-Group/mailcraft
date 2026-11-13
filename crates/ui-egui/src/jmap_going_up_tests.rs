@@ -214,6 +214,34 @@ fn a_message_whose_answer_never_came_is_held_at_the_next_run_and_not_sent_again(
 }
 
 #[test]
+fn a_run_that_sent_as_many_as_a_run_sends_is_followed_at_once_by_one_for_the_rest() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    with_mail(&mut app, ada, &jobs);
+    // One more than a run sends.
+    let most = mailcraft_model::sync::MAX_SENDS;
+    let all: Vec<Id> = (0..=most).map(|n| written(&mut app, ada, &format!("Note {n}"))).collect();
+    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.auto_sync();
+    app.auto_sync();
+    let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    assert_eq!(job.request.sends.len(), most);
+    // Every one of them is sent, and nothing else was made: no change went up.
+    let sent = |message: Id| SendDone { message, outcome: SendOutcome::Sent, draft: None, draft_left: String::new() };
+    let sent: Vec<SendDone> = job.request.sends.iter().map(|up| sent(up.message)).collect();
+    tx.send(last(&job, JmapMailResult { whole: true, sent, ..Default::default() })).unwrap();
+    app.poll_sync();
+    assert!(!app.syncing());
+    assert_eq!((outbox(&app, ada), app.waiting_to_go(ada)), (1, 1), "one of {} still waits", all.len());
+    // What is left is not something the server turned down: the next look starts a run for it.
+    app.push_checked = 0.0;
+    app.auto_sync();
+    app.auto_sync();
+    let [(job, _tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    assert_eq!(job.request.sends.len(), 1);
+}
+
+#[test]
 fn emptying_a_folder_says_the_server_is_told_only_when_the_server_has_some_of_it() {
     let (mut app, accounts, jobs) = window(&["ada@example.org"]);
     let ada = accounts[0];

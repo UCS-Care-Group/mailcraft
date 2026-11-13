@@ -94,6 +94,34 @@ fn responses_after_error_are_ignored() {
     assert!(matches!(response.take(&ids[0]), Err(CallFailure::Method(error)) if error.kind() == &MethodErrorKind::ServerPartialFail));
 }
 
+// RFC 8621 §7.5: an implicit call answers after the method's own response, under the same call id. Its
+// error does not unsay what the method answered before it.
+#[test]
+fn what_a_call_answered_before_its_error_can_be_taken_with_the_error() {
+    let (_, ids) = calls(4);
+    let body = json!({
+        "methodResponses": [
+            ["Foo/set", {"created": {"k": {"id": "F1"}}}, "c0"], ["error", {"type": "serverUnavailable"}, "c0"], ["Foo/set", {"late": true}, "c0"],
+            ["error", {"type": "serverFail"}, "c1"],
+            ["Foo/get", {}, "c2"],
+        ],
+        "sessionState": "s"
+    });
+    let parsed = ApiResponse::parse(body.to_string().as_bytes(), &Redactor::new()).unwrap();
+    // The plain way still takes the call for failed.
+    assert!(matches!(parsed.clone().take_named(&ids[0], "Foo/set"), Err(CallFailure::Method(_))));
+    let mut response = parsed;
+    let (answer, after) = response.take_named_before_error(&ids[0], "Foo/set");
+    assert_eq!(answer.unwrap()["created"]["k"]["id"], "F1");
+    assert_eq!(after.map(|error| error.kind().clone()), Some(MethodErrorKind::ServerUnavailable));
+    // An error with nothing before it is the call's failure; another name is not taken for the one asked.
+    let (answer, after) = response.take_named_before_error(&ids[1], "Foo/set");
+    assert!(matches!(answer, Err(CallFailure::Method(error)) if error.kind() == &MethodErrorKind::ServerFail) && after.is_none());
+    assert_eq!(response.take_named_before_error(&ids[2], "Foo/set"), (Err(CallFailure::UnexpectedResponse), None));
+    assert_eq!(response.take_named_before_error(&ids[3], "Foo/set"), (Err(CallFailure::Missing), None));
+    assert_eq!(response.take_named_before_error(&ids[0], "Foo/set"), (Err(CallFailure::Missing), None), "taken once");
+}
+
 // Requirement 3.3: a name other than the one asked for is not silently accepted.
 #[test]
 fn unexpected_names() {

@@ -161,6 +161,43 @@ fn a_message_that_may_have_gone_is_held_and_never_sent_again_by_itself() {
     assert_eq!(offered(&s, jmap), [waits]);
 }
 
+/// A copy put in a JMAP account's Outbox has no server's id, so the next run would send it to
+/// everybody the message names, with no Send: it isn't made. Only Send sends.
+#[test]
+fn a_copy_doesnt_go_into_a_jmap_accounts_outbox() {
+    let (mut s, _, jmap, _) = mailbox();
+    let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+    let folders = vec![folder("M1", "Inbox", FolderKind::Inbox), folder("M2", "Sent", FolderKind::Sent)];
+    let received = GraphMessage {
+        server: ServerMessage { id: "E1".into(), size: 900, ..Default::default() },
+        message_id: "e1@example.org".into(),
+        subject: "Invoice".into(),
+        from: Address::new("Bo", "bo@example.org"),
+        to: vec![Address::new("Cy", "cy@example.org")],
+        received: 100,
+        ..Default::default()
+    };
+    let piece = || JmapMailResult { account: jmap, email: JMAP.into(), partial: true, ..Default::default() };
+    apply_jmap_mail(&mut s, JmapMailResult { listing: Some(FolderListing { folders, complete: true }), ..piece() }).unwrap();
+    let page = MessagePage { folder: "M1".into(), messages: vec![received], afresh: true, ..Default::default() };
+    apply_jmap_mail(&mut s, JmapMailResult { pages: vec![page], whole: true, partial: false, ..piece() }).unwrap();
+    let invoice = s.mailbox.messages.values().find(|m| m.subject == "Invoice").unwrap().id;
+    let outbox = s.mailbox.folder_of_kind(jmap, FolderKind::Outbox).unwrap();
+    // Mail the server has, and a message that waits to be sent: no copy of either goes there.
+    let lunch = written(&mut s, jmap, "Lunch");
+    for id in [invoice, lunch] {
+        let refused = s.run("mail.copy", &json!({"ids": [id], "folder": outbox})).unwrap_err();
+        assert!(refused.to_string().contains(mailcraft_model::COPY_INTO_OUTBOX), "{refused}");
+    }
+    assert_eq!(count(&s, jmap, FolderKind::Outbox), 1);
+    // The next run sends what Send queued, once, and nothing else.
+    assert_eq!(offered(&s, jmap), [lunch]);
+    // A copy anywhere else in the account is made as before, and is nothing to send.
+    let inbox = s.mailbox.folder_of_kind(jmap, FolderKind::Inbox).unwrap();
+    s.run("mail.copy", &json!({"ids": [invoice], "folder": inbox})).unwrap();
+    assert_eq!(offered(&s, jmap), [lunch]);
+}
+
 #[test]
 fn sending_from_a_jmap_account_is_never_undone() {
     let (mut s, _, jmap, _) = mailbox();

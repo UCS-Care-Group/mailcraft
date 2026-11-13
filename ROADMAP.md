@@ -182,8 +182,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 MailCraft also builds for the browser (WebAssembly), from the same code. Every change is checked to
 build, and each release carries it as a download, but it has not yet been reviewed in use, and it
 can't open the connections IMAP and SMTP need: the only mail servers it reaches are JMAP ones, to
-read for now ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
-[docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
+read, to take changes up to and to send through ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
+[#1074](https://github.com/UCS-Care-Group/mailcraft/issues/1074), [docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
 browser.
 
 It is to be a mail client of its own (decided 2026-10-19, with #226):

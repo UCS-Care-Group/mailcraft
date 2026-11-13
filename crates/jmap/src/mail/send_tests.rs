@@ -13,12 +13,12 @@ use proptest::prelude::*;
 use serde_json::json;
 
 use super::changes_tests::{
-    Answer, FAKE_SESSION, FAKE_TOKEN, Fake, ME, Reply, api_reply, asks, changes_of, is_upload, json_reply, last, read_on, reading, run_fake,
-    run_over, run_stand_in, run_unchecked, sent_of, session_reply, status_reply,
+    Answer, FAKE_SESSION, FAKE_TOKEN, Fake, ME, Reply, api_reply, asks, calls_of, changes_of, is_upload, json_reply, last, read_on, reading,
+    run_fake, run_over, run_stand_in, run_unchecked, sent_of, session_reply, status_reply,
 };
 use super::send::{
     BAD_RECIPIENT, BAD_SENDER, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
-    filing_of, identity_of, is_address, recipients, settled, written,
+    existing_of, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
 };
 use super::*;
 use crate::connection::tests::any_json;
@@ -802,6 +802,297 @@ fn the_answers_to_a_send_are_read_without_trusting_them() {
     assert_eq!(settled(&secrets, Err(CallFailure::Missing), Err(CallFailure::Missing)).outcome, Some(lost()));
     assert_eq!(settled(&secrets, Err(CallFailure::UnexpectedResponse), Err(CallFailure::UnexpectedResponse)).outcome, Some(lost()));
     assert_eq!(settled(&secrets, made(), Err(CallFailure::Missing)), Settled { outcome: Some(lost()), orphan: None, later: None });
+}
+
+/// A scripted server that sends and takes `calls` method calls to a request: each call answered by `f`, or
+/// as [`sending`] answers it when `f` has nothing to say.
+fn sender_of(calls: u32, f: impl Fn(&str, &Value) -> Option<Answer> + 'static) -> Fake {
+    Fake::new(move |req, _| match req.method() {
+        Method::Get => session_reply(json!({"maxCallsInRequest": calls}), true),
+        _ if is_upload(req) => uploaded(),
+        _ => api_reply(req, |name, args| f(name, args).unwrap_or_else(|| sending(name, args))),
+    })
+}
+
+fn names_of(req: &HttpRequest) -> Vec<String> {
+    calls_of(req).into_iter().map(|(name, _)| name).collect()
+}
+
+// RFC 8620 §3.6.2: `serverPartialFail` is the one error of a call after which the server is not as it was.
+#[test]
+fn a_submission_the_server_says_partly_happened_is_held_as_one_that_may_have_gone_and_its_copy_stays() {
+    // In one request with the import, and where the server takes one call to a request.
+    for calls in [16, 1] {
+        let fake = sender_of(calls, |name, _| (name == "EmailSubmission/set").then(|| Answer::Error("serverPartialFail", String::new())));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        // The server is there, so the next message is tried; each is asked once.
+        assert_eq!(sent_of(&pieces), [is(41, lost()), is(42, lost())], "{calls}");
+        assert_eq!(fake.args_of("EmailSubmission/set").len(), 2, "{calls}");
+        assert!(fake.args_of("Email/set").is_empty(), "{calls}: the copy of a message that may have gone is not taken away");
+    }
+    // The import says so, and the submission's own answer does not say that it was not made.
+    let fake = sender(|name, _| match name {
+        "Email/import" => Some(Answer::Error("serverPartialFail", String::new())),
+        "EmailSubmission/set" => Some(Answer::Missing),
+        _ => None,
+    });
+    assert_eq!(sent_of(&send_fake(&fake, vec![simple(41)])), [is(41, lost())]);
+    // It does say so: held with that.
+    let fake = sender(|name, _| match name {
+        "Email/import" => Some(Answer::Error("serverPartialFail", String::new())),
+        "EmailSubmission/set" => Some(Answer::Is(json!({"notCreated": {"s": {"type": "invalidProperties"}}}))),
+        _ => None,
+    });
+    assert_eq!(sent_of(&send_fake(&fake, vec![simple(41)])), [is(41, held("invalidProperties"))]);
+    assert!(fake.args_of("Email/set").is_empty());
+}
+
+// RFC 8620 §2: a capability's methods are for the accounts whose `accountCapabilities` list it.
+#[test]
+fn an_account_without_the_capability_of_sending_holds_every_message_though_the_session_offers_it() {
+    let fake = Fake::new(|req, _| match req.method() {
+        Method::Get => json_reply(
+            200,
+            &json!({
+                "capabilities": {CORE: {"maxCallsInRequest": 16}, MAIL: {}, SUBMISSION: {}},
+                "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": {MAIL: {}}}},
+                "primaryAccounts": {MAIL: "A1"},
+                "apiUrl": "https://jmap.example.org/jmap/api",
+                "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?type={type}",
+                "uploadUrl": "/jmap/upload/{accountId}/",
+                "state": "1",
+            }),
+        ),
+        _ => api_reply(req, sending),
+    });
+    let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NO_SUBMISSION)), is(42, held(NO_SUBMISSION))]);
+    assert!(fake.args_of("Identity/get").is_empty() && fake.uploads().is_empty(), "nothing is asked for it");
+    assert!(last(&pieces).whole && read_on(&pieces));
+}
+
+#[test]
+fn a_refused_sign_in_and_a_busy_server_met_while_tidying_up_end_the_run_with_the_message_reported() {
+    // The server refuses every submission; the request that takes the copy away again is answered by `reply`.
+    let tidying = |reply: Rc<dyn Fn() -> Reply>| {
+        sender_but(move |req, _| {
+            if req.method() != Method::Post || is_upload(req) {
+                return None;
+            }
+            if names_of(req) == ["Email/set"] {
+                return Some(reply());
+            }
+            Some(api_reply(req, |name, args| match name {
+                "EmailSubmission/set" => Answer::Is(json!({"notCreated": {"s": {"type": "forbiddenToSend"}}})),
+                _ => sending(name, args),
+            }))
+        })
+    };
+    let refused = held("the server does not let this account send mail");
+    let fake = tidying(Rc::new(|| status_reply(401, None)));
+    let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, refused.clone())], "what is known of the message is told");
+    let end = last(&pieces);
+    assert!(end.auth_refused && !end.whole && !read_on(&pieces), "{end:?}");
+    assert_eq!(fake.uploads().len(), 1, "the next message is not begun");
+
+    for (status, retry_after, seconds) in [(429, Some(90), 90), (503, None, 30)] {
+        let fake = tidying(Rc::new(move || status_reply(status, retry_after)));
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert_eq!(sent_of(&pieces), [is(41, refused.clone())], "{status}");
+        assert_eq!((last(&pieces).busy_for, fake.uploads().len(), read_on(&pieces)), (Some(seconds), 1, false), "{status}");
+    }
+    // Any other failure of it is passed over: the run goes on.
+    let answers: Vec<Rc<dyn Fn() -> Reply>> = vec![Rc::new(|| status_reply(500, None)), Rc::new(|| Err(TransportError::TimedOut))];
+    for answer in answers {
+        let fake = tidying(answer);
+        let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+        assert_eq!(sent_of(&pieces), [is(41, refused.clone()), is(42, refused.clone())]);
+        assert!(read_on(&pieces) && last(&pieces).whole);
+    }
+}
+
+// RFC 8621 §7.5: the implicit `Email/set` of `onSuccessUpdateEmail` is answered after the submission's own
+// response, under the same call id.
+#[test]
+fn a_submission_that_was_made_is_sent_though_the_update_of_its_email_failed_after_it() {
+    // The calls answered as [`sending`] does, and after the submission's own answer an error of its call.
+    fn then_fails(req: &HttpRequest, kind: &str) -> Reply {
+        let body: Value = serde_json::from_slice(req.body()).unwrap();
+        let mut responses = Vec::new();
+        for call in body["methodCalls"].as_array().unwrap() {
+            let (name, id) = (call[0].as_str().unwrap(), call[2].clone());
+            if let Answer::Is(value) = sending(name, &call[1]) {
+                responses.push(json!([name, value, id]));
+            }
+            if name == "EmailSubmission/set" {
+                responses.push(json!(["error", {"type": kind}, id]));
+            }
+        }
+        json_reply(200, &json!({"methodResponses": responses, "sessionState": "1"}))
+    }
+    for calls in [16, 1] {
+        for kind in ["serverUnavailable", "serverFail", "serverPartialFail"] {
+            let fake = Fake::new(move |req, _| match req.method() {
+                Method::Get => session_reply(json!({"maxCallsInRequest": calls}), true),
+                _ if is_upload(req) => uploaded(),
+                _ if names_of(req).iter().any(|name| name == "EmailSubmission/set") => then_fails(req, kind),
+                _ => api_reply(req, sending),
+            });
+            let pieces = send_fake(&fake, vec![simple(41), simple(42)]);
+            // Sent, and so not offered again; the Outbox goes on.
+            assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent), is(42, SendOutcome::Sent)], "{calls} {kind}");
+            assert_eq!(fake.args_of("EmailSubmission/set").len(), 2, "{calls} {kind}");
+            // The email is not destroyed: its draft mark is asked off once more.
+            let unmark = json!({"accountId": "A1", "update": {"E50": {"keywords/$draft": null}}});
+            assert_eq!(fake.args_of("Email/set"), [unmark.clone(), unmark], "{calls} {kind}");
+            assert!(last(&pieces).whole && read_on(&pieces), "{calls} {kind}");
+        }
+    }
+}
+
+#[test]
+fn a_message_imported_and_never_submitted_waits_and_goes_once_with_the_next_run() {
+    // A server that takes one call to a request, whose fourth request to the API (the identities, the roles
+    // and the import before it) is the submission: turned away unread.
+    for no_duplicates in [true, false] {
+        for status in [401, 503] {
+            let (stand_in, ids) = world();
+            stand_in.with(|d| {
+                d.max_calls = 1;
+                d.no_duplicates = no_duplicates;
+                d.refuse_next.extend([None, None, None, Some((status, None))]);
+            });
+            let pieces = send(&stand_in, vec![simple(41)]);
+            assert!(sent_of(&pieces).is_empty(), "{no_duplicates} {status}: it waits");
+            assert_eq!((last(&pieces).auth_refused, last(&pieces).busy_for.is_some()), (status == 401, status == 503));
+            // The copy is there, a draft still; nothing went, and nothing was taken away on a guess.
+            stand_in.with(|d| {
+                assert_eq!((d.emails.len(), d.submitted.len()), (1, 0), "{no_duplicates} {status}");
+                assert!(d.emails[0].keywords.contains("$draft"));
+            });
+            assert!(!stand_in.calls().iter().any(|call| call == "Email/set"));
+
+            // The next run: it goes, once. A server that keeps no two emails alike sends the copy it has.
+            let pieces = send(&stand_in, vec![simple(41)]);
+            assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{no_duplicates} {status}");
+            stand_in.with(|d| {
+                assert_eq!((d.submitted.len(), d.emails.len()), (1, if no_duplicates { 1 } else { 2 }), "{no_duplicates} {status}");
+                let email = d.email(&d.submitted[0].email).unwrap();
+                assert!(email.mailboxes.contains(&ids.sent) && !email.keywords.contains("$draft"));
+            });
+            assert!(last(&pieces).whole);
+        }
+    }
+    // The run stopped between the import and the submission: the same.
+    let cancel = Rc::new(AtomicBool::new(false));
+    let stops = cancel.clone();
+    let fake = Fake::new(move |req, _| {
+        if names_of(req) == ["Email/import"] {
+            stops.store(true, Ordering::Relaxed);
+        }
+        match req.method() {
+            Method::Get => session_reply(json!({"maxCallsInRequest": 1}), true),
+            _ if is_upload(req) => uploaded(),
+            _ => api_reply(req, sending),
+        }
+    });
+    let pieces = run_over(fake.clone(), FAKE_TOKEN, &JmapMailRequest { sends: vec![simple(41)], ..asks(FAKE_SESSION) }, &cancel);
+    assert!(sent_of(&pieces).is_empty() && last(&pieces).stopped);
+    assert!(fake.args_of("EmailSubmission/set").is_empty() && fake.args_of("Email/set").is_empty());
+}
+
+// RFC 8621 §4.8: an import of an email the account has is refused with `alreadyExists` and its `existingId`.
+// RFC 8620 §6: a blob's id names its octets and nothing else.
+#[test]
+fn an_email_the_server_has_already_is_submitted_only_when_it_is_of_the_blob_uploaded() {
+    // The import is refused for the email `existing`; the submission that named the import is not made for
+    // want of it; E9 is of the blob `blob`; and a submission of E9 itself is answered with `of_copy`.
+    fn has_it(calls: u32, existing: &'static str, blob: &'static str, of_copy: fn() -> Answer) -> Fake {
+        sender_of(calls, move |name, args| match name {
+            "Email/import" => Some(Answer::Is(json!({"notCreated": {"m": {"type": "alreadyExists", "existingId": existing}}}))),
+            "Email/get" if args["ids"] == json!(["E9"]) => {
+                Some(Answer::Is(json!({"list": [{"id": "E8", "blobId": "B7"}, {"id": "E9", "blobId": blob}]})))
+            }
+            "EmailSubmission/set" if args["create"]["s"]["emailId"] == "#m" => {
+                Some(Answer::Is(json!({"notCreated": {"s": {"type": "invalidProperties", "properties": ["emailId"]}}})))
+            }
+            "EmailSubmission/set" => Some(of_copy()),
+            _ => None,
+        })
+    }
+    let made = || Answer::Is(json!({"created": {"s": {"id": "S1"}}}));
+    let emails = |fake: &Fake| fake.args_of("EmailSubmission/set").iter().map(|args| args["create"]["s"]["emailId"].clone()).collect::<Vec<_>>();
+    for (calls, asked) in [(16, vec![json!("#m"), json!("E9")]), (1, vec![json!("E9")])] {
+        // The same octets (the upload answered `B7`): the email the server has is the one submitted.
+        let fake = has_it(calls, "E9", "B7", made);
+        let pieces = send_fake(&fake, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, SendOutcome::Sent)], "{calls}");
+        assert_eq!(emails(&fake), asked, "{calls}");
+        assert_eq!(fake.args_of("Email/get")[0], json!({"accountId": "A1", "ids": ["E9"], "properties": ["id", "blobId"]}));
+        assert!(fake.args_of("Email/set").is_empty() && last(&pieces).whole, "{calls}");
+
+        // Another blob, so perhaps other octets (an email that only shares its Message-ID): never submitted.
+        // The message is held with the server's refusal.
+        let fake = has_it(calls, "E9", "B8", made);
+        let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+        assert!(
+            matches!(&sent[0].outcome, SendOutcome::Held { lost: false, why } if why.starts_with("the server would not take the message: ")),
+            "{calls}: {sent:?}"
+        );
+        assert!(!emails(&fake).contains(&json!("E9")), "{calls}");
+
+        // An `existingId` that is no id: nothing is asked of it.
+        let fake = has_it(calls, "E 9", "B7", made);
+        let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+        assert!(matches!(&sent[0].outcome, SendOutcome::Held { lost: false, .. }), "{calls}: {sent:?}");
+        assert!(!emails(&fake).contains(&json!("E9")), "{calls}");
+
+        // The server will not send the copy: held with why, and the copy, which was there before, stays.
+        let fake = has_it(calls, "E9", "B7", || Answer::Is(json!({"notCreated": {"s": {"type": "forbiddenToSend"}}})));
+        let pieces = send_fake(&fake, vec![simple(41)]);
+        assert_eq!(sent_of(&pieces), [is(41, held("the server does not let this account send mail"))], "{calls}");
+        assert!(fake.args_of("Email/set").is_empty(), "{calls}: an email this run did not make is not destroyed");
+
+        // Its submission got no answer of use: held as one that may have gone.
+        let fake = has_it(calls, "E9", "B7", || Answer::Missing);
+        assert_eq!(sent_of(&send_fake(&fake, vec![simple(41)])), [is(41, lost())], "{calls}");
+        assert_eq!(emails(&fake), asked, "{calls}: and not asked again");
+    }
+    // Where the answer does not say that the submission in the same request was not made, nothing more is
+    // asked: a second submission could be a second delivery.
+    let fake = sender(|name, _| match name {
+        "Email/import" => Some(Answer::Is(json!({"notCreated": {"m": {"type": "alreadyExists", "existingId": "E9"}}}))),
+        "EmailSubmission/set" => Some(Answer::Missing),
+        _ => None,
+    });
+    let sent = sent_of(&send_fake(&fake, vec![simple(41)]));
+    assert!(matches!(&sent[0].outcome, SendOutcome::Held { lost: false, .. }), "{sent:?}");
+    assert_eq!(fake.args_of("EmailSubmission/set").len(), 1);
+
+    // Read without trusting them.
+    let map = |value: Value| -> Result<Map<String, Value>, CallFailure> { Ok(value.as_object().cloned().unwrap()) };
+    assert_eq!(existing_of(&map(json!({"notCreated": {"m": {"type": "alreadyExists", "existingId": "E9"}}}))), Some("E9".into()));
+    for none in [
+        json!({}),
+        json!({"notCreated": {"m": {"type": "overQuota", "existingId": "E9"}}}),
+        json!({"notCreated": {"m": {"type": "alreadyExists"}}}),
+        json!({"notCreated": {"m": {"type": "alreadyExists", "existingId": 9}}}),
+        json!({"notCreated": {"x": {"type": "alreadyExists", "existingId": "E9"}}}),
+        json!({"notCreated": ["m"]}),
+    ] {
+        assert_eq!(existing_of(&map(none.clone())), None, "{none}");
+    }
+    assert_eq!(existing_of(&Err(CallFailure::Missing)), None);
+    assert!(not_made(&map(json!({"notCreated": {"s": {}}}))) && not_made(&map(json!({"created": {"s": null}, "notCreated": {"s": 7}}))));
+    for unsaid in [json!({}), json!({"notCreated": null}), json!({"created": {"s": {}}, "notCreated": {"s": {}}}), json!({"notCreated": {"t": {}}})] {
+        assert!(!not_made(&map(unsaid.clone())), "{unsaid}");
+    }
+    assert!(!not_made(&Err(CallFailure::Missing)) && !not_made(&Err(CallFailure::UnexpectedResponse)));
+    assert!(same_octets(&json!({"list": [null, {"id": "E9"}, {"id": "E9", "blobId": "B7"}]}), "E9", "B7"));
+    for other in [json!(null), json!({"list": {}}), json!({"list": [{"id": "E8", "blobId": "B7"}]}), json!({"list": [{"id": "E9", "blobId": 7}]})] {
+        assert!(!same_octets(&other, "E9", "B7"), "{other}");
+    }
 }
 
 proptest! {

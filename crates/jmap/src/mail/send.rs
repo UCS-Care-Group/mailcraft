@@ -4,8 +4,9 @@
 //!
 //! **What is asked**, once the changes have gone up:
 //!
-//! 1. Nothing, when the session does not offer `urn:ietf:params:jmap:submission`: every message is held,
-//!    with a line that says so.
+//! 1. Nothing, when the session does not offer `urn:ietf:params:jmap:submission`, or offers it and the
+//!    account's own capabilities are without it (RFC 8620 §2: the methods of a capability an account does not
+//!    list are not for that account): every message is held, with a line that says so.
 //! 2. `Identity/get`, once: the identity whose address is the account's (letters compared without regard
 //!    to case), else one for the whole of its domain (`*@domain`). With neither, every message is held.
 //! 3. `Mailbox/get` for the roles alone, once: the copy of what is sent is filed in the mailbox whose role
@@ -31,13 +32,40 @@
 //!   could not be asked at all (no submission, no identity, no mailbox, an address that is none, too large).
 //!   Not sent again by itself.
 //! - [`SendOutcome::Held`] with `lost`: the submission was asked and its answer never came, or says nothing
-//!   of the submission. The server may have sent it. **Never twice:** a submission is asked once in a run
-//!   and never again, and after a request got no answer the rest of the Outbox waits for the next run.
+//!   of the submission, or says that some of what was asked happened and not what (`serverPartialFail`,
+//!   RFC 8620 §3.6.2). The server may have sent it. **Never twice:** a submission whose outcome is not known
+//!   is never asked again, and after a request got no answer the rest of the Outbox waits for the next run.
 //! - Nothing: the message was not taken (the server busy, the sign-in refused, the run stopped, the server
 //!   not reached before the submission was asked). It waits, and goes with the next run.
 //!
-//! When the server refuses a submission after it imported the email, the copy is destroyed again (once,
-//! and whatever comes of that is passed over).
+//! **What is known after each exchange, and whose the copy is.**
+//!
+//! - *The upload*: a blob, which sends nothing and which the server forgets. Whatever fails here, the
+//!   message waits or is held with why.
+//! - *The import*: an email in Sent, marked `$draft`. It sends nothing either. Where the import and the
+//!   submission are two requests (a server that takes one call to a request) and the second is never read
+//!   (the run stopped, the sign-in refused, the server busy or not reached), the message waits and the copy
+//!   stays; it is not known here at the next run, which imports again. A server that keeps no two emails
+//!   alike then answers `alreadyExists` with the id of the one it has (RFC 8621 §4.8), and that one is
+//!   submitted instead, once it is seen to be of the very blob that was just uploaded (`Email/get`, its
+//!   `blobId`): never an email that only resembles the message. One that cannot be told to be the same
+//!   holds the message with the server's refusal. A copy that was there already is never destroyed. (A
+//!   server that lets two emails be alike makes a second one, which is sent; the first stays in Sent with
+//!   its draft mark, one copy too many and nothing lost.)
+//! - *The submission*: sent only when the answer has it among those created, and then it is sent whatever
+//!   follows under the same call (the implicit `Email/set` of `onSuccessUpdateEmail`, RFC 8621 §7.5, is
+//!   answered after it, and its error does not unsay the submission; the draft mark it should have taken
+//!   off is then asked off once more by itself). Refused by the server (`notCreated`, or an error of the
+//!   call that leaves the server as it was): held with why, or waiting when the server says to try later,
+//!   and the copy this run imported is destroyed again. Anything else: held as one that may have gone, and
+//!   the copy is left where it is (destroying it would not call the delivery back, RFC 8621 §7.5).
+//! - *Tidying up* (destroying the copy, or taking the draft mark off) is asked once and changes nothing of
+//!   what is reported of the message; but a sign-in it finds refused, or a server it finds busy, ends the
+//!   run as it would at any other request.
+//!
+//! Nothing is kept between runs but what the engine keeps: a message reported, or not. A program that
+//! ends between two exchanges leaves at the most a blob, or a copy marked `$draft` in Sent, and the engine
+//! holds what it had marked as being sent.
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -50,7 +78,10 @@ use serde_json::{Map, Value, json};
 
 use super::{LIST_BYTES, Outcome, Run, Stop, arguments, mail_request, refusal, said};
 use crate::connection::unusable;
-use crate::{ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, Redactor, TransportError};
+use crate::{
+    ApiRequest, BuildError, CAPABILITY_SUBMISSION, CallFailure, Error, Failure, HttpExchange, Id, MethodError, MethodErrorKind, Redactor,
+    TransportError,
+};
 
 /// Most recipients one message is sent to.
 pub(super) const MAX_RECIPIENTS: usize = 1_000;
@@ -223,6 +254,54 @@ fn submission_refusal(secrets: &Redactor, error: &Value) -> String {
     plain.to_string()
 }
 
+/// One entry of an answer to a `set` or an import: what `list` (`created`, `notCreated`) has for `creation`.
+fn of(answer: &Map<String, Value>, list: &str, creation: &str) -> Option<Value> {
+    answer.get(list).and_then(Value::as_object).and_then(|all| all.get(creation)).cloned()
+}
+
+/// Whether the server says some of what a call asked happened, without saying what (`serverPartialFail`,
+/// RFC 8620 §3.6.2): the one error of a call after which the server is not as it was.
+fn partial(error: &MethodError) -> bool {
+    *error.kind() == MethodErrorKind::ServerPartialFail
+}
+
+/// The email an answer to the import says it made: its id, when that is one.
+pub(super) fn made_of(imported: &Result<Map<String, Value>, CallFailure>) -> Option<String> {
+    let made = imported.as_ref().ok().and_then(|answer| of(answer, "created", EMAIL))?;
+    made.get("id").and_then(Value::as_str).filter(|id| Id::new(id).is_ok()).map(str::to_string)
+}
+
+/// The email the server has already, when that is why it would not import the blob (`alreadyExists`, whose
+/// `existingId` names it: RFC 8621 §4.8): its id, when that is one.
+pub(super) fn existing_of(imported: &Result<Map<String, Value>, CallFailure>) -> Option<String> {
+    let error = imported.as_ref().ok().and_then(|answer| of(answer, "notCreated", EMAIL))?;
+    if error.get("type").and_then(Value::as_str) != Some("alreadyExists") {
+        return None;
+    }
+    error.get("existingId").and_then(Value::as_str).filter(|id| Id::new(id).is_ok()).map(str::to_string)
+}
+
+/// Whether the answer to the submission says, in so many words, that it was not made: it is among those
+/// not created and not among those created, or the call failed with an error that leaves the server as it
+/// was. Anything else does not say.
+pub(super) fn not_made(submitted: &Result<Map<String, Value>, CallFailure>) -> bool {
+    match submitted {
+        Ok(answer) => of(answer, "created", SUBMISSION).is_none_or(|made| !made.is_object()) && of(answer, "notCreated", SUBMISSION).is_some(),
+        Err(CallFailure::Method(error)) => !partial(error),
+        Err(_) => false,
+    }
+}
+
+/// Whether the email `email`, of those an answer to `Email/get` lists, is of the blob `blob`: the same
+/// octets, since a blob's id names its data and nothing else (RFC 8620 §6).
+pub(super) fn same_octets(answer: &Value, email: &str, blob: &str) -> bool {
+    let list = answer.get("list").and_then(Value::as_array);
+    list.into_iter()
+        .flatten()
+        .take(MAX_IDENTITIES)
+        .any(|entry| entry.get("id").and_then(Value::as_str) == Some(email) && entry.get("blobId").and_then(Value::as_str) == Some(blob))
+}
+
 /// What the answers to the import (`imported`) and the submission (`submitted`) of one message say became
 /// of it. Whatever they hold, this reads them without trusting them: the message is sent only when the
 /// answer has the submission among those created; it is held with a reason only when the answer says the
@@ -233,11 +312,7 @@ pub(super) fn settled(
     imported: Result<Map<String, Value>, CallFailure>,
     submitted: Result<Map<String, Value>, CallFailure>,
 ) -> Settled {
-    let of = |answer: &Map<String, Value>, list: &str, creation: &str| {
-        answer.get(list).and_then(Value::as_object).and_then(|all| all.get(creation)).cloned()
-    };
-    let made = imported.as_ref().ok().and_then(|answer| of(answer, "created", EMAIL));
-    let orphan = made.and_then(|email| email.get("id").and_then(Value::as_str).filter(|id| Id::new(id).is_ok()).map(str::to_string));
+    let orphan = made_of(&imported);
     let is = |outcome: SendOutcome, orphan: Option<String>| Settled { outcome: Some(outcome), orphan, later: None };
     if let Ok(answer) = &submitted
         && of(answer, "created", SUBMISSION).is_some_and(|made| made.is_object())
@@ -251,6 +326,8 @@ pub(super) fn settled(
                 return is(held(format!("the server would not take the message: {}", refusal(secrets, &error))), None);
             }
         }
+        // Some of the import may have happened: what the submission's own answer says decides.
+        Err(CallFailure::Method(error)) if partial(error) => {}
         Err(CallFailure::Method(error)) if error.kind().may_succeed_later() => {
             return Settled { outcome: None, orphan: None, later: Some(CallFailure::Method(error.clone())) };
         }
@@ -263,7 +340,10 @@ pub(super) fn settled(
         return is(held(submission_refusal(secrets, &error)), orphan);
     }
     match submitted {
-        // The email is there and the server refused to send it, as a whole call.
+        // Some of what the call asked happened, and it does not say what (RFC 8620 §3.6.2): the submission
+        // may be there, and destroying its email would not call it back.
+        Err(CallFailure::Method(error)) if partial(&error) => is(lost(), None),
+        // The email is there and the server refused to send it, as a whole call that changed nothing.
         Err(CallFailure::Method(error)) if orphan.is_some() && error.kind().may_succeed_later() => {
             Settled { outcome: None, orphan, later: Some(CallFailure::Method(error)) }
         }
@@ -274,6 +354,18 @@ pub(super) fn settled(
 
 /// What a message comes to, and whether the sending goes on after it.
 type Fate = (Option<SendOutcome>, Option<Stop>);
+
+/// What is left to ask of the server once it is known what became of a message.
+#[derive(Debug, PartialEq)]
+enum Tidy {
+    /// Destroy the email this run imported for a message the server would not send.
+    Destroy(String),
+    /// Take the draft mark off the email of a message that was sent, where the server did not.
+    Unmark(String),
+}
+
+/// A message's [`Fate`], and what is left to tidy up.
+type Step = (Option<SendOutcome>, Option<Stop>, Option<Tidy>);
 
 impl<H: HttpExchange> Run<'_, H> {
     /// Send what the request says waits in the Outbox, a piece for each message as soon as it is known what
@@ -289,7 +381,8 @@ impl<H: HttpExchange> Run<'_, H> {
             emit(self.piece(JmapMailResult { sent: vec![done], partial: true, ..Default::default() }));
         };
         let mut hold_all = |why: &str| sends.iter().for_each(|send| report(send.message, held(why)));
-        if !self.connection.client().has_capability(CAPABILITY_SUBMISSION) {
+        let client = self.connection.client();
+        if !client.has_capability(CAPABILITY_SUBMISSION) || !client.account_has_capability(CAPABILITY_SUBMISSION) {
             log::info!("jmap mail: the server offers no submission; what waits in the Outbox is held");
             hold_all(NO_SUBMISSION);
             return Ok(());
@@ -375,18 +468,34 @@ impl<H: HttpExchange> Run<'_, H> {
         if let Err(stop) = self.check() {
             return (None, Some(stop));
         }
-        let (outcome, stop, orphan) = self.submit(blob.as_str(), identity, mailbox, &to).await;
-        if let Some(orphan) = orphan
-            && self.check().is_ok()
-        {
-            // The copy of a message the server would not send. Whatever comes of this is passed over: the
-            // message is reported as it is either way.
-            let args = json!({"accountId": self.account(), "destroy": [orphan]});
-            if self.one_call("Email/set", args, SUBMIT_BYTES).await.is_err() {
-                log::debug!("jmap mail: the copy of a message the server refused to send could not be removed");
+        let (outcome, stop, tidy) = self.submit(blob.as_str(), identity, mailbox, &to).await;
+        let tidied = match tidy {
+            Some(tidy) if self.check().is_ok() => self.tidy(tidy).await,
+            _ => None,
+        };
+        (outcome, tidied.or(stop))
+    }
+
+    /// Tidy up after a message, once: whatever comes of it, the message is reported as it is. A sign-in it
+    /// finds refused and a server it finds busy end the run, as at any other request (and the busy server's
+    /// wait is kept); any other failure is passed over.
+    async fn tidy(&self, tidy: Tidy) -> Option<Stop> {
+        let args = match &tidy {
+            Tidy::Destroy(email) => json!({"accountId": self.account(), "destroy": [email]}),
+            Tidy::Unmark(email) => {
+                let mut update = Map::new();
+                update.insert(email.clone(), json!({"keywords/$draft": null}));
+                json!({"accountId": self.account(), "update": update})
+            }
+        };
+        match self.one_call("Email/set", args, SUBMIT_BYTES).await {
+            Ok(_) => None,
+            Err(stop @ (Stop::Auth | Stop::Busy(..))) => Some(stop),
+            Err(_) => {
+                log::debug!("jmap mail: the copy of a message could not be tidied up on the server ({tidy:?})");
+                None
             }
         }
-        (outcome, stop)
     }
 
     /// What an upload that failed means: nothing was sent, whatever it was.
@@ -402,13 +511,13 @@ impl<H: HttpExchange> Run<'_, H> {
     }
 
     /// Import the blob and submit the email, in one request where the server takes two calls: what became
-    /// of the message, why the sending ends here (if it does), and an email to destroy again.
-    async fn submit(&self, blob: &str, identity: &str, mailbox: &str, to: &[String]) -> (Option<SendOutcome>, Option<Stop>, Option<String>) {
+    /// of the message, why the sending ends here (if it does), and what is left to tidy up.
+    async fn submit(&self, blob: &str, identity: &str, mailbox: &str, to: &[String]) -> Step {
         let account = self.account();
         let from = self.request.email.as_str();
         let import = import_arguments(account, blob, mailbox);
         let failed = |error: BuildError| (None, Some(Stop::from(error)), None);
-        let (imported, submitted) = if self.two_calls {
+        if self.two_calls {
             let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
                 let import = request.add_call("Email/import", arguments(import))?;
                 let submission = submission_arguments(account, &format!("#{EMAIL}"), identity, from, to);
@@ -426,54 +535,119 @@ impl<H: HttpExchange> Run<'_, H> {
                     return (outcome, stop, None);
                 }
             };
-            (answers.take_named(&import, "Email/import"), answers.take_named(&submit, "EmailSubmission/set"))
-        } else {
-            // A server that takes one call to a request: the import first, which sends nothing.
-            let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
-                let call = request.add_call("Email/import", arguments(import))?;
-                Ok((request, call))
-            });
-            let (request, call) = match built {
-                Ok(built) => built,
-                Err(error) => return failed(error),
-            };
-            let imported = match self.post(&request).await {
-                Ok(mut answers) => answers.take_named(&call, "Email/import"),
-                Err(stop) => return (None, Some(stop), None),
-            };
-            let made =
-                imported.as_ref().ok().and_then(|answer| answer.get("created")?.get(EMAIL)?.get("id")?.as_str().filter(|id| Id::new(id).is_ok()));
-            let Some(email) = made.map(str::to_string) else {
-                // Nothing was asked to go: the import says why, or the server answered nothing of use.
-                return match settled(&self.secrets, imported, Err(CallFailure::Missing)) {
-                    Settled { outcome: Some(SendOutcome::Held { lost: false, why }), .. } => (Some(held(why)), None, None),
-                    Settled { later: Some(later), .. } => (None, Some(Stop::Down(later.into())), None),
-                    _ => (None, Some(Stop::Failed(unusable("the answer does not say what became of the message").into())), None),
-                };
-            };
-            if let Err(stop) = self.check() {
-                return (None, Some(stop), None);
+            let imported = answers.take_named(&import, "Email/import");
+            let (submitted, after) = answers.take_named_before_error(&submit, "EmailSubmission/set");
+            // The server has the message already, and says the submission was not made for want of it.
+            if let Some(copy) = existing_of(&imported).filter(|_| not_made(&submitted)) {
+                let refused = settled(&self.secrets, imported, submitted).outcome.unwrap_or_else(lost);
+                return self.submit_copy(&copy, blob, identity, to, refused).await;
             }
-            let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
-                let submission = submission_arguments(account, &email, identity, from, to);
-                let call = request.add_call("EmailSubmission/set", arguments(submission))?;
-                Ok((request, call))
-            });
-            let (request, call) = match built {
-                Ok(built) => built,
-                Err(error) => return failed(error),
-            };
-            let mut answers = match self.connection.call(&request, &self.secrets).await {
-                Ok(answers) => answers,
-                Err(error) => {
-                    let (outcome, stop) = self.after_asking(error);
-                    return (outcome, stop, None);
-                }
-            };
-            (imported, answers.take_named(&call, "EmailSubmission/set"))
+            return self.concluded(imported, submitted, after.as_ref(), true);
+        }
+        // A server that takes one call to a request: the import first, which sends nothing.
+        let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
+            let call = request.add_call("Email/import", arguments(import))?;
+            Ok((request, call))
+        });
+        let (request, call) = match built {
+            Ok(built) => built,
+            Err(error) => return failed(error),
         };
+        let imported = match self.post(&request).await {
+            Ok(mut answers) => answers.take_named(&call, "Email/import"),
+            Err(stop) => return (None, Some(stop), None),
+        };
+        let Some(email) = made_of(&imported) else {
+            // Nothing was asked to go: the import says why, or the server answered nothing of use.
+            let copy = existing_of(&imported);
+            let refused = match settled(&self.secrets, imported, Err(CallFailure::Missing)) {
+                Settled { outcome: Some(SendOutcome::Held { lost: false, why }), .. } => held(why),
+                Settled { later: Some(later), .. } => return (None, Some(Stop::Down(later.into())), None),
+                _ => return (None, Some(Stop::Failed(unusable("the answer does not say what became of the message").into())), None),
+            };
+            return match copy {
+                Some(copy) => self.submit_copy(&copy, blob, identity, to, refused).await,
+                None => (Some(refused), None, None),
+            };
+        };
+        // Nothing is sent yet. A run that ends here, or whose next request is never read, leaves the copy
+        // on the server and the message waiting: the next run meets the copy again, or makes another.
+        if let Err(stop) = self.check() {
+            return (None, Some(stop), None);
+        }
+        self.submit_email(&email, imported, identity, to, true).await
+    }
+
+    /// The server would not import the message because it has it already, as the email `copy`. When that
+    /// email is of the blob just uploaded (the same octets, by the id of its blob), it is the one submitted;
+    /// when that cannot be seen, the message is held with the server's refusal, `refused`. The copy was
+    /// there before this request, and is never destroyed.
+    async fn submit_copy(&self, copy: &str, blob: &str, identity: &str, to: &[String], refused: SendOutcome) -> Step {
+        if let Err(stop) = self.check() {
+            return (None, Some(stop), None);
+        }
+        let args = json!({"accountId": self.account(), "ids": [copy], "properties": ["id", "blobId"]});
+        let same = match self.one_call("Email/get", args, SUBMIT_BYTES).await {
+            Ok(answer) => same_octets(&answer, copy, blob),
+            Err(Stop::Failed(_)) => false,
+            Err(stop) => return (None, Some(stop), None),
+        };
+        if !same {
+            return (Some(refused), None, None);
+        }
+        if let Err(stop) = self.check() {
+            return (None, Some(stop), None);
+        }
+        let mut created = Map::new();
+        created.insert(EMAIL.to_string(), json!({"id": copy}));
+        let mut imported = Map::new();
+        imported.insert("created".to_string(), Value::Object(created));
+        self.submit_email(copy, Ok(imported), identity, to, false).await
+    }
+
+    /// Submit the email `email` in a request of its own. `imported` is the answer that made it, and `ours`
+    /// whether this run did (an email of this run's is destroyed again when the server will not send it).
+    async fn submit_email(&self, email: &str, imported: Result<Map<String, Value>, CallFailure>, identity: &str, to: &[String], ours: bool) -> Step {
+        let built = submission_request(SUBMIT_BYTES).and_then(|mut request| {
+            let submission = submission_arguments(self.account(), email, identity, self.request.email.as_str(), to);
+            let call = request.add_call("EmailSubmission/set", arguments(submission))?;
+            Ok((request, call))
+        });
+        let (request, call) = match built {
+            Ok(built) => built,
+            Err(error) => return (None, Some(Stop::from(error)), None),
+        };
+        let mut answers = match self.connection.call(&request, &self.secrets).await {
+            Ok(answers) => answers,
+            Err(error) => {
+                let (outcome, stop) = self.after_asking(error);
+                return (outcome, stop, None);
+            }
+        };
+        let (submitted, after) = answers.take_named_before_error(&call, "EmailSubmission/set");
+        self.concluded(imported, submitted, after.as_ref(), ours)
+    }
+
+    /// What the answers come to ([`settled`]), and what is left to tidy up: the email of a message the
+    /// server would not send, when this run made it (`ours`); the draft mark of one that was sent, when the
+    /// call failed after the submission's own answer (`after`: the implicit `Email/set`, RFC 8621 §7.5).
+    fn concluded(
+        &self,
+        imported: Result<Map<String, Value>, CallFailure>,
+        submitted: Result<Map<String, Value>, CallFailure>,
+        after: Option<&MethodError>,
+        ours: bool,
+    ) -> Step {
+        let email = made_of(&imported);
         let Settled { outcome, orphan, later } = settled(&self.secrets, imported, submitted);
-        (outcome, later.map(|later| Stop::Down(later.into())), orphan)
+        let tidy = match (&outcome, after) {
+            (Some(SendOutcome::Sent), Some(error)) => {
+                log::info!("jmap mail: a message was sent, and the server did not take its draft mark off ({})", error.kind().as_str());
+                email.map(Tidy::Unmark)
+            }
+            _ => orphan.filter(|_| ours).map(Tidy::Destroy),
+        };
+        (outcome, later.map(|later| Stop::Down(later.into())), tidy)
     }
 
     /// What it means that the request with the submission in it failed as a whole. One that never left, or

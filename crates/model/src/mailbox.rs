@@ -1264,8 +1264,8 @@ pub const BETWEEN_MAILBOXES: &str =
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
-/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft or an Exchange
-/// server account's (#704): only Send sends.
+/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft, an Exchange
+/// server or a JMAP account's (#704, #1074): only Send sends.
 pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next Send/Receive would send it";
 
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
@@ -2735,8 +2735,10 @@ impl Mailbox {
             return Err(invalid(INTO_OUTBOX));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
-        // Send/Receive, and made on the server as well (#704): only Send sends.
-        if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
+        // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's
+        // too (#1074): the copy has no server's id, so it would go as mail queued with Send does.
+        let jmap = self.account(to_account).is_some_and(|a| a.kind == AccountKind::Jmap);
+        if self.sends_from(folder) && (jmap || self.keeps_changes_for_server(to_account)) {
             return Err(invalid(COPY_INTO_OUTBOX));
         }
         if self.placed_into(from_account, to_account) {

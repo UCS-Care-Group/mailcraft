@@ -183,7 +183,9 @@ impl MailApp {
                     // What the server wouldn't do in a run that went well otherwise (a change it
                     // refused, a message it wouldn't send) stays to be read in its problems.
                     whole &= said["refused"].as_u64().unwrap_or(0) == 0;
-                    let made = said["pushed"].as_u64().unwrap_or(0);
+                    // What a run made: changes taken up, and messages sent (a run sends only so many,
+                    // and what is left of a full Outbox goes with the next at once).
+                    let made = said["pushed"].as_u64().unwrap_or(0).saturating_add(said["sent"].as_u64().unwrap_or(0));
                     self.jmap_made = self.jmap_made.saturating_add(usize::try_from(made).unwrap_or(usize::MAX));
                 }
                 Err(e) => {
