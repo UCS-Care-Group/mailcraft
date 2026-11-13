@@ -42,7 +42,8 @@
         </activity>
 
         <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
-             scheme is the reverse of a domain the project owns; the path is checked in the app
+             scheme is the reverse of a domain the project owns and the host is the registered one
+             (Entra takes only the `//` form); the whole address is checked in the app
              and again by the Rust side, to the letter. Nothing else is registered for it. -->
         <activity
             android:name=".RedirectActivity"
@@ -53,7 +54,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="work.mailcraft.android" />
+                <data android:scheme="work.mailcraft.android" android:host="oauth2redirect" />
             </intent-filter>
         </activity>
 

@@ -10,20 +10,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SignInHandbackTest {
-    private val good = "work.mailcraft.android:/oauth2redirect?code=c&state=s"
+    private val good = "work.mailcraft.android://oauth2redirect?code=c&state=s"
 
     @Test
     fun onlyTheRegisteredAddressIsAccepted() {
         assertEquals(good, Redirect.accepted(good))
-        val bare = "work.mailcraft.android:/oauth2redirect"
+        val bare = "work.mailcraft.android://oauth2redirect"
         assertEquals(bare, Redirect.accepted(bare))
         assertEquals("$bare#x", Redirect.accepted("$bare#x"))
         assertNull(Redirect.accepted(null))
         assertNull(Redirect.accepted(""))
-        assertNull(Redirect.accepted("work.mailcraft.android:/oauth2redirectx?code=c"))
-        assertNull(Redirect.accepted("work.mailcraft.android:/other?code=c"))
-        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect?code=c"))
-        assertNull(Redirect.accepted("WORK.mailcraft.android:/oauth2redirect"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirectx?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://other?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android:/oauth2redirect?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect/x?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://OAUTH2REDIRECT?code=c"))
+        assertNull(Redirect.accepted("WORK.mailcraft.android://oauth2redirect"))
         assertNull(Redirect.accepted("https://example.org/oauth2redirect"))
         assertNull(Redirect.accepted(good + "x".repeat(Redirect.MAX_ADDRESS)))
     }
@@ -47,7 +49,7 @@ class SignInHandbackTest {
         h.sink = { got.add(it) }
         // The state, the code and the rest are the core's to judge:
         // any address with the registered scheme and path goes.
-        val odd = "work.mailcraft.android:/oauth2redirect?state=not-ours&code=%00&evil=1#frag"
+        val odd = "work.mailcraft.android://oauth2redirect?state=not-ours&code=%00&evil=1#frag"
         h.arm()
         assertTrue(h.deliver(odd))
         assertEquals(listOf(odd), got)

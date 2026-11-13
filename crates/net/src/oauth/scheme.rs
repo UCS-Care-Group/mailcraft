@@ -25,6 +25,10 @@ use mailcraft_proto::ProtoError;
 
 /// The path after the scheme when the caller names none: `org.example.app:/oauth2redirect`.
 pub const DEFAULT_REDIRECT_PATH: &str = "/oauth2redirect";
+/// The host of the authority-only form the phone registers: `org.example.app://oauth2redirect`,
+/// with no path (see [`CustomScheme::with_host_only`]). Microsoft Entra only accepts a custom
+/// scheme in the `//` form, and matches it to the letter, so the single-slash form is not used.
+pub const DEFAULT_REDIRECT_HOST: &str = "oauth2redirect";
 
 /// The longest address that is read; the rest of a longer one is not looked at, it is refused.
 pub(super) const MAX_ADDRESS: usize = 8 * 1024;
@@ -94,6 +98,20 @@ impl<'a> CustomScheme<'a> {
         }
         self.authority = Some(host.to_string());
         Ok(self)
+    }
+
+    /// The authority-only form, `scheme://host`, with no path at all, for a registration that is
+    /// made in that form (Microsoft Entra takes a custom scheme only with the `//`). `host` as for
+    /// [`CustomScheme::with_authority`]; the address is compared to the letter, and what may follow
+    /// it is the end, `?` or `#`.
+    pub fn with_host_only(scheme: &str, host: &str, handback: &'a Handback) -> Result<CustomScheme<'a>, NetError> {
+        if !valid_scheme(scheme) {
+            return Err(NetError::Config("the sign-in's redirect scheme must be a reverse domain in lower case, such as org.example.app".into()));
+        }
+        if !valid_host(host) {
+            return Err(NetError::Config("the sign-in's redirect host must be in lower case and use letters, digits, - and . only".into()));
+        }
+        Ok(CustomScheme { scheme: scheme.to_string(), authority: Some(host.to_string()), path: String::new(), handback })
     }
 
     /// What follows `scheme:` in the registered address.

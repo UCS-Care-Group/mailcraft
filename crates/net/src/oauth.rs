@@ -1871,7 +1871,7 @@ mod permission;
 pub use permission::{Ending, Permission, permission_endpoints, sign_in_ending_via, sign_in_for_permission_at};
 mod scheme;
 use scheme::Landing;
-pub use scheme::{CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
+pub use scheme::{CustomScheme, DEFAULT_REDIRECT_HOST, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
 
 /// [`sign_in_at`], coming back the way `via` says: through a loopback port (what a desktop does)
 /// or through a custom scheme the platform hands back ([`RedirectStrategy::CustomScheme`]).

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use proptest::prelude::*;
 
-use super::scheme::{CONSENT_FIELDS, MAX_ADDRESS, SIGN_IN_FIELDS, loggable, read_return};
+use super::scheme::{CONSENT_FIELDS, DEFAULT_REDIRECT_HOST, MAX_ADDRESS, SIGN_IN_FIELDS, loggable, read_return};
 use super::*;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -695,4 +695,48 @@ proptest! {
         let (result, _) = sign_in_back(&server, &format!("{SCHEME}:{PATH}{tail}"));
         prop_assert!(result.is_err() && server.asked() == 0);
     }
+}
+
+#[test]
+fn the_host_only_form_is_the_address_registered_to_the_letter() {
+    let handback = |_: &AtomicBool, _: Duration| -> Result<String, NetError> { Err(NetError::SignInCancelled) };
+    let scheme = CustomScheme::with_host_only("work.mailcraft.android", DEFAULT_REDIRECT_HOST, &handback).unwrap();
+    assert_eq!(scheme.redirect_uri(), "work.mailcraft.android://oauth2redirect");
+    let read = |address: &str| read_return(address, &scheme, "s", SIGN_IN_FIELDS).is_ok();
+    let base = "work.mailcraft.android://oauth2redirect";
+    assert!(read(&format!("{base}?code=c&state=s")));
+    assert!(read(&format!("{base}?state=s")));
+    for hostile in [
+        "work.mailcraft.android://oauth2redirect/x?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect/?code=c&state=s",
+        "work.mailcraft.android://oauth2redirectx?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect.evil?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect@evil?code=c&state=s",
+        "work.mailcraft.android://OAUTH2REDIRECT?code=c&state=s",
+        "work.mailcraft.android:/oauth2redirect?code=c&state=s",
+        "work.mailcraft.android:oauth2redirect?code=c&state=s",
+        "work.mailcraft.android:/oauth2redirect/?code=c&state=s",
+        "work.mailcraft.android:///oauth2redirect?code=c&state=s",
+        "work.mailcraft.android:?code=c&state=s",
+        "work.mailcraft.android://?code=c&state=s",
+        "work.mailcraft.android:/host?code=c&state=s",
+        "work.mailcraft.android://oauth2redirect&code=c&state=s",
+        "other.mailcraft.android://oauth2redirect?code=c&state=s",
+        "https://oauth2redirect?code=c&state=s",
+    ] {
+        assert!(!read(hostile), "{hostile}");
+    }
+}
+
+#[test]
+fn the_host_only_form_checks_its_scheme_and_host() {
+    let handback = |_: &AtomicBool, _: Duration| -> Result<String, NetError> { Err(NetError::SignInCancelled) };
+    for (scheme, host) in
+        [("https", "auth"), ("Org.Example.App", "auth"), (SCHEME, ""), (SCHEME, "Auth"), (SCHEME, "a/b"), (SCHEME, "a..b"), (SCHEME, "-a")]
+    {
+        assert!(CustomScheme::with_host_only(scheme, host, &handback).is_err(), "{scheme} {host}");
+    }
+    // The forms with a path go on working.
+    let scheme = CustomScheme::new(SCHEME, PATH, &handback).unwrap();
+    assert_eq!(scheme.redirect_uri(), format!("{SCHEME}:{PATH}"));
 }

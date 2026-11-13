@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{OAuth, OAuthProvider};
 use mailcraft_net::oauth::{
-    CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy, refresh_for_at, refresh_graph_shared_at, refresh_graph_shared_send_at,
+    CustomScheme, DEFAULT_REDIRECT_HOST, Handback, RedirectStrategy, refresh_for_at, refresh_graph_shared_at, refresh_graph_shared_send_at,
     refresh_graph_tasks_at, sign_in_ending_via, sign_in_for_permission_at,
 };
 
@@ -209,7 +209,7 @@ pub fn page(platform: &dyn Platform, landed: Receiver<String>, endpoints: &Endpo
     };
     let handback = move |flag: &AtomicBool, patience: Duration| wait_for(&landed, flag, patience);
     let handback: &Handback = &handback;
-    let via = match CustomScheme::new(&scheme, DEFAULT_REDIRECT_PATH, handback) {
+    let via = match CustomScheme::with_host_only(&scheme, DEFAULT_REDIRECT_HOST, handback) {
         Ok(custom) => RedirectStrategy::CustomScheme(custom),
         Err(_) => return Page::Unable("this app's sign-in address is not one Microsoft's page can come back to"),
     };

@@ -201,7 +201,7 @@ impl Rig {
     /// Microsoft's page comes back with `tail` after the redirect address (`{state}` filled in).
     fn page_comes_back_with(&self, tail: &'static str) {
         *self.phone.on_page.lock().unwrap() = Box::new(move |core, asked| {
-            let address = format!("{SCHEME}:/oauth2redirect{}", tail.replace("{state}", &asked["state"]));
+            let address = format!("{SCHEME}://oauth2redirect{}", tail.replace("{state}", &asked["state"]));
             assert!(core.hand_back_redirect(address), "a sign-in was waiting for it");
         });
     }
@@ -256,13 +256,13 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     // The page was sent where the system brings the app back to, for what a Graph account takes
     // and nothing that is asked for by itself.
     let page = query_of(&rig.phone.pages.lock().unwrap()[0]);
-    assert_eq!(page["redirect_uri"], format!("{SCHEME}:/oauth2redirect"));
+    assert_eq!(page["redirect_uri"], format!("{SCHEME}://oauth2redirect"));
     assert_eq!(page["login_hint"], ADA);
     assert!(page["scope"].contains("Mail.ReadWrite") && !page["scope"].contains("Tasks") && !page["scope"].contains("Shared"));
     // The code went to the token endpoint once, with the verifier whose hash the page was shown.
     assert_eq!(server.asked(), 1);
     // The next hand-back finds nobody waiting.
-    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=x&state=y")));
+    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=x&state=y")));
 }
 
 #[test]
@@ -303,13 +303,13 @@ fn another_program_naming_our_scheme_is_not_believed() {
     let server = good_server();
     let rig = Rig::new(&server);
     // Nobody waits: an address is dropped.
-    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=c&state=s")));
+    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=c&state=s")));
     assert!(!rig.core.hand_back_redirect(String::new()));
     // An address from another scheme, or of any size, while a sign-in waits, ends it and trades nothing.
     for address in [
         "http://localhost/?code=c&state={state}".to_string(),
         "org.example.other:/oauth2redirect?code=c&state={state}".to_string(),
-        format!("{SCHEME}:/oauth2redirect?code={}&state={{state}}", "a".repeat(1 << 20)),
+        format!("{SCHEME}://oauth2redirect?code={}&state={{state}}", "a".repeat(1 << 20)),
         "\u{0}".to_string(),
     ] {
         let template = address.clone();
@@ -330,8 +330,8 @@ fn only_the_first_address_is_taken() {
     let rig = Rig::new(&server);
     *rig.phone.on_page.lock().unwrap() = Box::new(|core, asked| {
         let state = &asked["state"];
-        assert!(core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=the-code&state={state}")));
-        assert!(!core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=evil&state={state}")));
+        assert!(core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=the-code&state={state}")));
+        assert!(!core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=evil&state={state}")));
     });
     assert!(matches!(rig.sign_in(""), SignInOutcome::SignedIn { .. }));
     let form = server.forms.lock().unwrap()[0].clone();

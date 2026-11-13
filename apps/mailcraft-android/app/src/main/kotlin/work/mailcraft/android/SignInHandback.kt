@@ -9,20 +9,23 @@ internal object Redirect {
     /** The reverse-domain scheme registered with the provider; the Rust side holds the same words. */
     const val SCHEME = "work.mailcraft.android"
 
-    /** What follows `SCHEME:` in the registered address (the Rust side's default path). */
-    const val PATH = "/oauth2redirect"
+    /**
+     * What follows `SCHEME://` in the registered address: a host and no path (the Rust side's
+     * default host). Microsoft Entra only accepts the `//` form, and matches it to the letter.
+     */
+    const val HOST = "oauth2redirect"
 
     /** The longest address handed over; the Rust side refuses a longer one, so none is passed. */
     const val MAX_ADDRESS = 8 * 1024
 
     /**
-     * [address] when it is the registered one (scheme and path to the letter, within the cap), else
+     * [address] when it is the registered one (scheme and host to the letter, within the cap), else
      * null. This only keeps strangers' intents out of the queue; the Rust side checks the state, the
      * fields and the rest, strictly, and every address is hostile until it has.
      */
     fun accepted(address: String?): String? {
         if (address == null || address.length > MAX_ADDRESS) return null
-        val head = "$SCHEME:$PATH"
+        val head = "$SCHEME://$HOST"
         if (!address.startsWith(head)) return null
         val next = address.getOrNull(head.length)
         return if (next == null || next == '?' || next == '#') address else null
