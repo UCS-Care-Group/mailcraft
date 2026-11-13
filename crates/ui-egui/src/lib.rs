@@ -154,6 +154,10 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod platform;
+#[cfg(test)]
+mod platform_tests;
+mod problem_log;
 pub mod reading;
 mod reminders;
 mod report_problem;
@@ -199,6 +203,10 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+#[cfg(test)]
+mod snooze_tell_tests;
+mod snooze_tick;
+pub mod software;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -340,10 +348,11 @@ pub struct Services {
     /// owner in to its server): for such an account the window never asks for a password, and its
     /// jobs go without one. Absent, or false for an account: the owner types it.
     pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
-    /// Desktop: ask the DNS for a domain's mail exchangers on a background thread (best first),
-    /// so account setup can tell whose servers an address at a company's own domain uses. Only
-    /// the domain is given, never the mailbox name.
-    pub lookup_mx: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
+    /// Desktop: find out about a domain on a background thread, so account setup can tell whose
+    /// servers an address at a company's own domain uses: its mail exchangers (best first), and,
+    /// when they name no provider this program knows, the servers its own SRV records name
+    /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
+    pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -508,6 +517,9 @@ pub struct Services {
     /// when it can't, and hands back which were clicked. Only the window asks for one, never a
     /// command. Absent in the browser and the tests: nothing is shown.
     pub alert: Option<Box<dyn alerts::AlertHost>>,
+    /// Desktop: open an address in the system's browser, and say whether one could be started
+    /// (the page a sign-in is made on). Absent in the browser and the tests.
+    pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
@@ -617,41 +629,16 @@ impl Delivered {
     }
 }
 
-/// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
-/// and `refresh:<address>`.
-pub trait SecretStore: Send + Sync {
-    fn get(&self, key: &str) -> Option<String>;
-    fn set(&self, key: &str, secret: &str) -> Result<(), String>;
-    fn delete(&self, key: &str);
-    /// Why the store itself couldn't be used the last time something was asked of it (none is
-    /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
-    /// itself, only a background thread does, [`secret_read`].)
-    fn take_trouble(&self) -> Option<StoreTrouble> {
-        None
-    }
-}
+pub use mailcraft_host::{SecretError, SecretStore, StoreTrouble};
 
-/// Why the system's credential store couldn't keep or give back a sign-in
-/// ([`SecretStore::take_trouble`]). Then nothing is remembered between runs: the owner is asked
-/// at each start, as on a system without a store, and is told why once a session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StoreTrouble {
-    /// No store answered: on Linux, no Secret Service (GNOME Keyring, KWallet) is running.
-    Unavailable,
-    /// The store is locked, or unlocking it was refused.
-    Locked,
-}
-
-impl StoreTrouble {
-    /// What the owner is told: in the status bar once, and under the switch in File › Options.
-    pub fn notice(self) -> String {
-        let why = match self {
-            StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
-            StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
-        };
-        i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
-    }
+/// What the owner is told when the system's credential store couldn't keep or give back a
+/// sign-in: in the status bar once, and under the switch in File › Options.
+pub fn store_trouble_notice(trouble: StoreTrouble) -> String {
+    let why = match trouble {
+        StoreTrouble::Unavailable => tl!("No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"),
+        StoreTrouble::Locked => tl!("The system's credential store is locked, or unlocking it was refused"),
+    };
+    i18n::fmt(tl!("{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."), &[("why", why)])
 }
 
 /// The pictures from the web that the host keeps on disk between runs
@@ -1018,6 +1005,9 @@ pub struct UiState {
     pub update_skip: String,
     /// The owner has been told, once, that MailCraft now installs its updates itself.
     pub update_install_told: bool,
+    /// The owner has been told, once, that the window is drawn without the graphics card
+    /// ([`software`]).
+    pub software_told: bool,
     /// Show a desktop alert when new mail arrives in an Inbox of the owner's own accounts while
     /// the window isn't in front ([`alerts`]): on unless the owner turns it off.
     pub alert_new_mail: bool,
@@ -1078,6 +1068,7 @@ impl Default for UiState {
             update_install: true,
             update_skip: String::new(),
             update_install_told: false,
+            software_told: false,
             alert_new_mail: true,
             alert_reminders: true,
             imported_keys: Vec::new(),
@@ -1131,7 +1122,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1482,6 +1473,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
     ),
     (
+        "ui.dismissSoftwareNotice",
+        "Dismiss Software Drawing Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the window is drawn by the processor, not the graphics card, which uses a lot of processor time; said once, kept in the settings. Answers {"dismissed": bool}"#,
+    ),
+    (
         "ui.dismissUpdateNotice",
         "Dismiss Update Notice",
         "Above the status bar",
@@ -1592,6 +1589,9 @@ pub struct MailApp {
     /// The settings file couldn't be read at start, and the line saying so hasn't been put away
     /// ([`settings_notice`]).
     pub settings_unread: Option<settings_notice::SettingsUnread>,
+    /// The window is drawn by the processor, not the graphics card (the host says so at start):
+    /// said once, and the window's own repaints are held to a few a second ([`software`]).
+    pub software_drawing: bool,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1765,6 +1765,8 @@ pub struct MailApp {
     inbox_run: Option<Id>,
     /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
     inbox_check: inbox_pass::InboxCheck,
+    /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
+    snooze_last: i64,
     /// When it was last looked whether something made here waits to go to a server (milliseconds).
     push_checked: f64,
     /// Accounts whose next run that nobody asked for only tells the server what changed here
@@ -1817,6 +1819,8 @@ pub struct MailApp {
     /// the account, its name, when, and the lines, as texts said in the interface's language
     /// when they are shown (#872).
     sync_problems: Vec<(Id, String, String, Vec<mailcraft_i18n::Text>)>,
+    /// The problem texts the log has had from each account's last run (`problem_log`).
+    logged_problems: problem_log::ProblemLog,
     /// Send/Receive Progress, when it is open ([`sync_panel`]).
     pub(crate) sync_panel: Option<sync_panel::Panel>,
     /// What runs now was asked for by the owner's own hand: a frame of the window that a press, a
@@ -1917,6 +1921,7 @@ impl MailApp {
             unconfirmed: false,
             shared_address_judged: None,
             settings_unread: None,
+            software_drawing: false,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -1994,6 +1999,7 @@ impl MailApp {
             inbox_queue: Default::default(),
             inbox_run: None,
             inbox_check: Default::default(),
+            snooze_last: 0,
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
@@ -2013,6 +2019,7 @@ impl MailApp {
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
+            logged_problems: Default::default(),
             sync_panel: None,
             by_hand: false,
             last_error: None,
@@ -2486,6 +2493,7 @@ impl MailApp {
             "ui.openDataFolder" => self.open_data_folder(),
             "ui.confirmServers" => self.confirm_servers(),
             "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
+            "ui.dismissSoftwareNotice" => software::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -3047,7 +3055,7 @@ impl MailApp {
     fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
-            self.status(trouble.notice());
+            self.status(store_trouble_notice(trouble));
         }
     }
 
@@ -4273,27 +4281,51 @@ impl MailApp {
         self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.iter().map(problem_line).collect()).unwrap_or_default()
     }
 
-    /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
+    /// Keep what a Send/Receive said went wrong (the log gets how many and each new text, cut short); a run without
     /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
+        self.note_problems_from("mail", account, errors, None, finished);
+    }
+
+    /// [`MailApp::note_sync_problems`] for a job of its own (`source`: calendar, tasks, rules, shared
+    /// mailboxes): each keeps its own memory of what the log has said. `logged` is what goes in the
+    /// log for `errors`, line for line: only texts told as [`mailcraft_i18n::Text`] have any (with
+    /// their values put aside); a free text names subjects and folders in quotes that nothing
+    /// here can be sure of, so of those the log has the count alone.
+    fn note_problems_from(&mut self, source: &'static str, account: Id, errors: &[String], logged: Option<&[String]>, finished: bool) {
+        // Mail's answers come piece by piece and its run ends with `finished`; another job's
+        // answer is its whole run.
+        let ends = finished || source != "mail";
         if errors.is_empty() {
             if finished {
                 self.sync_problems.retain(|(a, ..)| *a != account);
             }
+            if ends {
+                self.logged_problems.forget(account, source);
+                self.logged_problems.end_run(account, source);
+            }
             return;
         }
-        // The lines name subjects, addresses and folders: they are for the owner to read in the
-        // problems report, and the log says only how many there were.
-        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
+        // The lines name subjects, addresses and folders: the log gets how many there were and,
+        // for a text told with its values apart, each new text cut short (see `problem_log`).
+        log::warn!("send/receive, account {account} ({source}): {} problem(s) reported", errors.len());
+        if let Some(logged) = logged {
+            self.logged_problems.log_new(account, source, logged);
+        }
+        if ends {
+            self.logged_problems.end_run(account, source);
+        }
         self.keep_sync_problems(account, errors);
     }
 
     /// [`MailApp::note_sync_problems`] for problems a host told as texts, to be said in the
     /// interface's language (#872). It goes through that, which logs and keeps them in English,
-    /// and then puts the texts in place of the lines it kept.
+    /// and then puts the texts in place of the lines it kept. What is logged has every value of
+    /// the texts put aside.
     fn note_said_problems(&mut self, account: Id, errors: Vec<mailcraft_i18n::Text>, finished: bool) {
         let english: Vec<String> = errors.iter().map(ToString::to_string).collect();
-        self.note_sync_problems(account, &english, finished);
+        let logged: Vec<String> = errors.iter().map(problem_log::masked).collect();
+        self.note_problems_from("mail", account, &english, Some(&logged), finished);
         let Some((.., lines)) = self.sync_problems.iter_mut().find(|(a, ..)| *a == account) else { return };
         // (The newest lines are the last; of a very long run only the last ones were kept.)
         let kept = errors.len().min(lines.len());
@@ -4422,6 +4454,8 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 (self.sync_rx, self.sync_run, self.sync_password, self.sync_refused) = (None, None, None, false);
                 self.sync_totals = Default::default();
+                // Its accounts are other accounts: what the log said of the old ones isn't theirs.
+                self.logged_problems = Default::default();
                 return;
             }
             let piece = match rx.try_recv() {
@@ -4429,6 +4463,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
+                    self.logged_problems.end_run(*whose, "mail");
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
@@ -4466,7 +4501,15 @@ impl MailApp {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
-                Ok(_) => {}
+                Ok(answer) => {
+                    // What the engine added after taking it in (a snooze given up): the run's
+                    // own problems did not include it, and the owner is to be told.
+                    let said: Vec<String> =
+                        answer["said"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+                    if !said.is_empty() {
+                        self.note_sync_problems(account, &said, false);
+                    }
+                }
                 Err(e) => {
                     self.status(e.to_string());
                     self.send_doubt = true;
@@ -4481,6 +4524,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);
@@ -4720,14 +4764,14 @@ impl MailApp {
         self.offline_tick();
         self.drive_server_search();
         if self.server_searching.busy() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
         if self.fetching.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         // The pieces of a Graph mail run come without waking the window: it looks again soon.
         if self.graph_pieces.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(150));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
         self.poll_tasks();
@@ -4760,6 +4804,8 @@ impl MailApp {
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
         }
+        // Snoozed mail whose Return time has come (#949).
+        self.snooze_tick();
         reminders::tick(self, ctx);
         // What was done in the Reminders window, which has passes of its own (#771).
         reminders::carry_out(self, ctx);
@@ -4778,7 +4824,7 @@ impl MailApp {
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
         } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
             // something waits to go out.
@@ -5201,6 +5247,7 @@ impl MailApp {
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
             settings_notice::bar(self, ui);
+            software::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
@@ -5632,6 +5679,8 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
 #[cfg(test)]
