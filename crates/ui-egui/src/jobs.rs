@@ -33,6 +33,15 @@ use mailcraft_engine::sync_driver::Busy;
 pub(crate) use mailcraft_engine::sync_driver::JobKind;
 
 impl MailApp {
+    /// What the window says of itself when the engine is asked which question to the owner is next.
+    pub(crate) fn ask_window(&self) -> mailcraft_engine::sync_driver::AskWindow {
+        mailcraft_engine::sync_driver::AskWindow {
+            dialog_open: self.dialog.is_some(),
+            backstage: self.ui.backstage,
+            signing_in: self.signing_in.is_some(),
+        }
+    }
+
     /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.
     pub(crate) fn job_busy(&self) -> Busy {
         Busy {

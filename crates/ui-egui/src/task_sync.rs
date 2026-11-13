@@ -24,7 +24,7 @@
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::tasks_remote;
-use mailcraft_engine::sync_driver::{TasksCame, TasksFacts};
+use mailcraft_engine::sync_driver::{TasksCame, TasksFacts, TasksQuestion};
 use mailcraft_model::{Id, LocalTasks};
 use serde_json::{Value, json};
 
@@ -176,16 +176,16 @@ impl MailApp {
         // A question that went away unanswered is not asked again by itself.
         let still = self.signing_in.is_some() || matches!(&self.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowTasks");
         self.session.driver.tasks.unanswered(still);
-        if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() {
-            return;
-        }
-        let Some(account) = self.session.driver.tasks.to_ask() else {
-            if self.session.mailbox.local_tasks == LocalTasks::Unasked {
+        // Who is asked next is the engine's to say.
+        match self.session.tasks_question(&self.ask_window()) {
+            Some(TasksQuestion::Permission(account)) => {
+                self.ask_tasks(account);
+            }
+            Some(TasksQuestion::LocalTasks) => {
                 self.offer_local_tasks();
             }
-            return;
-        };
-        self.ask_tasks(account);
+            None => {}
+        }
     }
 
     /// For a stand-in host (the screenshot example): every account that keeps to-dos has its To Do

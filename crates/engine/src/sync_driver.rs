@@ -7,6 +7,9 @@
 
 use std::collections::HashMap;
 
+pub mod ask;
+#[cfg(test)]
+mod ask_tests;
 pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
@@ -46,6 +49,7 @@ pub mod tasks;
 #[cfg(test)]
 mod tasks_tests;
 
+pub use ask::{AskWindow, TasksQuestion};
 pub use auto_replies::{AutoRepliesDriver, RepliesAnswer, RepliesCame, RepliesFacts, RepliesLook, RepliesPlan, Trouble as RepliesTrouble};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};

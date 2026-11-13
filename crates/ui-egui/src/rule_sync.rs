@@ -226,10 +226,7 @@ impl MailApp {
         let still = self.signing_in.is_some() || matches!(&self.dialog, Some(Dialog::Confirm { command, .. }) if command == "ui.allowRules");
         self.session.driver.rules.unanswered(still);
         // (Working offline, Microsoft's page can't be had: the question waits.)
-        if self.dialog.is_some() || self.ui.backstage || self.signing_in.is_some() || self.offline() {
-            return;
-        }
-        if let Some(account) = self.session.driver.rules.to_ask() {
+        if let Some(account) = self.session.rules_question(&self.ask_window()) {
             self.ask_rules(account);
         }
     }
