@@ -116,7 +116,7 @@ use mailcraft_host::graph::{graph_in, graph_in_with, graph_sending_with, graph_w
 use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
-    GraphRequest, GraphResult, MailApp, Services, SettingsUnread, SignInRequest, UiState,
+    GraphRequest, MailApp, Services, SettingsUnread, SignInRequest, UiState,
     window_geometry::{self, WindowGeometry, take_rescue},
 };
 
@@ -1165,20 +1165,17 @@ fn services(
             let ctx = sign_in_ctx.clone();
             background(&sign_in_ctx, "sign-in", move || sign_in(&ctx, request))
         })),
-        graph: host.clone().map(|host| {
-            Box::new(move |request: GraphRequest| {
-                let wake = graph_ctx.clone();
-                host.run_job("microsoft graph", move |_platform| mailcraft_host::graph::graph(request), move || wake.request_repaint())
-            }) as Box<dyn Fn(GraphRequest) -> std::sync::mpsc::Receiver<GraphResult>>
-        }),
+        graph: Some(Box::new({
+            let host = host.clone();
+            move |request: GraphRequest| host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || mailcraft_host::graph::graph(request))
+        })),
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
-        graph_fetch: host.clone().map(|host| {
-            Box::new(move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
-                let wake = fetch_ctx.clone();
-                host.run_job("message download", move |_platform| mailcraft_host::fetch::run(job), move || wake.request_repaint())
-            })
-                as Box<dyn Fn(mailcraft_ui_egui::graph_fetch::GraphFetchJob) -> std::sync::mpsc::Receiver<mailcraft_model::sync::GraphFetchResult>>
-        }),
+        graph_fetch: Some(Box::new({
+            let host = host.clone();
+            move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
+                host_job(host.as_ref(), &fetch_ctx, "message download", move || mailcraft_host::fetch::run(job))
+            }
+        })),
         // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),

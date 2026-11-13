@@ -163,6 +163,7 @@ fn favorites_words(error: &mailcraft_net::NetError) -> &'static str {
 
 /// [`graph_in`], with the token coming from `renew` when the request brings none (and, for a
 /// shared mailbox's mail to send, from `renew` too).
+#[cfg(any(test, feature = "test-support"))]
 pub fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResult {
     graph_sending_with(request, zone, renew, &|settings, refresh| renew(settings, refresh, false))
 }

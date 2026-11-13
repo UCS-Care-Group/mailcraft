@@ -9,8 +9,12 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 mod run;
+/// The seams the flow tests run the whole way through with a renewal of their own (a test's
+/// build only: `test-support`).
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
+pub use run::{Renew, RenewSend, graph_in, graph_in_with, graph_sending_with, graph_with};
 #[cfg(not(target_arch = "wasm32"))]
-pub use run::*;
+pub use run::{graph, local_zone, open_by_address};
 
 use mailcraft_model::Id;
 
