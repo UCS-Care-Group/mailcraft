@@ -228,7 +228,7 @@ pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index:
         attachment,
         at: ctx.input(|i| i.time) + delay,
     });
-    ctx.request_repaint_after(Duration::from_secs_f64(delay + 0.001));
+    crate::software::repaint_after(ctx, Duration::from_secs_f64(delay + 0.001));
 }
 
 /// Discard the queued single-click action without starting a helper.
@@ -243,7 +243,7 @@ pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
     };
     let remaining = click.at - ctx.input(|i| i.time);
     if remaining >= 0.0 {
-        ctx.request_repaint_after(Duration::from_secs_f64(remaining + 0.001));
+        crate::software::repaint_after(ctx, Duration::from_secs_f64(remaining + 0.001));
         return;
     }
     let Some(click) = app.pending_attachment_preview.take() else { return };
@@ -476,7 +476,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
                 ui.colored_label(tokens.red, error.text());
             } else {
                 ui.horizontal(|ui| {
-                    ui.spinner();
+                    crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                     ui.label(tl!("Preparing attachment preview…"));
                 });
             }
