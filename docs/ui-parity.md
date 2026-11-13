@@ -81,7 +81,7 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 Rendering is egui on wgpu (DirectX 12 with an OpenGL fallback on Windows, Metal, Vulkan; WebGPU
 with a WebGL2 fallback in the browser). Verified here: Windows 11 x64 and a Chromium browser.
-High-DPI is handled by egui; a system tray and badges are absent (gap #11). Desktop alerts for
+High-DPI is handled by egui; a system tray is absent (gap #11). On Windows the taskbar icon can show a red dot when new mail has arrived in every Inbox since the window was last in front (not Junk, not a first download, not mail that was already there; looking at the window clears it). File › Options › Desktop alerts has the checkbox; with it off, the icon is left as it is. Desktop alerts for
 reminders and for new mail go through the system's own notifications while MailCraft runs (R7.1):
 the desktop's notification service on Linux and the BSDs, toasts on Windows (for the copy the
 `.msi` installed, whose Start menu shortcut names it), the notification centre for the macOS app.

@@ -179,7 +179,14 @@ fn deliver(app: &mut MailApp, account: Id, inbox: Id, messages: &[(u32, &str, &s
 
 /// One frame of the window's alerts, with the window in front or not.
 fn frame(app: &mut MailApp, ctx: &egui::Context, focused: bool) {
-    let raw = egui::RawInput { focused, ..Default::default() };
+    frame_at(app, ctx, focused, false);
+}
+
+/// One frame, and whether the window is minimized. A minimized window is not in front even
+/// when the keyboard-focus flag was left on.
+fn frame_at(app: &mut MailApp, ctx: &egui::Context, focused: bool, minimized: bool) {
+    let mut raw = egui::RawInput { focused, ..Default::default() };
+    raw.viewports.insert(egui::ViewportId::ROOT, egui::ViewportInfo { focused: Some(focused), minimized: Some(minimized), ..Default::default() });
     pass(ctx, raw, |ctx| tick(app, ctx));
 }
 
@@ -282,12 +289,69 @@ fn the_switches_are_kept_and_checked() {
     assert!(app.ui.alert_new_mail && app.ui.alert_reminders, "both on by default");
     assert!(app.execute("ui.desktopAlerts", json!({})).is_err());
     assert!(app.execute("ui.desktopAlerts", json!({"reminders": "no"})).is_err());
-    assert_eq!(app.execute("ui.desktopAlerts", json!({"reminders": false})).unwrap(), json!({"newMail": true, "reminders": false}));
+    assert_eq!(app.execute("ui.desktopAlerts", json!({"reminders": false})).unwrap(), json!({"newMail": true, "reminders": false, "taskbar": true}));
     let saved: crate::UiState = serde_json::from_value(serde_json::to_value(app.prefs()).unwrap()).unwrap();
     assert!(saved.alert_new_mail && !saved.alert_reminders);
-    // An older settings file has neither: both on.
+    assert!(saved.taskbar_dot);
+    // An older settings file has neither: all on, and the taskbar shows the dot.
     let old: crate::UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
     assert!(old.alert_new_mail && old.alert_reminders);
+    assert!(old.taskbar_dot);
+}
+
+#[test]
+fn the_taskbar_dot_is_a_switch() {
+    let (mut app, ..) = window();
+    assert!(app.ui.taskbar_dot);
+    assert_eq!(app.execute("ui.desktopAlerts", json!({"taskbar": false})).unwrap()["taskbar"], false);
+    assert!(!app.ui.taskbar_dot);
+    assert_eq!(app.taskbar_badge(), 0);
+    assert_eq!(app.execute("ui.desktopAlerts", json!({"taskbar": true})).unwrap()["taskbar"], true);
+    assert!(app.ui.taskbar_dot);
+    assert!(app.execute("ui.desktopAlerts", json!({"taskbar": "both"})).is_err());
+    // A settings file from the count, the dot or off.
+    let count: crate::UiState = serde_json::from_value(json!({"taskbarCount": "count"})).unwrap();
+    let dot: crate::UiState = serde_json::from_value(json!({"taskbarCount": "dot"})).unwrap();
+    let off: crate::UiState = serde_json::from_value(json!({"taskbarCount": "off"})).unwrap();
+    let old_off: crate::UiState = serde_json::from_value(json!({"taskbarCount": false})).unwrap();
+    assert!(count.taskbar_dot && dot.taskbar_dot);
+    assert!(!off.taskbar_dot && !old_off.taskbar_dot);
+}
+
+#[test]
+fn the_taskbar_counts_new_mail_until_the_window_is_in_front() {
+    let (mut app, _, account, inbox) = window();
+    let ctx = egui::Context::default();
+    // In front: the mail is seen, so the count stays 0.
+    run(&mut app, &ctx, true, account, inbox, &[(2, "Rowan", "Seen")]);
+    assert_eq!(app.taskbar_badge(), 0);
+    // Elsewhere: the runs add up, across every Inbox the count watches.
+    run(&mut app, &ctx, false, account, inbox, &[(3, "Rowan", "One"), (4, "Noor", "Two")]);
+    assert_eq!(app.taskbar_badge(), 2);
+    run(&mut app, &ctx, false, account, inbox, &[(5, "Ada", "Three")]);
+    assert_eq!(app.taskbar_badge(), 3);
+    // Looking at the window clears it, and a later run starts again from nothing.
+    frame(&mut app, &ctx, true);
+    assert_eq!(app.taskbar_badge(), 0);
+    run(&mut app, &ctx, false, account, inbox, &[(6, "Ada", "Four")]);
+    assert_eq!(app.taskbar_badge(), 1);
+    // Switched off: gone, and what arrives meanwhile is not kept for when it is switched on.
+    app.execute("ui.desktopAlerts", json!({"taskbar": false})).unwrap();
+    assert_eq!(app.taskbar_badge(), 0);
+    run(&mut app, &ctx, false, account, inbox, &[(7, "Ada", "Quiet")]);
+    assert_eq!(app.taskbar_badge(), 0);
+    app.execute("ui.desktopAlerts", json!({"taskbar": true})).unwrap();
+    run(&mut app, &ctx, false, account, inbox, &[(8, "Ada", "Again")]);
+    assert_eq!(app.taskbar_badge(), 1);
+    // Minimized, with the keyboard flag left on: still not being looked at, so it counts.
+    frame_at(&mut app, &ctx, true, true);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
+    frame_at(&mut app, &ctx, true, true);
+    deliver(&mut app, account, inbox, &[(9, "Ada", "Minimized")]);
+    app.sync_rx = None;
+    frame_at(&mut app, &ctx, true, true);
+    assert_eq!(app.taskbar_badge(), 2);
 }
 
 #[test]

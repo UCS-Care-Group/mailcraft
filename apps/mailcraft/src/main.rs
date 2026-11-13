@@ -101,6 +101,7 @@ mod shared_send_flow;
 mod single_instance;
 mod system_locale;
 mod system_motion;
+mod taskbar_count;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
@@ -137,6 +138,7 @@ struct App(
     Option<HostUpdates>,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
     #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
+    taskbar_count::Icons,
 );
 
 /// A copy that updates itself (`self_update`): where it keeps what it needs, what it is, and what
@@ -164,6 +166,19 @@ impl HostUpdates {
     }
 }
 
+impl App {
+    fn taskbar(&mut self) -> &mut taskbar_count::Icons {
+        #[cfg(target_os = "macos")]
+        {
+            &mut self.8
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            &mut self.6
+        }
+    }
+}
+
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
@@ -186,6 +201,9 @@ impl eframe::App for App {
             bar.pump(&mut self.0, ctx);
         }
         self.0.logic(ctx);
+        // New mail since the window was last in front, as a red dot on the taskbar icon (Windows).
+        let badge = self.0.taskbar_badge();
+        self.taskbar().apply(frame, badge);
         // Another mailbox file opened in the window (or File › New): the lock follows it (#517).
         if let Some(guard) = &self.4
             && !self.0.is_opening()
@@ -1248,6 +1266,7 @@ fn services(
         data_folder: data_folder(prefs_enabled()),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
+        shows_taskbar_count: cfg!(target_os = "windows"),
         open_page: Some(Box::new(open_in_browser)),
         open_page_waiting: Some(std::sync::Arc::new(open_in_browser)),
         clipboard: clipboard::board(None),
@@ -1715,6 +1734,7 @@ fn main() -> eframe::Result {
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]
                 menu_bar,
+                taskbar_count::Icons::new(),
             )))
         }),
     )

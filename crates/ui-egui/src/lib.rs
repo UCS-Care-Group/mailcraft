@@ -540,6 +540,9 @@ pub struct Services {
     /// when it can't, and hands back which were clicked. Only the window asks for one, never a
     /// command. Absent in the browser and the tests: nothing is shown.
     pub alert: Option<Box<dyn alerts::AlertHost>>,
+    /// Desktop, Windows: the taskbar icon can show a red dot for new mail ([`MailApp::taskbar_badge`]).
+    /// Off elsewhere, where the taskbar icon is not the window's to change: Options says so.
+    pub shows_taskbar_count: bool,
     /// Desktop: open an address in the system's browser, and say whether one could be started
     /// (the page a sign-in is made on). Absent in the browser and the tests.
     pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
@@ -904,6 +907,12 @@ pub struct UiState {
     pub alert_new_mail: bool,
     /// Show a desktop alert for each reminder as it falls due: on unless the owner turns it off.
     pub alert_reminders: bool,
+    /// File › Options › Desktop alerts: a red dot on the taskbar icon for new mail in every Inbox
+    /// since the window was last in front (not Junk, not a first download). On unless the owner
+    /// turns it off. A settings file from before the checkbox is read as on when it asked for a
+    /// count or a dot, and as off when it asked for nothing; a missing value is on.
+    #[serde(rename = "taskbarCount", default = "default_taskbar_dot", deserialize_with = "alerts::de_taskbar_dot")]
+    pub taskbar_dot: bool,
     /// The filters Advanced Search's Add filters puts in its panel (#329).
     pub advanced_filters: advanced_search::Filters,
     /// The public facts of the private keys imported in File › Options › Security (#30): never
@@ -963,9 +972,14 @@ impl Default for UiState {
             software_told: false,
             alert_new_mail: true,
             alert_reminders: true,
+            taskbar_dot: default_taskbar_dot(),
             imported_keys: Vec::new(),
         }
     }
+}
+
+fn default_taskbar_dot() -> bool {
+    true
 }
 
 /// The engine's preferences in the window's settings for a new install: the engine's own, but
@@ -1242,7 +1256,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.desktopAlerts",
         "Desktop Alerts",
         "File › Options",
-        r#"{"newMail"?: bool, "reminders"?: bool} — whether the system shows a desktop alert when new mail arrives in an Inbox of your own accounts while the window isn't in front, and for each reminder as it falls due (both on unless turned off). Nothing else is changed, and no alert is shown by this. Answers the two switches"#,
+        r#"{"newMail"?: bool, "reminders"?: bool, "taskbar"?: bool} — whether the system shows a desktop alert when new mail arrives in an Inbox of your own accounts while the window isn't in front, and for each reminder as it falls due, and whether the taskbar icon shows a red dot for new mail in every Inbox since the window was last in front (not Junk, not mail already here, not a first download; looking at the window clears it). All on unless turned off. Nothing else is changed, and no alert is shown by this. Answers the switches"#,
     ),
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
@@ -1952,6 +1966,13 @@ impl MailApp {
         }
     }
 
+    /// How many new messages the taskbar dot stands for: new mail in every Inbox since the window
+    /// was last in front, or 0 when the dot is off or the window is in front ([`alerts`]). The
+    /// icon shows the dot whenever this is not 0.
+    pub fn taskbar_badge(&self) -> u32 {
+        self.alerts.badge
+    }
+
     /// Preferences to save between runs: the UI state plus the engine's preferences and view.
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
@@ -2581,17 +2602,27 @@ impl MailApp {
                 Ok(json!({"value": on}))
             }
             "ui.desktopAlerts" => {
-                let (mail, reminders) = (p.get("newMail"), p.get("reminders"));
-                if mail.is_none() && reminders.is_none() {
-                    return Some(Err(tl!("Say which: `newMail`, `reminders` (true or false)").to_string()));
+                let (mail, reminders, taskbar) = (p.get("newMail"), p.get("reminders"), p.get("taskbar"));
+                if mail.is_none() && reminders.is_none() && taskbar.is_none() {
+                    return Some(Err(tl!("Say which: `newMail`, `reminders` or `taskbar` (true or false)").to_string()));
                 }
-                let (Some(mail), Some(reminders)) =
-                    (mail.map_or(Some(self.ui.alert_new_mail), Value::as_bool), reminders.map_or(Some(self.ui.alert_reminders), Value::as_bool))
-                else {
+                let flag = |v: Option<&Value>, current: bool| v.map_or(Some(current), Value::as_bool);
+                let (Some(mail), Some(reminders)) = (flag(mail, self.ui.alert_new_mail), flag(reminders, self.ui.alert_reminders)) else {
                     return Some(Err(tl!("`newMail` and `reminders` are true or false").to_string()));
                 };
-                (self.ui.alert_new_mail, self.ui.alert_reminders) = (mail, reminders);
-                Ok(json!({"newMail": mail, "reminders": reminders}))
+                let taskbar = match taskbar {
+                    None => self.ui.taskbar_dot,
+                    Some(value) => match alerts::taskbar_dot_from(value) {
+                        Some(on) => on,
+                        None => return Some(Err(tl!("`taskbar` is true or false").to_string())),
+                    },
+                };
+                (self.ui.alert_new_mail, self.ui.alert_reminders, self.ui.taskbar_dot) = (mail, reminders, taskbar);
+                if !taskbar {
+                    self.alerts.pending = 0;
+                    self.alerts.badge = 0;
+                }
+                Ok(json!({"newMail": mail, "reminders": reminders, "taskbar": taskbar}))
             }
             "ui.dismissReminder" => {
                 let one = p.get("event").and_then(Value::as_u64).zip(s("occurrence"));

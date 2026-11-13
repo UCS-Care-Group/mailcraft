@@ -4909,6 +4909,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Pentru un cont care se conectează cu Microsoft: dosarele pe care le țineți la Favorite în Outlook, în aceeași ordine. Sunt citite de pe server și nu sunt modificate niciodată acolo. Fără aceasta, se afișează favoritele marcate în MailCraft."
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Forget"
@@ -11249,9 +11254,8 @@ msgstr "Spuneți ce memento (`event` și `occurrence`) sau `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "Spuneți care: `newMail`, `reminders` (true sau false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -12090,6 +12094,11 @@ msgstr "Afișați o alertă pe desktop pentru mementouri"
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afișați o alertă pe desktop când sosește un e-mail nou"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -15391,6 +15400,11 @@ msgid "This shared mailbox's account is gone: remove the shared mailbox and add 
 msgstr "Contul acestei cutii poștale partajate nu mai există: eliminați cutia poștală partajată și adăugați-o din nou"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
@@ -17032,6 +17046,11 @@ msgstr "`newMail` și `reminders` sunt true sau false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` este installsItself sau didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -21161,6 +21180,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "Spuneți care: `newMail`, `reminders` (true sau false)"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

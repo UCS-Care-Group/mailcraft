@@ -1,0 +1,1 @@
+- **New mail on the taskbar icon.** On Windows, File › Options › Desktop alerts has a checkbox for a red dot when new mail has arrived in every Inbox since you last looked at the window. Not Junk, and not mail that was already there. Looking at the window clears it. With the checkbox off, the icon is left as it is.

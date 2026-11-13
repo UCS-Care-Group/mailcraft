@@ -4066,6 +4066,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Forget"
 msgstr ""
@@ -9306,7 +9311,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "Say which: `newMail`, `reminders` (true or false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
 msgstr ""
 
 #. interface
@@ -9998,6 +10003,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/alerts.rs
 msgid "Show a desktop alert when new mail arrives"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
 msgstr ""
 
 #. interface
@@ -12745,6 +12755,11 @@ msgid "This shared mailbox's account is gone: remove the shared mailbox and add 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
@@ -14092,6 +14107,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "`notice` is installsItself or didntStart"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
 msgstr ""
 
 #. interface

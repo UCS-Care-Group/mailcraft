@@ -4650,6 +4650,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Pour un compte qui se connecte avec Microsoft : les dossiers que vous gardez dans les Favoris d'Outlook, dans le même ordre. Ils sont lus sur le serveur et n'y sont jamais modifiés. Sans cette option, les favoris que vous marquez dans MailCraft sont affichés."
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Forget"
 msgstr ""
@@ -10604,9 +10609,8 @@ msgstr "Indiquez quel rappel (`event` et `occurrence`), ou `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "Indiquez lequel : `newMail`, `reminders` (true ou false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -11393,6 +11397,11 @@ msgstr "Afficher une alerte sur le bureau pour les rappels"
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afficher une alerte sur le bureau à l'arrivée de nouveau courrier"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14439,6 +14448,11 @@ msgid "This shared mailbox's account is gone: remove the shared mailbox and add 
 msgstr "Le compte de cette boîte aux lettres partagée n'existe plus : supprimez la boîte aux lettres partagée et ajoutez-la de nouveau"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
@@ -15964,6 +15978,11 @@ msgstr "`newMail` et `reminders` valent true ou false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` vaut installsItself ou didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -19807,6 +19826,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "Indiquez lequel : `newMail`, `reminders` (true ou false)"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

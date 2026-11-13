@@ -136,6 +136,9 @@ windows = { version = "0.62", features = [
 ] }
 # A `.p12` goes to the Windows Runtime's import as base64 text (`key_holders/windows_store.rs`).
 base64 = { workspace = true }
+# The red dot on the taskbar button (`taskbar_count.rs`). That call is unsafe in the `windows`
+# bindings, which this program forbids; winsafe wraps it. MIT, and nothing under it.
+winsafe = { version = "0.0.29", default-features = false, features = ["shell", "gdi"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 # S/MIME keys on PKCS#11 tokens (`key_holders/pkcs11.rs`, #30): smartcards through OpenSC and what

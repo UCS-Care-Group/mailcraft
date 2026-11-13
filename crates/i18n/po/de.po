@@ -4648,6 +4648,11 @@ msgid "For an account that signs in with Microsoft: the folders you keep under F
 msgstr "Für ein Konto mit Microsoft-Anmeldung: die Ordner, die Sie in Outlook unter Favoriten haben, in derselben Reihenfolge. Sie werden vom Server gelesen und dort nie geändert. Ohne dies werden die Favoriten angezeigt, die Sie in MailCraft markieren."
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+msgstr "Für Nachrichten, die in allen Posteingängen angekommen sind, seit das Fenster zuletzt vorn war. Nicht Junk, und nicht Nachrichten, die schon da waren. Ein Blick auf das Fenster löscht ihn."
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 msgid "Forget"
 msgstr ""
@@ -10594,9 +10599,8 @@ msgstr "Geben Sie die Erinnerung an (`event` und `occurrence`) oder `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "Geben Sie an, welche: `newMail`, `reminders` (true oder false)"
+msgid "Say which: `newMail`, `reminders` or `taskbar` (true or false)"
+msgstr "Geben Sie an, welche: `newMail`, `reminders` oder `taskbar` (true oder false)"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -11383,6 +11387,11 @@ msgstr "Desktopbenachrichtigung für Erinnerungen anzeigen"
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Desktopbenachrichtigung bei neuen E-Mails anzeigen"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "Show a red dot on the taskbar icon when new mail arrives"
+msgstr "Roten Punkt am Taskleistensymbol zeigen, wenn neue Nachrichten ankommen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14427,6 +14436,11 @@ msgid "This shared mailbox's account is gone: remove the shared mailbox and add 
 msgstr "Das Konto dieses freigegebenen Postfachs ist nicht mehr vorhanden: Entfernen Sie das freigegebene Postfach und fügen Sie es erneut hinzu"
 
 #. interface
+#: crates/ui-egui/src/alerts.rs
+msgid "This system doesn't mark the taskbar icon."
+msgstr "Dieses System markiert das Taskleistensymbol nicht."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
@@ -15948,6 +15962,11 @@ msgstr "`newMail` und `reminders` sind true oder false"
 #, fuzzy
 msgid "`notice` is installsItself or didntStart"
 msgstr "`notice` ist installsItself oder didntStart"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "`taskbar` is true or false"
+msgstr "`taskbar` ist true oder false"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -19791,6 +19810,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Say which: `newMail`, `reminders` (true or false)"
+#~ msgstr "Geben Sie an, welche: `newMail`, `reminders` (true oder false)"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

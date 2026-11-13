@@ -29,8 +29,29 @@ use std::collections::VecDeque;
 use mailcraft_engine::arrivals::{self, Arrival, InboxMark};
 use mailcraft_engine::cmd::view::Reminder;
 use mailcraft_model::Id;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+
+/// Whether the taskbar icon shows a red dot. `true` and the older `"dot"` and `"count"` do; `false`
+/// and `"off"` do not. Anything else is refused. A settings file from before the checkbox is read
+/// the same way.
+pub fn taskbar_dot_from(value: &Value) -> Option<bool> {
+    match value {
+        Value::Bool(on) => Some(*on),
+        Value::String(text) => match text.as_str() {
+            "dot" | "count" => Some(true),
+            "off" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// [`taskbar_dot_from`] for the settings file.
+pub fn de_taskbar_dot<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    let value = Value::deserialize(deserializer)?;
+    taskbar_dot_from(&value).ok_or_else(|| serde::de::Error::custom("`taskbarCount` is true or false"))
+}
 
 use crate::MailApp;
 
@@ -145,6 +166,10 @@ pub struct State {
     idle_rev: u64,
     /// The mark a Send/Receive under way started from.
     run: Option<(InboxMark, Option<std::path::PathBuf>)>,
+    /// New Inbox messages since the window was last in front ([`mailcraft_engine::arrivals::new_inbox_count`]).
+    pub(crate) pending: usize,
+    /// What the taskbar icon should show: `pending` while the switch is on and the window is elsewhere, else 0.
+    pub(crate) badge: u32,
 }
 
 /// Text from a message (or an appointment) made fit for an alert, as a name is shown (#454): one
@@ -251,25 +276,49 @@ fn busy(app: &MailApp) -> bool {
     app.syncing() || app.graph_rx.is_some() || !app.sync_queue.is_empty()
 }
 
+/// The owner is looking at the window: it has the keyboard and it is not minimized.
+///
+/// The keyboard flag can stay on after the window was minimized, so a minimized window
+/// is not being looked at.
+fn in_front(ctx: &egui::Context) -> bool {
+    ctx.input(|i| {
+        let window = i.viewport();
+        let focused = window.focused.unwrap_or(i.focused);
+        focused && !window.minimized.unwrap_or(false)
+    })
+}
+
 /// Every frame, before anything else: mark the mailbox while no Send/Receive is under way; once one
 /// is over, tell of the new mail it brought; take in the clicks on alerts.
 pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     clicks(app, ctx);
+    let focused = ctx.input(|i| i.focused);
+    let in_front = in_front(ctx);
+    // Looking at the window, or switching the dot off, clears it, even mid-run.
+    if in_front || !app.ui.taskbar_dot {
+        app.alerts.pending = 0;
+    }
     let path = app.session.path.clone();
     if busy(app) {
         if app.alerts.run.is_none() {
             app.alerts.run = app.alerts.idle.take();
         }
+        app.alerts.badge = u32::try_from(app.alerts.pending).unwrap_or(0);
         return;
     }
     if let Some((before, was)) = app.alerts.run.take()
         && was == path
     {
         let found = arrivals::arrivals(&app.session.mailbox, &before);
-        let focused = ctx.input(|i| i.focused);
         let planned = plan_mail(&found, app.ui.alert_new_mail, focused);
         show(app, planned);
+        // The same run, counted once for the taskbar: every Inbox, including a shared mailbox.
+        if !in_front && app.ui.taskbar_dot {
+            let n = arrivals::new_inbox_count(&app.session.mailbox, &before);
+            app.alerts.pending = app.alerts.pending.saturating_add(n).min(arrivals::MOST);
+        }
     }
+    app.alerts.badge = u32::try_from(app.alerts.pending).unwrap_or(0);
     let rev = app.session.rev();
     if app.alerts.idle.is_none() || app.alerts.idle_rev != rev || app.alerts.idle.as_ref().is_some_and(|(_, p)| *p != path) {
         app.alerts.idle = Some((arrivals::mark(&app.session.mailbox), path));
@@ -322,6 +371,8 @@ pub fn inspect(app: &MailApp, p: &Value) -> Value {
     json!({
         "newMail": app.ui.alert_new_mail,
         "reminders": app.ui.alert_reminders,
+        "taskbar": app.ui.taskbar_dot,
+        "count": app.alerts.badge,
         "available": app.services.alert.is_some() && trouble.is_none(),
         "trouble": trouble.map(AlertTrouble::code),
         "shown": shown,
@@ -341,6 +392,20 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::To
     let mut reminders = app.ui.alert_reminders;
     if ui.checkbox(&mut reminders, tl!("Show a desktop alert for reminders")).changed() {
         let _ = app.run("ui.desktopAlerts", json!({"reminders": reminders}));
+    }
+    if app.services.shows_taskbar_count {
+        let mut dot = app.ui.taskbar_dot;
+        if ui
+            .checkbox(&mut dot, tl!("Show a red dot on the taskbar icon when new mail arrives"))
+            .on_hover_text(tl!(
+                "For mail that arrived in every Inbox since the window was last in front. Not Junk, and not mail that was already here. Looking at the window clears it."
+            ))
+            .changed()
+        {
+            let _ = app.run("ui.desktopAlerts", json!({"taskbar": dot}));
+        }
+    } else {
+        ui.label(egui::RichText::new(tl!("This system doesn't mark the taskbar icon.")).color(t.text_dim));
     }
     if let Some(trouble) = app.services.alert.as_ref().and_then(|h| h.trouble()) {
         ui.label(egui::RichText::new(trouble.notice()).color(t.text_dim));
