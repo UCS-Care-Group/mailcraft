@@ -51,6 +51,9 @@ pub enum DistinguishedFolder {
     Contacts,
     /// The default to-do list.
     Tasks,
+    /// The top of the organisation's public folders (`publicfoldersroot`), #1263. Never asked for
+    /// in a mailbox named by address.
+    PublicFoldersRoot,
 }
 
 impl DistinguishedFolder {
@@ -73,6 +76,7 @@ impl DistinguishedFolder {
             Self::Calendar => "calendar",
             Self::Contacts => "contacts",
             Self::Tasks => "tasks",
+            Self::PublicFoldersRoot => "publicfoldersroot",
         }
     }
 }
@@ -265,7 +269,7 @@ const DIRECTORY_CLASSES: [&str; 3] = ["IPF.Appointment", "IPF.Contact", "IPF.Tas
 /// `msgfolderroot`), with the class and the rights of each.
 #[derive(Clone, PartialEq, Eq)]
 pub struct FindFolder {
-    parent: DistinguishedFolder,
+    parent: Parent,
     mailbox: String,
     deep: bool,
     offset: u32,
@@ -276,6 +280,13 @@ impl std::fmt::Debug for FindFolder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FindFolder").field("parent", &self.parent).field("deep", &self.deep).field("offset", &self.offset).finish()
     }
+}
+
+/// The folder a listing is of: one with a name of its own, or one by the server's id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Parent {
+    Named(DistinguishedFolder),
+    Id(FolderId),
 }
 
 /// One page of a folder listing.
@@ -297,7 +308,13 @@ impl FindFolder {
     /// Lists the folders below `parent`: all of them when `deep`, else its own children, `max` at
     /// a time from `offset`.
     pub fn new(parent: DistinguishedFolder, deep: bool, offset: u32, max: u32) -> Self {
-        Self { parent, mailbox: String::new(), deep, offset, max: max.clamp(1, 1_000) }
+        Self { parent: Parent::Named(parent), mailbox: String::new(), deep, offset, max: max.clamp(1, 1_000) }
+    }
+
+    /// Lists the folders directly in the folder `parent` (by the server's id: a public folder),
+    /// `max` at a time from `offset`.
+    pub fn below(parent: &FolderId, offset: u32, max: u32) -> Self {
+        Self { parent: Parent::Id(parent.clone()), mailbox: String::new(), deep: false, offset, max: max.clamp(1, 1_000) }
     }
 
     /// Lists them in the mailbox at `address`.
@@ -318,10 +335,16 @@ impl FindFolder {
             .attr("MaxEntriesReturned", &self.max.to_string())
             .attr("Offset", &self.offset.to_string())
             .attr("BasePoint", "Beginning");
-        let mut parent = Element::new("t:DistinguishedFolderId").attr("Id", self.parent.as_str());
-        if !self.mailbox.is_empty() {
-            parent = parent.child(mailbox(&self.mailbox));
-        }
+        let parent = match &self.parent {
+            Parent::Named(named) => {
+                let mut parent = Element::new("t:DistinguishedFolderId").attr("Id", named.as_str());
+                if !self.mailbox.is_empty() && *named != DistinguishedFolder::PublicFoldersRoot {
+                    parent = parent.child(mailbox(&self.mailbox));
+                }
+                parent
+            }
+            Parent::Id(id) => Element::new("t:FolderId").attr("Id", id.as_str()),
+        };
         Element::new("m:FindFolder")
             .attr("Traversal", if self.deep { "Deep" } else { "Shallow" })
             .child(shape)

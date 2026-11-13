@@ -84,6 +84,9 @@ pub mod items;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod ntlm;
+/// The public folders' calendars and address books, listed and read (#1263).
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+mod public_run;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod reply;

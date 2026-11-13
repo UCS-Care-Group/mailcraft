@@ -1204,6 +1204,9 @@ pub struct Session {
     /// The automatic replies of each account that signs in with Microsoft, as its server last
     /// said (`sync.applyAutomaticReplies`). The server's, read again each session: never saved.
     pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
+    /// What each Exchange server account's last listing of its public folders found, and whether
+    /// one is asked for (#1263): the organisation's, read again when asked. Never saved.
+    pub public_folders: std::collections::HashMap<Id, crate::cmd::public_folders::Listing>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,
     /// Counts every change to the steps to undo and redo ([`Session::undo_steps_moved`]).
@@ -1381,6 +1384,7 @@ impl Session {
             pst_tops: HashMap::new(),
             server_search: Default::default(),
             auto_replies: Default::default(),
+            public_folders: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
             steps_moved: 0,
@@ -3246,6 +3250,7 @@ impl Session {
         self.auto_replies.clear();
         // The background fetch's waits and offline flag were the old mailbox's.
         self.driver.fetch.forget();
+        self.public_folders.clear();
         self.openings = self.openings.wrapping_add(1);
         // What the sync driver remembered is the old mailbox's: its accounts' ids may name others.
         self.driver.reset();

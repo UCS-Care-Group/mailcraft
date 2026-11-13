@@ -142,6 +142,20 @@ pub fn ews_directory_request(
             add(opened.address.clone(), false, true, false);
         }
     }
+    // The public folders' calendars and books the owner picked, and their listing when asked (#1263).
+    // A read of the calendar alone takes their calendars and nothing else (#1274).
+    let (public, browse_public) = if a.is_shared() {
+        (Vec::new(), false)
+    } else {
+        let public = a
+            .opened_public
+            .iter()
+            .filter(|picked| whole || picked.kind == mailcraft_model::PublicFolderKind::Calendar)
+            .take(mailcraft_model::MAX_PUBLIC_FOLDERS)
+            .cloned()
+            .collect();
+        (public, whole && s.public_folders.get(&account).is_some_and(|listing| listing.asked))
+    };
     let changes = super::remote::event_upload(s, account).ok().filter(|upload| whole && !upload.ops.is_empty());
     let contact_changes = super::remote::contact_upload(s, account).filter(|upload| whole && !upload.ops.is_empty());
     let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| whole && !upload.ops.is_empty());
@@ -158,6 +172,8 @@ pub fn ews_directory_request(
         from,
         to,
         shared,
+        public,
+        browse_public,
         changes,
         contact_changes,
         task_changes,
@@ -212,6 +228,7 @@ pub fn apply_ews_directory(s: &mut Session, result: &EwsDirectoryResult) -> CmdR
         let applied = super::tasks_remote::apply_task_outcomes(&mut s.mailbox, outcomes)?;
         counts["tasks"] = json!(applied.added + applied.updated);
     }
+    let before: Vec<Id> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account).map(|c| c.id).collect();
     if let Some(list) = &result.calendars {
         let applied = super::remote::apply_calendars(s, list)?;
         counts["calendars"] = applied.get("added").cloned().unwrap_or_else(|| json!(0));
@@ -248,6 +265,7 @@ pub fn apply_ews_directory(s: &mut Session, result: &EwsDirectoryResult) -> CmdR
             Err(e) => said.push(e.to_string()),
         }
     }
+    super::public_folders::after_run(s, result, &before);
     if uploaded || result.calendars.is_some() || !result.events.is_empty() || result.contacts.is_some() || result.tasks.is_some() {
         s.mailbox_changed();
     }

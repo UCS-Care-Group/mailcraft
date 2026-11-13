@@ -85,6 +85,13 @@ pub enum Dialog {
         /// For a refused `http://` address: the same one over `https://`, offered.
         offer: Option<String>,
     },
+    /// The calendars and address books of an Exchange server account's public folders (#1263):
+    /// asks for their listing, and ticks the ones to show (`publicFolders.*`,
+    /// [`crate::public_folders`]).
+    PublicFolders {
+        account: Id,
+        error: String,
+    },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
         url: String,
@@ -271,6 +278,7 @@ impl Dialog {
             Dialog::OpenCalendar { address_book: true, .. } => "openAddressBook",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Subscribe { .. } => "subscribe",
+            Dialog::PublicFolders { .. } => "publicFolders",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
@@ -390,6 +398,16 @@ impl Dialog {
                 error: String::new(),
                 offer: None,
             },
+            "publicFolders" => {
+                // Under the account named, else the first Exchange server account.
+                let can = |a: &&mailcraft_model::Account| mailcraft_engine::cmd::public_folders::eligible(a);
+                let mailbox = &app.session.mailbox;
+                let account = match id("account") {
+                    Some(id) => mailbox.account(id).filter(can)?.id,
+                    None => mailbox.accounts.iter().find(can)?.id,
+                };
+                Dialog::PublicFolders { account, error: String::new() }
+            }
             "link" => {
                 // The text in view: the message being written, or the signature open in
                 // File › Signatures (#1552). A plain-text message has no links, and its Link
@@ -1394,6 +1412,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "calendar.subscribe" if !has("address") => Some("subscribe"),
         "contacts.openShared" if !has("address") => Some("openAddressBook"),
+        // (The listing is asked for, and the folders picked, in the dialog.)
+        "publicFolders.list" | "publicFolders.listed" => Some("publicFolders"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1918,6 +1938,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     }
                 }
             }
+        }
+        Dialog::PublicFolders { account, error } => {
+            let open = window(ctx, tl!("Public Folders"), 480.0, |ui| close |= crate::public_folders::show(app, ui, *account, error, &t));
+            close |= !open;
         }
         Dialog::Link { url, error, linked } => {
             let (mut submit, mut remove) = (false, false);
