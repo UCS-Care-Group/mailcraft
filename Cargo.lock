@@ -3286,6 +3286,7 @@ dependencies = [
 name = "mailcraft-net"
 version = "0.12.0"
 dependencies = [
+ "cryptoki",
  "flate2",
  "log",
  "mailcraft-charset",
