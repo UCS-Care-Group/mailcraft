@@ -197,6 +197,9 @@ mod security_fixtures_tests;
 #[cfg(test)]
 mod security_tests;
 mod send_receive;
+mod send_warnings;
+#[cfg(test)]
+mod send_warnings_tests;
 mod sender_images;
 mod sending;
 pub mod server_search;
@@ -2100,6 +2103,27 @@ impl MailApp {
         }
         if let Some(r) = files::intercept(self, id, &params) {
             return r;
+        }
+        // Before a message goes (#509): a recipient who looks like somebody the owner writes to,
+        // or people outside the organisation who would see each other.
+        // A yes holds for the message as it was asked about.
+        let params = if id == "compose.send" { send_warnings::settle(self, params) } else { params };
+        if id == "compose.send"
+            && let Some(ask) = send_warnings::question(self, &params)
+        {
+            let mut params = if params.is_object() { params } else { json!({}) };
+            // The message asked about is the one that goes, whichever is current when the owner answers.
+            if params.get("compose").is_none()
+                && let (Some(compose), Some(map)) = (self.session.compose_id(), params.as_object_mut())
+            {
+                map.insert("compose".into(), json!(compose));
+            }
+            let asked = send_warnings::asked_about(self, &params);
+            if let Some(map) = params.as_object_mut() {
+                map.insert(send_warnings::ASKED_ABOUT.into(), asked);
+            }
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
+            return Ok(json!({"pending": "confirm"}));
         }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)

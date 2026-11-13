@@ -2086,6 +2086,11 @@ msgid "Check Now"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "Check Recipients"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -2108,6 +2113,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Check the account's settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Check the recipients before this message goes:"
 msgstr ""
 
 #. interface
@@ -6485,6 +6495,11 @@ msgid "Move this rule up: it runs earlier"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Move to Bcc"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Move to Calendar"
 msgstr ""
@@ -9501,6 +9516,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/reading.rs
 msgid "Send Again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Send Anyway"
 msgstr ""
 
 #. interface
@@ -12600,6 +12620,13 @@ msgid "This message downloads once the messages being downloaded now are here."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
+msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 msgid "This message has no text."
 msgstr ""
@@ -14954,6 +14981,11 @@ msgid "not known until the first Send/Receive"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 msgid "nothing is selected in the message"
 msgstr ""
@@ -16323,6 +16355,11 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "{address} looks like {like}, which you write to, but isn't the same address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{address}: {error}. It will try again at the next Send/Receive."
 msgstr ""
@@ -17176,6 +17213,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} person is invited to this meeting."
 msgid_plural "{n} people are invited to this meeting."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
 msgstr[0] ""
 msgstr[1] ""
 

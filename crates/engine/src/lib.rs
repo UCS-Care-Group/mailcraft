@@ -59,6 +59,7 @@ mod private_keys_fixtures_tests;
 #[cfg(test)]
 mod private_keys_tests;
 pub mod sample;
+pub mod send_warnings;
 pub mod sender_warnings;
 mod session;
 #[cfg(not(target_arch = "wasm32"))]
@@ -451,6 +452,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod send_warnings_tests;
 #[cfg(test)]
 mod sender_trust_tests;
 #[cfg(test)]

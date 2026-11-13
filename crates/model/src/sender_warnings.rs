@@ -24,6 +24,7 @@ use serde_json::{Value, json};
 
 use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
 use crate::confusables::{as_seen, hides, skeleton};
+use crate::send_warnings::Local;
 use crate::{Account, FolderKind, Message, provider};
 
 /// The most characters of a display name that are read.
@@ -37,7 +38,7 @@ const MAX_LINK_WARNINGS: usize = 20;
 const MAX_LINK_TEXT: usize = 2_048;
 /// A domain whose name (the part before its suffix: `lumen` of `lumen.example`) is shorter than
 /// this is never called a lookalike: short names are one letter from many others.
-const MIN_LOOKALIKE_NAME: usize = 5;
+pub(crate) const MIN_LOOKALIKE_NAME: usize = 5;
 
 /// How much a sender warning weighs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -177,6 +178,11 @@ pub struct Facts {
     /// The same by skeleton, and by length in characters (for the edit distance).
     by_skeleton: HashMap<String, String>,
     by_len: BTreeMap<usize, Vec<(Vec<char>, String)>>,
+    /// Every known correspondent's address and the owner's own, in lower case; and the part
+    /// before the @ of each, by its domain ([`sender_domain`]): what the send warnings compare a
+    /// recipient with (`crate::send_warnings`).
+    pub(crate) addresses: HashSet<String>,
+    pub(crate) locals: HashMap<String, Vec<Local>>,
 }
 
 impl Facts {
@@ -188,6 +194,24 @@ impl Facts {
     /// The owner's organisation's domains.
     pub fn organisation(&self) -> impl Iterator<Item = &str> {
         self.organisation.iter().map(String::as_str)
+    }
+
+    /// Whether `domain` ([`sender_domain`]) is one of the owner's organisation's, or under one.
+    /// Never for an owner without an organisation.
+    pub fn is_inside(&self, domain: &str) -> bool {
+        self.organisation.iter().any(|ours| domain == *ours || domain.strip_suffix(ours.as_str()).is_some_and(|head| head.ends_with('.')))
+    }
+
+    /// Whether `address` (any case, its domain in either form) is a known correspondent's or the
+    /// owner's own.
+    pub fn knows(&self, address: &str) -> bool {
+        address_key(address).is_some_and(|key| self.addresses.contains(&key))
+    }
+
+    /// The known correspondent's domain that `domain` ([`sender_domain`]) looks like but isn't,
+    /// as a lookalike sender's is found.
+    pub fn lookalike_domain(&self, domain: &str) -> Option<String> {
+        lookalike(self, domain)
     }
 }
 
@@ -210,6 +234,7 @@ impl FactsBuilder {
             let address = address.trim().to_lowercase();
             let Some(domain) = sender_domain(&address) else { continue };
             self.facts.own.insert(address.clone());
+            self.address(&address, &domain);
             if !provider::is_mail_provider(&domain) && !provider::is_public_suffix(&domain) {
                 self.facts.organisation.insert(domain.clone());
             }
@@ -230,10 +255,20 @@ impl FactsBuilder {
     pub fn known(&mut self, address: &str, name: &str) {
         let address = address.trim().to_lowercase();
         let Some(domain) = sender_domain(&address) else { return };
+        self.address(&address, &domain);
         if let Some(key) = name_key(name) {
             self.facts.people.entry(key).or_default().0.insert(address);
         }
         self.known_domains.insert(domain);
+    }
+
+    /// `address` (in lower case), at `domain` ([`sender_domain`]), among those a recipient is
+    /// compared with.
+    fn address(&mut self, address: &str, domain: &str) {
+        let Some((local, _)) = address.rsplit_once('@') else { return };
+        if self.facts.addresses.insert(format!("{local}@{domain}")) {
+            self.facts.locals.entry(domain.to_string()).or_default().push(Local::new(local, domain));
+        }
     }
 
     pub fn build(mut self) -> Facts {
@@ -272,6 +307,14 @@ pub fn name_key(name: &str) -> Option<String> {
 pub fn sender_domain(address: &str) -> Option<String> {
     let (_, domain) = address.trim().rsplit_once('@')?;
     normal_domain(domain)
+}
+
+/// `address` as addresses are compared: the part before the @ in lower case, then its domain as
+/// [`sender_domain`] reads it. `None` for what is no address.
+pub fn address_key(address: &str) -> Option<String> {
+    let address = address.trim().to_lowercase();
+    let (local, _) = address.rsplit_once('@').filter(|(local, _)| !local.is_empty())?;
+    Some(format!("{local}@{}", sender_domain(&address)?))
 }
 
 /// `domain` as domains are compared ([`sender_domain`]).
@@ -348,7 +391,7 @@ fn lookalike(facts: &Facts, domain: &str) -> Option<String> {
 
 /// `domain` written the way it goes over the wire (`xn--…` for letters outside ASCII), so that a
 /// lookalike shows for what it is.
-fn wire(domain: &str) -> String {
+pub(crate) fn wire(domain: &str) -> String {
     mailcraft_link::WebLink::parse(&format!("http://{domain}/")).map_or_else(|| domain.to_string(), |link| link.host().to_string())
 }
 
@@ -637,7 +680,7 @@ pub fn check<'a>(
     }
     if let Some(domain) = domain
         && !facts.organisation.is_empty()
-        && !facts.organisation.iter().any(|ours| domain == *ours || domain.strip_suffix(ours.as_str()).is_some_and(|head| head.ends_with('.')))
+        && !facts.is_inside(&domain)
     {
         out.push(Warning::External { domain: wire(&domain) });
     }

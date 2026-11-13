@@ -43,6 +43,7 @@ mod report_tests;
 pub mod rich;
 mod rule;
 pub mod search;
+pub mod send_warnings;
 pub mod sender_warnings;
 pub mod shown;
 pub mod signature;
@@ -204,6 +205,8 @@ mod search_quotes_tests;
 mod search_suggest_tests;
 #[cfg(test)]
 mod search_tests;
+#[cfg(test)]
+mod send_warnings_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]

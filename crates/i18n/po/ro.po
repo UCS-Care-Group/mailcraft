@@ -2513,6 +2513,11 @@ msgid "Check Now"
 msgstr "Verificare acum"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "Check Recipients"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
@@ -2541,6 +2546,11 @@ msgstr "Verificare versiuni noi"
 #, fuzzy
 msgid "Check the account's settings"
 msgstr "Verificați setările contului"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Check the recipients before this message goes:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -7829,6 +7839,11 @@ msgid "Move this rule up: it runs earlier"
 msgstr "Mutați această regulă mai sus: rulează mai devreme"
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Move to Bcc"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
@@ -11487,6 +11502,11 @@ msgstr "Trimitere / primire"
 #, fuzzy
 msgid "Send Again"
 msgstr "Trimitere din nou"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+msgid "Send Anyway"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -15217,6 +15237,14 @@ msgid "This message downloads once the messages being downloaded now are here."
 msgstr "Acest mesaj se descarcă după ce ajung mesajele care se descarcă acum."
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
+msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "This message has no text."
@@ -18061,6 +18089,11 @@ msgid "not known until the first Send/Receive"
 msgstr "necunoscut până la prima Trimitere/primire"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing is selected in the message"
@@ -19702,6 +19735,11 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr "{address} nu este o cutie poștală partajată deschisă aici."
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "{address} looks like {like}, which you write to, but isn't the same address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "{address}: {error}. It will try again at the next Send/Receive."
@@ -20765,6 +20803,14 @@ msgid_plural "{n} people are invited to this meeting."
 msgstr[0] "{n} persoană este invitată la această întâlnire."
 msgstr[1] "{n} persoane sunt invitate la această întâlnire."
 msgstr[2] "{n} de persoane sunt invitate la această întâlnire."
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

@@ -255,9 +255,9 @@ pub fn tool_definitions() -> Value {
         tool(
             "send_message",
             "Send a message",
-            "Write and send a new message. From an account with a server it waits in the Outbox for the next Send/Receive.",
+            "Write and send a new message. From an account with a server it waits in the Outbox for the next Send/Receive. A message with a send warning (a recipient one character from somebody the owner writes to, or 5 or more people outside the organisation who would see each other) is refused unless `confirmed` sends it anyway or `moveToBcc` moves those people to Bcc; connected to the window, the owner is asked instead, and neither is read.",
             obj(
-                json!({"to": s("Recipients, separated by ;"), "cc": s("Cc"), "bcc": s("Bcc"), "subject": s("Subject"), "body": s("Text")}),
+                json!({"to": s("Recipients, separated by ;"), "cc": s("Cc"), "bcc": s("Bcc"), "subject": s("Subject"), "body": s("Text"), "confirmed": {"type": "boolean"}, "moveToBcc": {"type": "boolean"}}),
                 &["to", "subject", "body"]
             ),
             false
@@ -494,8 +494,13 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             };
             // That message, whatever else is being written (#286).
             let this = if compose.is_null() { json!({}) } else { json!({"compose": compose}) };
-            // The signature a new message starts with stays; the body goes before it.
-            let r = exec(b, "compose.send", this.clone());
+            // The signature a new message starts with stays; the body goes before it. Past a send
+            // warning only when the call says so (#509); the window asks its owner instead.
+            let mut send = this.clone();
+            if let (Some(fields), Value::Object(said)) = (send.as_object_mut(), pick(a, &["confirmed", "moveToBcc"])) {
+                fields.extend(said);
+            }
+            let r = exec(b, "compose.send", send);
             if r.is_err() {
                 // Nothing half-written is left open.
                 let _ = exec(b, "compose.close", this);
