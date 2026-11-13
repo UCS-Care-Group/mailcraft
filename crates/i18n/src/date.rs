@@ -105,6 +105,8 @@ impl Lang {
             Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian => {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
+            // Brazil and Portugal both start the week on Sunday (CLDR).
+            Lang::Portuguese => Conventions { twelve_hour: false, week_start: 6, pad_numeric: true, day_first: true },
         }
     }
 }
@@ -451,6 +453,9 @@ mod tests {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }
+        // Portuguese starts the week on Sunday.
+        let pt = Lang::Portuguese.conventions();
+        assert_eq!((pt.twelve_hour, pt.week_start, pt.pad_numeric, pt.day_first), (false, 6, true, true));
     }
 
     /// English outside the US, Canada and the Philippines writes the day first (#978).
@@ -504,5 +509,6 @@ mod tests {
         assert!(long(&Lang::French, SUN).contains("dimanche") && long(&Lang::French, SUN).contains("octobre"));
         assert_eq!(said(Lang::Dutch), ("zondag 11 oktober 2026".into(), "03-10-2025".into(), "21:05".into()));
         assert_eq!(said(Lang::Romanian), ("duminică, 11 octombrie 2026".into(), "03.10.2025".into(), "21:05".into()));
+        assert_eq!(said(Lang::Portuguese), ("domingo, 11 de outubro de 2026".into(), "03/10/2025".into(), "21:05".into()));
     }
 }
