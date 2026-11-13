@@ -4367,11 +4367,6 @@ msgstr ""
 msgid "File"
 msgstr "Fichier"
 
-#. ribbon location
-#: crates/ui-egui/src/lib.rs
-msgid "File > Options"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy

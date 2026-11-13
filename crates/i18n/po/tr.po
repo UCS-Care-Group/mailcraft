@@ -4615,12 +4615,6 @@ msgstr "Bu kişilerden ikiden azı hâlâ burada, bu yüzden birleştirilecek bi
 msgid "File"
 msgstr "Dosya"
 
-#. ribbon location
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "File > Options"
-msgstr "Dosya > Seçenekler"
-
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
@@ -21098,6 +21092,10 @@ msgstr "“{subject}” indirilemeyecek kadar büyüktü: burada yalnızca başl
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "“{subject}” sunucusunda bulunamadı, bu yüzden ek olarak iletilemez"
+
+#, fuzzy
+#~ msgid "File > Options"
+#~ msgstr "Dosya > Seçenekler"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

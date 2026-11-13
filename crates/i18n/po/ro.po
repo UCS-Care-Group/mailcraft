@@ -4612,11 +4612,6 @@ msgstr "Mai puțin de două dintre aceste contacte mai sunt aici, deci nu e nimi
 msgid "File"
 msgstr "Fișier"
 
-#. ribbon location
-#: crates/ui-egui/src/lib.rs
-msgid "File > Options"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
