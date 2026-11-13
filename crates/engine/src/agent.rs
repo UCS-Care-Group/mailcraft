@@ -248,6 +248,7 @@ const SAFE: &[&str] = &[
     "view.favorites",
     "view.reminders",
     "view.mail",
+    "view.allInboxes",
     "view.calendar",
     "view.people",
     "view.tasks",
@@ -989,10 +990,17 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         }),
         // The rules that run over the folder: those for its account's mail, or the one named.
         "rules.run" => {
-            let (Ok(folder), Ok(only)) = (p::id_strict(params, "folder"), p::id_strict(params, "id")) else { return false };
-            let from = mb.folder(folder.unwrap_or(s.view.folder)).map(|f| f.account);
-            from.is_some_and(|a| {
-                mb.rules.iter().any(|r| r.enabled && r.is_for(a) && only.is_none_or(|o| o == r.id) && rule_onto_server(s, r, Some(a)).is_some())
+            let (Ok(all), Ok(folder), Ok(only)) = (p::opt_bool(params, "allInboxes"), p::id_strict(params, "folder"), p::id_strict(params, "id"))
+            else {
+                return false;
+            };
+            let folders = if all == Some(true) { mb.inboxes() } else { vec![folder.unwrap_or(s.view.folder)] };
+            folders.into_iter().any(|folder| {
+                mb.folder(folder).is_some_and(|f| {
+                    mb.rules.iter().any(|r| {
+                        r.enabled && r.is_for(f.account) && only.is_none_or(|o| o == r.id) && rule_onto_server(s, r, Some(f.account)).is_some()
+                    })
+                })
             })
         }
         _ => false,

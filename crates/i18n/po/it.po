@@ -941,6 +941,11 @@ msgstr "Tutte le categorie"
 msgid "All Categories…"
 msgstr "Tutte le categorie…"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -3319,7 +3324,7 @@ msgid "Delete Conversation"
 msgstr "Elimina conversazione"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Delete Folder"
 msgstr "Elimina cartella"
@@ -4051,7 +4056,7 @@ msgstr ""
 "cartella"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Empty Folder"
 msgstr "Svuota cartella"
@@ -4309,6 +4314,11 @@ msgstr "Preferito"
 #, fuzzy
 msgid "Favorites"
 msgstr "Preferiti"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Favorites Are Set in Outlook"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
@@ -5227,6 +5237,11 @@ msgstr "Guida"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Hide"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Hide All Inboxes"
 msgstr ""
 
 #. command label
@@ -6911,8 +6926,8 @@ msgstr ""
 "Segna tutti\n"
 "come letti"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mark All as Read"
 msgstr "Segna tutti come letti"
@@ -7642,6 +7657,11 @@ msgstr "Nuovo messaggio"
 #, fuzzy
 msgid "New Folder"
 msgstr "Nuova cartella"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "New Folder…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8501,6 +8521,11 @@ msgstr "Un'occorrenza di una serie non può trovarsi in un calendario diverso da
 #, fuzzy
 msgid "One of a series: {rule}"
 msgstr "Parte di una serie: {rule}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "One row above Favorites then lists every Inbox together, with the unread count."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9915,6 +9940,11 @@ msgstr "Rinomina categoria"
 msgid "Rename Folder"
 msgstr "Rinomina cartella"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Rename Folder…"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -10303,7 +10333,7 @@ msgstr ""
 "regole ora"
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "Esegui regole ora"
@@ -11310,6 +11340,16 @@ msgstr ""
 msgid ""
 "Show\n"
 "Training"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show All Inboxes when there are two mailboxes or more"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -16157,6 +16197,11 @@ msgstr "una regola vale per la posta propria di un account, non per quella di un
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule is run on one folder"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "la regola di un account non può andare sul server di un altro account"
@@ -18082,6 +18127,11 @@ msgstr "ci sono troppe firme"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "esiste già una firma denominata «{to}»"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "there is no Inbox"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

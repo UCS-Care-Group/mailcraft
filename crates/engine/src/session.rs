@@ -275,6 +275,8 @@ pub struct ViewState {
     pub module: Module,
     /// The mail folder in view.
     pub folder: Id,
+    /// The list shows every account's Inbox together (All Inboxes), rather than `folder` alone.
+    pub all_inboxes: bool,
     pub sort: SortBy,
     /// Newest (largest, Z) first.
     pub sort_descending: bool,
@@ -329,6 +331,7 @@ impl Default for ViewState {
         ViewState {
             module: Module::Mail,
             folder: 0,
+            all_inboxes: false,
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
@@ -1639,6 +1642,7 @@ impl Session {
     pub(crate) fn show_whole_folder(&mut self) {
         self.view.filter = Filter::All;
         self.view.gmail = None;
+        self.view.all_inboxes = false;
         self.clear_search();
     }
 

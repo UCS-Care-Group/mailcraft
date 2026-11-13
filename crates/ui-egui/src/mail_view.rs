@@ -731,16 +731,17 @@ fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
 /// one folder (its subfolders, its mailbox or every mailbox), as Outlook's rows do (#195, #493);
 /// in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    s.view.all_inboxes || (s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty())
 }
 
 /// Whether the list may hold mail of more than one account: a search of every mailbox, with more
 /// than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
 /// owner knows whose mail it is, and the rows stay as they were.
 fn mixes_accounts(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope == mailcraft_engine::Scope::Everywhere
-        && s.mailbox.accounts.len() > 1
-        && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    (s.view.all_inboxes && s.mailbox.accounts.len() > 1)
+        || (s.view.scope == mailcraft_engine::Scope::Everywhere
+            && s.mailbox.accounts.len() > 1
+            && !mailcraft_model::search::Query::parse(&s.view.search).is_empty())
 }
 
 /// The colour of the stripe on `m`'s row (#893): its account's, in a list of more than one

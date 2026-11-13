@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} (default: the folder in view)"#),
+            .params(r#"{"folder"?: number (default: the folder in view)} | {"allInboxes": true} (every account's Inbox)"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -827,12 +827,26 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| m.read = any_unread)
 }
 
-fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
+/// The folders `mail.markAllRead` and `rules.run` act on: every Inbox, or the one folder named
+/// (the folder in view when none is).
+pub(crate) fn folders_asked(s: &Session, v: &Value) -> Result<Vec<Id>, crate::CmdError> {
+    if p::opt_bool(v, "allInboxes")? == Some(true) {
+        let ids = s.mailbox.inboxes();
+        if ids.is_empty() {
+            return Err(fail("there is no Inbox"));
+        }
+        return Ok(ids);
+    }
     let folder = p::id(v, "folder").unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
-    let ids: Vec<Id> = s.mailbox.messages_in(folder).filter(|m| !m.read).map(|m| m.id).collect();
+    Ok(vec![folder])
+}
+
+fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
+    let folders = folders_asked(s, v)?;
+    let ids: Vec<Id> = folders.iter().flat_map(|folder| s.mailbox.messages_in(*folder).filter(|m| !m.read).map(|m| m.id)).collect();
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }

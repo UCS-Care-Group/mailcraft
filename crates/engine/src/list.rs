@@ -204,6 +204,12 @@ fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
             .collect()
     };
     // The folders looked in, or (for every mailbox) the folders left out.
+    if s.view.all_inboxes && matches!(scope, Scope::Folder) {
+        let inboxes: HashSet<Id> = mb.inboxes().into_iter().collect();
+        if !inboxes.is_empty() {
+            return (false, inboxes);
+        }
+    }
     let (everywhere, folders): (bool, HashSet<Id>) = match scope {
         Scope::Folder => (false, HashSet::from([folder])),
         Scope::Subfolders => (false, mb.subtree(folder).into_iter().collect()),

@@ -398,6 +398,73 @@ fn picked_in_list(ui: &Ui) -> bool {
     ui.data(|d| d.get_temp::<bool>(egui::Id::unique("folder_picked_in_list"))).unwrap_or(false)
 }
 
+/// The selection bar, or the quiet hover, of a row in the folder pane.
+fn paint_highlight(painter: &Painter, row: Rect, selected: bool, hovered: bool, t: &Tokens) {
+    if selected {
+        painter.rect_filled(row, 6.0, t.accent_soft);
+        painter.rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
+    } else if hovered {
+        painter.rect_filled(row, 6.0, t.hover_nav);
+    }
+}
+
+/// The count at a row's right, and where the name has to stop.
+fn paint_count(painter: &Painter, r: Rect, count: Count, selected: bool, t: &Tokens) -> f32 {
+    let mut name_end = r.max.x - COUNT_RIGHT;
+    if count != Count::Nothing {
+        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+        let galley = painter.layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+        let w = (galley.size().x + 12.0).max(20.0);
+        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+        painter.rect_filled(pill, 9.0, fill);
+        painter.galley(pill.center() - galley.size() / 2.0, galley, ink);
+        name_end = pill.min.x - 6.0;
+    }
+    name_end
+}
+
+fn menu_item(ui: &mut Ui, app: &mut MailApp, label: &str, cmd: &str, params: serde_json::Value, enabled: bool) {
+    if ui.add_enabled(enabled, egui::Button::new(tl!(label)).min_size(vec2(180.0, 0.0))).clicked() {
+        let _ = app.run(cmd, params);
+        ui.close();
+    }
+}
+
+/// Mark All as Read and Run Rules Now, for one folder or for every Inbox.
+fn read_and_rules(ui: &mut Ui, app: &mut MailApp, params: serde_json::Value) {
+    menu_item(ui, app, "Mark All as Read", "mail.markAllRead", params.clone(), true);
+    menu_item(ui, app, "Run Rules Now", "rules.run", params, true);
+}
+
+/// All Inboxes, above Favorites: every account's Inbox in one list.
+fn all_inboxes_row(app: &mut MailApp, ui: &mut Ui, count: Count, selected: bool) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+    let resp = ui.interact(r, ui.scope_id().with("all_inboxes"), Sense::click());
+    app.hit.add("allInboxes", 0, r);
+    paint_highlight(ui.painter(), highlight(r), selected, resp.hovered(), &t);
+    let name_end = paint_count(ui.painter(), r, count, selected, &t);
+    paint_clipped(
+        ui.painter(),
+        pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE),
+        (name_end - r.min.x - NAME_LEFT).max(0.0),
+        tl!("All Inboxes"),
+        if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) },
+        if selected { t.accent_soft_text } else { t.text },
+    );
+    if resp.clicked() {
+        let _ = app.run("view.allInboxes", json!({}));
+    }
+    resp.context_menu(|ui| {
+        ui.set_min_width(190.0);
+        read_and_rules(ui, app, json!({"allInboxes": true}));
+        ui.separator();
+        // The same switch as File › Options › Mail.
+        menu_item(ui, app, "Hide All Inboxes", "ui.allInboxes", json!({"value": false}), true);
+    });
+}
+
 /// A folder's row, `selected` when it is the one the folder in view is highlighted in. `key` tells
 /// the Favorites' rows (`fav`) from the accounts' (`tree`).
 fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_children: bool, key: &str, count: Count, selected: bool) {
@@ -408,14 +475,8 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with((key, f.id)), Sense::click());
     app.hit.add("folder", f.id, r);
-    let row = highlight(r);
-    if selected {
-        ui.painter().rect_filled(row, 6.0, t.accent_soft);
-        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
-    } else if resp.hovered() {
-        // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
-        ui.painter().rect_filled(row, 6.0, t.hover_nav);
-    }
+    // Quieter than on the ribbon: the pane is darker, and the selected row must stay the one that stands out.
+    paint_highlight(ui.painter(), highlight(r), selected, resp.hovered(), &t);
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     // The chevron has its own click target, only on a folder with something under it.
     if has_children {
@@ -430,17 +491,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let y = r.center().y - TEXT_RISE;
     // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
     // (Drafts, Junk) in a quiet grey one.
-    let mut name_end = r.max.x - COUNT_RIGHT;
-    if count != Count::Nothing {
-        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
-        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
-        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
-        let w = (galley.size().x + 12.0).max(20.0);
-        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
-        ui.painter().rect_filled(pill, 9.0, fill);
-        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
-        name_end = pill.min.x - 6.0;
-    }
+    let name_end = paint_count(ui.painter(), r, count, selected, &t);
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
     paint_clipped(
         ui.painter(),
@@ -459,7 +510,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         let takes = !crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id).is_empty();
         crate::drag_pointer::note_folder(ui.ctx(), takes);
         if takes {
-            ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+            ui.painter().rect_stroke(highlight(r), 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
         }
     }
     if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
@@ -477,33 +528,26 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let from_outlook = mailcraft_engine::cmd::folder::favorites_from_server(&app.session, f.account);
     resp.context_menu(|ui| {
         ui.set_min_width(190.0);
-        let item = |ui: &mut Ui, app: &mut MailApp, label: &str, cmd: &str, params: serde_json::Value, enabled: bool| {
-            if ui.add_enabled(enabled, egui::Button::new(tl!(label)).min_size(vec2(180.0, 0.0))).clicked() {
-                let _ = app.run(cmd, params);
-                ui.close();
-            }
-        };
-        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
+        menu_item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
         // (Not one that is or holds what a JMAP account's server has, which stays for now.)
         let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        menu_item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
         let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
+        menu_item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
-        item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
+        read_and_rules(ui, app, json!({"folder": id}));
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
+            menu_item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
-            item(ui, app, "Favorites Are Set in Outlook", "folder.favorite", json!({"id": id}), false);
+            menu_item(ui, app, "Favorites Are Set in Outlook", "folder.favorite", json!({"id": id}), false);
         } else {
-            item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
+            menu_item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
         }
         ui.separator();
-        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
+        menu_item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
     });
 }
 
@@ -799,7 +843,12 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
-            let favorite_selected = among_favorites && !(in_a_list && picked_in_list(ui));
+            let inboxes = app.session.mailbox.inboxes();
+            let show_all = app.ui.all_inboxes && inboxes.len() >= 2;
+            let all_on = show_all
+                && app.session.view.all_inboxes
+                && (app.session.view.search.is_empty() || app.session.view.scope == mailcraft_engine::Scope::Folder);
+            let favorite_selected = !all_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.
             let own = owners(&app.session.mailbox);
@@ -808,6 +857,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // new block, with a rule above it.
             let pane_top = ui.cursor().min.y;
             let mut first = true;
+            if show_all {
+                let unread: usize = inboxes.iter().map(|id| counts.unread(*id)).sum();
+                all_inboxes_row(app, ui, if unread > 0 { Count::Unread(unread) } else { Count::Nothing }, all_on);
+                first = false;
+            }
             let mut head = |app: &mut MailApp, ui: &mut Ui, id: Id, name: &str| {
                 if std::mem::take(&mut first) {
                     heading(app, ui, id, name, ROW_H, 7.5, false, movable.contains(&id))
@@ -848,11 +902,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                         app.hit.add("folder", f.id, r);
                         continue;
                     }
-                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
+                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !all_on && !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {
                             let unread = counts.gmail(f.id, category).unread;
-                            let selected = f.id == gmail_current && gmail_now == Some(category);
+                            let selected = !all_on && f.id == gmail_current && gmail_now == Some(category);
                             gmail_row(app, ui, f.id, depth + 1, category, unread, selected);
                         }
                     }

@@ -12,6 +12,8 @@ mod agent_leaves_compose_tests;
 #[cfg(test)]
 mod agent_owners_message_tests;
 #[cfg(test)]
+mod all_inboxes_tests;
+#[cfg(test)]
 mod answered_tests;
 pub mod auto_replies;
 #[cfg(test)]
