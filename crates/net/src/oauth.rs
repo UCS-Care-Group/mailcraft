@@ -1867,6 +1867,8 @@ pub fn sign_in_google_explained_at(
     google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
+mod permission;
+pub use permission::{Ending, Permission, permission_endpoints, sign_in_ending_via, sign_in_for_permission_at};
 mod scheme;
 use scheme::Landing;
 pub use scheme::{CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
@@ -1915,6 +1917,8 @@ pub use google::{refresh_google_at, sign_in_google_at};
 
 #[cfg(test)]
 mod google_tests;
+#[cfg(test)]
+mod permission_tests;
 #[cfg(test)]
 mod scheme_tests;
 #[cfg(test)]

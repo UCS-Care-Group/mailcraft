@@ -12,6 +12,9 @@ pub struct AccountRecord {
     pub name: String,
     pub email: String,
     pub display_name: String,
+    /// `microsoft`, `imap`, `local`, `jmap`, `exchange` or `other`. The phone app v1 shows
+    /// `microsoft` accounts only.
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]

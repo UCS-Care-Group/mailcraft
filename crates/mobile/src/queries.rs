@@ -128,6 +128,19 @@ fn date_of(s: &str) -> Result<Date, CoreError> {
     Date::parse_iso(s).ok_or_else(|| bad("a date is written YYYY-MM-DD"))
 }
 
+/// The kind of an account in the words the app reads.
+fn account_kind(kind: mailcraft_model::AccountKind) -> &'static str {
+    use mailcraft_model::AccountKind;
+    match kind {
+        AccountKind::Microsoft => "microsoft",
+        AccountKind::Imap => "imap",
+        AccountKind::Local => "local",
+        AccountKind::Jmap => "jmap",
+        AccountKind::Exchange => "exchange",
+        _ => "other",
+    }
+}
+
 #[uniffi::export]
 impl Core {
     /// The folders of `account` (0 for every account), with the accounts they belong to, their
@@ -141,6 +154,7 @@ impl Core {
                 name: text::clip(&a.name, MAX_NAME),
                 email: text::clip(&a.email, MAX_ADDRESS),
                 display_name: text::clip(&a.display_name, MAX_NAME),
+                kind: account_kind(a.kind).to_string(),
             });
             let folders = text::first(s.mailbox.folders.iter().filter(|f| wanted(f.account)), MAX_FOLDERS, |f| FolderRecord {
                 id: f.id,

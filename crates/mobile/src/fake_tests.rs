@@ -42,6 +42,8 @@ pub(crate) fn block_on<F: Future>(f: F) -> F::Output {
 #[derive(Default)]
 pub(crate) struct FakeSecrets {
     pub(crate) kept: Mutex<Vec<(String, String)>>,
+    /// Set to have the store refuse to keep anything.
+    pub(crate) refuse: std::sync::atomic::AtomicBool,
 }
 
 impl SecretStore for FakeSecrets {
@@ -50,7 +52,12 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
-        self.kept.lock().unwrap().push((key, secret));
+        if self.refuse.load(Ordering::Relaxed) {
+            return Err(HostError::Failed);
+        }
+        let mut kept = self.kept.lock().unwrap();
+        kept.retain(|(k, _)| *k != key);
+        kept.push((key, secret));
         Ok(())
     }
 

@@ -13,6 +13,7 @@ use mailcraft_engine::Session;
 use mailcraft_i18n::Lang;
 use serde_json::Value;
 
+use crate::accounts::SignIns;
 use crate::events::{Event, EventSink};
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
@@ -40,7 +41,9 @@ impl Drop for CancelOnDrop {
 pub struct Core {
     jobs: Mutex<Option<Sender<Job>>>,
     events: Arc<Queue<Event>>,
-    platform: Arc<dyn Platform>,
+    pub(crate) platform: Arc<dyn Platform>,
+    /// The sign-in that is open, and where its redirect lands (`accounts.rs`).
+    pub(crate) signins: SignIns,
     memory_budget: u64,
     language: AtomicU8,
     /// Set when `shutdown` begins: a call still waiting in the queue is then cancelled and not run.
@@ -75,6 +78,7 @@ impl Core {
             jobs: Mutex::new(Some(jobs)),
             events,
             platform,
+            signins: SignIns::default(),
             memory_budget: host.memory_budget(),
             language: AtomicU8::new(0),
             closing: Arc::new(AtomicBool::new(false)),
