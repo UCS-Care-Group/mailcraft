@@ -108,8 +108,8 @@ pub const MAX_CONTENT: u64 = 256 << 20;
 /// What the bodies get when the machine's memory can't be read (128 MB).
 pub const FALLBACK_BUDGET: u64 = 128 << 20;
 
-/// Most bytes of fetched content kept in memory for the next time they are wanted (128 MB).
-pub const CACHE_MAX: u64 = 128 << 20;
+/// Most bytes of fetched content kept in memory for the next time they are wanted (64 MB).
+pub const CACHE_MAX: u64 = 64 << 20;
 
 /// A fetched piece larger than this is handed over but not kept.
 const CACHE_ITEM_MAX: u64 = 64 << 20;
