@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalNavigationDrawer
@@ -21,18 +22,23 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +66,10 @@ internal data class ShellData(
     val avatars: Map<ULong, ByteArray>? = null,
     /** What the attachments of the open message put in front of the owner (a question, a picture, a notice). */
     val attachments: AttachmentUi = AttachmentUi(),
+    /** The message being written, when there is one: the composer covers the app. */
+    val compose: ComposeUi = ComposeUi(),
+    /** A line to say once (a message queued, a draft kept). */
+    val snack: String? = null,
 )
 
 /** What the shell asks of the app. */
@@ -71,6 +81,10 @@ internal class ShellActions(
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
+    val composer: ComposerActions = ComposerActions.None,
+    val onNewMessage: () -> Unit = {},
+    val onSnackShown: () -> Unit = {},
+    val signatures: SignatureSource? = null,
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -92,6 +106,33 @@ internal fun AppShell(
     initialNav: NavState = NavState(),
     initialDrawer: DrawerValue = DrawerValue.Closed,
 ) {
+    // The composer covers the app and the app stays composed under it (where the owner was is kept); what
+    // is under it is hidden from the screen reader while it is open.
+    val composing = data.compose.open
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = if (composing) Modifier.clearAndSetSemantics {} else Modifier) {
+            AppFrame(texts, data, actions, initialNav, initialDrawer)
+        }
+        if (composing) ComposerRoute(texts, data.compose, actions.composer)
+    }
+}
+
+@Composable
+@Suppress("LongMethod")
+private fun AppFrame(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    initialNav: NavState,
+    initialDrawer: DrawerValue,
+) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(data.snack) {
+        data.snack?.let {
+            snackbar.showSnackbar(it)
+            actions.onSnackShown()
+        }
+    }
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
     val drawer = rememberDrawerState(initialDrawer)
     val scope = rememberCoroutineScope()
@@ -129,6 +170,7 @@ internal fun AppShell(
                 onSwipe = actions.onSwipe,
                 onPictures = actions.onPictures,
                 onClearPictures = actions.onClearPictures,
+                signatures = actions.signatures,
             )
         } else {
             MainFrame(
@@ -138,6 +180,8 @@ internal fun AppShell(
                 onTab = { nav = nav.select(it) },
                 onMenu = { scope.launch { drawer.open() } },
                 onBack = if (nav.message != null) ({ back?.let { nav = it } }) else null,
+                snackbar = snackbar,
+                onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.onNewMessage else null,
             ) { modifier, expanded ->
                 when (nav.tab) {
                     Tab.Mail -> {
@@ -152,6 +196,7 @@ internal fun AppShell(
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun MainFrame(
     texts: Texts,
     tab: Tab,
@@ -159,6 +204,8 @@ private fun MainFrame(
     onTab: (Tab) -> Unit,
     onMenu: () -> Unit,
     onBack: (() -> Unit)?,
+    snackbar: SnackbarHostState,
+    onNewMessage: (() -> Unit)?,
     content: @Composable (Modifier, Boolean) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -194,6 +241,14 @@ private fun MainFrame(
                             }
                         },
                     )
+                },
+                snackbarHost = { SnackbarHost(snackbar) },
+                floatingActionButton = {
+                    if (onNewMessage != null) {
+                        FloatingActionButton(onClick = onNewMessage) {
+                            Icon(AppIcons.Plus, contentDescription = texts.t("New message"))
+                        }
+                    }
                 },
                 bottomBar = {
                     if (!expanded) {
@@ -239,21 +294,33 @@ private fun MailTab(
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
             VerticalDivider()
             if (messageId != null) {
-                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f), data.attachments)
+                ReadingPane(
+                    texts, messageId, data.reading, actions.reading, Modifier.weight(1f),
+                    data.attachments, isDraft(data),
+                )
             } else {
                 Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
             }
         }
     } else if (messageId != null) {
-        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments)
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments, isDraft(data))
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
 }
 
+/** Whether the message in the reading pane is in a Drafts folder: it is continued, not answered. */
+private fun isDraft(data: ShellData): Boolean {
+    val folder = data.reading.opened?.view?.folder ?: return false
+    return data.accounts.flatMap { it.folders }.firstOrNull { it.id == folder }?.kind == "drafts"
+}
+
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, mail, onSwipe, reading, onPictures, onClearPictures)
+    ShellActions(
+        onFolder, onLanguage, mail, onSwipe, reading, onPictures, onClearPictures,
+        composer, onNewMessage, onSnackShown, signatures,
+    )
 
 @Composable
 private fun TabLabel(text: String) {

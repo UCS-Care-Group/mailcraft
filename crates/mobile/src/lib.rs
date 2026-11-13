@@ -25,6 +25,7 @@ pub mod android;
 mod android_jni;
 mod attachments;
 pub mod blocks;
+mod compose;
 mod core;
 mod error;
 mod events;
@@ -40,6 +41,8 @@ pub mod text;
 
 #[cfg(test)]
 mod attachments_tests;
+#[cfg(test)]
+mod compose_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
@@ -58,6 +61,10 @@ mod review_tests;
 mod tests;
 
 pub use attachments::{AttachmentCheck, AttachmentFile, CalendarImported, OpenVerdict, attachment_check};
+pub use compose::{
+    ComposeFile, ComposeFormat, ComposeKind, ComposeParagraph, ComposePicture, ComposeSpan, ComposeStart, ComposeView, FromChoice, ListMark,
+    RecipientLine, RecipientRecord, SentRecord, SuggestionRecord,
+};
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink};

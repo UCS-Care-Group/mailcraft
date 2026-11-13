@@ -31,6 +31,7 @@ internal enum class SettingsPage {
     SwipeActions,
     Pictures,
     SenderImages,
+    Signatures,
     Language,
     About,
     ;
@@ -42,6 +43,7 @@ internal enum class SettingsPage {
         SwipeActions -> texts.t("Swipe actions")
         Pictures -> texts.t("Pictures")
         SenderImages -> texts.t("Sender images")
+        Signatures -> texts.t("Signatures")
         Language -> texts.t("Language")
         About -> texts.t("About")
     }

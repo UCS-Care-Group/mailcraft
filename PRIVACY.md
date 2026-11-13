@@ -87,6 +87,8 @@ On a phone (the Android app) the same rules hold, and what it connects to is the
 
 An attachment on a phone is opened only when you ask. A program, a script, an installer or a file of no known kind is never opened or shared from mail (you can save it), and a file that can carry macros or scripts is asked about first. The app you choose to open or share a file with is given one read-only grant to a temporary copy kept in the app's own cache folder, which is emptied when MailCraft starts; Save to Files writes only where you choose, through the system's file picker, and the app holds no storage permission. A picture attachment is drawn inside MailCraft, from its own bytes; nothing else of an attachment is drawn or run by MailCraft.
 
+A message written on a phone is kept as a draft in the mailbox in the phone's memory (saved a few seconds after your last edit) and goes nowhere until you press Send; then it is queued in the mailbox on the phone, and the screen says so. This version of the Android app does not send queued messages yet, and the mailbox on the phone is not yet kept on disk, so a draft or a queued message is lost when the app is closed. Suggestions for a recipient come from your own contacts and sent mail on the phone; nothing is asked of a server for them. A `mailto:` link only fills the composer in.
+
 Read receipts go one way only. A message you write with Request a Read Receipt asks its recipients' programs to tell your own address when they read it. A request for a receipt in mail you receive is ignored: MailCraft never answers one, and nobody learns from MailCraft when you read their message.
 
 ## Permissions asked of a Microsoft account

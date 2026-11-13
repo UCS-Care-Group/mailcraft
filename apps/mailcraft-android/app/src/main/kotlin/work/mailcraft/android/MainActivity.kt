@@ -84,6 +84,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val scope = rememberCoroutineScope()
     val reader = remember(core) { ReadingStack(core, appContext, scope) }
     val pictures = reader.pictures
+    val writing = rememberComposeHost(core, texts, scope)
     val attachmentUi by reader.attachments.ui.collectAsState()
     val reading by pictures.reading.ui.collectAsState()
     val avatars by pictures.senderImages.images.collectAsState()
@@ -117,24 +118,43 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         pictures = pictureSettings,
         avatars = if (pictureSettings.prefs.senderImages) avatars else null,
         attachments = attachmentUi,
+        compose = writing.ui(),
+        snack = writing.snack,
     )
+    val signatures = remember(core) { CoreSignatures(core) }
     AppShell(
         texts = texts,
         data = data,
-        actions = ShellActions(
-            onFolder = { _, selected -> query = MailQuery(selected.id) },
-            onLanguage = onLanguage,
-            mail = mailActions,
-            onSwipe = {
-                swipe = it
-                prefs.save(it)
-            },
-            reading = reader.actions(),
-            onPictures = pictures::changed,
-            onClearPictures = pictures::clear,
-        ),
+        actions = shellActions(reader, writing, mailActions, onLanguage, { query = MailQuery(it.id) }, signatures) {
+            swipe = it
+            prefs.save(it)
+        },
     )
 }
+
+/** What the shell asks of the app: the list, the reading pane, the composer, Settings. */
+@Suppress("LongParameterList")
+private fun shellActions(
+    reader: ReadingStack,
+    writing: ComposeHost,
+    mail: MailListActions,
+    onLanguage: (String) -> Unit,
+    onFolder: (FolderItem) -> Unit,
+    signatures: SignatureSource,
+    onSwipe: (SwipeConfig) -> Unit,
+) = ShellActions(
+    onFolder = { _, selected -> onFolder(selected) },
+    onLanguage = onLanguage,
+    mail = mail,
+    onSwipe = onSwipe,
+    reading = reader.actions(writing::begin),
+    onPictures = reader.pictures::changed,
+    onClearPictures = reader.pictures::clear,
+    composer = writing.actions(),
+    onNewMessage = writing::newMessage,
+    onSnackShown = writing::snackShown,
+    signatures = signatures,
+)
 
 /** What runs beside the screen: reading the outline, the core's events, the clock and the list asked for. */
 @Composable

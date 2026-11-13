@@ -43,6 +43,7 @@ internal fun SettingsScreen(
     onSwipe: (SwipeConfig) -> Unit,
     onPictures: (PicturePrefs) -> Unit = {},
     onClearPictures: () -> Unit = {},
+    signatures: SignatureSource? = null,
 ) {
     Scaffold(
         topBar = {
@@ -69,6 +70,7 @@ internal fun SettingsScreen(
                 SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, onSwipe)
                 SettingsPage.Pictures -> PicturesPage(texts, data.pictures, onPictures, onClearPictures)
                 SettingsPage.SenderImages -> SenderImagesPage(texts, data.pictures, onPictures)
+                SettingsPage.Signatures -> SignaturesPage(texts, signatures)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -89,6 +91,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.About -> data.version
             SettingsPage.Pictures -> picturesSummary(texts, data.pictures)
             SettingsPage.SenderImages -> senderImagesSummary(texts, data.pictures)
+            SettingsPage.Signatures -> texts.t("For each account")
             else -> texts.t("Pending development")
         }
         Row(

@@ -16,11 +16,11 @@ class NavigationTest {
     }
 
     @Test
-    fun settingsHasItsEightSections() {
+    fun settingsHasItsNineSections() {
         assertEquals(
             listOf(
                 "Accounts", "Mail to keep offline", "Notifications", "Swipe actions", "Pictures", "Sender images",
-                "Language", "About",
+                "Signatures", "Language", "About",
             ),
             SettingsPage.entries.map { it.label(EnglishTexts) },
         )
