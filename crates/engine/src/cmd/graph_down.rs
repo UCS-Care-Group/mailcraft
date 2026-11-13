@@ -512,6 +512,27 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
+    // Whole, not only the bytes it came as: a draft as the server has it now, what a change made
+    // here is worked out from.
+    if take_mime(mb, here, account, mime, true)?
+        && let Ok(m) = mb.message_mut(here)
+        && m.draft
+    {
+        let state = mailcraft_model::sync::DraftState::of(m);
+        let sd = m.server_draft.get_or_insert_with(Default::default);
+        if !sd.pending {
+            sd.synced = Some(state);
+        }
+    }
+    Some(here)
+}
+
+/// Message `here`, fetched whole as `mime` from the server of `account`: its text, attachments
+/// and headers from it, with what the mailbox keeps of it (where it is, its marks, its server
+/// state) as it was. An IMAP account's too (#653, [`super::imap_fetch`]). With `alone`, one that
+/// asked for the bytes it came as alone (#30, Check again or a move) takes only those. Whether it
+/// was taken whole; `None` when there is no such message.
+pub(crate) fn take_mime(mb: &mut Mailbox, here: Id, account: Id, mime: &[u8], alone: bool) -> Option<bool> {
     let mut read = crate::mime::parse_fetched(mime);
     // What came brought no original (#30): the server's copy isn't protected either.
     let brought = read.original.is_some();
@@ -527,7 +548,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
     // from for them: nothing else of it changes.
-    if std::mem::take(&mut m.original_wanted) {
+    if alone && std::mem::take(&mut m.original_wanted) {
         m.original_asked |= !brought;
         if no_room > 0 {
             m.original_no_room = no_room;
@@ -537,7 +558,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
             m.original = read.original;
         }
         (m.unfetched, m.attachments_on_server) = (false, false);
-        return Some(here);
+        return Some(false);
     }
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
@@ -586,15 +607,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if let Some(server) = m.server.as_mut() {
         server.size = mime.len() as u64;
     }
-    // A draft as the server has it now: what a change made here is worked out from.
-    if m.draft {
-        let state = mailcraft_model::sync::DraftState::of(m);
-        let sd = m.server_draft.get_or_insert_with(Default::default);
-        if !sd.pending {
-            sd.synced = Some(state);
-        }
-    }
-    Some(here)
+    Some(true)
 }
 
 /// The copies being moved out of `account` that a listing afresh of their folder hadn't come to

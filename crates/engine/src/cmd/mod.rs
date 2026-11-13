@@ -67,6 +67,9 @@ pub mod help;
 #[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
+pub mod imap_fetch;
+#[cfg(test)]
+mod imap_fetch_tests;
 #[cfg(test)]
 mod imap_outbox_tests;
 mod jmap_down;
@@ -201,6 +204,7 @@ pub fn registry() -> Registry {
     v.extend(send_receive::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
+    v.extend(imap_fetch::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());
     v.extend(shared::specs());

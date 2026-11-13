@@ -9,7 +9,8 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_time::{DateTime, Timestamp};
 use serde::{Deserialize, Serialize};
 
-use crate::{FolderKind, Id, Mailbox, Message};
+use crate::sync::ImapFetchKey;
+use crate::{AccountKind, FolderKind, Id, Mailbox, Message};
 
 /// Outlook's steps, shortest first. Mail received within it is kept in full on this computer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -128,12 +129,14 @@ impl KeepOffline {
 /// Which mail of a mailbox is within its **mail to keep offline** at one time, worked out once
 /// for the whole mailbox.
 ///
-/// Always within, whatever the window: mail of an account that isn't a Microsoft account (a
-/// local account's; IMAP comes later), mail the server hasn't got as it is here (no server id,
-/// gone there, moved here and not there yet, being moved out of its account), a local folder's,
-/// the Drafts', the Outbox's, a draft, a held message, and one that is only partly here for good.
-/// Nothing the server lacks is ever outside. Age is by received date, or the date it was sent
-/// when it has none; a message with neither, or from the future, is within.
+/// Always within, whatever the window: mail of an account that keeps no window (a local
+/// account's, a JMAP or an Exchange server account's), mail the server hasn't got as it is here
+/// (no server id or UID, gone there, moved here and not there yet, being moved out of its
+/// account), a local folder's, the Drafts', the Outbox's, a draft, a held message, one that is
+/// only partly here for good (an IMAP message too large to download), and an IMAP message waiting
+/// to be downloaded again (#650). Nothing the server lacks is ever outside. Age is by received
+/// date, or the date it was sent when it has none; a message with neither, or from the future,
+/// is within.
 #[derive(Clone, Debug, Default)]
 pub struct OfflineWindow {
     /// By account: the earliest received time kept in full. An account not here keeps all.
@@ -143,6 +146,11 @@ pub struct OfflineWindow {
     /// Each folder the server has, by account and then server id (nested, so that a message's
     /// folder is looked up by `&str`, without a copy of it for every message).
     by_server: HashMap<Id, HashMap<String, Id>>,
+    /// The IMAP accounts among those with a window: their messages are on the server by UID.
+    imap: HashSet<Id>,
+    /// The messages whose original a server is to lose once they are safe here or elsewhere
+    /// ([`Mailbox::moving_out_of_servers`]).
+    moving: HashSet<Id>,
 }
 
 impl OfflineWindow {
@@ -150,7 +158,7 @@ impl OfflineWindow {
         let since = mb
             .accounts
             .iter()
-            .filter(|a| a.kind.has_offline_window())
+            .filter(|a| a.kind.keeps_offline_window())
             .filter_map(|a| mb.keep_offline_of(a.id).since(now).map(|t| (a.id, t)))
             .collect();
         OfflineWindow::with(mb, since)
@@ -162,7 +170,7 @@ impl OfflineWindow {
         let since = mb
             .accounts
             .iter()
-            .filter(|a| a.kind.has_offline_window())
+            .filter(|a| a.kind.keeps_offline_window())
             .filter_map(|a| {
                 let mine = a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account);
                 let k = if mine { keep } else { mb.keep_offline_of(a.id) };
@@ -173,15 +181,19 @@ impl OfflineWindow {
     }
 
     fn with(mb: &Mailbox, since: HashMap<Id, Timestamp>) -> OfflineWindow {
-        let always =
-            mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Outbox) || f.server.is_none()).map(|f| f.id).collect();
+        let imap: HashSet<Id> = mb.accounts.iter().filter(|a| a.kind == AccountKind::Imap && since.contains_key(&a.id)).map(|a| a.id).collect();
+        // A folder the server has: by its server id for a Microsoft account, by its path for an
+        // IMAP account's, which the server's last listing named.
+        let on_server = |f: &crate::Folder| if imap.contains(&f.account) { !f.remote.is_empty() && !f.unlisted } else { f.server.is_some() };
+        let always = mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Drafts | FolderKind::Outbox) || !on_server(f)).map(|f| f.id).collect();
         let mut by_server: HashMap<Id, HashMap<String, Id>> = HashMap::new();
         for f in &mb.folders {
             if let Some(s) = &f.server {
                 by_server.entry(f.account).or_default().insert(s.id.clone(), f.id);
             }
         }
-        OfflineWindow { since, always, by_server }
+        let moving = if since.is_empty() { HashSet::new() } else { mb.moving_out_of_servers() };
+        OfflineWindow { since, always, by_server, imap, moving }
     }
 
     /// Whether every window is All: nothing of the mailbox is outside.
@@ -195,13 +207,34 @@ impl OfflineWindow {
         if self.always.contains(&m.folder) || m.draft || !m.held.is_empty() || m.incomplete || m.moving_out.is_some() || m.server_draft.is_some() {
             return true;
         }
+        // Put back after a refused copy (#451): the server may not have it any more, and what is
+        // here may become all there is of it.
+        if m.not_downloaded > 0 || m.refetch || m.returned > 0 || self.moving.contains(&m.id) {
+            return true;
+        }
+        if self.imap.contains(&m.account) {
+            // On the server by its UID in its folder's mailbox: one moved here and not there yet
+            // has none until the server's copy is found.
+            return m.uid == 0 || Self::recent(m, *since);
+        }
         let Some(server) = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty()) else { return true };
         // Moved here and not there yet: the server's copy is elsewhere, under another id.
         if self.by_server.get(&m.account).and_then(|f| f.get(server.folder.as_str())) != Some(&m.folder) {
             return true;
         }
+        Self::recent(m, *since)
+    }
+
+    /// Whether `m` was received at `since` or later, by its received date or else the date it was
+    /// sent; one with neither is.
+    fn recent(m: &Message, since: Timestamp) -> bool {
         let received = if m.received != 0 { m.received } else { m.date };
-        received == 0 || received >= *since
+        received == 0 || received >= since
+    }
+
+    /// The earliest received time `account` keeps in full; `None` when it keeps all.
+    pub fn since_of(&self, account: Id) -> Option<Timestamp> {
+        self.since.get(&account).copied()
     }
 }
 
@@ -211,7 +244,47 @@ impl Mailbox {
     pub fn within_window(&self, m: &Message, now: Timestamp) -> bool {
         OfflineWindow::of(self, now).within(m)
     }
+
+    /// How the server of an IMAP account knows message `m` (#653): its mailbox, that mailbox's
+    /// `UIDVALIDITY` and its UID there. `None` for a message of another kind of account, and for
+    /// one the server hasn't got as it is here (no UID, or a folder that follows no mailbox).
+    pub fn imap_key(&self, m: &Message) -> Option<ImapFetchKey> {
+        if m.uid == 0 || !self.account(m.account).is_some_and(|a| a.kind == AccountKind::Imap) {
+            return None;
+        }
+        let f = self.folder(m.folder).filter(|f| f.account == m.account && !f.remote.is_empty())?;
+        Some(ImapFetchKey { remote: f.remote.clone(), uid_validity: f.uid_validity, uid: m.uid })
+    }
+
+    /// Whether `m` is not fetched whole yet and its server can give it: by its server id, or by
+    /// its UID ([`Mailbox::imap_key`]).
+    pub fn fetchable(&self, m: &Message) -> bool {
+        m.unfetched && (m.server.is_some() || self.imap_key(m).is_some())
+    }
+
+    /// Once a mailbox (#653): IMAP accounts added before they kept a window keep all their mail,
+    /// as they did. Since #143 a new account of any kind was given twelve months, which only a
+    /// Microsoft account's mail was held to; an IMAP account's is held to it from this version on,
+    /// and one that never saw the setting doesn't lose its older mail's text by it. How many
+    /// accounts were set to keep all; none once the mailbox has been looked through
+    /// ([`Mailbox::imap_windowed`]).
+    pub fn keep_imap_mail_as_it_was(&mut self) -> usize {
+        if self.imap_windowed {
+            return 0;
+        }
+        self.imap_windowed = true;
+        let mut set = 0usize;
+        for a in self.accounts.iter_mut().filter(|a| a.kind == AccountKind::Imap && !a.keep_offline.is_default()) {
+            a.keep_offline = KeepOffline::All;
+            set = set.saturating_add(1);
+        }
+        set
+    }
 }
+
+#[cfg(test)]
+#[path = "offline_imap_tests.rs"]
+mod imap_tests;
 
 #[cfg(test)]
 mod tests {

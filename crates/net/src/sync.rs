@@ -41,7 +41,7 @@ const MAX_RUN_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
-const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+pub(crate) const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
 /// Most messages of a Gmail account's Inbox whose Gmail category is read in one run, the newest
 /// (#911); older ones keep what they had.
 const MAX_GMAIL_SORTED: usize = 200_000;
@@ -347,6 +347,12 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     for (at, message) in request.outbox.iter().enumerate() {
         if run.cancelled() {
             break;
+        }
+        // Only a preview is here: it would go out as the message (#653). The mailbox doesn't ask
+        // for one, and nothing is sent that it didn't.
+        if message.unfetched || message.incomplete || message.not_downloaded > 0 {
+            run.out.problem(said!("Couldn't send \"{subject}\": it isn't downloaded yet", subject = subject_said(message)));
+            continue;
         }
         // Dated once, so that the copy kept on the server says what the one that went says.
         let message = dated(message);
@@ -672,6 +678,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     }
     // The whole tree first: the folders are there to see before their mail is.
     run.out.listed = listed(&plan);
+    run.out.listed_all = !run.out.listed.is_empty() && plan.len() <= MAX_FOLDERS;
     if !run.out.listed.is_empty() {
         let found = if run.out.listed.len() == 1 { 1 } else { plan.len().min(MAX_FOLDERS) };
         run.hand_over_in(&imap, SyncStep::new(SyncStage::Listed, "", 0, found));
@@ -934,6 +941,74 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     message
 }
 
+/// How much of a message older than the mail to keep offline comes down (#653): its header and
+/// the start of its text, for its preview. A header longer than this (Gmail's run to a few
+/// kilobytes) has the header alone fetched as well.
+const START_BYTES: u32 = 16 * 1024;
+
+/// What is kept of a message older than the mail to keep offline (#653), of which the start
+/// came: read as far as it goes, and marked not fetched, for the mailbox to keep its headers and
+/// a preview of its text. Its attachments, when its header says it has any (`multipart/mixed`)
+/// or the start shows one, are on the server.
+fn only_the_start(start: Start, size: u64) -> Message {
+    // All of it came only when the server ended it before the bytes asked for. The size the
+    // server says is not taken for it: some (Exchange's) say a guess, and one said too small
+    // would have a message cut short here kept as whole, and its server's copy deleted when it
+    // is moved out of its account. A size said that is more than the start (`size` 0: none
+    // said) is a reason to doubt a short reply, as a reply cut short in some other way would be
+    // taken for the whole: a wrong size only errs towards a preview, which is fetched when opened.
+    let says_more = size > u64::from(START_BYTES);
+    let whole = !start.header_alone && !says_more && start.fetched.body.as_ref().is_some_and(|b| b.len() < START_BYTES as usize);
+    let mixed = start.fetched.body.as_deref().is_some_and(is_mixed);
+    let mut message = message_from(start.fetched);
+    if whole {
+        return message;
+    }
+    message.attachments_on_server = mixed || message.has_attachments();
+    message.unfetched = true;
+    // (Its start alone is no original of it, #30: it comes with the whole message when opened.)
+    message.original = None;
+    message
+}
+
+/// The start of a message ([`start_of`]).
+struct Start {
+    fetched: Fetched,
+    /// Its header alone came, which ran on past the start: none of its text is here.
+    header_alone: bool,
+}
+
+/// Where the header of a message whose first bytes are `raw` ends (after the empty line), if it
+/// does within them.
+fn header_end(raw: &[u8]) -> Option<usize> {
+    raw.windows(4).position(|w| w == b"\r\n\r\n").map(|at| at + 4).or_else(|| raw.windows(2).position(|w| w == b"\n\n").map(|at| at + 2))
+}
+
+/// The start of message `uid` ([`START_BYTES`]); when its header runs on past that, the header
+/// alone, whose fields are all there.
+fn start_of(imap: &mut Imap<Stream<'_>>, uid: u32) -> Result<Option<Start>, ProtoError> {
+    let start = imap.uid_fetch_start(uid, START_BYTES)?;
+    let cut = start.as_ref().and_then(|f| f.body.as_deref()).is_some_and(|b| b.len() >= START_BYTES as usize && header_end(b).is_none());
+    if cut && let Some(header) = imap.uid_fetch_header(uid)? {
+        return Ok(Some(Start { fetched: header, header_alone: true }));
+    }
+    Ok(start.map(|fetched| Start { fetched, header_alone: cut }))
+}
+
+/// Whether the message whose first bytes are `raw` says in its header that it is
+/// `multipart/mixed`: as a rule, a text with files attached.
+fn is_mixed(raw: &[u8]) -> bool {
+    let end = header_end(raw).unwrap_or(raw.len());
+    let header = String::from_utf8_lossy(raw.get(..end).unwrap_or(raw));
+    // Folded lines joined: a field's value may go on on the next line.
+    let unfolded = header.replace("\r\n ", " ").replace("\r\n\t", " ").replace("\n ", " ").replace("\n\t", " ");
+    unfolded.lines().any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.trim().eq_ignore_ascii_case("content-type") && value.trim_start().to_ascii_lowercase().starts_with("multipart/mixed")
+        })
+    })
+}
+
 /// One server mailbox being synchronised.
 struct FolderSync<'a> {
     mailbox: &'a Mailbox,
@@ -1041,7 +1116,13 @@ impl FolderSync<'_> {
         let mut missed: Option<u32> = None;
         // Messages that were asked for and not handed over, without a word why.
         let mut silent: Vec<u32> = Vec::new();
-        let sizes = if alive { self.sizes(imap, &wanted, run, &mut alive) } else { BTreeMap::new() };
+        // Mail to keep offline (#653): never of Drafts or the Outbox.
+        let since = run.request.keep_since.filter(|_| !matches!(self.kind, FolderKind::Drafts | FolderKind::Outbox));
+        let (sizes, arrived) = match since {
+            _ if !alive => (BTreeMap::new(), BTreeMap::new()),
+            Some(_) => self.sizes_and_dates(imap, &wanted, run, &mut alive),
+            None => (self.sizes(imap, &wanted, run, &mut alive), BTreeMap::new()),
+        };
         let total = wanted.len();
         // The bytes of the messages waiting to be handed over.
         let mut waiting = 0usize;
@@ -1053,22 +1134,39 @@ impl FolderSync<'_> {
                 break;
             }
             let size = sizes.get(&uid).copied().unwrap_or(0);
-            // Of a message too large to take, the header is.
+            // Older than the mail to keep offline, and no draft: its header and the start of its
+            // text, whatever its size (#653).
+            let draft = present.get(&uid).is_some_and(|m| has(&m.flags, "\\Draft"));
+            // Of a message too large to take, the header is, with a note, however old: it could
+            // not be fetched whole when opened either.
             let large = size > run.limits.largest;
-            let fits = large || usize::try_from(size).unwrap_or(usize::MAX) <= run.limits.bytes;
+            let old = !draft && !large && since.is_some_and(|since| arrived.get(&uid).is_some_and(|at| *at < since));
+            let taken = if old { u64::from(START_BYTES).min(size.max(1)) } else { size };
+            let fits = large || usize::try_from(taken).unwrap_or(usize::MAX) <= run.limits.bytes;
             if run.limits.messages == 0 || run.limits.bytes == 0 || !fits {
                 // Enough for one run; not a problem, the rest comes with the next one.
                 missed = Some(uid);
                 continue;
             }
-            let fetched = if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) };
+            let fetched = if old {
+                start_of(imap, uid)
+            } else {
+                let whole = if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) };
+                whole.map(|f| f.map(|fetched| Start { fetched, header_alone: large }))
+            };
             match fetched {
-                Ok(Some(fetched)) => {
-                    let bytes = fetched.body.as_ref().map_or(0, Vec::len);
+                Ok(Some(start)) => {
+                    let bytes = start.fetched.body.as_ref().map_or(0, Vec::len);
                     run.limits.messages = run.limits.messages.saturating_sub(1);
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
                     waiting = waiting.saturating_add(bytes);
-                    let mut message = if large { too_large(fetched, size, run.limits.largest) } else { message_from(fetched) };
+                    let mut message = if old {
+                        only_the_start(start, size)
+                    } else if large {
+                        too_large(start.fetched, size, run.limits.largest)
+                    } else {
+                        message_from(start.fetched)
+                    };
                     if let Some(sorted) = &sorted {
                         message.gmail_category = sorted.get(&uid).copied();
                         message.gmail_id = present.get(&uid).and_then(|m| m.gmail_id).unwrap_or(0);
@@ -1221,6 +1319,38 @@ impl FolderSync<'_> {
         there
     }
 
+    /// [`FolderSync::sizes`], with when each message arrived (`INTERNALDATE`), for the mail to
+    /// keep offline (#653). One whose date the server won't say comes whole.
+    fn sizes_and_dates(
+        &self,
+        imap: &mut Imap<Stream<'_>>,
+        wanted: &[u32],
+        run: &mut Run,
+        alive: &mut bool,
+    ) -> (BTreeMap<u32, u64>, BTreeMap<u32, Timestamp>) {
+        let (Some(first), Some(last)) = (wanted.first(), wanted.last()) else { return (BTreeMap::new(), BTreeMap::new()) };
+        match imap.uid_fetch_sizes_dates(&format!("{first}:{last}")) {
+            Ok(listed) => {
+                let mut sizes = BTreeMap::new();
+                let mut dates = BTreeMap::new();
+                for (uid, size, date) in listed {
+                    sizes.insert(uid, size);
+                    if let Some(at) = date.as_deref().and_then(internal_date) {
+                        dates.insert(uid, at);
+                    }
+                }
+                (sizes, dates)
+            }
+            Err(e) => {
+                let e = NetError::from(e);
+                if e.is_fatal() {
+                    *alive = run.failed(said!("Couldn't read \"{name}\"", name = shown(&self.remote)), &e);
+                }
+                (BTreeMap::new(), BTreeMap::new())
+            }
+        }
+    }
+
     /// Which of Gmail's categories each message of a Gmail account's Inbox is in (#911): four of
     /// Gmail's own searches (`X-GM-RAW "category:social"` and the rest), each over sets of at most
     /// [`MAX_GMAIL_FOUND`] of the messages the server listed, marked as deleted or not, so that no
@@ -1340,6 +1470,10 @@ mod quote_tests;
 #[cfg(test)]
 #[path = "sync_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "sync_window_tests.rs"]
+mod window_tests;
 
 #[cfg(test)]
 #[path = "sync_many_folders_tests.rs"]

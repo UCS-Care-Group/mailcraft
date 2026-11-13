@@ -249,6 +249,15 @@ impl<'a> Command<'a> {
     }
 }
 
+/// What part of a message a fetch of one asks for.
+#[derive(Clone, Copy)]
+enum Section {
+    Whole,
+    Header,
+    /// Its first bytes, at most this many.
+    Start(usize),
+}
+
 /// What one FETCH response says about a message.
 #[derive(Default)]
 struct Item {
@@ -258,6 +267,8 @@ struct Item {
     body: Option<Vec<u8>>,
     /// The header alone (`BODY[HEADER]`).
     header: Option<Vec<u8>>,
+    /// The first bytes of the message (`BODY[]<0>`).
+    start: Option<Vec<u8>>,
     size: Option<u64>,
     /// Gmail's id of the message (`X-GM-MSGID`).
     gmail_id: Option<u64>,
@@ -285,6 +296,8 @@ impl Item {
                 ("RFC822.SIZE", value) => item.size = value.atom().and_then(|n| n.parse().ok()),
                 ("X-GM-MSGID", value) => item.gmail_id = value.atom().and_then(gmail_id),
                 ("BODY[]" | "RFC822", Value::Str(body)) => item.body = Some(body),
+                // The start of a message, from its first byte (`BODY[]<0>`): what was asked for.
+                ("BODY[]<0>", Value::Str(start)) => item.start = Some(start),
                 ("BODY[HEADER]" | "RFC822.HEADER", Value::Str(header)) => item.header = Some(header),
                 _ => {}
             }
@@ -798,18 +811,50 @@ impl<S: Read + Write> Imap<S> {
 
     /// UID FETCH <uid> (UID FLAGS INTERNALDATE BODY.PEEK[]); `None` when the UID is gone.
     pub fn uid_fetch_message(&mut self, uid: u32) -> Result<Option<Fetched>, ProtoError> {
-        self.fetch_one(uid, "(UID FLAGS INTERNALDATE BODY.PEEK[])", false)
+        self.fetch_one(uid, "(UID FLAGS INTERNALDATE BODY.PEEK[])", Section::Whole)
     }
 
     /// UID FETCH <uid> (UID FLAGS INTERNALDATE BODY.PEEK[HEADER]): the header alone of a message
     /// that is not taken whole (one that is too large), in [`Fetched::body`], up to and with the
     /// empty line that ends it. `None` when the UID is gone.
     pub fn uid_fetch_header(&mut self, uid: u32) -> Result<Option<Fetched>, ProtoError> {
-        self.fetch_one(uid, "(UID FLAGS INTERNALDATE BODY.PEEK[HEADER])", true)
+        self.fetch_one(uid, "(UID FLAGS INTERNALDATE BODY.PEEK[HEADER])", Section::Header)
     }
 
-    /// One message with its flags and date, and either all of it or (`header_only`) its header.
-    fn fetch_one(&mut self, uid: u32, items: &str, header_only: bool) -> Result<Option<Fetched>, ProtoError> {
+    /// UID FETCH <uid> (UID FLAGS INTERNALDATE BODY.PEEK[]<0.bytes>): the first `bytes` bytes of a
+    /// message (its header and the start of its text, #653), in [`Fetched::body`]; all of it when
+    /// it is shorter, and never more than `bytes` of it, whatever the server sends. `\Seen` is not set. `None` when the UID is gone.
+    pub fn uid_fetch_start(&mut self, uid: u32, bytes: u32) -> Result<Option<Fetched>, ProtoError> {
+        let bytes = bytes.max(1);
+        self.fetch_one(uid, &format!("(UID FLAGS INTERNALDATE BODY.PEEK[]<0.{bytes}>)"), Section::Start(usize::try_from(bytes).unwrap_or(usize::MAX)))
+    }
+
+    /// UID FETCH <set> (UID RFC822.SIZE INTERNALDATE): the size in bytes and the date it arrived
+    /// of every message in the set, in UID order (#653: a message older than the mail to keep
+    /// offline is not downloaded whole).
+    pub fn uid_fetch_sizes_dates(&mut self, set: &str) -> Result<Vec<(u32, u64, Option<String>)>, ProtoError> {
+        let mut out: Vec<(u32, u64, Option<String>)> = Vec::new();
+        let command = Self::fetch(set, "(UID RFC822.SIZE INTERNALDATE)")?;
+        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        self.response_cap = wanted.responses();
+        let answered = self.run(command, &mut |values| {
+            if let Some(Item { uid, size: Some(size), internal_date, .. }) = Item::from(values)
+                && wanted.wants(uid)
+                && wanted.room(out.len())
+            {
+                out.push((uid, size, internal_date));
+            }
+        });
+        self.response_cap = MAX_RESPONSES;
+        answered?;
+        wanted.check()?;
+        out.sort_by_key(|(uid, ..)| *uid);
+        out.dedup_by_key(|(uid, ..)| *uid);
+        Ok(out)
+    }
+
+    /// One message with its flags and date, and all of it, its header or its first bytes.
+    fn fetch_one(&mut self, uid: u32, items: &str, section: Section) -> Result<Option<Fetched>, ProtoError> {
         if uid == 0 {
             return Ok(None);
         }
@@ -826,7 +871,17 @@ impl<S: Read + Write> Imap<S> {
                 message.internal_date = item.internal_date.or(message.internal_date.take());
                 // Only what was asked for: a whole message in answer to a question about its
                 // header is not taken in.
-                let asked_for = if header_only { item.header } else { item.body };
+                let asked_for = match section {
+                    Section::Whole => item.body,
+                    Section::Header => item.header,
+                    // A server that sends the whole of a short message without the `<0>` is
+                    // taken at its word; more than was asked for, in either, is cut to what was
+                    // (the bytes have come, but are not kept).
+                    Section::Start(most) => item.start.or(item.body).map(|mut body| {
+                        body.truncate(most);
+                        body
+                    }),
+                };
                 message.body = asked_for.or(message.body.take());
             }
         })?;

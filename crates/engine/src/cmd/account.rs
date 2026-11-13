@@ -27,7 +27,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft, Exchange server or IMAP account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
@@ -801,7 +801,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let mut outbox = Vec::new();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Never a preview: it would go out as the message, #653. Opening it fetches the rest.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.unfetched && !m.incomplete && m.not_downloaded == 0 {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
@@ -842,8 +843,20 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
     let outbox = s.loaded_outbox(outbox);
+    // Mail older than its mail to keep offline comes down as its headers and a preview (#653).
+    let keep_since = s.mailbox.keep_offline_of(account).since(s.now());
     let gmail_moves = gmail_moves(s, account);
-    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, gmail_moves, ..Default::default() })
+    Ok(SyncRequest {
+        account: a.clone(),
+        folders,
+        outbox,
+        max_per_folder: s.prefs.sync_limit,
+        ops,
+        places,
+        keep_since,
+        gmail_moves,
+        ..Default::default()
+    })
 }
 
 /// The moves between Gmail's categories made in `account` that Gmail hasn't heard of (#911), for
@@ -1403,12 +1416,23 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
+    if !result.listed.is_empty() {
+        mark_unlisted(mb, account, result);
+    }
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
         take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, now);
     }
     moved_in_for_good(mb, account);
+    // A rule that couldn't move mail is told once, with how many messages it couldn't move: a
+    // first download of old mail may be thousands.
+    for (rule, count, why) in std::mem::take(&mut counts.refused) {
+        counts.notes.push(match count {
+            1 => format!("The rule \"{rule}\" couldn't move a message: {why}"),
+            n => format!("The rule \"{rule}\" couldn't move {n} messages; the first: {why}"),
+        });
+    }
     result.errors.append(&mut counts.notes);
     if told {
         s.forget_history();
@@ -1428,6 +1452,18 @@ struct Counts {
     matched: usize,
     /// What the owner is to be told of (a mailbox the server numbered anew).
     notes: Vec<String>,
+    /// The rules that couldn't move a message where they say, each with how many and why (of the
+    /// first): told once each in `notes` ([`MAX_RULES`](mailcraft_model::MAX_RULES) at most).
+    refused: Vec<(String, usize, String)>,
+}
+
+impl Counts {
+    fn refused(&mut self, rule: String, why: String) {
+        match self.refused.iter_mut().find(|(name, ..)| *name == rule) {
+            Some((_, count, _)) => *count = count.saturating_add(1),
+            None => self.refused.push((rule, 1, why)),
+        }
+    }
 }
 
 /// What is known, while a result is taken in, about where the server has the account's messages.
@@ -2103,6 +2139,22 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
     }
 }
 
+/// Which folders of `account` follow a mailbox the server's listing in `result` named (#653): a
+/// listing that went to its end and leaves one out has it deleted or renamed there by another
+/// program, and its mail is no longer taken for the server's. A listing cut short only says
+/// which are there. A mailbox made in the run is there, though it was made after the listing.
+fn mark_unlisted(mb: &mut Mailbox, account: Id, result: &SyncResult) {
+    let named: HashSet<&str> = result.listed.iter().map(|f| f.remote.as_str()).chain(result.created.iter().map(|c| c.remote.as_str())).collect();
+    for f in mb.folders.iter_mut().filter(|f| f.account == account && !f.remote.is_empty()) {
+        let there = named.contains(f.remote.as_str());
+        if there {
+            f.unlisted = false;
+        } else if result.listed_all {
+            f.unlisted = true;
+        }
+    }
+}
+
 /// Take in what changed in one server mailbox. `gmail_moves`: moves between Gmail's categories
 /// made here go to Gmail ([`gmail_moves_go`]), so one waiting keeps its category against Gmail's;
 /// `moved_now`: Gmail's ids of the messages Gmail took a move of in this same run, whose reading
@@ -2235,6 +2287,12 @@ fn take_in(
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
         // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
         let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
+        // Older than its mail to keep offline (#653): of what came, its header and the start of
+        // its text, a preview is kept, and the message comes whole when it is opened.
+        if m.unfetched {
+            let preview = crate::list::preview(&m, mailcraft_model::PREVIEW_CHARS);
+            super::graph_down::thin_message(&mut m, preview);
+        }
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
@@ -2248,7 +2306,9 @@ fn take_in(
             // them as any mail arriving in the Inbox does.
             let sorted = sorting && uid > old_seen && mb.sort_junk(id);
             if inbox != sorted {
-                mb.apply_rules(id);
+                for (rule, why) in mb.apply_rules_told(id).1 {
+                    counts.refused(rule, why);
+                }
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {

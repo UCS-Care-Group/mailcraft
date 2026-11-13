@@ -1400,6 +1400,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Aplicare sarcini descărcate"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "Apply IMAP Fetch"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -3269,6 +3274,11 @@ msgstr "Ciorna „{subject}” nu a putut fi salvată pe server: serverul spune 
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Cutia poștală nu a putut fi salvată: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -5686,6 +5696,11 @@ msgstr "Sunt administrator: aprob MailCraft pentru organizația mea"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Sunt administrator: îl aprob pentru organizația mea"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "IMAP Fetch Request"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11477,7 +11492,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -17785,17 +17800,16 @@ msgstr "necesită un cont Gmail"
 msgid "never"
 msgstr "niciodată"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "no IMAP account with id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "niciun cont Microsoft nu este sincronizat prin IMAP"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "niciun cont Microsoft sau de server Exchange nu păstrează e-mailuri offline"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -17827,6 +17841,11 @@ msgstr "niciun cont nu este conectat la un server de e-mail"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "niciun cont nu este conectat la un server de e-mail (Fișier › Adăugare cont)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "no account is connected to an IMAP server"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -17839,6 +17858,11 @@ msgstr "niciun cont nu este sincronizat prin JMAP"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "niciun cont nu este sincronizat prin Microsoft Graph"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no account keeps a window of mail on this computer"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -17846,7 +17870,7 @@ msgid "no account with id {account}"
 msgstr "nu există cont cu ID-ul {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nu există cont cu ID-ul {id}"
@@ -17942,7 +17966,7 @@ msgid "no message with id {id}"
 msgstr "nu există mesaj cu ID-ul {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "nu există mesaj cu ID-ul {id} în {name}"
@@ -19237,7 +19261,7 @@ msgid "there is nothing to take in"
 msgstr "nu este nimic de preluat"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "aceste mesaje erau pentru alt cont, nu pentru {name}"
@@ -20050,12 +20074,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} nu este un cont Microsoft sincronizat prin IMAP"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} nu este un cont Microsoft sau de server Exchange"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -20092,6 +20110,11 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} nu este conectat la un server de e-mail"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "{name} isn't connected to an IMAP server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -20108,6 +20131,11 @@ msgstr "{name} nu este sincronizat prin Microsoft Graph"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} nu își așteaptă rândul într-o Trimitere/primire"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -21125,6 +21153,11 @@ msgstr "„{subject}” a venit de pe server, dar nu a putut fi păstrat pe aces
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
 msgstr "„{subject}” nu este încă descărcat: deschideți-l când sunteți online, apoi redirecționați-l ca atașament"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

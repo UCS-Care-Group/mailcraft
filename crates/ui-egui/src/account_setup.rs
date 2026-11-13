@@ -710,7 +710,8 @@ impl AccountSetup {
         }
         w.oauth = a.oauth.clone();
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
-        if a.kind.has_offline_window() && !a.is_shared() {
+        // (An IMAP account's too, #653.)
+        if a.kind.keeps_offline_window() && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
         }
         // (A shared mailbox asks as its owner does.)

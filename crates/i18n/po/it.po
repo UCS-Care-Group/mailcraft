@@ -1340,6 +1340,12 @@ msgid "Apply Downloaded To-dos"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "Applica scaricamento IMAP"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -3096,6 +3102,11 @@ msgstr "Impossibile salvare la bozza «{subject}» sul server: il server rispond
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Impossibile salvare la cassetta postale: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -5379,6 +5390,12 @@ msgstr "Sono un amministratore: approva MailCraft per la mia organizzazione"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Sono un amministratore: approvalo per la mia organizzazione"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "Richiesta di scaricamento IMAP"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10872,7 +10889,7 @@ msgid "Send & Receive"
 msgstr "Invia e ricevi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Invia/Ricevi"
@@ -16772,16 +16789,17 @@ msgstr ""
 msgid "never"
 msgstr "never"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "nessun account IMAP con id {id}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "nessun account Microsoft è sincronizzato tramite IMAP"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -16811,6 +16829,12 @@ msgstr "nessun account è collegato a un server di posta"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "nessun account è collegato a un server di posta (File › Aggiungi account)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "nessun account è collegato a un server IMAP"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "no account is kept in step over JMAP"
@@ -16822,13 +16846,19 @@ msgstr ""
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "nessun account è sincronizzato tramite Microsoft Graph"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "nessun account conserva solo un periodo della sua posta su questo computer"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nessun account con id {id}"
@@ -16919,7 +16949,7 @@ msgid "no message with id {id}"
 msgstr "nessun messaggio con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "nessun messaggio con id {id} in {name}"
@@ -18160,7 +18190,7 @@ msgid "there is nothing to take in"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "questi messaggi erano per un altro account, non per {name}"
@@ -18928,11 +18958,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} non è un account Microsoft sincronizzato tramite IMAP"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -18968,6 +18993,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} non è collegato a un server di posta"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} non è collegato a un server IMAP"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} isn't kept in step over JMAP"
 msgstr ""
@@ -18983,6 +19014,11 @@ msgstr "{name} non è sincronizzato tramite Microsoft Graph"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} non è in attesa del proprio turno in un Invia/Ricevi"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19878,6 +19914,11 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then fo
 msgstr "«{subject}» non è ancora stato scaricato: aprilo quando sei online, poi inoltralo come allegato"
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -19888,6 +19929,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "{name} keeps all its mail on this computer: only a Microsoft or an IMAP account keeps a window of it"
+#~ msgstr "{name} conserva tutta la posta su questo computer: solo un account Microsoft o IMAP ne conserva un periodo"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

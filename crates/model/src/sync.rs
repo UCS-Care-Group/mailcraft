@@ -13,6 +13,7 @@ use mailcraft_time::Timestamp;
 
 mod drafts;
 mod ews;
+mod imap_fetch;
 mod jmap;
 mod place;
 #[cfg(test)]
@@ -21,6 +22,7 @@ mod progress;
 mod search;
 pub use drafts::*;
 pub use ews::*;
+pub use imap_fetch::*;
 pub use jmap::*;
 pub use place::*;
 pub use progress::*;
@@ -125,6 +127,12 @@ pub struct SyncRequest {
     /// account or from this computer (#451); after `ops`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<ImapPlace>,
+    /// The account's mail to keep offline (#653): the earliest time a message arrived
+    /// (`INTERNALDATE`) for it to come down whole. Of an older one only its header and the start
+    /// of its text come, for a preview ([`Message::unfetched`]); it is fetched whole when it is
+    /// opened. Never in Drafts or the Outbox, never a draft. `None` brings everything whole.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_since: Option<Timestamp>,
     /// Messages of a Gmail account's Inbox the owner moved to another of Gmail's categories here
     /// (#911), for Gmail's API: after `ops`, before anything is read. Only for an account that
     /// signs in with Google, and only while moves are switched on; empty otherwise.
@@ -685,6 +693,11 @@ pub struct SyncResult {
     /// run: the tree is there to see before its mail is.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub listed: Vec<ListedFolder>,
+    /// `listed` is every mailbox of mail the server named, not the first of them: a folder here
+    /// that follows a mailbox it leaves out is one the server no longer has under that name
+    /// ([`crate::Folder::unlisted`], #653).
+    #[serde(skip_serializing_if = "is_false")]
+    pub listed_all: bool,
     /// Ids of Outbox messages that were sent.
     pub sent: Vec<Id>,
     /// Those of `sent` that have a copy in the server's mailbox for sent mail, or will have: put
@@ -824,6 +837,7 @@ impl SyncResult {
             email: _,
             folders: _,
             listed: _,
+            listed_all: _,
             sent: _,
             filed: _,
             unfiled: _,
@@ -849,7 +863,7 @@ impl SyncResult {
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
         self.timings.absorb(&later.timings);
         if !later.listed.is_empty() {
-            self.listed = later.listed;
+            (self.listed, self.listed_all) = (later.listed, later.listed_all);
         }
         self.sent.extend(later.sent);
         // A copy that didn't get there after all is one that was never said to.

@@ -20,8 +20,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::{compose, ews_mail, graph_mail, jmap_mail};
-use mailcraft_model::sync::GraphFetchResult;
+use mailcraft_engine::cmd::{compose, ews_mail, graph_mail, imap_fetch, jmap_mail};
+use mailcraft_model::sync::{GraphFetchResult, ImapFetchRequest};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
@@ -39,6 +39,16 @@ use mailcraft_engine::sync_driver::{FETCH_IDLE_MS, fetch_backoff_ms};
 
 /// What the host is asked to fetch ([`crate::Services::graph_fetch`]).
 pub use mailcraft_host::fetch::GraphFetchJob;
+
+/// What the host is asked to fetch of an IMAP account ([`crate::Services::imap_fetch`], #653):
+/// messages its mail to keep offline left as their headers and preview.
+pub struct ImapFetchJob {
+    pub request: ImapFetchRequest,
+    /// The password, or the access token of an account that signs in with OAuth: what its
+    /// Send/Receive goes with. Never logged.
+    pub secret: String,
+    pub cancel: Arc<AtomicBool>,
+}
 
 /// The state of fetching, in the window.
 #[derive(Default)]
@@ -144,7 +154,7 @@ fn to_fetch(app: &MailApp, id: &str, message: Id) -> Option<Id> {
     // One whose server's copy went before it could be fetched never will be: Forward as Attachment
     // says so itself (the others have no word of their own for it, and wait as they did).
     let never = |m: &mailcraft_model::Message| m.incomplete && id == "mail.forwardAsAttachment";
-    app.session.mailbox.message(message).filter(|m| m.unfetched && !never(m) && m.server.is_some()).map(|m| m.id)
+    app.session.mailbox.message(message).filter(|m| app.session.mailbox.fetchable(m) && !never(m)).map(|m| m.id)
 }
 
 /// The messages a forward takes, as the engine takes them, and the one in focus. `None` for
@@ -174,7 +184,7 @@ fn forward_of(command: &str, params: &Value) -> Option<(Vec<Id>, Option<Id>, boo
 /// (a delta gives no sizes), so a forward of more than 64 MB together is found out after at most
 /// that many more have come.
 fn still_to_fetch(app: &MailApp, ids: &[Id], tried: &[Id]) -> Vec<Id> {
-    let waiting = |m: &&mailcraft_model::Message| m.unfetched && m.server.is_some() && !tried.contains(&m.id);
+    let waiting = |m: &&mailcraft_model::Message| app.session.mailbox.fetchable(m) && !tried.contains(&m.id);
     let mut waiting = ids.iter().filter_map(|id| app.session.mailbox.message(*id)).filter(waiting);
     let Some(first) = waiting.next() else { return Vec::new() };
     let account = first.account;
@@ -192,10 +202,23 @@ enum Way {
     Graph(String),
     Jmap(String),
     Ews(String),
+    Imap(String),
+}
+
+/// The secret an IMAP account's fetch goes with (#653): a token of this session that is still
+/// good for a while, for an account that signs in with OAuth (none is asked for here: the next
+/// Send/Receive signs in), else the password typed this session or remembered.
+fn imap_secret(app: &MailApp, account: Id) -> Option<String> {
+    let a = app.session.mailbox.account(account)?;
+    if a.oauth.is_some() {
+        return app.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone());
+    }
+    app.passwords.get(&account).cloned().or_else(|| app.remembered("password", account))
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
     match app.session.mailbox.account(account)?.kind {
+        AccountKind::Imap if app.services.imap_fetch.is_some() => imap_secret(app, account).map(Way::Imap),
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
@@ -210,6 +233,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
         AccountKind::Exchange => app.services.ews_fetch.is_some(),
+        AccountKind::Imap => app.services.imap_fetch.is_some(),
         _ => false,
     }
 }
@@ -222,6 +246,8 @@ fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcra
         jmap_mail::apply_jmap_fetch(&mut app.session, result)
     } else if kind == Some(AccountKind::Exchange) {
         ews_mail::apply_ews_fetch(&mut app.session, result)
+    } else if kind == Some(AccountKind::Imap) {
+        imap_fetch::apply_imap_fetch(&mut app.session, result)
     } else {
         graph_mail::apply_graph_fetch(&mut app.session, result)
     }
@@ -378,6 +404,11 @@ impl MailApp {
                 let request = asked(messages, |m| ews_mail::ews_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(EwsFetchJob { request, secret, cancel }))
             }
+            Way::Imap(secret) => {
+                let fetch = self.services.imap_fetch.as_ref()?;
+                let request = asked(messages, |m| imap_fetch::imap_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
+                Some(fetch(ImapFetchJob { request, secret, cancel }))
+            }
         }
     }
 
@@ -397,7 +428,7 @@ impl MailApp {
         };
         if shown != self.fetching.opened {
             let to_fetch =
-                shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id));
+                shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| self.session.mailbox.fetchable(m)).map(|m| (m.account, m.id));
             match to_fetch {
                 Some((_, m)) if self.opened_after_batch(m) => {}
                 Some((account, m)) => {
@@ -597,11 +628,15 @@ impl Came {
         let missing: HashSet<&str> = result.missing.iter().map(String::as_str).collect();
         let failed: HashSet<&str> = result.failed.iter().map(String::as_str).collect();
         let mut came = Came { answered: Vec::new(), sent: Vec::new(), not_sent: None, why: result.errors.first().cloned() };
+        let mb = &app.session.mailbox;
         for m in messages {
-            let Some(on_server) = app.session.mailbox.message(*m).and_then(|m| m.server.as_ref()).map(|s| s.id.as_str()) else {
+            // By its server id, or an IMAP account's by its mailbox and UID (#653).
+            let on_server = mb.message(*m).and_then(|m| m.server.as_ref().map(|s| s.id.clone()).or_else(|| mb.imap_key(m).map(|k| k.write())));
+            let Some(on_server) = on_server else {
                 came.answered.push(*m);
                 continue;
             };
+            let on_server = on_server.as_str();
             if missing.contains(on_server) || failed.contains(on_server) {
                 came.not_sent = came.not_sent.or(Some((*m, missing.contains(on_server))));
             } else if fetched.contains(on_server) {
@@ -628,6 +663,9 @@ fn asked<R>(messages: &[Id], request: impl Fn(Option<Id>) -> Option<R>, ids: fn(
 
 #[cfg(test)]
 mod forward_several_tests;
+
+#[cfg(test)]
+mod imap_tests;
 
 #[cfg(test)]
 mod let_go_tests;

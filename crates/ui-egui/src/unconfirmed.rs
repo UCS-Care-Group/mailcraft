@@ -49,6 +49,7 @@ pub(crate) struct Held {
     jmap_fetch: Option<Box<dyn Fn(crate::jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     ews: Option<Box<dyn Fn(crate::ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
     ews_fetch: Option<Box<dyn Fn(crate::ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    imap_fetch: Option<Box<dyn Fn(crate::graph_fetch::ImapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
 }
 
 /// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
@@ -167,6 +168,7 @@ impl MailApp {
             jmap_fetch: s.jmap_fetch.take(),
             ews: s.ews.take(),
             ews_fetch: s.ews_fetch.take(),
+            imap_fetch: s.imap_fetch.take(),
         };
     }
 
@@ -185,6 +187,7 @@ impl MailApp {
         s.jmap_fetch = held.jmap_fetch.or(s.jmap_fetch.take());
         s.ews = held.ews.or(s.ews.take());
         s.ews_fetch = held.ews_fetch.or(s.ews_fetch.take());
+        s.imap_fetch = held.imap_fetch.or(s.imap_fetch.take());
     }
 
     /// `ui.confirmServers`: the owner has seen where every account connects and says yes. Kept
