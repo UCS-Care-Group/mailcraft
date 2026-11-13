@@ -51,6 +51,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
+    // TNEF (`winmail.dat`): read by `mime`, with `pst`'s code pages and rich text under it.
+    ("tnef", Class::Layer(2)),
     // OpenPGP checking (#30): rPGP under it, no I/O, builds for the browser.
     ("openpgp", Class::Layer(2)),
     ("smime", Class::Layer(2)),
@@ -79,10 +81,12 @@ pub const TABLE: &[(&str, Class)] = &[
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later): the socket transport
-/// (`net`) drives the protocol state machines (`proto`), and web addresses (`link`) refuse the
-/// format characters of the one list (`names`), and the mailbox's messages (`mime-model`) are read
-/// and written by the reader that knows nothing of a mailbox (`mime`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["mime", "mime-model"]];
+/// (`net`) drives the protocol state machines (`proto`), web addresses (`link`) refuse the
+/// format characters of the one list (`names`), the mailbox's messages (`mime-model`) are read
+/// and written by the reader that knows nothing of a mailbox (`mime`), and that reader opens the
+/// TNEF streams (`tnef`) Outlook wraps files in, read with the code pages and rich text of `.pst`
+/// files (`pst`).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["pst", "tnef", "mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

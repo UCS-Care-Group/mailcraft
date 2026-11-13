@@ -1293,6 +1293,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-ber"
+version = "0.12.0"
+
+[[package]]
 name = "mailcraft-charset"
 version = "0.12.0"
 dependencies = [
@@ -1319,6 +1323,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-openpgp",
@@ -1340,7 +1345,7 @@ version = "0.12.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "md-5 0.11.0",
@@ -1364,11 +1369,13 @@ dependencies = [
  "mailcraft-jmap",
  "mailcraft-link",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-openpgp",
  "mailcraft-proto",
  "mailcraft-pst",
  "mailcraft-smime",
+ "mailcraft-tnef",
  "mailcraft-vcard",
 ]
 
@@ -1398,9 +1405,19 @@ name = "mailcraft-jmap"
 version = "0.12.0"
 dependencies = [
  "log",
- "mailcraft-mime",
+ "mailcraft-jmap-types",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailcraft-jmap-types"
+version = "0.12.0"
+dependencies = [
+ "serde",
  "serde_json",
 ]
 
@@ -1415,11 +1432,22 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.12.0"
 dependencies = [
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-html",
+ "mailcraft-time",
+ "mailcraft-tnef",
+ "thiserror",
+]
+
+[[package]]
+name = "mailcraft-mime-model"
+version = "0.12.0"
+dependencies = [
+ "mailcraft-html",
+ "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-time",
- "thiserror",
 ]
 
 [[package]]
@@ -1478,6 +1506,7 @@ dependencies = [
  "der 0.8.3",
  "des 0.9.0",
  "hmac 0.13.0",
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-model",
  "mailcraft-time",
@@ -1501,6 +1530,14 @@ dependencies = [
  "jiff",
  "js-sys",
  "serde",
+]
+
+[[package]]
+name = "mailcraft-tnef"
+version = "0.12.0"
+dependencies = [
+ "mailcraft-charset",
+ "mailcraft-pst",
 ]
 
 [[package]]
