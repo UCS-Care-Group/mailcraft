@@ -308,6 +308,11 @@ msgstr "@{login}: {prs} samengevoegde PR's, {commits} commits, +{added} / −{de
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het klaar is"
 
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+msgid "A JMAP account's mail can't be snoozed yet."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
