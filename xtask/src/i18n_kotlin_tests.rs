@@ -50,3 +50,20 @@ fn junk_never_panics() {
         let _ = scan(src);
     }
 }
+
+#[test]
+fn a_raw_string_is_skipped_whole() {
+    let src = "val q = \"\"\"select t(\"x\") from \"y\"\"\"\"; val a = t(\"Real\")";
+    assert_eq!(ids(src), vec!["Real"]);
+}
+
+#[test]
+fn a_raw_string_as_an_argument_is_not_a_text() {
+    let src = "t(\"\"\"raw\"\"\"); t(\"Next\")";
+    assert_eq!(ids(src), vec!["Next"]);
+}
+
+#[test]
+fn an_unclosed_raw_string_ends_the_scan() {
+    assert!(ids("val q = \"\"\"t(\"x\")").is_empty());
+}

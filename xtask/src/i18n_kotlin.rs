@@ -36,7 +36,7 @@ pub fn scan(src: &str) -> Vec<Said> {
                 continue;
             }
             (Some('"'), _) => {
-                i = literal(&chars, i).1;
+                i = if is_raw(&chars, i) { raw_end(&chars, i) } else { literal(&chars, i).1 };
                 continue;
             }
             _ => {}
@@ -77,6 +77,15 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
     while i < chars.len() {
         let c = chars[i];
         match c {
+            '"' if is_raw(chars, i) => {
+                // A raw string is not one plain text for the catalogue: it is skipped whole.
+                if depth == 0 && piece_start {
+                    texts.push(None);
+                    piece_start = false;
+                }
+                i = raw_end(chars, i);
+                continue;
+            }
             '"' => {
                 let (s, end) = literal(chars, i);
                 if depth == 0 && piece_start {
@@ -115,6 +124,28 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
     } else {
         Some(Said { id: texts.first()?.clone()?, plural: None })
     }
+}
+
+/// Whether a raw string (`"""…"""`) opens at `i`.
+fn is_raw(chars: &[char], i: usize) -> bool {
+    chars.get(i..i + 3).is_some_and(|q| q.iter().all(|c| *c == '"'))
+}
+
+/// The index after the raw string opening at `start`: it ends at the first `"""`, and any more quotes
+/// right after belong to its text (Kotlin closes on the last of a run); an unclosed one runs to the end.
+fn raw_end(chars: &[char], start: usize) -> usize {
+    let mut i = start + 3;
+    while i < chars.len() {
+        if is_raw(chars, i) {
+            i += 3;
+            while chars.get(i) == Some(&'"') {
+                i += 1;
+            }
+            return i;
+        }
+        i += 1;
+    }
+    chars.len()
 }
 
 /// The string literal opening at `start` (a `"`): its text (`None` when it has a template `$name`
