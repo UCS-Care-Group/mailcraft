@@ -116,3 +116,72 @@ fn the_background_looks_at_the_accounts_that_are_not_waiting_and_rests_when_stop
     s.sync_progress.full_paused = true;
     assert!(!s.fetch_background_due(1e12));
 }
+
+/// The owner's download of a message a rule that shows a desktop alert waited for (#566): what
+/// taking it in said comes back (`taken`, with its `alerts`), whether a command waits for it, waits
+/// in another mailbox, or nothing waits; an answer for another mailbox takes nothing in and says
+/// nothing was.
+#[test]
+fn what_taking_in_the_owners_download_said_comes_back_with_its_rule_alerts() {
+    use mailcraft_model::sync::{GraphFetched, GraphMailResult, GraphMessage, MessagePage};
+    use mailcraft_model::{Address, ServerFolder};
+    const ME: &str = "ada@example.org";
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": ME, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let rule =
+        json!({"name": "Invoices", "server": false, "conditions": [{"type": "bodyContains", "value": "invoice"}], "actions": [], "alert": true});
+    s.run("rules.add", &rule).unwrap();
+    let listed = |id: &str| GraphMessage {
+        server: ServerMessage { id: id.into(), folder: "F-in".into(), size: 1_200, ..Default::default() },
+        message_id: format!("{id}@example.org"),
+        subject: "Plan".into(),
+        from: Address::new("Zoe Park", "zoe@example.org"),
+        to: vec![Address::new("Ada", ME)],
+        received: 1_060,
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "F-in".into(), messages: ["N1", "N2", "N3"].map(listed).to_vec(), ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_mail(
+        &mut s,
+        GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() },
+    )
+    .unwrap();
+    let here = |s: &Session, server: &str| s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|x| x.id == server)).unwrap().id;
+    let (n1, n2, n3) = (here(&s, "N1"), here(&s, "N2"), here(&s, "N3"));
+    assert!(s.mailbox.message(n1).unwrap().rules_waiting.is_some(), "the rule waits for the text");
+    let came = |id: &str| {
+        let mime = format!(
+            "From: Zoe Park <zoe@example.org>\r\nTo: {ME}\r\nSubject: Plan\r\nMessage-ID: <{id}@example.org>\r\nContent-Type: text/plain\r\n\r\nThe invoice.\r\n"
+        );
+        GraphFetchResult { account, email: ME.into(), fetched: vec![GraphFetched { id: id.into(), mime: mime.into_bytes() }], ..Default::default() }
+    };
+    let alerts = |a: &NowAnswered| a.taken.as_ref().map(|t| t["alerts"].clone());
+    // For another mailbox: nothing taken in, nothing said.
+    let answered = s.fetch_now_answered(&[n1], s.openings() + 1, came("N1"));
+    assert_eq!(alerts(&answered), None);
+    assert!(s.mailbox.message(n1).unwrap().unfetched);
+    // A reply waits for it: taken in, the alert named, and the reply runs.
+    let plan = s.fetch_first_plan("mail.reply", &json!({"id": n1})).unwrap().unwrap();
+    s.fetch_waiting(plan);
+    let answered = s.fetch_now_answered(&[n1], s.openings(), came("N1"));
+    assert_eq!(alerts(&answered), Some(json!([n1])));
+    assert!(matches!(answered.next, NowNext::Run(_)));
+    // Nothing waits (the message shown in the reading pane): named all the same.
+    let answered = s.fetch_now_answered(&[n2], s.openings(), came("N2"));
+    assert_eq!(alerts(&answered), Some(json!([n2])));
+    assert!(matches!(answered.next, NowNext::Nothing));
+    // A command of another mailbox waits: it is let go of, and the alert is still named.
+    let plan = s.fetch_first_plan("mail.reply", &json!({"id": n3})).unwrap().unwrap();
+    s.fetch_waiting(plan);
+    if let Some(then) = s.driver.fetch.then.as_mut() {
+        then.opening += 1;
+    }
+    let answered = s.fetch_now_answered(&[n3], s.openings(), came("N3"));
+    assert_eq!(alerts(&answered), Some(json!([n3])));
+    assert!(matches!(answered.next, NowNext::Nothing));
+    // Downloaded again (the background's copy): nothing more.
+    let answered = s.fetch_now_answered(&[n1], s.openings(), came("N1"));
+    assert_eq!(alerts(&answered), Some(json!([])));
+}
