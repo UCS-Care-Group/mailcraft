@@ -31,6 +31,8 @@ pub(crate) const CONTENT: &[&str] = &[
     "mail.findFromSender",
     "calendar.get",
     "calendar.list",
+    // The List view's rows (#845), and its groups, named by categories.
+    "calendar.listRows",
     "calendar.invitation",
     "calendar.proposals",
     // The meeting's link, as its server or an invitation gave it.

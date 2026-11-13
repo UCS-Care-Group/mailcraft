@@ -104,7 +104,7 @@ msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/calendar_view/list.rs
 msgid "(No title)"
 msgstr ""
 
@@ -134,7 +134,7 @@ msgid "(no title)"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/signatures.rs
 msgid "(none)"
 msgstr ""
 
@@ -1271,12 +1271,17 @@ msgid "Arrange Contacts By"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Arrange List By"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 msgid "Arrange Tasks By"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Arrangement"
 msgstr ""
 
@@ -1438,6 +1443,11 @@ msgid "Attached {n} file"
 msgid_plural "Attached {n} files"
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -1770,7 +1780,7 @@ msgid "By Subject"
 msgstr ""
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 msgid "Calendar"
 msgstr ""
 
@@ -2784,6 +2794,11 @@ msgstr ""
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Daily"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/theme.rs
 msgid "Dark"
@@ -3568,8 +3583,8 @@ msgstr ""
 msgid "Enable Rule"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 msgid "End"
 msgstr ""
 
@@ -4703,6 +4718,11 @@ msgstr ""
 msgid "I'm an administrator: approve it for my organisation"
 msgstr ""
 
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Icon"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Icons"
@@ -5585,6 +5605,11 @@ msgstr ""
 msgid "Links"
 msgstr ""
 
+#. command label, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+msgid "List"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 msgid "List Accounts"
@@ -5626,6 +5651,11 @@ msgid "List Notes"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "List Rows"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 msgid "List Tasks"
 msgstr ""
@@ -5635,8 +5665,8 @@ msgstr ""
 msgid "Local mailbox"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 msgid "Location"
 msgstr ""
 
@@ -6372,6 +6402,11 @@ msgstr ""
 msgid "Month"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Monthly"
+msgstr ""
+
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs
 msgid "More Options"
@@ -6881,7 +6916,7 @@ msgid "No categories yet"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "No category"
 msgstr ""
 
@@ -7100,8 +7135,8 @@ msgstr ""
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr ""
 
-#. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "None"
 msgstr ""
 
@@ -8455,9 +8490,14 @@ msgstr ""
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 msgid "Recurrence"
+msgstr ""
+
+#. name
+#: crates/engine/src/session.rs
+msgid "Recurrence Pattern"
 msgstr ""
 
 #. command label, name
@@ -10444,6 +10484,11 @@ msgstr ""
 msgid "Something did not go through, or did not arrive as it was sent. The steps below say what."
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Sort List"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "Sort by"
@@ -10469,8 +10514,8 @@ msgstr ""
 msgid "Stand this calendar beside the others"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 msgid "Start"
 msgstr ""
 
@@ -11188,6 +11233,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "The calendars of the shared mailbox wait: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "The calendars shown hold no items."
 msgstr ""
 
 #. interface
@@ -13322,7 +13372,7 @@ msgid "Version {version} is ready:"
 msgstr ""
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "View"
 msgstr ""
 
@@ -13404,6 +13454,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Week starts on"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Weekly"
 msgstr ""
 
 #. interface
@@ -13687,6 +13742,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "Yahoo Mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Yearly"
 msgstr ""
 
 #. interface
@@ -16892,7 +16952,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] ""

@@ -473,6 +473,12 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                             st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
                         }
                     }
+                    // The List view has every item of the calendars shown, a series once (#845).
+                    Module::Calendar if app.session.view.calendar == mailcraft_engine::CalView::List => {
+                        // (From what the list keeps, not worked out again here.)
+                        let count = crate::calendar_view::list::listed(ui.ctx(), &app.session).items;
+                        st(ui, &tln!(count, "{n} item", "{n} items"), t.text_dim);
+                    }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();

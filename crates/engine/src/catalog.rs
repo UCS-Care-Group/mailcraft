@@ -263,6 +263,7 @@ Calendar|Arrange|Day|view.day
 Calendar|Arrange|Work Week|view.workWeek
 Calendar|Arrange|Week|view.week
 Calendar|Arrange|Month|view.month
+Calendar|Arrange|List|view.list
 Calendar|Arrange|Schedule View|view.schedule
 Calendar|Manage Calendars|Add Calendar|calendar.addCalendar
 Calendar|Manage Calendars|Delete Calendar|calendar.removeCalendar

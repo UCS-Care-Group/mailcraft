@@ -123,7 +123,7 @@ msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted
 msgstr "„{subject}” rămâne unde a fost mutat: este semnat digital sau criptat, iar copia lui din cutia poștală de unde a venit a fost eliminată, în timp ce copia din care a fost mutat întâi păstrează octeții cu care a sosit. Mutați-l înapoi ca să ajungă din nou acolo."
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/calendar_view/list.rs
 #, fuzzy
 msgid "(No title)"
 msgstr "(Fără titlu)"
@@ -159,7 +159,7 @@ msgid "(no title)"
 msgstr "(fără titlu)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(niciunul)"
@@ -1530,13 +1530,18 @@ msgid "Arrange Contacts By"
 msgstr "Aranjare contacte după"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Arrange List By"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Arrange Tasks By"
 msgstr "Aranjare sarcini după"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Aranjament"
@@ -1732,6 +1737,11 @@ msgid_plural "Attached {n} files"
 msgstr[0] "S-a atașat {n} fișier"
 msgstr[1] "S-au atașat {n} fișiere"
 msgstr[2] "S-au atașat {n} de fișiere"
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2129,7 +2139,7 @@ msgid "By Subject"
 msgstr "După subiect"
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendar"
@@ -3354,6 +3364,11 @@ msgstr "Decupare"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Daily"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/theme.rs
 #, fuzzy
@@ -4304,8 +4319,8 @@ msgstr "Golire cutie poștală"
 msgid "Enable Rule"
 msgstr "Activare regulă"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "End"
 msgstr "Sfârșit"
@@ -5687,6 +5702,11 @@ msgstr "Sunt administrator: aprob MailCraft pentru organizația mea"
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Sunt administrator: îl aprob pentru organizația mea"
 
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Icon"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6744,6 +6764,11 @@ msgstr "Link"
 msgid "Links"
 msgstr "Linkuri"
 
+#. command label, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+msgid "List"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -6793,6 +6818,11 @@ msgid "List Notes"
 msgstr "Listare note"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "List Rows"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "List Tasks"
@@ -6804,8 +6834,8 @@ msgstr "Listare sarcini"
 msgid "Local mailbox"
 msgstr "Cutie poștală locală"
 
-#. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Locație"
@@ -7692,6 +7722,11 @@ msgstr "luni"
 msgid "Month"
 msgstr "Lună"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Monthly"
+msgstr ""
+
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -8317,7 +8352,7 @@ msgid "No categories yet"
 msgstr "Încă nicio categorie"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "Nicio categorie"
@@ -8580,8 +8615,8 @@ msgstr "Nu este invitat nimeni cu adresă"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Nu se potrivește niciunul sau se potrivesc mai multe contacte: {names}"
 
-#. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Niciunul"
@@ -10212,11 +10247,16 @@ msgstr "Reconectare cu Google"
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
 msgstr "Reconectați-vă cu Google dacă conectarea a expirat sau a fost revocată. E-mailurile descărcate și setările contului rămân pe loc."
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recurrence"
 msgstr "Recurență"
+
+#. name
+#: crates/engine/src/session.rs
+msgid "Recurrence Pattern"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -12626,6 +12666,11 @@ msgstr "Altcineva organizează această întâlnire: rămâne în calendarul în
 msgid "Something did not go through, or did not arrive as it was sent. The steps below say what."
 msgstr "Ceva nu a trecut sau nu a ajuns așa cum a fost trimis. Pașii de mai jos arată ce anume."
 
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+msgid "Sort List"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -12656,8 +12701,8 @@ msgstr "Ortografie și gramatică"
 msgid "Stand this calendar beside the others"
 msgstr "Așezați acest calendar lângă celelalte"
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Start"
 msgstr "Început"
@@ -13524,6 +13569,11 @@ msgstr ""
 #, fuzzy
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Calendarele cutiei poștale partajate așteaptă: {error}"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "The calendars shown hold no items."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -16105,7 +16155,7 @@ msgid "Version {version} is ready:"
 msgstr "Versiunea {version} este gata:"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Vizualizare"
@@ -16205,6 +16255,11 @@ msgstr "Numerele săptămânilor"
 #, fuzzy
 msgid "Week starts on"
 msgstr "Săptămâna începe"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Weekly"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16549,6 +16604,11 @@ msgstr "Yahoo"
 #, fuzzy
 msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "Yearly"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -20398,7 +20458,7 @@ msgstr[1] "{n} ore"
 msgstr[2] "{n} de ore"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
 msgid_plural "{n} items"

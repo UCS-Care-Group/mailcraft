@@ -46,7 +46,7 @@ fn own_specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
             .params(r#"{"id"?: number, "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)}"#)
             .selection(needs_event),
-        CommandSpec::new("calendar.select", "Select Event", "Calendar", select).pure().params(r#"{"id": number | null, "day"?: "YYYY-MM-DD"} (null selects nothing; anything else that isn't an id is refused)"#),
+        CommandSpec::new("calendar.select", "Select Event", "Calendar", select).pure().params(r#"{"id": number | null, "day"?: "YYYY-MM-DD", "series"?: bool} (null selects nothing; anything else that isn't an id is refused; "series": the whole of a series and no one day of it, as a row of the List view is)"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
@@ -792,7 +792,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     match named {
         Some(id) => {
             let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
-            s.sel.event_day = p::date(v, "day")?.or(Some(e.start.date));
+            let day = p::date(v, "day")?.or(Some(e.start.date));
+            // A series as a whole (the List view's row) has no day: what is done with it is done
+            // to the series, and nothing asks which occurrence.
+            s.sel.event_day = if p::bool(v, "series") == Some(true) { None } else { day };
             s.sel.event = Some(id);
         }
         None => {

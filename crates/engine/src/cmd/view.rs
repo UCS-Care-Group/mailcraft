@@ -53,6 +53,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).reads().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
         CommandSpec::new("view.week", "Week", "Home › Arrange", week).reads().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
         CommandSpec::new("view.month", "Month", "Home › Arrange", month).reads().key(mac_or("Mod+Ctrl+4", "Mod+Alt+4")),
+        CommandSpec::new("view.list", "List", "Home › Arrange", list).reads().key(mac_or("Mod+Ctrl+5", "Mod+Alt+5")),
         CommandSpec::new("view.today", "Today", "Home › Go To", today).reads(),
         CommandSpec::new("view.next", "Forward", "Home › Go To", forward).reads(),
         CommandSpec::new("view.previous", "Back", "Home › Go To", back).reads(),
@@ -226,7 +227,22 @@ fn cal(s: &mut Session, view: CalView) -> CmdResult {
     // The view as its button has it: Day is the one day again (`view.days` shows more).
     s.view.days = 0;
     s.view.module = Module::Calendar;
+    if view == CalView::List {
+        reveal(s);
+        // A row is the whole series: what was selected in a grid is the series now, not one day
+        // of it, and an occurrence changed on its own is its series' row.
+        s.sel.event_day = None;
+        let series = s.sel.event.and_then(|id| s.mailbox.event(id)).and_then(|e| super::calendar_list::series_of(s, e));
+        if let Some(series) = series {
+            s.sel.event = Some(series);
+        }
+    }
     Ok(json!({"view": view, "range": range_json(s)}))
+}
+
+/// The List view is to scroll to the day in view, though it may be the one it was at.
+fn reveal(s: &mut Session) {
+    s.view.list_reveal = s.view.list_reveal.wrapping_add(1);
 }
 
 fn day(s: &mut Session, _: &Value) -> CmdResult {
@@ -245,12 +261,18 @@ fn month(s: &mut Session, _: &Value) -> CmdResult {
     cal(s, CalView::Month)
 }
 
+fn list(s: &mut Session, _: &Value) -> CmdResult {
+    cal(s, CalView::List)
+}
+
 /// The days the calendar shows for the view and date in effect (inclusive).
 pub fn calendar_range(s: &Session) -> (mailcraft_time::Date, mailcraft_time::Date) {
     let d = s.view.date;
     match s.view.calendar {
         // One day, or as many from it on as `view.days` asked for.
         CalView::Day => (d, d.add_days(super::calendar_extra::days_shown(s) - 1)),
+        // The List view has every appointment, and is at the day in view.
+        CalView::List => (d, d),
         CalView::Week => {
             let start = d.start_of_week(s.prefs.week_start);
             (start, start.add_days(6))
@@ -284,6 +306,7 @@ fn range_json(s: &Session) -> Value {
 
 fn today(s: &mut Session, _: &Value) -> CmdResult {
     s.view.date = s.today();
+    reveal(s);
     Ok(range_json(s))
 }
 
@@ -291,8 +314,10 @@ fn shift(s: &mut Session, sign: i32) -> CmdResult {
     s.view.date = match s.view.calendar {
         CalView::Day => s.view.date.add_days(i64::from(sign) * super::calendar_extra::days_shown(s)),
         CalView::Week | CalView::WorkWeek => s.view.date.add_days(7 * i64::from(sign)),
-        CalView::Month => s.view.date.add_months(sign),
+        // The List view has no pages: Back and Forward go a month through it.
+        CalView::Month | CalView::List => s.view.date.add_months(sign),
     };
+    reveal(s);
     Ok(range_json(s))
 }
 
@@ -307,6 +332,7 @@ fn back(s: &mut Session, _: &Value) -> CmdResult {
 fn go_to_date(s: &mut Session, v: &Value) -> CmdResult {
     s.view.date = p::date(v, "date")?.ok_or_else(|| bad("`date` (YYYY-MM-DD) is required"))?;
     s.view.module = Module::Calendar;
+    reveal(s);
     Ok(range_json(s))
 }
 
