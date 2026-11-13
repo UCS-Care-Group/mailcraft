@@ -157,9 +157,11 @@ impl Session {
         let mut due = Vec::new();
         // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
         // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
-        if !facts.reachable || !self.driver.auto_sync() || self.prefs.offline || facts.running || facts.busy.blocks(Start::Rules) {
+        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks(Start::Rules) {
             return due;
         }
+        // Working offline: the books go on, nothing is started.
+        let offline = self.prefs.offline;
         for account in rules_remote::rule_accounts(&self.mailbox) {
             if self.rules_signed_out(account, refresh(account).as_deref()) {
                 continue;
@@ -173,7 +175,7 @@ impl Session {
             let book = &mut self.driver.rules.book;
             let pushes = book.quiet_over(&Pacing::RULES, account, ready, now);
             let asked = book.checked(account);
-            if !(pushes || asked.is_none_or(|at| now - at >= Pacing::RULES.refresh_ms)) || !book.patient(&Pacing::RULES, account, now) {
+            if !(pushes || asked.is_none_or(|at| now - at >= Pacing::RULES.refresh_ms)) || !book.patient(&Pacing::RULES, account, now) || offline {
                 continue;
             }
             due.push(RulesPlan { account, writes });

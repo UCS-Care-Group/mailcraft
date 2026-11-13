@@ -210,7 +210,7 @@ impl Session {
 
     /// The run of the shared mailbox `account` found the permission to send from shared mailboxes
     /// missing (#70): its Outbox waits. Whether the owner pressed Send in it since the last run
-    /// (then he is asked even though the run started by itself). `false` for an account that is
+    /// (then he is asked even though the run started by itself). `None` for an account that is
     /// gone.
     pub fn shared_send_missing(&mut self, account: Id) -> Option<bool> {
         self.mailbox.account(account)?;
