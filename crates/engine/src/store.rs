@@ -2093,10 +2093,30 @@ pub(crate) fn with_budget<T>(budget: u64, f: impl FnOnce() -> T) -> T {
     out
 }
 
-/// How many bytes of bodies a mailbox brings into memory when it opens: a sixteenth of the
-/// machine's memory, [`FALLBACK_BUDGET`] when that can't be read, and never more than
-/// [`MAX_CONTENT`]. The newest mail gets it; the rest is read when it is wanted.
+/// The most bytes of bodies a device lets this program keep in memory (0: no limit set), from
+/// [`set_device_budget`]. Nothing sets it on the desktop.
+static DEVICE_BUDGET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Tell the store the most bytes of bodies the device can spare (`None`: no limit beyond the
+/// engine's own). [`body_budget`] is then the lower of the two.
+pub fn set_device_budget(bytes: Option<u64>) {
+    DEVICE_BUDGET.store(bytes.unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// How many bytes of bodies a mailbox brings into memory when it opens: the engine's own budget
+/// ([`engine_body_budget`]), or what the device allows ([`set_device_budget`]) when that is lower.
 pub fn body_budget() -> u64 {
+    let engine = engine_body_budget();
+    match DEVICE_BUDGET.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => engine,
+        device => device.min(engine),
+    }
+}
+
+/// The engine's own budget, whatever the device says: a sixteenth of the machine's memory,
+/// [`FALLBACK_BUDGET`] when that can't be read, and never more than [`MAX_CONTENT`]. The newest
+/// mail gets it; the rest is read when it is wanted.
+pub fn engine_body_budget() -> u64 {
     #[cfg(test)]
     {
         let set = TEST_BUDGET.get();
