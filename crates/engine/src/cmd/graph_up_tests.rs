@@ -11,12 +11,12 @@ use super::*;
 use crate::cmd::graph_mail::{apply_graph_mail, graph_mail_request};
 
 /// Friday 2027-01-15 08:00 UTC.
-const NOW: i64 = 1_800_000_000;
+pub(crate) const NOW: i64 = 1_800_000_000;
 
 /// A session with a Microsoft account whose Inbox, Archive and Deleted Items the server has, a
 /// message in its Inbox the server has said things of, and a local account: the session, the
 /// account, the message and the local account's folder.
-fn setup() -> (Session, Id, Id, Id) {
+pub(crate) fn setup() -> (Session, Id, Id, Id) {
     let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     for (kind, id) in [(FolderKind::Inbox, "F-in"), (FolderKind::Archive, "F-ar"), (FolderKind::Deleted, "F-de")] {

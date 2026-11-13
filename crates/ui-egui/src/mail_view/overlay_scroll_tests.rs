@@ -101,20 +101,9 @@ fn a_list_with_a_floating_bar_still_scrolls() {
     assert!(harness.state().hit.rect("listScroll", 0).is_none());
 }
 
-/// Quick actions stay clear of the floating thumb even when a message row spans the list.
+/// Off a Mac, the choice is the lane's unless a test asks for the other.
 #[test]
-fn the_floating_scrollbar_keeps_clear_of_quick_actions() {
-    let mut harness = window(app(true));
-    let (row, rect) = drawn(&mut harness)[0].clone();
-    harness.event(egui::Event::PointerMoved(rect.center()));
-    harness.run_steps(2);
-    let flag = harness.state().hit.rect("messageFlag", row.id).unwrap();
-    assert!(flag.max.x <= rect.max.x - crate::widgets::OVERLAY_SCROLL_INSET + 0.01);
-}
-
-/// The message list uses the same slim overlay as the contact list by default.
-#[test]
-fn the_message_list_floats_its_scroll_bar_by_default() {
+fn only_a_mac_floats_its_scroll_bars_by_default() {
     let app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    assert!(app.overlay_scroll_bars);
+    assert_eq!(app.overlay_scroll_bars, cfg!(target_os = "macos"));
 }

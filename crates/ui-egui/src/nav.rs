@@ -44,7 +44,6 @@ const HIGHLIGHT_RIGHT: f32 = 4.0;
 const ROW_HIGHLIGHT_INSET: f32 = 1.0;
 /// A line of text is centred by its line box; the eye centres it by its lower-case letters, which
 /// sit this much below the middle of the box.
-const TEXT_RISE: f32 = 1.5;
 /// How round the pane's corner is where it meets the module bar and the ribbon.
 const SHEET_CORNER: u8 = 8;
 /// How wide the strip is that stays when the pane is hidden.
@@ -610,7 +609,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
         ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
-    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
+    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
     if resp.on_hover_text(tl!(step.about())).clicked() {
         crate::favorites_sync::step_taken(app, account, step);
     }
@@ -636,7 +635,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
         return;
     }
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     let left = r.min.x + NAME_LEFT;
     let width = (r.max.x - COUNT_RIGHT - left).max(0.0);
     let font = regular(NAME_SIZE);

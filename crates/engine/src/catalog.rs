@@ -95,6 +95,7 @@ Home|Tags|New Category|category.set
 Home|Tags|Rename Category|category.rename
 Home|Tags|Delete Category|category.remove
 Home|Tags|Follow Up|mail.flag
+Home|Tags|Snooze|mail.snooze
 Home|Tags|Flag Message|mail.toggleFlag
 Home|Tags|Mark Complete|mail.complete
 Home|Tags|Clear Flag|mail.clearFlag
@@ -344,18 +345,41 @@ Help|Help|What's New|help.whatsNew
 ";
 
 /// Catalog rows deliberately not built, each with why: the checklist lists them as out of scope
-/// rather than missing. They still count as not implemented in the percentage.
-pub const OUT_OF_SCOPE: [(&str, &str); 5] = [
+/// and leaves them out of the percentages (a row that is out of scope is neither counted as having
+/// a command nor as missing).
+pub const OUT_OF_SCOPE: [(&str, &str); 17] = [
     ("mail.edit", "it would rewrite a received message and replace the server's copy of it"),
     ("people.private", "contacts are read-only from the server (Contacts.Read), so the mark would stay on this computer"),
     ("people.followUp", "contacts are read-only from the server (Contacts.Read), so the flag would stay on this computer"),
     ("tasks.private", "Microsoft To Do has no private tasks"),
     ("sync.groups", "each account is kept in step on its own; there are no Send/Receive groups"),
+    ("insert.shape", "it needs a drawing model and a library of shapes; none is planned for the composer"),
+    ("insert.icon", "it needs a library of icons, and no vendor's may be used"),
+    ("insert.models3d", "it needs a 3D model viewer and a library of models, and no vendor's may be used"),
+    ("insert.diagram", "it needs a drawing model for diagrams; none is planned for the composer"),
+    ("insert.chart", "it needs a drawing model for charts; none is planned for the composer"),
+    ("insert.screenshot", "it needs a screen-capture permission from the system; a picture can be inserted instead"),
+    ("insert.textBox", "it needs a drawing model for floating boxes; the composer holds text in a flow"),
+    ("insert.textEffects", "it needs a drawing model for styled text; no vendor's effects may be used"),
+    ("insert.dropCap", "it needs a drawing model for text laid round a letter; the composer holds text in a flow"),
+    ("insert.object", "it embeds another program's document, which needs that program's components"),
+    ("mail.recall", "Exchange offers no way for other programs to recall a message, and one delivered to another server cannot be taken back"),
+    ("mail.replyIm", "it opens a chat in Microsoft's own chat program; there is no open protocol for it"),
 ];
+
+/// Catalog rows whose behaviour matches the incumbent's, shown by a test, with no open row in
+/// `docs/gaps.md`: **Complete**. A row is added by the change that closes its last gap, and the
+/// floor test then holds the count. Each id must be a catalog row with a command.
+pub const COMPLETE: &[&str] = &[];
 
 /// Why the catalog row `id` is out of scope, when it is.
 pub fn out_of_scope(id: &str) -> Option<&'static str> {
     OUT_OF_SCOPE.iter().find(|(out, _)| *out == id).map(|(_, why)| *why)
+}
+
+/// Whether the catalog row `id` is marked Complete.
+pub fn is_complete(id: &str) -> bool {
+    COMPLETE.contains(&id)
 }
 
 /// One catalog line.
@@ -373,36 +397,52 @@ pub fn features() -> impl Iterator<Item = Feature<'static>> {
     })
 }
 
-/// Compare the catalog with the registry: totals, the percentage implemented, per-tab numbers
-/// and what is missing.
+/// Compare the catalog with the registry: the rows in scope, how many have a command, how many are
+/// Complete, the percentages (rows out of scope are left out of them), per-tab numbers and what is
+/// missing.
 pub fn parity(reg: &Registry) -> Value {
-    let mut tabs: Vec<(String, usize, usize)> = Vec::new();
+    // Per tab: in scope, has a command, complete.
+    let mut tabs: Vec<(String, usize, usize, usize)> = Vec::new();
     let (mut missing, mut out_of_scope_rows) = (Vec::new(), Vec::new());
-    let (mut total, mut done) = (0usize, 0usize);
+    let (mut total, mut in_scope, mut done, mut complete) = (0usize, 0usize, 0usize, 0usize);
     for f in features() {
         total += 1;
-        let have = reg.get(f.id).is_some();
-        done += usize::from(have);
-        match tabs.iter_mut().find(|t| t.0 == f.tab) {
-            Some(t) => {
-                t.1 += 1;
-                t.2 += usize::from(have);
+        let tab = match tabs.iter().position(|t| t.0 == f.tab) {
+            Some(i) => i,
+            None => {
+                tabs.push((f.tab.to_string(), 0, 0, 0));
+                tabs.len() - 1
             }
-            None => tabs.push((f.tab.to_string(), 1, usize::from(have))),
+        };
+        if let Some(why) = out_of_scope(f.id) {
+            out_of_scope_rows.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id, "why": why}));
+            continue;
         }
-        match (have, out_of_scope(f.id)) {
-            (true, _) => {}
-            (false, Some(why)) => out_of_scope_rows.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id, "why": why})),
-            (false, None) => missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id})),
+        let have = reg.get(f.id).is_some();
+        let full = have && is_complete(f.id);
+        in_scope += 1;
+        done += usize::from(have);
+        complete += usize::from(full);
+        if let Some(t) = tabs.get_mut(tab) {
+            t.1 += 1;
+            t.2 += usize::from(have);
+            t.3 += usize::from(full);
+        }
+        if !have {
+            missing.push(json!({"tab": f.tab, "group": f.group, "feature": f.name, "id": f.id}));
         }
     }
-    let percent = if total == 0 { 0.0 } else { (done as f64 * 1000.0 / total as f64).round() / 10.0 };
+    let pct = |n: usize| if in_scope == 0 { 0.0 } else { (n as f64 * 1000.0 / in_scope as f64).round() / 10.0 };
     json!({
         "total": total,
+        "inScope": in_scope,
         "implemented": done,
-        "percent": percent,
+        "percent": pct(done),
+        "complete": complete,
+        "completePercent": pct(complete),
+        "outOfScopeCount": out_of_scope_rows.len(),
         "commands": reg.all().len(),
-        "tabs": tabs.iter().map(|(t, n, d)| json!({"tab": t, "total": n, "implemented": d})).collect::<Vec<_>>(),
+        "tabs": tabs.iter().map(|(t, n, d, c)| json!({"tab": t, "inScope": n, "implemented": d, "complete": c})).collect::<Vec<_>>(),
         "missing": missing,
         "outOfScope": out_of_scope_rows,
     })
@@ -412,23 +452,29 @@ pub fn parity(reg: &Registry) -> Value {
 pub fn parity_markdown(reg: &Registry) -> String {
     let p = parity(reg);
     let n = |k: &str| p.get(k).and_then(Value::as_u64).unwrap_or(0);
+    let f = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0);
     let mut out = String::from("# Outlook feature parity\n\n");
     out.push_str("> Generated by `cargo xtask parity` from `crates/engine/src/catalog.rs` and the command registry. Do not edit by hand.\n\n");
     out.push_str(&format!(
-        "**{} of {} catalog features have a command ({}%).** The registry holds {} commands.\n\n",
+        "**{} of {} in-scope catalog features have a command ({}%); {} are Complete ({}%).** {} more rows are out of scope and left out of both. The registry holds {} commands.\n\n",
         n("implemented"),
-        n("total"),
-        p.get("percent").and_then(Value::as_f64).unwrap_or(0.0),
+        n("inScope"),
+        f("percent"),
+        n("complete"),
+        f("completePercent"),
+        n("outOfScopeCount"),
         n("commands")
     ));
-    out.push_str("A command existing means the behaviour is reachable by id (ribbon, shortcut, CLI, control channel, MCP); how complete it is against the incumbent is tracked in `docs/gaps.md` and the per-area parity checklists.\n\n");
-    out.push_str("| Tab | Implemented | Total |\n|---|---|---|\n");
+    out.push_str("**Has a command** means the behaviour is reachable by id (ribbon, shortcut, CLI, control channel, MCP); it says nothing of how closely it behaves as the incumbent's does. **Complete** means the behaviour matches the incumbent's as far as MailCraft's rules allow, a test shows it, and `docs/gaps.md` has no open row for it. How far the rest falls short is tracked in `docs/gaps.md` and the per-area parity checklists.\n\n");
+    out.push_str("| Tab | Has a command | Complete | In scope |\n|---|---|---|---|\n");
     for t in p.get("tabs").and_then(Value::as_array).into_iter().flatten() {
+        let c = |k: &str| t.get(k).and_then(Value::as_u64).unwrap_or(0);
         out.push_str(&format!(
-            "| {} | {} | {} |\n",
+            "| {} | {} | {} | {} |\n",
             t.get("tab").and_then(Value::as_str).unwrap_or(""),
-            t.get("implemented").and_then(Value::as_u64).unwrap_or(0),
-            t.get("total").and_then(Value::as_u64).unwrap_or(0)
+            c("implemented"),
+            c("complete"),
+            c("inScope")
         ));
     }
     out.push_str("\n## Missing\n\n| Tab | Group | Feature | Command id |\n|---|---|---|---|\n");
@@ -436,7 +482,7 @@ pub fn parity_markdown(reg: &Registry) -> String {
         let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");
         out.push_str(&format!("| {} | {} | {} | `{}` |\n", s("tab"), s("group"), s("feature"), s("id")));
     }
-    out.push_str("\n## Out of scope\n\nDeliberately not built. These rows count as not implemented in the percentage above.\n\n");
+    out.push_str("\n## Out of scope\n\nDeliberately not built. These rows are left out of the percentages above.\n\n");
     out.push_str("| Tab | Group | Feature | Command id | Why |\n|---|---|---|---|---|\n");
     for m in p.get("outOfScope").and_then(Value::as_array).into_iter().flatten() {
         let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("");

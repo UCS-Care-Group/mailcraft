@@ -57,6 +57,11 @@ const SCROLL_TRACK: f32 = 17.0;
 const SCROLL_MARGIN: f32 = 5.0;
 /// The scroll bar's handle, in the middle of its lane.
 const SCROLL_HANDLE: f32 = 9.0;
+/// Where scroll bars float over what they scroll (a Mac's): the handle, a little wider while the
+/// pointer is on it, and how far it keeps from the list's right edge.
+const OVERLAY_HANDLE: f32 = 7.0;
+const OVERLAY_HANDLE_HOVERED: f32 = 9.0;
+const OVERLAY_MARGIN: f32 = 2.0;
 /// The ends of the lane, each with an arrow in it: the handle travels between them.
 const SCROLL_END: f32 = 19.0;
 /// The time ends this far from a row's right end. What is right of it is the flag's column.
@@ -361,6 +366,34 @@ fn lane_width(app: &MailApp) -> f32 {
     if app.overlay_scroll_bars { 0.0 } else { SCROLL_LANE }
 }
 
+/// The list's scroll bar where scroll bars float over what they scroll, as a Mac's do: a slim
+/// rounded handle over the rows' right end, there while the list is scrolled or the pointer is
+/// over it and gone when it is left alone, with no lane and no arrows.
+fn overlay_scroll_style(ui: &mut Ui, t: &Tokens) {
+    let style = ui.style_mut();
+    style.spacing.scroll = egui::style::ScrollStyle {
+        bar_width: OVERLAY_HANDLE_HOVERED,
+        floating_width: OVERLAY_HANDLE,
+        bar_inner_margin: 0.0,
+        bar_outer_margin: OVERLAY_MARGIN,
+        handle_min_length: 24.0,
+        foreground_color: false,
+        dormant_background_opacity: 0.0,
+        active_background_opacity: 0.0,
+        interact_background_opacity: 0.0,
+        dormant_handle_opacity: 0.0,
+        active_handle_opacity: 0.85,
+        interact_handle_opacity: 1.0,
+        ..egui::style::ScrollStyle::floating()
+    };
+    let ink = scroll_ink(t);
+    let round = egui::CornerRadius::same(5);
+    let widgets = &mut style.visuals.widgets;
+    (widgets.inactive.bg_fill, widgets.inactive.corner_radius) = (ink, round);
+    (widgets.hovered.bg_fill, widgets.hovered.corner_radius) = (ink.lerp_to_gamma(t.text, 0.35), round);
+    (widgets.active.bg_fill, widgets.active.corner_radius) = (ink.lerp_to_gamma(t.text, 0.6), round);
+}
+
 /// The list's scroll bar: a slim rounded handle that is always there while the list is longer
 /// than its pane. Its lane and arrows are painted by [`scroll_lane`] and [`scroll_arrows`].
 fn scroll_style(ui: &mut Ui, t: &Tokens) {
@@ -441,7 +474,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
 fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let on = !app.session.view.search.trim().is_empty();
     // It fades in when a search starts; with no search it is gone at once, ready to fade again.
-    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { 0.15 } else { 0.0 });
+    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { crate::motion::fade(ui, 0.15) } else { 0.0 });
     if !on {
         return;
     }
@@ -558,12 +591,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         if below > 0.0 {
             let room = Rect::from_min_max(pos2(r.min.x, r.min.y + 90.0), r.max);
             ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-                let plain = ui.style().clone();
-                if overlay {
-                    crate::widgets::overlay_scroll_style(ui, &t);
-                }
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
-                    ui.set_style(plain);
                     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
                     let width = (area.width() - lane_w).max(0.0);
                     server_rows::show(app, ui, &local, area.min.x, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
@@ -606,7 +634,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let travel = if arrows { outer.shrink2(vec2(0.0, SCROLL_END)) } else { outer };
     let plain = ui.style().clone();
     if overlay {
-        crate::widgets::overlay_scroll_style(ui, &t);
+        overlay_scroll_style(ui, &t);
     } else {
         scroll_style(ui, &t);
     }
@@ -851,8 +879,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     // Wide enough to hit without aiming, a gap between them, and short enough to stay off the
     // time on the subject's line.
-    let scroll_inset = if app.overlay_scroll_bars { crate::widgets::OVERLAY_SCROLL_INSET } else { 0.0 };
-    let flag_rect = Rect::from_center_size(pos2(rect.max.x - scroll_inset - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
+    let flag_rect = Rect::from_center_size(pos2(rect.max.x - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
     let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
@@ -956,8 +983,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     }
     let left = rect.min.x + text_left + if pictured { 2.0 * AVATAR_RADIUS + AVATAR_GAP } else { 0.0 };
     // Where the time ends, and where the text of every line does.
-    let time_end = rect.max.x - scroll_inset - TIME_RIGHT;
-    let text_end = rect.max.x - scroll_inset - TEXT_RIGHT;
+    let time_end = rect.max.x - TIME_RIGHT;
+    let text_end = rect.max.x - TEXT_RIGHT;
 
     // The sender's line. On its right, the marks: the flag in its own column at the row's end
     // (the quick actions take that place while the pointer is over the row), the others before it.

@@ -15,8 +15,8 @@
 //! any line; `{"scale": 1}` is a screen at 100 %, where the fonts' hinting shows) and opens the
 //! sample mailbox, as of a fixed Wednesday afternoon so shots compare, unless the first line is
 //! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line has the message
-//! list's scroll bar float over the rows (the default) or keep its lane.
-//! The computer is in UTC unless a line says where it is (`{"zone":
+//! list's scroll bar float over the rows as on a Mac (or keep its lane as elsewhere), whatever
+//! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
 //! in another). The system has no language or regional format unless a line names one
 //! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are
@@ -32,7 +32,9 @@
 //! (`"waits"`, `"approved"`, `"notAdministrator"`, `"declined"`, `"timedOut"`, `"noBrowser"`).
 //! One that is waiting when the line comes is answered by it. With a stand-in host, every
 //! address at a company's own domain is one whose mail Microsoft 365 takes. Nobody is signed
-//! in, no browser is opened and nothing leaves this machine. The same host answers a check for a
+//! in, no browser is opened and nothing leaves this machine. (Except a domain under
+//! `hoster.example`: its mail exchangers are nobody's this program knows, and its DNS names an
+//! Exchange server's Autodiscover, so Add Account finds an Exchange server for it.) The same host answers a check for a
 //! new version (`{"host": {"update": …}}`): `"0.9.0"` (that is the newest release), `"0.9.0
 //! security"` (and it fixes a security problem), `"same"` (the running version), or `"fails"`.
 //! The stand-in host is a copy that updates itself, whose downloads are checked at once (nothing
@@ -117,6 +119,9 @@ static READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
+
+/// The end of a domain whose mail a hoster's Exchange server takes (see the header).
+const HOSTER: &str = ".hoster.example";
 
 /// A stand-in for the host's part in signing in with Microsoft: it answers what the script
 /// last told it to, and holds on to what is still waited for. Every id in it is invented.
@@ -224,7 +229,7 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
         let syncing = self.0.lock().map(|host| host.syncing).unwrap_or(false);
         (syncing && key.starts_with("password:")).then(|| "stand-in-password".to_string())
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         Ok(())
     }
     fn delete(&self, _: &str) {}
@@ -437,7 +442,13 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
-        lookup_mx: Some(Box::new(|_| answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()])))),
+        discover: Some(Box::new(|domain: String| {
+            let mx = if domain.ends_with(HOSTER) { format!("mxpool{HOSTER}") } else { "example-org.mail.protection.outlook.com".to_string() };
+            answered(Ok(mailcraft_model::provider::Discovered::from_exchangers(vec![mx])))
+        })),
+        lookup_autodiscover: Some(Box::new(|domain: String| {
+            answered(Ok(if domain.ends_with(HOSTER) { vec![format!("autodiscover.de2{HOSTER}")] } else { Vec::new() }))
+        })),
         ews_setup: Some(Box::new(move |_job| {
             let (tx, rx) = channel();
             let Ok(mut host) = setting_up.lock() else { return rx };
