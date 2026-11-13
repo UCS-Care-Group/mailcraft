@@ -319,6 +319,30 @@ fn the_old_name_moves_to_neither_of_two_accounts_with_one_address() {
     assert_eq!(store.keys(), vec![MailApp::legacy_secret_key("password", OWNER)]);
 }
 
+/// A JMAP account's secret is held in memory alone (M6): on an install from before secrets were
+/// bound to servers, the password under the old name of its address is not moved to it, nor is
+/// anything read from the store for it.
+#[test]
+fn the_old_name_never_moves_to_a_jmap_account() {
+    let store = Store::default();
+    store.set(&MailApp::legacy_secret_key("password", OWNER), SECRET).unwrap();
+    let server = mailcraft_model::JmapServer { session: "https://jmap.mail.example/jmap/session".into(), bearer: false };
+    let jmap = Account { id: 7001, kind: AccountKind::Jmap, email: OWNER.into(), name: OWNER.into(), jmap: Some(server), ..Default::default() };
+    let mut mb = mailcraft_engine::sample::mailbox(NOW, 0);
+    mb.accounts.push(jmap);
+    let mut a = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    a.autosave = false;
+    a.ui.remember_sign_in = true;
+    a.ui.sign_ins_bound = false;
+    a.services.secrets = Some(Arc::new(store.clone()));
+    a.drop_secrets_if_replaced();
+    a.execute("ui.confirmServers", json!({})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
+    assert_eq!(a.remembered("password", 7001), None);
+    assert_eq!(store.keys(), vec![MailApp::legacy_secret_key("password", OWNER)], "nothing moved, nothing written");
+    assert!(a.ui.remembered_keys.iter().all(|key| !key.contains("jmap")), "{:?}", a.ui.remembered_keys);
+}
+
 /// A shared mailbox with its owner's address keeps no secret of its own: it doesn't hold the
 /// owner's mailbox back.
 #[test]

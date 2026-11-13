@@ -1102,6 +1102,18 @@ fn a_jmap_servers_mail_moves_between_its_folders_and_its_deletion_is_queued() {
     assert_eq!(mb.queued.len(), 1);
 }
 
+/// A JMAP account's contacts are read from its server (RFC 9610); its to-dos are not, and a
+/// shared mailbox's contacts are nobody's to read.
+#[test]
+fn a_jmap_account_keeps_contacts_and_no_tasks() {
+    let jmap = Account { email: "ada@example.org".into(), kind: AccountKind::Jmap, ..Default::default() };
+    assert!(jmap.keeps_contacts() && !jmap.keeps_tasks());
+    let shared = Account { shared_of: Some(7), ..jmap.clone() };
+    assert!(!shared.keeps_contacts());
+    let imap = Account { email: "bo@example.org".into(), ..Default::default() };
+    assert!(!imap.keeps_contacts() && !imap.keeps_tasks());
+}
+
 #[test]
 fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
     let (mut mb, _) = mailbox();

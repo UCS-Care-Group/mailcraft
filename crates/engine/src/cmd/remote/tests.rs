@@ -1460,6 +1460,26 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert!(s.mailbox.clone().repair().is_empty());
 }
 
+/// An account kept in step over JMAP takes in its server's contacts as a Microsoft account does.
+#[test]
+fn a_jmap_accounts_contacts_are_merged() {
+    let (mut s, _) = session();
+    let server = mailcraft_model::JmapServer { session: "https://jmap.example.org/.well-known/jmap".into(), ..Default::default() };
+    let jmap = s.mailbox.add_account(mailcraft_model::Account {
+        email: "cy@example.org".into(),
+        kind: mailcraft_model::AccountKind::Jmap,
+        jmap: Some(server),
+        ..Default::default()
+    });
+    assert!(crate::cmd::people::keeps_contacts(&s.mailbox, jmap));
+    let download = ContactsDownload { email: "cy@example.org".into(), ..everybody(jmap, vec![person("K1", "Dee", "dee@example.org")]) };
+    assert_eq!(counts(&apply_contacts(&mut s, &download).unwrap()), (1, 0, 0, 0, 0));
+    let kept = contact_called(&s, jmap, "K1");
+    assert_eq!((kept.first.as_str(), kept.origin.account), ("Dee", jmap));
+    // It is the server's: not changed here.
+    assert!(refused(&mut s, "people.edit", json!({"id": kept.id, "first": "Di"})).contains("kept by the server of cy@example.org"));
+}
+
 #[test]
 fn an_account_can_be_forgotten() {
     let (mut s, account) = session();

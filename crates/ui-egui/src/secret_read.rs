@@ -83,6 +83,9 @@ impl MailApp {
             .mailbox
             .accounts
             .iter()
+            // (A JMAP account's secret is held in memory alone, M6: nothing is read for it, and no
+            // password kept under an old name moves to it.)
+            .filter(|a| a.kind != mailcraft_model::AccountKind::Jmap)
             .flat_map(|a| {
                 ["password", "refresh"].map(|kind| Ask {
                     key: Self::secret_key(kind, a),
