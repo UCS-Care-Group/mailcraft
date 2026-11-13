@@ -224,6 +224,7 @@ mod text_menu_tests;
 pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
+pub mod todo_bar;
 pub mod unconfirmed;
 #[cfg(test)]
 mod update_switches_tests;
@@ -826,6 +827,8 @@ pub struct UiState {
     pub people_account_address: String,
     pub folder_pane_width: f32,
     pub list_width: f32,
+    /// The To-Do Bar's width, as the owner dragged it (#831); one for every module, as in Outlook.
+    pub todo_bar_width: f32,
     /// Send/Receive Progress's width, and the height of its list of accounts (0: as tall as what
     /// it lists, up to a limit), as the owner dragged them (#145).
     pub sync_panel_width: f32,
@@ -922,6 +925,7 @@ impl Default for UiState {
             task_account_address: String::new(),
             people_account_address: String::new(),
             folder_pane_width: 230.0,
+            todo_bar_width: todo_bar::DEFAULT_WIDTH,
             list_width: 380.0,
             sync_panel_width: sync_panel::WIDTH,
             sync_panel_height: 0.0,
@@ -1989,6 +1993,7 @@ impl MailApp {
         self.ui.backstage_page = "info".into();
         self.ui.folder_pane_width = if self.ui.folder_pane_width.is_finite() { self.ui.folder_pane_width.clamp(150.0, 500.0) } else { 230.0 };
         self.ui.list_width = if self.ui.list_width.is_finite() { self.ui.list_width.clamp(240.0, 900.0) } else { 380.0 };
+        self.ui.todo_bar_width = todo_bar::sane_width(self.ui.todo_bar_width);
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
@@ -2001,6 +2006,8 @@ impl MailApp {
         let v = &mut self.session.view;
         (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
             (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
+        // The To-Do Bar of each module (#831), likewise.
+        v.todo_bar = saved.todo_bar;
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
@@ -5167,6 +5174,8 @@ impl MailApp {
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
+            // The To-Do Bar, at the right of whatever module is in front (#831).
+            todo_bar::show(self, ui);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {
                 mailcraft_engine::Module::Mail => mail_view::show(self, ui),
                 mailcraft_engine::Module::Calendar => calendar_view::show(self, ui),

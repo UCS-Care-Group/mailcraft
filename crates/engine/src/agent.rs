@@ -254,6 +254,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
+    "view.todoBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",
@@ -363,6 +364,8 @@ const SAFE: &[&str] = &[
     "tasks.arrange",
     "tasks.categorize",
     "tasks.fromMessage",
+    "tasks.fromEvent",
+    "tasks.fromContact",
     "category.set",
     "category.rename",
     "category.list",
@@ -1109,6 +1112,12 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
+    // So is an appointment or a contact named wrongly for a task made from it (#831).
+    if matches!(id, "tasks.fromEvent" | "tasks.fromContact")
+        && let Err(e) = p::id_strict(params, "id")
+    {
+        return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
         return Verdict::Refuse(format!("`{id}` needs `list`: \"safe\" or \"blocked\""));
@@ -1437,7 +1446,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 name(p::id(params, "keep"))
             )
         }
-        "tasks.new" | "tasks.fromMessage" if new_task_onto(s, id, params).is_some() => {
+        "tasks.new" | "tasks.fromMessage" | "tasks.fromEvent" | "tasks.fromContact" if new_task_onto(s, id, params).is_some() => {
             let account = new_task_onto(s, id, params).and_then(|a| s.mailbox.account(a));
             format!("put a task in the To Do of {}", account.map(|a| a.email.trim().to_string()).unwrap_or_else(|| "an account".to_string()))
         }

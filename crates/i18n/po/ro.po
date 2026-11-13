@@ -135,7 +135,7 @@ msgid "(as the signer says)"
 msgstr "(după cum spune semnatarul)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(fără nume)"
@@ -152,8 +152,8 @@ msgstr "(fără destinatari)"
 msgid "(no subject)"
 msgstr "(fără subiect)"
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(fără titlu)"
@@ -728,10 +728,20 @@ msgid "Add Account"
 msgstr "Adăugare cont"
 
 #. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Appointment to Tasks"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Adăugare calendar"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+msgid "Add Contact to Tasks"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -830,6 +840,11 @@ msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "Adăugați o sarcină la {address} (așteaptă aici până când To Do e permis)"
 
 #. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Add a task…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add an account"
@@ -864,6 +879,11 @@ msgstr "Adăugați alt număr de telefon"
 #, fuzzy
 msgid "Add as a Microsoft account"
 msgstr "Adăugare ca cont Microsoft"
+
+#. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Add contacts to Favorites to keep them here"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -923,8 +943,8 @@ msgstr "Adăugat de o versiune mai nouă a MailCraft: trimiteți și primiți cu
 msgid "Address"
 msgstr "Adresă"
 
-#. interface
-#: crates/ui-egui/src/security.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Address:"
 msgstr "Adresă:"
@@ -996,7 +1016,7 @@ msgid "All accounts"
 msgstr "Toate conturile"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "Toată ziua"
@@ -1775,6 +1795,11 @@ msgstr "Prezență"
 msgid "Attendees"
 msgstr "Participanți"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Attendees:"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -2020,6 +2045,11 @@ msgstr "Înainte de orice modificare, se salvează lângă ea o copie a întregi
 msgid "Birthday"
 msgstr "Zi de naștere"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Birthday:"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2129,7 +2159,7 @@ msgid "By Subject"
 msgstr "După subiect"
 
 #. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendar"
@@ -4263,6 +4293,11 @@ msgstr "Adresă de e-mail"
 #, fuzzy
 msgid "Email the people of this meeting"
 msgstr "Trimiteți e-mail persoanelor din această întâlnire"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Email:"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6420,6 +6455,11 @@ msgstr "Participare la întâlnirea online"
 msgid "Join {service} Meeting"
 msgstr "Participare la întâlnirea {service}"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Join:"
+msgstr ""
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -7340,13 +7380,13 @@ msgid "Mark All as Read"
 msgstr "Marcare toate ca citite"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "Marcare finalizat"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "Marcare nefinalizat"
@@ -7733,6 +7773,11 @@ msgstr "Nu se oferă mai multe rezultate de pe server: {why}"
 #, fuzzy
 msgid "More results on the server can't be asked for now"
 msgstr "Momentan nu se pot cere mai multe rezultate de pe server"
+
+#. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "More tasks are in the Tasks module."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -8747,6 +8792,11 @@ msgid "Nothing in it: replaces what is open here"
 msgstr "Nu conține nimic: înlocuiește ce este deschis aici"
 
 #. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Nothing in the next 7 days"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Nothing is added to your mail until it has all been read."
@@ -8789,7 +8839,7 @@ msgid "Nothing more was found on the server"
 msgstr "Nu s-a mai găsit nimic pe server"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "Nu e nimic de făcut aici."
@@ -8859,6 +8909,11 @@ msgstr "oct."
 #, fuzzy
 msgid "October"
 msgstr "octombrie"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Off"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -9368,6 +9423,11 @@ msgstr "Sau este unul dintre acestea?"
 msgid "Organizer"
 msgstr "Organizator"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Organizer:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -9615,7 +9675,7 @@ msgid "Pending development"
 msgstr "În dezvoltare"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "Persoane"
@@ -9631,6 +9691,11 @@ msgstr "Permisiuni"
 #, fuzzy
 msgid "Phone"
 msgstr "Telefon"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Phone:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10465,6 +10530,11 @@ msgstr "Eliminați această condiție"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "Eliminați de pe acest computer cheia {format} pentru {who}? Este ștearsă din depozitul de acreditări al sistemului, iar MailCraft nu mai poate semna cu ea. Păstrați o copie a fișierului dacă vă poate mai trebui."
+
+#. interface
+#: crates/ui-egui/src/todo_bar.rs
+msgid "Remove {part} from the To-Do Bar"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12992,8 +13062,8 @@ msgstr "Raport de stare sarcină:"
 msgid "Task:"
 msgstr "Sarcină:"
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Sarcini"
@@ -15614,6 +15684,18 @@ msgstr "Ca să schimbați, salvați întâi serverele IMAP și SMTP standard ale
 msgid "To use another server or user name, remove the account and add it again."
 msgstr "Ca să folosiți alt server sau alt nume de utilizator, eliminați contul și adăugați-l din nou."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"To-Do\n"
+"Bar"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "To-Do Bar"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 #, fuzzy
@@ -15633,13 +15715,13 @@ msgid "To: {names}"
 msgstr "Către: {names}"
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Today"
 msgstr "Azi"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Mâine"
@@ -16164,6 +16246,11 @@ msgstr "Așteptarea aprobării s-a oprit neașteptat"
 msgid "Want to be one? Sign up in #11"
 msgstr "Vreți să deveniți unul? Înscrieți-vă în #11"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Web page:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -16322,6 +16409,11 @@ msgstr "Când"
 msgid "When you switch:"
 msgstr "Când schimbați:"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "When:"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -16339,6 +16431,11 @@ msgstr "Acolo unde spune fișa că se află cheia: MailCraft nu o preia."
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "Unde diferă, contactul păstrat are:"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "Where:"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -17863,6 +17960,11 @@ msgstr "nu s-a găsit nicio adresă pentru nume"
 msgid "no answer"
 msgstr "fără răspuns"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+msgid "no appointment with id {id}"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -17876,7 +17978,7 @@ msgid "no calendar with id {id}"
 msgstr "nu există calendar cu ID-ul {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "nu există contact cu ID-ul {id}"
@@ -18223,7 +18325,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr "salvați întâi cutia poștală într-un fișier: schimbarea păstrează o copie lângă acel fișier"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select a contact first"
 msgstr "selectați întâi un contact"
@@ -18247,7 +18349,7 @@ msgid "select a task first"
 msgstr "selectați întâi o sarcină"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selectați întâi o programare"
@@ -18787,7 +18889,7 @@ msgid "the sender has no usable e-mail address"
 msgstr "expeditorul nu are o adresă de e-mail utilizabilă"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "seria nu are loc pe {date}"
@@ -20281,7 +20383,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "{n} modificări ale calendarului „{name}” sunt reținute aici, netrimise: acest cont nu mai are voie să-l modifice. Se trimit dacă primește din nou voie."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/todo_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"

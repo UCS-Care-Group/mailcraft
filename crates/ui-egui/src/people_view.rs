@@ -387,7 +387,7 @@ pub(crate) fn clip_chars(s: &str, max: usize) -> String {
 }
 
 /// The name a row and the card show.
-fn shown_name(c: &Contact) -> String {
+pub(crate) fn shown_name(c: &Contact) -> String {
     let name = one_line(&c.name(), 200);
     if name.is_empty() { tl!("(no name)").to_string() } else { name }
 }
@@ -403,7 +403,7 @@ fn subtitle(c: &Contact) -> String {
 
 /// Who the avatar stands for. A contact known only by its address takes its initials from the
 /// address, not from the address used as a name.
-fn avatar_address(c: &Contact) -> Address {
+pub(crate) fn avatar_address(c: &Contact) -> Address {
     let email = c.primary_email().unwrap_or("").trim();
     let name = c.name();
     let name = name.trim();
@@ -630,8 +630,16 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
     // The shared pointer, not a copy of the contact.
     let Some(c) = app.session.mailbox.contacts.get(&id).cloned() else { return };
     // A contact listed under two categories is two rows, each with an id of its own.
-    let resp = ui.interact(rect, ui.scope_id().with(("contact", id, copy)), Sense::click());
+    // With the To-Do Bar's tasks beside the list, a contact dragged onto them becomes a task (#831).
+    let takes = crate::todo_bar::takes_drops(ui.ctx());
+    let sense = if takes { Sense::click_and_drag() } else { Sense::click() };
+    let resp = ui.interact(rect, ui.scope_id().with(("contact", id, copy)), sense);
     app.hit.add("contact", id, rect);
+    if takes && resp.drag_started_by(egui::PointerButton::Primary) {
+        // The contacts picked together when the row is one of them, else the row's.
+        let ids = if app.people_picked.contains(&id) && app.people_picked.len() >= 2 { app.people_picked.to_vec() } else { vec![id] };
+        resp.dnd_set_drag_payload(crate::todo_bar::ContactDrag(ids));
+    }
     // The selection is on one of a contact's rows: the one clicked or stepped to.
     let picked = app.people_picked.contains(&id);
     // The selection is the one contact commands act on; the others picked with it have a tick,
@@ -1040,15 +1048,16 @@ pub(crate) mod testing {
 
     /// The window on `mailbox`. Frames are 1/60 s apart, so a double click is one.
     pub fn window_on(mailbox: mailcraft_model::Mailbox, module: &str) -> Harness<'static, MailApp> {
+        window_sized(mailbox, module, egui::vec2(1280.0, 800.0))
+    }
+
+    /// The window on `mailbox`, `size` big (the To-Do Bar shares out the height it has).
+    pub fn window_sized(mailbox: mailcraft_model::Mailbox, module: &str, size: egui::Vec2) -> Harness<'static, MailApp> {
         let mut app = MailApp::new(Session::at(mailbox, now(), 0), Services::default());
         app.autosave = false;
         app.execute(module, json!({})).unwrap();
-        let mut window = Harness::builder()
-            .with_accessibility_check(false)
-            .allow_missing_glyphs()
-            .with_size(egui::vec2(1280.0, 800.0))
-            .with_step_dt(1.0 / 60.0)
-            .build_ui_state(
+        let mut window =
+            Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(size).with_step_dt(1.0 / 60.0).build_ui_state(
                 |ui, app: &mut MailApp| {
                     let ctx = ui.ctx().clone();
                     app.logic(&ctx);

@@ -135,6 +135,7 @@ pub(crate) enum Menu {
     Signature,
     MoveFolder,
     ReadingPane,
+    TodoBar,
     GmailCategories,
     Preview,
     ArrangeBy,
@@ -1030,6 +1031,7 @@ fn view_of_any(app: &MailApp) -> Tab {
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
+        Item::big_menu("todoBar", "todoBar", "To-Do\nBar", "To-Do Bar", Menu::TodoBar).at(0, 2),
     ];
     // Gmail's categories as folders or as tabs (#911): only with a Gmail account that shows them.
     if mailcraft_engine::gmail::offered(&app.session).is_none() {
@@ -1472,6 +1474,14 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
+        }
+        // The To-Do Bar's parts, each on or off for the module in front, and Off (#831).
+        Menu::TodoBar => {
+            let parts = app.session.view.todo_bar.of(app.session.view.module);
+            for (label, code, on) in [("Calendar", "calendar", parts.calendar), ("People", "people", parts.people), ("Tasks", "tasks", parts.tasks)] {
+                mi_check(ui, app, label, on, "view.todoBar", json!({"part": code, "value": !on}));
+            }
+            mi_check(ui, app, "Off", !parts.any(), "view.todoBar", json!({"part": "off"}));
         }
         Menu::GmailCategories => {
             let tabs = app.session.view.gmail_tabs;

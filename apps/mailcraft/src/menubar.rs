@@ -15,7 +15,7 @@ use std::sync::mpsc::{Receiver, channel};
 use egui::Context;
 use mailcraft_ui_egui::MailApp;
 use mailcraft_ui_egui::i18n::{self, Lang};
-use mailcraft_ui_egui::menubar::{self, Action, Chord, Entry, Item};
+use mailcraft_ui_egui::menubar::{self, Action, Chord, Entry, Item, MenuBlock};
 use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 
@@ -161,19 +161,26 @@ fn build(app: &MailApp) -> Result<Built, Box<dyn std::error::Error + Send + Sync
             menu.append(&window)?;
             window.set_as_windows_menu_for_nsapp();
         }
-        let sub = Submenu::new(escape(&block.title), true);
-        for entry in &block.entries {
-            match entry {
-                Entry::Separator => sub.append(&PredefinedMenuItem::separator())?,
-                Entry::Item(it) => sub.append(&native(app, it, &mut items))?,
-            }
-        }
+        let sub = submenu(app, block, &mut items)?;
         menu.append(&sub)?;
         if n == help {
             sub.set_as_help_menu_for_nsapp();
         }
     }
     Ok((menu, items))
+}
+
+/// A native menu for `block`, with the menus inside it (View › To-Do Bar, #831).
+fn submenu(app: &MailApp, block: &MenuBlock, items: &mut Vec<(MenuItem, Action, bool)>) -> Result<Submenu, muda::Error> {
+    let sub = Submenu::new(escape(&block.title), true);
+    for entry in &block.entries {
+        match entry {
+            Entry::Separator => sub.append(&PredefinedMenuItem::separator())?,
+            Entry::Item(it) => sub.append(&native(app, it, items))?,
+            Entry::Submenu(inner) => sub.append(&submenu(app, inner, items)?)?,
+        }
+    }
+    Ok(sub)
 }
 
 /// A native item for `it`, remembered in `items` under the id it carries.

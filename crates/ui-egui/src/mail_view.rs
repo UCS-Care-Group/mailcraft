@@ -155,6 +155,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let compose = app.session.compose_id();
             ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
         } else {
+            app.hit.add("readingPane", 0, ui.max_rect());
             crate::reading::show(app, ui);
         }
     });
