@@ -4653,7 +4653,10 @@ impl MailApp {
         }
         self.check_secret_store();
         // The host's threads' calls on the window (the desktop's platform).
-        self.services.serve_platform();
+        if self.services.serve_platform() {
+            // A full batch: more may be waiting, and nothing else may bring another frame.
+            ctx.request_repaint();
+        }
         security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
