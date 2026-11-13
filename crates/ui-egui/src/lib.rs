@@ -154,6 +154,9 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
+mod platform;
+#[cfg(test)]
+mod platform_tests;
 mod problem_log;
 pub mod reading;
 mod reminders;
@@ -512,6 +515,9 @@ pub struct Services {
     /// when it can't, and hands back which were clicked. Only the window asks for one, never a
     /// command. Absent in the browser and the tests: nothing is shown.
     pub alert: Option<Box<dyn alerts::AlertHost>>,
+    /// Desktop: open an address in the system's browser, and say whether one could be started
+    /// (the page a sign-in is made on). Absent in the browser and the tests.
+    pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,

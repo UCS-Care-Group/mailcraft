@@ -9,3 +9,6 @@ description = "MailCraft host services below the window: what a platform gives t
 workspace = true
 
 [dependencies]
+# The engine's own memory cap, which the device's budget is held against.
+mailcraft-engine = { workspace = true }
+mailcraft-time = { workspace = true }
