@@ -127,6 +127,8 @@ windows = { version = "0.62", features = [
     "Foundation_Collections",
     "Data_Xml_Dom",
     "UI_Notifications",
+    # Whether the system plays animations (`system_motion.rs`, #1183).
+    "UI_ViewManagement",
     "Security_Cryptography",
     "Security_Cryptography_Certificates",
     "Security_Cryptography_Core",
