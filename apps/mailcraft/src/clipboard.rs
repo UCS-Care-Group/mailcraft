@@ -101,8 +101,13 @@ impl RichClipboard for Board {
 
     fn text(&self) -> Option<String> {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(text) = self.wayland.as_ref().and_then(|w| w.load_text().ok()) {
-            return Some(text);
+        if let Some(wayland) = &self.wayland {
+            match wayland.load_text() {
+                Ok(text) => return Some(text),
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(_) => {}
+            }
         }
         // All of it, as Ctrl+V has it: what is too much for a message is refused where the paste
         // is made (`edit.paste`), the same for both.
