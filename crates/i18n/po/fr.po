@@ -14380,6 +14380,12 @@ msgid "This message hasn't been sent."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Ce message est dans Courrier indésirable : supprimez-le plutôt que de vous désabonner."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."
@@ -15019,8 +15025,8 @@ msgstr "Se désabonner des messages sélectionnés"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
-msgstr "Se désabonner de {lists} listes : {click} en un clic (le serveur de chaque liste reçoit l'adresse qu'elle a donnée, rien d'autre, une à la fois), {mail} par un message de votre compte, via votre Boîte d'envoi. {pages} se désabonnent sur leur propre page : ouvrez chacun de ces messages pour le faire là-bas. Le courrier que votre serveur ne garantit pas, ou qui a un avertissement sur son expéditeur, est laissé de côté."
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "Se désabonner de {lists} listes : {click} en un clic (le serveur de chaque liste reçoit l'adresse qu'elle a donnée, rien d'autre, une à la fois), {mail} par un message de votre compte, via votre Boîte d'envoi. {pages} se désabonnent sur leur propre page : ouvrez chacun de ces messages pour le faire là-bas. Le courrier que votre serveur ne garantit pas, celui de Courrier indésirable, ou qui a un avertissement sur son expéditeur, est laissé de côté."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19939,6 +19945,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+#~ msgstr "Se désabonner de {lists} listes : {click} en un clic (le serveur de chaque liste reçoit l'adresse qu'elle a donnée, rien d'autre, une à la fois), {mail} par un message de votre compte, via votre Boîte d'envoi. {pages} se désabonnent sur leur propre page : ouvrez chacun de ces messages pour le faire là-bas. Le courrier que votre serveur ne garantit pas, ou qui a un avertissement sur son expéditeur, est laissé de côté."
 
 #, fuzzy
 #~ msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."

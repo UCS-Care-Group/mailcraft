@@ -15136,6 +15136,12 @@ msgid "This message hasn't been sent."
 msgstr "Dit bericht is nog niet verzonden."
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Dit bericht staat in Ongewenste e-mail: verwijder het in plaats van u af te melden."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."
@@ -15817,8 +15823,8 @@ msgstr "Afmelden bij de geselecteerde berichten"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
-msgstr "Afmelden bij {lists} lijsten: {click} met één klik (de server van elke lijst krijgt het adres dat die gaf, verder niets, één tegelijk), {mail} met een bericht van uw account via uw Postvak UIT. {pages} melden af op een eigen pagina: open elk van die berichten om het daar te doen. E-mail waar uw server niet voor instaat, of met een waarschuwing over de afzender, wordt overgeslagen."
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "Afmelden bij {lists} lijsten: {click} met één klik (de server van elke lijst krijgt het adres dat die gaf, verder niets, één tegelijk), {mail} met een bericht van uw account via uw Postvak UIT. {pages} melden af op een eigen pagina: open elk van die berichten om het daar te doen. E-mail waar uw server niet voor instaat, in Ongewenste e-mail, of met een waarschuwing over de afzender, wordt overgeslagen."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20965,6 +20971,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+#~ msgstr "Afmelden bij {lists} lijsten: {click} met één klik (de server van elke lijst krijgt het adres dat die gaf, verder niets, één tegelijk), {mail} met een bericht van uw account via uw Postvak UIT. {pages} melden af op een eigen pagina: open elk van die berichten om het daar te doen. E-mail waar uw server niet voor instaat, of met een waarschuwing over de afzender, wordt overgeslagen."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

@@ -6,18 +6,19 @@
 //! Pure: nothing here is fetched or sent. [`way`] reads the headers and gives the one way the
 //! owner is offered, the first of: **one click** (RFC 8058: an `https:` address and
 //! `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, for the host to `POST` to once the owner
-//! clicks), **by mail** (a `mailto:` address, for a message sent from the account that received
-//! it once the owner agrees), **a web page** (an `http:` or `https:` address, only ever opened in
-//! the owner's browser). Whether the headers are believed at all is the caller's: anybody can
-//! write them, so they count only for mail the owner's server vouches for
-//! ([`crate::auth_results::vouched`]) and that has no sender warning.
+//! clicks, and only when the message's DKIM signature covers both headers,
+//! [`signed_for_one_click`]), **by mail** (a `mailto:` address, for a message sent from the
+//! account that received it once the owner agrees), **a web page** (an `http:` or `https:`
+//! address, only ever opened in the owner's browser). Whether the headers are believed at all is
+//! the caller's: anybody can write them, so they count only for mail the owner's server vouches
+//! for ([`crate::auth_results::vouched`]), outside Junk E-mail, and with no sender warning.
 //!
 //! What a message says is hostile: the headers read, the addresses in them and their lengths are
 //! bounded, and only `https:`, `http:` and `mailto:` addresses are taken.
 
-use crate::Message;
 use crate::auth_results::MAX_HEADERS_READ;
 use crate::sender_warnings::percent_decoded;
+use crate::{Account, Message};
 
 /// The most addresses read from a `List-Unsubscribe` header.
 const MAX_ADDRESSES: usize = 8;
@@ -80,8 +81,37 @@ fn one_click(value: &str) -> bool {
     value.trim().split_once('=').is_some_and(|(key, word)| key.trim().eq_ignore_ascii_case("List-Unsubscribe") && word.trim() == "One-Click")
 }
 
-/// The way `m` offers to be unsubscribed from, if any ([`Way`]); the headers alone are read.
-pub fn way(m: &Message) -> Option<Way> {
+/// The tags of a `DKIM-Signature` value (RFC 6376, 3.2), white space taken out of each: the
+/// value of `name`.
+fn dkim_tag(value: &str, name: &str) -> Option<String> {
+    value.split(';').find_map(|tag| {
+        let (key, v) = tag.split_once('=')?;
+        key.trim().eq_ignore_ascii_case(name).then(|| v.chars().filter(|c| !c.is_whitespace()).collect())
+    })
+}
+
+/// Whether `m` may be unsubscribed from in one click (RFC 8058, 4): one of its `DKIM-Signature`
+/// headers is by a domain whose signature the account's own server says passed
+/// ([`crate::auth_results::dkim_passed`]), and covers both `List-Unsubscribe` and
+/// `List-Unsubscribe-Post` (its `h=` names them). A DMARC pass alone, which may rest on SPF, or a
+/// signature that leaves the headers out, is not enough: anybody could have added them.
+pub fn signed_for_one_click(account: Option<&Account>, m: &Message) -> bool {
+    let passed = crate::auth_results::dkim_passed(account, m);
+    if passed.is_empty() {
+        return false;
+    }
+    m.headers.iter().take(MAX_HEADERS_READ).filter(|(h, _)| h.eq_ignore_ascii_case("DKIM-Signature")).any(|(_, value)| {
+        let by = dkim_tag(value, "d").and_then(|d| crate::auth_results::domain(&d));
+        let signed: Vec<String> = dkim_tag(value, "h").map(|h| h.split(':').map(str::to_ascii_lowercase).collect()).unwrap_or_default();
+        by.is_some_and(|d| passed.contains(&d))
+            && ["list-unsubscribe", "list-unsubscribe-post"].iter().all(|wanted| signed.iter().any(|s| s == wanted))
+    })
+}
+
+/// The way `m`, in `account`, offers to be unsubscribed from, if any ([`Way`]): one click only
+/// when it is signed for it ([`signed_for_one_click`]), else the next way its headers give (by
+/// mail, then the page, which may be the one-click address opened in the browser).
+pub fn way(account: Option<&Account>, m: &Message) -> Option<Way> {
     let list = addresses(header(m, "List-Unsubscribe")?);
     let web = |secure: bool| {
         list.iter().find_map(|a| {
@@ -90,6 +120,7 @@ pub fn way(m: &Message) -> Option<Way> {
         })
     };
     if header(m, "List-Unsubscribe-Post").is_some_and(one_click)
+        && signed_for_one_click(account, m)
         && let Some(url) = web(true)
     {
         return Some(Way::OneClick { url });

@@ -14368,6 +14368,12 @@ msgid "This message hasn't been sent."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Diese Nachricht ist im Ordner Junk-E-Mail: löschen Sie sie, statt sich abzumelden."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."
@@ -15005,8 +15011,8 @@ msgstr "Von den ausgewählten Nachrichten abmelden"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
-msgstr "Von {lists} Listen abmelden: {click} mit einem Klick (der Server jeder Liste erhält die Adresse, die sie angegeben hat, sonst nichts, eine nach der anderen), {mail} per Nachricht von Ihrem Konto über Ihren Postausgang. {pages} melden auf ihrer eigenen Seite ab: Öffnen Sie jede dieser Nachrichten, um es dort zu tun. E-Mails, für die Ihr Server nicht bürgt oder die eine Warnung zum Absender haben, werden ausgelassen."
+msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "Von {lists} Listen abmelden: {click} mit einem Klick (der Server jeder Liste erhält die Adresse, die sie angegeben hat, sonst nichts, eine nach der anderen), {mail} per Nachricht von Ihrem Konto über Ihren Postausgang. {pages} melden auf ihrer eigenen Seite ab: Öffnen Sie jede dieser Nachrichten, um es dort zu tun. E-Mails, für die Ihr Server nicht bürgt, die im Ordner Junk-E-Mail liegen oder die eine Warnung zum Absender haben, werden ausgelassen."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19923,6 +19929,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, or with a warning about its sender, is left out."
+#~ msgstr "Von {lists} Listen abmelden: {click} mit einem Klick (der Server jeder Liste erhält die Adresse, die sie angegeben hat, sonst nichts, eine nach der anderen), {mail} per Nachricht von Ihrem Konto über Ihren Postausgang. {pages} melden auf ihrer eigenen Seite ab: Öffnen Sie jede dieser Nachrichten, um es dort zu tun. E-Mails, für die Ihr Server nicht bürgt oder die eine Warnung zum Absender haben, werden ausgelassen."
 
 #, fuzzy
 #~ msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."

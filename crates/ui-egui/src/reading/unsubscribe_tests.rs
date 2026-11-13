@@ -58,10 +58,12 @@ fn host(app: &mut MailApp, answer: Result<(), String>) -> Arc<Mutex<Vec<String>>
     asked
 }
 
-const ONE_CLICK: [(&str, &str); 3] = [
+const ONE_CLICK: [(&str, &str); 4] = [
     ("Authentication-Results", PASSED),
     ("List-Unsubscribe", "<https://news.example/u/7f3a>"),
     ("List-Unsubscribe-Post", "List-Unsubscribe=One-Click"),
+    // The list's signature covers both unsubscribe headers (RFC 8058, 4).
+    ("DKIM-Signature", "v=1; d=news.example; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB"),
 ];
 
 #[test]
@@ -120,10 +122,15 @@ fn the_message_asked_about_is_the_one_unsubscribed_from() {
 }
 
 #[test]
-fn without_a_host_or_a_vouched_message_nothing_is_offered() {
-    // The browser and the tests have no host: one click isn't there.
-    let (mut app, id) = list_app(&ONE_CLICK);
-    assert!(app.execute("ui.unsubscribe", json!({"message": id})).is_err());
+fn without_a_host_one_click_opens_its_page_and_unvouched_mail_offers_nothing() {
+    // The browser build has no host to post with: the same address is opened as a page instead.
+    let (app, id) = list_app(&ONE_CLICK);
+    let q = question(&app, &json!({"message": id})).unwrap();
+    assert!(q.text.contains("browser"), "{}", q.text);
+    let mut harness = window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    let said = harness.state_mut().execute("ui.unsubscribe", json!({"message": id})).unwrap();
+    assert_eq!((said["way"].as_str(), said["url"].as_str()), (Some("page"), Some("https://news.example/u/7f3a")));
     // Headers the account's server doesn't vouch for: no bar, and the command refuses.
     let (mut app, id) = list_app(&[("List-Unsubscribe", "<https://news.example/u/7f3a>"), ("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")]);
     let asked = host(&mut app, Ok(()));
@@ -159,9 +166,10 @@ fn add(app: &mut MailApp, from: &str, list: &str) -> u64 {
         uid: 2,
         date: NOW - 7_200,
         headers: vec![
-            ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={domain}")),
+            ("Authentication-Results".into(), format!("mx.example.org; dkim=pass header.d={domain}; dmarc=pass header.from={domain}")),
             ("List-Unsubscribe".into(), list.into()),
             ("List-Unsubscribe-Post".into(), "List-Unsubscribe=One-Click".into()),
+            ("DKIM-Signature".into(), format!("v=1; d={domain}; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB")),
         ],
         ..Message::default()
     };

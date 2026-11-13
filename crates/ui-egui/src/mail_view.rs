@@ -1265,8 +1265,13 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         // messages selected, each sender of theirs once.
         let picked = app.session.sel.messages.clone();
         if picked.len() > 1 {
-            let lists =
-                picked.iter().take(500).any(|i| app.session.mailbox.messages.get(i).is_some_and(|m| mailcraft_model::unsubscribe::way(m).is_some()));
+            let lists = picked.iter().take(500).any(|i| {
+                app.session
+                    .mailbox
+                    .messages
+                    .get(i)
+                    .is_some_and(|m| mailcraft_model::unsubscribe::way(app.session.mailbox.account(m.account), m).is_some())
+            });
             if lists {
                 mi(ui, app, "Unsubscribe from Their Lists", "ui.unsubscribeMany", json!({}));
             }
