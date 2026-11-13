@@ -108,9 +108,12 @@ fn headers_that_cant_be_believed_offer_nothing() {
         assert!(run(&mut s, id, json!({})).is_err(), "{headers:?}");
     }
     // An `id` named wrongly is refused, never read as the selection.
-    let (mut s, id) = with(&[("Authentication-Results", PASSED), list]);
+    // A request by mail would be queued for whatever is selected if it were read as the selection.
+    let (mut s, id) = with(&[("Authentication-Results", PASSED), ("List-Unsubscribe", "<mailto:leave@news.example>")]);
     s.run("mail.select", &json!({"id": id})).unwrap();
     assert!(s.run("mail.unsubscribe", &json!({"id": "invalid", "send": true})).is_err());
+    let outbox = s.mailbox.folders.iter().find(|f| f.kind == FolderKind::Outbox).map(|f| f.id).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 0);
     // A message that doesn't say how.
     let (mut s, id) = with(&[("Authentication-Results", PASSED)]);
     assert!(run(&mut s, id, json!({})).is_err());
