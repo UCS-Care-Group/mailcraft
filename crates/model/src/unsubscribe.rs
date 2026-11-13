@@ -17,6 +17,7 @@
 
 use crate::Message;
 use crate::auth_results::MAX_HEADERS_READ;
+use crate::sender_warnings::percent_decoded;
 
 /// The most addresses read from a `List-Unsubscribe` header.
 const MAX_ADDRESSES: usize = 8;
@@ -105,7 +106,7 @@ pub fn way(m: &Message) -> Option<Way> {
 pub fn mailto(address: &str) -> Option<Way> {
     let rest = address.get(..7).filter(|s| s.eq_ignore_ascii_case("mailto:")).and_then(|_| address.get(7..))?;
     let (to, query) = rest.split_once('?').unwrap_or((rest, ""));
-    let to = decoded(to.split(',').next().unwrap_or(""));
+    let to = percent_decoded(to.split(',').next().unwrap_or(""));
     let to = to.trim();
     let (local, domain) = to.rsplit_once('@')?;
     let plain = |s: &str| !s.is_empty() && !s.chars().any(|c| c.is_whitespace() || c.is_control() || matches!(c, '<' | '>' | '"' | ',' | ';' | '@'));
@@ -117,33 +118,12 @@ pub fn mailto(address: &str) -> Option<Way> {
     for pair in query.split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         if key.eq_ignore_ascii_case("subject") && subject.is_empty() {
-            subject = cut(&decoded(value), MAX_SUBJECT, false);
+            subject = cut(&percent_decoded(value), MAX_SUBJECT, false);
         } else if key.eq_ignore_ascii_case("body") && body.is_empty() {
-            body = cut(&decoded(value), MAX_BODY, true);
+            body = cut(&percent_decoded(value), MAX_BODY, true);
         }
     }
     Some(Way::Mail { to: to.to_string(), subject, body })
-}
-
-/// `text` with its `%XX` escapes read back, as UTF-8 at most loosely.
-fn decoded(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        let hex = bytes.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
-        match (b, hex) {
-            (b'%', Some(v)) => {
-                out.push(v);
-                i += 3;
-            }
-            _ => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// `text` without control characters (but its line breaks when `lines`), at most `max` characters:
