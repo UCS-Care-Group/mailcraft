@@ -770,9 +770,8 @@ fn words_that_are_not_a_brands_name_give_no_warning() {
 #[test]
 fn honest_mail_that_names_a_brand_gives_no_warning() {
     for (name, sender) in [
-        // Bounces: Outlook.com's, and Microsoft 365's from a tenant's own name.
+        // Bounces from a public mail provider, where only it has these addresses.
         ("Microsoft Outlook", "postmaster@outlook.com"),
-        ("Microsoft Outlook", "postmaster@contoso.onmicrosoft.com"),
         ("Mail Delivery Subsystem", "mailer-daemon@gmail.com"),
         // A known address, at a public mail provider too (`facts` knows Sam's).
         ("Sam Friend (Microsoft MVP)", "friend@gmail.com"),
@@ -791,6 +790,10 @@ fn honest_mail_that_names_a_brand_gives_no_warning() {
     }
     // A bounce address at a domain of anybody's own is still looked at.
     assert!(kinds(&from("Microsoft Outlook", "postmaster@account-alerts.example")).contains(&"brandName"));
+    // So is a Microsoft 365 tenant's: anybody can make one and name its postmaster.
+    for name in ["Microsoft Outlook", "PayPal"] {
+        assert!(kinds(&from(name, "postmaster@contoso.onmicrosoft.com")).contains(&"brandName"), "{name}");
+    }
     // Somebody unknown at the same provider is not Sam.
     assert!(kinds(&from("Sam Friend (Microsoft MVP)", "sam.friend@gmail.com")).contains(&"brandName"));
 }

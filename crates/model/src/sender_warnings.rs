@@ -430,17 +430,18 @@ fn name_parts(seen: &str) -> Vec<(usize, &str)> {
 /// of it, or is followed by one of [`brands::SERVICE_WORDS`] alone ("Apple Support", not "Apple
 /// Valley" or "Tesla Jones"). Not for a list's "<member> via
 /// <list>" (a list's, by its `List-Id` or `List-Post`: a name alone may say "via"), nor for the
-/// bounces of a public mail provider or of Microsoft 365 (`postmaster@outlook.com`,
-/// `postmaster@<tenant>.onmicrosoft.com`, sent as "Microsoft Outlook"): nobody but the provider
-/// has those addresses there, and a red banner on every bounce would teach the owner to ignore
-/// red banners. Outlook.com and `onmicrosoft.com` stay out of Microsoft's own domains: anybody
-/// can have an address there.
+/// bounces of a public mail provider (`postmaster@outlook.com`, sent as "Microsoft Outlook"):
+/// nobody but the provider has those addresses there, and a red banner on every bounce would
+/// teach the owner to ignore red banners. Outlook.com and `onmicrosoft.com` stay out of
+/// Microsoft's own domains, and a Microsoft 365 tenant's bounces
+/// (`postmaster@<tenant>.onmicrosoft.com`) keep their warning: anybody can make a tenant and
+/// name its `postmaster` "Microsoft Outlook" or "PayPal", and what would mark a real bounce (its
+/// content type, `Auto-Submitted`) is written by the sender too.
 fn brand_name(facts: &Facts, m: &Message, domain: &str) -> Option<Warning> {
     let seen = as_seen(&m.from.name, MAX_NAME_CHARS);
     let mine = registrable(domain);
     let address = m.from.email.trim().to_lowercase();
-    let bounce = address.rsplit_once('@').is_some_and(|(local, _)| BOUNCE_SENDERS.contains(&local))
-        && (provider::is_mail_provider(mine) || domain.ends_with(".onmicrosoft.com"));
+    let bounce = address.rsplit_once('@').is_some_and(|(local, _)| BOUNCE_SENDERS.contains(&local)) && provider::is_mail_provider(mine);
     if via_list(&seen) && from_list(m)
         || facts.domains.contains(mine) && !provider::is_mail_provider(mine)
         || facts.addresses.contains(&address)
