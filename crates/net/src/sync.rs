@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
-    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
@@ -703,6 +703,17 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     let mut claimed: HashSet<Id> = HashSet::new();
     let states = States::of(request);
     let count = plan.len().min(MAX_FOLDERS);
+    // A folder this run changed on the server is read: a message it moved away or deleted is
+    // marked, not gone, and no count shows that (#276).
+    let touched: HashSet<&str> = request
+        .ops
+        .iter()
+        .flat_map(|op| match op {
+            RemoteOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
+            op => vec![op.mailbox()],
+        })
+        .chain(request.places.iter().map(|place| place.to.as_str()))
+        .collect();
     // What the server says of every folder but the Inbox, asked of all in a few round trips, so
     // that a folder that hasn't changed isn't opened (#276).
     let statuses = match folder_statuses(run, &mut imap, &plan) {
@@ -725,6 +736,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         if let (Some(state), Some(status)) = (state, status)
             && unchanged(state, status, request.max_per_folder)
             && arrived.is_empty()
+            && !touched.contains(remote.as_str())
         {
             log::debug!("a folder is passed over: its counts are the same");
             run.out.timings.skipped = run.out.timings.skipped.saturating_add(1);

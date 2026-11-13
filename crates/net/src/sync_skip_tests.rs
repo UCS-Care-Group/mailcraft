@@ -189,3 +189,20 @@ fn a_folder_that_was_cut_short_keeps_no_status() {
     let cut: Vec<_> = whole.folders.iter().filter(|f| f.remote == "Label0").collect();
     assert!(cut.iter().all(|f| !f.complete && f.status.is_none()));
 }
+
+#[test]
+fn a_folder_this_run_changed_on_the_server_is_read_whatever_its_counts_say() {
+    use mailcraft_model::sync::RemoteOp;
+    // A message deleted here is marked, not expunged, on a server without UIDPLUS: no count of
+    // its folder moves, and the folder has to be read to show it gone.
+    let imap = Fake::imap(world(1));
+    let mut request = request(&imap);
+    request.folders = states(&run(&request), 1_000);
+    request.ops = vec![RemoteOp::Delete { from: "Label0".into(), uid: 2 }];
+    let result = run(&request);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(result.folders.iter().any(|f| f.remote == "Label0"), "the folder the change was made in was passed over");
+    // Sent, which nothing touched, still is passed over.
+    assert!(!result.folders.iter().any(|f| f.remote == "Sent"));
+    assert_eq!(result.timings.skipped, 1);
+}
