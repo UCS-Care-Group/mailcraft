@@ -219,3 +219,72 @@ fn only_the_selection_moves() {
     harness.state_mut().session.sel.messages.clear();
     assert!(crate::move_items::MoveItems::open(harness.state(), false).is_none());
 }
+
+/// OK moves as the ribbon's Move menu does, through what the window runs a command with: a
+/// message moved into a Microsoft account from another account is told about the headers
+/// Microsoft's server leaves out (#451).
+#[test]
+fn ok_says_what_the_window_says_after_a_move() {
+    let mut harness = window();
+    let (id, _, _) = selected(&mut harness);
+    let app = harness.state_mut();
+    let account = app.execute("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let mb = &app.session.mailbox;
+    let (inbox, archive) = (mb.folder_of_kind(account, FolderKind::Inbox).unwrap(), mb.folder_of_kind(account, FolderKind::Archive).unwrap());
+    // The Microsoft account's Inbox in view, the other account's message selected (as a search of
+    // All Mailboxes leaves them).
+    app.session.view.folder = inbox;
+    app.session.sel.messages = vec![id];
+    app.execute("ui.dialog", json!({"name": "moveItems"})).unwrap();
+    harness.run_steps(3);
+    choose(&mut harness, archive);
+    assert_eq!(harness.state().session.mailbox.message(id).unwrap().folder, archive);
+    let said = harness.state().status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
+    assert!(said.starts_with("1 message moved into the account"), "{said}");
+}
+
+/// A search looks through every folder, also those past the most rows the list draws.
+#[test]
+fn a_search_finds_a_folder_past_the_rows_drawn() {
+    let mut harness = window();
+    let (id, _, _) = selected(&mut harness);
+    let app = harness.state_mut();
+    let account = app.session.mailbox.message(id).unwrap().account;
+    let parent = app.session.mailbox.add_folder(account, None, "Bulk").unwrap();
+    let mut last = 0;
+    for i in 0..5_100 {
+        last = app.session.mailbox.add_folder(account, Some(parent), &format!("Bulk {i:04}")).unwrap();
+    }
+    press(&mut harness, egui::Key::V);
+    harness.event(egui::Event::Text("bulk 5099".into()));
+    harness.run_steps(3);
+    let Some(Dialog::MoveItems(d)) = harness.state().dialog.as_ref() else { panic!("Move Items is open") };
+    assert_eq!(d.marked(), Some(last));
+}
+
+/// The folders are listed in the order Home › Move lists them, a folder's subfolders under it,
+/// each with its place in the account, as the folder pane names it.
+#[test]
+fn the_folders_are_listed_as_home_move_lists_them() {
+    let mut harness = window();
+    let (id, _, _) = selected(&mut harness);
+    let app = harness.state_mut();
+    let account = app.session.mailbox.message(id).unwrap().account;
+    // A few more, with names that sort differently in case, and a level deeper.
+    let projects = app.session.mailbox.add_folder(account, None, "projects").unwrap();
+    for name in ["beta", "Alpha", "gamma"] {
+        let f = app.session.mailbox.add_folder(account, Some(projects), name).unwrap();
+        app.session.mailbox.add_folder(account, Some(f), "Notes").unwrap();
+    }
+    let dialog = crate::move_items::MoveItems::open(harness.state(), false).unwrap();
+    let mb = &harness.state().session.mailbox;
+    fn walk(mb: &mailcraft_model::Mailbox, account: Id, parent: Option<Id>, depth: usize, out: &mut Vec<(Id, usize, String)>) {
+        for f in mb.children(account, parent) {
+            out.push((f.id, depth, crate::nav::folder_path(mb, f.id)));
+            walk(mb, account, Some(f.id), depth + 1, out);
+        }
+    }
+    let mut expected = Vec::new();
+    walk(mb, account, None, 0, &mut expected);
+    assert_eq!(dialog.listed(), expected);
+}
