@@ -116,8 +116,8 @@ use mailcraft_host::calendar::check_calendar_in;
 use mailcraft_host::graph::{graph_in, graph_in_with, graph_sending_with, graph_with};
 use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
-    AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, FreeBusyRequest, FreeBusyResult, GraphRequest,
-    MailApp, Services, SettingsUnread, SignInRequest, UiState,
+    AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, FreeBusyRequest, GraphRequest, MailApp, Services, SettingsUnread, SignInRequest,
+    UiState,
     window_geometry::{self, WindowGeometry, take_rescue},
 };
 
@@ -1195,7 +1195,9 @@ fn services(
         // When the people of a meeting are free and busy, while its Find a Time page is open.
         free_busy: Some(Box::new({
             let host = host.clone();
-            move |request: FreeBusyRequest| host_job(host.as_ref(), &busy_ctx, "free and busy times", move || mailcraft_host::calendar::free_busy(request))
+            move |request: FreeBusyRequest| {
+                host_job(host.as_ref(), &busy_ctx, "free and busy times", move || mailcraft_host::calendar::free_busy(request))
+            }
         })),
         // A check of the calendar connection on the account's real server, when the owner asks.
         check_calendar: Some(Box::new(move |request: CalendarCheckRequest| {

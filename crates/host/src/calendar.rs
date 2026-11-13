@@ -86,5 +86,8 @@ pub struct FreeBusyResult {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod run;
+/// The seam the flow tests run through with an offset of their own (`test-support`).
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
+pub use run::check_calendar_in;
 #[cfg(not(target_arch = "wasm32"))]
-pub use run::{check_calendar, check_calendar_in, free_busy};
+pub use run::{check_calendar, free_busy};
