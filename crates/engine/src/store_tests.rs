@@ -2173,6 +2173,12 @@ fn content_a_virus_scanner_takes_away_is_told_apart_from_a_failed_write() {
     let (sub, _) = blob_path(&dir, &r.hash).unwrap();
     fs::create_dir_all(&sub).unwrap();
     assert!(refused_by_scanner(&dir, &r, &gone));
+    // "Access denied" for this one file while another can be made beside it: a scanner (Windows;
+    // elsewhere a refusal is the folder's own, and fails the save).
+    let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(refused_by_scanner(&dir, &r, &denied), cfg!(windows));
+    assert!(fs::read_dir(&sub).unwrap().next().is_none(), "the file tried beside it is gone");
+    fs::remove_dir(&sub).unwrap();
     // A full disk, or anything else, still fails the save.
     assert!(!refused_by_scanner(&dir, &r, &std::io::Error::other("no space left")));
     assert!(!refused_by_scanner(&dir, &r, &std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
@@ -2202,4 +2208,24 @@ fn content_a_scanner_holds_for_a_moment_is_written_when_it_lets_go() {
     assert!(put(&dir, &r, bytes).unwrap());
     scanner.join().unwrap();
     assert_eq!(fs::read(&file).unwrap(), bytes);
+}
+
+/// #1311: a file a scanner never lets go of (Bitdefender refusing what it flags, "access
+/// denied" at every save) is told apart from a folder that can't be written to: that one part is
+/// left out and the rest of the mailbox saved.
+#[cfg(windows)]
+#[test]
+fn content_a_scanner_never_lets_go_of_is_left_out() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let t = Temp::new("scanner-keeps");
+    let dir = blob_dir(&t.file());
+    let bytes = b"a part a scanner refuses for good";
+    let r = Ref { hash: Digest::of(bytes), len: bytes.len() as u64 };
+    let (sub, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    fs::write(&file, b"x").unwrap();
+    let _held = fs::OpenOptions::new().read(true).share_mode(0).open(&file).unwrap();
+    let e = put(&dir, &r, bytes).unwrap_err();
+    assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(refused_by_scanner(&dir, &r, &e));
 }

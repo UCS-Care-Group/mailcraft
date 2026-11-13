@@ -3411,11 +3411,11 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
                 saved.blob_bytes += r.len;
             }
             Some(Ok(false)) => {}
-            // A virus scanner took the file away as it was written: that one part is left out
+            // A virus scanner took the file away as it was written, or refuses it: that one part is left out
             // (it reads as unavailable, like any missing content) and the rest of the mailbox is
             // saved, rather than every save failing for as long as the message is open.
             Some(Err(e)) if refused_by_scanner(&dir, r, &e) => {
-                log::warn!("content file {}: removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
+                log::warn!("content file {}: refused or removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
             }
             Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
             None => return Err("the content couldn't be written".into()),
@@ -3426,13 +3426,23 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
 
 /// Whether writing the content `r` under `dir` failed because something on this computer (a
 /// virus scanner) refused it or took it away: Windows says so (`ERROR_VIRUS_INFECTED`,
-/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice.
-/// Anything else (a full disk, a folder that went) still fails the save.
+/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice,
+/// or Windows still said "access denied" for this one file after [`put`] waited for it while a
+/// file of another name can be made beside it (Bitdefender refuses what it flags that way, #1311).
+/// Anything else (a full disk, a folder that went or that can't be written to) still fails the save.
 fn refused_by_scanner(dir: &Path, r: &Ref, e: &std::io::Error) -> bool {
     const VIRUS_INFECTED: i32 = 225;
     const VIRUS_DELETED: i32 = 226;
     if cfg!(windows) && matches!(e.raw_os_error(), Some(VIRUS_INFECTED | VIRUS_DELETED)) {
         return true;
+    }
+    if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied {
+        return blob_path(dir, &r.hash).is_some_and(|(_, file)| {
+            let probe = temp_beside(&file);
+            let made = create_private(&probe).is_ok();
+            let _ = fs::remove_file(&probe);
+            made
+        });
     }
     e.kind() == std::io::ErrorKind::NotFound && blob_path(dir, &r.hash).is_some_and(|(sub, _)| sub.is_dir())
 }
