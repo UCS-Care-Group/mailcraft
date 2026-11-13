@@ -1,6 +1,6 @@
 # Translating MailCraft
 
-> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-11 · **Change:** minor
+> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-10-29 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
 Italian, Dutch and Turkish. A preview language has every text translated, but no native speaker has reviewed it yet:
@@ -71,6 +71,5 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-11 | minor | Turkish as a preview language (`tr.po`); File › Options names it Türkçe (önizleme) |
 | 2026-10-29 | minor | Dutch as a preview language (`nl.po`); File › Options names it Nederlands (voorbeeld) |
 | 2026-10-20 | major | First version: French, German, Spanish and Italian as preview languages; reviewing and adding a language; ribbon labels' line breaks and `msgctxt` |

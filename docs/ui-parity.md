@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-05 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -93,7 +93,6 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-11 | minor | Turkish as a preview language: Türkçe (önizleme) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-11-05 | minor | #761: Add Account: an address at a domain nobody here knows says its servers are only a guess from its domain, and offers the Microsoft 365 and Exchange server choices on the same page |
 | 2026-11-05 | minor | #600: Reading pane: a message is drawn in the first of its fonts installed on this computer |
 | 2026-11-04 | minor | #785: Reading pane and a message's window: a ▾ at each attachment chip's right end opens the chip's right-click menu (Open, Save As, Save All Attachments, Remove), by a click or by Enter or Space |

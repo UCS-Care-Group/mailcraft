@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-11 · **Change:** minor
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-07 · **Change:** patch
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -74,7 +74,6 @@ this code base.
 | Date | Change | Summary |
 |---|---|---|
 | 2026-11-07 | patch | AU3-V1: gap 5: Autodiscover asks before the sign-in goes to any host in the owner's domain but its Autodiscover host and the hosts its SRV record names, naming the host whole |
-| 2026-11-11 | minor | Gap 14: Turkish as a preview language; Automatic follows `tr-TR` |
 | 2026-11-05 | minor | #815 part 3: gap 12: a `.pst` file's contacts and distribution lists import too; calendar, tasks and notes left for a later part |
 | 2026-11-05 | minor | #815 part 2: gap 12: a `.pst` file's mail imports (preview), with its report; calendar, contacts, tasks and notes left for a later part |
 | 2026-11-05 | minor | #745: gap 8: selecting copies nothing, a change to the mailbox costs what it changed (chunked messages) and the conversations are kept through it: a click 1.3–3.9 ms, a Shift+click 0.1 ms, Undo of 1,000 deletes 30 + 14 ms at 326,000 messages |

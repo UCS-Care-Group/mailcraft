@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-31 · **Last updated:** 2026-11-07 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -453,7 +453,6 @@ follows:
 
 | Date | Change |
 |---|---|
-| 2026-11-11 | Turkish as a preview language: Türkçe (önizleme) in File › Options; Automatic follows `tr-TR`; after beta item 15 names six preview languages |
 | 2026-11-05 | #809: a To Do task's start and due dates on the owner's day, in the progress log |
 | 2026-11-05 | #779: an Exchange server account's own folders, in the progress log |
 | 2026-11-05 | #745: Gap 8: selecting, chunked messages and the conversations checked chunk by chunk, in the progress log |
