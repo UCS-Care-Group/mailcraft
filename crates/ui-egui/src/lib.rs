@@ -154,7 +154,7 @@ pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
-mod platform;
+pub mod platform;
 #[cfg(test)]
 mod platform_tests;
 mod problem_log;
@@ -362,6 +362,9 @@ pub struct Services {
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
     pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
+    /// What the host's threads ask of the window through the desktop's platform, answered every
+    /// frame ([`Services::serve_platform`], [`platform::DesktopPlatform`]).
+    pub platform_calls: platform::PlatformCalls,
     /// Desktop: the owner's own certificates and keys (#30 R13; [`own_keys`]), on a background
     /// thread: list them where the system keeps them (the Windows certificate store, the macOS
     /// keychain, PKCS#11 tokens, GnuPG), read which OpenPGP keys GnuPG trusts fully, import a
@@ -4787,6 +4790,8 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
+        // The host's threads' calls on the window (the desktop's platform).
+        self.services.serve_platform();
         security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
