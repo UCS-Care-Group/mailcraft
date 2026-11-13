@@ -58,8 +58,10 @@ pub struct MessageRow {
     /// Messages the row stands for (1 outside a conversation).
     pub members: u32,
     /// The heading above the row when it starts a group (`Today`, `Last Week`), in English: the
-    /// app translates it with `t`.
+    /// app translates it with `t`, unless `group_is_category` says it is a name the owner chose.
     pub group: Option<String>,
+    /// Whether `group` is one of the owner's categories (shown as spelt, never translated).
+    pub group_is_category: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
