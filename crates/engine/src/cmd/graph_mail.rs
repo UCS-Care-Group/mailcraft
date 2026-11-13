@@ -358,6 +358,13 @@ pub(super) fn mark_own(mb: &mut Mailbox, account: Id, own: &[String]) {
 /// reached it yet. The undo history stays: undoing a change that reached the server is another
 /// change, which the next run sends (R3.5, [`crate::undo`]).
 pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
+    let mut taken = apply_graph_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let account = result.account;
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Microsoft {

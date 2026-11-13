@@ -419,12 +419,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     let mb = &app.session.mailbox;
     // Read as the command reads it (#553): one named wrongly asks nothing, and the command refuses it.
     let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
-    // (Not a JMAP account's yet, nor an Exchange server account's: nothing done here goes up to
-    // its server until the engine sends its changes, so nothing is removed there.)
-    let on_server = |account: u64| {
-        mb.account(account)
-            .is_some_and(|a| a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange))
-    };
+    // (A JMAP account's too: its deletions go up with its next run. Not an Exchange server
+    // account's, as before.)
+    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Exchange);
     let server_too = |yes: bool| if yes { format!(" {}", tl!("They are removed from the mail server too.")) } else { String::new() };
     let question = |title: &str, text: String, action: &str| Some(Question::new(title, text, action, Value::Null));
     match id {
@@ -484,7 +481,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 tln!(n, "{n} message will be permanently deleted.", "{n} messages will be permanently deleted.")
             };
-            let text = if going.iter().any(|m| on_server(m.account)) {
+            // (Of a JMAP account, only what its server has: the rest is this computer's alone.)
+            let jmap = |m: &mailcraft_model::Message| mb.account(m.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let text = if going.iter().any(|m| on_server(m.account) && (m.server.is_some() || !jmap(m))) {
                 let too = if n == 1 {
                     tl!("It is removed from the mail server too, and that can't be undone.")
                 } else {
@@ -521,7 +520,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             }
             let everything =
                 crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
-            let text = format!("{everything}{}", server_too(on_server(f.account)));
+            // (Of a JMAP account, only when its server has some of it: what is this computer's
+            // alone, a draft or mail brought in from a file, is removed nowhere else.)
+            let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let going = mb.subtree(f.id);
+            let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
+            let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
         "folder.delete" => {
