@@ -1265,7 +1265,14 @@ pub const MAX_PIECES_TOGETHER: usize = 256;
 /// Taking in a piece that brings anything reads the whole account once, however little the
 /// piece brings; a run that reads thousands of folders hands over a piece or more for each, so
 /// a host with several pieces waiting takes them in together ([`apply_sync_parts`], #991).
-pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
+pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, result: SyncResult) -> CmdResult {
+    let mut taken = apply_sync_piece(s, run, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
     let account = result.account;
     let Some(a) = s.mailbox.account(account) else { return Err(failed!("no account with id {id}", id = account)) };
     // No run here asks a server anything of it, so nothing that comes back is for it.
