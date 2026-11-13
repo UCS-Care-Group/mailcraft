@@ -611,7 +611,12 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // A shorter window: what is outside it now is thinned at the next tick, for any host.
+    let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
+    if shortened {
+        s.driver.thinning.now = true;
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }

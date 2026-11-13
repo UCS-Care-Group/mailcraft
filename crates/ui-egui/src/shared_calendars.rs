@@ -151,10 +151,10 @@ impl MailApp {
                 self.keep_shared_calendar_tokens(shared, owner, tokens);
                 // Allowed, as far as is known: the next look at the calendar finds out.
                 self.shared_calendar_perm.insert(shared, Permission::Allowed);
-                self.calendar.failures.remove(&shared);
-                self.calendar.checked.remove(&shared);
+                self.session.driver.calendar.book.forget_failures(shared);
+                self.session.driver.calendar.book.forget_checked(shared);
                 self.graph_checked.remove(&shared);
-                self.calendar.due = true;
+                self.session.driver.calendar.due = true;
             }
             Err(e) if e == NEEDS_APPROVAL => {
                 let said = tl!("Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info");
@@ -202,7 +202,7 @@ impl MailApp {
         // mailboxes isn't allowed yet (#70): it waits, nothing goes out as the owner, and the
         // owner is asked as he is for mail (the same permission, the same page).
         if result.send_consent_needed && self.session.mailbox.account(shared).is_some() {
-            self.calendar.send_waits.insert(shared);
+            self.session.driver.calendar.send_waits.insert(shared);
             if self.dialog.is_some() || !self.ask_shared_send_for(shared, true) {
                 errors.push(
                     tl!("A meeting answer or invitation from this shared mailbox waits: sending from shared mailboxes needs your permission. Use Send/Receive.")
@@ -243,7 +243,7 @@ impl MailApp {
     #[doc(hidden)]
     pub fn calendar_list_due(&mut self, account: Id) {
         self.graph_checked.remove(&account);
-        self.calendar.checked.remove(&account);
+        self.session.driver.calendar.book.forget_checked(account);
     }
 
     /// What File › Info says under a shared mailbox's card about its calendars' permission, and

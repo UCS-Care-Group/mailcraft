@@ -7,6 +7,28 @@
 
 use std::collections::HashMap;
 
+pub mod calendar;
+#[cfg(test)]
+mod calendar_tests;
+pub mod favorites;
+#[cfg(test)]
+mod favorites_tests;
+pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
+pub mod jobs;
+#[cfg(test)]
+mod jobs_tests;
+pub mod offline;
+#[cfg(test)]
+mod offline_tests;
+
+pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
+pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
+pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
+pub use jobs::{Busy, JobKind, Start};
+pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+
 use mailcraft_model::Id;
 
 /// How one kind of job is paced (all times in milliseconds).
@@ -102,22 +124,64 @@ impl JobBook {
     /// is due: changes that have waited out the quiet time, or nothing asked for since the refresh
     /// time, and, after a failure, the wait it asks for decides alone.
     pub fn due(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
-        let since = match self.waiting.get(&account) {
-            Some((seen, since)) if *seen == ready => *since,
-            _ => {
-                self.waiting.insert(account, (ready, now));
-                now
-            }
-        };
+        let pushes = self.quiet_over(pacing, account, ready, now);
         let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
         if failures > 0 {
             // After a failure the back-off alone decides: it is the retry, so the refresh time
             // (counted from the failed check) is not waited out on top of it.
             return now - at >= pacing.patience_ms(failures);
         }
-        let pushes = ready > 0 && now - since >= pacing.quiet_ms;
-        let asked = self.checked.get(&account).copied();
-        pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)
+        pushes || self.checked.get(&account).is_none_or(|at| now - at >= pacing.refresh_ms)
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say since when that many
+    /// have waited (`now` when the number is new).
+    pub fn waiting_since(&mut self, account: Id, ready: usize, now: f64) -> f64 {
+        match self.waiting.get(&account) {
+            Some((seen, since)) if *seen == ready => *since,
+            _ => {
+                self.waiting.insert(account, (ready, now));
+                now
+            }
+        }
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say whether there are some
+    /// and they have waited out the quiet time.
+    pub fn quiet_over(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
+        let since = self.waiting_since(account, ready, now);
+        ready > 0 && now - since >= pacing.quiet_ms
+    }
+
+    /// Whether any account had changes waiting at its last look.
+    pub fn any_waiting(&self) -> bool {
+        self.waiting.values().any(|(n, _)| *n > 0)
+    }
+
+    /// Whether `account` is not within the wait that its failures in a row ask for at `now`.
+    pub fn patient(&self, pacing: &Pacing, account: Id, now: f64) -> bool {
+        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
+        !(failures > 0 && now - at < pacing.patience_ms(failures))
+    }
+
+    /// When `account` was last asked for.
+    pub fn checked(&self, account: Id) -> Option<f64> {
+        self.checked.get(&account).copied()
+    }
+
+    /// Forget when every account was last asked for.
+    pub fn forget_all_checked(&mut self) {
+        self.checked.clear();
+    }
+
+    /// Forget the failures of `account`: the next look is not made to wait for them.
+    pub fn forget_failures(&mut self, account: Id) {
+        self.failures.remove(&account);
+    }
+
+    /// Forget every account's failures.
+    pub fn forget_all_failures(&mut self) {
+        self.failures.clear();
     }
 
     /// A job for `account` was started at `now`.
@@ -138,7 +202,7 @@ impl JobBook {
 
     /// The job worked: no failures in a row.
     pub fn worked(&mut self, account: Id) {
-        self.failures.remove(&account);
+        self.forget_failures(account);
     }
 
     /// How many failures in a row `account` has.
@@ -185,4 +249,19 @@ pub fn fingerprint(refresh: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     refresh.hash(&mut hasher);
     hasher.finish()
+}
+
+/// The sync driver's state, in the session: what the front end's jobs have to remember between
+/// looks. In memory only, never saved, and with no I/O; a front end reads and writes it through
+/// the functions here and on [`Session`](crate::Session).
+#[derive(Debug, Default)]
+pub struct Driver {
+    /// Mail to keep offline: when it was last taken back.
+    pub thinning: Thinning,
+    /// The calendar kept in step with each account's server.
+    pub calendar: CalendarDriver,
+    /// Outlook's Favorites read from each Microsoft account's server.
+    pub favorites: FavoritesDriver,
+    /// Messages fetched whole in the background and for the owner.
+    pub fetch: FetchDriver,
 }

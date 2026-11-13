@@ -1067,6 +1067,9 @@ pub struct Session {
     pub clock: Clock,
     /// What the last synchronisation reported, for the status bar.
     pub sync_status: String,
+    /// The sync driver's state: what a front end's background jobs remember between looks
+    /// ([`crate::sync_driver`]). In memory only, never saved.
+    pub driver: crate::sync_driver::Driver,
     /// Send/Receive Progress: the run under way, or the last one, account by account. Kept up
     /// to date by `sync.apply` and `sync.applyGraph`; in memory only, never saved.
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
@@ -1295,6 +1298,7 @@ impl Session {
             dirty: false,
             clock,
             sync_status: String::new(),
+            driver: Default::default(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
             ews_run_cut: Default::default(),
@@ -2991,6 +2995,8 @@ impl Session {
         self.run_had.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
+        // The background fetch's waits and offline flag were the old mailbox's.
+        self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
         self.pst_running = None;
         self.pst_tops.clear();

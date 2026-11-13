@@ -35,6 +35,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
@@ -101,13 +102,7 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
-        let round = self.sync_rx.is_some()
-            || self.graph_rx.is_some()
-            || !self.sync_queue.is_empty()
-            || !self.inbox_queue.is_empty()
-            || self.signing_in.is_some()
-            || self.approving()
-            || self.graph_switch_copy.is_some();
+        let round = self.job_busy().blocks(Start::InboxCheck);
         // (A clock put back starts the minute again.)
         if round || self.inbox_check.last == 0 || now < self.inbox_check.last {
             self.inbox_check.queue.clear();

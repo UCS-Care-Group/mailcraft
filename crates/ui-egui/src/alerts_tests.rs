@@ -466,7 +466,7 @@ fn bring(app: &mut MailApp, account: Id, id: &str, subject: &str) {
 
 /// The background downloads `id` whole, with `subject` and `text`.
 fn download(app: &mut MailApp, jobs: &Jobs, id: &str, subject: &str, text: &str) {
-    app.fetching.wake();
+    app.session.driver.fetch.wake();
     app.drive_fetch();
     for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
         assert!(job.request.ids.contains(&id.to_string()), "{:?}", job.request.ids);
