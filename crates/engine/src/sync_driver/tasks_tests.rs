@@ -136,3 +136,16 @@ fn a_removed_account_is_no_longer_asked_about() {
     assert_eq!(s.driver.tasks.to_ask(), Some(other));
     assert!(!s.driver.tasks.perm.contains_key(&a) && !s.driver.tasks.settling.contains_key(&a));
 }
+
+#[test]
+fn a_late_answer_for_a_removed_account_asks_nothing() {
+    let (mut s, a) = session();
+    let other = s.run("account.add", &json!({"email": "bo@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.driver.tasks.needed(other);
+    let ran_for = s.mailbox.account(a).unwrap().clone();
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    let came = TasksCame { consent_needed: true, ..Default::default() };
+    s.tasks_answered(a, 1_000.0, fingerprint("refresh"), &ran_for, Lang::English, &came);
+    assert!(!s.driver.tasks.perm.contains_key(&a));
+    assert_eq!(s.driver.tasks.to_ask(), Some(other));
+}

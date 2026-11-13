@@ -195,6 +195,11 @@ impl Session {
     /// [`fingerprint`](super::fingerprint) of the refresh token it was given; `lang`: the words a
     /// refusal that is kept is said in. Say what went wrong, in order.
     pub fn rules_answered(&mut self, account: Id, started: f64, given: u64, lang: mailcraft_i18n::Lang, came: &RulesCame<'_>) -> Vec<Text> {
+        // An answer for an account removed meanwhile changes nothing (else its question would be
+        // left standing first in the queue, and nobody could answer it).
+        if self.mailbox.account(account).is_none() {
+            return Vec::new();
+        }
         let mut errors = Vec::new();
         let rules = &mut self.driver.rules;
         let standing = super::Standing {

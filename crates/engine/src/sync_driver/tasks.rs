@@ -170,6 +170,11 @@ impl Session {
         lang: mailcraft_i18n::Lang,
         came: &TasksCame<'_>,
     ) -> Vec<Text> {
+        // An answer for an account removed meanwhile changes nothing (else its question would be
+        // left standing first in the queue, and nobody could answer it).
+        if self.mailbox.account(account).is_none() {
+            return Vec::new();
+        }
         let mut errors = Vec::new();
         let tasks = &mut self.driver.tasks;
         let standing = super::Standing {

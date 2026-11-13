@@ -121,3 +121,14 @@ fn a_removed_account_is_no_longer_asked_about() {
     assert_eq!(s.driver.rules.to_ask(), Some(other));
     assert!(!s.driver.rules.perm.contains_key(&a) && !s.driver.rules.settling.contains_key(&a));
 }
+
+#[test]
+fn a_late_answer_for_a_removed_account_asks_nothing() {
+    let (mut s, a) = session();
+    let other = s.run("account.add", &json!({"email": "bo@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.driver.rules.needed(other);
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    answered(&mut s, a, &RulesCame { consent_needed: true, ..Default::default() });
+    assert!(!s.driver.rules.perm.contains_key(&a));
+    assert_eq!(s.driver.rules.to_ask(), Some(other));
+}
