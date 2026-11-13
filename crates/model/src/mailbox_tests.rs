@@ -1251,14 +1251,14 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
 fn a_saved_search_from_a_file_is_tidied() {
     let (mut mb, _) = mailbox();
     mb.search_favorites = vec![
-        SearchFavorite { id: 0, name: "Gone".into(), query: "x".into(), scope: "folder".into() },
-        SearchFavorite { id: 4, name: "  Ada\n".into(), query: "from:ada\u{1}".into(), scope: "inbox".into() },
-        SearchFavorite { id: 4, name: "Again".into(), query: "y".into(), scope: "everywhere".into() },
+        SearchFavorite { id: 0, name: "Gone".into(), query: "x".into(), scope: "folder".into(), folder: 0 },
+        SearchFavorite { id: 4, name: "  Ada\n".into(), query: "from:ada\u{1}".into(), scope: "inbox".into(), folder: 9_999_999 },
+        SearchFavorite { id: 4, name: "Again".into(), query: "y".into(), scope: "everywhere".into(), folder: 0 },
     ];
     mb.repair();
     assert_eq!(mb.search_favorites.len(), 1);
     let kept = &mb.search_favorites[0];
-    assert_eq!((kept.id, kept.name.as_str(), kept.query.as_str(), kept.scope.as_str()), (4, "Ada", "from:ada", "folder"));
+    assert_eq!((kept.id, kept.name.as_str(), kept.query.as_str(), kept.scope.as_str(), kept.folder), (4, "Ada", "from:ada", "folder", 0));
     let written = serde_json::to_string(&mb).unwrap();
     assert!(written.contains("searchFavorites"));
     mb.search_favorites.clear();

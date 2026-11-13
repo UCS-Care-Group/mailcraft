@@ -25,6 +25,27 @@ fn a_saved_search_goes_to_the_front_and_comes_back() {
     s.run("search.unfavorite", &json!({"id": second["id"]})).unwrap();
     assert_eq!(s.mailbox.search_favorites.len(), 1);
     assert_eq!(s.mailbox.search_favorites[0].name, "From Ada");
+    let padded = s.run("search.favorite", &json!({"name": "Box", "query": "from:ada", "scope": " Mailbox "})).unwrap();
+    assert_eq!(padded["scope"], "mailbox");
+    assert_eq!(s.mailbox.search_favorites[0].scope, "mailbox");
+    assert_eq!(s.mailbox.search_favorites[0].folder, s.view.folder);
+}
+
+#[test]
+fn a_saved_search_keeps_the_folder_and_is_kept_once() {
+    let mut s = session();
+    let inbox = s.view.folder;
+    let account = s.mailbox.folder(inbox).unwrap().account;
+    let sent = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Sent).unwrap();
+    let saved = s.run("search.favorite", &json!({"name": "Ada in Inbox", "query": "from:ada"})).unwrap();
+    assert_eq!(saved["folder"], json!(inbox));
+    s.run("folder.select", &json!({"id": sent})).unwrap();
+    assert_eq!(s.mailbox.search_favorites[0].folder, inbox);
+    s.run("search.favorite", &json!({"name": "Ada in Sent", "query": "from:ada"})).unwrap();
+    assert_eq!(s.mailbox.search_favorites[0].folder, sent);
+    assert!(s.run("search.favorite", &json!({"name": "Again", "query": "from:ada"})).is_err());
+    assert!(s.run("search.favorite", &json!({"name": "Empty", "query": "   "})).is_err());
+    assert_eq!(s.mailbox.search_favorites.len(), 2);
 }
 
 #[test]
@@ -46,7 +67,7 @@ fn saving_undoes_and_the_fifty_first_is_refused() {
     assert!(s.mailbox.search_favorites.is_empty());
 
     for n in 0..MAX_SEARCH_FAVORITES {
-        s.run("search.favorite", &json!({"name": format!("S{n}"), "query": "is:unread"})).unwrap();
+        s.run("search.favorite", &json!({"name": format!("S{n}"), "query": format!("is:unread {n}")})).unwrap();
     }
     assert!(s.run("search.favorite", &json!({"name": "One more", "query": "x"})).is_err());
     assert_eq!(s.mailbox.search_favorites.len(), MAX_SEARCH_FAVORITES);

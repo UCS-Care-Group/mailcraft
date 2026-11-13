@@ -1,1 +1,0 @@
-- **Saved searches in Favorites.** Advanced Search has Save as a favorite between Search and Clear filters. It asks for a name, then lists that search at the top of Favorites. Opening it runs the search again, and Remove from Favorites takes it out.

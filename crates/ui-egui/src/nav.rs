@@ -532,9 +532,16 @@ fn search_favorite_row(app: &mut MailApp, ui: &mut Ui, fav: &SearchFavorite, sel
         if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) },
         ink,
     );
+    let said = fav.name.clone();
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, true, selected, &said));
     if resp.clicked() {
         app.search_text = fav.query.clone();
-        let _ = app.run("view.search", json!({"query": fav.query, "scope": fav.scope}));
+        if fav.folder != 0 && app.session.mailbox.folder(fav.folder).is_some() {
+            let _ = app.run("folder.select", json!({"id": fav.folder}));
+        }
+        if let Err(e) = app.run("view.search", json!({"query": fav.query, "scope": fav.scope})) {
+            app.say_refused("view.search", &e);
+        }
         if let Some(ctx) = &app.ctx {
             crate::chrome::caret_at_end(ctx, &app.search_text);
         }
@@ -818,7 +825,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 mailcraft_engine::cmd::folder::favorites(&app.session).into_iter().filter_map(|id| app.session.mailbox.folder(id).cloned()).collect();
             let saved: Vec<SearchFavorite> = app.session.mailbox.search_favorites.clone();
             let view_query = app.session.view.search.clone();
-            let view_scope = crate::chrome::scopes().into_iter().find(|(s, ..)| *s == app.session.view.scope).map_or("folder", |(_, _, code)| code);
+            let view_scope = crate::chrome::scope_code(app.session.view.scope);
             // And what there is to say of Outlook's, in one quiet line under the heading.
             let note = app.favorites_note();
             // (A shared mailbox right after the account it is opened through, #70.)
@@ -844,9 +851,12 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
-            // A saved search that is the one on screen is the row that is on: the folder it was
-            // reached from stays in view underneath, and is not marked as well.
-            let search_on = !view_query.is_empty() && saved.iter().any(|fav| fav.query == view_query && fav.scope == view_scope);
+            // A saved search is the row that is on when the query, the scope and the folder are
+            // its own. The account's list still marks that folder. The copy under Favorites does
+            // not, so the same folder is not marked twice.
+            let view_folder = app.session.view.folder;
+            let same = |fav: &SearchFavorite| fav.query == view_query && fav.scope == view_scope && (fav.folder == 0 || fav.folder == view_folder);
+            let search_on = !view_query.is_empty() && saved.iter().any(&same);
             let favorite_selected = !search_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.
@@ -868,7 +878,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     favorites_note(app, ui, *account, note);
                 }
                 for fav in &saved {
-                    let on = search_on && fav.query == view_query && fav.scope == view_scope;
+                    let on = search_on && same(fav);
                     search_favorite_row(app, ui, fav, on);
                 }
                 for f in &favorites {
@@ -900,11 +910,11 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                         app.hit.add("folder", f.id, r);
                         continue;
                     }
-                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !search_on && !favorite_selected && f.id == current);
+                    folder_row(app, ui, f, *depth, *has_children || gmail, "tree", count(f), !favorite_selected && f.id == current);
                     if gmail && !app.ui.collapsed_folders.contains(&f.id) {
                         for category in GmailCategory::ALL {
                             let unread = counts.gmail(f.id, category).unread;
-                            let selected = !search_on && f.id == gmail_current && gmail_now == Some(category);
+                            let selected = f.id == gmail_current && gmail_now == Some(category);
                             gmail_row(app, ui, f.id, depth + 1, category, unread, selected);
                         }
                     }

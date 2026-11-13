@@ -180,7 +180,7 @@ pub(crate) fn set_open(app: &mut MailApp, open: bool) -> Result<(), &'static str
 pub(crate) fn search(app: &mut MailApp) -> Result<(), String> {
     let panel = app.advanced_search.as_ref().ok_or("Advanced Search isn't open")?;
     let query = panel.query().ok_or("a day received isn't a date, or the days are the wrong way round: write them YYYY-MM-DD")?;
-    let scope = crate::chrome::scopes().into_iter().find(|(s, ..)| *s == panel.scope).map_or("folder", |(_, _, code)| code);
+    let scope = crate::chrome::scope_code(panel.scope);
     app.execute("view.search", json!({"query": query, "scope": scope}))?;
     // Closed once it has searched: refused, it stays open with what was typed in it.
     app.advanced_search = None;
@@ -221,6 +221,15 @@ pub(crate) fn command(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 /// agent's question leaves it, and what was typed in it, as it is (#503). Once a frame, before
 /// anything is drawn.
 pub(crate) fn follow(app: &mut MailApp) {
+    // The naming dialog took the panel off the screen. Once that dialog is gone without a save,
+    // the filters come back. A save drops the panel in the dialog.
+    if app.dialog.is_none()
+        && let Some(panel) = app.advanced_search_held.take()
+        && panel.openings == app.session.openings()
+        && app.advanced_search.is_none()
+    {
+        app.advanced_search = Some(panel);
+    }
     let Some(panel) = &app.advanced_search else { return };
     let gone = panel.reading.query() != app.session.view.search
         || panel.looked != app.session.view.scope
@@ -495,7 +504,8 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
         panel.received_to.clear();
     }
     if save && let Some(query) = panel.query().filter(|q| !q.trim().is_empty()) {
-        let scope = crate::chrome::scopes().into_iter().find(|(s, ..)| *s == panel.scope).map_or("folder", |(_, _, code)| code);
+        let scope = crate::chrome::scope_code(panel.scope);
+        app.advanced_search_held = Some(panel);
         app.dialog = Some(crate::dialogs::Dialog::SearchFavorite { name: String::new(), query, scope: scope.to_string(), error: String::new() });
         return;
     }

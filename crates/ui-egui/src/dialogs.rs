@@ -1564,7 +1564,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::SearchFavorite { name, query, scope, error } => {
             let mut submit = false;
             let open = window(ctx, tl!("Save as a favorite"), 380.0, |ui| {
-                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
+                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
                 let resp = crate::text_menu::field(resp);
                 if error.is_empty() {
                     crate::text_menu::hold(&resp);
@@ -1579,7 +1579,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open;
             if submit {
                 match app.execute("search.favorite", json!({"name": name, "query": query, "scope": scope})) {
-                    Ok(_) => close = true,
+                    Ok(_) => {
+                        close = true;
+                        app.advanced_search_held = None;
+                    }
                     Err(e) => *error = e,
                 }
             }

@@ -1546,6 +1546,8 @@ pub struct MailApp {
     pub(crate) search_focus: bool,
     /// Advanced Search, while its panel is open under the search box (#329).
     pub(crate) advanced_search: Option<advanced_search::Panel>,
+    /// The panel put aside while Save as a favorite asks for a name. Cancel puts it back.
+    pub(crate) advanced_search_held: Option<advanced_search::Panel>,
     /// Whether the title bar had room for the search box when it was last drawn.
     pub(crate) search_box_shown: bool,
     /// The messages being written whose Bcc line is shown, by their ids (#286).
@@ -1915,6 +1917,7 @@ impl MailApp {
             search_text: String::new(),
             search_focus: false,
             advanced_search: None,
+            advanced_search_held: None,
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,

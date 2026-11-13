@@ -143,7 +143,9 @@ pub struct Folder {
 }
 
 /// A search kept at the top of Favorites: the name the owner gave it, the query Advanced Search
-/// wrote, and where that search looks (`folder`, `subfolders`, `mailbox` or `everywhere`).
+/// wrote, where that search looks (`folder`, `subfolders`, `mailbox` or `everywhere`), and the
+/// folder it was saved in. A file from before the folder was kept has `folder` 0: opening it
+/// searches wherever is open.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SearchFavorite {
@@ -151,11 +153,13 @@ pub struct SearchFavorite {
     pub name: String,
     pub query: String,
     pub scope: String,
+    /// The folder open when the search was saved. 0 when a file didn't say, or that folder is gone.
+    pub folder: Id,
 }
 
 impl Default for SearchFavorite {
     fn default() -> Self {
-        SearchFavorite { id: 0, name: String::new(), query: String::new(), scope: "folder".into() }
+        SearchFavorite { id: 0, name: String::new(), query: String::new(), scope: "folder".into(), folder: 0 }
     }
 }
 
@@ -2056,6 +2060,11 @@ impl Mailbox {
                 }
                 self.folders.retain(|f| !gone.contains(&f.id));
                 self.messages.retain(|_, m| !gone.contains(&m.folder));
+                for saved in &mut self.search_favorites {
+                    if gone.contains(&saved.folder) {
+                        saved.folder = 0;
+                    }
+                }
                 for list in &mut self.favorites_from_server {
                     list.folders.retain(|folder| !gone.contains(folder));
                 }
@@ -3445,6 +3454,7 @@ impl Mailbox {
     /// id, a query or a scope this version doesn't keep. Returns whether any went or changed.
     fn repair_search_favorites(&mut self) -> bool {
         let scopes = ["folder", "subfolders", "mailbox", "everywhere"];
+        let folders: HashSet<Id> = self.folders.iter().map(|f| f.id).collect();
         let mut changed = self.search_favorites.len() > MAX_SEARCH_FAVORITES;
         self.search_favorites.truncate(MAX_SEARCH_FAVORITES);
         let mut seen = HashSet::new();
@@ -3472,6 +3482,10 @@ impl Mailbox {
             }
             if !scopes.contains(&f.scope.as_str()) {
                 f.scope = "folder".into();
+                changed = true;
+            }
+            if f.folder != 0 && !folders.contains(&f.folder) {
+                f.folder = 0;
                 changed = true;
             }
         }

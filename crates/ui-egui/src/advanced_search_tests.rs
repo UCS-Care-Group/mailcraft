@@ -552,23 +552,44 @@ fn saving_the_search_puts_it_above_the_favorite_folders() {
     let folder = mailcraft_engine::cmd::folder::favorites(&w.state().session)[0];
     let above = w.state().hit.rect("folder", folder).expect("a favorite folder");
     assert!(fav.max.y <= above.min.y + 1.0, "newest saved search is above the favorite folders");
+    let home = w.state().session.mailbox.search_favorites[0].folder;
     click_at(&mut w, "searchBox");
     w.state_mut().execute("view.clearSearch", json!({})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "sent"})).unwrap();
     w.run_steps(2);
+    assert_ne!(w.state().session.view.folder, home);
     let at = w.state().hit.rect("searchFavorite", id).expect("still listed");
     testing::click(&mut w, at.center(), PointerButton::Primary, 1);
     assert_eq!(search(&w), "from:ada");
     assert_eq!(w.state().session.view.scope, Scope::Everywhere);
-    // The folder it was reached from stays underneath, and only the saved search is marked.
+    assert_eq!(w.state().session.view.folder, home, "the search opens the folder it was saved in");
+    // The saved search is on, the copy under Favorites is not, and the account's list still marks the folder.
     w.run_steps(2);
     let fav = w.state().hit.rect("searchFavorite", id).expect("the saved search");
-    let above = w.state().hit.rect("folder", folder).expect("a favorite folder");
     let shot = w.render().expect("the frame");
-    let at = |r: egui::Rect, x: f32| *shot.get_pixel((r.min.x + x).round() as u32, r.center().y.round() as u32);
+    let pixel = |x: f32, y: f32| *shot.get_pixel(x.round() as u32, y.round() as u32);
     let cool = |p: image::Rgba<u8>| u16::from(p[2]) > u16::from(p[0]) + 12;
     let bar = |p: image::Rgba<u8>| u16::from(p[2]) > u16::from(p[0]) + 80;
-    assert!(cool(at(fav, 70.0)), "the saved search is the row that is on");
-    assert!(!bar(at(above, 7.5)), "the folder it was reached from is not marked as well");
+    assert!(cool(pixel(fav.min.x + 70.0, fav.center().y)), "the saved search is the row that is on");
+    assert!(bar(pixel(fav.min.x + 7.5, fav.center().y)), "the saved search has the mark");
+    assert!(!bar(pixel(fav.min.x + 7.5, fav.max.y + 12.0)), "the favorite folder row is not marked as well");
+    let lower = ((fav.max.y + 48.0) as u32)..((fav.max.y + 220.0) as u32);
+    assert!(lower.into_iter().any(|y| bar(pixel(fav.min.x + 7.5, y as f32))), "the folder in its account's list stays marked");
+}
+
+#[test]
+fn cancelling_the_name_keeps_the_filters() {
+    let mut w = window();
+    open(&mut w);
+    panel(&mut w).fields.from = "ada@example.org".into();
+    w.run_steps(2);
+    click_at(&mut w, "saveSearchFavorite");
+    assert!(!is_open(&w));
+    w.run_steps(2);
+    w.get_by_label(tl!("Cancel")).click();
+    w.run_steps(3);
+    assert!(is_open(&w));
+    assert_eq!(panel(&mut w).fields.from, "ada@example.org");
 }
 
 #[test]

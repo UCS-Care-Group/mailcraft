@@ -291,6 +291,11 @@ pub(crate) fn scopes() -> [(Scope, &'static str, &'static str); 4] {
     ]
 }
 
+/// `view.search`'s code for `scope`.
+pub(crate) fn scope_code(scope: Scope) -> &'static str {
+    scopes().into_iter().find(|(s, ..)| *s == scope).map_or("folder", |(_, _, code)| code)
+}
+
 /// The search box's own keys: the arrows, and Tab while the list under it shows. Escape is always
 /// the box's: it closes the list or clears the search. It never reaches the window, where it would
 /// close a message being written (#365).
