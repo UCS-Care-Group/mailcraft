@@ -279,7 +279,8 @@ fn every_name_the_program_reads_stays_on_the_message() {
     let mut seen = 0usize;
     for file in &files {
         let Ok(text) = std::fs::read_to_string(file) else { continue };
-        let shown = file.strip_prefix(workspace()).unwrap_or(file).display().to_string();
+        // (With `/` between its parts on every system.)
+        let shown = file.strip_prefix(workspace()).unwrap_or(file).display().to_string().replace('\\', "/");
         // This module defines the lookups.
         if shown.ends_with("model/src/headers.rs") {
             continue;
