@@ -1861,15 +1861,19 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
         }
         Dialog::Report { title, lines, .. } => {
+            // As tall as the report needs, up to most of the window's height; scrolled past that.
+            let tallest = (ctx.content_rect().height() * 0.6).clamp(200.0, 560.0);
             let open = window(ctx, title, 560.0, |ui| {
-                egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(tallest).auto_shrink([false, true]).show(ui, |ui| {
                     for line in lines.iter() {
                         // Selectable, so a line can be copied by itself too.
                         ui.add(egui::Label::new(line.as_str()).selectable(true).wrap());
                     }
                 });
                 ui.add_space(6.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // One button high: a right-to-left layout of its own would take all the height
+                // that is left and leave a gap above the buttons.
+                button_row(ui, |ui| {
                     if ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked() {
                         close = true;
                     }

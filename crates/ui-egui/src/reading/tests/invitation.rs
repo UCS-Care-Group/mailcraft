@@ -566,15 +566,15 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     mailcraft_engine::cmd::remote::apply_events(&mut app.session, &download.for_account(&owner)).unwrap();
     let review = app.session.mailbox.events.values().find(|e| e.title == "Budget review").map(|e| e.id).unwrap();
     app.execute("calendar.move", json!({"id": review, "start": "2026-10-15T09:00"})).unwrap();
-    assert!(app.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
+    assert!(app.session.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
     app.session.mailbox.event_changes.clear();
     // Nor while a Send/Receive is about to ask, nor before the owner has allowed the calendar.
     app.sync_queue.push_back((account, true));
     assert!(app.calendar_job_around(account, day).is_err());
     app.sync_queue.clear();
-    app.graph_consent_needed.insert(account);
+    app.session.driver.calendar.consent_needed.insert(account);
     assert!(app.calendar_job_around(account, day).is_err());
-    app.graph_consent_needed.remove(&account);
+    app.session.driver.calendar.consent_needed.remove(&account);
     assert_eq!(asked.lock().unwrap().len(), 1);
     // An account that signs in nowhere, a day at the end of time, a build without a host.
     assert!(app.calendar_job_around(1, day).is_err() && app.calendar_job_around(u64::MAX, day).is_err());

@@ -1814,7 +1814,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     settle(&mut a);
     assert_eq!(asked.lock().unwrap().len(), 3);
     // A quarter of an hour on: the wide stretch again, with the token it has.
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.execute("ui.sync", json!({"account": id})).unwrap();
     settle(&mut a);
     assert!(calendar(&mut a, &mut clock));
@@ -1823,7 +1823,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
 
     // No permission for Graph: mail goes on by the mail server, and Graph isn't asked every run.
     consent.store(false, Ordering::Relaxed);
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.graph_tokens.clear();
     a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "By SMTP", "account": id})).unwrap();
     a.execute("compose.send", json!({})).unwrap();

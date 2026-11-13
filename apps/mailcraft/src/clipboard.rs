@@ -34,6 +34,7 @@ const MAX_HTML: usize = 4 << 20;
 
 /// The system's clipboard. `display` is the window's `wl_display` when it runs under Wayland.
 pub fn board(display: Option<std::ptr::NonNull<std::ffi::c_void>>) -> Option<Box<dyn RichClipboard>> {
+    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(unused_mut))]
     let mut board = Board::default();
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
