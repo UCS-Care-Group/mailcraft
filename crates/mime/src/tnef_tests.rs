@@ -121,6 +121,47 @@ fn only_the_first_stream_is_opened() {
 }
 
 #[test]
+fn a_stream_that_cant_be_read_doesnt_keep_the_next_shut() {
+    // The right signature, a version a reader may not take: it stays a file, and the good
+    // stream after it is still opened.
+    let mut broken = Writer::new().file("never.txt", "text/plain", b"x").finish();
+    broken[17] = 2;
+    broken[19] = 2;
+    let good = Writer::new().file("good.txt", "text/plain", b"g").finish();
+    let mut m = message(Some("t"), "application/ms-tnef", "winmail.dat", &broken);
+    let end = m.len() - "--b--\r\n".len();
+    let extra = format!(
+        "--b\r\nContent-Type: application/ms-tnef; name=\"winmail.dat\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+        STANDARD.encode(&good)
+    );
+    m.splice(end..end, extra.into_bytes());
+    let m = parse(&m);
+    assert_eq!(names(&m), ["winmail.dat", "good.txt", "winmail.dat"]);
+}
+
+#[test]
+fn a_streams_files_dont_use_up_the_messages_own_parts() {
+    // The root, 997 small files and a stream are 999 parts; the message's own text is the
+    // 1,000th, the last a message may have read. The stream's file doesn't take its place, so
+    // the text is the message's own and not the stream's.
+    let stream = Writer::new().message_props(&[Prop::Unicode(0x1000, "Text from inside".into())]).file("inside.txt", "text/plain", b"i").finish();
+    let mut m =
+        String::from("From: Ada <ada@example.org>\r\nSubject: Many\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n");
+    for i in 0..997 {
+        m.push_str(&format!("--b\r\nContent-Type: application/octet-stream; name=\"f{i}.bin\"\r\n\r\nx\r\n"));
+    }
+    m.push_str(&format!(
+        "--b\r\nContent-Type: application/ms-tnef; name=\"winmail.dat\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+        STANDARD.encode(&stream)
+    ));
+    m.push_str("--b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe message's own text.\r\n--b--\r\n");
+    let m = parse(m.as_bytes());
+    assert_eq!(m.body.text.trim(), "The message's own text.");
+    assert!(m.attachments.iter().any(|a| a.name == "inside.txt"));
+    assert_eq!(m.attachments.len(), 997 + 2);
+}
+
+#[test]
 fn an_attached_message_inside_is_not_opened() {
     let inner = Writer::new().file("deep.txt", "text/plain", b"deep").finish();
     let stream =

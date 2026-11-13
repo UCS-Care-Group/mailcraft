@@ -90,12 +90,15 @@ impl<'a> Props<'a> {
         })
     }
 
-    /// Add another list's properties after these, up to the room there is.
-    pub(crate) fn merge(&mut self, other: Props<'a>) {
+    /// Add another list's properties after these, up to the room there is. False when some had
+    /// no room and were dropped.
+    pub(crate) fn merge(&mut self, other: Props<'a>) -> bool {
         let cap = self.room.or(other.room).unwrap_or(0);
         self.room = Some(cap);
         let room = cap.saturating_sub(self.list.len());
+        let all = other.list.len() <= room;
         self.list.extend(other.list.into_iter().take(room));
+        all
     }
 }
 
@@ -106,9 +109,13 @@ pub(crate) fn read<'a>(data: &'a [u8], limits: &Limits) -> (Props<'a>, bool) {
     let mut props = Props { list: Vec::new(), room: Some(limits.max_properties) };
     let mut c = Cursor::new(data);
     let Some(count) = c.u32() else { return (props, false) };
-    // Each property takes at least four bytes, so a count past what the data holds stops at its
-    // end rather than going round for nothing.
-    for _ in 0..count {
+    // Every property read counts against the cap, named ones too, though only those with a
+    // fixed id are kept; and each takes at least four bytes, so a count past what the data holds
+    // stops at its end rather than going round for nothing.
+    for read in 0..count {
+        if usize::try_from(read).map_or(true, |read| read >= limits.max_properties) {
+            return (props, false);
+        }
         let (Some(kind), Some(id)) = (c.u16(), c.u16()) else { return (props, false) };
         let named = id >= FIRST_NAMED;
         if named && name(&mut c).is_none() {
@@ -116,9 +123,6 @@ pub(crate) fn read<'a>(data: &'a [u8], limits: &Limits) -> (Props<'a>, bool) {
         }
         let Some(value) = value(&mut c, kind, limits) else { return (props, false) };
         if !named {
-            if props.list.len() >= limits.max_properties {
-                return (props, false);
-            }
             props.list.push(Prop { id, value });
         }
     }

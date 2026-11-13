@@ -317,9 +317,10 @@ impl Walk {
         // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
         // stream itself, which keeps what of it isn't read here.
         let tnef_type = matches!(mime.as_str(), "application/ms-tnef" | "application/vnd.ms-tnef") || name.eq_ignore_ascii_case("winmail.dat");
-        if tnef_type && self.tnef < MAX_TNEF && data.len() <= MAX_TNEF_BYTES && mailcraft_tnef::is_tnef(&data) {
+        // Only a stream that reads takes the one place: a broken one before it (a version that
+        // can't be read) doesn't keep a good one shut.
+        if tnef_type && self.tnef < MAX_TNEF && data.len() <= MAX_TNEF_BYTES && mailcraft_tnef::is_tnef(&data) && self.open_tnef(&data) {
             self.tnef = self.tnef.saturating_add(1);
-            self.open_tnef(&data);
         }
         // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
         // the file itself. Not one sent along as a file inside another message, and nothing is
@@ -346,14 +347,15 @@ impl Walk {
         }
     }
 
-    /// The files of a TNEF stream, as attachments, and its text for later.
-    fn open_tnef(&mut self, data: &[u8]) {
-        let Ok(found) = mailcraft_tnef::read(data, &mailcraft_tnef::Limits::default()) else { return };
+    /// The files of a TNEF stream, as attachments, and its text for later. False when it can't
+    /// be read at all.
+    ///
+    /// Its files don't count against [`MAX_PARTS`], which bounds the MIME parts read: they are
+    /// bounded by the reader's own cap (`Limits::max_files`, of the one stream opened), so a
+    /// stream's files never keep the message's own later parts from being read.
+    fn open_tnef(&mut self, data: &[u8]) -> bool {
+        let Ok(found) = mailcraft_tnef::read(data, &mailcraft_tnef::Limits::default()) else { return false };
         for file in found.files {
-            if self.parts >= MAX_PARTS {
-                break;
-            }
-            self.parts += 1;
             let name = file.name.unwrap_or_default();
             let mime = match file.mime_type.as_deref().map(media::safe_media_type) {
                 Some(t) if t != "application/octet-stream" => t,
@@ -366,6 +368,7 @@ impl Walk {
         if self.tnef_text.is_none() {
             self.tnef_text = found.body.map(|t| charset::unix_lines(&t));
         }
+        true
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {

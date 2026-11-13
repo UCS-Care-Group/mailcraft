@@ -243,13 +243,48 @@ fn the_caps_hold() {
 }
 
 #[test]
-fn many_property_lists_keep_at_most_the_cap_of_properties() {
+fn many_property_lists_keep_at_most_the_cap_of_properties_and_say_so() {
     let mut writer = Writer::new();
     for _ in 0..10 {
         writer.message_props(&[Prop::Int32(0x6000, 1), Prop::Int32(0x6001, 2)]);
     }
     let t = read(&writer.finish(), &Limits { max_properties: 3, ..Limits::default() }).unwrap();
+    assert_eq!(t.left_out, [LeftOut::Cap]);
+
+    // A body in a later list that had no room is missing, and that is said, not passed over.
+    let bytes = Writer::new().message_props(&[Prop::Int32(0x6000, 1)]).message_props(&[Prop::Unicode(0x1000, "The body".into())]).finish();
+    let t = read(&bytes, &Limits { max_properties: 1, ..Limits::default() }).unwrap();
+    assert_eq!(t.body, None);
+    assert!(!t.is_complete());
+    assert_eq!(t.left_out, [LeftOut::Cap]);
+}
+
+#[test]
+fn named_properties_count_against_the_cap() {
+    let named: Vec<Prop> = (0..5).map(|i| Prop::NamedInt32 { name: format!("n{i}"), value: i }).collect();
+    let bytes = Writer::new().message_props(&named).finish();
+    assert!(read(&bytes, &Limits::default()).unwrap().is_complete());
+    let t = read(&bytes, &Limits { max_properties: 4, ..Limits::default() }).unwrap();
+    assert_eq!(t.left_out, [LeftOut::Properties]);
+}
+
+#[test]
+fn a_body_cut_at_its_cap_is_said() {
+    let bytes = Writer::new().message_props(&[Prop::Unicode(0x1000, "abcdef".into())]).finish();
+    let t = read(&bytes, &Limits { max_body: 4, ..Limits::default() }).unwrap();
+    assert_eq!(t.body.as_deref(), Some("abcd"));
+    assert_eq!(t.left_out, [LeftOut::Cap]);
+    // One that fits is whole and complete.
+    let t = read(&bytes, &Limits { max_body: 6, ..Limits::default() }).unwrap();
+    assert_eq!(t.body.as_deref(), Some("abcdef"));
     assert!(t.is_complete());
+
+    // Rich text bigger than the cap isn't read at all, and that is said too.
+    let rtf = w::uncompressed_rtf(b"{\\rtf1\\ansi A rich text body longer than the cap\\par}");
+    let bytes = Writer::new().message_props(&[Prop::Binary(0x1009, rtf)]).finish();
+    let t = read(&bytes, &Limits { max_body: 8, ..Limits::default() }).unwrap();
+    assert_eq!(t.body, None);
+    assert_eq!(t.left_out, [LeftOut::Cap]);
 }
 
 /// A valid stream with a few files, to mutate.

@@ -296,7 +296,9 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
                 if !complete {
                     note(&mut left_out, LeftOut::Properties);
                 }
-                message.merge(props);
+                if !message.merge(props) {
+                    note(&mut left_out, LeftOut::Cap);
+                }
             }
             id::ATTACH_REND_DATA => {
                 // AttachType: 1 a file, 2 an OLE object.
@@ -321,7 +323,9 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
                         if !complete {
                             note(&mut left_out, LeftOut::Properties);
                         }
-                        current.props.merge(props);
+                        if !current.props.merge(props) {
+                            note(&mut left_out, LeftOut::Cap);
+                        }
                     }
                 }
             }
@@ -345,7 +349,10 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
             files.push(file);
         }
     }
-    let body = body(&message, body_attr, label, limits);
+    let (body, cut) = body(&message, body_attr, label, limits);
+    if cut {
+        note(&mut left_out, LeftOut::Cap);
+    }
     Ok(Tnef { files, body, left_out })
 }
 
@@ -422,16 +429,27 @@ fn file(p: Pending<'_>, label: &str, limits: &Limits, left_out: &mut Vec<LeftOut
 }
 
 /// The message's plain text: PidTagBody, else `attBody`, else the text of its compressed rich
-/// text.
-fn body(message: &Props<'_>, body_attr: Option<&[u8]>, label: &str, limits: &Limits) -> Option<String> {
-    let text = message.text(pid::BODY, label).or_else(|| body_attr.map(|b| mailcraft_charset::decode(b, label))).or_else(|| {
+/// text; and whether it was cut at [`Limits::max_body`].
+fn body(message: &Props<'_>, body_attr: Option<&[u8]>, label: &str, limits: &Limits) -> (Option<String>, bool) {
+    let plain = message.text(pid::BODY, label).or_else(|| body_attr.map(|b| mailcraft_charset::decode(b, label))).map(|t| (t, false));
+    let mut too_big = false;
+    let found = plain.or_else(|| {
         let Some(Value::Binary(rtf)) = message.get(pid::RTF_COMPRESSED) else { return None };
-        let rtf = mailcraft_pst::decompress_rtf(rtf, limits.max_body).ok()?;
-        mailcraft_pst::rtf_text(&rtf, limits.max_body).ok().map(|(text, _cut)| text)
-    })?;
+        let rtf = match mailcraft_pst::decompress_rtf(rtf, limits.max_body) {
+            Ok(rtf) => rtf,
+            Err(mailcraft_pst::Error::Cap(_)) => {
+                too_big = true;
+                return None;
+            }
+            Err(_) => return None,
+        };
+        mailcraft_pst::rtf_text(&rtf, limits.max_body).ok()
+    });
+    let Some((text, rtf_cut)) = found else { return (None, too_big) };
     let text: String = text.chars().filter(|c| *c != '\0').collect();
+    let cut = rtf_cut || text.len() > limits.max_body;
     let text = truncate(text, limits.max_body);
-    (!text.trim().is_empty()).then_some(text)
+    ((!text.trim().is_empty()).then_some(text), cut)
 }
 
 /// A name without NULs and other control characters, trimmed, at most `max` characters.
