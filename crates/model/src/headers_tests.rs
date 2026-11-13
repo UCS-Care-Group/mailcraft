@@ -163,14 +163,45 @@ fn a_mailbox_file_has_every_line_in_headers_as_before_and_is_split_when_read() {
 }
 
 #[test]
-fn a_block_is_capped_in_lines_and_bytes() {
-    let many: Vec<HeaderLine> = (0..MAX_BLOCK_LINES + 50).map(|at| HeaderLine { at, name: "X-A".into(), value: "v".into() }).collect();
-    assert_eq!(HeaderBlock::of(&many).lines().len(), MAX_BLOCK_LINES);
-    let huge: Vec<HeaderLine> = (0..100).map(|at| HeaderLine { at, name: "X-A".into(), value: "\u{1}".repeat(8_000) }).collect();
-    let block = HeaderBlock::of(&huge);
-    assert!(block.data.len() <= MAX_HEADER_BLOCK);
-    assert!(!block.lines().is_empty() && block.lines().len() < 100);
+fn nothing_the_reader_kept_is_left_out_by_the_split() {
+    // More lines than a block holds, and more bytes (escaped six times over in its JSON), with a
+    // line read by name among them: the block is within its caps, and the rest stays on the message.
+    let mut all: Vec<(String, String)> = (0..MAX_BLOCK_LINES + 50).map(|i| ("X-A".to_string(), format!("v{i}"))).collect();
+    all.insert(700, ("List-Id".into(), "<l.example.org>".into()));
+    all.extend((0..100).map(|_| ("X-B".to_string(), "\u{1}".repeat(8_000))));
+    let (working, block) = split(all.clone());
+    assert!(block.lines().len() <= MAX_BLOCK_LINES && block.data.len() <= MAX_HEADER_BLOCK);
+    assert_eq!(working.len() + block.lines().len(), all.len());
+    assert_eq!(merge(&working, &block.lines()), all);
+    let mut m = Message { headers: all.clone(), ..Default::default() };
+    m.split_headers();
+    assert_eq!(m.header("List-Id"), Some("<l.example.org>"));
+    assert_eq!(m.all_headers(), all);
     assert!(HeaderBlock::of(&[]).is_empty());
+}
+
+#[test]
+fn a_line_taken_off_while_the_block_is_kept_outside_leaves_the_others_in_their_places() {
+    let all: Vec<(String, String)> = [("List-Id", "<l>"), ("Received", "from a.example.org"), ("Sender", "s@example.org"), ("X-A", "v")]
+        .iter()
+        .map(|(n, v)| (n.to_string(), v.to_string()))
+        .collect();
+    let (headers, block) = split(all);
+    let mut m = Message {
+        headers,
+        header_block: HeaderBlock { data: Arc::default(), kept: Some(crate::ContentRef { sha256: [7; 32], len: 9 }) },
+        ..Default::default()
+    };
+    m.remove_header("List-Id");
+    assert!(!m.has_header("List-Id") && m.all_headers().iter().all(|(n, _)| !n.is_empty()));
+    // Brought back in: every other line where it was.
+    m.header_block.data = block.data.clone();
+    let names: Vec<String> = m.all_headers().into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["Received", "Sender", "X-A"]);
+    // Written whole, the empty line is not among them.
+    m.header_block = HeaderBlock::default();
+    let written = serde_json::to_string(&crate::Messages::read(std::collections::BTreeMap::from([(1, Arc::new(m))]))).unwrap();
+    assert!(!written.contains("[\"\",\"\"]"), "{written}");
 }
 
 #[test]
@@ -188,12 +219,21 @@ fn bytes_that_are_no_block_read_as_none() {
 }
 
 #[test]
-fn a_hostile_block_in_json_is_capped() {
+fn a_hostile_or_damaged_block_in_json_is_no_block_and_the_message_reads() {
     let lines: Vec<String> = (0..MAX_BLOCK_LINES + 10).map(|i| format!("[{i},\"X-A\",\"v\"]")).collect();
-    let json = format!("{{\"headerBlock\":[{}]}}", lines.join(","));
-    let m: Message = serde_json::from_str(&json).unwrap();
-    assert_eq!(m.header_block.lines().len(), MAX_BLOCK_LINES);
-    assert!(serde_json::from_str::<Message>("{\"headerBlock\":[[1]]}").is_err());
+    let too_many = format!("{{\"subject\":\"s\",\"headerBlock\":[{}]}}", lines.join(","));
+    for json in [
+        &too_many[..],
+        r#"{"subject":"s","headerBlock":[[1]]}"#,
+        r#"{"subject":"s","headerBlock":"x"}"#,
+        r#"{"subject":"s","headerBlock":{"a":[1]}}"#,
+        r#"{"subject":"s","headerBlock":[[0,"X-A","v"],7]}"#,
+    ] {
+        let m: Message = serde_json::from_str(json).unwrap();
+        assert!(m.header_block.is_empty() && m.subject == "s", "{json}");
+    }
+    let m: Message = serde_json::from_str(r#"{"headerBlock":[[3,"X-A","v"]]}"#).unwrap();
+    assert_eq!(m.header_block.lines(), vec![HeaderLine { at: 3, name: "X-A".into(), value: "v".into() }]);
 }
 
 proptest! {
@@ -262,12 +302,31 @@ fn named(arg: &str) -> Result<String, String> {
     constant(last).map(str::to_string).ok_or_else(|| format!("{arg} (add it to `constant` in headers_tests.rs if it names a header)"))
 }
 
+/// Where a message's own lines are read directly (a file, and what the line says), and why that
+/// is right there.
+const READS_ITS_OWN: &[(&str, &str)] = &[
+    // Whether a message read has lines to split off.
+    ("model/src/messages.rs", "m.headers.iter()"),
+    // Whether a message written whole has a line taken off to leave out.
+    ("model/src/messages.rs", "self.0.headers.iter()"),
+    // The Exchange Online edge hop is found by its place among the lines, which stays on the message.
+    ("model/src/auth_results.rs", "m.headers.iter()"),
+    // The size of a message from a .pst file: its lines and its block (the next line) both counted.
+    ("engine/src/import_pst/item.rs", "m.headers.iter().map(|(k, v)| text(k)"),
+];
+
+/// Lookups that are an HTTP request's or answer's, not a message's (a file, and what the line says).
+const NOT_A_MESSAGE: &[(&str, &str)] =
+    &[("ews/src/autodiscover.rs", "response.header("), ("apps/mailcraft/src/graph_folders_flow.rs", "asked.header(")];
+
 #[test]
 fn every_name_the_program_reads_stays_on_the_message() {
     let mut files = Vec::new();
     // The crates that read a mailbox's messages (the others' headers are HTTP's, a catalogue's or
     // another format's).
-    for top in ["crates/model", "crates/mime-model", "crates/engine", "crates/ui-egui", "crates/mcp", "crates/net", "crates/jmap"] {
+    for top in
+        ["crates/model", "crates/mime-model", "crates/engine", "crates/ui-egui", "crates/mcp", "crates/net", "crates/jmap", "crates/ews", "apps"]
+    {
         sources(&workspace().join(top), &mut files);
     }
     // Stand-ins for servers, for the tests, and HTTP.
@@ -285,7 +344,36 @@ fn every_name_the_program_reads_stays_on_the_message() {
         if shown.ends_with("model/src/headers.rs") {
             continue;
         }
+        // Tests make messages as they like; so does what follows `#[cfg(test)]` in a file.
+        let test_file = shown.ends_with("tests.rs") || shown.contains("/tests/");
+        let mut in_tests = test_file;
         for (n, line) in text.lines().enumerate() {
+            in_tests |= line.trim_start().starts_with("#[cfg(test)]");
+            // A message's own lines read past the lookups (a line on it taken by place, looked
+            // for, or gone through): whatever shape it has, it misses what went to the block.
+            // Writing them (a push, a whole new list) is no read.
+            let direct = [
+                ".headers.iter(",
+                ".headers.get(",
+                ".headers.first(",
+                ".headers.last(",
+                ".headers.contains(",
+                ".headers.retain(",
+                ".headers.into_iter(",
+                ".headers[",
+                "in &m.headers",
+                ".headers.windows(",
+            ];
+            if !in_tests
+                && !READS_ITS_OWN.iter().any(|(f, says)| shown.ends_with(f) && line.contains(says))
+                && direct.iter().any(|d| line.contains(d))
+                && !line.trim_start().starts_with("//")
+            {
+                problems.push(format!("{shown}:{}: reads a message's header lines past `header`, `header_values` and `all_headers`", n + 1));
+            }
+            if NOT_A_MESSAGE.iter().any(|(f, says)| shown.ends_with(f) && line.contains(says)) {
+                continue;
+            }
             for call in [".header(", ".header_values(", ".has_header(", ".remove_header("] {
                 let mut rest = line;
                 while let Some(at) = rest.find(call) {

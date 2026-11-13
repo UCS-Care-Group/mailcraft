@@ -23,6 +23,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::{ContentRef, Message};
 
 /// The header names the program reads by name, which stay on the message ([`is_working`]).
+///
+/// A name added here later finds its lines on a message read after that, and on one whose block
+/// is in memory once it is split again ([`Message::split_headers`]); in a block kept outside
+/// memory they stay where they are until the message is next read from its source.
 pub const WORKING: &[&str] = &[
     // The server's verdict on the sender (`auth_results`, `sender_warnings`), and what is left
     // behind when mail goes to another account (`auth_results::forget_stamps`).
@@ -51,13 +55,18 @@ pub const WORKING: &[&str] = &[
 /// download, the copy put on a server): all read by name, all on the message.
 pub const OWN_PREFIX: &str = "X-MailCraft-";
 
-/// Most lines of a header block kept (a message read by `mailcraft-mime` keeps at most a few
-/// hundred).
-pub const MAX_BLOCK_LINES: usize = 1024;
+/// Most lines of a header block (as many as `mailcraft-mime` keeps of a message's header). Lines
+/// past it stay on the message ([`split`]): none is ever left out.
+pub const MAX_BLOCK_LINES: usize = 2000;
 
 /// Most bytes of a header block as it is kept ([`HeaderBlock::data`]); one read back that is
-/// longer is no block.
+/// longer is no block. Lines past it stay on the message ([`split`]).
 pub const MAX_HEADER_BLOCK: usize = 256 * 1024;
+
+/// What a header line taken off a message whose block is kept outside memory leaves in its place
+/// ([`Message::remove_header`]): a line with no name, which keeps the block's lines in their
+/// places and is never written out.
+const REMOVED: &str = "";
 
 /// Whether a header line with this name (and value) stays on the message: a name in [`WORKING`],
 /// one of MailCraft's own notes, or a `Received` hop at Exchange Online's edge, above which its
@@ -99,21 +108,9 @@ impl std::fmt::Debug for HeaderBlock {
 }
 
 impl HeaderBlock {
-    /// A block of `lines`, at most [`MAX_BLOCK_LINES`] of them and [`MAX_HEADER_BLOCK`] bytes:
-    /// the lines past either are left out.
+    /// A block of `lines` (which [`split`] keeps within [`MAX_BLOCK_LINES`] and
+    /// [`MAX_HEADER_BLOCK`], and a block read back is held to).
     pub fn of(lines: &[HeaderLine]) -> HeaderBlock {
-        // `[`, `]`, and a comma between lines.
-        let mut size = 2usize;
-        let mut taken = 0usize;
-        for line in lines.iter().take(MAX_BLOCK_LINES) {
-            let one = serde_json::to_vec(&(line.at, &line.name, &line.value)).map_or(usize::MAX, |b| b.len());
-            size = size.saturating_add(one).saturating_add(usize::from(taken > 0));
-            if size > MAX_HEADER_BLOCK {
-                break;
-            }
-            taken += 1;
-        }
-        let lines = lines.get(..taken).unwrap_or(&[]);
         if lines.is_empty() {
             return HeaderBlock::default();
         }
@@ -186,40 +183,77 @@ impl Serialize for HeaderBlock {
     }
 }
 
+/// Read leniently: what isn't a list of `[at, name, value]` within the caps is no block, never a
+/// message that can't be read.
 impl<'de> Deserialize<'de> for HeaderBlock {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::{IgnoredAny, MapAccess, SeqAccess, Visitor};
         struct Lines;
-        impl<'de> serde::de::Visitor<'de> for Lines {
-            type Value = Vec<HeaderLine>;
+        impl<'de> Visitor<'de> for Lines {
+            type Value = Option<Vec<HeaderLine>>;
             fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str("a list of header lines")
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                let mut out = Vec::new();
-                while out.len() < MAX_BLOCK_LINES {
-                    match seq.next_element::<(u64, String, String)>()? {
-                        Some((at, name, value)) => out.push(HeaderLine { at: usize::try_from(at).unwrap_or(usize::MAX), name, value }),
-                        None => return Ok(out),
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let (mut out, mut good, mut bytes) = (Vec::new(), true, 0usize);
+                while let Some(item) = seq.next_element::<serde_json::Value>()? {
+                    let line = match item.as_array().map(Vec::as_slice) {
+                        Some([at, name, value]) => at.as_u64().zip(name.as_str()).zip(value.as_str()),
+                        _ => None,
+                    };
+                    match line {
+                        Some(((at, name), value)) if good && out.len() < MAX_BLOCK_LINES && bytes <= MAX_HEADER_BLOCK => {
+                            bytes = bytes.saturating_add(name.len()).saturating_add(value.len());
+                            out.push(HeaderLine { at: usize::try_from(at).unwrap_or(usize::MAX), name: name.to_string(), value: value.to_string() });
+                        }
+                        _ => good = false,
                     }
                 }
-                // The rest is skipped without being kept.
-                while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
-                Ok(out)
+                Ok(good.then_some(out))
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+                Ok(None)
+            }
+            fn visit_unit<E>(self) -> Result<Self::Value, E> {
+                Ok(None)
+            }
+            fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+                Ok(None)
+            }
+            fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+                Ok(None)
+            }
+            fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+                Ok(None)
+            }
+            fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+                Ok(None)
+            }
+            fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+                Ok(None)
             }
         }
-        d.deserialize_seq(Lines).map(|lines| HeaderBlock::of(&lines))
+        let lines = d.deserialize_any(Lines)?.unwrap_or_default();
+        Ok(HeaderBlock::of(&lines))
     }
 }
 
 /// `all` (a message's header lines, in order) as the lines that stay on the message and its
 /// header block.
+/// The block is held to [`MAX_BLOCK_LINES`] and [`MAX_HEADER_BLOCK`]: a line that would take it
+/// past either stays on the message, so that no line is ever left out.
 pub fn split(all: Vec<(String, String)>) -> (Vec<(String, String)>, HeaderBlock) {
     let mut working = Vec::new();
     let mut block = Vec::new();
+    // `[` and `]`; each line adds itself and a comma.
+    let mut size = 2usize;
     for (at, (name, value)) in all.into_iter().enumerate() {
-        if is_working(&name, &value) {
+        let one = serde_json::to_vec(&(at, &name, &value)).map_or(usize::MAX, |b| b.len()).saturating_add(1);
+        if is_working(&name, &value) || block.len() >= MAX_BLOCK_LINES || size.saturating_add(one) > MAX_HEADER_BLOCK {
             working.push((name, value));
         } else {
+            size = size.saturating_add(one);
             block.push(HeaderLine { at, name, value });
         }
     }
@@ -270,14 +304,21 @@ impl Message {
         self.header(name).is_some()
     }
 
-    /// Take every header line named `name` off the message (a name that stays on it). With its
-    /// block in memory, the block's lines keep their places among the rest.
+    /// Take every header line named `name` off the message (a name that stays on it). The block's
+    /// lines keep their places among the rest: with the block kept outside memory, what was taken
+    /// leaves an empty line ([`REMOVED`]) in its place, never written out.
     pub fn remove_header(&mut self, name: &str) {
-        if !self.headers.iter().any(|(have, _)| have.eq_ignore_ascii_case(name)) {
+        if name == REMOVED || !self.headers.iter().any(|(have, _)| have.eq_ignore_ascii_case(name)) {
             return;
         }
         if self.header_block.data.is_empty() {
-            self.headers.retain(|(have, _)| !have.eq_ignore_ascii_case(name));
+            if self.header_block.kept.is_some() {
+                for line in self.headers.iter_mut().filter(|(have, _)| have.eq_ignore_ascii_case(name)) {
+                    *line = (REMOVED.to_string(), String::new());
+                }
+            } else {
+                self.headers.retain(|(have, _)| !have.eq_ignore_ascii_case(name));
+            }
             return;
         }
         let mut all = self.all_headers();
@@ -289,7 +330,9 @@ impl Message {
     /// memory. A block kept outside memory is not among them: whoever writes the message out
     /// brings it in first (`Session::loaded_message` in the engine).
     pub fn all_headers(&self) -> Vec<(String, String)> {
-        if self.header_block.data.is_empty() { self.headers.clone() } else { merge(&self.headers, &self.header_block.lines()) }
+        let mut all = if self.header_block.data.is_empty() { self.headers.clone() } else { merge(&self.headers, &self.header_block.lines()) };
+        all.retain(|(name, _)| name != REMOVED);
+        all
     }
 
     /// Move the header lines that nothing reads by name from [`Message::headers`] into the
@@ -299,7 +342,7 @@ impl Message {
         if !self.header_block.is_loaded() || self.headers.iter().all(|(name, value)| is_working(name, value)) {
             return;
         }
-        let all = merge(&std::mem::take(&mut self.headers), &self.header_block.lines());
+        let all = self.all_headers();
         (self.headers, self.header_block) = split(all);
     }
 
@@ -307,6 +350,7 @@ impl Message {
     /// MailCraft from before the two were kept apart has it.
     pub fn join_headers(&mut self) {
         if self.header_block.data.is_empty() {
+            self.headers.retain(|(name, _)| name != REMOVED);
             return;
         }
         self.headers = self.all_headers();

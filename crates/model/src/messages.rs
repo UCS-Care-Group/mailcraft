@@ -427,7 +427,8 @@ struct Whole<'a>(&'a Message);
 
 impl Serialize for Whole<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if self.0.header_block.data.is_empty() {
+        // (A line taken off while the block was kept outside left an empty one: not written.)
+        if self.0.header_block.data.is_empty() && self.0.headers.iter().all(|(name, _)| !name.is_empty()) {
             return self.0.serialize(serializer);
         }
         let mut whole = self.0.clone();
