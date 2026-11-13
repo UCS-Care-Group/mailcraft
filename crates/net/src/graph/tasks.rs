@@ -137,6 +137,14 @@ fn day_of(value: Option<&Value>, owner: Zone) -> Option<mailcraft_time::Date> {
     Some(if there.hour >= 12 { there.date.add_days(1) } else { there.date })
 }
 
+/// Whether the client reads `value` (a `dateTimeTimeZone`) back: as a day (`day_of`) and as an
+/// instant (`when`), the two ways it reads these fields. The stand-in asks this of what it is given,
+/// so it takes nothing the client would lose.
+#[cfg(any(test, feature = "stand-in"))]
+pub(super) fn readable(value: &Value) -> bool {
+    day_of(Some(value), Zone::UTC).is_some() && when(Some(value)).is_some()
+}
+
 /// Words from HTML: tags dropped, the few entities that matter read.
 fn plain(html: &str) -> String {
     let mut out = String::with_capacity(html.len().min(1 << 16));

@@ -5,7 +5,9 @@
 //!
 //! Plain data: nothing is looked up here. A host with sockets asks the DNS for the exchangers and
 //! passes the answer in, which is how an address at a company's own domain is recognised as
-//! (say) Microsoft 365. The server names are the ones each provider publishes.
+//! (say) Microsoft 365. The server names are the ones each provider publishes. The hosts the
+//! domain names for Autodiscover tell an Exchange server from an IMAP one the same way
+//! ([`by_autodiscover`]).
 
 use crate::{OAuthProvider, Security, Server};
 
@@ -248,6 +250,36 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     None
 }
 
+/// What a domain's DNS says about its Autodiscover, from the hosts it names for it (the targets
+/// of its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`), before any
+/// of them is asked anything.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Autodiscover {
+    /// No host, or only hosts that answer Autodiscover for mail on IMAP servers.
+    Nothing,
+    /// Microsoft 365: the mailbox is a Microsoft account, signed in on Microsoft's page.
+    Microsoft,
+    /// An Exchange server somebody runs for the domain (the organisation itself, or a hoster).
+    Exchange,
+}
+
+/// Hosts (and everything under them) whose Autodiscover hands out the settings of IMAP servers
+/// for Outlook, not an Exchange server's: cPanel names its own in the SRV record of every domain
+/// it hosts.
+const IMAP_AUTODISCOVER: &[&str] = &["cpanel.net"];
+
+/// Whose the Autodiscover the hosts in `hosts` serve is. Microsoft's anywhere in the list wins:
+/// the mail is in Microsoft 365, and nothing is sent to the others either.
+pub fn by_autodiscover(hosts: &[String]) -> Autodiscover {
+    let hosts: Vec<String> =
+        hosts.iter().take(16).map(|host| host.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|host| is_domain(host)).collect();
+    if hosts.iter().any(|host| crate::is_exchange_online(host)) {
+        return Autodiscover::Microsoft;
+    }
+    let exchange = |host: &String| !IMAP_AUTODISCOVER.iter().any(|imap| crate::is_within(host, imap));
+    if hosts.iter().any(exchange) { Autodiscover::Exchange } else { Autodiscover::Nothing }
+}
+
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
 /// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`).
 pub fn by_name(name: &str) -> Option<Preset> {
@@ -262,6 +294,78 @@ pub fn by_name(name: &str) -> Option<Preset> {
         "aol" => by_domain("aol.com"),
         "zoho" => by_domain("zoho.com"),
         _ => None,
+    }
+}
+
+/// Where a host with sockets found a server for a domain nobody here knows (#1063): what the
+/// owner is told it came from, and what `account.preset` answers as `via`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Via {
+    /// The domain's own DNS: an `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp` or
+    /// `_submission._tcp` SRV record (RFC 6186).
+    Srv,
+}
+
+impl Via {
+    pub fn code(self) -> &'static str {
+        match self {
+            Via::Srv => "srv",
+        }
+    }
+
+    pub fn parse(code: &str) -> Option<Via> {
+        match code.trim() {
+            "srv" => Some(Via::Srv),
+            _ => None,
+        }
+    }
+}
+
+/// A server a host found, and where.
+#[derive(Clone, PartialEq, Eq)]
+pub struct FoundServer {
+    pub server: Server,
+    pub via: Via,
+}
+
+/// The host is the organisation's own: not for a log.
+impl std::fmt::Debug for FoundServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FoundServer")
+            .field("port", &self.server.port)
+            .field("security", &self.server.security)
+            .field("via", &self.via)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What a host with sockets found out about a domain nobody here knows, once the owner pressed
+/// Connect: its mail exchangers (by which [`by_mx`] may know whose it is), and, when they say
+/// nothing, the servers the domain's own records name, for the owner to confirm.
+/// Nothing here was looked up by the model: `mailcraft_net::discover` fills it in.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct Discovered {
+    /// The domain's mail exchangers, best first; empty when it has none or they couldn't be had.
+    pub exchangers: Vec<String>,
+    pub incoming: Option<FoundServer>,
+    pub outgoing: Option<FoundServer>,
+}
+
+/// The hosts are the organisation's own: not for a log.
+impl std::fmt::Debug for Discovered {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Discovered")
+            .field("exchangers", &self.exchangers.len())
+            .field("incoming", &self.incoming)
+            .field("outgoing", &self.outgoing)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Discovered {
+    /// The mail exchangers alone: nothing else was found, or asked.
+    pub fn from_exchangers(exchangers: Vec<String>) -> Discovered {
+        Discovered { exchangers, ..Default::default() }
     }
 }
 
@@ -339,3 +443,7 @@ mod tests {
         assert!(is_domain("mail.lumen.example") && !is_domain("localhost") && !is_domain(&format!("{}.example", "a".repeat(64))));
     }
 }
+
+#[cfg(test)]
+#[path = "provider_tests.rs"]
+mod provider_tests;
