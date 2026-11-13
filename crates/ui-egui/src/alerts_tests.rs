@@ -536,3 +536,46 @@ fn a_rule_that_reads_the_text_shows_its_alert_once_the_message_is_downloaded_and
     frame(&mut app, &ctx, false);
     assert_eq!(told(&recorder).len(), 4);
 }
+
+/// The message the owner opens is downloaded at once, ahead of the background: its rule's alert
+/// comes from that download too, once, and not again when the background brings it as well.
+#[test]
+fn a_rule_alert_comes_once_from_the_download_of_the_message_the_owner_opened() {
+    let (mut app, recorder, account, jobs) = microsoft();
+    let ctx = egui::Context::default();
+    app.execute("ui.desktopAlerts", json!({"newMail": false})).unwrap();
+    arrive(&mut app, &ctx, account, "N1", "May");
+    assert!(told(&recorder).is_empty(), "the rule can't tell yet");
+    let id = app.session.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|s| s.id == "N1")).unwrap().id;
+    app.session.sel.messages = vec![id];
+    app.drive_fetch();
+    let mime = "From: Zoe Park <zoe@example.org>\r\nTo: ada@example.org\r\nSubject: May\r\nContent-Type: text/plain\r\n\r\nThe invoice for May.\r\n";
+    let answer = |job: &crate::graph_fetch::GraphFetchJob| mailcraft_model::sync::GraphFetchResult {
+        account: job.request.account,
+        email: job.request.email.clone(),
+        fetched: vec![mailcraft_model::sync::GraphFetched { id: "N1".into(), mime: mime.as_bytes().to_vec() }],
+        ..Default::default()
+    };
+    // Only the owner's download answers first; the background's waits.
+    let mut background = Vec::new();
+    for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+        if job.request.background {
+            background.push((job, tx));
+        } else {
+            assert_eq!(job.request.ids, ["N1"]);
+            tx.send(answer(&job)).unwrap();
+        }
+    }
+    assert!(background.iter().any(|(job, _)| job.request.ids.contains(&"N1".to_string())), "the background asks for it too");
+    app.drive_fetch();
+    assert!(app.session.mailbox.message(id).is_some_and(|m| !m.unfetched), "downloaded for the owner");
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder), [("Zoe Park".to_string(), "May".to_string())]);
+    // The background's copy of it comes later: nothing more is told.
+    for (job, tx) in background {
+        tx.send(answer(&job)).unwrap();
+    }
+    app.drive_fetch();
+    frame(&mut app, &ctx, false);
+    assert_eq!(told(&recorder).len(), 1, "once");
+}
