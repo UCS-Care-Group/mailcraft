@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::tasks_remote;
-use mailcraft_engine::sync_driver::{JobBook, Pacing, SETTLING_TRIES};
+use mailcraft_engine::sync_driver::{JobBook, Pacing, SETTLING_TRIES, Start};
 use mailcraft_model::{Id, LocalTasks};
 use serde_json::{Value, json};
 
@@ -84,13 +84,7 @@ impl MailApp {
             return false;
         }
         // One thing at a time: the calendar's job, a Send/Receive and a sign-in go first.
-        if self.calendar.rx.is_some()
-            || self.rules.busy()
-            || self.graph_rx.is_some()
-            || self.sync_rx.is_some()
-            || self.signing_in.is_some()
-            || !self.sync_queue.is_empty()
-        {
+        if self.job_busy().blocks(Start::Tasks) {
             return false;
         }
         for account in tasks_remote::task_accounts(&self.session.mailbox) {

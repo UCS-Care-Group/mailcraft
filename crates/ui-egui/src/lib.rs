@@ -1508,8 +1508,6 @@ pub struct MailApp {
     graph_after_sign_in: Option<Id>,
     /// Messages of Microsoft accounts being fetched whole ([`graph_fetch`]).
     pub(crate) fetching: graph_fetch::Fetching,
-    /// Mail outside its window taken back to its headers and preview (#143, [`keep_offline`]).
-    pub(crate) thinning: keep_offline::Thinning,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
     /// When each account's calendar and contacts were last brought down (milliseconds).
@@ -1518,8 +1516,6 @@ pub struct MailApp {
     graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
-    /// Keeping the Favorites of the folder pane the ones Outlook shows ([`favorites_sync`]).
-    favorites: favorites_sync::FavoritesSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
     /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
@@ -1826,12 +1822,10 @@ impl MailApp {
             graph_pieces_taken: 0,
             graph_after_sign_in: None,
             fetching: Default::default(),
-            thinning: Default::default(),
             server_searching: Default::default(),
             graph_checked: Default::default(),
             graph_consent_needed: Default::default(),
             calendar: Default::default(),
-            favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
             shared_send_next: false,
@@ -3538,6 +3532,7 @@ impl MailApp {
             // forgotten.
             self.clear_jobs_on_replace();
             self.fetching.forget();
+            self.session.driver.fetch.forget();
             self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
@@ -3722,7 +3717,7 @@ impl MailApp {
                 self.graph_pieces_taken = self.graph_pieces_taken.saturating_add(1);
                 // New mail may be waiting to be fetched whole: the background looks again.
                 if !piece.pages.is_empty() {
-                    self.fetching.wake();
+                    self.session.driver.fetch.wake();
                 }
                 // A shared mailbox the server won't open for the owner (#70).
                 if let Some(why) = piece.refused {
