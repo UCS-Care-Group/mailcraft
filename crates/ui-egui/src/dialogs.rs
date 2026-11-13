@@ -1226,6 +1226,7 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
 pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     let has = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
     let empty = params.as_object().is_none_or(|m| m.is_empty());
+    let names_messages = params.get("id").is_some() || params.get("ids").is_some();
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
@@ -1254,8 +1255,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "view.goToDate" if !has("date") => Some("goToDate"),
         // Move to Folder and Copy to Folder without a folder (their keys, the menu bar) ask which
         // (#1176).
-        "mail.move" if !has("folder") => Some("moveItems"),
-        "mail.copy" if !has("folder") => Some("copyItems"),
+        // The dialog moves the selection, so a call that names messages (`id`, `ids`, even as
+        // null) isn't sent there: it runs, and is refused for want of a folder.
+        "mail.move" if !has("folder") && !names_messages => Some("moveItems"),
+        "mail.copy" if !has("folder") && !names_messages => Some("copyItems"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),

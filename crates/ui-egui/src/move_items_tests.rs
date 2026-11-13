@@ -128,6 +128,12 @@ fn cancel_moves_nothing_and_a_folder_given_needs_no_dialog() {
     assert_eq!(input_dialog("mail.move", &json!({})), Some("moveItems"));
     assert_eq!(input_dialog("mail.copy", &json!({"folder": null})), Some("copyItems"));
     assert_eq!(input_dialog("mail.move", &json!({"folder": archive})), None);
+    // A call that names messages isn't the dialog's, which moves the selection: it is refused.
+    for named in [json!({"ids": [id]}), json!({"id": id}), json!({"ids": null})] {
+        assert_eq!((input_dialog("mail.move", &named), input_dialog("mail.copy", &named)), (None, None), "{named}");
+    }
+    assert!(harness.state_mut().run("mail.move", json!({"ids": [id]})).is_err());
+    assert_eq!(harness.state().session.mailbox.message(id).unwrap().folder, from, "nothing moved");
     harness.state_mut().run("mail.move", json!({"folder": archive})).unwrap();
     harness.run_steps(3);
     assert_eq!((dialog(&harness), harness.state().session.mailbox.message(id).unwrap().folder), (None, archive));
