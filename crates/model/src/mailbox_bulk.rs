@@ -17,6 +17,13 @@ use std::sync::Arc;
 use super::{MailIdentity, Mailbox, NOT_MOVING_YET, Pending, Queued, awaits_its_copy, invalid, kept_for_put_back, not_found};
 use crate::{FolderKind, Id, Message, ModelError};
 
+// How many times `Mailbox::move_each` was called on this thread: for the tests of what moves
+// messages in one go, like `ThreadIndex::work`.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static MOVE_EACH_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// What a removal of many messages looks up once rather than for each message.
 pub(super) struct Removal {
     /// Where the first move waiting for each message lies in [`Mailbox::pending`] when the
@@ -97,6 +104,8 @@ impl Mailbox {
     /// messages something waited for before the first of them was moved: moving one adds nothing
     /// for another, so a big move takes time in proportion to its size rather than to its square.
     pub fn move_each(&mut self, moves: &[(Id, Id)]) -> Result<Vec<(Id, Id)>, ModelError> {
+        #[cfg(test)]
+        MOVE_EACH_CALLS.with(|c| c.set(c.get() + 1));
         let pending = self.pending.iter().filter_map(|p| match p {
             Pending::Move { message, .. } => Some(*message),
             Pending::Delete { .. } => None,

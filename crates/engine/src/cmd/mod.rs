@@ -128,6 +128,13 @@ pub mod shared;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub mod snooze;
+#[cfg(test)]
+mod snooze_review_tests;
+#[cfg(test)]
+mod snooze_servers_tests;
+#[cfg(test)]
+mod snooze_tests;
 pub mod sync_progress;
 pub mod tasks;
 pub mod tasks_remote;
@@ -163,6 +170,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(snooze::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());

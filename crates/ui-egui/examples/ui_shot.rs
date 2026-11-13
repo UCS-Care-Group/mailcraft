@@ -437,7 +437,9 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
-        lookup_mx: Some(Box::new(|_| answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()])))),
+        discover: Some(Box::new(|_| {
+            answered(Ok(mailcraft_model::provider::Discovered::from_exchangers(vec!["example-org.mail.protection.outlook.com".to_string()])))
+        })),
         ews_setup: Some(Box::new(move |_job| {
             let (tx, rx) = channel();
             let Ok(mut host) = setting_up.lock() else { return rx };
