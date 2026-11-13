@@ -347,6 +347,8 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_categories: Vec<(String, u32, String)>,
     /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
     pub(crate) gmail_finds_deleted: bool,
+    /// Don't know STATUS: answer BAD to it, as a very old server would.
+    pub(crate) no_status: bool,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
     /// Every line received.
@@ -689,6 +691,26 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         );
                         reply.extend(format!("* OK [UIDVALIDITY {}] UIDs valid\r\n* OK [UIDNEXT {next}] next\r\n", mailbox.uid_validity).bytes());
                         reply.extend(format!("{tag} OK [{}] done\r\n", if read_only { "READ-ONLY" } else { "READ-WRITE" }).bytes());
+                    }
+                    None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
+                }
+            }
+            // What a mailbox holds, without opening it (RFC 3501 §6.3.10).
+            "STATUS" if !world.no_status => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                match world.mailboxes.iter().find(|m| m.raw == name && !m.flags.contains("\\Noselect")) {
+                    Some(mailbox) => {
+                        let next = mailbox.next_uid.max(mailbox.messages.iter().map(|m| m.uid).max().unwrap_or(0) + 1);
+                        let unseen = mailbox.messages.iter().filter(|m| !m.has("\\Seen")).count();
+                        reply.extend(
+                            format!(
+                                "* STATUS {} (MESSAGES {} UIDNEXT {next} UIDVALIDITY {} UNSEEN {unseen})\r\n{tag} OK done\r\n",
+                                quote(&mailbox.raw),
+                                mailbox.messages.len(),
+                                mailbox.uid_validity
+                            )
+                            .bytes(),
+                        );
                     }
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
