@@ -731,10 +731,10 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
-    // Where their permissions for to-dos and rules stood goes too: nobody is to be asked about an
-    // account that isn't there.
-    s.driver.tasks.forget_accounts(&going);
-    s.driver.rules.forget_accounts(&going);
+    // Where the sync driver's jobs and permissions stood for them goes too (to-dos, rules,
+    // automatic replies, the calendar, the Favorites, free and busy times, what waited to be
+    // sent): nobody is to be asked about an account that isn't there.
+    s.driver.forget_accounts(&going);
     // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
     super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,

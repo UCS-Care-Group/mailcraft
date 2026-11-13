@@ -5125,7 +5125,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
 msgstr ""
 
 #. interface
@@ -8100,8 +8100,8 @@ msgstr "Aucune connexion en cours"
 msgid "Nobody matches the search"
 msgstr "Personne ne correspond à la recherche"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Aucune personne invitée n'a d'adresse"
@@ -10749,8 +10749,8 @@ msgstr "Deuxième fuseau horaire"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Voir quand les autres personnes sont occupées nécessite votre autorisation : Fichier › Informations › Connecter le calendrier et les contacts"
@@ -13312,8 +13312,8 @@ msgstr "Le serveur n'a pas transmis 1 message de « {name} »"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "Le serveur n'a pas transmis {count} messages de « {name} »"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Le serveur n'a pas indiqué quand les autres personnes sont occupées"
@@ -13825,8 +13825,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Cette version ne peut pas demander à un serveur quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
@@ -14249,8 +14249,8 @@ msgstr "Cette réunion ne figure pas encore ici dans votre calendrier. Vous pour
 msgid "This meeting was called off by its organizer."
 msgstr "Cette réunion a été annulée par son organisateur."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "Le calendrier de cette réunion est conservé sur cet ordinateur, qui ne peut pas savoir quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
@@ -15665,8 +15665,8 @@ msgstr "Vous vous êtes connecté en tant que {signedIn}, et non {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "Vous avez accepté provisoirement cette réunion."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 

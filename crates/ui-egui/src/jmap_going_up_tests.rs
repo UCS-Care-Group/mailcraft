@@ -50,7 +50,8 @@ fn a_change_goes_with_a_run_that_is_due_by_itself_and_the_answer_is_taken_in() {
     assert_eq!(app.waiting_to_go(ada), 1);
     // A run is due for it by itself, with no round of every account waited for: the first frame
     // lines it up, the next starts it, nobody asked.
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 0;
     app.auto_sync();
     app.auto_sync();
     let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
@@ -85,7 +86,8 @@ fn something_made_while_a_run_is_under_way_calls_it_off_to_go_up_first() {
     assert!(job.request.changes.is_empty() && !job.cancel.load(Ordering::Relaxed));
     // The owner deletes the message while the run reads.
     app.execute("mail.delete", json!({"ids": [one]})).unwrap();
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 0;
     app.auto_sync();
     assert!(job.cancel.load(Ordering::Relaxed));
     assert_eq!(app.session.sync_status, "Sending your changes…");
@@ -118,7 +120,8 @@ fn a_refused_change_is_told_once_and_starts_no_run_after_run() {
     assert!(app.has_sync_problems());
     // Nothing is left to go, so no run follows by itself.
     assert_eq!(app.waiting_to_go(ada), 0);
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 0;
     app.auto_sync();
     app.auto_sync();
     assert!(taken(&jobs).is_empty());
@@ -146,7 +149,8 @@ fn a_mark_made_while_another_mark_of_the_message_goes_up_has_a_run_of_its_own_at
     let ada = accounts[0];
     let one = with_mail(&mut app, ada, &jobs);
     app.execute("mail.markRead", json!({"ids": [one]})).unwrap();
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 0;
     app.auto_sync();
     app.auto_sync();
     let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
