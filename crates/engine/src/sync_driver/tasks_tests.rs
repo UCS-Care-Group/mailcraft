@@ -94,3 +94,13 @@ fn a_mailbox_that_takes_the_place_forgets_what_was_known_of_the_to_dos() {
     s.driver.reset();
     assert!(s.driver.tasks.perm.is_empty() && s.driver.tasks.settling.is_empty());
 }
+
+#[test]
+fn an_answer_the_host_itself_found_wanting_is_a_failure_even_when_what_came_was_taken_in() {
+    let (mut s, a) = session();
+    let download = TasksDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    answered(&mut s, a, &TasksCame { download: Some(&download), job_errors: true, ..Default::default() });
+    assert_eq!(s.driver.tasks.book.failures(a), 1, "counted, so it is asked again after the back-off");
+    answered(&mut s, a, &TasksCame { download: Some(&download), ..Default::default() });
+    assert_eq!(s.driver.tasks.book.failures(a), 0);
+}

@@ -201,6 +201,7 @@ impl MailApp {
             }
         }
         let came = RulesCame {
+            job_errors: !errors.is_empty(),
             consent_needed: result.consent_needed,
             sign_in_refused: result.sign_in_refused,
             new_tokens: result.tokens.is_some(),

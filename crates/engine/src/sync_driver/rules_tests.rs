@@ -80,3 +80,13 @@ fn what_was_read_is_noted_and_a_dead_sign_in_waits_for_a_new_one() {
     assert!(s.rules_signed_out(a, Some("refresh")) && !s.rules_signed_out(a, Some("newer")));
     assert!(s.rules_due(&facts(), tokens, 1e9).is_empty());
 }
+
+#[test]
+fn an_answer_the_host_itself_found_wanting_is_a_failure_even_when_what_came_was_taken_in() {
+    let (mut s, a) = session();
+    let download = RulesDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    answered(&mut s, a, &RulesCame { download: Some(&download), job_errors: true, ..Default::default() });
+    assert_eq!(s.driver.rules.book.failures(a), 1);
+    answered(&mut s, a, &RulesCame { download: Some(&download), ..Default::default() });
+    assert_eq!(s.driver.rules.book.failures(a), 0);
+}

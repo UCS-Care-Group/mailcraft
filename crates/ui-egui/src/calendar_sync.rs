@@ -128,7 +128,7 @@ impl MailApp {
             }
         }
         // Nobody to ask: the wish to ask at once doesn't outlive the look.
-        self.session.calendar_none_started();
+        self.session.calendar_none_started(&look);
         false
     }
 
@@ -253,16 +253,10 @@ impl MailApp {
             }
         }
         if shared {
-            self.shared_calendars_answered(account, &result, &mut errors);
-        } else if result.consent_needed && self.session.driver.calendar.consent_needed.insert(account) {
-            self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
+            self.shared_calendars_send_answered(account, &result, &mut errors);
         }
-        // The Favorites as Outlook has them, when they came along ([`crate::favorites_sync`]).
-        self.take_in_favorites(account, &mut result);
-        // Calendars opened by address that the sign-in doesn't let be read yet: the owner is asked (#70).
-        if result.shared_calendars_consent_needed {
-            self.shared_calendars_consent(account);
-        }
+        // What the engine keeps of the answer (the owner's permission among it); the words and the
+        // dialogs are the window's, below.
         let came = CalendarCame {
             uploaded: result.uploaded.as_ref(),
             events: result.events.as_ref(),
@@ -272,8 +266,21 @@ impl MailApp {
             extras_missing: result.extras_missing,
             hours: result.mailbox_hours.as_ref(),
             contacts: result.contacts.as_ref(),
+            job_errors: !errors.is_empty(),
+            consent_needed: result.consent_needed,
+            token_refused: result.token_refused,
+            sign_in_refused: result.sign_in_refused,
         };
         let taken = self.session.calendar_answered(account, carried, started, now_ms(), &came);
+        if taken.consent_asked {
+            self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
+        }
+        // The Favorites as Outlook has them, when they came along ([`crate::favorites_sync`]).
+        self.take_in_favorites(account, &mut result);
+        // Calendars opened by address that the sign-in doesn't let be read yet: the owner is asked (#70).
+        if result.shared_calendars_consent_needed {
+            self.shared_calendars_consent(account);
+        }
         self.say_calendar_taken(account, taken, &mut errors);
         self.note_problems_from("calendar", account, &errors, None, false);
     }
@@ -288,21 +295,8 @@ impl MailApp {
         for said in &taken.status {
             self.status(said.in_lang(lang));
         }
-        if taken.changing_needs_permission {
-            self.status(tl!("Changing the calendar needs your permission: File › Info › Connect calendar and contacts"));
-        }
         let problems: Vec<String> = taken.problems.iter().map(|p| p.in_lang(lang)).collect();
         self.keep_sync_problems(account, &problems);
-        for (name, n) in &taken.held {
-            let said = crate::i18n::fmt(
-                tl!(
-                    "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
-                ),
-                &[("n", &n.to_string()), ("name", &crate::forms::kit::shown(name, 60))],
-            );
-            self.status(said.clone());
-            self.keep_sync_problems(account, std::slice::from_ref(&said));
-        }
         errors.extend(taken.errors.iter().map(|e| e.in_lang(lang)));
     }
 

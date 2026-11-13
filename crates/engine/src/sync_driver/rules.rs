@@ -131,6 +131,8 @@ pub struct RulesCame<'a> {
     pub denied: bool,
     /// The server's rules can't be read with this sign-in.
     pub unreadable: bool,
+    /// The host's own job put something among its errors: the answer is not counted a success.
+    pub job_errors: bool,
     pub uploaded: Option<&'a RulesUploaded>,
     pub download: Option<&'a RulesDownload>,
 }
@@ -261,7 +263,7 @@ impl Session {
                 Err(e) => errors.push(said!("The rules on the server couldn't be taken in: {error}", error = e.to_string())),
             }
         }
-        if worked && errors.is_empty() {
+        if worked && errors.is_empty() && !came.job_errors {
             self.driver.rules.book.forget_failures(account);
         } else if !came.consent_needed && !came.sign_in_refused && !came.unreadable {
             self.driver.rules.book.failed(account, started);

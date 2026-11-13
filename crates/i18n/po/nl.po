@@ -2405,8 +2405,8 @@ msgstr "Gewijzigd: wordt opgeslagen wanneer u een andere handtekening kiest of d
 msgid "Change…"
 msgstr "Wijzigen…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Het wijzigen van de agenda vereist uw toestemming: Bestand › Info › Agenda en contactpersonen verbinden"
@@ -14158,8 +14158,8 @@ msgstr "De agenda „{name}” van het gedeelde postvak toont alleen wanneer de 
 msgid "The shared mailbox's e-mail address"
 msgstr "Het e-mailadres van het gedeelde postvak"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "De aanmelding van het account waarmee dit gedeelde postvak wordt geopend, is geweigerd: meld u opnieuw aan met Verzenden/ontvangen"
@@ -20019,8 +20019,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} wijziging die op de IMAP-server wacht, bereikt die niet; ze blijft in de reservekopie."
 msgstr[1] "{n} wijzigingen die op de IMAP-server wachten, bereiken die niet; ze blijven in de reservekopie."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} wijzigingen van de agenda „{name}” worden hier aangehouden, niet verzonden: dit account mag die niet meer wijzigen. Ze worden verzonden als dat weer mag."

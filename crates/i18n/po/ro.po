@@ -2424,8 +2424,8 @@ msgstr "Modificat: se salvează când alegeți altă semnătură sau părăsiți
 msgid "Change…"
 msgstr "Modificare…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Modificarea calendarului are nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
@@ -14329,8 +14329,8 @@ msgstr "Calendarul „{name}” al cutiei poștale partajate arată doar când p
 msgid "The shared mailbox's e-mail address"
 msgstr "Adresa de e-mail a cutiei poștale partajate"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Conectarea contului prin care este deschisă această cutie poștală partajată a fost refuzată: conectați-vă din nou cu Trimitere/primire"
@@ -20274,8 +20274,8 @@ msgstr[0] "{n} modificare care așteaptă serverul IMAP nu va ajunge la el; răm
 msgstr[1] "{n} modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 msgstr[2] "{n} de modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} modificări ale calendarului „{name}” sunt reținute aici, netrimise: acest cont nu mai are voie să-l modifice. Se trimit dacă primește din nou voie."

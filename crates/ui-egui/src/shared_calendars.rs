@@ -139,22 +139,10 @@ impl MailApp {
         }
     }
 
-    /// What a calendar job of the shared mailbox `shared` said of the owner's permission: it covers
-    /// shared calendars (the job got a token for them), or it doesn't and the owner is to be asked,
-    /// or the owner's own sign-in is no longer taken.
-    pub(crate) fn shared_calendars_answered(&mut self, shared: Id, result: &crate::GraphResult, errors: &mut Vec<String>) {
-        if result.consent_needed {
-            // (Asked about when the calendar is in front: [`MailApp::shared_calendars_ask_tick`].)
-            if !matches!(self.session.driver.calendar.shared_perm.get(&shared), Some(Permission::Asking | Permission::Refused(_))) {
-                self.session.driver.calendar.shared_perm.insert(shared, Permission::Needed);
-            }
-        } else if result.sign_in_refused {
-            errors.push(
-                tl!("The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive").to_string(),
-            );
-        } else if !result.token_refused {
-            self.session.driver.calendar.shared_perm.insert(shared, Permission::Given);
-        }
+    /// What a calendar job of the shared mailbox `shared` said of sending from it. (Where the
+    /// owner's permission for reading its calendars stands is the engine's, taken in with the rest
+    /// of the answer: [`mailcraft_engine::Session::calendar_answered`].)
+    pub(crate) fn shared_calendars_send_answered(&mut self, shared: Id, result: &crate::GraphResult, errors: &mut Vec<String>) {
         // What makes the server send mail from the shared mailbox (an answer to a meeting, one
         // called off or forwarded, one with people invited) found that sending from shared
         // mailboxes isn't allowed yet (#70): it waits, nothing goes out as the owner, and the

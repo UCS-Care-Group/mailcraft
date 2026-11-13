@@ -115,6 +115,9 @@ pub struct TasksCame<'a> {
     pub new_tokens: bool,
     /// The server said this account may not use its to-dos.
     pub denied: bool,
+    /// The host's own job put something among its errors (a part it couldn't bring down, say):
+    /// the answer is not counted a success, whatever else came.
+    pub job_errors: bool,
     pub uploaded: Option<&'a TasksUploaded>,
     pub download: Option<&'a TasksDownload>,
 }
@@ -234,7 +237,7 @@ impl Session {
                 Err(e) => errors.push(said!("The to-dos couldn't be taken in: {error}", error = e.to_string())),
             }
         }
-        if worked && errors.is_empty() {
+        if worked && errors.is_empty() && !came.job_errors {
             self.driver.tasks.book.worked(account);
         } else if !came.consent_needed && !came.sign_in_refused {
             self.driver.tasks.book.failed(account, started);

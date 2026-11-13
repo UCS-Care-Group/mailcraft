@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use mailcraft_model::Mailbox;
+use mailcraft_model::remote::EventsDownload;
+use serde_json::json;
 
 use super::*;
 use crate::Session;
@@ -16,7 +18,7 @@ fn a_session_with_no_account_to_ask_has_nothing_due_and_the_wish_to_ask_ends_wit
     s.driver.calendar.due = true;
     let look = s.calendar_due(&facts(Busy::default()), 0.0);
     assert!(look.plans.is_empty() && look.dropped.is_empty() && look.may_ask);
-    s.calendar_none_started();
+    s.calendar_none_started(&look);
     assert!(!s.driver.calendar.due);
 }
 
@@ -65,4 +67,71 @@ fn an_answer_with_nothing_in_it_counts_as_a_failure_and_a_job_that_carried_chang
     assert!(!out.taken);
     assert_eq!(s.driver.calendar.book.failures(1), 1);
     assert!(out.errors.is_empty() && out.status.is_empty());
+}
+
+#[test]
+fn a_look_held_off_leaves_the_wish_to_ask_for_when_it_can_be_asked() {
+    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    s.driver.calendar.due = true;
+    let busy = Busy { mail_run: true, ..Busy::default() };
+    let look = s.calendar_due(&facts(busy), 0.0);
+    s.calendar_none_started(&look);
+    assert!(s.driver.calendar.due, "another job is at work");
+    let off = CalendarFacts { enabled: false, ..facts(Busy::default()) };
+    let look = s.calendar_due(&off, 0.0);
+    s.calendar_none_started(&look);
+    assert!(s.driver.calendar.due, "automatic checking is off");
+}
+
+fn microsoft_session() -> (Session, Id) {
+    let mut s = Session::empty();
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap();
+    let id = added["id"].as_u64().unwrap();
+    (s, id)
+}
+
+#[test]
+fn a_part_the_host_could_not_bring_down_asks_for_the_wide_stretch_again_at_the_next_job() {
+    let (mut s, a) = microsoft_session();
+    let events = EventsDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
+    let came = CalendarCame { events: Some(&events), job_errors: true, ..Default::default() };
+    s.driver.calendar.directory = true;
+    let out = s.calendar_answered(a, false, 10.0, 20.0, &came);
+    assert!(out.taken && out.errors.is_empty(), "what came was taken in");
+    assert!(!s.driver.calendar.checked.contains_key(&a), "but the host's own error says a part is missing");
+    s.driver.calendar.directory = true;
+    s.calendar_answered(a, false, 10.0, 30.0, &CalendarCame { job_errors: false, ..came });
+    assert_eq!(s.driver.calendar.checked.get(&a), Some(&30.0));
+}
+
+#[test]
+fn the_owners_permission_is_kept_from_the_answer_without_a_window() {
+    let (mut s, a) = microsoft_session();
+    let consent = CalendarCame { consent_needed: true, ..Default::default() };
+    assert!(s.calendar_answered(a, false, 1.0, 2.0, &consent).consent_asked);
+    assert!(s.driver.calendar.consent_needed.contains(&a), "the next look holds the job back");
+    assert!(!s.calendar_answered(a, false, 1.0, 3.0, &consent).consent_asked, "asked once");
+}
+
+#[test]
+fn a_shared_mailboxs_calendar_permission_follows_what_its_jobs_say() {
+    let (mut s, owner) = microsoft_session();
+    let added = s.run("account.add", &json!({"email": "team@example.org", "kind": "microsoft"})).unwrap();
+    let shared = added["id"].as_u64().unwrap();
+    s.mailbox.accounts.iter_mut().filter(|a| a.id == shared).for_each(|a| a.shared_of = Some(owner));
+    assert!(s.mailbox.account(shared).unwrap().is_shared());
+    let said = |s: &mut Session, came: CalendarCame<'_>| s.calendar_answered(shared, false, 1.0, 2.0, &came);
+    said(&mut s, CalendarCame { consent_needed: true, ..Default::default() });
+    assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Needed));
+    assert!(s.shared_calendars_blocked(shared));
+    s.driver.calendar.shared_perm.insert(shared, SharedPermission::Asking);
+    said(&mut s, CalendarCame { consent_needed: true, ..Default::default() });
+    assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Asking), "the question is not undone");
+    let out = said(&mut s, CalendarCame { sign_in_refused: true, ..Default::default() });
+    assert_eq!(out.errors.len(), 1);
+    said(&mut s, CalendarCame { token_refused: true, ..Default::default() });
+    assert_ne!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Given));
+    s.driver.calendar.shared_perm.clear();
+    said(&mut s, CalendarCame::default());
+    assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Given));
 }

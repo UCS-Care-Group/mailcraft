@@ -169,10 +169,13 @@ impl Session {
         look
     }
 
-    /// No job could be started for what [`Session::calendar_due`] said: the wish to ask at once
-    /// doesn't outlive the look.
-    pub fn calendar_none_started(&mut self) {
-        self.driver.calendar.due = false;
+    /// No job could be started for what [`Session::calendar_due`] said (`look`): the wish to ask at
+    /// once doesn't outlive a look that really looked. One that was held off (automatic checking
+    /// is off, or another job is at work) leaves it as it was, for when it can be asked.
+    pub fn calendar_none_started(&mut self, look: &CalendarLook) {
+        if look.may_ask {
+            self.driver.calendar.due = false;
+        }
     }
 
     /// A plan for a look at the days round `day` for `account`, as a job of its own: for a meeting
@@ -272,6 +275,15 @@ pub struct CalendarCame<'a> {
     pub hours: Option<&'a MailboxHours>,
     /// The contacts, with the wide stretch.
     pub contacts: Option<&'a ContactsDownload>,
+    /// The host's own job put something among its errors (a part it couldn't bring down, say):
+    /// the wide stretch and the contacts are asked for again at the next job.
+    pub job_errors: bool,
+    /// The sign-in doesn't cover what was asked: the owner is to be asked.
+    pub consent_needed: bool,
+    /// The access token was refused.
+    pub token_refused: bool,
+    /// The sign-in itself is no longer taken.
+    pub sign_in_refused: bool,
 }
 
 /// What the owner is to be told of a calendar job's answer, in the order it came to be.
@@ -286,10 +298,9 @@ pub struct CalendarTaken {
     /// What came of the lists of calendars taken in, for the calendars opened by address (the
     /// window's own account of them).
     pub opened: Vec<Value>,
-    /// Changes held back for want of rights: the calendar's name and how many, each to be told.
-    pub held: Vec<(String, usize)>,
-    /// The server says the account may not change its calendar: the owner is to be asked.
-    pub changing_needs_permission: bool,
+    /// The calendar and contacts of this (not shared) account need the owner's permission, as
+    /// of this answer: the owner is to be asked (File › Info), once.
+    pub consent_asked: bool,
     /// The events of the main calendar came and were taken in.
     pub taken: bool,
 }
@@ -297,19 +308,33 @@ pub struct CalendarTaken {
 impl Session {
     /// The calendar job for `account` answered with `came`: take in what the server said to the
     /// changes and what it has, and say what the owner is to be told. `carried`: the job carried
-    /// changes; `started`: when it did (milliseconds); `consent_needed`: the server said the
-    /// sign-in doesn't cover what was asked. The window takes care of tokens, dialogs and the
-    /// words; the mailbox and the driver's bookkeeping are done here.
+    /// changes; `started`: when it did (milliseconds); `now`: the time (milliseconds). Where the
+    /// owner's permission stands (`came.consent_needed`, `token_refused`, `sign_in_refused`: the
+    /// calendar's, or for a shared mailbox its calendars') is kept here too. The window takes care
+    /// of tokens, dialogs and the words; the mailbox and the driver's bookkeeping are done here.
     pub fn calendar_answered(&mut self, account: Id, carried: bool, started: f64, now: f64, came: &CalendarCame<'_>) -> CalendarTaken {
         let mut out = CalendarTaken::default();
         let shared = self.is_shared_account(account);
+        if shared {
+            self.shared_permission_in(account, came, &mut out);
+        } else if came.consent_needed && self.driver.calendar.consent_needed.insert(account) {
+            out.consent_asked = true;
+        }
         self.calendar_list_in(account, came.calendars, came.categories, came.extras_missing, &mut out);
         if let Some(hours) = came.hours {
             self.mailbox_hours_in(account, hours);
         }
         let mut taken = self.take_in_calendar(account, came.uploaded, came.events, &mut out);
         self.more_calendars_in(came.more_events, &mut out);
-        out.held = self.driver.calendar.tell_held(remote::held_for_rights(&self.mailbox, account));
+        for (name, n) in self.driver.calendar.tell_held(remote::held_for_rights(&self.mailbox, account)) {
+            let said = said!(
+                "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again.",
+                n,
+                name = mailcraft_names::shown(&name, 60)
+            );
+            out.status.push(said.clone());
+            out.problems.push(said);
+        }
         // (A shared mailbox's job may bring only calendars other than its main one.)
         taken |= shared && !came.more_events.is_empty();
         // The contacts came with the wide stretch: both in, and it is a quarter of an hour
@@ -319,8 +344,9 @@ impl Session {
         {
             out.errors.push(said!("The contacts couldn't be taken in: {error}", error = e.to_string()));
         }
-        // (A part that couldn't be had is among the errors: then the next job asks again.)
-        if std::mem::take(&mut self.driver.calendar.directory) && taken && out.errors.is_empty() {
+        // (A part that couldn't be had is among the errors, the host's own included: then the next
+        // job asks again.)
+        if std::mem::take(&mut self.driver.calendar.directory) && taken && out.errors.is_empty() && !came.job_errors {
             self.driver.calendar.checked.insert(account, now);
         }
         // Something went up: what the server has now is asked for again soon, should this
@@ -330,6 +356,23 @@ impl Session {
         self.driver.calendar.answered(account, nothing, started);
         out.taken = taken;
         out
+    }
+
+    /// What a job of the shared mailbox `shared` said of the owner's permission: it covers shared
+    /// calendars (the job got a token for them), or it doesn't and the owner is to be asked, or the
+    /// owner's own sign-in is no longer taken.
+    fn shared_permission_in(&mut self, shared: Id, came: &CalendarCame<'_>, out: &mut CalendarTaken) {
+        let perm = &mut self.driver.calendar.shared_perm;
+        if came.consent_needed {
+            // (Asked about when the calendar is in front, by the host.)
+            if !matches!(perm.get(&shared), Some(SharedPermission::Asking | SharedPermission::Refused(_))) {
+                perm.insert(shared, SharedPermission::Needed);
+            }
+        } else if came.sign_in_refused {
+            out.errors.push(said!("The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"));
+        } else if !came.token_refused {
+            perm.insert(shared, SharedPermission::Given);
+        }
     }
 
     /// Take in the list of the account's calendars and the mailbox's categories that came with a
@@ -416,7 +459,7 @@ impl Session {
                             "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
                         ));
                     } else if applied.denied && self.driver.calendar.consent_needed.insert(account) {
-                        out.changing_needs_permission = true;
+                        out.status.push(said!("Changing the calendar needs your permission: File › Info › Connect calendar and contacts"));
                     }
                 }
                 Err(e) => out.errors.push(said!("The calendar changes couldn't be taken in: {error}", error = e.to_string())),
