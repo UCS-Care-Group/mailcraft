@@ -101,8 +101,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     for field in &headers.0 {
         let name = field.name.to_ascii_lowercase();
         let value = field.value.as_str();
-        // What MailCraft reads into the message, or keeps only decoded, is kept as it came too,
-        // for a rule with words in the header: it reads the header as it came, as a server's does.
+        // What is read into the message, or kept only decoded, is kept as it came too
+        // ([`Message::read_header`]): with the fields kept, the header as it came.
         let into_message = !name.starts_with("x-mailcraft-")
             && (matches!(
                 name.as_str(),
