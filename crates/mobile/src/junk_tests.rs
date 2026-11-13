@@ -121,6 +121,10 @@ fn every_query_with_junk_answers_and_never_panics() {
     not_internal("tasks", &block_on(core.tasks(0, huge, true, 0, 5)));
     not_internal("task_lists", &block_on(core.task_lists()));
     not_internal("today", &block_on(core.today()));
+    not_internal("calendars", &block_on(core.calendars()));
+    for id in [0, 1, 2, 3, u64::MAX] {
+        not_internal("event", &block_on(core.event(id)));
+    }
 
     // Every real message of the sample reads, at every width and theme, in the ways a phone asks.
     let folder = block_on(core.folders(0)).unwrap().folders.iter().find(|f| f.kind == "inbox").map(|f| f.id).unwrap_or(0);

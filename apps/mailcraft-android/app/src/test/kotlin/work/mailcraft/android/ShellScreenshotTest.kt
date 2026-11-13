@@ -90,4 +90,4 @@ class TabletShellScreenshotTest {
 }
 
 // The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
-private const val TOLERANCE = 0.1
+internal const val TOLERANCE = 0.1

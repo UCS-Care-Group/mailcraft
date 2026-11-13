@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,14 @@ internal class ShellData(
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
+)
+
+/** What the Calendar tab draws and does, as plain values. */
+internal class CalendarPane(
+    val state: CalendarUiState,
+    val weekStart: java.time.DayOfWeek,
+    val zone: java.time.ZoneId,
+    val actions: CalendarActions,
 )
 
 /** What the shell asks of the app. */
@@ -69,10 +78,15 @@ internal fun AppShell(
     texts: Texts,
     data: ShellData,
     actions: ShellActions,
+    /** The Calendar tab, when there is a core to read it from. */
+    calendar: CalendarPane? = null,
     initialNav: NavState = NavState(),
     initialDrawer: DrawerValue = DrawerValue.Closed,
+    /** A tab something outside asked for (an .ics file was opened): the shell goes to it. */
+    requestTab: Tab? = null,
 ) {
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
+    LaunchedEffect(requestTab) { requestTab?.let { nav = NavState(tab = it) } }
     val drawer = rememberDrawerState(initialDrawer)
     val scope = rememberCoroutineScope()
     val back = nav.back()
@@ -117,6 +131,9 @@ internal fun AppShell(
             ) { modifier ->
                 when (nav.tab) {
                     Tab.Mail -> InboxScreen(texts, data.mail, modifier)
+                    Tab.Calendar -> calendar?.let {
+                        CalendarScreen(texts, it.state, it.weekStart, it.zone, it.actions, modifier)
+                    } ?: Centered(texts.t("Pending development"), modifier)
                     else -> Centered(texts.t("Pending development"), modifier)
                 }
             }

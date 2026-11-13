@@ -89,6 +89,10 @@ pub struct EventRecord {
     pub meeting: bool,
     pub cancelled: bool,
     pub categories: Vec<String>,
+    /// Somebody else organizes it and the owner is invited: it can be answered.
+    pub invited: bool,
+    /// The owner's answer to it: `none`, `accepted`, `tentative` or `declined`.
+    pub answer: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -216,4 +220,75 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarRecord {
+    pub id: u64,
+    /// The account whose server keeps it; 0 for a calendar on this phone only.
+    pub account: u64,
+    pub name: String,
+    /// `0xRRGGBB`.
+    pub color: u32,
+    pub visible: bool,
+    /// Events in it can be made and changed here.
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarList {
+    pub rev: u64,
+    pub calendars: Vec<CalendarRecord>,
+    /// The calendar new events go into (0 when there is none).
+    pub current: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AttendeeRecord {
+    pub name: String,
+    pub address: String,
+    pub optional: bool,
+    /// `none`, `accepted`, `tentative` or `declined`.
+    pub response: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct RecurrenceRecord {
+    /// `daily`, `weekly`, `monthly` or `yearly`.
+    pub freq: String,
+    pub interval: u32,
+    /// `mon` to `sun`.
+    pub by_day: Vec<String>,
+    pub nth: Option<i8>,
+    pub count: Option<u32>,
+    /// `YYYY-MM-DD`.
+    pub until: Option<String>,
+}
+
+/// One event whole, as the editor and the detail page need it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventDetail {
+    pub rev: u64,
+    pub event: u64,
+    pub calendar: u64,
+    pub title: String,
+    pub location: String,
+    pub description: String,
+    /// `YYYY-MM-DDTHH:MM:SS`, or for a whole-day event `YYYY-MM-DD` (the last day included).
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub organizer: Option<AddressRecord>,
+    pub attendees: Vec<AttendeeRecord>,
+    pub recurrence: Option<RecurrenceRecord>,
+    pub reminder_minutes: Option<u32>,
+    pub show_as: String,
+    pub meeting: bool,
+    pub invited: bool,
+    pub answer: String,
+    pub cancelled: bool,
+    pub editable: bool,
+    /// An account's server keeps it: a change to a meeting with people invited has to say
+    /// whether they are written to (`send`).
+    pub on_server: bool,
 }

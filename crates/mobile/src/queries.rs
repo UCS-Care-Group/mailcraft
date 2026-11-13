@@ -26,15 +26,15 @@ use crate::{Core, CoreError};
 /// (two lists would merge); a task whose list has a longer one is left out of the lists.
 const MAX_LIST_ID: usize = 1024;
 
-fn bad(message: &str) -> CoreError {
+pub(crate) fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
 }
 
-fn rgb(c: mailcraft_model::Rgb) -> u32 {
+pub(crate) fn rgb(c: mailcraft_model::Rgb) -> u32 {
     (u32::from(c.0) << 16) | (u32::from(c.1) << 8) | u32::from(c.2)
 }
 
-fn code<T: serde::Serialize>(v: &T) -> String {
+pub(crate) fn code<T: serde::Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
@@ -62,7 +62,16 @@ fn event_record(s: &Session, e: &Event, start: String, end: String) -> EventReco
         meeting: e.is_meeting(),
         cancelled: e.cancelled,
         categories: categories(&e.categories),
+        invited: e.origin.guest,
+        answer: my_answer(s, e),
     }
+}
+
+/// What the owner has answered to a meeting somebody else organizes: the response of the
+/// attendee that is one of the mailbox's own addresses (`none` when there isn't one).
+pub(crate) fn my_answer(s: &Session, e: &Event) -> String {
+    let mine = |a: &mailcraft_model::Attendee| s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.address.email));
+    code(&e.attendees.iter().find(|a| mine(a)).map_or(mailcraft_model::Response::None, |a| a.response))
 }
 
 fn events_between(s: &Session, from: Date, to: Date) -> Vec<EventRecord> {
@@ -124,7 +133,7 @@ fn person(c: &Contact) -> PersonRecord {
     }
 }
 
-fn date_of(s: &str) -> Result<Date, CoreError> {
+pub(crate) fn date_of(s: &str) -> Result<Date, CoreError> {
     Date::parse_iso(s).ok_or_else(|| bad("a date is written YYYY-MM-DD"))
 }
 

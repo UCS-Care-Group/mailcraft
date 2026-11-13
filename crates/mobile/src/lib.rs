@@ -24,6 +24,7 @@ pub mod android;
 #[cfg(target_os = "android")]
 mod android_jni;
 pub mod blocks;
+mod calendar_queries;
 mod core;
 mod error;
 mod events;
@@ -34,6 +35,8 @@ mod queue;
 mod records;
 pub mod text;
 
+#[cfg(test)]
+mod calendar_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
