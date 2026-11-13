@@ -25,7 +25,7 @@ fn app() -> (MailApp, Arc<Mutex<Server>>, Id) {
     let server = serve(&mut app);
     let account = microsoft_account(&mut app);
     // (The wide stretch and the contacts, due at start-up, are not what these look at.)
-    app.graph_checked.insert(account, f64::MAX);
+    app.session.driver.calendar.checked.insert(account, f64::MAX);
     server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
     (app, server, account)
 }
@@ -227,7 +227,7 @@ fn a_change_the_account_may_not_make_asks_for_permission_and_waits() {
     assert!(!app.calendar_tick_at(true, t0 + 400.0 * SECOND));
     // "Connect calendar and contacts": the permission is given, and the change goes.
     server.lock().unwrap().say = None;
-    app.graph_consent_needed.remove(&account);
+    app.session.driver.calendar.consent_needed.remove(&account);
     app.calendar_connected(account);
     assert!(app.calendar_tick_at(true, t0 + 401.0 * SECOND));
     settle(&mut app);

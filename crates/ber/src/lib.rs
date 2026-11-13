@@ -10,6 +10,7 @@
 //!
 //! The input is hostile: lengths are checked against what is there, nesting is bounded
 //! ([`MAX_DEPTH`]), and the work is linear in the input (times the bounded depth).
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 /// CMS's id-signedData and id-data (RFC 5652 §5.1, §4), as DER.
 const SIGNED_DATA: &[u8] = &[0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x02];

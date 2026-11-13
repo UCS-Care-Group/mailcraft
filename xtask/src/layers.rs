@@ -38,12 +38,16 @@ pub const TABLE: &[(&str, Class)] = &[
     ("time", Class::Layer(0)),
     ("control-key", Class::Standalone),
     ("charset", Class::Standalone),
+    // ASN.1 BER and DER (X.690), for S/MIME and the reader of opaque signed messages: no dependencies.
+    ("ber", Class::Standalone),
     ("link", Class::Layer(0)),
     ("names", Class::Standalone),
     ("i18n", Class::Standalone),
     ("model", Class::Layer(1)),
     ("html", Class::Layer(1)),
     ("mime", Class::Layer(2)),
+    // The mailbox's messages as Internet messages, over `mime` (#1235).
+    ("mime-model", Class::Layer(2)),
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
@@ -76,8 +80,9 @@ pub const TABLE: &[(&str, Class)] = &[
 
 /// Explicit orderings *within* a layer (earlier may be used by later): the socket transport
 /// (`net`) drives the protocol state machines (`proto`), and web addresses (`link`) refuse the
-/// format characters of the one list (`names`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"]];
+/// format characters of the one list (`names`), and the mailbox's messages (`mime-model`) are read
+/// and written by the reader that knows nothing of a mailbox (`mime`).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

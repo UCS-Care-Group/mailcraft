@@ -3,7 +3,7 @@
 //! Request a Read Receipt (RFC 8098): a message written with it asks its sender, once, and a
 //! request in mail that is read is never taken up.
 
-use mailcraft_model::{Address, Message};
+use crate::{Address, Message};
 
 use crate::{WriteOptions, parse, write};
 

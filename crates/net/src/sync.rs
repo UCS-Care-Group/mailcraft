@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
     FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
@@ -453,7 +453,7 @@ fn file_sent(imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)], sent:
     for (at, message) in sent.iter().enumerate() {
         // The sender's own copy says who got a blind copy.
         let options = WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-        if let Err(e) = imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime::write(message, &options)) {
+        if let Err(e) = imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime_model::write(message, &options)) {
             let e = NetError::from(e);
             result.problem(said!(
                 "Couldn't keep a copy of \"{subject}\" on the server: {error}",
@@ -896,7 +896,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime::parse_fetched(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime_model::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };

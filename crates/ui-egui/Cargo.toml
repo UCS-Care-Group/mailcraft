@@ -51,7 +51,7 @@ toml = "1"
 toml = "1"
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 # Messages as they come, for the reading pane's tests.
-mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 # Errors as the host says them (#872): a real check and Send/Receive against a server on this
 # machine, for the tests that show them in the interface's language.
 mailcraft-net = { workspace = true }

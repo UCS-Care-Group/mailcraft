@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
-use mailcraft_mime::rich::{Img, to_html_with};
+use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
@@ -788,7 +788,7 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
     // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
     // message (read, answered, flagged, categorised), and every header kept with it but those
     // known to come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
     let unmarked = Message {
         read: false,
         answered: false,
@@ -797,7 +797,7 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
         headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
         ..Message::clone(&m)
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    let bytes = mailcraft_mime_model::write(&unmarked, &opts);
     Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
 }
 
@@ -977,7 +977,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
-        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+        mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
                 return Some(id);
@@ -1256,7 +1256,7 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
@@ -1270,10 +1270,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             let own = c.signature_html();
             let html = [
                 before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(|t| to_html_with(t, &img)),
             ];
-            Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
     }

@@ -125,7 +125,7 @@ fn a_second_mailboxes_mail_starts_before_the_first_ones_calendar_download_ends()
     app.poll_calendar();
     assert!(!app.calendar_syncing());
     assert!(app.session.mailbox.contacts.values().any(|c| c.name() == "Remote Person"));
-    assert!(app.graph_checked.contains_key(&owner), "a quarter of an hour until the next");
+    assert!(app.session.driver.calendar.checked.contains_key(&owner), "a quarter of an hour until the next");
     assert!(app.execute("ui.sync", json!({"account": owner})).is_ok());
 }
 

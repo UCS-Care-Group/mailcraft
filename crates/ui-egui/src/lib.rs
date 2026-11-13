@@ -77,6 +77,8 @@ pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
 #[cfg(test)]
+mod dialog_report_tests;
+#[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
@@ -159,6 +161,7 @@ pub mod opening;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
+pub mod paste_keys;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
@@ -500,6 +503,10 @@ pub struct Services {
     /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
     /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
+    /// Desktop, under Wayland: the window layer's clipboard shortcuts are off, so Ctrl+X, Ctrl+C
+    /// and Ctrl+V arrive as key presses and are turned into cut, copy and paste here
+    /// ([`paste_keys`]), in the main window and in the windows of their own alike (#1217).
+    pub clipboard_keys: bool,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
@@ -580,6 +587,10 @@ pub trait RichClipboard {
     /// The picture on the clipboard as PNG, when what is on it is a picture.
     fn image(&self) -> Option<Vec<u8>> {
         None
+    }
+    /// Whether the clipboard holds a picture, without reading it where that is cheaper.
+    fn has_image(&self) -> bool {
+        self.image().is_some()
     }
     /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
     /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
@@ -1515,10 +1526,6 @@ pub struct MailApp {
     pub(crate) fetching: graph_fetch::Fetching,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
-    /// When each account's calendar and contacts were last brought down (milliseconds).
-    graph_checked: std::collections::HashMap<Id, f64>,
-    /// Accounts whose owner hasn't allowed Graph yet ("Connect calendar and contacts").
-    graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
@@ -1546,9 +1553,6 @@ pub struct MailApp {
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
-    /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
-    /// what a run found out, and what was asked.
-    shared_calendar_perm: std::collections::HashMap<Id, shared_calendars::Permission>,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1833,8 +1837,6 @@ impl MailApp {
             graph_after_sign_in: None,
             fetching: Default::default(),
             server_searching: Default::default(),
-            graph_checked: Default::default(),
-            graph_consent_needed: Default::default(),
             calendar: Default::default(),
             favorites_next: false,
             shared_next: None,
@@ -1848,7 +1850,6 @@ impl MailApp {
             category_sync: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
-            shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_send_waits: Default::default(),
             shared_send_pressed: Default::default(),
@@ -2315,8 +2316,8 @@ impl MailApp {
             // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
-            self.graph_checked.remove(&account);
-            self.graph_consent_needed.remove(&account);
+            self.session.driver.calendar.checked.remove(&account);
+            self.session.driver.calendar.consent_needed.remove(&account);
             self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
@@ -3289,7 +3290,7 @@ impl MailApp {
             if !after_graph
                 && microsoft
                 && !refresh.is_empty()
-                && !self.graph_consent_needed.contains(&account)
+                && !self.session.driver.calendar.consent_needed.contains(&account)
                 && self.services.graph.is_some()
                 && !request.outbox.is_empty()
             {
@@ -3662,7 +3663,7 @@ impl MailApp {
     /// Whether the owner still has to allow sending, calendar and contacts through Microsoft for
     /// `account` ("Connect calendar and contacts").
     pub fn graph_consent_needed(&self, account: Id) -> bool {
-        self.graph_consent_needed.contains(&account)
+        self.session.driver.calendar.consent_needed.contains(&account)
     }
 
     /// Graph answered: keep its token, take in the calendar and contacts, file what it sent, and
@@ -3821,16 +3822,23 @@ impl MailApp {
         let kept_in_step = self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
         if result.consent_needed {
             // (An account kept in step through Graph is asked below, for its mail.)
-            if self.graph_consent_needed.insert(account) && !quiet && !kept_in_step {
+            if self.session.driver.calendar.consent_needed.insert(account) && !quiet && !kept_in_step {
                 self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
             }
         } else {
-            self.graph_consent_needed.remove(&account);
+            self.session.driver.calendar.consent_needed.remove(&account);
         }
         // What the server said to the calendar changes it was told, then what it has now.
-        self.take_in_calendar_list(account, result.calendars.as_ref(), result.categories.as_ref(), result.extras_missing, &mut errors);
-        let calendar_ok = self.take_in_calendar_of_sync(account, result.uploaded.as_ref(), result.events.as_ref(), &mut errors);
-        self.take_in_more_calendars(&result.more_events, &mut errors);
+        let came = mailcraft_engine::sync_driver::CalendarCame {
+            uploaded: result.uploaded.as_ref(),
+            events: result.events.as_ref(),
+            more_events: &result.more_events,
+            calendars: result.calendars.as_ref(),
+            categories: result.categories.as_ref(),
+            extras_missing: result.extras_missing,
+            ..Default::default()
+        };
+        let calendar_ok = self.take_in_calendar_of_sync(account, &came, &mut errors);
         let mut contacts_ok = false;
         if let Some(contacts) = &result.contacts {
             match mailcraft_engine::cmd::remote::apply_contacts(&mut self.session, contacts) {
@@ -3839,7 +3847,7 @@ impl MailApp {
             }
         }
         if directory && calendar_ok && contacts_ok {
-            self.graph_checked.insert(account, now_ms());
+            self.session.driver.calendar.checked.insert(account, now_ms());
         }
         if !result.sent.is_empty() {
             // (A piece of the run, not the end of it: the mail server's leg comes next, and
@@ -4050,8 +4058,8 @@ impl MailApp {
                         }
                     }
                     self.graph_tokens.insert(account, tokens);
-                    self.graph_consent_needed.remove(&account);
-                    self.graph_checked.remove(&account);
+                    self.session.driver.calendar.consent_needed.remove(&account);
+                    self.session.driver.calendar.checked.remove(&account);
                     // Calendar changes that waited for this permission go now.
                     self.calendar_connected(account);
                     // Asked for with the Favorites' permissions, the token is good for them, and
@@ -4649,7 +4657,7 @@ impl MailApp {
         if self.server_searching.busy() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
-        if self.fetching.busy() {
+        if self.fetching.busy() || self.session.driver.fetch.held.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         // The pieces of a Graph mail run come without waking the window: it looks again soon.

@@ -80,7 +80,7 @@ fn both_need_it(app: &mut MailApp, owner: Id) {
     app.poll_categories();
     app.categories_tick_at(3.0);
     app.tasks_tick_at(3.0);
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Asking));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Asking));
     assert!(matches!(app.category_sync.perm.get(&owner), Some(Permission::Needed | Permission::Asking)));
 }
 
@@ -104,7 +104,7 @@ fn one_question_and_one_page_for_the_to_dos_and_the_categories() {
     assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Asking));
     app.poll_sign_in();
     // Allowed: both look again at once, and nobody is asked again.
-    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), None);
     assert_eq!(app.category_sync.perm.get(&owner), None);
     assert_eq!(app.tokens.get(&owner).map(|t| t.refresh.as_str()), Some("ref-2"));
     app.tasks_tick_at(4.0);
@@ -118,7 +118,7 @@ fn a_question_that_goes_away_is_a_no_for_all_of_it_and_file_info_asks_again() {
     app.dialog = None;
     app.tasks_tick_at(4.0);
     app.categories_tick_at(4.0);
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Declined));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Declined));
     assert_eq!(app.category_sync.perm.get(&owner), Some(&Permission::Declined));
     // Not put again by itself, by either of them.
     for minute in 1..30 {
@@ -147,7 +147,7 @@ fn a_page_that_says_no_is_said_once_and_leaves_ask_again() {
     app.dialog = None;
     app.run("ui.allowSync", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::Refused(_))));
+    assert!(matches!(app.session.driver.tasks.perm.get(&owner), Some(Permission::Refused(_))));
     assert!(matches!(app.category_sync.perm.get(&owner), Some(Permission::Refused(_))));
     for minute in 1..30 {
         app.tasks_tick_at(f64::from(minute) * 60_000.0);
@@ -236,7 +236,7 @@ fn a_microsoft_account_still_on_imap_is_asked_only_for_its_to_dos_and_automatic_
 fn to_dos_kept_in_step_already_are_left_out_of_the_question() {
     let (mut app, owner, _, answer) = window();
     *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
-    app.tasks.perm.insert(owner, Permission::Given);
+    app.session.driver.tasks.perm.insert(owner, Permission::Given);
     assert!(app.categories_tick_at(0.0));
     app.poll_categories();
     app.categories_tick_at(1.0);
@@ -253,7 +253,7 @@ fn to_dos_kept_in_step_already_are_left_out_of_the_question() {
     let (said, _) = app.status_msg.clone().unwrap();
     assert!(said.contains("rules stay on this computer") && said.contains(crate::approval::NO_BROWSER), "{said}");
     assert!(!said.contains("tasks"), "{said}");
-    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
+    assert_eq!(app.session.driver.tasks.perm.get(&owner), Some(&Permission::Given));
 }
 
 /// An owner who let MailCraft change their mailbox settings already (their rules, automatic
@@ -266,7 +266,7 @@ fn mailbox_settings_allowed_already_are_left_out_of_the_question() {
         let (mut app, owner, _, answer) = window();
         *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
         match given {
-            "rules" => drop(app.rules.perm.insert(owner, crate::rule_sync::Permission::Given)),
+            "rules" => drop(app.session.driver.rules.perm.insert(owner, crate::rule_sync::Permission::Given)),
             "automatic replies" => drop(app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Given)),
             _ => drop(app.category_sync.perm.insert(owner, Permission::Given)),
         }
@@ -319,9 +319,9 @@ fn the_line_is_partly_on_when_the_parts_differ() {
     assert!(details.contains("Categories: read-only here until"), "{details}");
     app.category_sync.perm.insert(owner, Permission::Refused("x".into()));
     assert_eq!(line(&app).0, "Sync with Outlook: partly on");
-    app.tasks.perm.insert(owner, Permission::Refused("x".into()));
+    app.session.driver.tasks.perm.insert(owner, Permission::Refused("x".into()));
     assert_eq!(line(&app).0, "Sync with Outlook: off");
-    app.tasks.perm.remove(&owner);
+    app.session.driver.tasks.perm.remove(&owner);
     app.category_sync.perm.insert(owner, Permission::Given);
     assert_eq!(line(&app).0, "Sync with Outlook: on");
 }

@@ -258,8 +258,7 @@ pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> 
 /// A filled button in the app colour (Send, Save, the default answer of a dialog).
 pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let w = text_w(ui, label, 12.5).max(44.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w + 26.0, 26.0), if enabled { Sense::click() } else { Sense::hover() });
+    let (r, resp) = ui.allocate_exact_size(vec2(primary_button_width(ui, label), 26.0), if enabled { Sense::click() } else { Sense::hover() });
     let fill = if !enabled {
         t.pressed
     } else if resp.hovered() {
@@ -272,6 +271,11 @@ pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     // (Named for screen readers, as a button.)
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     resp
+}
+
+/// How wide a filled button is with this label.
+pub(crate) fn primary_button_width(ui: &Ui, label: &str) -> f32 {
+    text_w(ui, label, 12.5).max(44.0) + 26.0
 }
 
 /// A button with an outline, for what leaves a dialog without committing anything (Close).

@@ -40,8 +40,8 @@ impl MailApp {
     /// a long time without a frame (#661).
     pub fn take_in_sync_answers(&mut self, now: f64) {
         self.session.driver.calendar.clock = now;
-        self.tasks.clock = now;
-        self.rules.clock = now;
+        self.session.driver.tasks.clock = now;
+        self.session.driver.rules.clock = now;
         self.category_sync.clock = now;
         self.poll_calendar();
         self.poll_tasks();
@@ -86,14 +86,14 @@ impl MailApp {
     /// was given by itself, as an older version asked it): the question and its texts then say
     /// nothing of them.
     fn sync_tasks_kept(&self, account: Id) -> bool {
-        self.tasks.perm.get(&account) == Some(&crate::task_sync::Permission::Given)
+        self.session.driver.tasks.perm.get(&account) == Some(&crate::task_sync::Permission::Given)
     }
 
     /// Whether `account`'s sign-in lets MailCraft change its mailbox settings already (its rules,
     /// automatic replies or categories were changed with it, as an older version asked it by
     /// itself) while its to-dos wait: the question and its texts then say only the to-dos.
     fn sync_only_tasks(&self, account: Id) -> bool {
-        let settings = matches!(self.rules.perm.get(&account), Some(crate::rule_sync::Permission::Given))
+        let settings = matches!(self.session.driver.rules.perm.get(&account), Some(crate::rule_sync::Permission::Given))
             || matches!(self.auto_replies.perm.get(&account), Some(crate::auto_replies::Permission::Given))
             || matches!(self.category_sync.perm.get(&account), Some(crate::task_sync::Permission::Given));
         settings && !self.sync_tasks_kept(account)

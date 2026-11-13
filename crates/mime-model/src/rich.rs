@@ -286,7 +286,7 @@ pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Opt
 /// other `OBJECT` (nothing but this puts one in the text).
 fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
     // No more than the reading after this looks at.
-    let html = crate::mailto::cut(html, mailcraft_html::MAX_INPUT_WITH_PICTURES).replace(OBJECT, "");
+    let html = cut(html, mailcraft_html::MAX_INPUT_WITH_PICTURES).replace(OBJECT, "");
     let lower = html.to_ascii_lowercase();
     let (mut out, mut at) = (String::with_capacity(html.len()), 0usize);
     while let Some(start) = lower.get(at..).and_then(|rest| rest.find("<img")).map(|rel| at + rel) {
@@ -545,6 +545,18 @@ impl Reader {
 fn px_to_points(px: u8) -> u8 {
     let points = (u16::from(px) * 3 + 2) / 4;
     u8::try_from(points).unwrap_or(MAX_SIZE).clamp(MIN_SIZE, MAX_SIZE)
+}
+
+/// `text` cut to at most `max` bytes, at a character boundary.
+fn cut(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.get(..end).unwrap_or("")
 }
 
 #[cfg(test)]

@@ -2984,6 +2984,8 @@ impl Session {
         // The background fetch's waits and offline flag were the old mailbox's.
         self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
+        // What the sync driver remembered is the old mailbox's: its accounts' ids may name others.
+        self.driver.reset();
         self.pst_running = None;
         self.pst_tops.clear();
         self.history.clear();

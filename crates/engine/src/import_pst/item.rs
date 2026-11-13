@@ -276,7 +276,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         if cut.len() < h.len() {
             item.note("its Internet headers were longer than the limit and are cut".to_string());
         }
-        let parsed = mailcraft_mime::parse(format!("{}\r\n\r\n", cut.trim_end()).as_bytes());
+        let parsed = mailcraft_mime_model::parse(format!("{}\r\n\r\n", cut.trim_end()).as_bytes());
         out.from = parsed.from;
         out.reply_to = parsed.reply_to;
         out.to = parsed.to;
@@ -716,7 +716,7 @@ fn attachment<R: Read + Seek>(
             let left = item.left;
             let attached = message_of(pst, &read, item, depth.saturating_add(1))?;
             item.left = left;
-            let bytes = mailcraft_mime::write(&attached, &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: 0 });
+            let bytes = mailcraft_mime_model::write(&attached, &mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: 0 });
             if !item.take(bytes.len() as u64) {
                 item.note(format!("{shown}, an attached message, is larger than what one item may bring and is left out"));
                 return Ok(());
