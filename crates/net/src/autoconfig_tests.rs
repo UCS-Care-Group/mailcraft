@@ -73,8 +73,12 @@ fn the_imap_and_smtp_servers_are_taken_implicit_tls_first() {
     // The SSL one of the two IMAP servers, lower-cased without its dot; the POP3 one is passed over.
     assert_eq!(config.incoming, server("imap.example.org", 993, Security::Tls));
     assert_eq!(config.outgoing, server("smtp.example.org", 587, Security::StartTls));
-    // The user name of the server taken, as the document writes it.
+    // The user name of the incoming server taken, as the document writes it.
     assert_eq!(config.username, "%EMAILADDRESS%");
+    // An outgoing server's user name is not the account's: without an incoming server, none.
+    let outgoing_only = document(&[], &["<hostname>smtp.example.org</hostname><socketType>SSL</socketType><username>%EMAILLOCALPART%</username>"]);
+    let config = read(outgoing_only.as_bytes()).unwrap().unwrap();
+    assert_eq!((config.incoming, config.outgoing, config.username.as_str()), (None, server("smtp.example.org", 465, Security::Tls), ""));
 }
 
 #[test]
@@ -173,7 +177,7 @@ fn the_document_is_fetched_with_the_domain_alone_and_nothing_is_a_document_but_a
         format!("HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{DOCUMENT}", DOCUMENT.len())
             .into_bytes(),
     );
-    let config = fetch(&server.url("/mail/config-v1.1.xml")).unwrap().unwrap();
+    let config = fetch(&server.url("/mail/config-v1.1.xml"), PATIENCE).unwrap().unwrap();
     assert_eq!(config.incoming.map(|s| s.host), Some("imap.example.org".to_string()));
     let request = server.request(0);
     assert!(request.starts_with("GET /mail/config-v1.1.xml HTTP/1.1\r\n"), "{request}");
@@ -184,13 +188,13 @@ fn the_document_is_fetched_with_the_domain_alone_and_nothing_is_a_document_but_a
     {
         let server =
             FakeHttp::answering(format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes());
-        assert_eq!(fetch(&server.url("/x")), Ok(None), "{status}");
+        assert_eq!(fetch(&server.url("/x"), PATIENCE), Ok(None), "{status}");
     }
     // Only an encrypted address, or one on this machine.
-    assert!(matches!(fetch("http://autoconfig.example.org/mail/config-v1.1.xml"), Err(NetError::Config(_))));
-    assert!(matches!(fetch("not an address"), Err(NetError::Config(_))));
+    assert!(matches!(fetch("http://autoconfig.example.org/mail/config-v1.1.xml", PATIENCE), Err(NetError::Config(_))));
+    assert!(matches!(fetch("not an address", PATIENCE), Err(NetError::Config(_))));
     // Nothing listens there.
-    assert!(matches!(fetch("http://127.0.0.1:1/x"), Err(NetError::Connect { .. })));
+    assert!(matches!(fetch("http://127.0.0.1:1/x", PATIENCE), Err(NetError::Connect { .. })));
 }
 
 proptest! {

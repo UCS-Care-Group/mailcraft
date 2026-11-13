@@ -95,11 +95,13 @@ pub fn discover_at(places: &Places<'_>, domain: &str) -> Result<Discovered, NetE
         if found.incoming.is_some() && found.outgoing.is_some() {
             break;
         }
-        if started.elapsed() > BUDGET {
+        // What is left of the search's time is all a fetch gets, for connecting and for the answer.
+        let left = BUDGET.saturating_sub(started.elapsed());
+        if left.is_zero() {
             log::debug!("the search for the servers took too long: the {} step is skipped", via.code());
             break;
         }
-        match autoconfig::fetch(&url) {
+        match autoconfig::fetch(&url, autoconfig::PATIENCE.min(left)) {
             Ok(Some(config)) => take(&mut found, config, via),
             Ok(None) => {}
             Err(e) => log::debug!("a settings document couldn't be fetched ({}): {e}", via.code()),
@@ -108,24 +110,22 @@ pub fn discover_at(places: &Places<'_>, domain: &str) -> Result<Discovered, NetE
     Ok(found)
 }
 
-/// Fill what is still missing from a document's servers; its user name goes with the first
-/// server taken from any document.
+/// Fill what is still missing from a document's servers. Its user name is its incoming
+/// server's and goes along only when that server is the one taken: an account has one user
+/// name, the one it reads its mail with. With an incoming server from anywhere else (the SRV
+/// records name none, RFC 6186), or from a document that says none, the address stays the
+/// user name, whatever a document says of its outgoing server.
 fn take(found: &mut Discovered, config: autoconfig::ClientConfig, via: Via) {
-    let mut taken = false;
     if found.incoming.is_none()
         && let Some(server) = config.incoming
     {
         found.incoming = Some(FoundServer { server, via });
-        taken = true;
+        found.username = config.username;
     }
     if found.outgoing.is_none()
         && let Some(server) = config.outgoing
     {
         found.outgoing = Some(FoundServer { server, via });
-        taken = true;
-    }
-    if taken && found.username.is_empty() {
-        found.username = config.username;
     }
 }
 

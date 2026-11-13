@@ -840,7 +840,20 @@ fn accounts_that_sign_in_on_the_providers_page() {
         (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
         (Some(587), Some("ispdb"), Some(true))
     );
-    // A placeholder nobody knows, or a user name with nothing found beside it: the address.
+    // What is put in for a placeholder is never read as one again: a `%` in the address stays.
+    for (email, template, name) in [
+        ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
+        ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
+        ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+    ] {
+        let filled = run(
+            &mut s,
+            "account.preset",
+            json!({"email": email, "found": {"incoming": {"host": "imap.lumen.example", "security": "tls", "via": "autoconfig"}, "username": template}}),
+        );
+        assert_eq!(filled["username"], name, "{email} {template}");
+    }
+    // A placeholder nobody knows, or a user name without a found incoming server: the address.
     for (records, why) in [
         (
             json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
@@ -848,6 +861,14 @@ fn accounts_that_sign_in_on_the_providers_page() {
         ),
         (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
         (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+        (
+            json!({"outgoing": {"host": "smtp.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%"}),
+            "no incoming server found",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
+            "half a placeholder",
+        ),
     ] {
         let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
         assert_eq!(odd["username"], "avery@lumen.example", "{why}");

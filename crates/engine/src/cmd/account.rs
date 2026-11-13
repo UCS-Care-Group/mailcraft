@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (as the source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (the found incoming server's, as its source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts; taken only with a found incoming server)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -176,7 +176,8 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     if !known && let Some(records) = v.get("found").filter(|f| f.is_object()) {
         incoming = found_server(records.get("incoming"), (993, 143));
         outgoing = found_server(records.get("outgoing"), (465, 587));
-        if incoming.is_some() || outgoing.is_some() {
+        // The user name is the incoming server's: it is taken only with that server.
+        if incoming.is_some() {
             username = found_username(p::str(records, "username").unwrap_or_default(), &email, &domain);
         }
     }
@@ -246,8 +247,19 @@ fn found_username(template: &str, email: &str, domain: &str) -> String {
         return email.to_string();
     }
     let local = email.rsplit_once('@').map(|(local, _)| local).unwrap_or(email);
-    let filled = template.replace("%EMAILADDRESS%", email).replace("%EMAILLOCALPART%", local).replace("%EMAILDOMAIN%", domain);
-    if filled.contains('%') || filled.chars().count() > 254 { email.to_string() } else { filled }
+    let placeholders = [("%EMAILADDRESS%", email), ("%EMAILLOCALPART%", local), ("%EMAILDOMAIN%", domain)];
+    // One pass over the template: what is put in is the address's own text, never read as a
+    // placeholder again, so an address with a `%` in it stays as it is.
+    let (mut filled, mut rest) = (String::new(), template.as_str());
+    while let Some((before, _)) = rest.split_once('%') {
+        let from = rest.get(before.len()..).unwrap_or_default();
+        let Some((name, value)) = placeholders.iter().find(|(name, _)| from.starts_with(name)) else { return email.to_string() };
+        filled.push_str(before);
+        filled.push_str(value);
+        rest = from.get(name.len()..).unwrap_or_default();
+    }
+    filled.push_str(rest);
+    if filled.chars().count() > 254 { email.to_string() } else { filled }
 }
 
 fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {

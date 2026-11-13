@@ -41,7 +41,9 @@ const MAX_SERVERS: usize = 16;
 pub(crate) struct ClientConfig {
     pub(crate) incoming: Option<Server>,
     pub(crate) outgoing: Option<Server>,
-    /// The user name as the document writes it, placeholders and all; empty when it says none.
+    /// The user name of the incoming server, as the document writes it, placeholders and all;
+    /// empty when it says none, or names no incoming server that is taken. (An account has one
+    /// user name, the one it reads its mail with: the outgoing server's is not read for it.)
     pub(crate) username: String,
 }
 
@@ -50,10 +52,11 @@ pub(crate) struct ClientConfig {
 pub(crate) struct Malformed;
 
 /// Fetch the document at `url` and read it. `Ok(None)` when there is none there (any status
-/// but 200), or what is there is no document with a server in it.
-pub(crate) fn fetch(url: &str) -> Result<Option<ClientConfig>, NetError> {
+/// but 200), or what is there is no document with a server in it. Connecting may take
+/// `patience`, and so may the answer ([`PATIENCE`], or what is left of the search's time).
+pub(crate) fn fetch(url: &str, patience: Duration) -> Result<Option<ClientConfig>, NetError> {
     let url = Url::parse(url)?;
-    let answer = http::get(&url, &[("Accept", "application/xml, text/xml")], PATIENCE)?;
+    let answer = http::get(&url, &[("Accept", "application/xml, text/xml")], patience)?;
     if answer.status != 200 {
         return Ok(None);
     }
@@ -237,8 +240,8 @@ pub(crate) fn read(xml: &[u8]) -> Result<Option<ClientConfig>, Malformed> {
     if incoming.is_none() && outgoing.is_none() {
         return Ok(None);
     }
-    // The user name is the incoming server's; the outgoing server's when only it is taken.
-    let username = incoming.as_ref().or(outgoing.as_ref()).map(|(_, listed)| listed.username.clone()).unwrap_or_default();
+    // The user name is the incoming server's, and goes with it alone.
+    let username = incoming.as_ref().map(|(_, listed)| listed.username.clone()).unwrap_or_default();
     Ok(Some(ClientConfig { incoming: incoming.map(|(server, _)| server), outgoing: outgoing.map(|(server, _)| server), username }))
 }
 

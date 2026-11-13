@@ -181,6 +181,30 @@ fn a_server_outside_the_domain_is_named_whatever_named_it() {
     }
 }
 
+/// The two servers from two sources: each is said to come from its own, on the page with the
+/// servers and in the question before the password goes to the one outside the domain.
+#[test]
+fn each_server_is_said_to_come_from_the_source_that_named_it() {
+    let mut a = app(false);
+    let checked = checks(&mut a, None);
+    let discovered = Discovered {
+        exchangers: vec!["mx.lumen.example".into()],
+        incoming: found("imap.lumen.example", 993, Security::Tls, Via::Autoconfig),
+        outgoing: found("smtp.hosted.example", 465, Security::Tls, Via::Ispdb),
+        username: String::new(),
+    };
+    let mut h = with_found(a, discovered);
+    assert_eq!(wizard(&h).map(|w| (w.found, w.guessed)), Some((Some(Via::Autoconfig), false)));
+    assert!(says(&h, "publishes for mail programs") && says(&h, "Mozilla's ISP database lists"));
+    type_password(&mut h);
+    press(&mut h, Key::Enter);
+    assert_eq!(page(&h), Some(Page::ServerConsent));
+    // Only the outside host is asked about, and the database is named as who named it.
+    assert!(says(&h, "Mozilla's ISP database names smtp.hosted.example"), "the host isn't said to come from the database");
+    assert!(!says(&h, "publishes for mail programs names") && !says(&h, "imap.lumen.example"));
+    assert!(checked.lock().unwrap().is_empty());
+}
+
 #[test]
 fn nothing_found_leaves_the_guess_as_it_was() {
     let mut a = app(false);

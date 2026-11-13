@@ -225,7 +225,8 @@ fn places_at(server: &FakeHttp) -> (String, String, String, String) {
 #[test]
 fn the_domains_own_document_is_read_after_the_dns_and_the_database_only_for_what_is_left() {
     // The SRV records name the IMAP server; the domain's document names both, and its SMTP
-    // server and user name are taken; the database is never asked.
+    // server is taken; the database is never asked. The document's user name is its own IMAP
+    // server's, which wasn't taken: the address stays the user name (RFC 6186).
     let server = world(
         &[("example.org MX", &["10 mx.example.org."]), ("_imaps._tcp.example.org SRV", &["0 0 993 imap.example.org."])],
         &[("/autoconfig/example.org", &document(Some("other.example.org 993 SSL"), Some("smtp.example.org 465 SSL"), "%EMAILLOCALPART%"))],
@@ -235,7 +236,7 @@ fn the_domains_own_document_is_read_after_the_dns_and_the_database_only_for_what
     let found = discover_at(&places, "example.org").unwrap();
     assert_eq!(server_of(&found.incoming), Some(("imap.example.org", 993, Security::Tls, Via::Srv)));
     assert_eq!(server_of(&found.outgoing), Some(("smtp.example.org", 465, Security::Tls, Via::Autoconfig)));
-    assert_eq!(found.username, "%EMAILLOCALPART%");
+    assert_eq!(found.username, "");
     assert_eq!(
         paths(&server),
         [
@@ -256,9 +257,40 @@ fn the_domains_own_document_is_read_after_the_dns_and_the_database_only_for_what
     let found = discover_at(&places, "example.org").unwrap();
     assert_eq!(server_of(&found.incoming), Some(("imap.example.org", 143, Security::StartTls, Via::Autoconfig)));
     assert!(found.outgoing.is_none());
+    assert_eq!(found.username, "%EMAILADDRESS%");
     assert_eq!(&paths(&server)[5..], ["/autoconfig/example.org", "/well-known/example.org", "/ispdb/example.org"]);
     // (The exchanger is in the domain: no other domain to ask the database about.)
     assert_eq!(server.asked(), 8);
+}
+
+#[test]
+fn a_user_name_goes_only_with_the_incoming_server_of_its_own_document() {
+    // The domain's document names the IMAP server and no user name (so the address); the
+    // database names the SMTP server with one. The second must not replace the first's.
+    let server = world(
+        &[("example.org MX", &["10 mx.example.org."])],
+        &[
+            ("/autoconfig/example.org", &document(Some("imap.example.org 993 SSL"), None, "")),
+            ("/ispdb/example.org", &document(Some("imap.other.example 993 SSL"), Some("smtp.example.org 465 SSL"), "%EMAILLOCALPART%")),
+        ],
+    );
+    let (dns, autoconfig, well_known, ispdb) = places_at(&server);
+    let places = Places { resolvers: &[&dns], autoconfig: &[&autoconfig, &well_known], ispdb: Some(&ispdb) };
+    let found = discover_at(&places, "example.org").unwrap();
+    assert_eq!(server_of(&found.incoming), Some(("imap.example.org", 993, Security::Tls, Via::Autoconfig)));
+    assert_eq!(server_of(&found.outgoing), Some(("smtp.example.org", 465, Security::Tls, Via::Ispdb)));
+    assert_eq!(found.username, "");
+    // And the incoming server's user name is the one taken with it, whoever names the other.
+    let server = world(
+        &[("example.org MX", &["10 mx.example.org."]), ("_submissions._tcp.example.org SRV", &["0 0 465 smtp.example.org."])],
+        &[("/autoconfig/example.org", &document(Some("imap.example.org 993 SSL"), Some("other.example.org 465 SSL"), "%EMAILLOCALPART%"))],
+    );
+    let (dns, autoconfig, well_known, ispdb) = places_at(&server);
+    let places = Places { resolvers: &[&dns], autoconfig: &[&autoconfig, &well_known], ispdb: Some(&ispdb) };
+    let found = discover_at(&places, "example.org").unwrap();
+    assert_eq!(server_of(&found.incoming), Some(("imap.example.org", 993, Security::Tls, Via::Autoconfig)));
+    assert_eq!(server_of(&found.outgoing), Some(("smtp.example.org", 465, Security::Tls, Via::Srv)));
+    assert_eq!(found.username, "%EMAILLOCALPART%");
 }
 
 #[test]
