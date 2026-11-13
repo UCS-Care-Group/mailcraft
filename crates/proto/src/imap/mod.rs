@@ -878,6 +878,41 @@ impl<S: Read + Write> Imap<S> {
         Ok(found.into_iter().collect())
     }
 
+    /// UID SEARCH UNDELETED TEXT <word> TEXT <word>…: the messages of the open mailbox, other than
+    /// those marked as deleted, whose header or body has every word (the server matches a part of
+    /// the text, whatever its case), by UID in UID order, at most [`MAX_FOUND`] of them. A word
+    /// with CR, LF or NUL is refused unsent; an empty list is nothing to ask.
+    pub fn uid_search_words(&mut self, words: &[&str]) -> Result<Vec<u32>, ProtoError> {
+        if words.is_empty() || words.len() > 8 {
+            return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
+        }
+        let mut cleaned: Vec<String> = Vec::new();
+        for word in words {
+            let word: String = word.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(80).collect();
+            if word.is_empty() {
+                return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
+            }
+            cleaned.push(word);
+        }
+        let mut found = BTreeSet::new();
+        let mut command = Command::new("UID SEARCH UNDELETED");
+        for word in &cleaned {
+            command = command.arg("TEXT").string(word.as_bytes());
+        }
+        self.run(command, &mut |values| {
+            if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
+                let uids = values.iter().skip(1).filter_map(Value::atom).filter_map(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0);
+                for uid in uids {
+                    if found.len() >= MAX_FOUND {
+                        break;
+                    }
+                    found.insert(uid);
+                }
+            }
+        })?;
+        Ok(found.into_iter().collect())
+    }
+
     /// UID SEARCH UID <set> UNDELETED X-GM-RAW "<query>": the messages of the open mailbox, among
     /// those `set` names and not marked as deleted, that Gmail's own search finds for `query`
     /// (`category:social`), by UID in UID order. `X-GM-RAW` is Gmail's (Google's "Gmail IMAP extensions"): for Gmail's server alone.

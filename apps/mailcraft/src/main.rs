@@ -1122,9 +1122,44 @@ fn services(
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
-        // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
-        graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
-            background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
+        // A Microsoft mailbox searched on its server, a page at a time (R6.2). One thread per mailbox.
+        graph_search: Some(Box::new({
+            let search_ctx = search_ctx.clone();
+            move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
+                background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
+            }
+        })),
+        // An IMAP account searched on its own server. Hits from each folder are sent as they arrive.
+        imap_search: Some(Box::new({
+            let search_ctx = search_ctx.clone();
+            move |job: mailcraft_ui_egui::server_search::ImapSearchJob| {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let wake = search_ctx.clone();
+                let spawned = std::thread::Builder::new().name("imap search".into()).spawn(move || {
+                    mailcraft_net::imap_search::search(&job.account, &job.secret, job.ticket, &job.folders, &job.query, job.gmail_all, |page| {
+                        let _ = tx.send(page);
+                        wake.request_repaint();
+                    });
+                });
+                if let Err(e) = spawned {
+                    log::error!("couldn't start imap search: {e}");
+                }
+                rx
+            }
+        })),
+        // One message of a search, fetched whole when its row is opened.
+        imap_fetch: Some(Box::new(move |job: mailcraft_ui_egui::server_search::ImapFetchJob| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let wake = search_ctx.clone();
+            let spawned = std::thread::Builder::new().name("imap fetch".into()).spawn(move || {
+                let result = mailcraft_net::imap_search::fetch_message(&job.account, &job.secret, &job.folder, job.uid);
+                let _ = tx.send(result);
+                wake.request_repaint();
+            });
+            if let Err(e) = spawned {
+                log::error!("couldn't start imap fetch: {e}");
+            }
+            rx
         })),
         // The tasks of a Microsoft account, kept in step with Microsoft To Do (#248).
         graph_tasks: Some(Box::new({

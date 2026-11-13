@@ -1,0 +1,1 @@
+- Older mail can be found. A search used to look only at what was already on this computer, so a message that had not been downloaded was missing. It now asks the Microsoft and IMAP servers the search covers, all at once, and shows what they find in the same list while it is still going. Opening one that was not here yet keeps it in that row.

@@ -1,32 +1,28 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Below the local results of a search: More results on the server, and the section On the
-//! server with what came back (R6.2, [`crate::server_search`]). Laid out as the list's rows are,
-//! so that a server result reads as any other message: the sender, the subject and the time,
+//! Hits a search found on a mailbox's server, drawn as rows of the same list
+//! ([`crate::server_search`]). Laid out as the list's rows are, so that one reads as any other
+//! message: the sender, the subject and the time,
 //! then its preview, and in a search of every mailbox the folder it is in under the time; read,
 //! flag, importance, categories, paperclip.
 
 use std::collections::HashSet;
 
 use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
-use mailcraft_model::{FlagStatus, Id, Importance};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Importance};
 
-use super::{GROUP_H, GROUP_TEXT, LIST_TEXT, PREVIEW_TOP, ROW_INSET, SENDER_TEXT, SENDER_Y, SUBJECT_Y, TEXT_LEFT, TEXT_RIGHT, TIME_RIGHT};
+use super::{LIST_TEXT, PREVIEW_TOP, ROW_INSET, SENDER_TEXT, SENDER_Y, SUBJECT_Y, TEXT_LEFT, TEXT_RIGHT, TIME_RIGHT};
 use crate::server_search::Link;
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
-/// The link's line, and a line of words in the section.
-const LINK_H: f32 = 32.0;
+/// A line of words in the list.
 const NOTE_H: f32 = 22.0;
 /// Most errors said at once.
 const MAX_SAID: usize = 3;
 
 /// One line of what is drawn below the local results.
 enum Line {
-    Link(Link),
-    Heading,
-    Note(String),
     Problem(String),
     /// The server result at this index of the session's.
     Result(usize),
@@ -35,41 +31,29 @@ enum Line {
 impl Line {
     fn height(&self, row_h: f32) -> f32 {
         match self {
-            Line::Link(_) => LINK_H,
-            Line::Heading => GROUP_H,
-            Line::Note(_) | Line::Problem(_) => NOTE_H,
+            Line::Problem(_) => NOTE_H,
             Line::Result(_) => row_h,
         }
     }
 }
 
-/// What is below the local results now, line by line. `local`: the messages the local results
-/// show (a result opened, once there, shows there only).
+/// The messages the servers found, as ordinary rows of the list. `local` is what the list above
+/// already shows, so a message is not drawn twice. Nothing here says where a message was found.
 fn lines(app: &MailApp, local: &HashSet<Id>) -> Vec<Line> {
-    let link = app.server_link();
-    if link == Link::None {
+    if app.server_link() == Link::None {
         return Vec::new();
     }
     let search = &app.session.server_search;
-    let held = mailcraft_engine::cmd::search_server::is_current(&app.session);
-    if !held || !search.asked() {
-        return vec![Line::Link(link)];
+    if !mailcraft_engine::cmd::search_server::is_current(&app.session) || !search.asked() {
+        return Vec::new();
     }
-    let mut out = vec![Line::Heading];
-    if search.checked_here {
-        out.push(Line::Note(tl!("Some of the search was checked on this computer").to_string()));
-    }
+    let mut out = Vec::new();
     out.extend(search.errors.iter().take(MAX_SAID).map(|e| Line::Problem(e.clone())));
     for (i, r) in search.results.iter().enumerate() {
-        let shown_here = r.opened.is_some_and(|id| local.contains(&id) || app.session.mailbox.message(id).is_none());
-        if !shown_here {
+        let already = r.opened.is_some_and(|id| local.contains(&id));
+        if !already {
             out.push(Line::Result(i));
         }
-    }
-    match link {
-        Link::End if search.results.is_empty() => out.push(Line::Note(tl!("Nothing more was found on the server").to_string())),
-        Link::End => {}
-        other => out.push(Line::Link(other)),
     }
     out
 }
@@ -92,17 +76,6 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
             continue;
         }
         match line {
-            Line::Link(link) => link_line(app, ui, rect, link),
-            Line::Heading => {
-                let gr = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), rect.max);
-                let said = if app.server_link() == Link::Searching { tl!("On the server · Searching…") } else { tl!("On the server") };
-                paint_clipped(ui.painter(), pos2(gr.min.x + 16.0, gr.center().y + 3.0), gr.width() - 22.0, said, semibold(GROUP_TEXT), t.group_label);
-                app.hit.add("onTheServer", 0, gr);
-            }
-            Line::Note(text) => {
-                paint_clipped(ui.painter(), pos2(rect.min.x + 10.0, rect.center().y), rect.width() - 20.0, &text, regular(11.5), t.text_dim);
-                app.hit.add("serverNote", 0, rect);
-            }
             Line::Problem(text) => {
                 let r = Rect::from_center_size(pos2(rect.min.x + 16.0, rect.center().y), vec2(12.0, 12.0));
                 icons::paint(ui.painter(), r, "highImportance", t.orange, t.accent);
@@ -117,40 +90,6 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
     }
 }
 
-/// More results on the server, as a link; greyed with why when it can't be asked now.
-fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
-    let t = Tokens::get(ui.ctx());
-    let (text, live) = match link {
-        Link::Ask => (tl!("More results on the server").to_string(), true),
-        Link::NotConnected { retry } => (format!("{} · {}", tl!("More results on the server"), tl!("Not connected")), retry),
-        Link::Searching => (tl!("Searching the server…").to_string(), false),
-        Link::End | Link::None => return,
-    };
-    let font = regular(12.5);
-    let galley = ui.painter().layout_no_wrap(text.clone(), font.clone(), t.accent_text);
-    let at = Rect::from_min_size(pos2(rect.min.x + TEXT_LEFT - 18.0, rect.center().y - galley.size().y / 2.0), galley.size());
-    let resp = ui.interact(at.expand(4.0), ui.scope_id().with("more_on_server"), if live { Sense::click() } else { Sense::hover() });
-    let resp = if live { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
-    let resp = match link {
-        Link::NotConnected { retry: true } => resp.on_hover_text(tl!("Microsoft's server couldn't be reached. Click to try again.")),
-        Link::NotConnected { retry: false } => resp.on_hover_text(tl!("Send/Receive signs in to Microsoft; then the server can be searched.")),
-        _ => resp,
-    };
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, live, &text));
-    app.hit.add("moreOnServer", 0, at);
-    let color = match link {
-        Link::Ask => t.accent_text,
-        _ => t.text_disabled,
-    };
-    ui.painter().text(at.left_center(), Align2::LEFT_CENTER, &text, font, color);
-    if live && resp.hovered() {
-        ui.painter().line_segment([pos2(at.min.x, at.max.y + 1.0), pos2(at.max.x, at.max.y + 1.0)], Stroke::new(1.0, color));
-    }
-    if resp.clicked() {
-        let _ = app.run("ui.moreResultsOnServer", serde_json::json!({}));
-    }
-}
-
 /// One server result, as a row of the list.
 fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let t = Tokens::get(ui.ctx());
@@ -159,22 +98,42 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let resp = ui.interact(rect, ui.scope_id().with(("server_result", index)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
     app.hit.add("serverResult", index as u64, rect);
     let p = ui.painter();
+    let one = app.session.prefs.one_line;
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
     let selected = r.opened.is_some_and(|id| app.session.sel.messages.contains(&id));
+    // The same card, unread dot and account stripe as a message already on this computer.
+    let card = body.shrink2(vec2(4.0, 1.0));
     if selected {
-        p.rect_filled(body, 0.0, t.selection);
+        p.rect_filled(card, 6.0, t.selection);
+        p.rect_stroke(card, 6.0, Stroke::new(1.0, t.selection_edge), egui::StrokeKind::Inside);
     } else if resp.hovered() {
-        p.rect_filled(body, 0.0, t.hover_subtle);
+        p.rect_filled(card, 6.0, t.hover_subtle);
     }
     let unread = !m.read;
+    let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
+    let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     if unread {
-        p.rect_filled(Rect::from_min_max(body.min, pos2(body.min.x + 4.0, body.max.y)), 0.0, t.accent);
+        p.circle_filled(pos2(body.min.x + 13.0, line1), 4.0, t.accent);
     }
-    let rule = t.rule;
-    p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
-    let left = rect.min.x + TEXT_LEFT;
+    if !selected {
+        p.line_segment([pos2(body.min.x + 12.0, rect.max.y - 0.5), pos2(rect.max.x - 10.0, rect.max.y - 0.5)], Stroke::new(1.0, t.border_faint));
+    }
+    if let Some(color) = super::account_stripe(&app.session, &m) {
+        let stripe = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 3.0), pos2(rect.min.x + 1.0 + super::ACCOUNT_STRIPE, rect.max.y - 3.0));
+        p.rect_filled(stripe, 1.5, crate::theme::c32(color));
+        if t.high_contrast {
+            p.rect_stroke(stripe, 1.5, Stroke::new(1.0, t.text), egui::StrokeKind::Inside);
+        }
+    }
+    let outgoing = app.session.mailbox.folder(m.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    let person = if outgoing { m.to.first().unwrap_or(&m.from) } else { &m.from };
+    let pictured = app.ui.sender_images && !one;
+    if pictured {
+        let center = pos2(rect.min.x + TEXT_LEFT + super::AVATAR_RADIUS, rect.min.y + super::AVATAR_Y);
+        crate::sender_images::avatar(app, ui, center, super::AVATAR_RADIUS, &m, person);
+    }
+    let left = rect.min.x + TEXT_LEFT + if pictured { 2.0 * super::AVATAR_RADIUS + super::AVATAR_GAP } else { 0.0 };
     let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);
-    let (line1, line2) = (rect.min.y + SENDER_Y, rect.min.y + SUBJECT_Y);
     // The marks at the right of the sender's line: the flag in its column, the rest before it.
     let mut x = time_end;
     let flag = Rect::from_center_size(pos2(rect.max.x - 14.0, line1), vec2(12.0, 12.0));
@@ -195,7 +154,12 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         Importance::Low => marker("lowImportance", t.icon),
         Importance::Normal => {}
     }
-    let who = m.from.display().to_string();
+    let who = if outgoing {
+        let names: Vec<&str> = m.to.iter().map(|a| a.display()).collect();
+        if names.is_empty() { tl!("(no recipients)").to_string() } else { names.join("; ") }
+    } else {
+        m.from.display().to_string()
+    };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
     paint_clipped(p, pos2(left, line1), (text_end.min(x - 4.0) - left).max(0.0), &who, who_font, t.text);
     let date =

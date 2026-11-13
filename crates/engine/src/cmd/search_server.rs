@@ -1,23 +1,23 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! More results on the server (R6.2, slice 2): a search of a Microsoft account's mailbox, or a
-//! shared mailbox's, on its server, when the owner asks for it.
+//! A search of the mailboxes in view on their own servers (R6.2). Mail already on this computer
+//! is found at once; a message that was never downloaded is found because the mailbox's server
+//! is asked. A Microsoft account goes through Graph, an IMAP account through its own server.
 //!
 //! As for a run, the engine never talks to a server: [`requests`] (`sync.graphSearchRequest`)
 //! says which page of which mailbox to ask for, a host with sockets asks
-//! (`mailcraft_net::graph::search_messages`), and [`apply`] (`sync.applyGraphSearch`) takes in
-//! what came back.
+//! (`mailcraft_net::graph::search_messages`, or `mailcraft_net::imap_search` for IMAP), and
+//! [`apply`] (`sync.applyGraphSearch`) takes in what came back.
 //!
-//! - **The scope is the one in view.** Current Folder asks for that folder (of a Microsoft
-//!   account, and only when its server has it); All Mailboxes asks each Microsoft account's
-//!   mailbox and each shared mailbox opened through one, once each. IMAP accounts are not asked.
+//! - **The scope is the one in view.** Current Folder asks for that folder. All Mailboxes asks
+//!   each Microsoft account and each IMAP account once.
 //! - **What goes** is the part of the query Graph's search understands
 //!   ([`mailcraft_model::search::Query::for_server`]); the rest is checked here against what
-//!   comes back, and the search says so ([`ServerSearch::checked_here`]).
+//!   comes back ([`ServerSearch::checked_here`]). An IMAP account is asked for the words.
 //! - **Server results are held in the session, never in the mailbox**: 50 to a page, newest
-//!   first, with the next page asked for on the owner's say-so. One that is on this computer
-//!   already (the same server id in the same mailbox) is not among them: it shows once, in the
-//!   local results. A new search, or clearing it, forgets them.
+//!   first. A Microsoft mailbox's next page is asked for by itself, a few pages and no more.
+//!   One that is on this computer already (the same server id in the same mailbox) is not among
+//!   them: it shows once, in the local results. A new search, or clearing it, forgets them.
 //! - **Opening one** ([`open`], `search.openServerResult`) puts it into its folder as a message
 //!   not fetched yet, as a run would have brought it, and selects it: the window then fetches it
 //!   whole, and it stays as any synced message.
@@ -141,28 +141,42 @@ fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>, Option<St
     (s.view.search.clone(), s.view.scope, place, day, zone)
 }
 
-/// The mailboxes the search in view would go to: each with the server id of the folder to search
-/// in (empty for all of it).
+/// The mailboxes the search in view would go to. For a Microsoft account the second string is the
+/// folder's server id (empty for the whole mailbox). For an IMAP account it is the folder's name
+/// on the server (empty for every mail folder of the account).
 pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
     let mb = &s.mailbox;
-    let usable = |account: Id| {
-        mb.account(account).is_some_and(|a| {
-            a.kind == AccountKind::Microsoft
-                && (!a.is_shared() || (mb.owner_of(account).is_some() && mailcraft_model::mailbox_address(&a.email).is_some()))
-        })
+    let usable = |account: Id| mb.account(account).is_some_and(|a| account_can_be_searched(mb, a));
+    // One folder of an account the server can be asked about, named as that server knows it.
+    let named = |folder: Id| -> Option<(Id, String)> {
+        let f = mb.folder(folder)?;
+        if !usable(f.account) {
+            return None;
+        }
+        let a = mb.account(f.account)?;
+        match a.kind {
+            AccountKind::Microsoft => f.server.as_ref().map(|server| (a.id, server.id.clone())),
+            AccountKind::Imap => (!f.remote.is_empty()).then(|| (a.id, f.remote.clone())),
+            _ => None,
+        }
     };
     match s.view.scope {
-        Scope::Folder => mb
-            .folder(s.view.folder)
-            .filter(|f| usable(f.account))
-            .and_then(|f| f.server.as_ref().map(|server| (f.account, server.id.clone())))
-            .into_iter()
-            .collect(),
+        Scope::Folder => named(s.view.folder).into_iter().collect(),
         // The account in view, all of it: what is under the folder is kept when it comes back.
         Scope::Subfolders | Scope::Mailbox => {
             mb.folder(s.view.folder).filter(|f| usable(f.account)).map(|f| (f.account, String::new())).into_iter().collect()
         }
         Scope::Everywhere => mb.accounts.iter().filter(|a| usable(a.id)).map(|a| (a.id, String::new())).collect(),
+    }
+}
+
+/// Whether a search may be asked of `account`'s server: a Microsoft account (a shared mailbox
+/// only when its owner is here and it has an address), or an IMAP account with a server.
+fn account_can_be_searched(mb: &mailcraft_model::Mailbox, a: &mailcraft_model::Account) -> bool {
+    match a.kind {
+        AccountKind::Microsoft => !a.is_shared() || (mb.owner_of(a.id).is_some() && mailcraft_model::mailbox_address(&a.email).is_some()),
+        AccountKind::Imap => a.incoming.is_some(),
+        _ => false,
     }
 }
 
@@ -176,7 +190,7 @@ pub fn offered_reason(s: &Session) -> Option<&'static str> {
         return Some("nothing of this search can be asked of the server");
     }
     if mailboxes_for(s).is_empty() {
-        return Some("the search involves no mailbox of a Microsoft account");
+        return Some("the search involves no mailbox that can be searched on its server");
     }
     None
 }
@@ -285,8 +299,16 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
             continue;
         }
         // In a folder this mailbox has (a hidden folder's, or one not listed yet, is passed over).
-        let Some(folder) = mb.folder_by_server(account, &found.server.folder) else { continue };
+        // A Microsoft folder is known by its server id. An IMAP folder is known by its name on
+        // the server, which the result carries in the same place.
+        let Some(folder) = folder_here(mb, account, &found.server.folder) else { continue };
         if hidden.contains(&folder) {
+            continue;
+        }
+        // Already on this computer under its IMAP uid: shown once, among the local results.
+        if let Some(uid) = found.server.id.strip_prefix("imap:").and_then(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0)
+            && mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid)
+        {
             continue;
         }
         let shown = as_message(account, folder, found);
@@ -306,12 +328,20 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
     }
     search.offline |= result.offline;
     if let Some(m) = search.mailboxes.get_mut(at) {
-        m.waiting = false;
         m.asked = true;
-        m.next = result.next.clone();
-        // No more: the last page came, or the mailbox won't be searched for the owner at all.
-        // (Busy, unreachable or another trouble: the owner may ask again.)
-        m.done = (result.next.is_empty() && result.errors.is_empty()) || result.refused.is_some();
+        // A mailbox searched folder by folder is still at it: what arrived is shown, and it
+        // stays marked as searching until its last answer.
+        m.waiting = result.partial;
+        if !result.partial {
+            m.next = result.next.clone();
+            // No more: the last page came, or the mailbox won't be searched for the owner at all.
+            // (Busy, unreachable or another trouble: the owner may ask again.)
+            m.done = (result.next.is_empty() && result.errors.is_empty()) || result.refused.is_some();
+            if search.results.len() >= 200 {
+                m.done = true;
+                m.next.clear();
+            }
+        }
     }
     log::info!("server search: {n} results taken in from a page; more to ask for: {}", search.more());
     Ok(json!({"taken": n, "results": search.results.len(), "more": search.more(), "errors": result.errors, "offline": result.offline}))
@@ -320,7 +350,11 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
 /// A server result as a message of the mailbox would be: what its row shows, and what the part
 /// of the search checked here looks at.
 pub fn as_message(account: Id, folder: Id, found: &GraphMessage) -> Message {
-    Message { account, ..graph_down::new_message(folder, &found.server.folder, found) }
+    let mut message = Message { account, ..graph_down::new_message(folder, &found.server.folder, found) };
+    if let Some(uid) = found.server.id.strip_prefix("imap:").and_then(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0) {
+        message.uid = uid;
+    }
+    message
 }
 
 /// Open the server result at `index`: into its folder, as a message not fetched yet, and
@@ -340,14 +374,19 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
             match there {
                 Some(id) => id,
                 None => {
-                    let folder = s
-                        .mailbox
-                        .folder_by_server(account, &result.found.server.folder)
+                    let folder = folder_here(&s.mailbox, account, &result.found.server.folder)
                         .ok_or_else(|| fail("the folder this message is in isn't on this computer any more"))?;
                     if s.file_is_current() {
                         s.note_saved();
                     }
                     let id = s.mailbox.add_message(as_message(account, folder, &result.found)).map_err(|e| fail(e.to_string()))?;
+                    // An IMAP hit is headers until the next Send/Receive asks for it by UID.
+                    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Imap)
+                        && let Ok(m) = s.mailbox.message_mut(id)
+                        && m.uid != 0
+                    {
+                        m.refetch = true;
+                    }
                     s.mailbox_changed();
                     id
                 }
@@ -359,6 +398,15 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
     }
     s.sel.messages = vec![id];
     Ok(id)
+}
+
+/// The folder of `account` the server called `remote`: a Microsoft folder by its server id, an
+/// IMAP folder by the name the server uses.
+fn folder_here(mb: &mailcraft_model::Mailbox, account: Id, remote: &str) -> Option<Id> {
+    if remote.is_empty() {
+        return None;
+    }
+    mb.folder_by_server(account, remote).or_else(|| mb.folders.iter().find(|f| f.account == account && f.remote == remote).map(|f| f.id))
 }
 
 fn request(s: &mut Session, _: &Value) -> CmdResult {

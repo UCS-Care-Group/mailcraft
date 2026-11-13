@@ -1,0 +1,1 @@
+| 2026-11-13 | minor | Older mail was missing from a search, which looked only at what was already on this computer. A search now asks the Microsoft and IMAP servers it covers and shows what they find in the same list; JMAP and Exchange stay on this computer |

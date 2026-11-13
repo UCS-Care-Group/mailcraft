@@ -1,0 +1,1 @@
+| 2026-11-13 | Older mail can be found. A search used to look only at what was already on this computer, so a message that had not been downloaded was missing. It now asks every Microsoft and IMAP mailbox it covers, at the same time, and shows what comes back in the same list while it is still searching. JMAP and Exchange stay as they were. |

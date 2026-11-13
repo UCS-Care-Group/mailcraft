@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! More results on the server (R6.2): below the local results of a search that involves a
-//! Microsoft account, a link that asks its server, and its mailbox's shared mailboxes', for more;
-//! the results come in a section of their own, On the server, 50 at a time. Nothing goes to the
-//! server until the owner clicks. Asked only with a Graph token of this session that is still
-//! good: without one (and when the last try couldn't reach the server) the link is greyed and
-//! says Not connected. Opening a result fetches it into its folder, as any message not fetched
-//! yet is when it is opened ([`crate::graph_fetch`]).
+//! A search asks the mailboxes' own servers (R6.2), so mail that was never downloaded is found.
+//! Every Microsoft and IMAP mailbox the search covers is asked at once, a short moment after the
+//! owner stops typing, and what a mailbox finds joins the same list while the others are still
+//! being searched. A Microsoft account needs a Graph token of this session that is still good;
+//! an IMAP account the password or access token this session has. Without one, or when the last
+//! try couldn't reach the server, nothing is asked and the list is what is already here. Opening
+//! a result fetches it into its folder and keeps it in that row.
 
 use std::sync::mpsc::Receiver;
 
@@ -17,6 +17,29 @@ use serde_json::json;
 
 use crate::MailApp;
 
+/// The folders of an IMAP account the search asks, by the names the server uses. One named
+/// folder, or every mail folder except Deleted Items, Junk and Outbox when the search is the
+/// whole mailbox.
+fn imap_folders(session: &mailcraft_engine::Session, account: Id, folder: &str) -> Vec<String> {
+    if !folder.is_empty() {
+        return vec![folder.to_string()];
+    }
+    session
+        .mailbox
+        .folders
+        .iter()
+        .filter(|f| f.account == account && !f.remote.is_empty())
+        .filter(|f| !matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk | mailcraft_model::FolderKind::Outbox))
+        .map(|f| f.remote.clone())
+        .take(24)
+        .collect()
+}
+
+fn is_gmail(account: &mailcraft_model::Account) -> bool {
+    account.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google)
+        || account.incoming.as_ref().is_some_and(|s| s.host.eq_ignore_ascii_case("imap.gmail.com"))
+}
+
 /// What the host is asked to search ([`crate::Services::graph_search`]).
 pub struct GraphSearchJob {
     pub request: GraphSearchRequest,
@@ -24,15 +47,73 @@ pub struct GraphSearchJob {
     pub access: String,
 }
 
-/// The pages being asked for, in the window: whose, and the answer to come.
+/// One mailbox being searched, and the answer to use if its thread goes away.
+struct Pending {
+    unreached: GraphSearchResult,
+    rx: Receiver<GraphSearchResult>,
+    /// A final answer (not `partial`) already arrived, so a dropped thread is not a failure.
+    settled: bool,
+}
+
+/// The pages being asked for, in the window: whose, and the answer to come. Several mailboxes
+/// at once. `wait_query` is the text the server search is waiting out, so a keystroke doesn't
+/// ask the servers until the owner pauses.
 #[derive(Default)]
 pub struct ServerSearching {
-    pending: Vec<(GraphSearchResult, Receiver<GraphSearchResult>)>,
+    pending: Vec<Pending>,
+    pub(crate) wait_query: String,
+    pub(crate) wait_at: Option<std::time::Instant>,
+    /// Further pages of a Microsoft mailbox asked on their own after the first.
+    auto_pages: u8,
+    /// The message a search row opened, being fetched whole.
+    pub(crate) opening: Option<Opening>,
+}
+
+/// One IMAP message asked for because its search row was opened.
+pub(crate) struct Opening {
+    id: Id,
+    rx: Receiver<Result<mailcraft_model::Message, String>>,
 }
 
 impl ServerSearching {
     pub fn busy(&self) -> bool {
         !self.pending.is_empty()
+    }
+}
+
+/// An IMAP account searched on its own server. The secret is the password or the access token.
+/// It is never written out and never shown.
+pub struct ImapSearchJob {
+    pub account: mailcraft_model::Account,
+    pub secret: String,
+    pub ticket: u64,
+    pub folders: Vec<String>,
+    pub query: String,
+    /// Gmail, and the search is the whole mailbox: All Mail is asked once.
+    pub gmail_all: bool,
+}
+
+/// One IMAP message to fetch whole. The secret is never written out and never shown.
+pub struct ImapFetchJob {
+    pub account: mailcraft_model::Account,
+    pub secret: String,
+    pub folder: String,
+    pub uid: u32,
+}
+
+impl std::fmt::Debug for ImapFetchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImapFetchJob").field("account", &self.account.id).field("uid", &self.uid).finish()
+    }
+}
+
+impl std::fmt::Debug for ImapSearchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImapSearchJob")
+            .field("account", &self.account.id)
+            .field("folders", &self.folders.len())
+            .field("gmail_all", &self.gmail_all)
+            .finish()
     }
 }
 
@@ -72,8 +153,15 @@ impl MailApp {
         if held && search.asked() && !search.more() {
             return Link::End;
         }
-        let reachable = self.services.graph_search.is_some()
-            && search_server::mailboxes_for(&self.session).iter().any(|(account, _)| self.search_token(*account).is_some());
+        // A Microsoft mailbox needs a token of this session. An IMAP mailbox is asked on its own
+        // server; whether the password is here is found out when the search starts.
+        let mailboxes = search_server::mailboxes_for(&self.session);
+        let graph = self.services.graph_search.is_some() && mailboxes.iter().any(|(account, _)| self.search_token(*account).is_some());
+        let imap = self.services.imap_search.is_some()
+            && mailboxes
+                .iter()
+                .any(|(account, _)| self.session.mailbox.account(*account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Imap));
+        let reachable = graph || imap;
         match (reachable, held && search.offline) {
             (false, _) => Link::NotConnected { retry: false },
             (true, true) => Link::NotConnected { retry: true },
@@ -81,45 +169,81 @@ impl MailApp {
         }
     }
 
-    /// The owner clicked More results on the server: the next page of each mailbox the search goes
-    /// to is asked for. One without a sign-in of this session is answered here as not reached.
+    /// The next page of each mailbox the search goes to. Microsoft accounts go to Graph, IMAP
+    /// accounts to their own server, all of them at once. One without a sign-in of this session
+    /// is answered here as not reached.
     pub(crate) fn more_on_server(&mut self) {
         let requests = match search_server::requests(&mut self.session) {
             Ok(requests) => requests,
             Err(e) => return self.status(e.to_string()),
         };
         for request in requests {
-            // What is said for it when no answer comes: not reached.
-            let unreached = GraphSearchResult {
-                account: request.account,
-                email: request.email.clone(),
-                ticket: request.ticket,
-                offline: true,
-                errors: vec![tl!("Not connected").to_string()],
-                ..Default::default()
-            };
-            let (Some(search), Some(access)) = (self.services.graph_search.as_ref().filter(|_| !self.offline()), self.search_token(request.account))
-            else {
-                let _ = search_server::apply(&mut self.session, unreached);
-                continue;
-            };
-            let rx = search(GraphSearchJob { request, access });
-            self.server_searching.pending.push((unreached, rx));
+            let kind = self.session.mailbox.account(request.account).map(|a| a.kind);
+            if kind == Some(mailcraft_model::AccountKind::Imap) {
+                self.start_imap_search(request);
+            } else {
+                self.start_graph_search(request);
+            }
         }
     }
 
-    /// Each frame: take in the pages that came. (Public for a host's tests, which have no window.)
+    fn start_graph_search(&mut self, request: GraphSearchRequest) {
+        let unreached = self.unreached(&request);
+        let (Some(search), Some(access)) = (self.services.graph_search.as_ref().filter(|_| !self.offline()), self.search_token(request.account))
+        else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let rx = search(GraphSearchJob { request, access });
+        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+    }
+
+    fn start_imap_search(&mut self, request: GraphSearchRequest) {
+        let unreached = self.unreached(&request);
+        let Some(account) = self.session.mailbox.account(request.account).cloned() else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let secret = self.imap_secret(request.account);
+        let (Some(search), Some(secret)) = (self.services.imap_search.as_ref().filter(|_| !self.offline()), secret) else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let folders = imap_folders(&self.session, request.account, &request.folder);
+        let gmail_all = request.folder.is_empty() && is_gmail(&account);
+        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, gmail_all });
+        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+    }
+
+    fn unreached(&self, request: &GraphSearchRequest) -> GraphSearchResult {
+        GraphSearchResult {
+            account: request.account,
+            email: request.email.clone(),
+            ticket: request.ticket,
+            offline: true,
+            errors: vec![tl!("Not connected").to_string()],
+            ..Default::default()
+        }
+    }
+
+    /// Each frame: take in one page from each mailbox that has one. A mailbox that is still
+    /// searching keeps its place, so what it already found stays on screen while the others run.
+    /// (Public for a host's tests, which have no window.)
     pub fn drive_server_search(&mut self) {
+        self.take_opened();
         let mut came = Vec::new();
-        self.server_searching.pending.retain(|(unreached, rx)| match rx.try_recv() {
+        self.server_searching.pending.retain_mut(|pending| match pending.rx.try_recv() {
             Ok(result) => {
+                pending.settled = !result.partial;
                 came.push(result);
-                false
+                !pending.settled
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => true,
-            // A host that went away: as not reached.
+            // A host that went away before a final answer: as not reached.
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                came.push(unreached.clone());
+                if !pending.settled {
+                    came.push(pending.unreached.clone());
+                }
                 false
             }
         });
@@ -128,15 +252,113 @@ impl MailApp {
                 self.status(e.to_string());
             }
         }
+        // A Microsoft mailbox's next page, while the owner is still on this search. A few pages,
+        // not the whole mailbox: a specific word is among the first. A page that failed is not
+        // asked again on its own; the owner can.
+        let search = &self.session.server_search;
+        let follow = search.errors.is_empty() && !search.offline && search.mailboxes.iter().any(|m| !m.done && !m.waiting && !m.next.is_empty());
+        if !self.server_searching.busy() && self.server_searching.auto_pages < 4 && search_server::is_current(&self.session) && follow {
+            self.server_searching.auto_pages = self.server_searching.auto_pages.saturating_add(1);
+            self.more_on_server();
+        }
+    }
+
+    /// A search the owner typed, asked of the servers once they pause. Every mailbox at once.
+    pub(crate) fn auto_server_search(&mut self, ctx: &egui::Context) {
+        if self.offline() || self.unconfirmed {
+            return;
+        }
+        let query = self.session.view.search.trim().to_string();
+        if query.is_empty() {
+            self.server_searching.wait_query.clear();
+            self.server_searching.wait_at = None;
+            self.server_searching.auto_pages = 0;
+            return;
+        }
+        if self.server_searching.wait_query != query {
+            self.server_searching.wait_query = query;
+            self.server_searching.wait_at = Some(std::time::Instant::now());
+            self.server_searching.auto_pages = 0;
+            crate::software::repaint_after(ctx, std::time::Duration::from_millis(450));
+            return;
+        }
+        let Some(at) = self.server_searching.wait_at else { return };
+        let wait = std::time::Duration::from_millis(450);
+        if at.elapsed() < wait {
+            crate::software::repaint_after(ctx, wait.saturating_sub(at.elapsed()));
+            return;
+        }
+        self.server_searching.wait_at = None;
+        if search_server::offered_reason(&self.session).is_some() || self.server_searching.busy() {
+            return;
+        }
+        if search_server::is_current(&self.session) && self.session.server_search.asked() {
+            return;
+        }
+        self.more_on_server();
+    }
+
+    /// The password, or a still-good access token, this session has for an IMAP account.
+    fn imap_secret(&mut self, account: Id) -> Option<String> {
+        if let Some(pw) = self.passwords.get(&account).cloned() {
+            return Some(pw);
+        }
+        if let Some(pw) = self.remembered("password", account) {
+            self.passwords.insert(account, pw.clone());
+            return Some(pw);
+        }
+        self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
     }
 
     /// The owner opened the server result at `index`: it comes into its folder and is selected,
-    /// and the reading pane fetches it whole.
+    /// and stays in the same row. An IMAP message is fetched whole for the reading pane.
     pub(crate) fn open_server_result(&mut self, index: usize) {
         if let Err(e) = self.run("search.openServerResult", json!({"index": index})) {
             self.status(e);
+            return;
         }
         self.reveal_selection = false;
+        let Some(found) = self.session.server_search.results.get(index).cloned() else { return };
+        let Some(id) = found.opened else { return };
+        let Some(uid) = found.found.server.id.strip_prefix("imap:").and_then(|n| n.parse().ok()).filter(|uid: &u32| *uid != 0) else { return };
+        self.start_imap_open(id, found.account, found.folder, uid);
+    }
+
+    /// Fetch the opened IMAP message whole. A Microsoft message is fetched the way any unfetched
+    /// message of its account is, once it is selected.
+    fn start_imap_open(&mut self, id: Id, account: Id, folder: Id, uid: u32) {
+        let Some(account) = self.session.mailbox.account(account).filter(|a| a.kind == mailcraft_model::AccountKind::Imap).cloned() else {
+            return;
+        };
+        let Some(remote) = self.session.mailbox.folder(folder).map(|f| f.remote.clone()).filter(|name| !name.is_empty()) else {
+            return;
+        };
+        let secret = self.imap_secret(account.id);
+        let Some(fetch) = self.services.imap_fetch.as_ref().filter(|_| !self.offline()) else { return };
+        let Some(secret) = secret else { return };
+        let rx = fetch(ImapFetchJob { account, secret, folder: remote, uid });
+        self.server_searching.opening = Some(Opening { id, rx });
+    }
+
+    fn take_opened(&mut self) {
+        let came = self.server_searching.opening.as_mut().map(|opening| (opening.id, opening.rx.try_recv()));
+        let Some((id, came)) = came else { return };
+        match came {
+            Ok(Ok(read)) => {
+                self.server_searching.opening = None;
+                if read.body.text.is_empty() && read.body.html.is_none() {
+                    return;
+                }
+                mailcraft_engine::cmd::imap_again::take_again(&mut self.session.mailbox, id, read);
+                self.session.mailbox_changed();
+            }
+            Ok(Err(text)) => {
+                self.server_searching.opening = None;
+                self.status(text);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.server_searching.opening = None,
+        }
     }
 }
 
@@ -236,7 +458,9 @@ mod tests {
         tx.send(answer(&job, messages, "https://graph.microsoft.com/v1.0/me/messages?$skip=50")).unwrap();
         app.drive_server_search();
         assert_eq!(app.session.server_search.results.len(), 50);
-        assert_eq!(app.server_link(), Link::Ask, "more to ask for");
+        assert_eq!(app.server_link(), Link::Searching, "the next page is asked while these are shown");
+        let (job, tx) = jobs.lock().unwrap().pop().unwrap();
+        assert!(job.request.next.ends_with("$skip=50"));
 
         // Opened: in its folder, selected, and fetched whole as the reading pane shows it.
         app.open_server_result(0);
@@ -247,10 +471,7 @@ mod tests {
         let asked: Vec<Vec<String>> = fetches.lock().unwrap().iter().map(|j| j.request.ids.clone()).collect();
         assert!(asked.iter().any(|ids| ids == &["AAkA-0".to_string()]), "{asked:?}");
 
-        // The next page, at the owner's click; then the end.
-        app.run("ui.moreResultsOnServer", json!({})).unwrap();
-        let (job, tx) = jobs.lock().unwrap().pop().unwrap();
-        assert!(job.request.next.ends_with("$skip=50"));
+        // The next page comes in on its own; then the end.
         tx.send(answer(&job, Vec::new(), "")).unwrap();
         app.drive_server_search();
         assert_eq!(app.server_link(), Link::End);

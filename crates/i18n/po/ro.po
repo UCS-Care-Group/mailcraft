@@ -141,7 +141,7 @@ msgid "(no name)"
 msgstr "(fără nume)"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "(fără destinatari)"
@@ -7663,12 +7663,6 @@ msgid "Microsoft's page said so."
 msgstr "Așa a spus pagina Microsoft."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "Serverul Microsoft nu a putut fi contactat. Clic pentru a reîncerca."
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Middle name"
@@ -7727,12 +7721,6 @@ msgstr "Mai multe despre aceasta"
 #, fuzzy
 msgid "More commands"
 msgstr "Mai multe comenzi"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "More results on the server"
-msgstr "Mai multe rezultate pe server"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -8676,7 +8664,7 @@ msgid "Not available: {reason}"
 msgstr "Indisponibil: {reason}"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
+#: crates/ui-egui/src/server_search.rs
 #, fuzzy
 msgid "Not connected"
 msgstr "Neconectat"
@@ -8807,12 +8795,6 @@ msgid "Nothing matches."
 msgstr "Nimic nu se potrivește."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "Nu s-a mai găsit nimic pe server"
-
-#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Nothing to do here."
@@ -8909,16 +8891,10 @@ msgid "On the"
 msgstr "În"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Pe server"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "Pe server · Se caută…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11387,10 +11363,9 @@ msgid "Search time zones"
 msgstr "Căutare fusuri orare"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Searching the server…"
-msgstr "Se caută pe server…"
+#: crates/ui-egui/src/mail_view.rs
+msgid "Searching…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11719,12 +11694,6 @@ msgstr "Trimitere/primire rulează deja"
 #, fuzzy
 msgid "Send/Receive problems"
 msgstr "Probleme la Trimitere/primire"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "Trimitere/primire se conectează la Microsoft; apoi se poate căuta pe server."
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -12619,12 +12588,6 @@ msgstr "Unele caractere din acest mesaj nu au putut fi citite: programul expedit
 #, fuzzy
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "O parte din ele sunt încă acolo, așa cum se vede mai sus. MailCraft se închide când închideți această fereastră."
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "O parte din căutare a fost verificată pe acest computer"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -18726,6 +18689,11 @@ msgstr "mesajul nu are destinatari"
 msgid "the message has too many recipients"
 msgstr "mesajul are prea mulți destinatari"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -18788,9 +18756,8 @@ msgstr "căutarea nu poate căuta adresa acestui expeditor ca adresă întreagă
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "căutarea nu implică nicio cutie poștală a unui cont Microsoft"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21161,6 +21128,38 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "Serverul Microsoft nu a putut fi contactat. Clic pentru a reîncerca."
+
+#, fuzzy
+#~ msgid "More results on the server"
+#~ msgstr "Mai multe rezultate pe server"
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "Nu s-a mai găsit nimic pe server"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "Pe server · Se caută…"
+
+#, fuzzy
+#~ msgid "Searching the server…"
+#~ msgstr "Se caută pe server…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "Trimitere/primire se conectează la Microsoft; apoi se poate căuta pe server."
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "O parte din căutare a fost verificată pe acest computer"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "căutarea nu implică nicio cutie poștală a unui cont Microsoft"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

@@ -757,11 +757,35 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
-            // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
-            // UNDELETED X-GM-RAW "category:…"`: the searches asked of a server.
+            // `UID SEARCH UNDELETED TEXT <word>…`, `UID SEARCH UNDELETED HEADER <field> <text>`,
+            // and Gmail's `UID SEARCH UID <set> UNDELETED X-GM-RAW "category:…"`: the searches
+            // asked of a server.
             "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
                 let said = words(args);
                 let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                let texts: Vec<String> =
+                    said.windows(2).filter(|pair| pair[0].eq_ignore_ascii_case("TEXT")).map(|pair| pair[1].to_ascii_lowercase()).collect();
+                if !texts.is_empty() && !said.iter().any(|w| w.eq_ignore_ascii_case("HEADER")) {
+                    match open.and_then(|i| world.mailboxes.get(i)) {
+                        None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                        Some(mailbox) => {
+                            let found: String = mailbox
+                                .messages
+                                .iter()
+                                .filter(|m| !m.has("\\Deleted"))
+                                .filter(|m| {
+                                    let body = String::from_utf8_lossy(&m.body).to_ascii_lowercase();
+                                    texts.iter().all(|word| body.contains(word))
+                                })
+                                .map(|m| format!(" {}", m.uid))
+                                .collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                    }
+                    drop(world);
+                    let _ = reader.get_mut().write_all(&reply);
+                    continue;
+                }
                 let gmail_raw = said.len() == 6 && asked(1, "UID") && asked(3, "UNDELETED") && asked(4, "X-GM-RAW");
                 match open.and_then(|i| world.mailboxes.get(i)) {
                     _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),

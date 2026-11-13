@@ -79,6 +79,11 @@ pub struct GraphSearchResult {
     /// A shared mailbox that won't be opened for the owner, by Graph's own code.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "super::lenient")]
     pub refused: Option<SharedRefusal>,
+    /// More of this mailbox is still being searched (another folder, on the same connection).
+    /// The messages so far are already the ones to show. The last answer of the mailbox has this
+    /// false.
+    #[serde(skip_serializing_if = "is_false")]
+    pub partial: bool,
 }
 
 /// What came stays out of debug output: counts only.
@@ -93,6 +98,7 @@ impl std::fmt::Debug for GraphSearchResult {
             .field("offline", &self.offline)
             .field("busy_for", &self.busy_for)
             .field("refused", &self.refused)
+            .field("partial", &self.partial)
             .finish()
     }
 }

@@ -119,7 +119,7 @@ msgid "(no name)"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 msgid "(no recipients)"
 msgstr ""
 
@@ -6348,11 +6348,6 @@ msgid "Microsoft's page said so."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Middle name"
 msgstr ""
@@ -6400,11 +6395,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 msgid "More commands"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "More results on the server"
 msgstr ""
 
 #. what a command says
@@ -7181,7 +7171,7 @@ msgid "Not available: {reason}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
+#: crates/ui-egui/src/server_search.rs
 msgid "Not connected"
 msgstr ""
 
@@ -7291,11 +7281,6 @@ msgid "Nothing matches."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Nothing more was found on the server"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "Nothing to do here."
 msgstr ""
@@ -7376,13 +7361,8 @@ msgid "On the"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 msgid "On the server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "On the server · Searching…"
 msgstr ""
 
 #. interface
@@ -9419,8 +9399,8 @@ msgid "Search time zones"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Searching the server…"
+#: crates/ui-egui/src/mail_view.rs
+msgid "Searching…"
 msgstr ""
 
 #. interface
@@ -9692,11 +9672,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Send/Receive problems"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr ""
 
 #. interface
@@ -10437,11 +10412,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-msgid "Some of the search was checked on this computer"
 msgstr ""
 
 #. interface
@@ -15508,6 +15478,11 @@ msgstr ""
 msgid "the message has too many recipients"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 msgid "the message is plain text; switch it to HTML first"
@@ -15560,7 +15535,7 @@ msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-msgid "the search involves no mailbox of a Microsoft account"
+msgid "the search involves no mailbox that can be searched on its server"
 msgstr ""
 
 #. what a command says

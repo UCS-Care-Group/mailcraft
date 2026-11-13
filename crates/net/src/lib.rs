@@ -47,6 +47,8 @@ mod http;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod https;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod imap_search;
+#[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;

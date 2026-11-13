@@ -138,6 +138,8 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     names(&mut m.cc, read.cc);
     names(&mut m.reply_to, read.reply_to);
     m.body = read.body;
+    // A search result was only its headers until this download. What came is the message.
+    m.unfetched = false;
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;

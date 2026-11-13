@@ -315,8 +315,16 @@ pub struct Services {
     /// Desktop: fetch messages of a Microsoft account whole on a background thread (R3.2).
     pub graph_fetch: Option<Box<dyn Fn(graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
-    /// (R6.2: More results on the server, only on the owner's click).
+    /// (R6.2: More results on the server). Started when the owner searches, together with every
+    /// other mailbox the search covers.
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Desktop: search an IMAP account on its own server. One connection per account, run at the
+    /// same time as the others; each folder's hits arrive as their own answer (`partial` until
+    /// the account's last).
+    pub imap_search: Option<Box<dyn Fn(server_search::ImapSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Desktop: fetch one IMAP message whole when its search row is opened, so the reading pane
+    /// has it without waiting for the next Send/Receive.
+    pub imap_fetch: Option<Box<dyn Fn(server_search::ImapFetchJob) -> Receiver<Result<mailcraft_model::Message, String>>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
@@ -4680,8 +4688,9 @@ impl MailApp {
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
+        self.auto_server_search(ctx);
         self.drive_server_search();
-        if self.server_searching.busy() {
+        if self.server_searching.busy() || self.server_searching.opening.is_some() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
         if self.fetching.busy() {

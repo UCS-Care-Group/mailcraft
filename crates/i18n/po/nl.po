@@ -141,7 +141,7 @@ msgid "(no name)"
 msgstr "(geen naam)"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "(geen ontvangers)"
@@ -7576,12 +7576,6 @@ msgid "Microsoft's page said so."
 msgstr "De pagina van Microsoft zei dat."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "De server van Microsoft kon niet worden bereikt. Klik om het opnieuw te proberen."
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Middle name"
@@ -7640,12 +7634,6 @@ msgstr "Meer hierover"
 #, fuzzy
 msgid "More commands"
 msgstr "Meer opdrachten"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "More results on the server"
-msgstr "Meer resultaten op de server"
 
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
@@ -8583,7 +8571,7 @@ msgid "Not available: {reason}"
 msgstr "Niet beschikbaar: {reason}"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
+#: crates/ui-egui/src/server_search.rs
 #, fuzzy
 msgid "Not connected"
 msgstr "Niet verbonden"
@@ -8713,12 +8701,6 @@ msgid "Nothing matches."
 msgstr "Niets komt overeen."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "Er is niets meer gevonden op de server"
-
-#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Nothing to do here."
@@ -8815,16 +8797,10 @@ msgid "On the"
 msgstr "Op de"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Op de server"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "Op de server · Zoeken…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11269,10 +11245,9 @@ msgid "Search time zones"
 msgstr "Tijdzones zoeken"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Searching the server…"
-msgstr "Bezig met zoeken op de server…"
+#: crates/ui-egui/src/mail_view.rs
+msgid "Searching…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11596,12 +11571,6 @@ msgstr "Verzenden/ontvangen is al bezig"
 #, fuzzy
 msgid "Send/Receive problems"
 msgstr "Problemen met verzenden/ontvangen"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden doorzocht."
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -12490,12 +12459,6 @@ msgstr "Sommige tekens in dit bericht konden niet worden gelezen: het programma 
 #, fuzzy
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "Een deel ervan staat er nog, zoals hierboven vermeld. MailCraft wordt afgesloten wanneer u dit sluit."
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "Een deel van de zoekopdracht is op deze computer gecontroleerd"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -18493,6 +18456,11 @@ msgstr "het bericht heeft geen geadresseerden"
 msgid "the message has too many recipients"
 msgstr "het bericht heeft te veel geadresseerden"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -18555,9 +18523,8 @@ msgstr "de zoekopdracht kan niet op het volledige adres van deze afzender zoeken
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "de zoekopdracht betreft geen postvak van een Microsoft-account"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -20833,6 +20800,38 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "De server van Microsoft kon niet worden bereikt. Klik om het opnieuw te proberen."
+
+#, fuzzy
+#~ msgid "More results on the server"
+#~ msgstr "Meer resultaten op de server"
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "Er is niets meer gevonden op de server"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "Op de server · Zoeken…"
+
+#, fuzzy
+#~ msgid "Searching the server…"
+#~ msgstr "Bezig met zoeken op de server…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden doorzocht."
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "Een deel van de zoekopdracht is op deze computer gecontroleerd"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "de zoekopdracht betreft geen postvak van een Microsoft-account"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
