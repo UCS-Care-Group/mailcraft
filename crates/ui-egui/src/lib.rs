@@ -353,6 +353,11 @@ pub struct Services {
     /// when they name no provider this program knows, the servers its own SRV records name
     /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
+    /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
+    /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
+    /// so account setup can tell an address on an Exchange server from one on an IMAP server.
+    /// Only the domain is given, and none of the hosts is asked anything.
+    pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
