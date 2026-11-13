@@ -9,7 +9,7 @@ use crate::Platform;
 
 /// The program's hold on its platform, from [`init`].
 pub struct Host {
-    platform: Arc<dyn Platform>,
+    pub(crate) platform: Arc<dyn Platform>,
     memory_budget: u64,
 }
 

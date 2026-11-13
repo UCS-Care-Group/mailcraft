@@ -1634,7 +1634,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 
 [[package]]
 name = "dpi"
@@ -3095,6 +3095,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-ber"
+version = "0.12.0"
+
+[[package]]
 name = "mailcraft-charset"
 version = "0.12.0"
 dependencies = [
@@ -3150,6 +3154,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-openpgp",
@@ -3172,7 +3177,7 @@ version = "0.12.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "md-5 0.11.0",
@@ -3185,7 +3190,11 @@ dependencies = [
 name = "mailcraft-host"
 version = "0.12.0"
 dependencies = [
+ "log",
  "mailcraft-engine",
+ "mailcraft-i18n",
+ "mailcraft-model",
+ "mailcraft-net",
  "mailcraft-time",
 ]
 
@@ -3222,10 +3231,21 @@ version = "0.12.0"
 dependencies = [
  "log",
  "mailcraft-charset",
- "mailcraft-mime",
+ "mailcraft-jmap-types",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailcraft-jmap-types"
+version = "0.12.0"
+dependencies = [
+ "proptest",
+ "serde",
  "serde_json",
 ]
 
@@ -3251,13 +3271,25 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.12.0"
 dependencies = [
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-html",
- "mailcraft-model",
  "mailcraft-time",
  "proptest",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailcraft-mime-model"
+version = "0.12.0"
+dependencies = [
+ "mailcraft-html",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-time",
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]
@@ -3292,6 +3324,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-proto",
  "mailcraft-time",
@@ -3351,6 +3384,7 @@ dependencies = [
  "der 0.8.3",
  "des 0.9.0",
  "hmac 0.13.0",
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-model",
  "mailcraft-time",
@@ -3395,7 +3429,7 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",
@@ -7097,7 +7131,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 dependencies = [
  "ahash",
  "android-activity",

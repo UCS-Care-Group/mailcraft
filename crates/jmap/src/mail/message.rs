@@ -161,7 +161,7 @@ impl Fields {
         if block.is_empty() {
             return Fields::default();
         }
-        let message = mailcraft_mime::parse(block.as_bytes());
+        let message = mailcraft_mime_model::parse(block.as_bytes());
         Fields {
             message_id: message.message_id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(MAX_TEXT).collect(),
             subject: line(&message.subject, MAX_TEXT),

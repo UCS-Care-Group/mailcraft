@@ -20,6 +20,7 @@
 use std::sync::mpsc::Receiver;
 
 use egui::{Align2, Color32, CursorIcon, Rect, Sense, Stroke, Ui, pos2, vec2};
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote::{FreeBusy, FreeBusyAsk, MAX_SCHEDULES};
 use mailcraft_model::sync::Tokens as SignIn;
 use mailcraft_model::{Address, Id, ShowAs};
@@ -50,35 +51,9 @@ const SNAP: i64 = 30;
 /// How wide the part of an edge of the meeting's band is that takes hold of it.
 const EDGE_W: f32 = 7.0;
 
-/// What the host is asked to find out for Find a Time
-/// ([`Services::free_busy`](crate::Services::free_busy)): when the people of `ask` are busy, as
-/// far as the account may know. It reads; nothing is written and nobody is told.
-pub struct FreeBusyRequest {
-    pub account: mailcraft_model::Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token, to get a token with when `access` is empty.
-    pub refresh: String,
-    /// An access token from earlier in this session that is still good; else empty.
-    pub access: String,
-    pub ask: FreeBusyAsk,
-}
-
-/// What a [`FreeBusyRequest`] came to.
-#[derive(Default)]
-pub struct FreeBusyResult {
-    pub account: Id,
-    /// A token that was obtained for this (kept for the session, as a calendar job's is).
-    pub tokens: Option<SignIn>,
-    /// The owner hasn't allowed this program to read the calendar.
-    pub consent_needed: bool,
-    /// The token that was handed in is no longer taken.
-    pub token_refused: bool,
-    /// What the server said; `None` when it couldn't be asked.
-    pub schedule: Option<FreeBusy>,
-    /// Why there is no answer, for the owner to read.
-    pub error: String,
-}
+/// What the host is asked to find out for Find a Time, and what it came to
+/// ([`Services::free_busy`](crate::Services::free_busy)).
+pub use mailcraft_host::calendar::{FreeBusyRequest, FreeBusyResult};
 
 /// One person's day, as far as it is known.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -253,7 +228,7 @@ impl MailApp {
         // One question at a time, and not while the account's sign-in or calendar is being
         // seen to; and not the same question again before its time.
         let due = known.is_none_or(|known| now - known.asked >= if known.error.is_empty() { REFRESH_MS } else { RETRY_MS });
-        let busy = self.free_busy.rx.is_some() || self.signing_in.is_some() || self.graph_rx.is_some() || self.calendar_syncing();
+        let busy = self.job_busy().blocks(Start::FreeBusy);
         if !due || busy {
             return look;
         }
@@ -1040,7 +1015,7 @@ mod tests {
         app.services.free_busy = host;
         // While the account's calendar is being seen to, the question waits its turn.
         app.auto_sync = true;
-        app.calendar.due = true;
+        app.session.driver.calendar.due = true;
         app.execute("view.calendar", json!({})).unwrap();
         assert!(app.calendar_tick_at(true, now_ms() + 400_000.0));
         assert!(!app.free_busy(calendar, &people, day.add_days(5)).pending);

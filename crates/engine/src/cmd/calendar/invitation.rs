@@ -1427,7 +1427,8 @@ mod tests {
         assert!(reply.cc.is_empty() && reply.bcc.is_empty() && reply.from.email == "ada@example.org");
         // Written out: text and `text/calendar; method=REPLY` side by side, to the organizer alone.
         let wire =
-            String::from_utf8(mailcraft_mime::write(reply, &mailcraft_mime::WriteOptions { include_bcc: true, ..Default::default() })).unwrap();
+            String::from_utf8(mailcraft_mime_model::write(reply, &mailcraft_mime_model::WriteOptions { include_bcc: true, ..Default::default() }))
+                .unwrap();
         assert!(wire.contains("\r\nContent-Type: text/calendar; method=REPLY; charset=utf-8\r\n"), "{wire}");
         assert!(wire.contains("\r\nMETHOD:REPLY\r\n") && wire.contains("PARTSTAT=ACCEPTED") && wire.contains("\r\nUID:uid-1\r\n"), "{wire}");
         let head = wire.split("\r\n\r\n").next().unwrap();

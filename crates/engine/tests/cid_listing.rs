@@ -73,7 +73,7 @@ fn a_file_that_is_no_picture_is_listed_whatever_the_body_says_of_it() {
         ("nothing", "<p>Hello</p>"),
     ] {
         for part_type in ["application/zip", "image/png"] {
-            let m = mailcraft_mime::parse(&raw(html, part_type, ZIP));
+            let m = mailcraft_mime_model::parse(&raw(html, part_type, ZIP));
             assert!(listed(&m), "{label}, {part_type}");
             let (pictures, sent) = reply_carries(&mut session(), m);
             assert!(pictures.is_empty() && sent.is_empty(), "{label}, {part_type}: {pictures:?} {sent:?}");
@@ -84,13 +84,13 @@ fn a_file_that_is_no_picture_is_listed_whatever_the_body_says_of_it() {
 #[test]
 fn a_picture_an_img_asks_for_is_shown_in_place_and_goes_with_a_reply() {
     for html in ["<p>Hello <img src=\"cid:z9@a.example\"></p>", "<p><IMG alt=x SRC='CID:z9@a.example'></p>", "<img src=cid:z9%40a.example>"] {
-        let m = mailcraft_mime::parse(&raw(html, "image/png", PNG_B64));
+        let m = mailcraft_mime_model::parse(&raw(html, "image/png", PNG_B64));
         assert!(!listed(&m), "{html}");
         let (pictures, sent) = reply_carries(&mut session(), m);
         assert_eq!((pictures.len(), sent.len()), (1, 1), "{html}");
     }
     // Only mentioned, it is listed like any other file.
-    let m = mailcraft_mime::parse(&raw("<p>cid:z9@a.example</p>", "image/png", PNG_B64));
+    let m = mailcraft_mime_model::parse(&raw("<p>cid:z9@a.example</p>", "image/png", PNG_B64));
     assert!(listed(&m));
 }
 
