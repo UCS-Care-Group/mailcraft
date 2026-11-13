@@ -692,6 +692,8 @@ pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
         (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
         (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
         (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Font::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Font::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
         (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
         (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
         (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
@@ -1181,10 +1183,12 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
                 (false, _) => (regular_face, format!("Doc{}", font.label())),
             };
             fonts.font_data.insert(name.clone(), data.clone());
+            // A fixed-width face has JetBrains Mono behind it, so a glyph it lacks keeps the columns (#969).
+            let mono = font.is_fixed_width().then_some("Mono");
             let chain = if bold_face {
-                chain(&[Some(&name), bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
+                chain(&[Some(&name), mono, bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
             } else {
-                chain(&[Some(&name), regular, Some("Inter")])
+                chain(&[Some(&name), mono, regular, Some("Inter")])
             };
             fonts.families.insert(document_family(font, bold_face), chain);
         }

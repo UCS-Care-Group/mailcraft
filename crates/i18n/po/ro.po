@@ -3312,6 +3312,12 @@ msgstr "Nu s-a putut trimite e-mail: contul nu are server de ieșire"
 msgid "Country"
 msgstr "Țară"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy

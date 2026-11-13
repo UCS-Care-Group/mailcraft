@@ -3133,6 +3133,12 @@ msgstr "E-Mails konnten nicht gesendet werden: Das Konto hat keinen Postausgangs
 msgid "Country"
 msgstr "Land"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Create Message"

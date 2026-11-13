@@ -545,9 +545,11 @@ impl Chooser {
             if self.active.contains(&family) {
                 return Lookup::Found(Pick::Family(family));
             }
-            if bold && self.active.contains(&crate::theme::document_family(font, false)) {
-                // Installed, without a bold face.
-                return Lookup::Found(Pick::Own);
+            let regular = crate::theme::document_family(font, false);
+            if bold && self.active.contains(&regular) {
+                // Installed, without a bold face: the window's bold, but a fixed-width font keeps
+                // its regular face, so text art keeps its columns (#969).
+                return Lookup::Found(if font.is_fixed_width() { Pick::Family(regular) } else { Pick::Own });
             }
         }
         let Some(index) = &self.index else {
