@@ -3231,10 +3231,21 @@ version = "0.12.0"
 dependencies = [
  "log",
  "mailcraft-charset",
+ "mailcraft-jmap-types",
  "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailcraft-jmap-types"
+version = "0.12.0"
+dependencies = [
+ "proptest",
+ "serde",
  "serde_json",
 ]
 
