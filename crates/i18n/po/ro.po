@@ -18828,7 +18828,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "serverul și MailCraft nu au găsit nicio criptare comună; adesea serverul oferă doar criptare mai veche (suite CBC) pe care MailCraft nu o folosește, iar administratorul lui poate activa suitele AES-GCM"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "serverul a răspuns la o comandă care nu a fost trimisă"
@@ -18858,7 +18858,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "serverul a cerut mai mult decât un nume de utilizator și o parolă"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "serverul a cerut mai mult decât conținea comanda"
@@ -18940,6 +18940,11 @@ msgstr "serverul nu acceptă o parolă pe această conexiune"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "serverul a încheiat comanda prea devreme"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -19026,13 +19031,13 @@ msgid "the server sent nothing"
 msgstr "serverul nu a trimis nimic"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "serverul a trimis prea multe răspunsuri la o singură comandă"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "serverul a trimis prea mult ca răspuns la o singură comandă"
@@ -19128,7 +19133,7 @@ msgid "the text can't be looked for on the server"
 msgstr "textul nu poate fi căutat pe server"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "textul conține un caracter care nu poate fi trimis"

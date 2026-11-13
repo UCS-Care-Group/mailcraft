@@ -18767,7 +18767,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "服务器与 MailCraft 没有共同支持的加密方式；服务器可能只提供 MailCraft 不使用的旧加密方式（CBC 套件），其管理员可以启用 AES-GCM 套件"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "服务器应答了未发送的命令"
@@ -18797,7 +18797,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "服务器要求的内容超出用户名和密码所含的内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "服务器要求的内容超出命令所含的内容"
@@ -18879,6 +18879,11 @@ msgstr "服务器不接受在此连接中使用密码"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "服务器提前结束了命令"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18965,13 +18970,13 @@ msgid "the server sent nothing"
 msgstr "服务器没有发送任何内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "服务器对一个命令发送了太多响应"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "服务器响应一个命令发送了太多信息"
@@ -19067,7 +19072,7 @@ msgid "the text can't be looked for on the server"
 msgstr "无法在服务器上查找该文本"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"

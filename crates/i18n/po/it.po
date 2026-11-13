@@ -17757,7 +17757,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "il server ha risposto a un comando che non è stato inviato"
@@ -17787,7 +17787,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "il server ha chiesto più di un nome utente e una password"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "il server ha chiesto più di quanto contenesse il comando"
@@ -17869,6 +17869,11 @@ msgstr "il server non accetta una password su questa connessione"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "il server ha terminato il comando in anticipo"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -17954,13 +17959,13 @@ msgid "the server sent nothing"
 msgstr "il server non ha inviato nulla"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "il server ha inviato troppe risposte a un comando"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "il server ha inviato troppo in risposta a un comando"
@@ -18054,7 +18059,7 @@ msgid "the text can't be looked for on the server"
 msgstr "il testo non può essere cercato sul server"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "il testo contiene un carattere che non può essere inviato"

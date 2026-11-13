@@ -15594,7 +15594,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server answered a command that wasn't sent"
 msgstr ""
 
@@ -15619,7 +15619,7 @@ msgid "the server asked for more than a user name and password"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server asked for more than the command had"
 msgstr ""
 
@@ -15686,6 +15686,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server ended the command early"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -15759,12 +15764,12 @@ msgid "the server sent nothing"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server sent too many responses to one command"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server sent too much in answer to one command"
 msgstr ""
 
@@ -15844,7 +15849,7 @@ msgid "the text can't be looked for on the server"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the text has a character that can't be sent"
 msgstr ""
 

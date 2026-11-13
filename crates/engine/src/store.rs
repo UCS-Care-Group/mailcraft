@@ -2008,6 +2008,8 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
         folder.uid_from = 0;
         // Fetched again, it is a first download: the junk lists leave it alone (#504).
         folder.whole = Some(false);
+        // What STATUS said can't pass over a folder whose mail is to be fetched again (#276).
+        folder.imap_status = None;
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;
