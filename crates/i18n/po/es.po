@@ -111,6 +111,11 @@ msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Out
 msgstr "Es posible que «{subject}» se haya enviado: compruebe Elementos enviados. Se conserva en la Bandeja de salida."
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "'{subject}' may have been sent: look in Sent for a copy no longer marked as a draft. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/snooze.rs
 msgid "'{subject}' stays in the Snoozed folder: the server would not move it back, so it is no longer snoozed."
 msgstr ""

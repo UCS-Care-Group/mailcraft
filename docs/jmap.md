@@ -51,7 +51,9 @@ sync` refuses it.
   submitted, as the identity the server has for the account's address. Who is named in Bcc is told
   to the server as recipients only; the message names none of them. A message the server refuses
   is held in the Outbox with the reason, and so is one whose answer was lost, which may have gone:
-  neither is sent again by itself. A server that offers no submission, or has no identity for the
+  neither is sent again by itself. The copy is filed in Sent marked as a draft before it is
+  submitted, and the mark comes off once it is sent: for one whose answer was lost, a copy in Sent
+  no longer marked as a draft is the sign that it went, and the message held says so. A server that offers no submission, or has no identity for the
   account's address, sends nothing: the message is held and says so. Only Send sends: a message
   moved into the account's Outbox (a draft, or mail only this computer has) is held there until
   Send Again, and a copy doesn't go into it. A message that was never dated is dated before its
