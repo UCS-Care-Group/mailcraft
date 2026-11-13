@@ -291,15 +291,22 @@ struct Parts {
     attachments: Vec<Option<Part>>,
     /// The bytes a Digitally signed or Encrypted message came as ([`Message::original`], #30).
     original: Option<Part>,
+    /// The header lines nothing reads by name ([`Message::header_block`], HS), over [`INLINE_MAX`].
+    headers: Option<Part>,
 }
 
 impl Parts {
     fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none) && self.original.is_none()
+        self.text.is_none()
+            && self.html.is_none()
+            && self.hidden.is_none()
+            && self.attachments.iter().all(Option::is_none)
+            && self.original.is_none()
+            && self.headers.is_none()
     }
 
     fn all(&self) -> impl Iterator<Item = &Part> {
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original)
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original).chain(&self.headers)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -320,6 +327,9 @@ impl Parts {
         }
         if self.original.is_some() {
             fields.push(format!("\"original\":{}", one(&self.original)));
+        }
+        if self.headers.is_some() {
+            fields.push(format!("\"headers\":{}", one(&self.headers)));
         }
         format!("{{{}}}", fields.join(","))
     }
@@ -345,6 +355,9 @@ impl Parts {
         if let (Some(r), Some(bytes)) = (held(&self.original), m.original_bytes()) {
             out.push((r, bytes));
         }
+        if let Some(r) = held(&self.headers).filter(|_| !m.header_block.data.is_empty()) {
+            out.push((r, m.header_block.data.as_slice()));
+        }
         out
     }
 }
@@ -367,6 +380,8 @@ struct WireParts {
     #[serde(deserialize_with = "capped")]
     attachments: Vec<Option<(String, u64)>>,
     original: Option<(String, u64)>,
+    /// Format 4 (HS): a message's header block.
+    headers: Option<(String, u64)>,
 }
 
 /// At most [`MAX_PARTS`] entries of a list; the rest is skipped without being kept.
@@ -405,6 +420,7 @@ impl WireParts {
             .chain(&self.hidden)
             .chain(self.attachments.iter().flatten())
             .chain(&self.original)
+            .chain(&self.headers)
             .filter_map(parse_ref)
             .map(|r| r.hash)
     }
@@ -418,7 +434,14 @@ impl WireParts {
             hidden: one(&self.hidden),
             attachments: self.attachments.iter().map(one).collect(),
             original: one(&self.original),
+            headers: one(&self.header_wire()),
         }
+    }
+
+    /// The name of the header block, unless it says more bytes than a block can be (a hostile
+    /// file): then there is none, and the message's other header lines are all it has.
+    fn header_wire(&self) -> Option<(String, u64)> {
+        self.headers.clone().filter(|(_, len)| *len <= mailcraft_model::headers::MAX_HEADER_BLOCK as u64)
     }
 }
 
@@ -694,6 +717,9 @@ struct Disk {
     /// Where the last commit ends.
     len: u64,
     tail: Tail,
+    /// The file is in an older format than [`INDEX_VERSION`]: its next save writes it whole
+    /// (what it names is known all the same, for a sweep).
+    old: bool,
 }
 
 impl Disk {
@@ -707,6 +733,7 @@ impl Disk {
             live: rest.1,
             len: index::HEADER_LEN,
             tail: Tail::Clean,
+            old: false,
         }
     }
 
@@ -858,6 +885,7 @@ impl Pins {
             }
             out.extend(m.attachments.iter().filter_map(|a| a.kept).map(|r| Digest(r.sha256)));
             out.extend(m.original.as_ref().and_then(|o| o.kept).map(|r| Digest(r.sha256)));
+            out.extend(m.header_block.kept.map(|r| Digest(r.sha256)));
         }
         out
     }
@@ -891,7 +919,10 @@ const MAX_FORGETTING: usize = 4_000_000;
 
 /// Whether message `m` names content it keeps on disk rather than in memory.
 fn names_kept(m: &Message) -> bool {
-    m.kept.is_some() || m.attachments.iter().any(|a| a.kept.is_some()) || m.original.as_ref().is_some_and(|o| o.kept.is_some())
+    m.kept.is_some()
+        || m.attachments.iter().any(|a| a.kept.is_some())
+        || m.original.as_ref().is_some_and(|o| o.kept.is_some())
+        || m.header_block.kept.is_some()
 }
 
 /// Keep the content that `messages` keep on disk (named on them, not in memory) from being swept
@@ -1257,6 +1288,7 @@ pub fn copy_content(from: &Path, to: &Path, mailbox: &Mailbox) -> Result<usize, 
         }
         wanted.extend(m.attachments.iter().filter(|a| a.data.is_empty()).filter_map(|a| a.kept.as_ref()).map(Ref::from_model));
         wanted.extend(m.original.as_ref().filter(|o| o.data.is_empty()).and_then(|o| o.kept.as_ref()).map(Ref::from_model));
+        wanted.extend(m.header_block.kept.as_ref().filter(|_| m.header_block.data.is_empty()).map(Ref::from_model));
     }
     if wanted.is_empty() {
         return Ok(0);
@@ -1845,6 +1877,30 @@ fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Pa
     Ok((parsed, fp))
 }
 
+/// A message read from a file in a format before [`INDEX_VERSION`] (HS): its header block, when
+/// it is more than [`INLINE_MAX`], written to the content folder `dir` as soon as it is read and
+/// named on the message, so that opening such a file never holds every block in it until its first
+/// save writes the file anew. The file on disk is untouched meanwhile: should the program stop
+/// before that save, it opens as it did. A block that can't be written stays in memory.
+fn stash_block((parsed, fp): (Parsed, Fp), dir: Option<&Path>) -> (Parsed, Fp) {
+    match (dir, parsed) {
+        (Some(dir), Parsed::Message(mut m, wire)) if m.header_block.data.len() > INLINE_MAX => {
+            let r = Ref::of(&m.header_block.data);
+            if let Err(e) = put(dir, &r, &m.header_block.data) {
+                log::warn!("{}: a message's header lines couldn't be written there ({e}); they stay in memory", dir.display());
+                return (Parsed::Message(m, wire), fp);
+            }
+            if let Some(m) = Arc::get_mut(&mut m) {
+                m.header_block = mailcraft_model::HeaderBlock { data: Arc::default(), kept: Some(r.to_model()) };
+            }
+            let mut wire = wire.unwrap_or_default();
+            wire.headers = Some((r.hash.hex(), r.len));
+            (Parsed::Message(m, Some(wire)), fp)
+        }
+        (_, parsed) => (parsed, fp),
+    }
+}
+
 /// Open a mailbox file in this form, `len` bytes long.
 fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     if len > MAX_INDEX {
@@ -1881,6 +1937,12 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     // Each item parsed on one of a few threads (JSON is most of what opening costs), a slice at a
     // time from the lowest key, each slice's bytes let go once it is read: the file's bytes and
     // the mailbox they become are never both whole in memory.
+    // A file in an older format has its header blocks put in the content folder as they are read
+    // (`stash_block`), and is written in this one at its next save (`Disk::old`). Never through a
+    // content folder that is a link.
+    let old = replayed.version < INDEX_VERSION;
+    let stash_dir = Some(blob_dir(file))
+        .filter(|dir| old && !fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()) && (make_dir(dir).is_ok() || dir.is_dir()));
     let mut items: Vec<(Key, index::Item)> = replayed.items.into_iter().collect();
     items.sort_unstable_by_key(|(key, _)| std::cmp::Reverse(*key));
     let mut records: Vec<(Key, Fp, u64)> = Vec::with_capacity(items.len());
@@ -1889,7 +1951,9 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     while !items.is_empty() {
         let mut slice = items.split_off(items.len().saturating_sub(OPEN_SLICE));
         slice.reverse();
-        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item, &budget))));
+        let parsed = fan_out(slice.len(), |i| {
+            slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item, &budget).map(|p| stash_block(p, stash_dir.as_deref()))))
+        });
         // (The records' bytes are let go of, and what they cost given back.)
         budget.give_back(slice.iter().map(|(_, item)| item.cost()).fold(0u64, u64::saturating_add));
         drop(slice);
@@ -1953,7 +2017,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     // something: then which is isn't known, each is worked out again at the next save, and what
     // was fixed is written.
     let mut disk = Disk::new(rest_fp);
-    (disk.len, disk.tail) = (replayed.good_len, replayed.tail);
+    (disk.len, disk.tail, disk.old) = (replayed.good_len, replayed.tail, old);
     let trusted = fixed.is_empty();
     fn of<T>(item: Option<&Arc<T>>, trusted: bool) -> Weak<T> {
         item.filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
@@ -1984,7 +2048,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     }
     st.stamp = Stamp::with(file, len, sum);
     st.disk = Some(disk);
-    st.loaded = loaded_unless_retired(&mailbox);
+    // (A file in an older format is no copy of the mailbox to leave unwritten.)
+    st.loaded = if old { None } else { loaded_unless_retired(&mailbox) };
     Ok(Opened {
         mailbox,
         split: true,
@@ -2441,11 +2506,14 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             // (A message's original, #30, is never brought in at opening: it is read when it is
             // written whole.)
             let original = want(&wire.original, false, true, &mut st.live);
-            plan.push((id, text, html, hidden, attachments, original));
+            // (Nor is its header block, HS: View Source and what writes a message whole read it.)
+            let headers = want(&wire.header_wire(), false, true, &mut st.live);
+            plan.push((id, text, html, hidden, attachments, original, headers));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
-                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()).chain(&wire.original) {
+                let parts = wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()).chain(&wire.original);
+                for part in parts.chain(&wire.headers) {
                     want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
@@ -2464,7 +2532,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
         let later = plan
             .iter()
-            .filter_map(|(id, text, html, hidden, _, _)| {
+            .filter_map(|(id, text, html, hidden, _, _, _)| {
                 let (text, html, hidden) = (pick(text), pick(html), pick(hidden));
                 (text.is_some() || html.is_some() || hidden.is_some()).then_some(crate::session::BodyLater { id: *id, text, html, hidden })
             })
@@ -2476,7 +2544,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
     // a loss the owner is told of.)
     // (Nor is a message's original: without it the message is as one read before it was kept.)
-    for (_, text, html, _, attachments, _) in &plan {
+    for (_, text, html, _, attachments, _, _) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
@@ -2531,7 +2599,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
         Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    for (id, text, html, hidden, attachments, original) in plan {
+    for (id, text, html, hidden, attachments, original, headers) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
         let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
         let mut kept = KeptBody::default();
@@ -2618,6 +2686,14 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             if m.original.as_ref().and_then(|o| o.kept).is_some_and(|r| gone_originals.contains(&Ref::from_model(&r))) {
                 let kind = mailbox.accounts.iter().find(|a| a.id == m.account).map(|a| a.kind);
                 crate::cmd::mail::check_again::lost(kind, m);
+            }
+        }
+        // The header block stays on disk, named on the message (HS); a name that isn't one: no
+        // block, and the message has the header lines it reads by name.
+        if let Some(want) = &headers {
+            m.header_block = mailcraft_model::HeaderBlock { data: Arc::default(), kept: want.kept() };
+            if let Some(p) = held.as_mut().and_then(|p| p.headers.as_mut()) {
+                p.held = false;
             }
         }
         if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
@@ -2723,7 +2799,7 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
     let ids: Vec<Id> = mailbox.messages.keys().copied().collect();
     for id in ids {
         let Some(m) = mailbox.messages.get(&id) else { continue };
-        if m.is_loaded() {
+        if m.is_loaded() && m.header_block.is_loaded() {
             continue;
         }
         let mut m = Message::clone(m);
@@ -2774,6 +2850,18 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
                     log::warn!("{e}: the bytes it came as are left out");
                     m.original = None;
                 }
+            }
+        }
+        // A header block that can't be read is unavailable (HS): the message is whole without
+        // it, with the header lines it reads by name.
+        if let Some(r) = m.header_block.kept.filter(|_| m.header_block.data.is_empty()) {
+            match take(&r).map(|bytes| mailcraft_model::HeaderBlock::read(&bytes)) {
+                Ok(Some(block)) => {
+                    m.header_block = block;
+                    n += 1;
+                }
+                Ok(None) => log::warn!("message {id}: its header lines are damaged and are left out"),
+                Err(e) => log::warn!("{e}: its header lines are left out"),
             }
         }
         mailbox.messages.insert(id, Arc::new(m));
@@ -2851,6 +2939,21 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
             == p.r.hash
     {
         (o.data, o.kept) = (Arc::default(), Some(p.r.to_model()));
+        any = true;
+    }
+    // (And its header block, HS.)
+    let block = &lean.header_block.data;
+    if let Some(p) = parts.headers
+        && !block.is_empty()
+        && block.len() as u64 == p.r.len
+        && st
+            .hashes
+            .get(&(Arc::as_ptr(block) as usize))
+            .filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(block)))
+            .map_or_else(|| Digest::of(block), |(_, hash)| *hash)
+            == p.r.hash
+    {
+        lean.header_block = mailcraft_model::HeaderBlock { data: Arc::default(), kept: Some(p.r.to_model()) };
         any = true;
     }
     if !any {
@@ -2991,6 +3094,7 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
         },
         attachments: Vec::new(),
         original: None,
+        headers: None,
     };
     // A file's bytes are hashed once while the same bytes are in memory: a save after a read mark
     // doesn't hash every attachment and original again.
@@ -3015,6 +3119,13 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
         Some(r) => Some(on_disk(r)),
         None => held(&o.data),
     });
+    // The header lines nothing reads by name (HS): what stayed on disk keeps its name; a block in
+    // memory goes outside as an attachment does, a small one stays in the record.
+    let block = &m.header_block;
+    parts.headers = match block.kept.as_ref().filter(|_| block.data.is_empty()) {
+        Some(r) => Some(on_disk(r)),
+        None => held(&block.data),
+    };
     if parts.attachments.iter().all(Option::is_none) {
         parts.attachments.clear();
     }
@@ -3039,8 +3150,9 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
     } else if !m.has_original() {
         lean.original = None;
     }
-    // Every header line in `headers`, as the file has always had them.
-    lean.join_headers();
+    if parts.headers.is_some() {
+        lean.header_block = mailcraft_model::HeaderBlock::default();
+    }
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
     let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;
@@ -3494,7 +3606,7 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
         st.legacy.map(|v| if st.streamed { Keep::Streamed(v) } else { Keep::Legacy(v) })
     };
     let mut d = match prior {
-        Some(d) if d.appendable() => d,
+        Some(d) if d.appendable() && !d.old => d,
         prior => {
             pin_replaced(st, prior.as_ref(), opened.as_ref(), mailbox);
             return compact(st, path, mailbox, keep, progress);
