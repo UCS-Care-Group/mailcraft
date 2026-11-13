@@ -43,6 +43,11 @@ schannel = { workspace = true }
 # (`graph::standin`), for the tests of the crates that sit on this one. Never in a build that isn't a test's.
 stand-in = []
 
+# The stand-in as a server on loopback, for host tests (`examples/standin.rs`).
+[[example]]
+name = "standin"
+required-features = ["stand-in"]
+
 [dev-dependencies]
 proptest = { workspace = true }
 # Runtime-generated certificates for the loopback STARTTLS fake only.

@@ -54,7 +54,7 @@ impl SecretStore for Recording {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, key: &str, _: &str) -> Result<(), String> {
+    fn set(&self, key: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().push(key.to_string());
         Ok(())
     }
