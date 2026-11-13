@@ -164,8 +164,12 @@ pub struct State {
     /// The mailbox as the last frame without a Send/Receive found it, and the file it was.
     idle: Option<(InboxMark, Option<std::path::PathBuf>)>,
     idle_rev: u64,
-    /// The mark a Send/Receive under way started from.
+    /// The mark a Send/Receive under way started from. Desktop alerts count from this.
     run: Option<(InboxMark, Option<std::path::PathBuf>)>,
+    /// Where the taskbar last started counting. It moves forward while the window is in front,
+    /// so mail looked at during a run is not counted again when that run ends. Desktop alerts
+    /// keep [`State::run`].
+    taskbar: Option<InboxMark>,
     /// New Inbox messages since the window was last in front ([`mailcraft_engine::arrivals::new_inbox_count`]).
     pub(crate) pending: usize,
     /// What the taskbar icon should show: `pending` while the switch is on and the window is elsewhere, else 0.
@@ -294,14 +298,24 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     clicks(app, ctx);
     let focused = ctx.input(|i| i.focused);
     let in_front = in_front(ctx);
-    // Looking at the window, or switching the dot off, clears it, even mid-run.
+    // Looking at the window, or switching the dot off, clears it, even mid-run. Looking also
+    // moves the taskbar's mark to the mailbox as it is now: mail already on screen is not
+    // counted when the run ends after the window has gone.
     if in_front || !app.ui.taskbar_dot {
         app.alerts.pending = 0;
+    }
+    if in_front {
+        app.alerts.taskbar = Some(arrivals::mark(&app.session.mailbox));
     }
     let path = app.session.path.clone();
     if busy(app) {
         if app.alerts.run.is_none() {
             app.alerts.run = app.alerts.idle.take();
+            // A run that starts while the window is away counts from where the run started.
+            // One that starts in front keeps the mark just taken above.
+            if !in_front {
+                app.alerts.taskbar = app.alerts.run.as_ref().map(|(mark, _)| mark.clone());
+            }
         }
         app.alerts.badge = u32::try_from(app.alerts.pending).unwrap_or(0);
         return;
@@ -313,8 +327,10 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
         let planned = plan_mail(&found, app.ui.alert_new_mail, focused);
         show(app, planned);
         // The same run, counted once for the taskbar: every Inbox, including a shared mailbox.
+        // From the taskbar's own mark, which a look during the run has moved forward.
         if !in_front && app.ui.taskbar_dot {
-            let n = arrivals::new_inbox_count(&app.session.mailbox, &before);
+            let from = app.alerts.taskbar.as_ref().unwrap_or(&before);
+            let n = arrivals::new_inbox_count(&app.session.mailbox, from);
             app.alerts.pending = app.alerts.pending.saturating_add(n).min(arrivals::MOST);
         }
     }

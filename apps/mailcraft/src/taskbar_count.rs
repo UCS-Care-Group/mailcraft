@@ -13,6 +13,11 @@ pub struct Icons {
     dot: bool,
     #[cfg(target_os = "windows")]
     said_dot: bool,
+    /// The window the dot was put on. It is taken off that same window: a compose or reminder
+    /// window is another window of this process, and clearing whichever is in front can leave
+    /// the dot on the one that received it.
+    #[cfg(target_os = "windows")]
+    marked: Option<winsafe::HWND>,
 }
 
 impl Icons {
@@ -21,6 +26,8 @@ impl Icons {
             dot: false,
             #[cfg(target_os = "windows")]
             said_dot: false,
+            #[cfg(target_os = "windows")]
+            marked: None,
         }
     }
 
@@ -54,20 +61,42 @@ impl Icons {
         if self.dot == want {
             return;
         }
-        match overlay(frame, want) {
-            Ok(()) => self.dot = want,
+        match overlay(frame, want, self.marked.as_ref()) {
+            Ok(marked) => {
+                self.dot = want;
+                self.marked = marked;
+            }
             Err(e) => note(&mut self.said_dot, &e),
         }
     }
 }
 
-/// The red dot, or nothing, on this window's taskbar button. Windows puts an overlay at the
-/// button's lower corner.
+/// The red dot, or nothing, on the taskbar button. Windows puts an overlay at the button's
+/// lower corner. Putting the dot on returns the window it was put on; taking it off returns
+/// nothing, and uses `marked` when that window still exists.
 #[cfg(target_os = "windows")]
-fn overlay(frame: &eframe::Frame, on: bool) -> Result<(), String> {
-    use winsafe::prelude::*;
+fn overlay(frame: &eframe::Frame, on: bool, marked: Option<&winsafe::HWND>) -> Result<Option<winsafe::HWND>, String> {
     let _ = frame;
-    let hwnd = our_window().ok_or_else(|| "the window isn't on the taskbar yet".to_string())?;
+    if on {
+        let hwnd = our_window().ok_or_else(|| "the window isn't on the taskbar yet".to_string())?;
+        set_overlay(&hwnd, true)?;
+        return Ok(Some(hwnd));
+    }
+    let fallback;
+    let hwnd = if let Some(hwnd) = marked.filter(|hwnd| hwnd.IsWindow()) {
+        hwnd
+    } else {
+        fallback = our_window().ok_or_else(|| "the window isn't on the taskbar yet".to_string())?;
+        &fallback
+    };
+    set_overlay(hwnd, false)?;
+    Ok(None)
+}
+
+/// The red dot, or nothing, on `hwnd`'s taskbar button.
+#[cfg(target_os = "windows")]
+fn set_overlay(hwnd: &winsafe::HWND, on: bool) -> Result<(), String> {
+    use winsafe::prelude::*;
     let list = winsafe::CoCreateInstance::<winsafe::ITaskbarList3>(
         &winsafe::co::CLSID::TaskbarList,
         None::<&winsafe::IUnknown>,
@@ -76,13 +105,13 @@ fn overlay(frame: &eframe::Frame, on: bool) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     list.HrInit().map_err(|e| e.to_string())?;
     if !on {
-        return list.SetOverlayIcon(&hwnd, None, "").map_err(|e| e.to_string());
+        return list.SetOverlayIcon(hwnd, None, "").map_err(|e| e.to_string());
     }
     let path = dot_file()?;
     let icon = winsafe::HINSTANCE::NULL
         .LoadImageIcon(winsafe::IdOicStr::from_str(&path), winsafe::SIZE { cx: 16, cy: 16 }, winsafe::co::LR::LOADFROMFILE)
         .map_err(|e| e.to_string())?;
-    list.SetOverlayIcon(&hwnd, Some(&icon), "New mail").map_err(|e| e.to_string())
+    list.SetOverlayIcon(hwnd, Some(&icon), "New mail").map_err(|e| e.to_string())
 }
 
 /// This process's window, the one the taskbar button belongs to.

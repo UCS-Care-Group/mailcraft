@@ -354,6 +354,25 @@ fn the_taskbar_counts_new_mail_until_the_window_is_in_front() {
     assert_eq!(app.taskbar_badge(), 2);
 }
 
+/// Mail that arrives during a run and is looked at before the run ends does not light the dot
+/// again when the window leaves and the run finishes, with nothing further arriving.
+#[test]
+fn mail_looked_at_during_a_run_does_not_light_the_dot_again() {
+    let (mut app, _, account, inbox) = window();
+    let ctx = egui::Context::default();
+    frame(&mut app, &ctx, false);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
+    frame(&mut app, &ctx, false);
+    deliver(&mut app, account, inbox, &[(2, "Rowan", "During")]);
+    frame(&mut app, &ctx, true);
+    assert_eq!(app.taskbar_badge(), 0);
+    frame(&mut app, &ctx, false);
+    app.sync_rx = None;
+    frame(&mut app, &ctx, false);
+    assert_eq!(app.taskbar_badge(), 0);
+}
+
 #[test]
 fn why_alerts_cant_be_shown_is_said() {
     let (mut app, ..) = window();
