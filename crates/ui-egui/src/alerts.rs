@@ -8,7 +8,11 @@
 //! - New mail is told of only while the window is not in front, once a Send/Receive is over: what
 //!   arrived is the engine's answer ([`mailcraft_engine::arrivals`]: never an account's first
 //!   download, mail a rule moved away, Junk E-mail or other folders, a shared mailbox, mail
-//!   already read).
+//!   already read). A rule that shows a desktop alert has one for the mail it acted on, in
+//!   whichever folder of its account it put it, even with the switch for new mail off (#566);
+//!   and for mail it could tell of only once it was fetched whole, once that download is over
+//!   (the next frame with no Send/Receive under way), unless the run that brought it told of it
+//!   already (since the window opened: what was told isn't kept).
 //! - Up to [`AT_ONCE`] at a time get an alert each; more get one that counts them.
 //! - What an alert says is the message's own text, and so hostile: the sender's name and the
 //!   subject only (never the body), as plain text, as a name is shown (#454): without control
@@ -145,6 +149,15 @@ pub struct State {
     idle_rev: u64,
     /// The mark a Send/Receive under way started from.
     run: Option<(InboxMark, Option<std::path::PathBuf>)>,
+    /// Messages fetched whole after the run that brought them, which a rule showing a desktop
+    /// alert acted on then (#566), with the opening of the mailbox they are of
+    /// ([`mailcraft_engine::Session::openings`]); at most [`arrivals::MOST`].
+    later: Option<(u64, Vec<Id>)>,
+    /// Of the messages a run's end told of, those whose rules still waited for them to be fetched
+    /// whole, with the opening of their mailbox: a rule's alert once they are isn't a second one.
+    /// Not kept: after a restart, such a message may have both.
+    /// At most [`arrivals::MOST`], the latest.
+    told: Option<(u64, VecDeque<Id>)>,
 }
 
 /// Text from a message (or an appointment) made fit for an alert, as a name is shown (#454): one
@@ -162,10 +175,12 @@ pub struct Planned {
     pub opens: Opens,
 }
 
-/// The alerts for new mail that arrived in a run: none while the window is in front or the
-/// switch is off; one each for up to [`AT_ONCE`] messages, else one that counts them.
+/// The alerts for new mail that arrived in a run: none while the window is in front, and with
+/// the switch off only those a rule asked for (#566); one each for up to [`AT_ONCE`] messages,
+/// else one that counts them.
 pub fn plan_mail(found: &[Arrival], on: bool, focused: bool) -> Vec<Planned> {
-    if !on || focused || found.is_empty() {
+    let found: Vec<&Arrival> = found.iter().filter(|a| on || a.rule).collect();
+    if focused || found.is_empty() {
         return Vec::new();
     }
     if found.len() > AT_ONCE {
@@ -240,6 +255,20 @@ fn show(app: &mut MailApp, planned: Vec<Planned>) {
     }
 }
 
+/// Messages fetched whole ([`crate::graph_fetch`]): those the engine's answer names, which a rule
+/// that shows a desktop alert acted on now (#566), are told of at the next frame with no
+/// Send/Receive under way ([`tick`]).
+pub(crate) fn downloaded(app: &mut MailApp, said: &Value) {
+    let Some(ids) = said.get("alerts").and_then(Value::as_array) else { return };
+    let opening = app.session.openings();
+    let later = app.alerts.later.get_or_insert_with(|| (opening, Vec::new()));
+    if later.0 != opening {
+        *later = (opening, Vec::new());
+    }
+    let room = arrivals::MOST.saturating_sub(later.1.len());
+    later.1.extend(ids.iter().filter_map(Value::as_u64).take(room));
+}
+
 /// Reminders that have just fallen due ([`crate::reminders::tick`]).
 pub fn reminders_due(app: &mut MailApp, due: &[Reminder]) {
     let planned = plan_reminders(due, app.ui.alert_reminders, app.session.prefs.twelve_hour);
@@ -262,12 +291,51 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
         }
         return;
     }
+    let opening = app.session.openings();
+    let mut found = Vec::new();
     if let Some((before, was)) = app.alerts.run.take()
         && was == path
     {
-        let found = arrivals::arrivals(&app.session.mailbox, &before);
+        found = arrivals::arrivals(&app.session.mailbox, &before);
+    }
+    // A rule's alert for mail fetched whole after the run that brought it (#566): not for a
+    // message told of already, at the run's end or now.
+    if let Some((of, ids)) = app.alerts.later.take()
+        && of == opening
+    {
+        let mut told = app.alerts.told.as_mut().filter(|(of, _)| *of == opening).map(|(_, told)| told);
+        let mut fresh = Vec::new();
+        for id in ids {
+            if let Some(told) = told.as_mut()
+                && let Some(at) = told.iter().position(|t| *t == id)
+            {
+                told.remove(at);
+            } else if !found.iter().any(|a| a.message == id) {
+                fresh.push(id);
+            }
+        }
+        found.extend(arrivals::alerted(&app.session.mailbox, &fresh));
+    }
+    if !found.is_empty() {
         let focused = ctx.input(|i| i.focused);
-        let planned = plan_mail(&found, app.ui.alert_new_mail, focused);
+        let on = app.ui.alert_new_mail;
+        if !focused {
+            let waiting = |a: &&Arrival| (on || a.rule) && app.session.mailbox.message(a.message).is_some_and(|m| m.rules_waiting.is_some());
+            let still: Vec<Id> = found.iter().filter(waiting).map(|a| a.message).collect();
+            if !still.is_empty() {
+                let told = app.alerts.told.get_or_insert_with(|| (opening, VecDeque::new()));
+                if told.0 != opening {
+                    *told = (opening, VecDeque::new());
+                }
+                for id in still {
+                    if told.1.len() >= arrivals::MOST {
+                        told.1.pop_front();
+                    }
+                    told.1.push_back(id);
+                }
+            }
+        }
+        let planned = plan_mail(&found, on, focused);
         show(app, planned);
     }
     let rev = app.session.rev();

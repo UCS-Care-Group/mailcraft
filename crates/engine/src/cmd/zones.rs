@@ -131,6 +131,17 @@ fn label(v: &Value, key: &str) -> Option<String> {
     p::str(v, key).map(|text| text.chars().filter(|c| !c.is_control()).take(MAX_LABEL).collect::<String>().trim().to_string())
 }
 
+/// The zone the rules read the days mail came by ([`Session::zone`]) after `view.timeZone` with
+/// `v`, when the command changes it; `None` when it refuses `v` or leaves that zone as it is.
+pub(crate) fn rule_zone_after(s: &Session, v: &Value) -> Option<Zone> {
+    let (Ok(Some(zone)), Ok(_)) = (named(v, "zone"), named(v, "second")) else { return None };
+    if s.clock.offset.is_some() {
+        return None;
+    }
+    let after = zone.filter(|z| !z.is_local()).unwrap_or_else(|| s.system_zone());
+    (after != s.zone()).then_some(after)
+}
+
 fn time_zone(s: &mut Session, v: &Value) -> CmdResult {
     // Everything is read before anything is set: a bad name changes nothing.
     let (zone, second) = (named(v, "zone")?, named(v, "second")?);

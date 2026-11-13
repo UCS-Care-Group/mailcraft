@@ -403,3 +403,99 @@ fn an_undo_that_reverts_the_accounts_and_takes_mail_names_both_grants_headless()
     assert_eq!(err(&mut h, &pol, "execute", undo), None);
     assert_eq!(h.session.mailbox.messages.len(), n - 1);
 }
+
+/// A session with two Microsoft accounts, the first's rule kept here moving its mail onto the
+/// second's server, and the params of a new rule of the first's, kept on its server, that deletes
+/// mail (#566).
+fn server_delete_beside_a_rule_onto_another_server() -> (Session, Value) {
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let b = s.run("account.add", &json!({"email": "other@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let away = json!({"name": "Away", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+        "actions": [{"type": "moveTo", "value": there}]});
+    s.run("rules.add", &away).unwrap();
+    let params = json!({"name": "Gone", "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "delete"}]});
+    (s, params)
+}
+
+#[test]
+fn a_server_rule_that_deletes_beside_a_rule_onto_another_server_names_both_grants_headless() {
+    // It needs Send and Delete: whichever is missing, the refusal names both, so that following
+    // it makes the rule.
+    let pol = Policy::default();
+    for allow in [vec![], vec![Class::Send], vec![Class::Delete]] {
+        let (s, params) = server_delete_beside_a_rule_onto_another_server();
+        let mut h = Headless::new(s, allow.clone());
+        let e = err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params}));
+        assert!(e.as_deref().is_some_and(|e| e.contains("--allow send,delete")), "{allow:?}: {e:?}");
+        assert_eq!(h.session.mailbox.rules.len(), 1, "{allow:?}: nothing was made");
+    }
+    let (s, params) = server_delete_beside_a_rule_onto_another_server();
+    let mut h = Headless::new(s, vec![Class::Send, Class::Delete]);
+    assert_eq!(err(&mut h, &pol, "execute", json!({"command": "rules.add", "params": params})), None);
+    assert_eq!(h.session.mailbox.rules.len(), 2);
+}
+
+/// A Microsoft account and an account of this computer whose rule files its mail into the
+/// Microsoft account's Inbox (onto that server, #451); the rule was then deleted, so undoing that
+/// brings it back. With `accounts_changed`, the accounts changed since that step, as in
+/// `copied_then_accounts_changed`.
+fn rule_onto_server_removed(accounts_changed: bool) -> (Session, u64, u64) {
+    let mut s = Session::empty();
+    let ms = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let local = s.run("account.add", &json!({"email": "me@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let params = json!({"name": "Up", "account": local, "conditions": [{"type": "fromContains", "value": "news@example.org"}],
+        "actions": [{"type": "moveTo", "value": there}]});
+    let id = s.run("rules.add", &params).unwrap()["id"].as_u64().unwrap();
+    s.run("rules.remove", &json!({"id": id})).unwrap();
+    if accounts_changed && let Some(a) = s.mailbox.accounts.first_mut() {
+        a.name.push_str(" (renamed)");
+    }
+    (s, ms, local)
+}
+
+/// An undo that puts back the accounts and a rule that files this computer's mail onto another
+/// account's server needs `send` too: `--allow accounts` alone doesn't let it through (#566).
+#[test]
+fn an_undo_that_puts_back_the_accounts_and_a_rule_onto_another_server_names_send_headless() {
+    let pol = Policy::default();
+    let undo = json!({"command": "edit.undo", "params": {}});
+    // Control: with the accounts as they were, `--allow accounts` doesn't let it through: a send.
+    let (s, _, _) = rule_onto_server_removed(false);
+    let mut h = Headless::new(s, vec![Class::Accounts]);
+    let e = err(&mut h, &pol, "execute", undo.clone());
+    assert!(e.as_deref().is_some_and(|e| e.contains("--allow send")), "control: {e:?}");
+    // The same step, with the accounts changed since: it also puts back the rule that files this
+    // computer's mail onto the Microsoft server, which needs `send` too.
+    let (s, ms, local) = rule_onto_server_removed(true);
+    let mut h = Headless::new(s, vec![Class::Accounts]);
+    let e = err(&mut h, &pol, "execute", undo);
+    let back = !h.session.mailbox.rules.is_empty();
+    // What the rule then does with new mail of this computer.
+    let mut put_up = 0;
+    if back {
+        let inbox = h.session.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+        let m = mailcraft_engine::model::Message {
+            folder: inbox,
+            from: mailcraft_engine::model::Address::new("News", "news@example.org"),
+            subject: "Weekly".into(),
+            ..Default::default()
+        };
+        let m = h.session.mailbox.add_message(m).unwrap();
+        let clock = h.session.rule_clock();
+        h.session.mailbox.apply_rules(m, &clock);
+        put_up = h
+            .session
+            .mailbox
+            .queued
+            .iter()
+            .filter(|q| matches!(q, mailcraft_engine::model::Queued::PlaceMessage { account: a, .. } if *a == ms))
+            .count();
+    }
+    assert!(
+        e.as_deref().is_some_and(|e| e.contains("send")),
+        "an undo that puts back the accounts and a rule filing onto another server ran with `--allow accounts` alone (rule back: {back}, messages on their way onto the server: {put_up}): {e:?}"
+    );
+}

@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::remote::{key, line};
-use crate::{Account, Action, Condition, Id, MAX_NAME, MAX_RULES, clean_name};
+use crate::{Account, Action, Condition, Id, MAX_NAME, MAX_RULES, MAX_WORDS_EACH, clean_name};
 
 /// Most rules one download is taken to hold; what is beyond is left out and the download is not
 /// complete.
@@ -43,10 +43,17 @@ pub struct RemoteRule {
     /// The server says it is in error.
     pub error: bool,
     pub conditions: Vec<Condition>,
-    /// What it does, but for a move ([`RemoteRule::move_to`]): never an [`Action::MoveTo`].
+    /// Any one of them holding leaves a message alone.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<Condition>,
+    /// What it does, but for a move and a copy ([`RemoteRule::move_to`], [`RemoteRule::copy_to`]):
+    /// never an [`Action::MoveTo`] or an [`Action::CopyTo`].
     pub actions: Vec<Action>,
     /// What the server calls the folder it moves mail to; empty for none.
     pub move_to: String,
+    /// What it calls the folder it puts a copy in; empty for none.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub copy_to: String,
     pub stop: bool,
     /// The parts this version doesn't know, by the server's names.
     pub unknown: Vec<String>,
@@ -60,6 +67,7 @@ impl RemoteRule {
     pub fn tidy(&mut self) {
         self.id = key(&self.id);
         self.move_to = key(&self.move_to);
+        self.copy_to = key(&self.copy_to);
         self.name = clean_name(&line(&self.name, MAX_NAME)).unwrap_or_else(|| "(no name)".into());
         let mut cut: Vec<&str> = Vec::new();
         let mut note = |part: &'static str| {
@@ -67,37 +75,49 @@ impl RemoteRule {
                 cut.push(part);
             }
         };
-        if self.conditions.len() > MAX_PARTS || self.actions.len() > MAX_PARTS {
+        if self.conditions.len() > MAX_PARTS || self.exceptions.len() > MAX_PARTS || self.actions.len() > MAX_PARTS {
             note(CUT_PARTS);
         }
-        let mut words = |t: &str| {
-            let kept = line(t, MAX_WORDS);
-            if kept.is_empty() {
-                note(CUT_EMPTY);
-            } else if t.trim().chars().count() > MAX_WORDS {
-                note(CUT_WORDS);
+        let mut tidy_all = |parts: Vec<Condition>| -> Vec<Condition> {
+            let mut kept = Vec::new();
+            for condition in parts.into_iter().take(MAX_PARTS) {
+                let Some(words) = condition.words() else {
+                    kept.push(condition);
+                    continue;
+                };
+                if words.len() > MAX_WORDS_EACH {
+                    note(CUT_PARTS);
+                }
+                let longest = if matches!(condition, Condition::From(_) | Condition::SentTo(_)) { crate::MAX_ADDRESS } else { MAX_WORDS };
+                let mut tidied: Vec<String> = Vec::new();
+                for t in words.iter().take(MAX_WORDS_EACH) {
+                    let word = line(t, longest);
+                    if word.is_empty() {
+                        note(CUT_EMPTY);
+                    } else if t.trim().chars().count() > longest {
+                        note(CUT_WORDS);
+                    }
+                    if !word.is_empty() && !tidied.iter().any(|w| crate::rule::same_word(condition.word_kind(), w, &word)) {
+                        tidied.push(word);
+                    }
+                }
+                if tidied.is_empty() {
+                    note(CUT_EMPTY);
+                } else {
+                    kept.push(condition.with_words(tidied));
+                }
             }
             kept
         };
-        let mut conditions = Vec::new();
-        for condition in std::mem::take(&mut self.conditions).into_iter().take(MAX_PARTS) {
-            let tidied = match condition {
-                Condition::FromContains(t) => Condition::FromContains(words(&t)),
-                Condition::ToContains(t) => Condition::ToContains(words(&t)),
-                Condition::SubjectContains(t) => Condition::SubjectContains(words(&t)),
-                Condition::BodyContains(t) => Condition::BodyContains(words(&t)),
-                other => other,
-            };
-            let empty = matches!(&tidied, Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) if t.is_empty());
-            if !empty {
-                conditions.push(tidied);
-            }
-        }
-        self.conditions = conditions;
+        self.conditions = tidy_all(std::mem::take(&mut self.conditions));
+        self.exceptions = tidy_all(std::mem::take(&mut self.exceptions));
         let mut actions = Vec::new();
         for action in std::mem::take(&mut self.actions).into_iter().take(MAX_PARTS) {
             match action {
-                Action::MoveTo(_) => {}
+                Action::MoveTo(_) | Action::CopyTo(_) => {}
+                // What no server's rule does (a server's list that says so is not believed): such a
+                // rule would do it here, at Run Rules Now (#566).
+                Action::FlagFor(_) | Action::ClearFlag | Action::ClearCategories => note(CUT_NOT_SERVERS),
                 Action::Categorize(c) => match clean_name(&c) {
                     Some(name) if c.trim().chars().count() <= MAX_NAME => actions.push(Action::Categorize(name)),
                     _ => note(CUT_CATEGORY),
@@ -124,6 +144,7 @@ const CUT_WORDS: &str = "(words longer than are kept)";
 const CUT_EMPTY: &str = "(a condition with no words)";
 const CUT_CATEGORY: &str = "(a category with no name)";
 const CUT_UNNAMED: &str = "(a part with no name)";
+const CUT_NOT_SERVERS: &str = "(an action a server's rule doesn't take)";
 
 /// An account's rules, as its server has them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

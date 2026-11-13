@@ -115,7 +115,6 @@ crates/ui-egui/src/ribbon.rs
 crates/ui-egui/src/scheduling.rs
 crates/ui-egui/src/search_pills.rs
 crates/ui-egui/src/server_search.rs
-crates/ui-egui/src/sync_panel.rs
 crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs

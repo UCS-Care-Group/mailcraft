@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Rules dialog and where a rule is kept (#566): the box for the server, and Always Move
-//! Messages From This Sender filling the new rule in and adding it only when asked.
+//! The Rules dialog (#566): the box for the server, Always Move Messages From This Sender filling
+//! the new rule in and adding it only when asked, and the new conditions, exceptions and actions.
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
@@ -15,6 +15,10 @@ const NOW: i64 = 1_791_993_600;
 
 fn session() -> Session {
     Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0)
+}
+
+fn folder_id(s: &Session, path: &str) -> Id {
+    s.mailbox.folders.iter().find(|f| s.mailbox.folder_path(f.id) == path).map(|f| f.id).unwrap()
 }
 
 fn app() -> MailApp {
@@ -99,7 +103,8 @@ fn always_move_messages_from_this_sender_fills_the_new_rule_in() {
     let to_name = s.mailbox.folder(to).unwrap().name.clone();
     assert!(f.open && f.server && f.then_run);
     assert_eq!((f.account, f.name.clone()), (noor, format!("Weekly Digest to {to_name}")));
-    assert_eq!(f.conds, [Cond { kind: When::From, text: "digest@news.example".into(), ..Default::default() }]);
+    // From that sender, by the whole address (#566).
+    assert_eq!(f.conds, [Cond { kind: When::Person, text: "digest@news.example".into(), ..Default::default() }]);
     assert_eq!((f.acts.len(), f.acts[0].kind, f.acts[0].folder), (1, Do::Move, to));
     assert_eq!(f.run_in.as_ref().map(|(id, _)| *id), Some(inbox));
     // Another account picked in Rules for: the mail already in the folder is the first's.
@@ -118,6 +123,21 @@ fn always_move_messages_from_this_sender_fills_the_new_rule_in() {
     for p in [json!({"folder": 99_999}), json!({"folder": to, "id": 99_999}), json!({"folder": outbox})] {
         assert_eq!(RulesForm::new(&s, &p), plain, "{p}");
     }
+    // A sender's that isn't one whole address is looked for as words, as the command does,
+    // and the rule can be added as it is filled in.
+    let odd = Message { folder: inbox, from: Address::new("", "noreply"), subject: "x".into(), ..Default::default() };
+    let odd = s.mailbox.add_message(odd).unwrap();
+    let f = RulesForm::new(&s, &json!({"folder": to, "id": odd}));
+    assert_eq!(f.conds, [Cond { kind: When::From, text: "noreply".into(), whole: Some("noreply".into()), ..Default::default() }]);
+    assert_eq!(f.lacks(), None);
+    // A long address is taken whole, never cut into somebody else's.
+    let long = format!("a@{}.{}.{}.{}.example", "b".repeat(60), "c".repeat(60), "d".repeat(60), "e".repeat(30));
+    assert!(long.len() > 200 && long.len() <= 254);
+    let long_one = Message { folder: inbox, from: Address::new("", &long), subject: "x".into(), ..Default::default() };
+    let long_one = s.mailbox.add_message(long_one).unwrap();
+    let f = RulesForm::new(&s, &json!({"folder": to, "id": long_one}));
+    assert_eq!(f.conds, [Cond { kind: When::Person, text: long, ..Default::default() }]);
+    assert_eq!(f.lacks(), None);
 }
 
 #[test]
@@ -139,11 +159,222 @@ fn always_move_messages_from_this_sender_adds_the_rule_only_when_asked_then_runs
     h.run_steps(4);
     let mb = &h.state().session.mailbox;
     let rule = mb.rules.last().unwrap();
-    assert_eq!(rule.conditions, [mailcraft_model::Condition::FromContains(sender)]);
+    assert_eq!(rule.conditions, [mailcraft_model::Condition::From(vec![sender])]);
     assert_eq!(rule.actions, [mailcraft_model::Action::MoveTo(to)]);
     // Then the rules ran over the Inbox, as the menu said: the message is there now.
     assert_eq!(mb.message(m).unwrap().folder, to);
     assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("rules"));
+}
+
+#[test]
+fn what_each_new_part_needs_is_said() {
+    let s = session();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.name = "News".into();
+    let needs = |f: &RulesForm| f.lacks().unwrap_or("");
+    // People are whole addresses, any one of them.
+    f.conds[0] = Cond { kind: When::Person, text: "news@club.example; Noor".into(), ..Default::default() };
+    assert!(needs(&f).contains("whole addresses"), "{}", needs(&f));
+    f.conds[0].text = "news@club.example; noor@example.org".into();
+    assert_eq!(f.lacks(), None);
+    // No longer than an address can be.
+    f.conds[0].text = format!("a@{}.example", "b".repeat(250));
+    assert!(needs(&f).contains("whole addresses"), "{}", needs(&f));
+    // Two sizes, the smaller first.
+    f.conds[0] = Cond { kind: When::Size, min: "500".into(), max: "20".into(), ..Default::default() };
+    assert!(needs(&f).contains("sizes in KB"), "{}", needs(&f));
+    f.conds[0].max = "2147483648".into();
+    assert!(needs(&f).contains("sizes in KB"), "more than a server keeps");
+    f.conds[0].max = "2000".into();
+    assert_eq!(f.lacks(), None);
+    // One day or two, the earlier first.
+    f.conds[0] = Cond { kind: When::Received, ..Default::default() };
+    assert!(needs(&f).contains("one day or two"));
+    f.conds[0].to = "2026-10-01".into();
+    assert_eq!(f.lacks(), None);
+    f.conds[0].from = "2026-10-02".into();
+    assert!(needs(&f).contains("the earlier first"));
+    f.conds[0].from = "yesterday".into();
+    assert!(needs(&f).contains("one day or two"));
+    f.conds[0].from = "2026-09-01".into();
+    assert_eq!(f.lacks(), None);
+    // A category to look for.
+    f.conds[0] = Cond { kind: When::Category, ..Default::default() };
+    assert!(f.lacks().is_some());
+    f.conds[0].category = "Red category".into();
+    assert_eq!(f.lacks(), None);
+    // An exception needs what a condition does.
+    f.unless = vec![Cond { kind: When::Subject, ..Default::default() }];
+    assert!(needs(&f).contains("condition and exception"), "{}", needs(&f));
+    f.unless[0].text = "unsubscribe".into();
+    assert_eq!(f.lacks(), None);
+    // Something to do: an action, or the alert alone.
+    f.acts.clear();
+    assert!(needs(&f).contains("something to do"));
+    f.alert = true;
+    assert_eq!(f.lacks(), None);
+    // A copy needs a folder, as a move does.
+    f.acts = vec![Act { kind: Do::Copy, folder: 0, ..f.fresh_action() }];
+    assert!(needs(&f).contains("need a folder"), "{}", needs(&f));
+    // And a name.
+    f.acts[0].folder = folder_id(&s, "Receipts");
+    assert_eq!(f.lacks(), None);
+    f.name = " ".into();
+    assert!(needs(&f).contains("a name"), "{}", needs(&f));
+}
+
+#[test]
+fn a_rule_looks_for_no_more_words_than_rules_add_takes_and_the_box_for_the_server_says_so_of_the_rest() {
+    // The reason says 20.
+    assert_eq!(MAX_WORDS_EACH, 20);
+    let mut s = session();
+    let noor = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.choose(&s.mailbox, noor);
+    f.name = "News".into();
+    let words = |from: usize, to: usize| (from..to).map(|n| format!("w{n}")).collect::<Vec<_>>().join("; ");
+    // A condition.
+    f.conds[0] = Cond { kind: When::Subject, text: words(0, 21), ..Default::default() };
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    f.conds[0].text = words(0, 20);
+    assert_eq!(f.lacks(), None);
+    // Exceptions of one kind are one: a word both look for counts once, and other kinds apart.
+    f.unless = vec![
+        Cond { kind: When::Body, text: words(0, 12), ..Default::default() },
+        Cond { kind: When::Body, text: words(4, 20).to_uppercase(), ..Default::default() },
+        Cond { kind: When::Subject, text: words(30, 45), ..Default::default() },
+    ];
+    assert_eq!(f.lacks(), None);
+    let (command, params) = f.command();
+    s.run(command, &params).unwrap();
+    f.unless[1].text = words(4, 21);
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    let (command, params) = f.command();
+    assert!(s.run(command, &params).is_err(), "as `rules.add` refuses it");
+    // Meanwhile the box for the server judges the exceptions as they are, never as none: a name
+    // the server can't look for is said.
+    f.unless = vec![
+        Cond { kind: When::From, text: format!("{}; Noor Haddad", words(0, 12)), ..Default::default() },
+        Cond { kind: When::From, text: words(12, 21), ..Default::default() },
+    ];
+    assert_eq!(f.lacks(), Some(too_many_words()));
+    assert_eq!(server_cannot_draft(&s, &f.command().1), Some(NotOnServer::Names));
+}
+
+#[test]
+fn a_word_longer_than_rules_add_takes_is_said_not_cut() {
+    // The reason says 200.
+    assert_eq!(MAX_WORD, 200);
+    let mut s = session();
+    let mut f = RulesForm::new(&s, &json!({}));
+    f.name = "Old reports".into();
+    let word = "x".repeat(200);
+    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody, When::Header] {
+        f.conds = vec![Cond { kind, text: format!("short; {word}-2026"), ..Default::default() }];
+        assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")), "{kind:?}");
+        let (command, params) = f.command();
+        assert!(s.run(command, &params).is_err(), "{kind:?}: as `rules.add` refuses it");
+        f.conds[0].text = format!("short; {word}");
+        assert_eq!(f.lacks(), None, "{kind:?}");
+    }
+    // An exception too.
+    f.unless = vec![Cond { kind: When::Body, text: format!("{word}y"), ..Default::default() }];
+    assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")));
+}
+
+#[test]
+fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
+    let mut s = session();
+    let mut f = RulesForm::new(&s, &json!({}));
+    let receipts = folder_id(&s, "Receipts");
+    f.name = "Club".into();
+    f.conds = vec![
+        Cond { kind: When::Person, text: "news@club.example".into(), ..Default::default() },
+        Cond { kind: When::SubjectOrBody, text: "meeting; agenda".into(), ..Default::default() },
+        Cond { kind: When::ToOrCcMe, ..Default::default() },
+        Cond { kind: When::Size, min: "0".into(), max: "512".into(), ..Default::default() },
+        Cond { kind: When::Received, from: "2026-10-01".into(), ..Default::default() },
+    ];
+    f.unless = vec![
+        Cond { kind: When::Sensitivity, sensitivity: Sensitivity::Private, ..Default::default() },
+        Cond { kind: When::Category, category: "Red category".into(), ..Default::default() },
+        Cond { kind: When::Header, text: "X-Spam-Flag: YES".into(), ..Default::default() },
+    ];
+    f.acts = vec![
+        Act { kind: Do::Copy, folder: receipts, ..f.fresh_action() },
+        Act { kind: Do::Flag, due: Some(FollowUp::Tomorrow), ..f.fresh_action() },
+        Act { kind: Do::ClearCategories, ..f.fresh_action() },
+    ];
+    f.alert = true;
+    assert_eq!(f.lacks(), None);
+    let (command, params) = f.command();
+    assert_eq!(
+        params,
+        json!({
+            "name": "Club",
+            "account": f.account,
+            "conditions": [
+                {"type": "from", "value": "news@club.example"}, {"type": "subjectOrBodyContains", "value": ["meeting", "agenda"]},
+                {"type": "toOrCcMe"}, {"type": "sizeBetween", "value": {"min": 0, "max": 512}},
+                {"type": "receivedBetween", "value": {"from": "2026-10-01", "to": null}},
+            ],
+            "exceptions": [
+                {"type": "sensitivity", "value": "private"}, {"type": "category", "value": "Red category"},
+                {"type": "headerContains", "value": "X-Spam-Flag: YES"},
+            ],
+            "actions": [{"type": "copyTo", "value": receipts}, {"type": "flagFor", "value": "tomorrow"}, {"type": "clearCategories"}],
+            "stop": false,
+            "alert": true,
+        })
+    );
+    let id = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
+    let rule = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
+    assert!(rule.alert);
+    assert_eq!(rule.exceptions.len(), 3);
+    assert_eq!(
+        describe(&s.mailbox, rule),
+        "When from \"news@club.example\" and subject or body contains \"meeting\" or \"agenda\" and my address is in To or Cc and \
+         size is 0 KB to 512 KB and received on or after 2026-10-01, except if sensitivity is private or category is \"Red category\" \
+         or header contains \"X-Spam-Flag: YES\": copy it to Receipts, flag it for tomorrow, clear its categories, show a desktop alert"
+    );
+    // The rest: a plain flag, clearing it, deleting, and the other conditions that
+    // take nothing.
+    f.conds = [When::SentOnlyToMe, When::ToMe, When::CcMe, When::NotToMe, When::Meeting]
+        .into_iter()
+        .map(|kind| Cond { kind, ..Default::default() })
+        .collect();
+    f.unless = vec![Cond { kind: When::AutomaticReply, ..Default::default() }, Cond { kind: When::Flagged, ..Default::default() }];
+    f.acts = [Do::Flag, Do::ClearFlag, Do::Delete].into_iter().map(|kind| Act { kind, ..f.fresh_action() }).collect();
+    f.alert = false;
+    let params = f.command().1;
+    assert_eq!(
+        params["conditions"],
+        json!([{"type": "sentOnlyToMe"}, {"type": "toMe"}, {"type": "ccMe"}, {"type": "notToMe"}, {"type": "meetingRequest"}])
+    );
+    assert_eq!(params["exceptions"], json!([{"type": "automaticReply"}, {"type": "flagged"}]));
+    assert_eq!(params["actions"], json!([{"type": "flag"}, {"type": "clearFlag"}, {"type": "delete"}]));
+    assert!(params.get("alert").is_none());
+    assert!(s.run("rules.add", &params).is_ok());
+    // Every kind the builder offers is one `rules.add` takes.
+    for kind in When::ALL {
+        f.conds = vec![Cond {
+            kind,
+            text: "news@club.example".into(),
+            min: "1".into(),
+            max: "2".into(),
+            from: "2026-10-01".into(),
+            category: "Red category".into(),
+            ..Default::default()
+        }];
+        f.unless.clear();
+        f.acts = vec![f.fresh_action()];
+        assert_eq!(f.lacks(), None, "{kind:?}");
+        assert!(s.run("rules.add", &f.command().1).is_ok(), "{kind:?}");
+    }
+    for kind in Do::ALL {
+        f.acts = vec![Act { kind, ..f.fresh_action() }];
+        assert!(s.run("rules.add", &f.command().1).is_ok(), "{kind:?}");
+    }
 }
 
 /// #702: the dialog lists the accounts in the order the owner put them in the folder pane.
@@ -171,4 +402,171 @@ fn with_no_account_in_view_the_dialog_opens_on_the_first_added() {
     s.run("account.move", &serde_json::json!({"id": work, "before": first})).unwrap();
     assert_eq!(rule_accounts(&s.mailbox).first().map(|(id, _)| *id), Some(work), "listed first");
     assert_eq!(account_in_view(&s), first);
+}
+
+/// With "Rules for" switched to another account, Run Rules Now runs the rules shown, over that
+/// account's Inbox, and not the rules of the account in view, which the dialog doesn't show (one
+/// of them deletes).
+#[test]
+fn run_rules_now_under_another_accounts_list_leaves_the_account_in_views_mail_alone() {
+    use crate::forms::Form;
+    let mut a = app();
+    let inbox = a.session.view.folder;
+    let here = a.session.mailbox.folder(inbox).unwrap().account;
+    let m = a.session.mailbox.messages_in(inbox).next().map(|m| m.id).unwrap();
+    let subject = a.session.mailbox.message(m).unwrap().subject.clone();
+    // The account in view: a rule that deletes that message.
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Gone", "account": here, "server": false,
+                "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "delete"}]}),
+        )
+        .unwrap();
+    // Another account, with a rule of its own.
+    let noor = a.session.run("account.add", &json!({"email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Club news", "account": noor, "conditions": [{"type": "fromContains", "value": "news@club.example"}],
+                "actions": [{"type": "markRead"}]}),
+        )
+        .unwrap();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    // Rules for: noor@example.org, as the combo box sets it.
+    {
+        let app = h.state_mut();
+        let mb = app.session.mailbox.clone();
+        let Some(Dialog::Form(Form::Rules(f))) = &mut app.dialog else { panic!("the Rules dialog is open") };
+        f.choose(&mb, noor);
+    }
+    h.run_steps(4);
+    // The list shown is noor's: the rule that deletes isn't in it.
+    let shown: Vec<String> = {
+        let app = h.state();
+        let Some(Dialog::Form(Form::Rules(f))) = &app.dialog else { panic!("the Rules dialog is open") };
+        assert_eq!(f.account, noor);
+        let mb = &app.session.mailbox;
+        mb.rules_in_order(f.account).into_iter().filter_map(|i| mb.rules.get(i)).map(|r| r.name.clone()).collect()
+    };
+    assert_eq!(shown, ["Club news"]);
+    // Mail of noor's for its rule.
+    let noor_inbox = h.state().session.mailbox.folder_of_kind(noor, FolderKind::Inbox).unwrap();
+    let news = mailcraft_model::Message {
+        folder: noor_inbox,
+        from: mailcraft_model::Address::new("", "news@club.example"),
+        subject: subject.clone(),
+        ..Default::default()
+    };
+    let news = h.state_mut().session.mailbox.add_message(news).unwrap();
+    h.get_by_label("Run Rules Now").click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    assert!(mb.message(m).is_some_and(|m| m.folder == inbox), "a rule the dialog didn't show deleted \"{subject}\"");
+    assert!(mb.message(news).is_some_and(|m| m.read), "the rule shown ran over noor's Inbox");
+}
+
+/// Always Move Messages From This Sender, for a sender whose address isn't one whole address and
+/// has a semicolon in it (`Deals <e;x@deals.example>`, which the header reader keeps whole between
+/// the angle brackets). `rules.fromMessage` looks for it as one text, and so does the rule the
+/// builder fills in, though the field's semicolons otherwise set texts apart: the run that follows
+/// Add Rule leaves other people's mail alone.
+#[test]
+fn always_move_keeps_a_semicolon_in_the_senders_text() {
+    use mailcraft_model::{Address, Condition, Message};
+    let mut s = session();
+    let inbox = s.view.folder;
+    let account = s.mailbox.folder(inbox).unwrap().account;
+    let to = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let add = |s: &mut Session, name: &str, email: &str| {
+        let m = Message { folder: inbox, account, from: Address::new(name, email), subject: format!("From {name}"), ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let deals = add(&mut s, "Deals", "e;x@deals.example");
+    let eve = add(&mut s, "Eve", "eve@example.org");
+    // The command: one text, the sender's as it is.
+    let made = s.run("rules.fromMessage", &json!({"folder": to, "id": deals})).unwrap()["id"].as_u64().unwrap();
+    let rule = s.mailbox.rules.iter().find(|r| r.id == made).unwrap();
+    assert_eq!(rule.conditions, [Condition::FromContains(vec!["e;x@deals.example".into()])]);
+    assert_eq!(s.mailbox.message(eve).unwrap().folder, inbox, "rules.fromMessage left Eve's mail alone");
+    s.run("rules.remove", &json!({"id": made})).unwrap();
+    s.run("mail.move", &json!({"ids": [deals], "folder": inbox})).unwrap();
+    // The window: the builder filled in, Add Rule, then the run over the Inbox it offers.
+    let f = RulesForm::new(&s, &json!({"folder": to, "id": deals}));
+    assert!(f.then_run && f.lacks().is_none());
+    let (command, params) = f.command();
+    let made = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
+    s.run("rules.run", &json!({"folder": inbox, "id": made})).unwrap();
+    let rule = s.mailbox.rules.iter().find(|r| r.id == made).unwrap();
+    assert_eq!(
+        s.mailbox.message(eve).unwrap().folder,
+        inbox,
+        "the rule Always Move made in the window, {:?}, moved Eve's mail to Archive",
+        rule.conditions
+    );
+}
+
+/// With a shared mailbox's folder in view, the Rules dialog shows the rules of the first account
+/// added (a shared mailbox's rules are its own), and its Run Rules Now runs them over that
+/// account's Inbox, as its hover says: the shared mailbox's mail is left alone.
+#[test]
+fn run_rules_now_with_a_shared_mailboxs_folder_in_view_runs_over_the_accounts_own_inbox() {
+    use mailcraft_model::{Address, Message};
+    let mut a = app();
+    let work = a.session.run("account.add", &json!({"email": "work@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let team = a.session.run("account.addSharedMailbox", &json!({"account": work, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let first = a.session.mailbox.accounts[0].id;
+    a.session
+        .run(
+            "rules.add",
+            &json!({"name": "Read", "account": first, "server": false,
+                "conditions": [{"type": "fromContains", "value": "news@club.example"}], "actions": [{"type": "markRead"}]}),
+        )
+        .unwrap();
+    let news = |a: &mut crate::MailApp, account: u64| {
+        let folder = a.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m = Message { folder, account, from: Address::new("", "news@club.example"), subject: "Club news".into(), ..Default::default() };
+        a.session.mailbox.add_message(m).unwrap()
+    };
+    let (ours, theirs) = (news(&mut a, first), news(&mut a, team));
+    a.session.view.folder = a.session.mailbox.folder_of_kind(team, FolderKind::Inbox).unwrap();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    h.get_by_label("Run Rules Now").click();
+    h.run_steps(4);
+    let mb = &h.state().session.mailbox;
+    assert!(mb.message(ours).is_some_and(|m| m.read), "the rules shown ran over their account's Inbox");
+    assert!(mb.message(theirs).is_some_and(|m| !m.read), "the shared mailbox's mail is left alone");
+}
+
+/// A rule the command refuses (a copy into an Outbox) is said in the dialog in the window's
+/// language, as the status bar says a refusal (#566).
+#[test]
+fn the_dialog_says_a_refusal_in_the_windows_language() {
+    use crate::forms::Form;
+    let _language = crate::i18n::RestoreLanguage::hold();
+    let mut a = app();
+    let before = a.session.mailbox.rules.len();
+    a.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = window(a);
+    {
+        let app = h.state_mut();
+        let mb = app.session.mailbox.clone();
+        let Some(Dialog::Form(Form::Rules(f))) = &mut app.dialog else { panic!("the Rules dialog is open") };
+        let outbox = mb.folder_of_kind(f.account, FolderKind::Outbox).unwrap();
+        f.open = true;
+        f.name = "Invoices out".into();
+        f.conds = vec![Cond { kind: When::Subject, text: "invoice".into(), ..Default::default() }];
+        f.acts = vec![Act { kind: Do::Copy, folder: outbox, ..f.fresh_action() }];
+    }
+    h.run_steps(4);
+    // The window turns German at its next frame, the one that takes the click.
+    h.state_mut().ui.language = "de".into();
+    h.get_by_label("Add Rule").click();
+    h.run_steps(4);
+    let app = h.state();
+    assert_eq!(app.session.mailbox.rules.len(), before, "the rule was refused");
+    let Some(Dialog::Form(Form::Rules(f))) = &app.dialog else { panic!("the Rules dialog is open") };
+    assert_eq!(f.error, "eine Regel kann keine E-Mails in einen Postausgang verschieben oder kopieren: sie würden gesendet");
 }

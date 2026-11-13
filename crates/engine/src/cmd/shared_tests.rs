@@ -763,3 +763,35 @@ fn a_reply_in_a_shared_mailbox_starts_with_its_own_reply_signature_and_the_owner
     let body = s.compose.as_ref().unwrap().body.plain();
     assert!(body.contains("Lena") && !body.contains("The front desk"), "{body:?}");
 }
+
+/// The owner's rules leave a shared mailbox's mail alone however they are run, as arriving mail
+/// is left alone and `rules.fromMessage` refuses one of its messages: Run Rules Now over its
+/// Inbox is refused, and a rule for every account (as a mailbox from before rules had accounts
+/// holds) that deletes moves nothing on the shared mailbox's server.
+#[test]
+fn run_rules_now_over_a_shared_mailbox_leaves_its_mail_alone() {
+    let (mut s, owner, shared) = both();
+    let their_inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    let before = theirs(&s, shared);
+    assert_eq!(before.len(), 2);
+    let gone = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": "support@example.org"}], "actions": [{"type": "delete"}]});
+    let every = s.run("rules.add", &gone).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.rules.iter_mut().find(|r| r.id == every).unwrap().account = 0;
+    let mut mine = gone.clone();
+    (mine["account"], mine["server"]) = (json!(owner), json!(false));
+    s.run("rules.add", &mine).unwrap();
+    let refused = s.run("rules.run", &json!({"folder": their_inbox})).unwrap_err().to_string();
+    assert!(refused.contains("shared mailbox"), "{refused}");
+    // Nor by the rules run as such, nor by the agent's question.
+    let ids: Vec<Id> = s.mailbox.messages_in(their_inbox).map(|m| m.id).collect();
+    let clock = s.rule_clock();
+    for id in ids {
+        assert!(s.mailbox.run_rules(id, true, &clock).is_empty());
+    }
+    let asked = graph_mail_request(&s, shared).unwrap();
+    assert!(!asked.messages.iter().any(|c| matches!(c, MessageChange::Delete { .. } | MessageChange::Move { .. })), "{:?}", asked.messages);
+    assert_eq!(theirs(&s, shared), before);
+    // The agent is asked as for any run of the rules, not as for a delete: the command refuses.
+    let verdict = crate::agent::check(&s, "rules.run", &json!({"folder": their_inbox}), &[]);
+    assert!(matches!(verdict, crate::agent::Verdict::Ask(crate::agent::Class::Settings, _)), "{verdict:?}");
+}

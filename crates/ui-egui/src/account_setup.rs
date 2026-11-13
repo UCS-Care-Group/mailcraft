@@ -2379,8 +2379,9 @@ impl AccountSetup {
                 caption(ui, tl!("Gmail categories"), &t);
                 ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
                     .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
-                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
-                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary")).on_hover_text(tl!(
+                    "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+                ));
             }
         });
         problem(ui, &self.error);

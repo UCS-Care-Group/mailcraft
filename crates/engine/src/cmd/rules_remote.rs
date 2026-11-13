@@ -17,8 +17,8 @@
 //! **A lost answer.** A rule whose creation went out and got no answer (the connection dropped,
 //! or MailCraft was closed) may be on the server already: it is marked
 //! ([`mailcraft_model::Rule::unanswered`], from when its job starts, [`mark_sent`]) and not sent
-//! again until the server's rules have been read whole. A rule there with the same name, conditions
-//! and actions is then taken as it; when there is none, it is sent again. Only such a rule is
+//! again until the server's rules have been read whole. A rule there with the same name, conditions,
+//! exceptions and actions is then taken as it; when there is none, it is sent again. Only such a rule is
 //! taken for one of the server's that looks the same: a rule never sent is never taken for one
 //! made elsewhere. One deleted here meanwhile is remembered by what it is
 //! ([`mailcraft_model::RuleGone::made`]): the next whole read deletes the one there that looks the
@@ -39,7 +39,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::remote_rules::{
     MAX_RULE_OPS, MAX_SERVER_RULES, RemoteRule, RuleOp, RuleOpKind, RuleOutcome, RuleResult, RulesDownload, RulesUpload, RulesUploaded,
 };
-use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule};
+use mailcraft_model::{Action, Condition, Id, Keep, MAX_RULE_GONE, MAX_RULES, Mailbox, Rule, RuleGone, ServerRule, Words, same_word};
 use serde_json::{Value, json};
 
 use super::remote::{Merged, owner};
@@ -52,6 +52,8 @@ const MAX_SHOWN: usize = 200;
 /// What a move to a folder is called among the parts of a server's rule, when it goes to a folder
 /// this mailbox doesn't have.
 const MOVE_PART: &str = "moveToFolder";
+/// And of the folder it copies mail to.
+const COPY_PART: &str = "copyToFolder";
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -63,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"result": RulesUploaded} — what a host heard from the server: {"account": number, "email"?: string, "outcomes": [{"kind", "rule": number, "id"?: string, "result": "done"|"gone"|"denied"|"failed"|"refused", "enabled"?: bool, "sequence"?: number, "error"?: string}]} — answers {"done", "failed", "messages": [string]}"#),
         CommandSpec::new("sync.applyRules", "Apply Downloaded Rules", "Send / Receive", apply_rules_command)
             .pure()
-            .params(r#"{"download": RulesDownload} — what a host brought from the account's server: {"account": number, "email"?: string, "complete": bool, "rules": [{"id", "name", "sequence", "enabled", "readOnly", "error", "conditions", "actions", "moveTo", "stop", "unknown": [string]}]} — answers {"added", "updated", "removed", "unchanged", "skipped", "complete"}"#),
+            .params(r#"{"download": RulesDownload} — what a host brought from the account's server: {"account": number, "email"?: string, "complete": bool, "rules": [{"id", "name", "sequence", "enabled", "readOnly", "error", "conditions", "exceptions", "actions", "moveTo", "copyTo", "stop", "unknown": [string]}]} — answers {"added", "updated", "removed", "unchanged", "skipped", "complete"}"#),
     ]
 }
 
@@ -86,10 +88,12 @@ fn server_folder(mailbox: &Mailbox, account: Id, folder: Id) -> Option<String> {
 /// The rule as it is sent to the server to be made there.
 fn remote_of(mailbox: &Mailbox, account: Id, rule: &Rule, sequence: i32) -> RemoteRule {
     let mut move_to = String::new();
+    let mut copy_to = String::new();
     let mut actions = Vec::new();
     for action in &rule.actions {
         match action {
             Action::MoveTo(folder) => move_to = server_folder(mailbox, account, *folder).unwrap_or_default(),
+            Action::CopyTo(folder) => copy_to = server_folder(mailbox, account, *folder).unwrap_or_default(),
             other => actions.push(other.clone()),
         }
     }
@@ -99,8 +103,10 @@ fn remote_of(mailbox: &Mailbox, account: Id, rule: &Rule, sequence: i32) -> Remo
         sequence,
         enabled: rule.enabled,
         conditions: rule.conditions.clone(),
+        exceptions: rule.exceptions.clone(),
         actions,
         move_to,
+        copy_to,
         stop: rule.stop,
         ..Default::default()
     }
@@ -202,11 +208,14 @@ pub fn rule_upload(mailbox: &Mailbox, account: Id) -> Result<RulesUpload, CmdErr
 fn local_of(mailbox: &Mailbox, account: Id, remote: &RemoteRule) -> (Vec<Action>, Vec<String>) {
     let mut actions = remote.actions.clone();
     let mut unknown = remote.unknown.clone();
-    if !remote.move_to.is_empty() {
-        let folder = mailbox.folders.iter().find(|f| f.account == account && f.server.as_ref().is_some_and(|s| s.id == remote.move_to));
+    for (there, part, copy) in [(&remote.copy_to, COPY_PART, true), (&remote.move_to, MOVE_PART, false)] {
+        if there.is_empty() {
+            continue;
+        }
+        let folder = mailbox.folders.iter().find(|f| f.account == account && f.server.as_ref().is_some_and(|s| s.id == *there));
         match folder {
-            Some(f) => actions.insert(0, Action::MoveTo(f.id)),
-            None if !unknown.iter().any(|u| u == MOVE_PART) => unknown.push(MOVE_PART.to_string()),
+            Some(f) => actions.insert(0, if copy { Action::CopyTo(f.id) } else { Action::MoveTo(f.id) }),
+            None if !unknown.iter().any(|u| u == part) => unknown.push(part.to_string()),
             None => {}
         }
     }
@@ -227,14 +236,16 @@ fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool
         })
 }
 
-/// The words of two conditions are the same but for their letters' case: the server keeps the
-/// text of a condition in capitals.
+/// The words of two conditions are the same but for their letters' case (the server keeps the
+/// text of a condition in capitals), as a rule matches them ([`same_word`]): an address by the A
+/// to Z letters' case alone, so a server's change of another letter in it is a change.
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
-    let words = |c: &Condition| match c {
-        Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) => Some(t.to_lowercase()),
-        _ => None,
+    let alike = |a: &Condition, b: &Condition| match (a.words(), b.words()) {
+        (Some(x), Some(y)) => std::mem::discriminant(a) == std::mem::discriminant(b) && same_parts(x, y, |v, w| same_word(a.word_kind(), v, w)),
+        (None, None) => a == b,
+        _ => false,
     };
-    same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
+    same_parts(here, there, alike)
 }
 
 /// What is said of a rule deleted on the server while it was switched or moved here.
@@ -250,6 +261,7 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String
         && !remote.read_only
         && here.name.eq_ignore_ascii_case(&remote.name)
         && same_words(&here.conditions, &remote.conditions)
+        && same_words(&here.exceptions, &remote.exceptions)
         && same_actions(&here.actions, actions)
         && here.stop == remote.stop
 }
@@ -258,7 +270,7 @@ fn alike(here: &Rule, remote: &RemoteRule, actions: &[Action], unknown: &[String
 /// counts once: it goes to the server once, which gives it back so.
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
     let same = |a: &Action, b: &Action| match (a, b) {
-        (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
+        (Action::Categorize(x), Action::Categorize(y)) => same_word(Words::Categories, x, y),
         _ => a == b,
     };
     here.iter().all(|a| there.iter().any(|b| same(a, b))) && there.iter().all(|b| here.iter().any(|a| same(a, b)))
@@ -311,6 +323,9 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             if !same_words(&rule.conditions, &remote.conditions) {
                 rule.conditions = remote.conditions.clone();
             }
+            if !same_words(&rule.exceptions, &remote.exceptions) {
+                rule.exceptions = remote.exceptions.clone();
+            }
             if !same_actions(&rule.actions, &actions) {
                 rule.actions = actions;
             }
@@ -357,6 +372,7 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             name: remote.name.clone(),
             enabled: remote.enabled,
             conditions: remote.conditions.clone(),
+            exceptions: remote.exceptions.clone(),
             actions,
             stop: remote.stop,
             account,

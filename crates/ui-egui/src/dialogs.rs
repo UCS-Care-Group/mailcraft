@@ -575,7 +575,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 let going = tln!(
                     rules,
-                    "Its {n} rule goes too; one its server keeps stays there.",
+                    "Its rule goes too; if its server keeps it, it stays there.",
                     "Its {n} rules go too; those its server keeps stay there."
                 );
                 format!("{text} {going}")

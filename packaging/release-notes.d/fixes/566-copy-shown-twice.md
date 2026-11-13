@@ -1,0 +1,1 @@
+- A message copied to another folder of a Microsoft account no longer shows up twice in that folder when MailCraft looked through the account's mail between the copy and the server's answer ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

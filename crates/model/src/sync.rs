@@ -1287,6 +1287,15 @@ pub struct GraphMessage {
     /// here (#611).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<bool>,
+    /// Some of its recipients (To, Cc) were left out as it was listed, past what is kept of one or
+    /// as an address that can't be kept, or the end of its subject: a rule can't tell from it what
+    /// they said until it is fetched ([`crate::Message::headers_cut`], #566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut: bool,
+    /// Some of its categories were left out as it was listed, past what is kept of one: a rule
+    /// can't tell from it what they said, fetched or not ([`crate::Message::categories_cut`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so
@@ -1481,6 +1490,12 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// The last piece of the Inbox pass: the pass is a download of its own for what the account
+    /// had before its new mail (#566), so that the next check of the Inbox, or the run after it,
+    /// starts from what the account has then. (A check that gave way to a run the owner asked for
+    /// never brings it: the window then ends the check by itself.)
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_pass_end: bool,
     /// What the server said of the conversations of the messages the run asked about
     /// ([`GraphMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1528,6 +1543,7 @@ impl GraphMailResult {
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
+        self.inbox_pass_end = piece.inbox_pass_end;
         self.refused = piece.refused.or(self.refused);
         self.timings.absorb(&piece.timings);
         if piece.progress.is_some() {

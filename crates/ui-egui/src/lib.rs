@@ -2022,6 +2022,12 @@ impl MailApp {
         match self.session.registry.get(id) {
             // Cancel All, while the window has a Send/Receive under way.
             Some(_) if id == "sync.cancel" => self.syncing(),
+            // Run Rules Now over the folder in view: greyed where the rules leave the mail alone (a
+            // shared mailbox's), as in the folder's menu and the Rules dialog.
+            Some(s) if id == "rules.run" => {
+                let mb = &self.session.mailbox;
+                (s.enabled)(&self.session).is_none() && mb.folder(self.session.view.folder).is_some_and(|f| mb.rules_reach(f.account))
+            }
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed
@@ -2198,14 +2204,20 @@ impl MailApp {
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.refusal_said(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }
         self.status(said);
+    }
+
+    /// What a dialog or the status bar says of `e`, the refusal of the command just run: in the
+    /// window's language, as the engine gave its words.
+    pub(crate) fn refusal_said(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
@@ -3768,6 +3780,7 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("graph, account {account}: the job ended without an answer (its thread ended early)");
+                self.session.end_run_unfinished(account);
                 (GraphResult { account, ..Default::default() }, false)
             }
         };
@@ -4369,6 +4382,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
                     self.logged_problems.end_run(*whose, "mail");
+                    self.session.end_run_unfinished(*whose);
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;

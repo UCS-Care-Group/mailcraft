@@ -285,6 +285,10 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
+        // A message on its way onto another account's server now still is (a rule's move of mail
+        // that came since the change, #566).
+        queue(&mut out, now, &g);
+        waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
     }
     let mut said = Said::default();
@@ -308,7 +312,20 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
+    waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// The rules waiting for the messages the change touched to be here whole are as they are now
+/// (#566): a move took them away, and moving the message back by undoing it or redoing a move
+/// doesn't bring them back, nor does it have a rule act a second time.
+fn waiting_as_now(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    for id in &touched.changed_messages {
+        let waiting = now.messages.get(id).and_then(|c| c.rules_waiting.clone());
+        if let Some(m) = out.messages.get_mut(id).filter(|m| m.rules_waiting != waiting) {
+            Arc::make_mut(m).rules_waiting = waiting;
+        }
+    }
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name
@@ -927,6 +944,26 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
+    // A message that lies, after the undo, where it waits now to be made on another account's
+    // server, still waits to be: one moved out of a Microsoft account before its server had it,
+    // which stays where it was moved ([`fields`]), or one put there since the change, in any
+    // mailbox (#566). What the queue makes already is looked up, not searched for: tens of
+    // thousands may wait after a big folder was moved onto a server.
+    let mut placed: HashSet<Id> = queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { message, .. } => Some(*message),
+            _ => None,
+        })
+        .collect();
+    for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
+        if let Queued::PlaceMessage { account, message, .. } = q
+            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
+            && placed.insert(*message)
+        {
+            queued.push(q.clone());
+        }
+    }
     for q in then.iter().filter(|q| g.contains(&q.account())) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())

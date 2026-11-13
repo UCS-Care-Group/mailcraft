@@ -12,17 +12,23 @@
 //! ones it holds. On the yes, [`Shown::check`]:
 //! - a folder emptied or deleted ([`Object::FolderContent`]) reaches only the messages shown: what
 //!   came into it meanwhile stays (an empty takes the shown ones; a delete, which would take the
-//!   folder with what came, does nothing);
+//!   folder with what came, does nothing, and so does Run Rules Now over it, which would act on
+//!   what came: put it on another server, say, #566); nor does Run Rules Now when a
+//!   message shown was changed meanwhile in what the rules read of it (by an agent, which may
+//!   change a message unasked: its categories or flag, a draft's subject, an undo that puts an
+//!   attachment back), which they may then take, or the rules were (a category they name renamed,
+//!   one switched on or off);
 //! - anything else is described again: when what the command would read from the window, or the
 //!   question's text, differs, or what it names is gone, nothing runs.
 //!
 //! Every command an agent is asked about says what it is about ([`object`]): one that doesn't is
 //! refused, never asked about ([`super::check`]).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher, RandomState};
+use std::sync::Arc;
 
-use mailcraft_model::Id;
+use mailcraft_model::{Id, Message, Rule};
 use serde_json::Value;
 
 use crate::{Compose, Selection, Session, ViewState, p};
@@ -86,8 +92,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.downloadPictures"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
-        "folder.empty" | "folder.delete" => FolderContent,
-        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        "folder.empty" | "folder.delete" | "rules.run" => FolderContent,
+        "file.import" | "calendar.deleteAnsweredRequests" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
@@ -142,6 +148,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.dismissSettingsNotice"
         | "ui.dismissSoftwareNotice"
         | "ui.reportProblem"
+        // The zone the calendar is shown in, which a rule reads the days mail came by (#566).
+        | "view.timeZone"
         // The Public keys kept (File › Options › Security, #30): the question names the key.
         | "keys.import"
         | "keys.remove" => Options,
@@ -198,6 +206,39 @@ struct Held {
     /// The folders that go with it: those deleted into Deleted Items that its emptying takes, or
     /// the folder deleted and every folder under it.
     folders: HashSet<Id>,
+    /// For Run Rules Now, its messages as they were (#566): what the rules would do to them is
+    /// what the question was about.
+    as_shown: AsShown,
+    /// And the zone the rules read the days mail came by ([`Session::zone`]).
+    zone: mailcraft_time::Zone,
+    /// And the rules for its account, in the order they run, in what they read and do: one
+    /// rewritten, switched on or off or moved meanwhile (a category renamed rewrites them,
+    /// unasked) may take other mail.
+    rules: Vec<Rule>,
+}
+
+/// Messages as a question showed them, held as they were (the same in memory while nothing
+/// changes them). What only a server changes (what it last said, its stamps, a read mark) is no
+/// change to the rules ([`mailcraft_model::Mailbox::rules_read_alike`]).
+#[derive(Clone, Default, PartialEq, Eq)]
+struct AsShown(HashMap<Id, Arc<Message>>);
+
+impl std::fmt::Debug for AsShown {
+    // (Their count alone: nothing of the mail goes into a debug line.)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AsShown({} messages)", self.0.len())
+    }
+}
+
+impl AsShown {
+    /// Whether the rules may read one of `ids` otherwise than they read it when it was shown.
+    fn changed(&self, s: &Session, ids: &HashSet<Id>) -> bool {
+        let mb = &s.mailbox;
+        ids.iter().any(|id| match (self.0.get(id), mb.messages.get(id)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && !mb.rules_read_alike(then, now, s.zone()),
+            _ => true,
+        })
+    }
 }
 
 /// What of a folder's content the owner's yes reaches, when something came into it since the
@@ -269,7 +310,36 @@ impl Shown {
                 return changed();
             }
             if now.messages.is_subset(&shown.messages) && now.folders.is_subset(&shown.folders) {
+                // What the rules would do is described again, as for anything else, and they act on
+                // the messages as they were shown: one changed since may now be one they take.
+                if id == "rules.run" && super::describe(s, id, params) != self.what {
+                    return changed();
+                }
+                if id == "rules.run" && shown.zone != now.zone {
+                    return Err(
+                        "the time zone the rules read the days mail came by has changed since the owner was asked about `rules.run`, so they may act on other mail: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
+                }
+                if id == "rules.run" && shown.rules != now.rules {
+                    return Err(
+                        "the rules `rules.run` was asked about were changed since the owner was asked (a category they name renamed, a rule switched on or off, say), so they may act on other mail: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
+                }
+                if id == "rules.run" && shown.as_shown.changed(s, &now.messages) {
+                    return Err(
+                        "a message in the folder `rules.run` was asked about was changed since the owner was asked in what the rules read of it (its categories or flag, its subject, an attachment, say), so they may act on it otherwise: nothing was done. Ask the owner again"
+                            .to_string(),
+                    );
+                }
                 return Ok(Reach::All);
+            }
+            if id == "rules.run" {
+                return Err(
+                    "the folder `rules.run` was asked about holds messages that came into it since the owner was asked, which the rules would act on: nothing was done. Ask the owner again"
+                        .to_string(),
+                );
             }
             if id != "folder.empty" {
                 return Err(format!(
@@ -288,17 +358,29 @@ impl Shown {
     }
 }
 
-/// The folder `folder.empty` or `folder.delete` with `params` acts on, as the command finds it,
-/// and the messages and folders that go with it.
+/// The folder `folder.empty`, `folder.delete` or `rules.run` with `params` acts on, as the command
+/// finds it, and the messages and folders that go with it (the rules run over its messages alone).
 fn held(s: &Session, id: &str, params: &Value) -> Option<Held> {
-    let folder = p::id_strict(params, "id").ok()?.unwrap_or(s.view.folder);
-    s.mailbox.folder(folder)?;
-    let (messages, folders) = if id == "folder.empty" {
+    let folder = p::id_strict(params, if id == "rules.run" { "folder" } else { "id" }).ok()?.unwrap_or(s.view.folder);
+    let account = s.mailbox.folder(folder)?.account;
+    let mut as_shown = AsShown::default();
+    let mut rules = Vec::new();
+    let (messages, folders) = if id == "rules.run" {
+        as_shown.0 = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| (m.id, Arc::clone(m))).collect();
+        rules = s.mailbox.rules_in_order(account).into_iter().filter_map(|i| s.mailbox.rules.get(i)).map(as_ruled).collect();
+        (as_shown.0.keys().copied().collect(), Vec::new())
+    } else if id == "folder.empty" {
         (crate::cmd::folder::emptied(s, folder), crate::cmd::folder::emptied_with(s, folder))
     } else {
         (crate::cmd::folder::deleted_with(s, folder), s.mailbox.subtree(folder))
     };
-    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect() })
+    Some(Held { folder, messages: messages.into_iter().collect(), folders: folders.into_iter().collect(), as_shown, zone: s.zone(), rules })
+}
+
+/// A rule as far as what it reads and does: what only its server's answer changes (its copy
+/// there, a refusal, an answer awaited) leaves it as it was.
+fn as_ruled(r: &Rule) -> Rule {
+    Rule { server: None, refused: String::new(), unanswered: false, ..r.clone() }
 }
 
 /// Everybody a calendar command would write to, in full: the question names only the first few.

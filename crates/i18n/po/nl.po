@@ -183,6 +183,12 @@ msgid "+ condition"
 msgstr "+ voorwaarde"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ uitzondering"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "+{n} more"
@@ -339,6 +345,12 @@ msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "Een voorwaarde, of de uitzonderingen van één soort samen, kan naar hoogstens 20 woorden of adressen zoeken."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr ""
 
@@ -359,6 +371,12 @@ msgstr "Er wordt al een kopie van het postvak opgeslagen voor een overstap: wach
 #, fuzzy
 msgid "A copy of your whole mailbox is saved next to it first, as always. Mail in the Outbox isn't left behind: it is sent through Microsoft Graph."
 msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opgeslagen. E-mail in Postvak UIT blijft niet achter: die wordt verzonden via Microsoft Graph."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Een bureaubladmelding voor de e-mail waarop deze regel bij aankomst werkt, wanneer MailCraft niet het voorste venster is, ook als die voor nieuwe e-mail uit staat in Bestand › Opties"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -514,6 +532,12 @@ msgid "A rule needs a name, and something to look for."
 msgstr "Een regel heeft een naam nodig, en iets om naar te zoeken."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "Een regel moet iets doen: een actie of een bureaubladmelding."
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "A save of the mailbox is still running: try again in a moment"
@@ -548,6 +572,12 @@ msgstr "De regels van een gedeeld postvak zijn van dat postvak: deze versie maak
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Een webadres, een e-mailadres, een telefoonnummer (tel:) of een ander adres zoals ms-settings:network-vpn. Als er niets is geselecteerd, wordt het adres ingevoegd zoals het is."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "Een woord om naar te zoeken heeft hoogstens 200 tekens."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -922,6 +952,12 @@ msgstr "Adres"
 #: crates/ui-egui/src/security.rs
 msgid "Address:"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "Adressen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2690,6 +2726,12 @@ msgstr "Opmaak wissen"
 msgid "Clear Recent Searches"
 msgstr "Recente zoekopdrachten wissen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Categorieën wissen"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -2713,6 +2755,12 @@ msgstr "Zoekopdracht wissen"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Zoekopdracht wissen (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Markering wissen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3075,6 +3123,12 @@ msgstr "Kopieer de versie, het platform en het einde van het eigen logboek van M
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "Kopiëren naar map"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "Kopiëren naar map"
 
 #. interface
@@ -4120,6 +4174,12 @@ msgid "E-mail"
 msgstr "E-mail"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "Elke voorwaarde en uitzondering heeft iets nodig om naar te zoeken."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -4410,6 +4470,12 @@ msgstr "Alles in „{folder}” wordt definitief verwijderd."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Alles wat de interface doet, is een opdracht: {commands} opdrachten, die {percent}% van de functiecatalogus dekken. De opdrachtregel, het besturingskanaal en de MCP-server voeren dezelfde opdrachten uit."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "Behalve als"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -5025,7 +5091,7 @@ msgid "Friday"
 msgstr "vrijdag"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "Van"
@@ -5035,6 +5101,12 @@ msgstr "Van"
 #, fuzzy
 msgid "From Sender"
 msgstr "Van afzender"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "„Van” en „Verzonden aan” vragen volledige adressen, zoals iemand@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -5451,6 +5523,12 @@ msgstr "Heeft bijlagen"
 msgid "Has an attachment"
 msgstr "Heeft een bijlage"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "Heeft de categorie"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -5462,6 +5540,12 @@ msgstr "Antwoorden laten verzenden naar"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Koptekst bevat"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6147,6 +6231,24 @@ msgstr "Deelnemers uitnodigen"
 msgid "Invite attendees"
 msgstr "Deelnemers uitnodigen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "Is een vergaderverzoek of -wijziging"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "Is een automatisch antwoord"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "Is gemarkeerd"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -6303,18 +6405,18 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee, en ook de agenda, contactpersonen, taken en werktijden die van de server kwamen."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "De regel gaat ook mee; als de server hem bewaart, blijft hij daar."
+msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "De tekst ervan is vervangen"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
-msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6422,6 +6524,12 @@ msgstr "Ongewenste e-mail"
 #, fuzzy
 msgid "Just This One"
 msgstr "Alleen deze"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -6917,6 +7025,12 @@ msgstr "E-mail op de servers blijft onaangeroerd. Dit kan niet ongedaan worden g
 #, fuzzy
 msgid "Mail only"
 msgstr "Alleen e-mail"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "E-mail waarop een van de uitzonderingen van toepassing is, blijft ongemoeid"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -7807,6 +7921,12 @@ msgstr "Naar de agenda van uw account verplaatsen"
 msgid "Move to folder"
 msgstr "Naar map verplaatsen"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "„Naar map verplaatsen” en „Kopiëren naar map” hebben een map nodig; „Categoriseren” heeft een categorie nodig."
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -7836,6 +7956,30 @@ msgstr "Mijn agenda's"
 #, fuzzy
 msgid "My Tasks"
 msgstr "Mijn taken"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "Mijn adres staat in CC"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "Mijn adres staat in Aan"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "Mijn adres staat in Aan of CC"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "Mijn adres staat niet in Aan"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8078,8 +8222,8 @@ msgstr "Nieuwe e-mail"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Nieuwe e-mail die Gmail in Social, Promoties, Updates of Forums zet, komt binnen zonder melding."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "Nieuwe e-mail die Gmail in Social, Promoties, Updates of Forums zet, komt binnen zonder melding, tenzij een van uw regels er een toont."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -8144,8 +8288,8 @@ msgstr "Volgende maand"
 msgid "Next Page"
 msgstr ""
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "Volgende week"
@@ -8175,7 +8319,7 @@ msgid "No Color"
 msgstr "Geen kleur"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "Geen datum"
@@ -10064,6 +10208,18 @@ msgstr "Bezig met lezen van uw automatische antwoorden van de server…"
 msgid "Real name"
 msgstr "Echte naam"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Ontvangen tussen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "„Ontvangen tussen” vraagt één of twee dagen (YYYY-MM-DD), de eerdere eerst."
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -10103,6 +10259,12 @@ msgstr "Recente zoekopdrachten"
 #, fuzzy
 msgid "Recent mail"
 msgstr "Recente e-mail"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "Ontvanger bevat"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -10369,6 +10531,12 @@ msgstr "Deze actie verwijderen"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Deze voorwaarde verwijderen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "Deze uitzondering verwijderen"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11681,6 +11849,12 @@ msgstr "Bezig met verzenden…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "Gevoeligheid is"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -11698,6 +11872,12 @@ msgstr "Verzonden items"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "Verzonden zoals geschreven, zonder iets dat wordt uitgevoerd of u volgt. Afbeeldingen komen van hun webadres, en de programma's van de ontvangers bepalen of ze worden geladen. Een bericht dat u schrijft, toont een eenvoudigere kopie van deze handtekening; als u die daar bewerkt, wordt die kopie in plaats daarvan verzonden."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "Alleen aan mij verzonden"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -11792,6 +11972,18 @@ msgstr "Instellingen"
 #, fuzzy
 msgid "Settings…"
 msgstr "Instellingen…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Meerdere adressen: scheid ze met een puntkomma (;). Eén ervan is genoeg."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Meerdere teksten: scheid ze met een puntkomma (;). Eén ervan is genoeg."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11950,6 +12142,12 @@ msgstr "Training weergeven"
 #, fuzzy
 msgid "Show a Shared Mailbox's Calendars"
 msgstr "Agenda's van een gedeeld postvak tonen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "Een bureaubladmelding weergeven"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -12421,6 +12619,18 @@ msgstr "Eén regel"
 msgid "Size"
 msgstr "Grootte"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "Grootte ligt tussen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "„Grootte ligt tussen” vraagt twee groottes in KB, de kleinste eerst."
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -12741,6 +12951,12 @@ msgstr "Onderwerp"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Onderwerp bevat"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "Onderwerp of hoofdtekst bevat"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -13916,6 +14132,12 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "De regels laten de e-mail van een gedeeld postvak met rust: het heeft eigen regels."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -14455,8 +14677,8 @@ msgstr "Ze worden in een bestand naar keuze opgeslagen, dat u bij het GitHub-iss
 msgid "They share {what}."
 msgstr "Ze delen {what}."
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Deze week"
@@ -16973,8 +17195,8 @@ msgstr "een antwoord mag hoogstens {most} tekens lang zijn"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "een regel kan geen e-mail naar een Postvak UIT verplaatsen: die zou dan worden verzonden"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "een regel kan geen e-mail naar een Postvak UIT verplaatsen of kopiëren: die zou dan worden verzonden"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17230,6 +17452,12 @@ msgstr "{host} kon niet worden bereikt: {reason}"
 msgid "day"
 msgstr "dag"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "vervaldatum"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
 #, fuzzy
@@ -17428,6 +17656,12 @@ msgstr "het wijzigt opties, handtekeningen of regels"
 msgid "it clicks or types in the window"
 msgstr "het klikt of typt in het venster"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "hij kopieert e-mail naar meer dan één map"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -17451,6 +17685,12 @@ msgstr "hij gaat bij de volgende verbinding naar de server"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "hij heeft twee voorwaarden van dezelfde soort, en de server zou een van beide accepteren in plaats van allebei"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "hij heeft twee uitzonderingen van dezelfde soort die naar iets anders zoeken, en de server neemt er één"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -17957,6 +18197,12 @@ msgstr "alleen de kopteksten van „{subject}” zijn hier, dus het kan niet als
 msgid "only your own calendars can be put in a message"
 msgstr "alleen uw eigen agenda's kunnen in een bericht worden gezet"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "of"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -18052,6 +18298,34 @@ msgstr "selecteer eerst een taak"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selecteer eerst een afspraak"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "Vertrouwelijk"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "Normaal"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "Persoonlijk"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Privé"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -18371,6 +18645,24 @@ msgstr "de map is al leeg"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "de map waarnaar hij e-mail kopieert, hoort bij een ander account"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "de map waarnaar hij e-mail kopieert, staat op deze computer"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "de map waarnaar hij e-mail kopieert, staat niet op de server"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it moves mail to is in another account"
 msgstr "de map waarnaar hij e-mail verplaatst, staat in een ander account"
 
@@ -18578,6 +18870,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "de afzender heeft geen bruikbaar e-mailadres"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "het adres van de afzender is langer dan waar een regel naar zoekt ({n} tekens)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
@@ -18633,14 +18931,44 @@ msgstr "de server vroeg om meer dan de opdracht had"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "de server kan geen markering wissen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "de server kan geen categorieën wissen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "de server kan e-mail niet markeren"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "de server kan de regels niet in die volgorde houden: een regel die hij niet laat wijzigen laat geen vrije plaats voor ze over"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "de server kan niet kijken naar de dag waarop e-mail binnenkwam"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "de server kan geen losse berichten verwijderen (hij biedt geen UIDPLUS)"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "de server kan geen bureaubladmelding weergeven"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -20225,7 +20553,7 @@ msgstr[0] "{n} bericht"
 msgstr[1] "{n} berichten"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -20271,14 +20599,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} bericht is al hier en wordt weggelaten"
 msgstr[1] "{n} berichten zijn al hier en worden weggelaten"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} bericht komt overeen"
-msgstr[1] "{n} berichten komen overeen"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20833,6 +21153,26 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "Nieuwe e-mail die Gmail in Social, Promoties, Updates of Forums zet, komt binnen zonder melding."
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} bericht komt overeen"
+#~ msgstr[1] "{n} berichten komen overeen"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
+#~ msgstr[1] "De {n} regels gaan ook mee; die de server bewaart, blijven daar."
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "een regel kan geen e-mail naar een Postvak UIT verplaatsen: die zou dan worden verzonden"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

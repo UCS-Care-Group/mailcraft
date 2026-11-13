@@ -120,3 +120,27 @@ fn a_charge_refused_inside_a_lenient_field_refuses_the_read() {
     }
     assert!(read >= 1);
 }
+
+#[test]
+fn rule_lists_are_charged_as_read() {
+    // The lists #566 adds to a rule, a waiting message and its marks.
+    let n = 200_000;
+    let words = vec![r#""""#; n].join(",");
+    let parts = vec![r#"{"type":"hasAttachment"}"#; n].join(",");
+    let waiting = vec!["{}"; n].join(",");
+    let cases = [
+        // Words of a condition, "value" after "type" and before it (buffered by the tagged enum).
+        format!(r#"{{"rules":[{{"conditions":[{{"type":"bodyContains","value":[{words}]}}]}}]}}"#),
+        format!(r#"{{"rules":[{{"conditions":[{{"value":[{words}],"type":"bodyContains"}}]}}]}}"#),
+        format!(r#"{{"rules":[{{"exceptions":[{{"type":"category","value":[{words}]}}]}}]}}"#),
+        format!(r#"{{"rules":[{{"exceptions":[{parts}]}}]}}"#),
+        format!(r#"{{"messages":{{"1":{{"rulesWaiting":{{"rules":[{waiting}]}}}}}}}}"#),
+        format!(r#"{{"messages":{{"1":{{"rulesWaiting":{{"marked":{{"categories":[{words}]}}}}}}}}}}"#),
+    ];
+    for (i, json) in cases.iter().enumerate() {
+        let budget = Budget::new(usize::MAX, 4 << 20);
+        let e = read_json::<Mailbox>(json.as_bytes(), &budget).map(|_| ()).unwrap_err().to_string();
+        assert!(e.contains(TOO_MUCH), "case {i}: {e}");
+        assert!(read_json::<Mailbox>(json.as_bytes(), &Budget::new(usize::MAX, 1 << 30)).is_ok(), "case {i} with room");
+    }
+}

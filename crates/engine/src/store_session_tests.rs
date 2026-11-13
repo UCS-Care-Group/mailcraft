@@ -130,7 +130,7 @@ fn a_rule_that_reads_the_body_reads_one_kept_on_disk() {
         id,
         name: "Quixotic".into(),
         enabled: true,
-        conditions: vec![Condition::BodyContains("quixotic".into())],
+        conditions: vec![Condition::BodyContains(vec!["quixotic".into()])],
         actions: vec![Action::MoveTo(target)],
         stop: false,
         ..Default::default()
@@ -261,6 +261,59 @@ fn a_reply_reads_the_text_and_its_pictures_and_a_calendar_part_too_large_is_not_
     let _ = s.run("calendar.invitation", &json!({"message": id}));
     let large = (crate::session::MAX_CALENDAR_PART + 1) as u64;
     assert!(!noting.asked.lock().unwrap().contains(&large));
+}
+
+#[test]
+fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_shown() {
+    let tmp = Temp::new("rules-calendar");
+    let path = tmp.file();
+    let mut mb = mailbox(4);
+    let inbox = mb.inbox().unwrap();
+    let invite = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n".iter().chain(&b"BEGIN:VEVENT\r\nEND:VEVENT\r\n".repeat(60)).copied().collect::<Vec<u8>>();
+    let mut asks = Message { folder: inbox, subject: "Planning".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    asks.attachments.push(Attachment::new("invite.ics", "text/calendar", invite));
+    let mut huge = Message { folder: inbox, subject: "Huge".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    huge.attachments.push(Attachment::new("huge.ics", "text/calendar", noise(34, crate::session::MAX_CALENDAR_PART + 1)));
+    let plain = Message { folder: inbox, subject: "Lunch".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+    let (asks, huge, plain) = (mb.add_message(asks).unwrap(), mb.add_message(huge).unwrap(), mb.add_message(plain).unwrap());
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let noting = Arc::new(Noting { asked: Mutex::new(Vec::new()) });
+    s.content_source = Some(noting.clone());
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Meetings".into(),
+        enabled: true,
+        conditions: vec![Condition::MeetingRequest],
+        actions: vec![Action::Flag],
+        stop: false,
+        ..Default::default()
+    });
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Not meetings".into(),
+        enabled: true,
+        conditions: vec![Condition::FromContains(vec!["ada".into()])],
+        exceptions: vec![Condition::MeetingRequest],
+        actions: vec![Action::Delete],
+        stop: false,
+        ..Default::default()
+    });
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    // The invitation is read, flagged and kept; mail that isn't one is deleted.
+    assert_eq!(s.mailbox.message(asks).map(|m| (m.flag, m.folder)), Some((mailcraft_model::FlagStatus::Flagged, inbox)));
+    let deleted = s.mailbox.folder_of_kind(s.mailbox.message(plain).unwrap().account, mailcraft_model::FolderKind::Deleted);
+    assert_eq!(s.mailbox.message(plain).map(|m| m.folder), deleted);
+    // The part too large to be shown isn't asked for, and what it is can't be told: neither rule
+    // acts on it, and it isn't deleted for not being an invitation.
+    let large = (crate::session::MAX_CALENDAR_PART + 1) as u64;
+    assert!(!noting.asked.lock().unwrap().contains(&large));
+    let huge = s.mailbox.message(huge).unwrap();
+    assert!(!huge.attachments[0].is_loaded());
+    assert_eq!((huge.flag, huge.folder), (mailcraft_model::FlagStatus::None, inbox));
 }
 
 #[test]
@@ -438,5 +491,42 @@ fn an_agents_move_to_the_outbox_in_a_search_is_asked_about_what_it_sends() {
     assert_eq!(
         (asked.as_str(), sent),
         ("put 2 messages (\u{201c}Brewing notes\u{201d}, \u{201c}Brewing notes\u{201d}) in the Outbox, which sends them", 2)
+    );
+}
+
+/// Run Rules Now with "body contains" and "delete it" while a message's text kept on
+/// disk can't be read just now (a file another program holds, a damaged file): the rule doesn't
+/// read MailCraft's own note in its place ("This message's text is unavailable…") as the
+/// message's text, as it doesn't the note of a message too large to download, and deletes nothing
+/// on it (#566).
+#[test]
+fn run_rules_now_doesnt_delete_on_the_note_of_a_text_that_couldnt_be_read() {
+    let tmp = Temp::new("rule-unreadable");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let victim = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    assert!(!mb.message(victim).unwrap().body.text.to_lowercase().contains("unavailable"), "its own text hasn't the word");
+    assert!(s.mailbox.message(victim).unwrap().body_is_kept());
+    let inbox = s.mailbox.inbox().unwrap();
+    let id = s.mailbox.alloc_id();
+    s.mailbox.rules.push(Rule {
+        id,
+        name: "Gone".into(),
+        enabled: true,
+        conditions: vec![Condition::BodyContains(vec!["unavailable".into()])],
+        actions: vec![Action::Delete],
+        stop: false,
+        ..Default::default()
+    });
+    s.content_source = Some(Arc::new(Unreadable));
+    let kept_outside = s.mailbox.messages.values().filter(|m| m.body_is_kept()).count();
+    let matched = s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"].as_u64();
+    let left = s.mailbox.messages_in(inbox).count();
+    assert!(
+        s.mailbox.message(victim).is_some_and(|m| m.folder == inbox),
+        "deleted on MailCraft's note in place of its text: matched {matched:?} of {kept_outside} kept on disk, {left} of 24 left in the Inbox"
     );
 }

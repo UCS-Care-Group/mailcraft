@@ -1,0 +1,1 @@
+- A message that a rule moves into another IMAP account as it arrives now reaches that account's server even after you undo an earlier step; before, in a mailbox with no Microsoft or Exchange account, it was moved on this computer only and stayed in the first account's Inbox on its server ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

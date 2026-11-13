@@ -259,7 +259,7 @@ fn forms_lay_out_over_hostile_data() {
                 id: 500_000 + i,
                 name: junk.clone(),
                 enabled: i % 2 == 0,
-                conditions: vec![Condition::BodyContains(junk.clone()); 20],
+                conditions: vec![Condition::BodyContains(vec![junk.clone()]); 20],
                 actions: vec![Action::MoveTo(i), Action::Categorize(junk.clone())],
                 stop: true,
                 ..Default::default()

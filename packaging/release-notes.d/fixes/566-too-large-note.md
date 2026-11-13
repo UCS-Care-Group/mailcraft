@@ -1,0 +1,1 @@
+- A rule that looks for words in the body no longer acts on a message too large to download because of the note MailCraft shows in place of its text; before, a word of that note, such as "attached", moved or deleted it ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

@@ -1731,7 +1731,7 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     let b = second_imap(&mut s);
     let (inbox, other) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
     let two = titled(&s, "Two");
-    let rule = |folder: Id| json!({"name": "R", "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": folder}]});
+    let rule = |folder: Id| json!({"name": "R", "account": a, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": folder}]});
     // Made, made from a message, switched on or run: into another account's folder, as a send;
     // onto this computer, a change of rules as ever.
     assert_eq!(classify(&s, "rules.add", &rule(other)), Access::Owner(Class::Send));
@@ -1756,6 +1756,9 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     s.run("rules.enable", &json!({"id": made, "value": true})).unwrap();
     let what = describe(&s, "rules.run", &json!({"folder": inbox}));
     assert!(what.contains("which move mail onto the server of blake@other.example"), "{what}");
+    // One rule named: "which moves".
+    let what = describe(&s, "rules.run", &json!({"folder": inbox, "id": made}));
+    assert!(what.contains("which moves mail onto the server of blake@other.example"), "{what}");
     // A rule for one account's mail that files it in that account's own folder puts nothing on
     // another server: switched on, or named to run over another account's folder.
     let own = json!({"name": "Own", "account": b, "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": other}]});
@@ -1823,7 +1826,7 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
     // Read once already: what comes now is new mail, which the rules sort.
     s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().caught_up = true;
-    let rule = json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
+    let rule = json!({"name": "Rota", "account": ms, "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
     s.run("rules.add", &rule).unwrap();
     let there = GraphMessage {
         server: ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() },
@@ -1854,4 +1857,53 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     assert_eq!(at(&s, rota), (a, gmail, 40));
     let changes = graph_mail_request(&s, ms).unwrap().messages;
     assert!(changes.iter().any(|c| matches!(c, MessageChange::MovedOut { message, id } if *message == rota && id == "R1")), "{changes:?}");
+}
+
+/// Where each message titled `subject` is: its account, its folder's name, its UID and its server id.
+fn where_titled(s: &Session, subject: &str) -> Vec<(Id, String, u32, Option<String>)> {
+    let folder = |m: &Message| s.mailbox.folder(m.folder).map(|f| f.name.clone()).unwrap_or_default();
+    s.mailbox
+        .messages
+        .values()
+        .filter(|m| m.subject == subject)
+        .map(|m| (m.account, folder(m), m.uid, m.server.as_ref().map(|x| x.id.clone())))
+        .collect()
+}
+
+/// A message of the Microsoft account `ms`, whole here, that its server has as `id` in its Inbox.
+fn receipt(s: &mut Session, ms: Id, id: &str) -> Id {
+    let folder = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let server = ServerMessage { id: id.into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "Paid.".into(), html: None };
+    s.mailbox.add_message(Message { folder, subject: "Receipt".into(), body, server: Some(server), ..Default::default() }).unwrap()
+}
+
+/// #765 small check (on main too): a message copied to another folder of a Microsoft account,
+/// with the index of the server's mail built after the copy was made here and before the server
+/// answered (an Inbox pass looked something up): when that folder is then listed, the copy is
+/// there once, not twice.
+#[test]
+fn a_copy_listed_after_its_answer_shows_once_though_the_index_was_built_before() {
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, OWNER);
+    let archive = s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap();
+    let m = receipt(&mut s, ms, "AAkA7");
+    s.run("mail.copy", &json!({"ids": [m], "folder": archive})).unwrap();
+    let page = MessagePage { folder: "in".into(), removed: vec!["ZZZ".into()], ..Default::default() };
+    let pass = GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, inbox_pass: true, ..Default::default() };
+    apply_graph_mail(&mut s, pass).unwrap();
+    let copy = graph_mail_request(&s, ms).unwrap().messages.into_iter().find(|c| matches!(c, MessageChange::Copy { .. })).unwrap();
+    let made = MessageOutcome::Done { categories: None, flag: None, folder: "ar".into(), id: "AAkC1".into() };
+    let messages = vec![MessageChangeDone { change: copy, outcome: made, there: None }];
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), messages, partial: true, ..Default::default() }).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "AAkC1".into(), folder: "ar".into(), ..Default::default() },
+        subject: "Receipt".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "ar".into(), messages: vec![there], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
+    let mut seen = where_titled(&s, "Receipt");
+    seen.sort_by(|a, b| a.3.cmp(&b.3));
+    assert_eq!(seen, [(ms, "Inbox".to_string(), 0, Some("AAkA7".to_string())), (ms, "Archive".to_string(), 0, Some("AAkC1".to_string()))]);
 }

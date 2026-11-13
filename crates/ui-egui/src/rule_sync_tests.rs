@@ -71,7 +71,7 @@ fn the_servers_rules_are_read_when_due_and_shown() {
         name: "From the shop".into(),
         sequence: 1,
         enabled: true,
-        conditions: vec![Condition::FromContains("shop@example.org".into())],
+        conditions: vec![Condition::FromContains(vec!["shop@example.org".into()])],
         actions: vec![Action::MarkRead],
         ..Default::default()
     };
@@ -260,13 +260,56 @@ fn a_held_key_deletes_one_rule() {
     }
 }
 
+/// A held Space or Enter on a rule's Down button moves that rule alone, one place.
+#[test]
+fn a_held_key_moves_one_rule_one_place() {
+    for held in [egui::Key::Space, egui::Key::Enter] {
+        let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+        app.autosave = false;
+        for name in ["One", "Two", "Three"] {
+            let rule = json!({"name": name, "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "markRead"}]});
+            app.execute("rules.add", rule).unwrap();
+        }
+        app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+        let mut h = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
+        h.run_steps(6);
+        // The dialog's ×, then the first rule's switch, up and down.
+        for _ in 0..4 {
+            h.key_press(egui::Key::Tab);
+            h.run_steps(2);
+        }
+        let key = |pressed, repeat| egui::Event::Key { key: held, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+        h.event(key(true, false));
+        h.step();
+        for _ in 0..6 {
+            h.event(key(true, true));
+            h.step();
+        }
+        h.event(key(false, false));
+        h.run_steps(3);
+        let names: Vec<&str> = h.state().session.mailbox.rules.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Two", "One", "Three"], "{held:?}");
+    }
+}
+
 fn server_rule(id: &str, name: &str, sequence: i32) -> RemoteRule {
     RemoteRule {
         id: id.into(),
         name: name.into(),
         sequence,
         enabled: true,
-        conditions: vec![Condition::SubjectContains(name.into())],
+        conditions: vec![Condition::SubjectContains(vec![name.into()])],
         actions: vec![Action::MarkRead],
         ..Default::default()
     }
@@ -430,4 +473,25 @@ fn the_new_rule_is_not_filled_in_from_a_shared_mailboxs_message_or_an_id_that_is
     let h = shown(app);
     assert!(h.query(By::new().label_contains("Then run it over")).is_none(), "nothing is filled in");
     assert!(h.state().session.mailbox.rules.is_empty());
+}
+
+/// Switching "Rules for" to another account: a move or a copy the builder had into a folder of
+/// the account shown before goes to the new account's own first folder, so that the new rule
+/// doesn't put that account's mail on the other's server; one of a third account chosen as such
+/// stays (#566).
+#[test]
+fn switching_rules_for_takes_a_move_or_copy_into_the_old_accounts_folder_along() {
+    use crate::forms::rules::{folder_after_switch, move_choices};
+    use mailcraft_model::FolderKind;
+    let mut s = Session::empty();
+    let [a, b, c] = ["a@example.org", "b@example.org", "c@example.org"]
+        .map(|email| s.run("account.add", &json!({"email": email})).unwrap()["id"].as_u64().unwrap());
+    let mut mb = s.mailbox;
+    let (a_folder, c_folder) = (mb.add_folder(a, None, "Kept A").unwrap(), mb.add_folder(c, None, "Kept C").unwrap());
+    let choices = move_choices(&mb, b);
+    let first = mb.folder_of_kind(b, FolderKind::Archive).or(choices.first().map(|f| f.0)).unwrap();
+    assert!(choices.iter().any(|f| f.0 == a_folder), "the old account's folder is still a choice: into another account");
+    assert_eq!(folder_after_switch(&mb, a, b, a_folder, &choices, first), first);
+    assert_eq!(folder_after_switch(&mb, a, b, c_folder, &choices, first), c_folder);
+    assert_eq!(folder_after_switch(&mb, b, b, a_folder, &choices, first), a_folder);
 }

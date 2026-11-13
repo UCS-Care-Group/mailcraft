@@ -1912,7 +1912,7 @@ mod two_way {
             id: 9_001,
             name: "Reports".into(),
             enabled: true,
-            conditions: vec![mailcraft_model::Condition::SubjectContains("report".into())],
+            conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["report".into()])],
             actions: vec![mailcraft_model::Action::MarkRead, mailcraft_model::Action::MoveTo(archive)],
             stop: false,
             ..Default::default()
@@ -1950,7 +1950,7 @@ mod two_way {
         run(
             &mut s,
             "rules.add",
-            json!({"name": "Reports", "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
+            json!({"name": "Reports", "account": a, "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
         );
         let first = SyncResult {
             account: a,
@@ -1967,6 +1967,273 @@ mod two_way {
             request(&s, a).ops,
             [RemoteOp::Move { message: report, from: "INBOX".into(), uid: 1, to: "Archive".into(), to_folder: archive, create: vec![] }]
         );
+    }
+
+    #[test]
+    fn mail_that_was_there_before_isnt_alerted_of() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let told = json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        run(&mut s, "rules.add", told);
+        // The first run: what the Inbox had stays, and is no alert.
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "An offer"), from_server(2, "Hello")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(s.mailbox.count(inbox), 2);
+        assert!(!s.mailbox.message(titled(&s, a, "Hello")).unwrap().rule_alert);
+        assert_eq!(request(&s, a).ops, []);
+        // New mail after it is told of.
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(4, "Hello again")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert!(s.mailbox.message(titled(&s, a, "Hello again")).unwrap().rule_alert);
+    }
+
+    /// A rule that moves new mail into another IMAP account, and an undo of a step from before the
+    /// mail came, in a mailbox with no Microsoft or Exchange account: the message still goes onto
+    /// the other account's server, and the original waits for it there (#566).
+    #[test]
+    fn an_undo_of_an_earlier_step_keeps_a_rules_move_into_another_imap_account_on_its_way() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let theirs_inbox = SyncResult {
+            account: b,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 9, vec![], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, theirs_inbox);
+        let theirs = folder(&s, b, FolderKind::Inbox);
+        let rule = json!({"name": "Hand on", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}],
+            "actions": [{"type": "moveTo", "value": theirs}]});
+        run(&mut s, "rules.add", rule);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello")], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let hello = titled(&s, a, "Hello");
+        run(&mut s, "mail.flag", json!({"ids": [hello]}));
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(2, "An offer")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert_eq!(request(&s, b).places.len(), 1);
+        run(&mut s, "edit.undo", json!({}));
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        let places = request(&s, b).places.len();
+        let deletes: Vec<RemoteOp> = request(&s, a).ops.into_iter().filter(|op| matches!(op, RemoteOp::Delete { .. })).collect();
+        assert_eq!((places, deletes), (1, vec![]), "the message still goes to B's server, and the original stays on A's until it is there");
+    }
+
+    /// Older mail below how far the Inbox was read, and an Inbox the server numbered anew, are mail
+    /// that was there before: filed by the rules, never alerted of, and what was copied as it
+    /// arrived isn't copied again (#566).
+    #[test]
+    fn older_mail_and_a_renumbered_inbox_arent_alerted_of_or_copied_again() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let told = json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        let copied = json!({"name": "Copied", "account": a, "conditions": [{"type": "subjectContains", "value": "memo"}], "actions": [{"type": "copyTo", "value": kept}]});
+        run(&mut s, "rules.add", told);
+        run(&mut s, "rules.add", copied);
+        let inbox_news =
+            |id, validity, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, validity, new, vec![]) };
+        let first = SyncResult { account: a, folders: vec![inbox_news(None, 7, vec![from_server(10, "Note")], 10)], ..Default::default() };
+        apply(&mut s, first);
+        let memo = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), 7, vec![from_server(11, "Memo")], 11)], ..Default::default() };
+        apply(&mut s, memo);
+        let copies = |s: &Session| s.mailbox.messages_in(kept).filter(|m| m.subject == "Memo").count();
+        assert_eq!(copies(&s), 1, "copied as it arrived");
+        // Older mail, below how far the Inbox was read (a raised limit brings it down).
+        let older = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), 7, vec![from_server(6, "Old hello")], 11)], ..Default::default() };
+        apply(&mut s, older);
+        assert!(!s.mailbox.message(titled(&s, a, "Old hello")).unwrap().rule_alert, "older mail alerted of");
+        // Numbered anew.
+        let renumbered = SyncResult {
+            account: a,
+            folders: vec![inbox_news(Some(inbox), 8, vec![from_server(1, "Note"), from_server(2, "Memo"), from_server(4, "Renumbered hello")], 4)],
+            ..Default::default()
+        };
+        apply(&mut s, renumbered);
+        assert!(!s.mailbox.message(titled(&s, a, "Renumbered hello")).unwrap().rule_alert, "renumbered mail alerted of");
+        assert_eq!(copies(&s), 1, "not copied again");
+    }
+
+    /// Mail an IMAP server had before it was read here (the Inbox's first download, older mail a
+    /// raised limit brings down) is filed by the rules but copied by none: not into a folder of its
+    /// account, and not onto another account's server, where years of an Inbox would go up. Mail
+    /// arriving after it is (#566).
+    #[test]
+    fn mail_the_server_had_before_isnt_copied_by_a_rule_here_or_onto_another_server() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let (kept, elsewhere) = (s.mailbox.add_folder(a, None, "Kept").unwrap(), s.mailbox.add_folder(b, None, "Kept").unwrap());
+        let copied = json!({"name": "Copied", "account": a, "conditions": [{"type": "subjectContains", "value": "memo"}],
+            "actions": [{"type": "copyTo", "value": kept}, {"type": "copyTo", "value": elsewhere}]});
+        run(&mut s, "rules.add", copied);
+        let inbox_news = |id, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, 7, new, vec![]) };
+        let copies = |s: &Session| {
+            let here: Vec<String> = s.mailbox.messages_in(kept).map(|m| m.subject.clone()).collect();
+            let there: Vec<String> = s.mailbox.messages_in(elsewhere).map(|m| m.subject.clone()).collect();
+            (here, there, request(s, b).places.len())
+        };
+        let first = SyncResult {
+            account: a,
+            folders: vec![inbox_news(None, vec![from_server(1, "First memo"), from_server(10, "Second memo")], 10)],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "a first download");
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let older = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(5, "Old memo")], 10)], ..Default::default() };
+        apply(&mut s, older);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "older mail");
+        let new = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(11, "New memo")], 11)], ..Default::default() };
+        apply(&mut s, new);
+        assert_eq!(copies(&s), (vec!["New memo".into()], vec!["New memo".into()], 1), "new mail");
+    }
+
+    /// A message filed in Archive is moved back into the Inbox on a phone: the server gives it a
+    /// new UID there. It is mail the account had, not new mail: the rules file it as found, and
+    /// neither copy it again nor show an alert for it (#566). (The run reads the Inbox first,
+    /// `mailcraft_net::sync`, while Archive still lists it.)
+    #[test]
+    fn mail_moved_into_the_inbox_on_another_device_isnt_copied_again_or_alerted_of() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![
+                FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                },
+                FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+            ],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let copy = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "actions": [{"type": "copyTo", "value": kept}], "alert": true});
+        run(&mut s, "rules.add", copy);
+        let came = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]) };
+        let left =
+            FolderDelta { removed: vec![1], uid_seen: 1, complete: true, ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![]) };
+        apply(&mut s, SyncResult { account: a, folders: vec![came, left], ..Default::default() });
+        let here: Vec<(Id, bool)> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| (m.folder, m.rule_alert)).collect();
+        assert_eq!(here, [(inbox, false)], "copied again, or alerted of");
+        // New mail of the same kind is copied and told of as ever.
+        let fresh = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(4, "Fresh news")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![fresh], ..Default::default() });
+        assert_eq!(s.mailbox.messages_in(kept).count(), 1);
+        assert!(s.mailbox.messages.values().any(|m| m.subject == "Fresh news" && m.folder == inbox && m.rule_alert));
+        // A blocked sender's mail goes to Junk E-mail, whatever Message-ID it gives itself.
+        run(&mut s, "junk.add", json!({"list": "blocked", "entry": "x@example.org", "account": a}));
+        let again = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(5, "One")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![again], ..Default::default() });
+        let junk = folder(&s, a, FolderKind::Junk);
+        assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "One" && m.folder == junk).count(), 1);
+    }
+
+    /// Two copies of one Message-ID in one Send/Receive (a mailing list's after the one sent to me),
+    /// which the window takes in two pieces, newest first: both are new mail to the rules, each copied
+    /// and alerted of, as when the run is taken whole (#566).
+    #[test]
+    fn two_copies_in_two_pieces_of_one_run_are_both_new_mail() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let copy = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "actions": [{"type": "copyTo", "value": kept}], "alert": true});
+        run(&mut s, "rules.add", copy);
+        let twin = |uid: u32, subject: &str| Message { message_id: "weekly@list.example".into(), ..from_server(uid, subject) };
+        let mut totals = cmd::account::SyncTotals::default();
+        let piece1 = SyncResult {
+            account: a,
+            partial: true,
+            folders: vec![FolderDelta {
+                uid_seen: 2,
+                ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(4, "Weekly news (list)")], vec![])
+            }],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece1).unwrap();
+        let piece2 = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(3, "Weekly news (direct)")], vec![])],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece2).unwrap();
+        let alerted = s.mailbox.messages_in(inbox).filter(|m| m.subject.starts_with("Weekly") && m.rule_alert).count();
+        assert_eq!((alerted, s.mailbox.messages_in(kept).count()), (2, 2));
+        assert!(s.run_had.is_empty(), "the run's last piece lets go of what the account had");
+    }
+
+    /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes
+    /// except if a header says to keep it can't tell, and leaves it alone (#566).
+    #[test]
+    fn new_imap_mail_with_headers_left_out_isnt_deleted_past_an_exception_on_them() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "exceptions": [{"type": "headerContains", "value": "x-keep"}], "actions": [{"type": "delete"}]});
+        run(&mut s, "rules.add", purge);
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "first")], vec![]) }],
+                ..Default::default()
+            },
+        );
+        let cut = Message { headers_cut: true, ..from_server(2, "news cut") };
+        // (Read as the reader reads a header: with the lines it reads into the message kept.)
+        let whole = Message { read_header: "MIME-Version: 1.0\n".into(), ..from_server(3, "news whole") };
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![whole, cut], vec![])],
+                ..Default::default()
+            },
+        );
+        let left: Vec<String> = s.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect();
+        assert_eq!(left, ["first", "news cut"]);
+        let binned: Vec<String> = s.mailbox.messages_in(folder(&s, a, FolderKind::Deleted)).map(|m| m.subject.clone()).collect();
+        assert_eq!(binned, ["news whole"]);
     }
 
     #[test]
@@ -2433,6 +2700,16 @@ fn hostile_params_never_panic() {
             "errors": ["\u{0}", ""],
         }}),
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
+        // A rule's other parts (#566): sizes, days, people, copies and due days of the wrong kind,
+        // exceptions that are no list, lists far over any cap, and one that gets past the door.
+        json!({"name": "r", "conditions": [
+            {"type": "sizeBetween", "value": {"min": 1e300, "max": -1}}, {"type": "sizeBetween", "value": {"min": 0.5, "max": 18446744073709551615u64}},
+            {"type": "receivedBetween", "value": null}, {"type": "receivedBetween", "value": {"from": "9999-99-99", "to": 5}}, {"type": "receivedBetween", "value": {"from": ""}},
+            {"type": "from", "value": ["\u{0}@example.org", "x".repeat(10_000)]}, {"type": "headerContains", "value": [[]]}, {"type": "sensitivity", "value": null},
+        ], "exceptions": {"type": "flagged"}, "actions": [{"type": "copyTo", "value": 18446744073709551615u64}, {"type": "flagFor", "value": 5}, {"type": "delete", "value": "x"}], "alert": "yes", "stop": 1}),
+        json!({"name": "r", "conditions": vec![json!({"type": "subjectContains", "value": vec!["w"; 10_000]}); 1000], "exceptions": vec![json!({"type": "flagged"}); 10_000], "actions": vec![json!({"type": "markRead"}); 10_000], "alert": true}),
+        json!({"name": "r", "conditions": [{"type": "toMe"}], "exceptions": [{"type": "bodyContains", "value": "x"}, {"type": "sizeBetween", "value": {"min": 0, "max": 2147483647}}], "actions": [], "alert": true, "account": 18446744073709551615u64, "server": "yes"}),
+        json!({"name": "r", "conditions": [{"type": "receivedBetween", "value": {"to": "9999-12-31"}}], "exceptions": [{"type": "sensitivity", "value": "normal"}], "actions": [{"type": "flagFor", "value": "nextWeek"}, {"type": "copyTo", "value": 1}, {"type": "clearCategories"}, {"type": "delete"}], "alert": true, "stop": true}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
         // A merge of contacts (#506): itself, twice, nobody, nonsense choices.

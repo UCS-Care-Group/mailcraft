@@ -751,7 +751,7 @@ fn too_large_to_download(m: &Message) -> CmdError {
 }
 
 /// A message as a refusal names it: its subject on one line, at most 80 characters of it.
-fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
+pub(crate) fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
     let line = m.subject.split(char::is_control).flat_map(str::split_whitespace).collect::<Vec<_>>().join(" ");
     if line.is_empty() {
         return mailcraft_i18n::Arg::words("(no subject)");
@@ -1434,7 +1434,8 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
             let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
-            s.mailbox.apply_rules(cid);
+            let clock = s.rule_clock();
+            s.mailbox.apply_rules(cid, &clock);
             delivered += 1;
         }
     }

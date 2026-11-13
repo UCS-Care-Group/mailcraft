@@ -47,7 +47,7 @@ pub(crate) const MAX_PREVIEW: usize = 256;
 /// Longest name and address kept, in characters, and most addresses of a `To` or a `Cc`.
 const MAX_NAME: usize = 256;
 const MAX_ADDRESS: usize = 320;
-const MAX_PEOPLE: usize = 500;
+pub(crate) const MAX_PEOPLE: usize = 500;
 /// Longest a busy server is waited for, in seconds: a day.
 pub(crate) const MAX_BUSY: u32 = 86_400;
 /// Most messages of a batch fetched whole, the largest taken (Download messages in full goes up to
@@ -160,6 +160,11 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     if !is_id(&m.server.id) {
         return false;
     }
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    let (to, cc) = (people(&m.to), people(&m.cc));
+    // (A blank and a character after it, at the most, say a subject on one line is longer.)
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 2).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_string();
     if server.flag != FlagStatus::Flagged {
@@ -177,8 +182,7 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
     m.from = person(&m.from).unwrap_or_default();
-    m.to = people(&m.to);
-    m.cc = people(&m.cc);
+    (m.to, m.cc) = (to, cc);
     true
 }
 

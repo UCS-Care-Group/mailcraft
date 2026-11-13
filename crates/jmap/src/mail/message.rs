@@ -141,6 +141,9 @@ pub(super) fn whole(id: &str, mailbox: &str, entry: &Value, marks: Marks) -> Gra
         preview: line(entry.get("preview").and_then(Value::as_str).unwrap_or_default(), MAX_PREVIEW),
         has_attachments: entry.get("hasAttachment").and_then(Value::as_bool).unwrap_or(false),
         draft: Some(marks.draft),
+        cut: fields.cut,
+        // (A JMAP server's keywords are its marks, not categories.)
+        categories_cut: false,
     }
 }
 
@@ -153,15 +156,22 @@ struct Fields {
     to: Vec<Address>,
     cc: Vec<Address>,
     date: Option<Timestamp>,
+    /// Recipients were left out past what is kept of them (#566).
+    cut: bool,
 }
 
 impl Fields {
     fn read(headers: Option<&Value>) -> Fields {
-        let block = block(headers);
+        let (block, dropped) = block(headers);
         if block.is_empty() {
-            return Fields::default();
+            return Fields { cut: dropped, ..Fields::default() };
         }
         let message = mailcraft_mime::parse(block.as_bytes());
+        let cut = dropped
+            || message.headers_cut
+            || message.to.len() > MAX_PEOPLE
+            || message.cc.len() > MAX_PEOPLE
+            || longer_than(&message.subject, MAX_TEXT);
         Fields {
             message_id: message.message_id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(MAX_TEXT).collect(),
             subject: line(&message.subject, MAX_TEXT),
@@ -170,6 +180,7 @@ impl Fields {
             cc: people(message.cc),
             // (0 is what the reader says of a date that is missing or makes no sense.)
             date: Some(message.date).filter(|date| *date != 0),
+            cut,
         }
     }
 }
@@ -181,6 +192,12 @@ fn people(list: Vec<Address>) -> Vec<Address> {
 fn person(address: Address) -> Option<Address> {
     let (name, email) = (line(&address.name, MAX_NAME), line(&address.email, MAX_EMAIL));
     (!name.is_empty() || !email.is_empty()).then_some(Address { name, email })
+}
+
+/// Whether `text` on one line ([`line`]) is longer than `most` characters: a blank and a character
+/// after it, at the most, say so past the cut.
+pub(super) fn longer_than(text: &str, most: usize) -> bool {
+    line(text, most.saturating_add(2)).chars().count() > most
 }
 
 /// `text` as one line: every run of blanks and control characters a single space, trimmed, at most `most`
@@ -213,10 +230,16 @@ pub(super) fn line(text: &str, most: usize) -> String {
 /// value everything after the colon with its folds) that a list needs, as a header block the MIME reader
 /// takes: each on one line (a fold is a blank, so a value cannot end the block or start another field),
 /// under a name of ours. The first of a field that is only once in a message; all of a `To` or a `Cc`, to
-/// the room a field has. At most 500 fields are looked at, and at most 64 KB are kept.
-fn block(headers: Option<&Value>) -> String {
+/// the room a field has. At most 500 fields are looked at, and at most 64 KB are kept. Says too
+/// whether recipients were left out of it, past the fields looked at or the room a `To` or a `Cc`
+/// has, or a subject, past the fields looked at or the room it has before it is decoded (#566): a
+/// rule that reads them can't tell then.
+fn block(headers: Option<&Value>) -> (String, bool) {
     let mut out = String::new();
-    let Some(list) = headers.and_then(Value::as_array) else { return out };
+    let Some(list) = headers.and_then(Value::as_array) else { return (out, false) };
+    let recipients = |name: &str| name.eq_ignore_ascii_case("to") || name.eq_ignore_ascii_case("cc");
+    let read = |name: &str| recipients(name) || name.eq_ignore_ascii_case("subject");
+    let mut dropped = list.iter().skip(MAX_FIELDS).any(|f| f.get("name").and_then(Value::as_str).is_some_and(read));
     let mut used = [0usize; FIELDS.len()];
     for field in list.iter().take(MAX_FIELDS) {
         let (Some(name), Some(value)) = (field.get("name").and_then(Value::as_str), field.get("value").and_then(Value::as_str)) else {
@@ -227,7 +250,8 @@ fn block(headers: Option<&Value>) -> String {
         if *spent > 0 && !*repeats {
             continue;
         }
-        let text = folded(value, room.saturating_sub(*spent), *repeats);
+        let (text, cut) = folded(value, room.saturating_sub(*spent), *repeats);
+        dropped |= cut && read(name);
         if text.is_empty() {
             continue;
         }
@@ -240,13 +264,13 @@ fn block(headers: Option<&Value>) -> String {
     if !out.is_empty() {
         out.push_str("\r\n");
     }
-    out
+    (out, dropped)
 }
 
 /// `value` on one line (a fold or any control character is one blank, a run of blanks is one) of at most
 /// `room` bytes; a list of addresses that is cut loses the address it was cut in, not half of it (and so a
-/// list whose first address is longer than the room is nothing).
-fn folded(value: &str, room: usize, list: bool) -> String {
+/// list whose first address is longer than the room is nothing), and whether it was cut.
+fn folded(value: &str, room: usize, list: bool) -> (String, bool) {
     let mut out = String::new();
     let mut blank = false;
     for c in value.chars() {
@@ -259,7 +283,7 @@ fn folded(value: &str, room: usize, list: bool) -> String {
             if list {
                 out.truncate(out.rfind([',', ';']).unwrap_or(0));
             }
-            break;
+            return (out, true);
         }
         if blank {
             out.push(' ');
@@ -267,7 +291,7 @@ fn folded(value: &str, room: usize, list: bool) -> String {
         }
         out.push(c);
     }
-    out
+    (out, false)
 }
 
 #[cfg(test)]

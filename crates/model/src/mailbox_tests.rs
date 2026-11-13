@@ -154,7 +154,7 @@ fn rules_run_on_new_mail() {
             id: 1,
             name: "Digest".into(),
             enabled: true,
-            conditions: vec![Condition::SubjectContains("digest".into())],
+            conditions: vec![Condition::SubjectContains(vec!["digest".into()])],
             actions: vec![Action::MoveTo(news), Action::MarkRead, Action::Categorize("Blue category".into())],
             stop: true,
             ..Default::default()
@@ -163,7 +163,7 @@ fn rules_run_on_new_mail() {
             id: 2,
             name: "Flag Bob".into(),
             enabled: true,
-            conditions: vec![Condition::FromContains("bob".into())],
+            conditions: vec![Condition::FromContains(vec!["bob".into()])],
             actions: vec![Action::Flag],
             stop: false,
             ..Default::default()
@@ -172,21 +172,21 @@ fn rules_run_on_new_mail() {
             id: 3,
             name: "Gone".into(),
             enabled: true,
-            conditions: vec![Condition::SubjectContains("hello".into())],
+            conditions: vec![Condition::SubjectContains(vec!["hello".into()])],
             actions: vec![Action::MoveTo(4242), Action::Delete],
             stop: false,
             ..Default::default()
         },
     ];
     let digest = mb.add_message(mail(inbox, "Weekly Digest", 1)).unwrap();
-    assert_eq!(mb.apply_rules(digest), ["Digest"]);
+    assert_eq!(mb.apply_rules(digest, &utc_clock()), ["Digest"]);
     let m = mb.message(digest).unwrap();
     assert_eq!((m.folder, m.read, m.flag, m.categories.len()), (news, true, FlagStatus::None, 1));
     let hello = mb.add_message(mail(inbox, "Hello", 2)).unwrap();
-    assert_eq!(mb.apply_rules(hello), ["Flag Bob", "Gone"]);
+    assert_eq!(mb.apply_rules(hello, &utc_clock()), ["Flag Bob", "Gone"]);
     let m = mb.message(hello).unwrap();
     assert_eq!((m.flag, mb.folder(m.folder).map(|f| f.kind)), (FlagStatus::Flagged, Some(FolderKind::Deleted)));
-    assert!(mb.apply_rules(4242).is_empty());
+    assert!(mb.apply_rules(4242, &utc_clock()).is_empty());
 }
 
 #[test]
@@ -1205,6 +1205,10 @@ fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_o
     }
     let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
     assert!(said.skip_conversation_question);
+}
+
+fn utc_clock() -> RuleClock {
+    RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 }
 }
 
 /// Exchange's stamp that mail came from inside the organisation is its server's word, or a

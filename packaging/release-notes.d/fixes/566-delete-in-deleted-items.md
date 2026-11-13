@@ -1,0 +1,1 @@
+- A rule that deletes mail now always puts it in Deleted Items and never deletes it permanently: mail already there (moved by an earlier rule, or with Run Rules Now over Deleted Items) stays, and so does mail of an account with no Deleted Items. Before, a rule deleted such mail permanently ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

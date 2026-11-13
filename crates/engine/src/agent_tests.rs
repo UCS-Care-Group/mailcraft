@@ -47,18 +47,54 @@ fn a_rule_from_a_loaded_mailbox_does_not_fill_an_outbox() {
     let mut s = sample();
     let out = folder_of(&s, FolderKind::Outbox);
     let m = *s.mailbox.messages.keys().next().unwrap();
+    // A rule that holds for the message: its whole subject.
+    let subject = s.mailbox.message(m).unwrap().subject.clone();
+    assert!(!subject.trim().is_empty());
     s.mailbox.rules.push(Rule {
         id: 9_999,
         name: "hostile".into(),
         enabled: true,
-        conditions: vec![Condition::SubjectContains(String::new())],
+        conditions: vec![Condition::SubjectContains(vec![subject])],
         actions: vec![Action::MoveTo(out)],
         stop: false,
         ..Default::default()
     });
     let from = s.mailbox.message(m).unwrap().folder;
-    s.mailbox.apply_rules(m);
+    s.mailbox.apply_rules(m, &s.rule_clock());
     assert_eq!(s.mailbox.message(m).unwrap().folder, from);
+    // The same rule to an ordinary folder moves it: the rule held, and the Outbox was refused.
+    let archive = folder_of(&s, FolderKind::Archive);
+    if let Some(r) = s.mailbox.rules.iter_mut().find(|r| r.id == 9_999) {
+        r.actions = vec![Action::MoveTo(archive)];
+    }
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert_eq!(s.mailbox.message(m).unwrap().folder, archive);
+}
+
+/// The same for a rule's copy (#566).
+#[test]
+fn a_rule_from_a_loaded_mailbox_does_not_copy_into_an_outbox() {
+    let mut s = sample();
+    let out = folder_of(&s, FolderKind::Outbox);
+    let m = *s.mailbox.messages.keys().next().unwrap();
+    let subject = s.mailbox.message(m).unwrap().subject.clone();
+    s.mailbox.rules.push(Rule {
+        id: 9_999,
+        name: "hostile".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec![subject.clone()])],
+        actions: vec![Action::CopyTo(out)],
+        ..Default::default()
+    });
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(!s.mailbox.messages_in(out).any(|c| c.subject == subject), "a copy of it is in the Outbox");
+    // (The same rule into the Archive copies it.)
+    let archive = folder_of(&s, FolderKind::Archive);
+    if let Some(r) = s.mailbox.rules.iter_mut().find(|r| r.id == 9_999) {
+        r.actions = vec![Action::CopyTo(archive)];
+    }
+    s.mailbox.apply_rules(m, &s.rule_clock());
+    assert!(s.mailbox.messages_in(archive).any(|c| c.subject == subject));
 }
 
 #[test]
@@ -94,15 +130,16 @@ fn agents_are_asked_before_deleting_contacts_tasks_events_and_categories() {
 #[test]
 fn a_question_is_shown_in_full_or_refused() {
     let s = sample();
-    // A key that sorts first can't push the real params out of sight.
+    // A key that sorts first can't push the real params out of sight (of a command asked about
+    // by its params, which Run Rules Now no longer is: it names the folder and the rule).
     let junk = "z".repeat(250);
     let params = json!({"0": junk, "data": "visible-end", "name": "x"});
-    let d = describe(&s, "rules.run", &params);
+    let d = describe(&s, "rules.list", &params);
     assert!(d.contains(&junk) && d.contains("visible-end"), "{d}");
     // Too long to show: refused, not cut.
     let huge = json!({"0": "z".repeat(MAX_QUESTION * 2)});
-    assert!(matches!(check(&s, "rules.run", &huge, &[]), Verdict::Refuse(_)));
-    assert!(matches!(check(&s, "rules.run", &params, &[]), Verdict::Ask(Class::Settings, _)));
+    assert!(matches!(check(&s, "rules.list", &huge, &[]), Verdict::Refuse(_)));
+    assert!(matches!(check(&s, "rules.list", &params, &[]), Verdict::Ask(Class::Settings, _)));
     // Every recipient is counted, however many.
     let mut s = sample();
     let many: Vec<String> = (0..40).map(|i| format!("p{i}@example.org")).collect();
@@ -203,4 +240,64 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": other})), "remove the account Local mailbox");
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
+}
+
+/// Run Rules Now named wrongly (`folder` as text or null, `id` as text) is refused by the command,
+/// and the question says so: it doesn't name the folder in view, nor a rule there, as if they
+/// would run (#566).
+#[test]
+fn run_rules_named_wrongly_is_said_as_that_not_as_the_folder_in_view() {
+    let mut s = sample();
+    let view = s.view.folder;
+    let path = s.mailbox.folder_path(view);
+    let subject = s.mailbox.messages_in(view).map(|m| m.subject.clone()).find(|t| !t.trim().is_empty()).unwrap();
+    let rule = json!({"name": "Gone", "conditions": [{"type": "subjectContains", "value": subject}], "actions": [{"type": "delete"}]});
+    let rule = s.run("rules.add", &rule).unwrap()["id"].as_u64().unwrap();
+    assert!(describe(&s, "rules.run", &json!({})).contains(&path));
+    for bad in [json!({"folder": view.to_string()}), json!({"folder": null}), json!({"id": rule.to_string()})] {
+        assert!(s.run("rules.run", &bad).is_err(), "the command refuses {bad}");
+        let what = describe(&s, "rules.run", &bad);
+        assert!(!what.contains(&path) && !what.contains("Gone"), "{bad}: {what}");
+    }
+}
+
+/// A word with a double quote in it doesn't read, in the owner's question, as the end of the word
+/// and more parts after it: a rule that spares the boss's mail and one whose one exception is the
+/// text `x" or from contains "boss`, which spares nearly nothing, are asked about in other words
+/// (#566).
+#[test]
+fn a_quote_in_a_word_doesnt_read_as_another_exception() {
+    let s = sample();
+    let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+    let rule = |exceptions: Value| {
+        json!({"name": "Clean up", "account": account, "conditions": [{"type": "subjectContains", "value": "invoice"}],
+            "exceptions": exceptions, "actions": [{"type": "delete"}]})
+    };
+    let real = rule(json!([{"type": "subjectContains", "value": "x"}, {"type": "fromContains", "value": "boss"}]));
+    let forged = rule(json!([{"type": "subjectContains", "value": "x\" or from contains \"boss"}]));
+    let (real, forged) = (describe(&s, "rules.add", &real), describe(&s, "rules.add", &forged));
+    assert_ne!(real, forged, "the owner is asked the same about both: {real}");
+    assert!(forged.contains(r#"subject contains "x\" or from contains \"boss""#), "{forged}");
+}
+
+/// An agent's change of an account's address, with two rules switched on here that read that
+/// address and move mail onto another account's server: the question names both, and its verbs
+/// agree with "the rules".
+#[test]
+fn the_account_question_about_two_rules_that_read_its_address_agrees_in_number() {
+    let mut s = sample();
+    let a = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let other = s.run("account.add", &json!({"email": "elsewhere@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    for name in ["One", "Two"] {
+        let rule = json!({"name": name, "account": a, "conditions": [{"type": "toMe"}], "actions": [{"type": "moveTo", "value": there}]});
+        s.run("rules.add", &rule).unwrap();
+    }
+    let q = describe(&s, "account.edit", &json!({"id": a, "email": "lovelace@example.org"}));
+    assert!(
+        q.contains(
+            "the rules \u{201c}One\u{201d}, \u{201c}Two\u{201d}, switched on here, put mail onto the server of elsewhere@example.org, and the rules for that mail read"
+        ),
+        "{q}"
+    );
 }

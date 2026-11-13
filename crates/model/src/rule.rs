@@ -16,40 +16,200 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Id, Importance, Message, contains_ci};
+use crate::time::{Date, DateTime, Timestamp, Zone};
+use crate::{Address, FlagStatus, Id, Importance, Message, ModelError, Sensitivity, contains_ci};
+
+/// Most words one condition looks for, any of which is enough.
+pub const MAX_WORDS_EACH: usize = 20;
+
+/// Most characters of a word a condition looks for: a longer one is refused, not cut, since a
+/// part of it is found in more mail (#566).
+pub const MAX_WORD: usize = 200;
+
+/// The words of a condition, any of which is enough (Outlook's Search Text): one is written as
+/// text, as rules had it before they took several (#566), so that an earlier MailCraft still
+/// reads it; either is read.
+mod words {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(words: &Vec<String>, s: S) -> Result<S::Ok, S::Error> {
+        match words.as_slice() {
+            [one] => one.serialize(s),
+            more => more.serialize(s),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Either {
+            One(String),
+            More(Vec<String>),
+        }
+        Ok(match Either::deserialize(d)? {
+            Either::One(word) => vec![word],
+            Either::More(words) => words,
+        })
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "value")]
 pub enum Condition {
-    /// The sender's name or address contains the text (a rule kept on a Microsoft account's
-    /// server: the address alone, as the server reads it).
-    FromContains(String),
-    /// Any To/Cc recipient's name or address contains the text (a rule kept on a Microsoft
-    /// account's server: the addresses alone).
-    ToContains(String),
-    SubjectContains(String),
-    BodyContains(String),
+    /// The sender's name or address contains one of the words (a rule kept on a Microsoft
+    /// account's server: the address alone, as the server reads it).
+    FromContains(#[serde(with = "words")] Vec<String>),
+    /// A To or Cc recipient's name or address contains one of the words (a rule kept on a
+    /// Microsoft account's server: the addresses alone).
+    ToContains(#[serde(with = "words")] Vec<String>),
+    SubjectContains(#[serde(with = "words")] Vec<String>),
+    BodyContains(#[serde(with = "words")] Vec<String>),
     HasAttachment,
     Importance(Importance),
+    /// The sender is one of these people, by their whole address (Outlook's "from people or
+    /// public group").
+    From(#[serde(with = "words")] Vec<String>),
+    /// One of these people is among the To and Cc recipients, by their whole address.
+    SentTo(#[serde(with = "words")] Vec<String>),
+    /// The account's own address is the one recipient: alone in To, and nobody in Cc.
+    SentOnlyToMe,
+    /// The account's own address is in To.
+    ToMe,
+    /// It is in Cc.
+    CcMe,
+    /// It is in To or Cc.
+    ToOrCcMe,
+    /// It is not in To.
+    NotToMe,
+    SubjectOrBodyContains(#[serde(with = "words")] Vec<String>),
+    /// A line of the header holds one of the words ([`Message::header_contains`]).
+    HeaderContains(#[serde(with = "words")] Vec<String>),
+    Sensitivity(Sensitivity),
+    /// Its size is between these, in KB, both included.
+    SizeBetween {
+        min: u64,
+        max: u64,
+    },
+    /// A meeting invitation or an update of one ([`Message::is_meeting_request`]).
+    MeetingRequest,
+    /// An automatic reply, an out-of-office one say ([`Message::is_automatic_reply`]).
+    AutomaticReply,
+    /// It has one of these categories.
+    Category(#[serde(with = "words")] Vec<String>),
+    /// It is flagged for follow up (and not complete).
+    Flagged,
+    /// It was received on one of these days, both included, by the clock of the zone the
+    /// calendar is shown in ([`Matching::zone`]); a missing end is open. Only on this computer:
+    /// a server's rules have no such condition.
+    ReceivedBetween {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        from: Option<Date>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        to: Option<Date>,
+    },
+}
+
+/// What a rule is matched by besides the message.
+#[derive(Clone, Copy, Debug)]
+pub struct Matching<'a> {
+    /// Look for the words of a sender or a recipient in their addresses alone: a rule of an
+    /// account whose server keeps rules does, as its server looks there alone (Exchange's
+    /// "words in the sender's address"), and so does this computer for it.
+    pub addresses_only: bool,
+    /// The address of the account whose mail it is: the "me" of "sent only to me". Empty for
+    /// none, and then no such condition holds.
+    pub me: &'a str,
+    /// The zone whose clock the days of [`Condition::ReceivedBetween`] are by.
+    pub zone: Zone,
+}
+
+impl Default for Matching<'_> {
+    fn default() -> Self {
+        Matching { addresses_only: false, me: "", zone: Zone::fixed(0).unwrap_or_else(Zone::system) }
+    }
+}
+
+/// The clock a rule runs by: when "today" is for a flag it sets, and the hour its due day ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RuleClock {
+    pub now: Timestamp,
+    /// The zone the calendar is shown in.
+    pub zone: Zone,
+    /// The hour a flag falls due on its day: the end of the working day, as the ribbon's.
+    pub due_hour: u8,
+}
+
+/// The text of `m` a rule reads: none of a message too large to download, whose text here is
+/// MailCraft's note saying so ([`Message::not_downloaded`], which a sender can't set), not the
+/// message's own; nor of one whose text kept beside the mailbox couldn't be brought in, whose text
+/// may be MailCraft's note saying that ([`crate::KeptBody::failed`]). Either is partly here, and a
+/// rule that reads its text can't tell yet.
+fn own_text(m: &Message) -> &str {
+    if m.not_downloaded > 0 || m.kept.as_deref().is_some_and(|k| k.failed) { "" } else { &m.body.text }
+}
+
+/// Whether one of `words` (an empty one looks for nothing) is in one of `texts`, whatever the
+/// letters' case: each text is put in lower case once, for all the words, and only when the texts
+/// before it don't have one.
+fn any_in(words: &[String], texts: &[&str]) -> bool {
+    let words: Vec<String> = words.iter().filter(|w| !w.is_empty()).map(|w| w.to_lowercase()).collect();
+    !words.is_empty()
+        && texts.iter().any(|text| {
+            let text = text.to_lowercase();
+            words.iter().any(|w| text.contains(w.as_str()))
+        })
 }
 
 impl Condition {
-    pub fn matches(&self, m: &Message) -> bool {
-        self.matches_as(m, false)
+    /// What its words are, as [`same_word`] compares them.
+    pub fn word_kind(&self) -> Words {
+        match self {
+            Condition::From(_) | Condition::SentTo(_) => Words::Addresses,
+            Condition::Category(_) => Words::Categories,
+            _ => Words::Text,
+        }
     }
 
-    /// [`Condition::matches`], with `addresses_only` for a rule of an account whose server keeps
-    /// rules: its server looks for the words of a sender or a recipient in their addresses
-    /// alone (Exchange's "words in the sender's address"), and so does this computer for it.
-    pub fn matches_as(&self, m: &Message, addresses_only: bool) -> bool {
-        let person = |a: &crate::Address, t: &str| contains_ci(&a.email, t) || (!addresses_only && contains_ci(&a.name, t));
+    pub fn matches(&self, m: &Message) -> bool {
+        self.matches_in(m, &Matching::default())
+    }
+
+    /// [`Condition::matches`], by `how` ([`Matching`]).
+    pub fn matches_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        let person = |a: &Address, t: &str| contains_ci(&a.email, t) || (!how.addresses_only && contains_ci(&a.name, t));
+        let any = |words: &[String], hit: &dyn Fn(&str) -> bool| words.iter().filter(|w| !w.is_empty()).any(|w| hit(w));
+        let is = |a: &Address, who: &str| !who.trim().is_empty() && a.email.trim().eq_ignore_ascii_case(who.trim());
+        let me = |a: &Address| is(a, how.me);
         match self {
-            Condition::FromContains(t) => person(&m.from, t),
-            Condition::ToContains(t) => m.to.iter().chain(&m.cc).any(|a| person(a, t)),
-            Condition::SubjectContains(t) => contains_ci(&m.subject, t),
-            Condition::BodyContains(t) => contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t),
+            Condition::FromContains(w) => any(w, &|t| person(&m.from, t)),
+            Condition::ToContains(w) => any(w, &|t| m.to.iter().chain(&m.cc).any(|a| person(a, t))),
+            Condition::SubjectContains(w) => any(w, &|t| contains_ci(&m.subject, t)),
+            Condition::BodyContains(w) => any_in(w, &[own_text(m), &m.hidden_text]),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
+            Condition::From(people) => people.iter().any(|p| is(&m.from, p)),
+            Condition::SentTo(people) => people.iter().any(|p| m.to.iter().chain(&m.cc).any(|a| is(a, p))),
+            Condition::SentOnlyToMe => matches!(m.to.as_slice(), [only] if me(only)) && m.cc.is_empty(),
+            Condition::ToMe => m.to.iter().any(me),
+            Condition::CcMe => m.cc.iter().any(me),
+            Condition::ToOrCcMe => m.to.iter().chain(&m.cc).any(me),
+            Condition::NotToMe => !how.me.trim().is_empty() && !m.to.iter().any(me),
+            Condition::SubjectOrBodyContains(w) => any_in(w, &[&m.subject, own_text(m), &m.hidden_text]),
+            Condition::HeaderContains(w) => {
+                let lines = m.header_lines_lowered();
+                any_in(w, &lines.iter().map(String::as_str).collect::<Vec<_>>())
+            }
+            Condition::Sensitivity(s) => m.sensitivity() == *s,
+            Condition::SizeBetween { min, max } => m.size_known() && m.list_size().is_some_and(|bytes| (*min..=*max).contains(&(bytes / 1024))),
+            Condition::MeetingRequest => m.is_meeting_request(),
+            Condition::AutomaticReply => m.is_automatic_reply(),
+            Condition::Category(names) => names.iter().any(|c| m.has_category(c)),
+            Condition::Flagged => m.flag == FlagStatus::Flagged,
+            Condition::ReceivedBetween { from, to } => {
+                let at = if m.received != 0 { m.received } else { m.date };
+                let day = how.zone.wall(at).date;
+                (from.is_some() || to.is_some()) && from.is_none_or(|f| day >= f) && to.is_none_or(|t| day <= t)
+            }
         }
     }
 
@@ -58,18 +218,231 @@ impl Condition {
         self.describe_as(false)
     }
 
-    /// [`Condition::describe`] for a rule that reads addresses alone ([`Condition::matches_as`]).
+    /// [`Condition::describe`] for a rule that reads addresses alone ([`Matching::addresses_only`]).
     pub fn describe_as(&self, addresses_only: bool) -> String {
+        let words = |w: &[String]| w.iter().map(|t| said(t)).collect::<Vec<_>>().join(" or ");
         match self {
-            Condition::FromContains(t) if addresses_only => format!("sender's address contains \"{t}\""),
-            Condition::ToContains(t) if addresses_only => format!("recipient's address contains \"{t}\""),
-            Condition::FromContains(t) => format!("from contains \"{t}\""),
-            Condition::ToContains(t) => format!("sent to \"{t}\""),
-            Condition::SubjectContains(t) => format!("subject contains \"{t}\""),
-            Condition::BodyContains(t) => format!("body contains \"{t}\""),
+            Condition::FromContains(t) if addresses_only => format!("sender's address contains {}", words(t)),
+            Condition::ToContains(t) if addresses_only => format!("recipient's address contains {}", words(t)),
+            Condition::FromContains(t) => format!("from contains {}", words(t)),
+            Condition::ToContains(t) => format!("recipient contains {}", words(t)),
+            Condition::SubjectContains(t) => format!("subject contains {}", words(t)),
+            Condition::BodyContains(t) => format!("body contains {}", words(t)),
             Condition::HasAttachment => "has an attachment".into(),
             Condition::Importance(i) => format!("importance is {}", i.code()),
+            Condition::From(p) => format!("from {}", words(p)),
+            Condition::SentTo(p) => format!("sent to {}", words(p)),
+            Condition::SentOnlyToMe => "sent only to me".into(),
+            Condition::ToMe => "my address is in To".into(),
+            Condition::CcMe => "my address is in Cc".into(),
+            Condition::ToOrCcMe => "my address is in To or Cc".into(),
+            Condition::NotToMe => "my address isn't in To".into(),
+            Condition::SubjectOrBodyContains(t) => format!("subject or body contains {}", words(t)),
+            Condition::HeaderContains(t) => format!("header contains {}", words(t)),
+            Condition::Sensitivity(s) => format!("sensitivity is {}", s.code()),
+            Condition::SizeBetween { min, max } => format!("size is {min} KB to {max} KB"),
+            Condition::MeetingRequest => "is a meeting invitation or update".into(),
+            Condition::AutomaticReply => "is an automatic reply".into(),
+            Condition::Category(c) => format!("category is {}", words(c)),
+            Condition::Flagged => "is flagged".into(),
+            Condition::ReceivedBetween { from, to } => match (from, to) {
+                (Some(f), Some(t)) => format!("received from {} to {}", f.iso(), t.iso()),
+                (Some(f), None) => format!("received on or after {}", f.iso()),
+                (None, Some(t)) => format!("received on or before {}", t.iso()),
+                (None, None) => "received on any day".into(),
+            },
         }
+    }
+
+    /// The words it looks for, when it looks for words.
+    pub fn words(&self) -> Option<&[String]> {
+        match self {
+            Condition::FromContains(w)
+            | Condition::ToContains(w)
+            | Condition::SubjectContains(w)
+            | Condition::BodyContains(w)
+            | Condition::From(w)
+            | Condition::SentTo(w)
+            | Condition::SubjectOrBodyContains(w)
+            | Condition::HeaderContains(w)
+            | Condition::Category(w) => Some(w),
+            _ => None,
+        }
+    }
+
+    /// The same condition with other words (one that looks for none is itself).
+    pub fn with_words(&self, words: Vec<String>) -> Condition {
+        match self {
+            Condition::FromContains(_) => Condition::FromContains(words),
+            Condition::ToContains(_) => Condition::ToContains(words),
+            Condition::SubjectContains(_) => Condition::SubjectContains(words),
+            Condition::BodyContains(_) => Condition::BodyContains(words),
+            Condition::From(_) => Condition::From(words),
+            Condition::SentTo(_) => Condition::SentTo(words),
+            Condition::SubjectOrBodyContains(_) => Condition::SubjectOrBodyContains(words),
+            Condition::HeaderContains(_) => Condition::HeaderContains(words),
+            Condition::Category(_) => Condition::Category(words),
+            other => other.clone(),
+        }
+    }
+
+    /// Whether it reads the body, which has to be in memory for it.
+    pub fn reads_body(&self) -> bool {
+        matches!(self, Condition::BodyContains(_) | Condition::SubjectOrBodyContains(_) | Condition::MeetingRequest)
+    }
+
+    /// Whether it reads the address of the account whose mail it is ([`Matching::me`]).
+    pub fn about_me(&self) -> bool {
+        matches!(self, Condition::SentOnlyToMe | Condition::ToMe | Condition::CcMe | Condition::ToOrCcMe | Condition::NotToMe)
+    }
+
+    /// Whether it can't be told of `m` by `how`: it reads what isn't here ([`Condition::unread_in`]),
+    /// or it is about "me" and the account has no address of its own.
+    pub fn untold_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        self.unread_in(m) || (self.about_me() && how.me.trim().is_empty())
+    }
+
+    /// [`Condition::matches_in`], and not on a guess: a sensitivity that can't be read yet doesn't
+    /// hold, though no header reads as Normal. A word found in what is here of the text holds, as
+    /// ever, and a size that can't be told never matches.
+    pub fn holds_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        // (Nor one that holds for what isn't there, of recipients that were left out: "sent only to
+        // me" of a Cc that was cut too.)
+        self.matches_in(m, how) && !(matches!(self, Condition::Sensitivity(_) | Condition::NotToMe | Condition::SentOnlyToMe) && self.unread_in(m))
+    }
+
+    /// Whether it can't be told of `m` yet: it reads what isn't here, of a message only part of
+    /// which is ([`Message::partly_here`]).
+    pub fn unread_in(&self, m: &Message) -> bool {
+        match self {
+            // A server's list says whether there are attachments; the headers of a message too
+            // large to download don't.
+            Condition::HasAttachment => m.partly_here() && !m.unfetched,
+            Condition::SizeBetween { .. } => !m.size_known(),
+            // Nor what the headers said past what was kept of them ([`Message::headers_cut`]), nor
+            // the header of a message whose lines MailCraft reads into it weren't kept as they came
+            // ([`Message::read_header`]: one read before they were, or made here).
+            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty(),
+            Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
+            // Nor a person a server's list gives by name alone (an Exchange server's own kind of
+            // address), whose address the message, once here, says.
+            Condition::FromContains(_) | Condition::From(_) => m.unfetched && m.from.email.trim().is_empty(),
+            Condition::ToContains(_)
+            | Condition::SentTo(_)
+            | Condition::SentOnlyToMe
+            | Condition::ToMe
+            | Condition::CcMe
+            | Condition::ToOrCcMe
+            | Condition::NotToMe => m.headers_cut || (m.unfetched && m.to.iter().chain(&m.cc).any(|a| a.email.trim().is_empty())),
+            Condition::Category(_) => m.headers_cut || m.categories_cut,
+            // Nor the end of a subject its server's list left out.
+            Condition::SubjectContains(_) => m.unfetched && m.headers_cut,
+            // A calendar part kept on disk and not brought in (one too large to be read) doesn't
+            // say whether it asks.
+            Condition::MeetingRequest => m.partly_here() || m.attachments.iter().any(|a| a.is_calendar() && !a.is_loaded()),
+            other => other.reads_body() && m.partly_here(),
+        }
+    }
+}
+
+/// What a condition's words are, for telling whether two of them are the same ([`same_word`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Words {
+    /// People's whole addresses (From, Sent to).
+    Addresses,
+    /// Names of categories.
+    Categories,
+    /// Words looked for in a text.
+    Text,
+}
+
+/// Whether `a` and `b`, two words of one condition, look for the same thing, and so are kept once
+/// and are the same as the server's: as [`Condition::matches_in`] compares them, so that a word
+/// kept once finds the same mail as the one let go. Two people's addresses A to Z in either case
+/// and nothing else folded; two categories a letter at a time ([`crate::sync::same_category`]); two
+/// words of a text in small letters, the whole word at once, as one is found ([`contains_ci`]).
+/// (The last two differ in Greek at a word's end: "ΛΌΓΟΣ" is "λόγος" as a word, "λόγοσ" as a
+/// category.)
+pub fn same_word(kind: Words, a: &str, b: &str) -> bool {
+    match kind {
+        Words::Addresses => a.trim().eq_ignore_ascii_case(b.trim()),
+        Words::Categories => crate::sync::same_category(a, b),
+        Words::Text => a.to_lowercase() == b.to_lowercase(),
+    }
+}
+
+/// Exceptions as a server keeps them: any one of them holding leaves a message alone, so two that
+/// look for words (or people, or categories) of one kind are one that looks for either's, and one
+/// the same as another is that other. More than [`MAX_WORDS_EACH`] words of a kind are an error:
+/// cut short, they would let through mail they were to leave alone.
+pub fn fold_exceptions(list: Vec<Condition>) -> Result<Vec<Condition>, ModelError> {
+    let mut out: Vec<Condition> = Vec::new();
+    for c in list {
+        if out.contains(&c) {
+            continue;
+        }
+        let kind = std::mem::discriminant(&c);
+        match (c.words(), out.iter_mut().find(|d| std::mem::discriminant(*d) == kind && d.words().is_some())) {
+            (Some(words), Some(had)) => {
+                let mut all = had.words().unwrap_or_default().to_vec();
+                for w in words.iter().filter(|w| !all.iter().any(|a| same_word(c.word_kind(), a, w))).collect::<Vec<_>>() {
+                    if all.len() >= MAX_WORDS_EACH {
+                        return Err(ModelError::Invalid(format!("exceptions of one kind look for at most {MAX_WORDS_EACH} words or addresses")));
+                    }
+                    all.push(w.clone());
+                }
+                *had = had.with_words(all);
+            }
+            _ => out.push(c),
+        }
+    }
+    Ok(out)
+}
+
+/// When a flag a rule sets falls due (Outlook's "flag message for follow up at this time").
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FollowUp {
+    Today,
+    Tomorrow,
+    /// This week's Friday, as on the ribbon.
+    ThisWeek,
+    /// Next week's.
+    NextWeek,
+}
+
+impl FollowUp {
+    pub const ALL: [FollowUp; 4] = [FollowUp::Today, FollowUp::Tomorrow, FollowUp::ThisWeek, FollowUp::NextWeek];
+
+    pub fn parse(s: &str) -> Option<FollowUp> {
+        FollowUp::ALL.into_iter().find(|f| f.code().eq_ignore_ascii_case(s.trim()))
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            FollowUp::Today => "today",
+            FollowUp::Tomorrow => "tomorrow",
+            FollowUp::ThisWeek => "thisWeek",
+            FollowUp::NextWeek => "nextWeek",
+        }
+    }
+
+    /// The day it falls due, from `today`, as the Follow Up menu has it: this week's Friday (today
+    /// at the weekend), next week's Friday.
+    pub fn day(self, today: Date) -> Date {
+        let weekday = i64::from(today.weekday().index());
+        match self {
+            FollowUp::Today => today,
+            FollowUp::Tomorrow => today.add_days(1),
+            FollowUp::ThisWeek => today.add_days((4 - weekday).max(0)),
+            FollowUp::NextWeek => today.add_days(11 - weekday),
+        }
+    }
+
+    /// The moment it falls due, by `clock`.
+    pub fn due(self, clock: &RuleClock) -> Option<Timestamp> {
+        let day = self.day(clock.zone.wall(clock.now).date);
+        DateTime::new(day, clock.due_hour.min(23), 0, 0).map(|wall| clock.zone.instant(wall))
     }
 }
 
@@ -82,19 +455,59 @@ pub enum Action {
     Flag,
     MarkRead,
     SetImportance(Importance),
-    /// Move to Deleted Items.
+    /// Move to Deleted Items. (A "delete it permanently" a build of #566 before it went to a later
+    /// change wrote is read as this: never for good.)
+    #[serde(alias = "deleteForGood")]
     Delete,
+    /// Put a copy in the folder with this id.
+    CopyTo(Id),
+    /// Flag it, due then.
+    FlagFor(FollowUp),
+    ClearFlag,
+    ClearCategories,
+}
+
+/// A word or a name of a rule in its description, in double quotes, with a quote or a backslash in
+/// it escaped: one that holds `x" or from contains "boss` reads as that text, never as the end of
+/// the word and another part of the rule (#566).
+fn said(t: &str) -> String {
+    format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 impl Action {
     pub fn describe(&self) -> String {
         match self {
             Action::MoveTo(_) => "move it to a folder".into(),
-            Action::Categorize(c) => format!("categorize it as \"{c}\""),
+            Action::Categorize(c) => format!("categorize it as {}", said(c)),
             Action::Flag => "flag it".into(),
             Action::MarkRead => "mark it as read".into(),
             Action::SetImportance(i) => format!("set importance to {}", i.code()),
             Action::Delete => "delete it".into(),
+            Action::CopyTo(_) => "copy it to a folder".into(),
+            Action::FlagFor(f) => match f {
+                FollowUp::Today => "flag it for today".into(),
+                FollowUp::Tomorrow => "flag it for tomorrow".into(),
+                FollowUp::ThisWeek => "flag it for this week".into(),
+                FollowUp::NextWeek => "flag it for next week".into(),
+            },
+            Action::ClearFlag => "clear its flag".into(),
+            Action::ClearCategories => "clear its categories".into(),
+        }
+    }
+
+    /// When it runs among a rule's actions: what changes the message first, then a copy, then
+    /// where it goes.
+    pub fn stage(&self) -> u8 {
+        match self {
+            Action::Categorize(_)
+            | Action::Flag
+            | Action::MarkRead
+            | Action::SetImportance(_)
+            | Action::FlagFor(_)
+            | Action::ClearFlag
+            | Action::ClearCategories => 0,
+            Action::CopyTo(_) => 1,
+            Action::MoveTo(_) | Action::Delete => 2,
         }
     }
 }
@@ -135,7 +548,7 @@ pub struct ServerRule {
     pub synced_enabled: bool,
     pub synced_sequence: i32,
     /// The parts of it this version doesn't know, by the server's names (`forwardTo`,
-    /// `exceptions`…). Such a rule is switched on and off, moved and deleted, and never
+    /// `isVoicemail`…). Such a rule is switched on and off, moved and deleted, and never
     /// rewritten or run here.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unknown: Vec<String>,
@@ -165,6 +578,67 @@ pub struct RuleGone {
 /// Most rules deleted here that wait for their server to be told.
 pub const MAX_RULE_GONE: usize = 500;
 
+/// The rules that couldn't tell of a message as it arrived ([`Rule::undecided_in`]), kept with it
+/// until it is here whole (#566): a Microsoft account and an Exchange server account list new mail
+/// before it is fetched (a JMAP account too, though its runs don't yet put new mail through the
+/// rules as it arrives), and a rule that reads its text, its headers or its size has its say only
+/// then ([`Mailbox::run_waiting_rules`](crate::Mailbox::run_waiting_rules)).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RulesWaiting {
+    /// The folder the rules left it in: they act on it there and nowhere else, not once it has
+    /// been moved (by the owner, say) meanwhile.
+    pub folder: Id,
+    /// In the order they ran as it arrived.
+    #[serde(deserialize_with = "crate::sync::lenient_list")]
+    pub rules: Vec<RuleWaiting>,
+    /// Its categories, flag and importance once the rules had acted on it as it arrived
+    /// ([`Marks`]). Changed by the time it is here whole (by an agent, say, or on another device),
+    /// what the rules decided then may no longer hold, so none of the rules that wait copies or
+    /// moves it into another account (#566).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub marked: Option<Marks>,
+    /// Whether that folder lay in Deleted Items then (a rule's Delete put it there). One that lies
+    /// there only since (deleted meanwhile with its folder, which keeps the folder's id) is let
+    /// alone.
+    #[serde(skip_serializing_if = "is_false")]
+    pub binned: bool,
+}
+
+/// What a message carries that a rule reads and an agent may change without asking: its
+/// categories (in any order and case: a server may give back the categories it was sent so), its
+/// flag and its importance (#566). Kept as they are, never as a checksum, which an agent could
+/// match by the categories it chooses.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Marks {
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub categories: Vec<String>,
+    pub flag: FlagStatus,
+    pub importance: Importance,
+}
+
+impl Marks {
+    pub fn of(m: &Message) -> Marks {
+        // (Each letter in small, as "has the category" reads them, [`crate::sync::same_category`].)
+        let mut categories: Vec<String> = m.categories.iter().map(|c| c.chars().flat_map(char::to_lowercase).collect()).collect();
+        categories.sort_unstable();
+        Marks { categories, flag: m.flag, importance: m.importance }
+    }
+}
+
+/// One of [`RulesWaiting::rules`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RuleWaiting {
+    pub rule: Id,
+    /// It acted as the message arrived, but for a delete that waited on its own. Only an earlier
+    /// build of #566 wrote this; it is read so that such a file opens, and the rule isn't run again
+    /// ([`crate::Mailbox::run_waiting_rules`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub delete_only: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Rule {
@@ -173,9 +647,16 @@ pub struct Rule {
     pub enabled: bool,
     /// All must hold. A rule without conditions matches nothing (it would act on every message).
     pub conditions: Vec<Condition>,
+    /// Any one of them holding leaves the message alone (Outlook's "except if").
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<Condition>,
     pub actions: Vec<Action>,
     /// Later rules don't run on a message this one matched.
     pub stop: bool,
+    /// The window shows a desktop alert for a message it acted on as it arrived, as for new mail
+    /// (Outlook's "display a Desktop Alert"). Only on this computer: a server's rules have none.
+    #[serde(skip_serializing_if = "is_false")]
+    pub alert: bool,
     /// The account whose arriving mail it is for; 0 for a rule from before rules had accounts,
     /// which is for every account's mail and kept on this computer.
     #[serde(skip_serializing_if = "crate::is_zero_id")]
@@ -198,17 +679,43 @@ pub struct Rule {
 
 impl Rule {
     pub fn matches(&self, m: &Message) -> bool {
-        self.matches_as(m, false)
+        self.matches_in(m, &Matching::default())
     }
 
-    /// [`Rule::matches`], reading addresses alone when `addresses_only` ([`Condition::matches_as`]).
-    /// A rule with parts this version doesn't know matches nothing here: what it would do is not
-    /// known.
-    pub fn matches_as(&self, m: &Message, addresses_only: bool) -> bool {
-        self.enabled && self.known() && !self.conditions.is_empty() && self.conditions.iter().all(|c| c.matches_as(m, addresses_only))
+    /// [`Rule::matches`], by `how` ([`Matching`]). A rule with parts this version doesn't know
+    /// matches nothing here: what it would do is not known.
+    pub fn matches_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        // An exception that can't be told yet may hold: a rule doesn't act on a guess.
+        self.reaches(m, how) && !self.exceptions.iter().any(|c| c.untold_in(m, how) || c.matches_in(m, how))
     }
 
-    /// `When from contains "x" and has an attachment: flag it, mark it as read`.
+    /// Whether it may apply to `m`, for what can't be told yet ([`Condition::untold_in`]): a
+    /// condition or an exception that reads what isn't here, or one about "me" of an account with
+    /// no address. It doesn't act; should it stop the rules after it, those copy or move nothing
+    /// into another account ([`Mailbox::run_rules`](crate::Mailbox::run_rules)).
+    /// So is one with parts not known here that stops the rules after it, when its known
+    /// conditions hold or can't be told and no exception known here holds: it may apply, as its
+    /// server ran it, and stop them (#566).
+    pub fn undecided_in(&self, m: &Message, how: &Matching<'_>) -> bool {
+        let open = |c: &Condition| c.untold_in(m, how) && !c.holds_in(m, how);
+        let spares = |c: &Condition| !c.untold_in(m, how) && c.matches_in(m, how);
+        if !self.known() {
+            return self.enabled && self.stop && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how)) && !self.exceptions.iter().any(spares);
+        }
+        self.enabled
+            && !self.conditions.is_empty()
+            && self.conditions.iter().all(|c| open(c) || c.holds_in(m, how))
+            && !self.exceptions.iter().any(spares)
+            && (self.conditions.iter().any(open) || self.exceptions.iter().any(|c| c.untold_in(m, how)))
+    }
+
+    /// Whether it is on and its conditions hold, exceptions aside.
+    fn reaches(&self, m: &Message, how: &Matching<'_>) -> bool {
+        self.enabled && self.known() && !self.conditions.is_empty() && self.conditions.iter().all(|c| c.holds_in(m, how))
+    }
+
+    /// `When from contains "x" and has an attachment, except if it is flagged: flag it, mark it
+    /// as read`.
     pub fn describe(&self) -> String {
         self.describe_as(false)
     }
@@ -216,8 +723,68 @@ impl Rule {
     /// [`Rule::describe`] for a rule that reads addresses alone.
     pub fn describe_as(&self, addresses_only: bool) -> String {
         let when = self.conditions.iter().map(|c| c.describe_as(addresses_only)).collect::<Vec<_>>().join(" and ");
-        let then = self.actions.iter().map(Action::describe).collect::<Vec<_>>().join(", ");
-        format!("When {when}: {then}")
+        let except = self.exceptions.iter().map(|c| c.describe_as(addresses_only)).collect::<Vec<_>>().join(" or ");
+        let mut then: Vec<String> = self.actions.iter().map(Action::describe).collect();
+        if self.alert {
+            then.push("show a desktop alert".into());
+        }
+        let then = then.join(", ");
+        if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
+    }
+
+    /// Whether it names the category `name`, as a rule matches a category
+    /// ([`crate::sync::same_category`]): in a condition or an exception, or (`whole`) in
+    /// Categorize too.
+    pub fn names_category(&self, name: &str, whole: bool) -> bool {
+        let named = |n: &String| crate::sync::same_category(n, name);
+        let names = |c: &Condition| matches!(c, Condition::Category(names) if names.iter().any(named));
+        self.conditions.iter().chain(&self.exceptions).any(names)
+            || (whole && self.actions.iter().any(|a| matches!(a, Action::Categorize(n) if named(n))))
+    }
+
+    /// The category `from` called `to` wherever it names it, matched as a rule matches a category
+    /// ([`crate::sync::same_category`]), each name once (#566): Categorize puts the new name on,
+    /// while a condition and an exception name the category by both, so that the rule still takes
+    /// and leaves alone what it did: the mail renamed here and the mail that comes with the old
+    /// name (a server's rule, a rule for every account, or another program, may still put that
+    /// on: a Microsoft account's list isn't written to its server, #661). Categorize only when
+    /// `whole`.
+    pub fn rename_category(&mut self, from: &str, to: &str, whole: bool) {
+        let rename = |names: &mut Vec<String>| {
+            if !names.iter().any(|n| crate::sync::same_category(n, from)) {
+                return;
+            }
+            let mut kept: Vec<String> = Vec::with_capacity(names.len().saturating_add(1));
+            for n in names.drain(..) {
+                let renamed = crate::sync::same_category(&n, from);
+                for n in std::iter::once(n).chain(renamed.then(|| to.to_string())) {
+                    if !kept.iter().any(|k| crate::sync::same_category(k, &n)) {
+                        kept.push(n);
+                    }
+                }
+            }
+            *names = kept;
+        };
+        for c in self.conditions.iter_mut().chain(&mut self.exceptions) {
+            if let Condition::Category(names) = c {
+                rename(names);
+            }
+        }
+        if !whole {
+            return;
+        }
+        for a in &mut self.actions {
+            if let Action::Categorize(name) = a
+                && crate::sync::same_category(name, from)
+            {
+                *name = to.to_string();
+            }
+        }
+    }
+
+    /// Whether it reads the body of a message, which has to be in memory for it.
+    pub fn reads_body(&self) -> bool {
+        self.conditions.iter().chain(&self.exceptions).any(Condition::reads_body)
     }
 
     /// Whether it is for the arriving mail of `account`.

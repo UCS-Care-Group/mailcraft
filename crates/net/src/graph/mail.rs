@@ -209,7 +209,7 @@ fn inbox_pass(
         },
     };
     // (Only the Inbox was read: that is not every folder of the mailbox.)
-    (last.partial, last.whole, last.inbox_pass) = (true, false, true);
+    (last.partial, last.whole, last.inbox_pass, last.inbox_pass_end) = (true, false, true, true);
     emit(last);
 }
 

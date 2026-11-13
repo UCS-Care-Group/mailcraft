@@ -349,10 +349,20 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
   and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
   unconfirmed, nor is a file with no account that connects to a server.
-- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
-  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
-  older version), so incoming mail is never relayed by the owner's SMTP account
-  (`Mailbox::is_send_queue`).
+- No rule moves or copies mail into an Outbox, or a folder under one, whoever made it: `rules.add`
+  and `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or
+  an older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`). A rule never deletes mail permanently: its Delete puts mail in
+  Deleted Items, and mail there already, or of an account with none, stays where it is. A rule
+  that can't yet tell whether it applies to new mail not downloaded waits until the message is
+  here whole, and so does one that copies it into another account's folder; the rules after it
+  act meanwhile, but one that moves the message into another account waits with it, and nothing
+  is moved or copied into another account after a rule that still can't tell once the message is
+  here, or at Run Rules Now. Nothing is copied of mail its server had before it was read here (a
+  first download, older mail, a mailbox the server numbered anew), nor of mail moved into the
+  Inbox on another device while the folder it left still holds it here, known by its Message-ID;
+  one with no Message-ID, or whose folder was read without it first, is new mail and may be
+  copied again. The rules leave a shared mailbox's mail alone, Run Rules Now too.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -369,6 +379,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
   what it would take away when asked: another step meanwhile, or a message or contact that came
   down since, and the yes is refused.
+  An undo or redo that puts a message on its way onto another account's server again, or
+  changes the rules and leaves a rule switched on that copies or moves mail there, asks `send`
+  and names that server (#566).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the

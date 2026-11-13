@@ -127,6 +127,17 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
     }
 }
 
+/// Take in messages fetched whole, as the engine takes them in for their account's kind (a JMAP
+/// account's are held to sizes first). A rule's desktop alert for one of them comes once the
+/// download is over.
+fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcraft_engine::CmdError> {
+    let said = take_in_fetch(&mut app.session, result);
+    if let Ok(said) = &said {
+        crate::alerts::downloaded(app, said);
+    }
+    said
+}
+
 impl MailApp {
     /// A command that needs its message whole waits for it to be fetched, and then runs. A forward
     /// of several messages (#360) is judged first (as many as one message carries, none that
@@ -353,7 +364,7 @@ impl MailApp {
         let brought = !Came::of(&self.session, &messages, &result).answered.is_empty();
         self.session.driver.fetch.offline = result.offline;
         let account = result.account;
-        let mut refused = if account != 0 { take_in_fetch(&mut self.session, result).err() } else { None };
+        let mut refused = if account != 0 { take_in(self, result).err() } else { None };
         if let Some(e) = &refused {
             self.status(e.to_string());
         }
@@ -431,7 +442,7 @@ impl MailApp {
                 );
             }
         }
-        match take_in_fetch(&mut self.session, result) {
+        match take_in(self, result) {
             Ok(said) => {
                 let progress = FetchProgress::of(&said);
                 let (done, all, large) = (progress.done, progress.all, progress.large);

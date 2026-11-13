@@ -1,0 +1,1 @@
+- A rule no longer cuts a word over 200 characters short and so acts on more mail than it names: such a word is refused ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
