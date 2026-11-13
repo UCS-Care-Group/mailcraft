@@ -39,8 +39,10 @@ use crate::MailApp;
 use crate::reading::images;
 use crate::theme::Tokens;
 
-/// Most addresses whose picture, or lack of one, is kept in memory.
-const MAX_KEPT: usize = 1_000;
+/// Most addresses whose picture, or lack of one, is kept in memory (a picture is at most
+/// [`SIDE`] pixels a side, 64 KB): far more than a screen of rows shows, and those on screen
+/// are never let go of for another.
+const MAX_KEPT: usize = 300;
 /// Most addresses the host looks up at a time.
 const AT_A_TIME: usize = 4;
 /// Most addresses waiting for their turn.

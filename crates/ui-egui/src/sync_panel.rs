@@ -520,7 +520,7 @@ mod tests {
         let mut a =
             MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("Noor Haddad", "noor@example.org"), NOW, 0), Services::default());
         a.autosave = false;
-        a.auto_sync = false;
+        a.session.driver.set_auto_sync(false);
         let pipe: Pipe = Default::default();
         let to = pipe.clone();
         a.services.sync = Some(Box::new(move |_: SyncRequest| {
@@ -1091,7 +1091,7 @@ mod tests {
         a.auto_sync();
 
         // A Send/Receive that starts by itself does too.
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         a.session.prefs.sync_minutes = 5;
         a.last_auto_sync = 0.0;
         a.auto_sync();

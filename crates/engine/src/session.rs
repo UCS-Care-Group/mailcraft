@@ -2589,14 +2589,72 @@ impl Session {
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
     /// the state the command started from gets it too ([`Session::run`]).
     fn put_message(&mut self, id: Id, m: Message) {
+        self.put_in_place(id, m, false);
+    }
+
+    /// [`Session::put_message`]; `in_steps`: `m` is the message with content let go of, and the
+    /// Undo and Redo steps let go of it too ([`Session::lean_steps`]).
+    fn put_in_place(&mut self, id: Id, m: Message, in_steps: bool) {
         let new = Arc::new(m);
         let Some(old) = self.mailbox.messages.insert(id, new.clone()) else { return };
+        #[cfg(not(target_arch = "wasm32"))]
+        if in_steps {
+            self.lean_steps(id, &old, &new);
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = in_steps;
         if Arc::strong_count(&old) > 1 {
             self.hold(std::iter::once(&old));
         }
         if let Some(swaps) = &mut self.swaps {
             swaps.push(Swap { id, old, new });
         }
+    }
+
+    /// Message `id` was `old` and the budget let go of its content (`new`, which names it on
+    /// disk): the Undo and Redo steps let go of it too, so that what the budget let go of isn't
+    /// kept in memory by up to [`MAX_HISTORY`] steps on each side. A step that holds `old` itself
+    /// gets `new`; one that holds another version of it with content in memory (a step from
+    /// before a flag or a move, which copied the message) gets that version without what of
+    /// its content is on disk as it is ([`crate::store::evictable`]), and keeps it from the
+    /// sweep as a step's message that the mailbox doesn't have ([`Session::hold`]). Nothing a
+    /// step would put back changes but where its content is: an undo brings it in again when
+    /// it is wanted. Copies of the map that shared a chunk still share one.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn lean_steps(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>) {
+        if self.history.is_empty() && self.redo.is_empty() {
+            return;
+        }
+        let Some(path) = self.path.clone() else { return };
+        let mut done = mailcraft_model::messages::Replaced::default();
+        // Each version found in a step, as it was and as it is without its content.
+        let mut made: Vec<(Arc<Message>, Arc<Message>)> = vec![(old.clone(), new.clone())];
+        let live = &self.mailbox.messages;
+        // `theirs` without its content: the one made already for that version, else one made now.
+        // (One with nothing to let go of is noted as its own, and not looked at again.)
+        let mut lean_of = |theirs: &Arc<Message>| -> Arc<Message> {
+            if let Some((_, lean)) = made.iter().find(|(was, _)| Arc::ptr_eq(was, theirs)) {
+                return lean.clone();
+            }
+            let lean = if in_memory(theirs) == 0 { None } else { crate::store::evictable(&path, id, theirs) };
+            let lean = lean.map_or_else(|| theirs.clone(), Arc::new);
+            made.push((theirs.clone(), lean.clone()));
+            lean
+        };
+        for step in self.history.iter_mut().chain(self.redo.iter_mut()) {
+            if let Some(theirs) = step.mailbox.messages.get(&id).cloned() {
+                let lean = lean_of(&theirs);
+                if !Arc::ptr_eq(&lean, &theirs) {
+                    step.mailbox.messages.put_in_place_of(id, &theirs, &lean, live, &mut done);
+                }
+            }
+            // What a step noted of a Microsoft, EWS or JMAP account's message, as it was right
+            // after the step, holds its content too.
+            if let Some(theirs) = step.touched.message_mut(id) {
+                *theirs = lean_of(theirs);
+            }
+        }
+        self.hold(made.iter().skip(1).filter(|(was, lean)| !Arc::ptr_eq(was, lean)).map(|(_, lean)| lean));
     }
 
     /// Keep what `messages` keep on disk from the sweep while something holds them.
@@ -2660,7 +2718,7 @@ impl Session {
                 }
                 match lean {
                     Some(lean) => {
-                        self.put_message(id, lean);
+                        self.put_in_place(id, lean, true);
                         self.resident_bytes = self.resident_bytes.saturating_sub(bytes);
                         self.loads += 1;
                     }

@@ -854,7 +854,8 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     let who: Arc<Mutex<String>> = Arc::new(Mutex::new("admin@mail.example".into()));
     let synced: Arc<Mutex<Vec<String>>> = Default::default();
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (a.autosave, a.auto_sync) = (false, false);
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
     let log = synced.clone();
     a.services.sync = Some(Box::new(move |req: SyncRequest| {
         log.lock().unwrap().push(req.access_token.clone());
@@ -1092,7 +1093,7 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
     a.execute("file.options", json!({"syncMinutes": 0})).unwrap();
     settle(&mut a);
     a.execute("file.options", json!({"syncMinutes": 5})).unwrap();
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     settle(&mut a);
     assert!(synced.lock().unwrap().is_empty());
 }
@@ -1200,7 +1201,7 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let before = runs.lock().unwrap().len();
     look(&mut a);
     a.passwords.insert(id, "pw".into());
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), before);
     assert!(a.dialog.is_none());
@@ -1290,7 +1291,7 @@ fn shared_and_own() -> (MailApp, mailcraft_model::Id, mailcraft_model::Id) {
     let (mine, theirs) = (s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap());
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.execute("folder.select", json!({"id": theirs})).unwrap();
     (app, mine, theirs)
 }
