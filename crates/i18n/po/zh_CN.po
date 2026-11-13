@@ -452,6 +452,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "无法从这里将跳过部分日期的重复会议放到服务器日历中：所有受邀者都会收到每个跳过日期的取消通知。请将其保存在此计算机的日历中，或重新创建不跳过日期的会议。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A name that isn't an e-mail address can set up calendars and address books alone for now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -921,6 +926,16 @@ msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收�
 #, fuzzy
 msgid "Address"
 msgstr "地址"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Address books on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2121,6 +2136,26 @@ msgstr "按大小"
 msgid "By Subject"
 msgstr "按主题"
 
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV / CardDAV"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CalDAV and CardDAV account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "CalDAV and CardDAV · no usable service address"
+msgstr ""
+
 #. command label, interface, name, ribbon, ribbon location, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2162,6 +2197,31 @@ msgstr "日历和联系人"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "日历和联系人需要您的许可：文件 › 信息 › 连接日历和联系人"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books (CalDAV / CardDAV)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars and address books on {host}"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+msgid "Calendars and address books, without mail"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {caldav} · address books on {carddav}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on {host}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -2286,6 +2346,11 @@ msgstr "取消本次会议？"
 #, fuzzy
 msgid "Cancelled"
 msgstr "已取消"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "CardDAV address"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
@@ -2546,6 +2611,11 @@ msgstr "已通过其证书颁发机构验证"
 #, fuzzy
 msgid "Checking for a new version…"
 msgstr "正在检查新版本…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Checking the CalDAV and CardDAV account…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5560,6 +5630,11 @@ msgid "Hide This Copy"
 msgstr "隐藏此副本"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Hide calendar password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/secret_field.rs
 #, fuzzy
 msgid "Hide password"
@@ -6555,6 +6630,11 @@ msgid "Keeping a copy of what was sent"
 msgstr "保留发送内容的副本"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Keeps calendars and address books over CalDAV and CardDAV"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Kept Public key"
@@ -6670,9 +6750,19 @@ msgstr "布局"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Leave both empty to keep no calendars or address books for this account. They may be on another server than the mail, with a sign-in of their own."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Leave empty to keep the one in use"
 msgstr "留空则继续使用当前值"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Leave empty to use the account's password when they are on your mail server"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9566,6 +9656,11 @@ msgid "Password"
 msgstr "密码"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Password for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Password for {account}"
@@ -12072,6 +12167,11 @@ msgstr ""
 msgid "Show as Conversations"
 msgstr "显示为对话"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Show calendar password"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -13250,6 +13350,16 @@ msgstr ".pst 文件包含 {what} 可供导入；没有导入任何内容"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The CalDAV address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The CardDAV address {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
 msgstr ""
 
@@ -13391,8 +13501,8 @@ msgstr "日历“{name}”为只读：其所有者尚未允许此账户修改。
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "日历“{name}”仅显示所有者的忙闲状态；此账户无法更改该日历。"
 
-#. what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/dav_sync.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "无法接收日历更改：{error}"
@@ -13432,6 +13542,11 @@ msgstr "日历连接正常：发送的内容已到达，服务器保存的内容
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "日历无法读取：{error}"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendar events couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -13498,6 +13613,16 @@ msgstr ""
 "{name} 的日历已与您共享，且您已接受共享，因此它现在位于您的日历列表中。您还通过地址打开过它，所以它显示了两次。\n"
 "\n"
 "移除通过地址打开的副本吗？另一份会保留，服务器上的内容也不会更改。"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars and address books need their sign-in again: press Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The calendars couldn't be taken in: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -13584,7 +13709,7 @@ msgid "The contact's form was closed: open it again to add the key"
 msgstr "联系人的表单已关闭：再次打开以添加密钥"
 
 #. interface, what a command says
-#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/dav_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "无法接收联系人：{error}"
@@ -13967,6 +14092,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "用户未允许检查更新。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The password above is for these calendars and address books."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
@@ -14169,6 +14299,11 @@ msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，�
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "服务器或组织未提供其设置。请向管理员询问服务器地址，并在服务器设置中输入。"
+
+#. interface
+#: crates/ui-egui/src/dav_sync.rs
+msgid "The server refused the sign-in for the calendars and address books: type it again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14428,6 +14563,11 @@ msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "无法记录发送的待办事项：{error}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The user name for calendars and address books {why}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The user name is too long or has a character in it that a name can't have"
@@ -14625,6 +14765,11 @@ msgstr "此账户未使用 Microsoft 登录"
 msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This account keeps calendars and address books only. Your mail can be another account."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
@@ -14708,6 +14853,11 @@ msgstr "此版本无法向服务器查询其他人的忙闲信息：仅显示您
 #, fuzzy
 msgid "This build can't connect to Microsoft"
 msgstr "此版本无法连接到 Microsoft"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This build can't connect to calendars and address books (a browser can't open DAV connections)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
@@ -14989,6 +15139,11 @@ msgstr "这是 RSA 密钥，MailCraft 不直接使用它。请将它保存在 Gn
 #, fuzzy
 msgid "This is not somebody else's meeting: a message can't call it off."
 msgstr "这不是由他人组织的会议，无法通过邮件将其取消。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "This isn't an e-mail address, so only calendars and address books can be set up for now."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -15762,6 +15917,11 @@ msgstr "类型"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Type the CalDAV and CardDAV addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type the name of the incoming mail server"
 msgstr "输入接收邮件服务器的名称"
@@ -15992,6 +16152,11 @@ msgid "User name"
 msgstr "用户名"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "User name for calendars and address books"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "User name: {name}"
@@ -16002,6 +16167,11 @@ msgstr "用户名：{name}"
 #, fuzzy
 msgid "Username"
 msgstr "用户名"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Usually the same as the account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16674,6 +16844,11 @@ msgid "Your calendar: {day}"
 msgstr "您的日历：{day}"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your calendars and address books are downloading now."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Your certificates and keys"
@@ -16891,6 +17066,16 @@ msgstr "您自己的密钥只能由您在窗口中移除"
 #, fuzzy
 msgid "Your own name."
 msgstr "您自己的姓名。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your provider's CalDAV and CardDAV addresses, usually under /remote.php/dav/ for Nextcloud and /dav/ for many others."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Your system's credential store keeps it for next time. It is never written to the mailbox."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -17482,6 +17667,11 @@ msgstr "文件过多：其余文件未删除"
 #, fuzzy
 msgid "hours"
 msgstr "小时"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "https://cloud.example.org/remote.php/dav/"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
