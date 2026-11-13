@@ -163,8 +163,14 @@ impl<E: HttpExchange> Run<'_, E> {
                         rights: Rights::Read,
                         ..Default::default()
                     });
-                    let from = request.from.max(1);
-                    let to = request.to.max(from.saturating_add(1));
+                    // (A stretch of their own, around today: `public_from..public_to`.)
+                    let (from, to) = if request.public_to > request.public_from && request.public_from > 0 {
+                        (request.public_from, request.public_to)
+                    } else {
+                        (request.from, request.to)
+                    };
+                    let from = from.max(1);
+                    let to = to.max(from.saturating_add(1));
                     match self.read_events(&folder, &picked.id, from, to, true).await {
                         Ok((download, _)) => out.events.push(EventsDownload {
                             account: request.account,

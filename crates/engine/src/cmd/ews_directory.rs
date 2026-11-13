@@ -69,6 +69,20 @@ fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &Account, &EwsSer
     Ok((a, signer, server))
 }
 
+/// The stretch a picked public calendar is read for (#1263): a few months back and a year ahead of
+/// `now`, with the stretch on screen (`from..to`) added when both together stay short enough for
+/// one calendar view. Otherwise the stretch on screen alone, so a month far away is still read
+/// when the owner looks at it and presses Send/Receive.
+pub(crate) fn public_stretch(now: i64, from: i64, to: i64) -> (i64, i64) {
+    const DAY: i64 = 86_400;
+    let wide = (
+        now.saturating_sub(mailcraft_model::PUBLIC_DAYS_BEHIND.saturating_mul(DAY)),
+        now.saturating_add(mailcraft_model::PUBLIC_DAYS_AHEAD.saturating_mul(DAY)),
+    );
+    let both = (from.min(wide.0), to.max(wide.1));
+    if both.1.saturating_sub(both.0) <= mailcraft_model::MAX_PUBLIC_STRETCH_DAYS.saturating_mul(DAY) { both } else { (from, to) }
+}
+
 /// The days on screen and [`MARGIN_DAYS`] either side, as instants.
 fn on_screen(s: &Session) -> (i64, i64) {
     let (first, last) = super::view::calendar_range(s);
@@ -156,6 +170,13 @@ pub fn ews_directory_request(
             .collect();
         (public, whole && s.public_folders.get(&account).is_some_and(|listing| listing.asked))
     };
+    // A picked public calendar: wide at a Send/Receive (#1263), the days asked for alone when
+    // the calendar is read by itself as the owner moves (#1274).
+    let (public_from, public_to) = match (public.is_empty(), whole) {
+        (true, _) => (0, 0),
+        (false, true) => public_stretch(s.now(), from, to),
+        (false, false) => (from, to),
+    };
     let changes = super::remote::event_upload(s, account).ok().filter(|upload| whole && !upload.ops.is_empty());
     let contact_changes = super::remote::contact_upload(s, account).filter(|upload| whole && !upload.ops.is_empty());
     let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| whole && !upload.ops.is_empty());
@@ -174,6 +195,8 @@ pub fn ews_directory_request(
         shared,
         public,
         browse_public,
+        public_from,
+        public_to,
         changes,
         contact_changes,
         task_changes,
