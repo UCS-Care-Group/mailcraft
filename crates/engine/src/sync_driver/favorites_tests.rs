@@ -60,7 +60,7 @@ fn a_refusal_is_for_the_pane_only_when_it_is_not_the_owners_to_change() {
     assert_eq!(f.directories.get(&1), Some(&Directory::Organisation), "told to find an administrator: an organisation's");
     assert_eq!(f.notes[&1].steps(), [Step::CopyMessage, Step::Help]);
     assert!(f.refused(2, REFUSED_FOR_ACCOUNT, Directory::Personal, 1.0));
-    assert!(f.notes[&2].steps().is_empty() && f.directories.get(&2).is_none());
+    assert!(f.notes[&2].steps().is_empty() && !f.directories.contains_key(&2));
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn the_directory_a_sign_in_named_is_kept_for_the_run_and_forgotten_with_the_acco
     f.note_directory(2, &"a".repeat(65));
     f.signed_in(1);
     f.forget(1);
-    assert!(f.directories.get(&1).is_none() && !f.connected.contains(&1));
+    assert!(!f.directories.contains_key(&1) && !f.connected.contains(&1));
 }
 
 #[test]
