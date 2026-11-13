@@ -22,6 +22,10 @@ use crate::text::{
 };
 use crate::{Core, CoreError};
 
+/// The longest list id that is told whole. An id is a key the app hands back, so it is never cut
+/// (two lists would merge); a task whose list has a longer one is left out of the lists.
+const MAX_LIST_ID: usize = 1024;
+
 fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
 }
@@ -78,13 +82,13 @@ fn task_record(t: &Task) -> TaskRecord {
         completed: t.is_complete(),
         important: t.importance == Importance::High,
         account: t.origin.account,
-        list: text::clip(&t.list, MAX_NAME),
+        list: if t.list.len() > MAX_LIST_ID { text::clip(&t.list, MAX_NAME) } else { t.list.clone() },
         categories: categories(&t.categories),
         message: t.message,
     }
 }
 
-fn row(m: &Message, members: usize, group: Option<String>) -> MessageRow {
+fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -94,7 +98,7 @@ fn row(m: &Message, members: usize, group: Option<String>) -> MessageRow {
         subject: text::clip(&m.subject, MAX_SUBJECT),
         preview: mailcraft_engine::list::preview(m, MAX_PREVIEW),
         when: mailcraft_engine::list::when(m),
-        unread: !m.read,
+        unread: unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
         has_attachments: m.attachments.iter().any(|a| !a.inline),
         important: m.importance == Importance::High,
@@ -181,7 +185,7 @@ impl Core {
                 .iter()
                 .skip(start)
                 .take(count)
-                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.group.clone())))
+                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
                 .collect();
             Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
         })
@@ -226,7 +230,10 @@ impl Core {
         self.call(|s| {
             let mut lists: BTreeMap<(Id, String), (u32, u32)> = BTreeMap::new();
             for t in s.mailbox.tasks.values() {
-                let entry = lists.entry((t.origin.account, text::clip(&t.list, MAX_NAME))).or_default();
+                if t.list.len() > MAX_LIST_ID {
+                    continue;
+                }
+                let entry = lists.entry((t.origin.account, t.list.clone())).or_default();
                 entry.1 = entry.1.saturating_add(1);
                 if !t.is_complete() {
                     entry.0 = entry.0.saturating_add(1);
@@ -248,7 +255,7 @@ impl Core {
                 .tasks
                 .values()
                 .map(|t| &**t)
-                .filter(|t| t.origin.account == account && text::clip(&t.list, MAX_NAME) == list && (completed || !t.is_complete()))
+                .filter(|t| t.origin.account == account && t.list == list && (completed || !t.is_complete()))
                 .collect();
             found.sort_by_key(|t| (t.due.is_none(), t.due, t.id));
             let start = usize::try_from(offset).unwrap_or(usize::MAX);

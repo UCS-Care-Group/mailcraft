@@ -65,7 +65,7 @@ fn pane(width: f32, dark: bool) -> (Env, u16) {
 
 fn load(s: &Session, id: Id) -> Result<std::sync::Arc<Message>, CoreError> {
     // The body alone: an attachment's bytes (or a signed original) are not read to show a message.
-    s.loaded_message_where(id, |_| false).map_err(|_| failed("the message could not be read"))
+    s.loaded_message_where(id, |_| false).map_err(|_| failed(s.interface_language.t("the message could not be read")))
 }
 
 #[uniffi::export]
@@ -137,14 +137,14 @@ impl Core {
             } else {
                 let (index, a) = attachment_of(&m, &reference).ok_or_else(|| bad("the message has no such picture"))?;
                 if a.size() > MAX_PICTURE_BYTES {
-                    return Err(failed("the picture is too large"));
+                    return Err(failed(s.interface_language.t("the picture is too large")));
                 }
-                s.content(id, Part::Attachment(index)).map_err(|_| failed("the picture could not be read"))?.to_vec()
+                s.content(id, Part::Attachment(index)).map_err(|_| failed(s.interface_language.t("the picture could not be read")))?.to_vec()
             };
             if bytes.len() > MAX_PICTURE_BYTES {
-                return Err(failed("the picture is too large"));
+                return Err(failed(s.interface_language.t("the picture is too large")));
             }
-            let mime = sniff(&bytes).ok_or_else(|| failed("that is not a picture that can be shown"))?;
+            let mime = sniff(&bytes).ok_or_else(|| failed(s.interface_language.t("that is not a picture that can be shown")))?;
             Ok(PictureBytes { rev: s.rev(), mime: mime.to_string(), bytes })
         })
         .await
