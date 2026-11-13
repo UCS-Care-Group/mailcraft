@@ -9,22 +9,9 @@
 use mailcraft_model::KeepOffline;
 use serde_json::{Value, json};
 
+use mailcraft_engine::sync_driver::Thinned;
+
 use crate::{MailApp, now_ms};
-
-/// Messages taken back to their headers and preview in one frame.
-const BATCH: u64 = 400;
-/// How often a mailbox that stays open is thinned again.
-const DAY_MS: f64 = 86_400_000.0;
-
-/// When mail was last taken back, and for which opening of a mailbox.
-#[derive(Default)]
-pub struct Thinning {
-    /// [`mailcraft_engine::Session::openings`] when it was last done; `None` before the first.
-    opening: Option<u64>,
-    at: f64,
-    /// More to do at once: messages left past the last batch, or a window just shortened.
-    pub(crate) now: bool,
-}
 
 /// A step of the slider, in words.
 pub(crate) fn label(k: KeepOffline) -> &'static str {
@@ -60,36 +47,26 @@ impl MailApp {
         self.execute("account.edit", json!({"id": account, "keepOffline": keep.code()}))?;
         if keep < before {
             // What is outside now goes at once, a batch a frame.
-            self.thinning.now = true;
+            self.session.driver.thinning.now = true;
         } else {
             // What it covers now comes in the background, newest first.
-            self.fetching.wake();
+            self.session.driver.fetch.wake();
         }
         Ok(said(true))
     }
 
-    /// Each frame: take mail outside its window back when it is due.
+    /// Each frame: take mail outside its window back when it is due (the engine decides and
+    /// does it, [`mailcraft_engine::Session::offline_tick`]).
     pub(crate) fn offline_tick(&mut self) {
-        let opening = self.session.openings();
-        let due = self.thinning.now || self.thinning.opening != Some(opening) || now_ms() - self.thinning.at >= DAY_MS;
-        if !due {
-            return;
-        }
-        (self.thinning.opening, self.thinning.at, self.thinning.now) = (Some(opening), now_ms(), false);
-        if !self.session.mailbox.accounts.iter().any(|a| a.kind.has_offline_window()) {
-            return;
-        }
-        match self.session.run("account.thinOffline", &json!({"most": BATCH})) {
-            Ok(said) => {
+        match self.session.offline_tick(now_ms()) {
+            Thinned::More => {
                 // The rest in the next frames.
-                if said["left"].as_u64().unwrap_or(0) > 0 {
-                    self.thinning.now = true;
-                    if let Some(ctx) = &self.ctx {
-                        ctx.request_repaint();
-                    }
+                if let Some(ctx) = &self.ctx {
+                    ctx.request_repaint();
                 }
             }
-            Err(e) => log::warn!("taking older mail back to its headers failed: {e}"),
+            Thinned::Failed(e) => log::warn!("taking older mail back to its headers failed: {e}"),
+            Thinned::Idle | Thinned::Done => {}
         }
     }
 }
@@ -205,7 +182,7 @@ mod tests {
         app.session.clock.now = Some(NOW + 2 * DAY);
         app.offline_tick();
         assert_eq!(whole(&app), [true, true, false], "not due yet");
-        app.thinning.at -= DAY_MS;
+        app.session.driver.thinning.at -= mailcraft_engine::sync_driver::DAY_MS;
         app.offline_tick();
         assert_eq!(whole(&app), [true, false, false]);
         // Opened (fetched by the owner) outside the window: it stays whole while the mailbox
@@ -221,7 +198,7 @@ mod tests {
         };
         mailcraft_engine::cmd::graph_mail::apply_graph_fetch(&mut app.session, fetched).unwrap();
         assert_eq!(whole(&app), [true, false, true]);
-        app.thinning.at -= DAY_MS;
+        app.session.driver.thinning.at -= mailcraft_engine::sync_driver::DAY_MS;
         app.offline_tick();
         assert_eq!(whole(&app), [true, false, true], "kept until the next start");
         let mailbox = app.session.mailbox.clone();

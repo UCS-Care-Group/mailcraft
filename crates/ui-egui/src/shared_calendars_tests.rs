@@ -42,7 +42,7 @@ fn window(page: Result<Tokens, String>) -> (MailApp, Id, Id, Answers, Jobs, Sign
     app.tokens.insert(owner, tokens("own-access", "ref-1"));
     // (The owner's own calendar and contacts are not what these look at.)
     app.graph_checked.insert(owner, f64::MAX);
-    app.calendar.checked.insert(owner, f64::MAX);
+    app.session.driver.calendar.book.started(owner, f64::MAX);
     let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
     app.session.view.module = Module::Calendar;
     let (answers, jobs, sign_ins): (Answers, Jobs, SignIns) = Default::default();
@@ -171,7 +171,7 @@ fn ticking_one_reads_the_list_and_what_is_ticked_with_the_owners_sign_in_and_not
     // Tick the other one: it is asked for with the next look, with the main one, and not before.
     let rota = calendar_of(&app, shared, "Rota").id;
     app.execute("calendar.showCalendar", json!({"id": rota})).unwrap();
-    app.calendar.checked.remove(&shared);
+    app.session.driver.calendar.book.forget_checked(shared);
     app.graph_checked.insert(shared, f64::MAX);
     answers.lock().unwrap().push_back(GraphResult { account: shared, more_events: vec![events(shared, "sh-rota", "Rota")], ..Default::default() });
     assert!(tick(&mut app));
@@ -180,7 +180,7 @@ fn ticking_one_reads_the_list_and_what_is_ticked_with_the_owners_sign_in_and_not
     app.poll_calendar();
     assert!(app.session.mailbox.events.values().any(|e| e.title == "Rota" && e.origin.account == shared));
     // (A job that brought only another calendar is no failure.)
-    assert!(!app.calendar.failures.contains_key(&shared));
+    assert!(app.session.driver.calendar.book.failures(shared) == 0);
 }
 
 #[test]
@@ -286,7 +286,7 @@ fn removing_the_shared_mailbox_takes_its_calendars_and_events_off_this_computer(
     assert!(app.session.mailbox.calendars.iter().all(|c| c.origin.account != shared));
     assert!(app.session.mailbox.events.values().all(|e| e.origin.account != shared));
     // And nothing more is asked for it.
-    app.calendar.checked.clear();
+    app.session.driver.calendar.book.forget_all_checked();
     assert!(app.shared_calendar_accounts().is_empty());
 }
 

@@ -142,7 +142,7 @@ impl MailApp {
             self.sync_refused |= piece.auth_refused;
             // New mail may be waiting to be fetched whole: the background looks again.
             if !piece.pages.is_empty() {
-                self.fetching.wake();
+                self.session.driver.fetch.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
             // The server answered with its folders or its mail: it took the password (#802).
@@ -188,6 +188,7 @@ impl MailApp {
                 continue;
             }
             // The run is over.
+            self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.run_answered(account);

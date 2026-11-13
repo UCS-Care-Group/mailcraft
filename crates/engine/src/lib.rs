@@ -65,6 +65,7 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
@@ -76,7 +77,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 pub use mailcraft_html as html;
-pub use mailcraft_mime as mime;
+pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
@@ -417,6 +418,8 @@ mod agent_ids_tests;
 #[cfg(test)]
 mod agent_tests;
 #[cfg(test)]
+mod catalog_tests;
+#[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
@@ -456,6 +459,8 @@ mod sender_warnings_tests;
 mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
+#[cfg(test)]
+mod sync_driver_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
