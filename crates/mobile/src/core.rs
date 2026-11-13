@@ -119,6 +119,9 @@ pub struct Core {
     platform: Arc<dyn Platform>,
     memory_budget: u64,
     language: AtomicU8,
+    /// The latest language asked for, until the session thread has applied it (before its next job):
+    /// it can't be lost to a full queue.
+    pending_language: Arc<Mutex<Option<Lang>>>,
     /// Set when `shutdown` begins: a call still waiting in the queue is then cancelled and not run.
     closing: Arc<AtomicBool>,
 }
@@ -156,6 +159,7 @@ impl Core {
             platform,
             memory_budget: host.memory_budget(),
             language: AtomicU8::new(0),
+            pending_language: Arc::default(),
             closing: Arc::new(AtomicBool::new(false)),
         }))
     }
@@ -175,7 +179,7 @@ impl Core {
     }
 
     /// [`Core::call`] for a call that holds `bytes` of the caller's data while it waits.
-    async fn call_holding<T: Send + 'static>(
+    pub(crate) async fn call_holding<T: Send + 'static>(
         &self,
         bytes: usize,
         f: impl FnOnce(&mut Session) -> Result<T, CoreError> + Send + 'static,
@@ -187,10 +191,14 @@ impl Core {
         let cancel = Arc::new(AtomicBool::new(false));
         let _guard = CancelOnDrop(cancel.clone());
         let closing = self.closing.clone();
+        let pending_language = self.pending_language.clone();
         let job: Job = {
             let reply = reply.clone();
             Box::new(move |session: &mut Session| {
                 let _claim = claim;
+                if let Some(lang) = pending_language.lock().unwrap_or_else(PoisonError::into_inner).take() {
+                    session.interface_language = lang;
+                }
                 let out = if cancel.load(Ordering::Acquire) || closing.load(Ordering::Acquire) {
                     Err(CoreError::Cancelled)
                 } else {
@@ -305,11 +313,9 @@ impl Core {
         let lang = Lang::from_pref(&code, None);
         let at = Lang::ALL.iter().position(|l| *l == lang).and_then(|i| u8::try_from(i).ok()).unwrap_or(0);
         self.language.store(at, Ordering::Relaxed);
-        // (The session says dates and its own messages in it too; a core shut down has no session.)
-        let jobs = self.jobs.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(tx) = jobs.as_ref() {
-            let _ = tx.try_send(Box::new(move |session: &mut Session| session.interface_language = lang));
-        }
+        // (The session says dates and its own messages in it too: it takes the latest before its next
+        // job, whatever the queue holds.)
+        *self.pending_language.lock().unwrap_or_else(PoisonError::into_inner) = Some(lang);
     }
 
     /// `msgid` (the English text) in the interface language; English when there is no
@@ -326,6 +332,11 @@ impl Core {
 }
 
 impl Core {
+    #[cfg(test)]
+    pub(crate) fn waiting_bytes(&self) -> usize {
+        self.waiting.0.load(Ordering::Acquire)
+    }
+
     fn lang(&self) -> Lang {
         Lang::ALL.get(usize::from(self.language.load(Ordering::Relaxed))).copied().unwrap_or_default()
     }

@@ -206,7 +206,9 @@ impl Core {
     /// `search` (any case; empty for everyone).
     pub async fn people(&self, search: String, offset: u32, count: u32) -> Result<PeopleWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (What waits for the session thread is held to a size: a longer search could not name anybody.)
+        let search = text::clip(&search, MAX_NAME);
+        self.call_holding(search.len(), move |s| {
             let needle = search.trim().to_lowercase();
             let hit = |c: &Contact| {
                 needle.is_empty()
@@ -249,7 +251,11 @@ impl Core {
     /// due date, those with none last; completed ones only when `completed` is set.
     pub async fn tasks(&self, account: u64, list: String, completed: bool, offset: u32, count: u32) -> Result<TaskWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (No list has an id longer than this, `task_lists` leaves such tasks out: nothing to match.)
+        if list.len() > MAX_LIST_ID {
+            return Err(bad("there is no such list"));
+        }
+        self.call_holding(list.len(), move |s| {
             let mut found: Vec<&Task> = s
                 .mailbox
                 .tasks

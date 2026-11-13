@@ -231,7 +231,71 @@ fn a_call_past_the_waiting_bound_is_refused_not_waited_for() {
     drop(waiting);
     gate.send(()).unwrap();
     hold.join().unwrap();
-    assert!(block_on(core.folders(0)).is_ok());
+    wait_until_accepted(&core);
+}
+
+/// Cancelled jobs keep their queue slots until the session thread receives them: a call is
+/// retried, to a deadline, until the queue has drained.
+fn wait_until_accepted(core: &crate::Core) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while block_on(core.folders(0)).is_err() {
+        assert!(std::time::Instant::now() < deadline, "the session queue did not drain");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn a_language_set_while_the_queue_is_full_reaches_the_session() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    let mut waiting: Waiting<'_> = Vec::new();
+    for _ in 0..crate::core::MAX_WAITING_JOBS {
+        let mut future = Box::pin(core.call(|_| Ok(())));
+        assert!(future.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        waiting.push(future);
+    }
+    core.set_language("fr".into());
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let lang = loop {
+        match block_on(core.call(|s| Ok(s.interface_language))) {
+            Ok(l) => break l,
+            Err(_) => {
+                assert!(std::time::Instant::now() < deadline, "the session queue did not drain");
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+    };
+    assert_eq!(lang, mailcraft_i18n::Lang::from_pref("fr", None));
+    assert_eq!(core.t("Inbox".into()), mailcraft_i18n::Lang::from_pref("fr", None).t("Inbox"));
+}
+
+#[test]
+fn caller_strings_waiting_for_the_session_count_against_the_byte_bound() {
+    let core = sample_core();
+    let (gate, hold) = hold_session(&core);
+    // A long search is cut, a list id or a picture reference past its cap is refused: none of
+    // them can be held 256 times over for 8 MB each.
+    let huge = "x".repeat(8 * 1024 * 1024);
+    assert!(matches!(block_on(core.tasks(0, huge.clone(), false, 0, 10)), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.picture(1, huge.clone())), Err(CoreError::BadRequest { .. })));
+    // What is kept is counted: searches of the longest size fill the byte bound only through it.
+    let mut waiting: Vec<std::pin::Pin<Box<dyn Future<Output = Result<crate::records::PeopleWindow, CoreError>> + '_>>> = Vec::new();
+    for _ in 0..crate::core::MAX_WAITING_JOBS {
+        let mut future = Box::pin(core.people(huge.clone(), 0, 10));
+        if future.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending() {
+            waiting.push(future);
+        }
+    }
+    assert!(!waiting.is_empty());
+    assert!(core.waiting_bytes() >= waiting.len() * 200);
+    assert!(core.waiting_bytes() <= waiting.len() * 800);
+    drop(waiting);
+    gate.send(()).unwrap();
+    hold.join().unwrap();
+    wait_until_accepted(&core);
 }
 
 #[test]
