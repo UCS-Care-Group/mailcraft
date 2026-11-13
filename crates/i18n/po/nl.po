@@ -671,6 +671,12 @@ msgstr ""
 msgid "Account Settings"
 msgstr "Accountinstellingen"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Account name"
+msgstr "Accountnaam"
+
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1133,6 +1139,12 @@ msgstr "Altijd afbeeldingen downloaden van {sender}"
 msgid "Always from @{domain}"
 msgstr "Altijd van @{domain}"
 
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Always play"
+msgstr "Altijd afspelen"
+
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
@@ -1223,6 +1235,12 @@ msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
 msgstr[0] "En nog {n} dergelijke koppeling."
 msgstr[1] "En nog {n} dergelijke koppelingen."
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Animations"
+msgstr "Animaties"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -2987,6 +3005,12 @@ msgstr "Diagnose kopiëren"
 msgid "Copy Event"
 msgstr "Gebeurtenis kopiëren"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Items kopiëren"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3034,6 +3058,12 @@ msgstr "Alles kopiëren"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Problemen kopiëren"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "De geselecteerde items naar de map kopiëren:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -7682,6 +7712,12 @@ msgid "Move Folder"
 msgstr "Map verplaatsen"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Items verplaatsen"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7710,6 +7746,12 @@ msgstr "Alleen de afspraken verplaatsen"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Verplaats het bericht naar een map om de bijlagen te openen of op te slaan"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "De geselecteerde items naar de map verplaatsen:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7872,6 +7914,12 @@ msgstr "Afzender nooit blokkeren"
 #, fuzzy
 msgid "Never Block Sender's Domain"
 msgstr "Domein van de afzender nooit blokkeren"
+
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Never play"
+msgstr "Nooit afspelen"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -8298,7 +8346,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Er kon geen bestandsbeheerder worden gestart om de map te tonen."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Geen mappen komen overeen"
@@ -8719,7 +8767,7 @@ msgid "Numbering"
 msgstr "Nummering"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11185,7 +11233,7 @@ msgid "Search contacts"
 msgstr "Contactpersonen zoeken"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Mappen zoeken"
@@ -12062,6 +12110,12 @@ msgstr "Weergegeven als tekst: er wordt niets in uitgevoerd, geopend of gedownlo
 #, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Getoond naast de naam van het account, en bij de e-mail ervan waar e-mail van meerdere accounts samen wordt weergegeven."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr "Wordt getoond in het mappenvenster, bijvoorbeeld Werk of Thuis. Laat het leeg om het adres te tonen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -15779,10 +15833,16 @@ msgid "Use my own working hours"
 msgstr "Mijn eigen werktijden gebruiken"
 
 #. name
-#: crates/ui-egui/src/theme.rs
+#: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Use system setting"
 msgstr "Systeeminstelling gebruiken"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+msgstr "Systeeminstelling gebruiken volgt de animatie-effecten in de instellingen van Windows. Waar MailCraft de systeeminstelling nog niet kan lezen, worden animaties afgespeeld tot u Nooit afspelen kiest."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

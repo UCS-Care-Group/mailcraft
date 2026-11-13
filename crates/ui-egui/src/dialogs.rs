@@ -38,6 +38,9 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
+    /// it was run without one; runs `mail.move` or `mail.copy`.
+    MoveItems(crate::move_items::MoveItems),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -230,6 +233,7 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
@@ -301,6 +305,7 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -1221,6 +1226,7 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
 pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     let has = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
     let empty = params.as_object().is_none_or(|m| m.is_empty());
+    let names_messages = params.get("id").is_some() || params.get("ids").is_some();
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
@@ -1247,6 +1253,12 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        // Move to Folder and Copy to Folder without a folder (their keys, the menu bar) ask which
+        // (#1176).
+        // The dialog moves the selection, so a call that names messages (`id`, `ids`, even as
+        // null) isn't sent there: it runs, and is refused for want of a folder.
+        "mail.move" if !has("folder") && !names_messages => Some("moveItems"),
+        "mail.copy" if !has("folder") && !names_messages => Some("copyItems"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
@@ -1546,6 +1558,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Err(e) => *error = e,
                 }
             }
+        }
+        Dialog::MoveItems(d) => {
+            let mut outcome = crate::move_items::Outcome::Open;
+            let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
         }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
