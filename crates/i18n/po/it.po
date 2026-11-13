@@ -7523,8 +7523,8 @@ msgstr "Indicare le persone da invitare nella pagina Appuntamento: la loro dispo
 msgid "Name who it is to go to. Nobody is written to until you press Send."
 msgstr "Indicare a chi deve andare. Non viene scritto a nessuno finché non si preme Invia."
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Names"
 msgstr "Nomi"
@@ -8952,6 +8952,12 @@ msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Otherwise they are shown by their names. In Junk E-mail they are always shown by their names."
+msgstr "Altrimenti sono mostrati con il loro nome. In Indesiderata sono sempre mostrati con il loro nome."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
 msgstr ""
@@ -9211,8 +9217,8 @@ msgstr "Immagine sopra il testo"
 msgid "Picture beside text"
 msgstr "Immagine accanto al testo"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/reading/attachment_pictures.rs crates/ui-egui/src/ribbon.rs
 msgid "Pictures"
 msgstr ""
 
@@ -11403,6 +11409,12 @@ msgid "Show Outlook's Favorites"
 msgstr "Mostra i Preferiti di Outlook"
 
 #. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Picture Attachments as Pictures"
+msgstr "Mostra gli allegati immagine come immagini"
+
+#. command label
 #: crates/engine/src/cmd/sync_progress.rs
 #, fuzzy
 msgid "Show Progress"
@@ -11502,6 +11514,24 @@ msgstr "Mostra i messaggi su sfondo chiaro nel tema scuro"
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures"
+msgstr "Mostra gli allegati immagine come immagini"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments as pictures, in every message"
+msgstr "Mostra gli allegati immagine come immagini, in ogni messaggio"
+
+#. interface
+#: crates/ui-egui/src/reading/attachment_pictures.rs
+#, fuzzy
+msgid "Show picture attachments by their names, in every message"
+msgstr "Mostra gli allegati immagine con il loro nome, in ogni messaggio"
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs

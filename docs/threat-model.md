@@ -146,6 +146,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `dmarc` that is the server's word, judged from the full list; a signer chooses its own
   `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
   name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **A picture that comes as an attachment is decoded only as one in the body is** (#834). With
+  the owner's switch (`ui.attachmentPictures`, on by default as
+  pictures written into a message are) an attached file is shown as a
+  picture only when it is a PNG, JPEG, GIF or WebP by its own bytes (`images::probe`: never by its
+  name or declared type, so never SVG or HTML), within the reading pane's caps on a picture's
+  bytes, sides and pixels, decoded by the same capped decoder off the window's thread (in the
+  browser, one a frame), one at a time, into a small texture (at most 24 a message, 64 kept). Nothing is fetched. A file kept on
+  disk beside the mailbox is brought in for it only when its declared type or name says it may be
+  a picture, at most 24 a message and 96 MB (what is in memory already counts by its length, so the
+  cap holds from one frame to the next), through the session's memory budget. Only the first 24 files
+  of a message that may be pictures are looked at in a frame, and no more than 4 MB are compared by
+  content in a frame to tell a picture read again from a new one, so a message with a thousand
+  attachments costs no more a frame than one with a few
+  (`crates/ui-egui/src/reading/attachment_pictures.rs`). Anything else, or a picture that fails to
+  decode, stays a chip. Mail in Junk E-mail, or in a folder under it, is shown by names only: no
+  attachment there is looked at, brought in or decoded for a picture. An agent asks before it turns
+  the switch over (`settings`).
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
