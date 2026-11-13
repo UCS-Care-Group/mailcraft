@@ -27,6 +27,7 @@ pub mod blocks;
 mod core;
 mod error;
 mod events;
+mod list;
 mod message;
 mod platform;
 mod queries;
@@ -40,6 +41,8 @@ mod fake_tests;
 mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod list_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]

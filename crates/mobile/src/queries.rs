@@ -7,11 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use mailcraft_engine::Session;
 use mailcraft_engine::cmd::calendar::occurrences;
-use mailcraft_engine::{Filter, Session};
 use mailcraft_model::{Address, Contact, Event, FolderKind, Id, Importance, Message, Task};
 use mailcraft_time::Date;
-use serde_json::Value;
 
 use crate::records::{
     AccountRecord, AddressRecord, CalendarRange, EventRecord, FolderList, FolderRecord, MessageRow, MessageWindow, PeopleWindow, PersonRecord,
@@ -88,7 +87,7 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
+pub(crate) fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -162,34 +161,10 @@ impl Core {
     /// `count` rows (1 to 200) from row `offset`. It reads the list without leaving the view
     /// changed: the folder in view, its filter, its search, the selection and the list kept for it are as they were.
     pub async fn messages(&self, folder: u64, filter: String, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
-        let filter: Filter = serde_json::from_value(Value::String(filter)).map_err(|_| bad("that filter is not known"))?;
+        let query =
+            crate::records::ListQuery { folder, filter, split: String::new(), conversations: false, search: String::new(), everywhere: false };
         let count = text::window(count);
-        self.call(move |s| {
-            if s.mailbox.folder(folder).is_none() {
-                return Err(bad("there is no such folder"));
-            }
-            // The list is built by the engine's non-mutating path, over a view made for this
-            // query alone: `Session::rows` would also move the selection's stays and the list
-            // cache of the folder in view.
-            let saved = s.view.clone();
-            s.view.folder = folder;
-            s.view.filter = filter;
-            s.view.search.clear();
-            s.view.gmail = None;
-            s.view.scope = mailcraft_engine::Scope::Folder;
-            s.view.open.clear();
-            let rows = mailcraft_engine::list::rows(s);
-            s.view = saved;
-            let start = usize::try_from(offset).unwrap_or(usize::MAX);
-            let window = rows
-                .iter()
-                .skip(start)
-                .take(count)
-                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
-                .collect();
-            Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
-        })
-        .await
+        self.call(move |s| crate::list::window(s, &query, None, offset, count)).await
     }
 
     /// What happens on the days `from` to `to` (`YYYY-MM-DD`, at most 100 days) in the calendars

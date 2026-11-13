@@ -217,3 +217,40 @@ pub struct MessageView {
     /// download them counts.
     pub remote_pictures: u32,
 }
+
+/// What a window of the message list is asked for: where, how filtered, in which of the Inbox
+/// split's tabs, with or without conversations, and under which search.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ListQuery {
+    pub folder: u64,
+    /// `all`, `unread`, `flagged`, `attachments` or `toMe`.
+    pub filter: String,
+    /// The code of one of the Inbox split's tabs (`primary`, `social`…), from [`InboxSplit`];
+    /// empty for the whole folder.
+    pub split: String,
+    /// One row for each conversation (its newest message), instead of one for each message.
+    pub conversations: bool,
+    /// Text to find in what is on this phone (sender, subject and preview); empty for none.
+    pub search: String,
+    /// A search looks through every account's mail, not the folder alone.
+    pub everywhere: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SplitTab {
+    /// `primary`, `social`, `promotions`, `updates` or `forums`.
+    pub code: String,
+    /// Its name in English: the app translates it with `t`.
+    pub name: String,
+    pub unread: u32,
+    pub total: u32,
+}
+
+/// The row of tabs over an Inbox that its server divides (Gmail's categories): empty `tabs` for
+/// any other folder, and for an Inbox that has nothing to sort.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct InboxSplit {
+    pub rev: u64,
+    pub folder: u64,
+    pub tabs: Vec<SplitTab>,
+}

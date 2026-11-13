@@ -89,13 +89,26 @@ fn every_query_with_junk_answers_and_never_panics() {
     let dates = ["", "2026-10-14", "9999-12-31", "0000-00-00", "0001-01-01", "2026-13-45", "x", "20261014", "2026-10-14T10:00", "-2026-10-14"];
     let widths = [0.0f32, -1.0, 1.0, 390.0, 16_384.0, 1e30, f32::NAN, f32::INFINITY, f32::NEG_INFINITY];
     let huge = "x".repeat(200_000);
+    let splits = ["", "primary", "social", "FORUMS", "nonsense", "\u{0}"];
 
     for n in numbers {
         not_internal("folders", &block_on(core.folders(n)));
+        not_internal("inbox_split", &block_on(core.inbox_split(n)));
         for t in texts {
             for off in counts {
                 for c in counts {
                     not_internal("messages", &block_on(core.messages(n, t.to_string(), off, c)));
+                    for split in splits {
+                        let q = crate::ListQuery {
+                            folder: n,
+                            filter: t.to_string(),
+                            split: split.to_string(),
+                            conversations: c % 2 == 0,
+                            search: t.to_string(),
+                            everywhere: off % 2 == 0,
+                        };
+                        not_internal("message_list", &block_on(core.message_list(q, off, c)));
+                    }
                     not_internal("people", &block_on(core.people(t.to_string(), off, c)));
                     not_internal("tasks", &block_on(core.tasks(n, t.to_string(), c % 2 == 0, off, c)));
                 }
@@ -116,6 +129,9 @@ fn every_query_with_junk_answers_and_never_panics() {
             not_internal("calendar", &block_on(core.calendar(a.to_string(), b.to_string())));
         }
     }
+    let big = crate::ListQuery { folder: 1, filter: "all".into(), split: huge.clone(), conversations: true, search: huge.clone(), everywhere: true };
+    not_internal("message_list", &block_on(core.message_list(big.clone(), 0, 5)));
+    not_internal("message_list", &block_on(core.message_list(crate::ListQuery { split: String::new(), ..big }, 0, 5)));
     not_internal("people", &block_on(core.people(huge.clone(), 0, 5)));
     not_internal("messages", &block_on(core.messages(1, huge.clone(), 0, 5)));
     not_internal("tasks", &block_on(core.tasks(0, huge, true, 0, 5)));
