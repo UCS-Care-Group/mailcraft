@@ -224,7 +224,7 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
         let syncing = self.0.lock().map(|host| host.syncing).unwrap_or(false);
         (syncing && key.starts_with("password:")).then(|| "stand-in-password".to_string())
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         Ok(())
     }
     fn delete(&self, _: &str) {}

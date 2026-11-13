@@ -1690,7 +1690,7 @@ impl AccountSetup {
             return true;
         }
         if self.busy() {
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
+            crate::software::repaint_after(ui.ctx(), Duration::from_millis(100));
         }
         let mut pass = Pass::new(ui, &app.session, &mut self.focus);
         let action = match self.page {
@@ -2237,7 +2237,7 @@ fn waiting_page(ui: &mut Ui, pass: &Pass, page_in_view: Page, text: &str, detail
     page(ui, &t, |ui| {
         ui.add_space(14.0);
         ui.vertical_centered(|ui| {
-            ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+            crate::software::spinner(ui, 30.0, Some(t.accent));
             ui.add_space(8.0);
             ui.label(RichText::new(text).font(medium(13.5)).color(t.text));
             if !detail.is_empty() {

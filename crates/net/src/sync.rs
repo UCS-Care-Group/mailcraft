@@ -296,7 +296,8 @@ const NO_SUBJECT: &str = "(no subject)";
 /// A message's subject for an error line: one line, not too long.
 pub(crate) fn subject_of(message: &Message) -> String {
     let words: Vec<&str> = message.subject.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
-    let subject = words.join(" ");
+    // No `"` or `\` inside a name that is shown between quotes: a log's quote scrubbing pairs them.
+    let subject = words.join(" ").replace(['"', '\\'], "'");
     if subject.is_empty() {
         return NO_SUBJECT.into();
     }
@@ -305,7 +306,7 @@ pub(crate) fn subject_of(message: &Message) -> String {
 
 /// A mailbox's name for an error line.
 pub(crate) fn shown(name: &str) -> String {
-    name.chars().filter(|c| !c.is_control()).take(80).collect()
+    name.chars().filter(|c| !c.is_control()).take(80).map(|c| if matches!(c, '"' | '\\') { '\'' } else { c }).collect()
 }
 
 /// A mailbox's name for a line of progress.
@@ -1331,6 +1332,10 @@ pub(crate) fn internal_date(text: &str) -> Option<Timestamp> {
     let clock = DateTime::new(Date::new(year, month, day)?, hour, minute, second.min(59))?;
     Some(clock.to_timestamp(sign * (zone_hours * 60 + zone_minutes)))
 }
+
+#[cfg(test)]
+#[path = "sync_quote_tests.rs"]
+mod quote_tests;
 
 #[cfg(test)]
 #[path = "sync_size_tests.rs"]
