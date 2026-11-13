@@ -44,7 +44,7 @@ use crate::{CalendarCheckRequest, CalendarCheckResult, GraphRequest, GraphResult
 // after a job that came to nothing, the stretch asked for and what is remembered between looks are
 // the engine's ([`mailcraft_engine::sync_driver::calendar`]); this keeps the jobs on the host.
 pub(crate) use mailcraft_engine::sync_driver::consent_wait;
-use mailcraft_engine::sync_driver::{CalendarDriver, MAX_ASKED, Pacing, WIDE_AHEAD, WIDE_BEHIND};
+use mailcraft_engine::sync_driver::{CalendarDriver, MAX_ASKED, Pacing, Start, WIDE_AHEAD, WIDE_BEHIND};
 
 /// The calendar's jobs on the host, in the window: the handles only. What is remembered of
 /// keeping the calendar current is in the session ([`mailcraft_engine::Session::driver`]).
@@ -137,8 +137,7 @@ impl MailApp {
             return false;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
-        {
+        if self.job_busy().blocks(Start::Calendar) {
             return false;
         }
         // What waits and can't be sent any more is given up before anything is sent: with a
@@ -231,7 +230,7 @@ impl MailApp {
         if self.services.graph.is_none() {
             return Err(tl!("This build can't reach the account's calendar.").to_string());
         }
-        let busy = self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty();
+        let busy = self.job_busy().blocks(Start::CalendarAround);
         if busy || self.calendar_changes(account).is_some() {
             return Err(tl!("The calendar is being updated already.").to_string());
         }
@@ -564,7 +563,7 @@ impl MailApp {
         let Some(oauth) = owner.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
             return Err(tl!("This account doesn't sign in with Microsoft").to_string());
         };
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() {
+        if self.job_busy().blocks(Start::CalendarCheck) {
             return Err(tl!("The calendar is being updated: try again in a moment.").to_string());
         }
         let account = owner.id;

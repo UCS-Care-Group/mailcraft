@@ -20,6 +20,7 @@
 use std::sync::mpsc::Receiver;
 
 use egui::{Align2, Color32, CursorIcon, Rect, Sense, Stroke, Ui, pos2, vec2};
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::remote::{FreeBusy, FreeBusyAsk, MAX_SCHEDULES};
 use mailcraft_model::sync::Tokens as SignIn;
 use mailcraft_model::{Address, Id, ShowAs};
@@ -227,7 +228,7 @@ impl MailApp {
         // One question at a time, and not while the account's sign-in or calendar is being
         // seen to; and not the same question again before its time.
         let due = known.is_none_or(|known| now - known.asked >= if known.error.is_empty() { REFRESH_MS } else { RETRY_MS });
-        let busy = self.free_busy.rx.is_some() || self.signing_in.is_some() || self.graph_rx.is_some() || self.calendar_syncing();
+        let busy = self.job_busy().blocks(Start::FreeBusy);
         if !due || busy {
             return look;
         }

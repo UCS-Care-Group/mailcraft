@@ -16,6 +16,9 @@ mod fetch_tests;
 pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
+pub mod jobs;
+#[cfg(test)]
+mod jobs_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
@@ -23,6 +26,7 @@ mod offline_tests;
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
+pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 
 use mailcraft_model::Id;

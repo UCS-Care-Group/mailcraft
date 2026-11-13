@@ -27,57 +27,30 @@ use crate::dialogs::Dialog;
 use crate::forms::Form;
 use crate::{MailApp, MailRun};
 
-macro_rules! job_kinds {
-    ($($(#[$doc:meta])* $kind:ident),* $(,)?) => {
-        /// Every kind of background job the window starts.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        pub(crate) enum JobKind {
-            $($(#[$doc])* $kind),*
-        }
-
-        impl JobKind {
-            /// Every kind, each once.
-            #[cfg_attr(not(test), allow(dead_code))]
-            pub(crate) const ALL: &[JobKind] = &[$(JobKind::$kind),*];
-        }
-    };
-}
-
-job_kinds! {
-    /// An IMAP (and SMTP) account's Send/Receive.
-    Imap,
-    /// A Send/Receive through Microsoft Graph: an account kept in step through Graph, or the
-    /// sending that goes before an IMAP account's mail.
-    Graph,
-    /// An Exchange server account's Send/Receive.
-    Ews,
-    /// A JMAP account's Send/Receive.
-    Jmap,
-    /// An Inbox pass, a round's or the Inbox checked by itself, and the checks that gave way.
-    Inbox,
-    /// A shared mailbox's Send/Receive, read with its owner's sign-in.
-    Shared,
-    /// The calendar and contacts kept current between runs.
-    Calendar,
-    /// A check of the calendar connection.
-    CalendarCheck,
-    /// Other people's free and busy times.
-    FreeBusy,
-    /// The to-dos kept in step with Microsoft To Do.
-    Tasks,
-    /// The rules kept on the server.
-    Rules,
-    /// The automatic replies.
-    AutoReplies,
-    /// A sign-in on a provider's page.
-    SignIn,
-    /// What the Add Account dialog asks of the host (mail exchangers, the servers' check).
-    AccountSetup,
-    /// An administrator's approval on Microsoft's page.
-    AdminConsent,
-}
+// The kinds of job, and what may start while another is at work, are the engine's
+// ([`mailcraft_engine::sync_driver::jobs`]); this says which are at work.
+pub(crate) use mailcraft_engine::sync_driver::JobKind;
+use mailcraft_engine::sync_driver::Busy;
 
 impl MailApp {
+    /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.
+    pub(crate) fn job_busy(&self) -> Busy {
+        Busy {
+            calendar: self.calendar.rx.is_some(),
+            tasks: self.tasks.busy(),
+            rules: self.rules.busy(),
+            auto_replies: self.auto_replies.busy(),
+            free_busy: self.free_busy.busy(),
+            graph: self.graph_rx.is_some(),
+            mail_run: self.sync_rx.is_some(),
+            signing_in: self.signing_in.is_some(),
+            queued: !self.sync_queue.is_empty(),
+            inbox_queued: !self.inbox_queue.is_empty(),
+            approving: self.approving(),
+            switching: self.graph_switch_copy.is_some(),
+        }
+    }
+
     /// Whether a job of `kind` is under way, or its answer is still to be taken in.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn job_running(&self, kind: JobKind) -> bool {
