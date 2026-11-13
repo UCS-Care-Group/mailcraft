@@ -108,7 +108,7 @@ fn a_file_of_format_3_puts_its_header_blocks_beside_it_as_it_opens_and_is_writte
     let mb = format_3(&path, 5);
     let had = fs::read(&path).unwrap();
     clear_cache();
-    let opened = open(&path).unwrap();
+    let opened = open_window(&path);
     // Each block went beside the file as it was read, and is named on its message.
     assert!(opened.mailbox.messages.values().all(|m| m.header_block.data.is_empty() && m.header_block.kept.is_some()));
     assert_eq!(block_files(&path).len(), 5);
@@ -179,5 +179,110 @@ proptest! {
                 prop_assert!(wire.parts().headers.is_none_or(|p| p.r.len <= max));
             }
         }
+    }
+}
+
+/// Opened as the window opens a file, without the save `open_for_window` makes after it.
+fn open_window(path: &Path) -> Opened {
+    open_as(path, &OpenProgress::default(), Launch { checks_later: false, rows: Some(OPENING_ROWS) }).unwrap()
+}
+
+/// Every content file beside the mailbox at `path`, made a day old: past any sweep's grace.
+fn a_day_old(path: &Path) {
+    for (file, _) in files(&blob_dir(path)) {
+        fs::OpenOptions::new().write(true).open(&file).unwrap().set_modified(SystemTime::now() - Duration::from_secs(86_400)).unwrap();
+    }
+}
+
+#[test]
+fn an_opening_that_only_reads_a_file_of_format_3_puts_nothing_beside_it() {
+    let tmp = Temp::new("headers-format-3-read");
+    let path = tmp.file();
+    let mb = format_3(&path, 3);
+    let had = fs::read(&path).unwrap();
+    clear_cache();
+    let opened = open(&path).unwrap();
+    assert!(block_files(&path).is_empty());
+    assert_eq!(fs::read(&path).unwrap(), had);
+    for (id, m) in &mb.messages {
+        assert_eq!(opened.mailbox.message(*id).unwrap().all_headers(), m.headers, "held in memory as before");
+    }
+}
+
+#[test]
+fn the_window_writes_a_file_of_format_3_anew_as_it_opens_it() {
+    let tmp = Temp::new("headers-format-3-window");
+    let path = tmp.file();
+    let mb = format_3(&path, 3);
+    clear_cache();
+    open_for_window(&path, &OpenProgress::default()).unwrap();
+    assert_eq!(crate::store_before::format_on_disk(&path), Some(INDEX_VERSION));
+    clear_cache();
+    let back = whole(&path);
+    for (id, m) in &mb.messages {
+        assert_eq!(back.message(*id).unwrap().all_headers(), m.headers);
+    }
+}
+
+#[test]
+fn what_an_opening_put_beside_a_file_outlives_a_sweep_that_reads_the_file() {
+    let tmp = Temp::new("headers-format-3-sweep");
+    let path = tmp.file();
+    let mb = format_3(&path, 4);
+    clear_cache();
+    let opened = open_window(&path);
+    // The file changed under the open (another program, a clock): the sweep reads it, and a file of
+    // format 3 names none of the blocks.
+    fs::OpenOptions::new().write(true).open(&path).unwrap().set_modified(SystemTime::now() - Duration::from_secs(3_600)).unwrap();
+    a_day_old(&path);
+    assert_eq!(sweep(&path, Duration::ZERO).unwrap().removed, 0);
+    assert_eq!(block_files(&path).len(), 4);
+    save(&path, &opened.mailbox).unwrap();
+    clear_cache();
+    let back = whole(&path);
+    for (id, m) in &mb.messages {
+        assert_eq!(back.message(*id).unwrap().all_headers(), m.headers);
+    }
+}
+
+#[test]
+fn a_block_gone_before_the_save_never_fails_it() {
+    let tmp = Temp::new("headers-format-3-gone");
+    let path = tmp.file();
+    let mb = format_3(&path, 3);
+    clear_cache();
+    let mut opened = open_window(&path);
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    // One message is gone from the mailbox, and every header block from the disk.
+    opened.mailbox.messages.remove(&ids[0]);
+    block_files(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    save(&path, &opened.mailbox).unwrap();
+    save(&path, &opened.mailbox).unwrap();
+    clear_cache();
+    let back = whole(&path);
+    for id in &ids[1..] {
+        let m = back.message(*id).unwrap();
+        assert_eq!(m.header("List-Id"), Some("<news.example.org>"), "the lines read by name stay");
+        assert_eq!(m.body.text, mb.message(*id).unwrap().body.text);
+    }
+}
+
+#[test]
+fn a_file_of_format_3_that_names_a_block_that_isnt_there_still_saves() {
+    let tmp = Temp::new("headers-format-3-hostile");
+    let path = tmp.file();
+    let mb = with_exchange_headers(3);
+    save(&path, &mb).unwrap();
+    let mut bytes = fs::read(&path).unwrap();
+    bytes.splice(16..20, 3u32.to_le_bytes());
+    fs::write(&path, bytes).unwrap();
+    block_files(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    clear_cache();
+    let opened = open_window(&path);
+    save(&path, &opened.mailbox).unwrap();
+    clear_cache();
+    let back = whole(&path);
+    for id in mb.messages.keys() {
+        assert_eq!(back.message(*id).unwrap().header("List-Id"), Some("<news.example.org>"));
     }
 }

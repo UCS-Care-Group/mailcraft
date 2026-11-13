@@ -1258,13 +1258,23 @@ fn put_unsynced(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<()> {
     out.commit_unsynced()
 }
 
-/// Flush the content [`put_unsynced`] wrote (`refs`, under `dir`) to the disk, with the folders it
-/// is in: before the mailbox file that names it is written.
-fn sync_stashed(dir: &Path, refs: &[Ref]) -> std::io::Result<()> {
+/// Flush the content [`put_unsynced`] wrote (`refs`, under `dir`) that the mailbox file about to
+/// be written names (`named`) to the disk, with the folders it is in. (Opened for writing, as
+/// Windows wants to flush a file; never shortened.) One that is gone is said in the log and is
+/// not a failure: the message has the header lines it reads by name, and the file kept beside the
+/// mailbox has the rest; a save that failed for it would fail every time.
+fn sync_stashed(dir: &Path, refs: &[Ref], named: &HashMap<Digest, u32>) -> std::io::Result<()> {
     let mut subs = HashSet::new();
-    for r in refs {
+    for r in refs.iter().filter(|r| named.contains_key(&r.hash)) {
         let (sub, file) = blob_path(dir, &r.hash).ok_or_else(|| std::io::Error::other("no name"))?;
-        fs::File::open(&file)?.sync_all()?;
+        match fs::OpenOptions::new().write(true).open(&file) {
+            Ok(f) => f.sync_all()?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                log::warn!("{}: a message's header lines put there are gone; it is saved without them", dir.display());
+                continue;
+            }
+            Err(e) => return Err(e),
+        }
         subs.insert(sub);
     }
     for sub in subs {
@@ -1641,8 +1651,17 @@ pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String>
 /// the newest [`OPENING_ROWS`] messages of the Inbox alone are brought into memory (the rest
 /// load when they are wanted, as bodies beyond the budget always have), and the content files
 /// left on disk are looked for afterwards, by [`check_parts`] ([`Opened::unchecked`]).
+///
+/// A file in an older format (HS) is written in this one at once, the old one kept beside it
+/// (`store_before`): its header blocks were put beside it as it was read, and a window that is
+/// opened and closed without a change would otherwise put them there again at every opening.
 pub fn open_for_window(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
-    open_as(path, progress, Launch { checks_later: true, rows: Some(OPENING_ROWS) })
+    let old = crate::store_before::format_on_disk(path).is_some_and(|f| f < INDEX_VERSION);
+    let opened = open_as(path, progress, Launch { checks_later: true, rows: Some(OPENING_ROWS) })?;
+    if old && let Err(e) = save(path, &opened.mailbox) {
+        log::warn!("{}: couldn't be written in this version's format yet ({e}); it opens as it is", path.display());
+    }
+    Ok(opened)
 }
 
 /// How a mailbox file is opened: as it always was ([`Launch::default`]), or for a window that
@@ -1796,7 +1815,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        let opened = open_index(st, &file, len, progress, launch).map_err(|e| format!("{show}: {e}"))?;
+        let opened = open_index(st, path, &file, len, progress, launch).map_err(|e| format!("{show}: {e}"))?;
         if progress.cancelled() {
             return Err(CANCELLED.into());
         }
@@ -1920,7 +1939,8 @@ fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Pa
 /// named on the message, so that opening such a file never holds every block in it until its first
 /// save writes the file anew. The file on disk is untouched meanwhile: should the program stop
 /// before that save, it opens as it did. A block that can't be written stays in memory.
-fn stash_block((parsed, fp): (Parsed, Fp), dir: Option<&Path>) -> (Parsed, Fp) {
+/// Returns what it wrote.
+fn stash_block((parsed, fp): (Parsed, Fp), dir: Option<&Path>) -> (Parsed, Fp, Option<Ref>) {
     match (dir, parsed) {
         (Some(dir), Parsed::Message(mut m, wire)) if m.header_block.data.len() > INLINE_MAX => {
             let r = Ref::of(&m.header_block.data);
@@ -1929,21 +1949,21 @@ fn stash_block((parsed, fp): (Parsed, Fp), dir: Option<&Path>) -> (Parsed, Fp) {
             // first names these flushes them, `sync_stashed`.)
             if let Err(e) = put_unsynced(dir, &r, &m.header_block.data) {
                 log::warn!("{}: a message's header lines couldn't be written there ({e}); they stay in memory", dir.display());
-                return (Parsed::Message(m, wire), fp);
+                return (Parsed::Message(m, wire), fp, None);
             }
             if let Some(m) = Arc::get_mut(&mut m) {
                 m.header_block = mailcraft_model::HeaderBlock { data: Arc::default(), kept: Some(r.to_model()) };
             }
             let mut wire = wire.unwrap_or_default();
             wire.headers = Some((r.hash.hex(), r.len));
-            (Parsed::Message(m, Some(wire)), fp)
+            (Parsed::Message(m, Some(wire)), fp, Some(r))
         }
-        (_, parsed) => (parsed, fp),
+        (_, parsed) => (parsed, fp, None),
     }
 }
 
 /// Open a mailbox file in this form, `len` bytes long.
-fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
+fn open_index(st: &mut State, asked: &Path, file: &Path, len: u64, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
@@ -1982,8 +2002,15 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     // (`stash_block`), and is written in this one at its next save (`Disk::old`). Never through a
     // content folder that is a link.
     let old = replayed.version < INDEX_VERSION;
-    let stash_dir = Some(blob_dir(file))
-        .filter(|dir| old && !fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()) && (make_dir(dir).is_ok() || dir.is_dir()));
+    // Only for the window, which writes the file anew at once (`open_for_window`): an opening
+    // that only reads it (the command line, an agent) puts nothing beside it, and holds the
+    // blocks as before.
+    let stash_dir = Some(blob_dir(file)).filter(|dir| {
+        old && launch.rows.is_some()
+            && !fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink())
+            && (make_dir(dir).is_ok() || dir.is_dir())
+    });
+    let mut stashed: Vec<Ref> = Vec::new();
     let mut items: Vec<(Key, index::Item)> = replayed.items.into_iter().collect();
     items.sort_unstable_by_key(|(key, _)| std::cmp::Reverse(*key));
     let mut records: Vec<(Key, Fp, u64)> = Vec::with_capacity(items.len());
@@ -2000,7 +2027,8 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
         drop(slice);
         for one in parsed {
             let Some(Some((key, size, result))) = one else { return Err("the mailbox file couldn't be read".into()) };
-            let (item, fp) = result?;
+            let (item, fp, wrote) = result?;
+            stashed.extend(wrote);
             records.push((key, fp, size));
             match item {
                 Parsed::Message(m, wire) => {
@@ -2025,10 +2053,12 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     // What each message keeps outside, to know it again at the next save without working it out
     // (`fill` marks which of it is in memory).
     let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
-    // (In a file of an older format every header block named is one put beside it now.)
-    if old {
-        st.unsynced = parts.values().filter_map(|p| p.headers.map(|p| p.r)).collect();
+    // What was put beside the file is safe from every sweep until a saved file names it (as a
+    // .pst import's content is, `protect`), and is flushed before that save.
+    for r in &stashed {
+        protect(asked, &r.hash);
     }
+    st.unsynced = stashed;
     let dir = blob_dir(file);
     let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts), launch);
     mailbox.version = 1;
@@ -3802,7 +3832,8 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, keep: Option<Keep>, p
     write_content(path, &wanted, &mut saved, progress)?;
     drop(wanted);
     // The header blocks an opening put beside the file unflushed, flushed before it names them.
-    sync_stashed(&dir, &st.unsynced).map_err(|e| format!("{}: the header lines put beside the mailbox couldn't be written ({e})", dir.display()))?;
+    sync_stashed(&dir, &st.unsynced, &live)
+        .map_err(|e| format!("{}: the header lines put beside the mailbox couldn't be written ({e})", dir.display()))?;
     // Before a newer format than the file's is first written over it: the file as it was, for
     // the MailCraft before this one (`store_before`).
     if !legacy {
