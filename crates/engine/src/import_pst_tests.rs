@@ -255,7 +255,7 @@ fn a_message_keeps_its_people_dates_state_and_attachments() {
     let attached = &m.attachments[1];
     assert_eq!(attached.mime, "message/rfc822");
     assert!(attached.name.ends_with(".eml"), "{}", attached.name);
-    let inner = mailcraft_mime::parse(&attached.data);
+    let inner = mailcraft_mime_model::parse(&attached.data);
     assert_eq!(inner.subject, "Minutes of the garden committee");
     assert_eq!(inner.to[0].email, "eli@example.org");
     assert_eq!(inner.attachments[0].name, "minutes.txt");

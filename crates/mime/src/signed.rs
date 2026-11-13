@@ -4,7 +4,7 @@
 //! (`mailcraft-smime`, and OpenPGP's checker): of `multipart/signed` (RFC 1847 §2.1), the signed
 //! part exactly as it came, MIME header and all, and the signature part's bytes; of S/MIME's
 //! `application/pkcs7-mime` (RFC 8551 §3.2), the CMS it carries. Read from the bytes the message
-//! came as ([`mailcraft_model::Message::original`]); nothing here checks anything.
+//! came as ([`crate::Message::original`]); nothing here checks anything.
 
 use crate::header::{self, Headers, parse_params};
 use crate::transfer;

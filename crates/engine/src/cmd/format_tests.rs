@@ -172,11 +172,11 @@ fn a_formatted_message_goes_out_as_html_with_a_plain_text_part() {
         "{html}"
     );
     // On the wire: both forms, as alternatives, and they read back.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     let text = String::from_utf8_lossy(&bytes);
     assert!(text.contains("multipart/alternative") && text.contains("text/plain") && text.contains("text/html"));
-    let back = mailcraft_mime::parse(&bytes);
-    assert_eq!(mailcraft_mime::rich::from_html(back.body.html.as_deref().unwrap()), mailcraft_mime::rich::from_html(&html));
+    let back = mailcraft_mime_model::parse(&bytes);
+    assert_eq!(mailcraft_mime_model::rich::from_html(back.body.html.as_deref().unwrap()), mailcraft_mime_model::rich::from_html(&html));
 }
 
 #[test]

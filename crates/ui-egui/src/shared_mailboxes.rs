@@ -395,9 +395,9 @@ impl MailApp {
                 self.graph_tokens.insert(shared, tokens);
                 // (Allowed: what waits goes now, a meeting's answer too.)
                 self.shared_send_waits.remove(&shared);
-                if self.calendar.send_waits.remove(&shared) {
+                if self.session.driver.calendar.send_waits.remove(&shared) {
                     self.calendar_connected(shared);
-                    self.calendar.due = true;
+                    self.session.driver.calendar.due = true;
                 }
                 if let Err(e) = self.start_sync(&json!({"account": shared})) {
                     self.status(e);
