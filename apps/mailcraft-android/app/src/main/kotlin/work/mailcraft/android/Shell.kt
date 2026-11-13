@@ -52,8 +52,12 @@ internal data class ShellData(
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
-    /** The message being read. */
+    /** The message being read, and how its pictures are coming. */
     val reading: ReadingUi = ReadingUi(),
+    /** What the owner said about pictures, and what is kept of them. */
+    val pictures: PicturesUi = PicturesUi(),
+    /** Senders' pictures by address, when sender images are on (null when off). */
+    val avatars: Map<String, ByteArray?>? = null,
 )
 
 /** What the shell asks of the app. */
@@ -63,6 +67,8 @@ internal class ShellActions(
     val mail: MailListActions,
     val onSwipe: (SwipeConfig) -> Unit,
     val reading: ReadingActions = ReadingActions.None,
+    val onPictures: (PicturePrefs) -> Unit = {},
+    val onClearPictures: () -> Unit = {},
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -119,6 +125,8 @@ internal fun AppShell(
                 onBack = { back?.let { previous -> nav = previous } },
                 onLanguage = actions.onLanguage,
                 onSwipe = actions.onSwipe,
+                onPictures = actions.onPictures,
+                onClearPictures = actions.onClearPictures,
             )
         } else {
             MainFrame(
@@ -223,7 +231,7 @@ private fun MailTab(
     expanded: Boolean,
     messageId: ULong?,
 ) {
-    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories)
+    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
@@ -243,7 +251,7 @@ private fun MailTab(
 
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, mail, onSwipe, reading)
+    ShellActions(onFolder, onLanguage, mail, onSwipe, reading, onPictures, onClearPictures)
 
 @Composable
 private fun TabLabel(text: String) {

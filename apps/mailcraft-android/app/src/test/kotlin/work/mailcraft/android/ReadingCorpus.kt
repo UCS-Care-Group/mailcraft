@@ -209,8 +209,9 @@ internal object Corpus {
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)
 
     /** The message as the reading pane gets it from the core. */
-    fun opened(entry: Entry): OpenedMessage = OpenedMessage(
+    fun opened(entry: Entry, junk: Boolean = false, vouched: Boolean = true): OpenedMessage = OpenedMessage(
         entry.view,
+        MessageFacts(entry.view.from.address, junk = junk, vouched = vouched, known = false),
         entry.links.associateWith { LinkInfo(if (it.startsWith("mailto:")) LinkGoes.Composer else if (it.startsWith("tel:")) LinkGoes.Dialer else LinkGoes.Browser, it) },
     )
 }

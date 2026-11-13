@@ -19,10 +19,20 @@ private const val TOLERANCE = 0.1
 private val Tall = DeviceConfig.PIXEL_5.copy(screenHeight = 3_400)
 
 internal object ReadingShots {
-    fun ui(entry: Corpus.Entry) = ReadingUi(
+    fun ui(
+        entry: Corpus.Entry,
+        junk: Boolean = false,
+        vouched: Boolean = true,
+        access: PictureAccess = PictureAccess.Blocked,
+        pictures: Map<String, PictureState> = emptyMap(),
+        waiting: Boolean = false,
+    ) = ReadingUi(
         id = entry.view.id,
         load = LoadState.Ready,
-        opened = Corpus.opened(entry),
+        opened = Corpus.opened(entry, junk, vouched),
+        access = access,
+        pictures = pictures,
+        waiting = waiting,
     )
 
     @Composable
@@ -95,3 +105,125 @@ class ReadingTabletScreenshotTest {
         paparazzi.snapshot("reading_tablet_data_dark_100") { ReadingShots.Pane(ReadingShots.ui(Corpus.dataTable)) }
     }
 }
+
+/** The banner, the placeholders and the pictures that came, on a phone. */
+class PicturesScreenshotTest {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = Tall,
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+        maxPercentDifference = TOLERANCE,
+    )
+
+    private fun shoot(name: String, night: Boolean, fontScale: Float, content: @Composable () -> Unit) {
+        paparazzi.unsafeUpdateConfig(Tall.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale))
+        paparazzi.snapshot(name) { content() }
+    }
+
+    private fun placeholders(): Corpus.Entry {
+        val blocks = listOf(
+            B.p("A picture of a declared size is a plain box of that size:", 0u),
+            B.image("https://img.shop.example/a.png", "Fern Hollow nursery", 560u, 120u),
+            B.p("One with no size is its description, in line:"),
+            B.image("https://img.shop.example/b.png", "A hardy fern in a pot"),
+            B.p("A tracking pixel and a picture with no description are not shown at all:"),
+            B.image("https://tracker.example/p.gif", "", 1u, 1u),
+            B.image("https://img.shop.example/c.png", ""),
+            B.p("A small box:"),
+            B.image("https://img.shop.example/d.png", "Logo", 80u, 40u),
+        )
+        return Corpus.Entry("placeholders", Corpus.newsletter.view.copy(id = 20uL, blocks = blocks, remotePictures = 4u), emptyList())
+    }
+
+    @Test
+    fun bannerAndPlaceholdersLight100() =
+        shoot("pictures_banner_light_100", false, 1f) { ReadingShots.Pane(ReadingShots.ui(placeholders())) }
+
+    @Test
+    fun bannerAndPlaceholdersDark200() =
+        shoot("pictures_banner_dark_200", true, 2f) { ReadingShots.Pane(ReadingShots.ui(placeholders())) }
+
+    @Test
+    fun bannerInJunkOffersThisMessageOnlyLight100() =
+        shoot("pictures_banner_junk_light_100", false, 1f) { ReadingShots.Pane(ReadingShots.ui(placeholders(), junk = true)) }
+
+    @Test
+    fun bannerWhenNothingVouchesDark100() =
+        shoot("pictures_banner_unvouched_dark_100", true, 1f) { ReadingShots.Pane(ReadingShots.ui(placeholders(), vouched = false)) }
+
+    @Test
+    fun dataSaverWaitsLight100() = shoot("pictures_waiting_light_100", false, 1f) {
+        ReadingShots.Pane(
+            ReadingShots.ui(
+                placeholders(), access = PictureAccess.Allowed, waiting = true,
+                pictures = mapOf("https://img.shop.example/a.png" to PictureState.Waiting),
+            ),
+        )
+    }
+
+    @Test
+    fun dataSaverWaitsDark200() = shoot("pictures_waiting_dark_200", true, 2f) {
+        ReadingShots.Pane(ReadingShots.ui(placeholders(), access = PictureAccess.Allowed, waiting = true))
+    }
+
+    @Test
+    fun picturesThatCameLight100() = shoot("pictures_ready_light_100", false, 1f) {
+        ReadingShots.Pane(
+            ReadingShots.ui(
+                placeholders(), access = PictureAccess.Allowed,
+                pictures = mapOf(
+                    "https://img.shop.example/a.png" to PictureState.Ready(B.png),
+                    "https://img.shop.example/b.png" to PictureState.Failed,
+                    "https://img.shop.example/d.png" to PictureState.Ready(B.png),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun picturesThatCameDark100() = shoot("pictures_ready_dark_100", true, 1f) {
+        ReadingShots.Pane(
+            ReadingShots.ui(
+                placeholders(), access = PictureAccess.Allowed,
+                pictures = mapOf("https://img.shop.example/a.png" to PictureState.Ready(B.png)),
+            ),
+        )
+    }
+
+    private val shell = ShellShots.data.copy(
+        pictures = PicturesUi(PicturePrefs(senders = setOf("news@shop.example"), domains = setOf("letters.example")), 12, 3_400_000),
+    )
+
+    @Test
+    fun picturesSettingsLight100() = shoot("pictures_settings_light_100", false, 1f) {
+        ShellShots.Shell(NavState().openPage(SettingsPage.Pictures), with = shell)
+    }
+
+    @Test
+    fun picturesSettingsDark200() = shoot("pictures_settings_dark_200", true, 2f) {
+        ShellShots.Shell(NavState().openPage(SettingsPage.Pictures), with = shell)
+    }
+
+    @Test
+    fun senderImagesSettingsLight100() = shoot("sender_images_settings_light_100", false, 1f) {
+        ShellShots.Shell(NavState().openPage(SettingsPage.SenderImages), with = shell)
+    }
+
+    @Test
+    fun senderImagesSettingsDark200() = shoot("sender_images_settings_dark_200", true, 2f) {
+        ShellShots.Shell(NavState().openPage(SettingsPage.SenderImages), with = shell.copy(pictures = shell.pictures.copy(prefs = PicturePrefs(senderImages = true))))
+    }
+
+    @Test
+    fun rowsWithSenderImagesLight100() = shoot("sender_images_rows_light_100", false, 1f) {
+        ShellShots.Shell(
+            with = ShellShots.data.copy(avatars = mapOf("ada@example.org" to B.png, "bo@example.org" to null)).withRows(),
+        )
+    }
+}
+
+private fun ShellData.withRows() = copy(
+    mail = ShellShots.listUi(
+        rows = ShellShots.rows.mapIndexed { i, r -> r.copy(address = if (i % 2 == 0) "ada@example.org" else "bo@example.org") },
+    ),
+)

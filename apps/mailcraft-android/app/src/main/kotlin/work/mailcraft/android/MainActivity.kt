@@ -82,9 +82,11 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val appContext = hostContext.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
     val scope = rememberCoroutineScope()
-    val reading = remember(core) { ReadingController(CoreReadSource(core), scope) }
+    val pictures = remember(core) { PictureStack(core, appContext, scope) }
     val links = remember(core) { CoreLinks(core) }
-    val readingUi by reading.ui.collectAsState()
+    val reading by pictures.reading.ui.collectAsState()
+    val avatars by pictures.senderImages.images.collectAsState()
+    val pictureSettings by pictures.settings.collectAsState()
     var outlined by remember { mutableStateOf<Outlined?>(null) }
     var swipe by remember { mutableStateOf(prefs.load()) }
     var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
@@ -98,7 +100,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     ShellEffects(core, controller, outline, folderId, query, { outlined = Outlined(it) }) { now = it }
 
     val mailActions = remember(controller, scope) {
-        mailListActions(controller, scope) { change -> query = change(query) }
+        mailListActions(controller, scope, pictures.senderImages) { change -> query = change(query) }
     }
     val data = ShellData(
         accounts = outline?.accounts.orEmpty(),
@@ -110,7 +112,9 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         swipe = swipe,
         version = version,
         chosenLanguage = chosenLanguage,
-        reading = readingUi,
+        reading = reading,
+        pictures = pictureSettings,
+        avatars = if (pictureSettings.prefs.senderImages) avatars else null,
     )
     AppShell(
         texts = texts,
@@ -123,10 +127,9 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
                 swipe = it
                 prefs.save(it)
             },
-            reading = ReadingActions(
-                onOpen = { id, width, dark -> reading.open(id, width, dark) },
-                onLink = links::open,
-            ),
+            reading = pictures.readingActions(links),
+            onPictures = pictures::changed,
+            onClearPictures = pictures::clear,
         ),
     )
 }
@@ -177,6 +180,7 @@ private suspend fun pumpEvents(core: Core, controller: MailListController, outli
 private fun mailListActions(
     controller: MailListController,
     scope: CoroutineScope,
+    senderImages: SenderImages,
     change: ((MailQuery) -> MailQuery) -> Unit,
 ) = MailListActions(
     onSearch = { text -> change { it.copy(search = text.trim()) } },
@@ -185,7 +189,11 @@ private fun mailListActions(
     onConversations = { on -> change { it.copy(conversations = on) } },
     onSplit = { code -> change { it.copy(split = code) } },
     onRefresh = { scope.launch { controller.refresh() } },
-    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onRange = { first, last ->
+        scope.launch { controller.showRange(first, last) }
+        val rows = controller.ui.value.snapshot
+        senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+    },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
     onUndo = { scope.launch { controller.undo() } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },

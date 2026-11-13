@@ -49,10 +49,12 @@ private const val RGB_MASK = 0xFFFFFF
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
     val onOpen: (ULong, Int, Boolean) -> Unit,
+    val onAllow: (AllowScope) -> Unit,
+    val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, { LinkResult.Ignored })
+        val None = ReadingActions({ _, _, _ -> }, {}, {}, { LinkResult.Ignored })
     }
 }
 
@@ -60,7 +62,7 @@ internal class ReadingActions(
 internal enum class Reply { Reply, ReplyAll, Forward }
 
 /**
- * The reading pane: the message's header, its attachments, and
+ * The reading pane: the message's header, the banner that offers its pictures, its attachments, and
  * its body drawn from the display blocks. Nothing in the message runs; links are followed only to the
  * browser, the dialer and the composer, and a long press says where one really goes first.
  */
@@ -92,10 +94,11 @@ internal fun ReadingPane(
                 opened == null || ui.id != id -> Centered(texts.t("Loading…"))
                 else -> {
                     val colors = MaterialTheme.colorScheme
-                    val env = remember(opened, texts, colors) {
+                    val env = remember(opened, ui.pictures, texts, colors) {
                         BodyEnv(
                             texts = texts,
                             links = opened.links,
+                            pictures = ui.pictures,
                             rule = colors.outlineVariant,
                             onLink = { link -> notice = linkNotice(texts, actions.onLink(link)) },
                             onLinkDetails = { details = it },
@@ -104,7 +107,7 @@ internal fun ReadingPane(
                     val paper = Paper.of(colors.surface.toArgb() and RGB_MASK, colors.primary.toArgb() and RGB_MASK)
                         .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
                     Column(modifier = Modifier.fillMaxSize()) {
-                        MessageBody(texts, opened, env, paper, bodyWidth, Modifier.weight(1f))
+                        MessageBody(texts, ui, opened, env, paper, bodyWidth, actions, Modifier.weight(1f))
                         HorizontalDivider()
                         ReplyBar(texts) { notice = texts.t("Writing a message is not available in this version yet.") }
                     }
@@ -130,16 +133,19 @@ private fun linkNotice(texts: Texts, result: LinkResult): String? = when (result
 @Composable
 private fun MessageBody(
     texts: Texts,
+    ui: ReadingUi,
     opened: OpenedMessage,
     env: BodyEnv,
     paper: Paper,
     bodyWidth: androidx.compose.ui.unit.Dp,
+    actions: ReadingActions,
     modifier: Modifier,
 ) {
     val view = opened.view
     val lines = remember(view.blocks) { linesOf(view.blocks) }
     LazyColumn(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(Gutter)) {
         item(key = "header") { MessageHeader(texts, view) }
+        item(key = "banner") { PicturesBanner(texts, ui, actions) }
         if (view.attachments.isNotEmpty()) item(key = "attachments") { AttachmentsLine(texts, view) }
         item(key = "gap") { Box(modifier = Modifier.padding(top = Gutter)) }
         items(lines.size, key = { "line-$it" }) { index -> BodyLineView(lines[index], env, paper, bodyWidth) }

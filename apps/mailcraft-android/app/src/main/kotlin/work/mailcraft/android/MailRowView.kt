@@ -67,6 +67,7 @@ internal fun SwipeableRow(
     swipe: SwipeConfig,
     actions: RowActions,
     modifier: Modifier = Modifier,
+    avatar: AvatarState? = null,
 ) {
     val current by rememberUpdatedState(row)
     val config by rememberUpdatedState(swipe)
@@ -92,7 +93,7 @@ internal fun SwipeableRow(
             }
         },
     ) {
-        MailRowContent(texts, row, swipe, actions)
+        MailRowContent(texts, row, swipe, actions, avatar)
     }
 }
 
@@ -150,10 +151,16 @@ internal fun SwipeAction.icon(): ImageVector = when (this) {
 
 /** One message (or conversation) as a line of the list. */
 @Composable
-internal fun MailRowContent(texts: Texts, row: InboxRow, swipe: SwipeConfig, actions: RowActions) {
+internal fun MailRowContent(
+    texts: Texts,
+    row: InboxRow,
+    swipe: SwipeConfig,
+    actions: RowActions,
+    avatar: AvatarState? = null,
+) {
     val weight = if (row.unread) FontWeight.Bold else FontWeight.Normal
     val description = rowDescription(texts, row)
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
@@ -171,27 +178,35 @@ internal fun MailRowContent(texts: Texts, row: InboxRow, swipe: SwipeConfig, act
                 }
             }
             .padding(horizontal = Gutter, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(RowGap),
+        horizontalArrangement = Gap8,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap8) {
-            Line(row.sender, weight, Modifier.weight(1f))
-            if (row.members > 1) Text("${row.members}", style = MaterialTheme.typography.labelMedium)
-            Text(formatWhen(row.whenSeconds), style = MaterialTheme.typography.labelSmall)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
-            Line(row.subject, weight, Modifier.weight(1f))
-            if (row.hasAttachments) MarkIcon(ListIcons.Attachment)
-            if (row.flagged) MarkIcon(ListIcons.Flag, MaterialTheme.colorScheme.error)
-        }
-        Text(row.preview, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (row.categories.isNotEmpty()) {
+        if (avatar != null) SenderAvatar(row, avatar)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(RowGap)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap8) {
+                Line(row.sender, weight, Modifier.weight(1f))
+                if (row.members > 1) Text("${row.members}", style = MaterialTheme.typography.labelMedium)
+                Text(formatWhen(row.whenSeconds), style = MaterialTheme.typography.labelSmall)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
+                Line(row.subject, weight, Modifier.weight(1f))
+                if (row.hasAttachments) MarkIcon(ListIcons.Attachment)
+                if (row.flagged) MarkIcon(ListIcons.Flag, MaterialTheme.colorScheme.error)
+            }
             Text(
-                row.categories.joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
+                row.preview,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (row.categories.isNotEmpty()) {
+                Text(
+                    row.categories.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

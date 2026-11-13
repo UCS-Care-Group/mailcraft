@@ -3287,6 +3287,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-net",
  "mailcraft-time",
  "rustls-platform-verifier",
  "serde",

@@ -41,6 +41,8 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onLanguage: (String) -> Unit,
     onSwipe: (SwipeConfig) -> Unit,
+    onPictures: (PicturePrefs) -> Unit = {},
+    onClearPictures: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -65,6 +67,8 @@ internal fun SettingsScreen(
                 null -> SettingsRows(texts, data, onOpen)
                 SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, onLanguage)
                 SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, onSwipe)
+                SettingsPage.Pictures -> PicturesPage(texts, data.pictures, onPictures, onClearPictures)
+                SettingsPage.SenderImages -> SenderImagesPage(texts, data.pictures, onPictures)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -83,6 +87,8 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
             SettingsPage.About -> data.version
+            SettingsPage.Pictures -> picturesSummary(texts, data.pictures)
+            SettingsPage.SenderImages -> senderImagesSummary(texts, data.pictures)
             else -> texts.t("Pending development")
         }
         Row(

@@ -482,8 +482,8 @@ msgstr "O parte a acestei chei este RSA (poate o subcheie pentru criptare), pe c
 msgid "A picture couldn't be downloaded."
 msgstr "O imagine nu a putut fi descărcată."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say."
 msgstr "O imagine de pe web îi spune expeditorului că ați deschis mesajul și când. Cu opțiunea oprită, imaginile se descarcă doar pentru mesajele, expeditorii și domeniile pe care le alegeți."
@@ -1122,14 +1122,14 @@ msgstr "Mutați mereu mesajele de la acest expeditor"
 msgid "Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again."
 msgstr "Descărcați mereu imaginile de la toți cei a căror adresă se termină astfel. Se reține în setări; Fișier › Opțiuni afișează domeniile și le poate elimina."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from {sender}"
 msgstr "Descărcați mereu imaginile de la {sender}"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always from @{domain}"
 msgstr "Mereu de la @{domain}"
@@ -1561,6 +1561,11 @@ msgstr "Întreabă din nou înainte de a descărca imaginile expeditorilor din a
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Întreabă din nou înainte de a descărca imaginile acestui expeditor"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Ask first again"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1602,6 +1607,11 @@ msgstr "Cereți acum serverului contului calendarul din jurul acestei întâlnir
 #, fuzzy
 msgid "Ask to be told when the message is read"
 msgstr "Cereți să fiți anunțat când mesajul este citit"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Asked first"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -2640,8 +2650,8 @@ msgstr "Panglică clasică"
 msgid "Clean Up"
 msgstr "Curățare"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Clear"
 msgstr "Golire"
@@ -3337,6 +3347,11 @@ msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 msgid "Dark"
 msgstr "Întunecat"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
+msgid "Data Saver is on, so the pictures wait until you ask for them."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -3932,8 +3947,8 @@ msgstr "Descărcare în toate e-mailurile"
 msgid "Download messages in full:"
 msgstr "Descărcare integrală mesaje:"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures"
 msgstr "Descărcare imagini"
@@ -3950,8 +3965,8 @@ msgstr "Descărcare imagini în toate e-mailurile"
 msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
 msgstr "Descărcați imaginile din orice mesaj fără să întrebe, mai puțin în E-mail nedorit. Întâi cere confirmarea; Fișier › Opțiuni o poate opri din nou."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Descărcare automată imagini din e-mail"
@@ -3961,6 +3976,11 @@ msgstr "Descărcare automată imagini din e-mail"
 #, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "Descărcați din nou octeții cu care a sosit acest mesaj, ca să-i verificați semnătura digitală"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Downloaded automatically"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4891,8 +4911,8 @@ msgstr "Uitare calendar și contacte descărcate"
 msgid "Forget Trusted Certificate"
 msgstr "Uitare certificat de încredere"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "Uitați imaginile păstrate; se descarcă din nou când le cereți."
@@ -5425,8 +5445,8 @@ msgstr "Diverse"
 msgid "Graphite"
 msgstr "Grafit"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "Gravatar este întrebat de imaginea expeditorului și primește un hash al adresei lui; altfel, favicon.im și apoi Google sunt întrebate de pictograma site-ului său și primesc domeniul expeditorului. Astfel aceste servicii află ale cui imagini vă uitați. Doar pentru persoanele pe care le cunoașteți (contactele dvs. și cei cărora le-ați scris) și pentru e-mailurile ale căror imagini le descărcați, niciodată pentru E-mail nedorit, iar imaginea unui expeditor doar când serverul de e-mail confirmă că mesajul e de la el."
@@ -7966,6 +7986,11 @@ msgstr "Nu blocați niciodată expeditorul"
 msgid "Never Block Sender's Domain"
 msgstr "Nu blocați niciodată domeniul expeditorului"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
+msgstr ""
+
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
@@ -8380,6 +8405,11 @@ msgstr "Nu a răspuns niciun depozit de acreditări (pe Linux, GNOME Keyring sau
 msgid "No downloaded pictures are kept on this computer."
 msgstr "Pe acest computer nu sunt păstrate imagini descărcate."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "No downloaded pictures are kept on this phone."
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -8492,8 +8522,8 @@ msgstr "Niciun rezultat în {scope}"
 msgid "No rules yet. A rule files, flags or deletes mail as it arrives."
 msgstr "Încă nicio regulă. O regulă clasează, marchează sau șterge e-mailurile la sosire."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "Nu este reținut niciun expeditor. „Descărcați mereu imaginile de la”, de deasupra unui mesaj, adaugă aici expeditorul sau domeniul lui."
@@ -8863,6 +8893,11 @@ msgid "October"
 msgstr "octombrie"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Off"
+msgstr ""
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
 msgid "Offline"
 msgstr ""
@@ -8879,8 +8914,8 @@ msgstr "Mai vechi"
 msgid "Oldest on top"
 msgstr "Cele mai vechi deasupra"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On"
 msgstr "Pe"
@@ -9022,6 +9057,11 @@ msgstr "Doar o întâlnire pe care o organizați are Găsire oră"
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "Confirmați doar dacă cunoașteți aceste servere."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9705,8 +9745,8 @@ msgstr "Imagine lângă text"
 msgid "Pictures"
 msgstr "Imagini"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "Imaginile se descarcă mereu de la ({n}):"
@@ -9717,8 +9757,8 @@ msgstr "Imaginile se descarcă mereu de la ({n}):"
 msgid "Pictures in mail"
 msgstr "Imagini în e-mail"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "Imaginile nu au fost descărcate."
@@ -12141,8 +12181,8 @@ msgstr "Afișați mesajele pe fundal deschis în tema întunecată"
 msgid "Show password"
 msgstr "Afișare parolă"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr "Afișați imaginile expeditorilor de la Gravatar, favicon.im și Google"
@@ -18763,7 +18803,7 @@ msgid "the message can't hold that much text"
 msgstr "mesajul nu poate conține atât de mult text"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 msgid "the message could not be read"
 msgstr ""
 
@@ -20443,6 +20483,14 @@ msgid_plural "{n} downloaded pictures are kept on this computer ({size})."
 msgstr[0] "{n} imagine descărcată este păstrată pe acest computer ({size})."
 msgstr[1] "{n} imagini descărcate sunt păstrate pe acest computer ({size})."
 msgstr[2] "{n} de imagini descărcate sunt păstrate pe acest computer ({size})."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+msgid "{n} downloaded picture is kept on this phone ({size})."
+msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs

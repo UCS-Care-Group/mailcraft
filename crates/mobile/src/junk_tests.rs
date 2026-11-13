@@ -124,12 +124,18 @@ fn every_query_with_junk_answers_and_never_panics() {
             not_internal("picture", &block_on(core.picture(n, t.to_string())));
         }
         not_internal("picture", &block_on(core.picture(n, huge.clone())));
+        not_internal("sender_facts", &block_on(core.sender_facts(n)));
     }
-    // The pure link export takes any text: it never panics.
+    // The pure exports and the downloads take any text: none panics, and none connects anywhere it must not.
     for t in texts.iter().copied().chain(["https://127.0.0.1/x", "http://[::1]/", "mailto:a@b.example", "tel:1", "cid:x", "http://exa mple.org/"]) {
         let _ = crate::links::link_target(t.to_string());
+        let _ = crate::pictures::sender_picture_urls(t.to_string());
+        not_internal("fetch_picture", &crate::pictures::fetch_picture(t.to_string()));
+        not_internal("fetch_sender_picture", &crate::pictures::fetch_sender_picture(t.to_string()));
     }
     let _ = crate::links::link_target(huge.clone());
+    let _ = crate::pictures::sender_picture_urls(huge.clone());
+    not_internal("fetch_picture", &crate::pictures::fetch_picture(huge.clone()));
     for a in dates {
         for b in dates {
             not_internal("calendar", &block_on(core.calendar(a.to_string(), b.to_string())));

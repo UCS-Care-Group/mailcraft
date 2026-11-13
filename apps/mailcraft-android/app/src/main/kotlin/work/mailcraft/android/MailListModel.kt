@@ -84,6 +84,8 @@ internal data class InboxRow(
     val categories: List<String> = emptyList(),
     val account: ULong = 0uL,
     val folder: ULong = 0uL,
+    /** The sender's address, for their picture when the owner turned sender images on. */
+    val address: String = "",
 )
 
 /** One tab of an Inbox split. */

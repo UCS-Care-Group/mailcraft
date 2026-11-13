@@ -30,6 +30,7 @@ mod events;
 mod links;
 mod list;
 mod message;
+mod pictures;
 mod platform;
 mod queries;
 mod queue;
@@ -46,6 +47,8 @@ mod junk_tests;
 mod links_tests;
 #[cfg(test)]
 mod list_tests;
+#[cfg(test)]
+mod pictures_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]

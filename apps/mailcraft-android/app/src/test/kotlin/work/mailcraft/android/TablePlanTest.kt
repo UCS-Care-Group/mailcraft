@@ -137,4 +137,12 @@ class TablePlanTest {
         assertTrue(narrow.sum() >= 400)
         assertEquals(1, dataColumnWidths(emptyList(), 0, 48, 280).size)
     }
+
+    @Test
+    fun aPictureIsDecodedToABoundedSize() {
+        assertEquals(1, sampleSize(100, 100))
+        assertEquals(1, sampleSize(MAX_SIDE, 10))
+        assertEquals(2, sampleSize(MAX_SIDE + 1, 10))
+        assertEquals(8, sampleSize(16_000, 5))
+    }
 }
