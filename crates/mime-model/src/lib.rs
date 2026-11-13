@@ -60,43 +60,68 @@ pub fn write_mbox(messages: &[&Message], opts: &WriteOptions) -> Vec<u8> {
 /// A message read by `mailcraft-mime` as one of the mailbox, which is new: no id, account or
 /// folder, and nothing of a server's. `received` is the `Date`.
 pub fn to_model(m: mime::Message) -> Message {
+    // Every field named, so a field added to mime's Message fails to compile here until it is carried.
+    let mime::Message {
+        message_id,
+        in_reply_to,
+        references,
+        from,
+        reply_to,
+        to,
+        cc,
+        bcc,
+        subject,
+        date,
+        body,
+        hidden_text,
+        attachments,
+        read,
+        flag,
+        importance,
+        read_receipt,
+        categories,
+        answered,
+        draft,
+        headers,
+        fresh_stamps,
+        original,
+    } = m;
     Message {
-        message_id: m.message_id,
-        in_reply_to: m.in_reply_to,
-        references: m.references,
-        from: address(m.from),
-        reply_to: addresses(m.reply_to),
-        to: addresses(m.to),
-        cc: addresses(m.cc),
-        bcc: addresses(m.bcc),
-        subject: m.subject,
-        date: m.date,
-        received: m.date,
-        body: Body { text: m.body.text, html: m.body.html },
-        hidden_text: m.hidden_text,
-        attachments: m
-            .attachments
+        message_id,
+        in_reply_to,
+        references,
+        from: address(from),
+        reply_to: addresses(reply_to),
+        to: addresses(to),
+        cc: addresses(cc),
+        bcc: addresses(bcc),
+        subject,
+        date,
+        received: date,
+        body: Body { text: body.text, html: body.html },
+        hidden_text,
+        attachments: attachments
             .into_iter()
             .map(|a| Attachment { name: a.name, mime: a.mime, content_id: a.content_id, inline: a.inline, data: a.data, kept: None })
             .collect(),
-        read: m.read,
-        flag: match m.flag {
+        read,
+        flag: match flag {
             mime::FlagStatus::None => FlagStatus::None,
             mime::FlagStatus::Flagged => FlagStatus::Flagged,
             mime::FlagStatus::Complete => FlagStatus::Complete,
         },
-        importance: match m.importance {
+        importance: match importance {
             mime::Importance::Low => Importance::Low,
             mime::Importance::Normal => Importance::Normal,
             mime::Importance::High => Importance::High,
         },
-        read_receipt: m.read_receipt,
-        categories: m.categories,
-        answered: m.answered,
-        draft: m.draft,
-        headers: m.headers,
-        fresh_stamps: m.fresh_stamps,
-        original: m.original.map(|data| Original { data, kept: None }),
+        read_receipt,
+        categories,
+        answered,
+        draft,
+        headers,
+        fresh_stamps,
+        original: original.map(|data| Original { data, kept: None }),
         ..Message::default()
     }
 }

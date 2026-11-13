@@ -19,7 +19,7 @@ use crate::{PLACE_HEADER, parse, transfer};
 pub const MAX_ORIGINAL: usize = 64 << 20;
 
 /// Most bytes of a text looked through for OpenPGP armour.
-pub(crate) const MAX_ARMOUR_SCAN: usize = 4 << 20;
+pub const MAX_ARMOUR_SCAN: usize = 4 << 20;
 
 /// Whether `text` holds a whole piece of OpenPGP armour in its first [`MAX_ARMOUR_SCAN`] bytes,
 /// each line of it a line of its own: `-----BEGIN PGP MESSAGE-----` and, after it,

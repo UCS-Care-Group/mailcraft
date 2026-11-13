@@ -17,6 +17,7 @@ fn the_readers_limits_are_the_models() {
     assert_eq!(mailcraft_mime::DIRECTIONALITY, auth_results::DIRECTIONALITY);
     assert_eq!(mailcraft_mime::MAX_AUTH_AS, auth_results::MAX_AUTH_AS);
     assert_eq!(mailcraft_mime::MAX_ORIGINAL, mailcraft_model::MAX_ORIGINAL);
+    assert_eq!(mailcraft_mime::MAX_ARMOUR_SCAN, mailcraft_model::protected::MAX_ARMOUR_SCAN);
     for word in ["low", "Normal", " HIGH ", "5", "3", "1", "urgent", "non-urgent", "medium", "whatever", ""] {
         let theirs =
             mailcraft_mime::Importance::parse(word).map(|i| to_model(mailcraft_mime::Message { importance: i, ..Default::default() }).importance);

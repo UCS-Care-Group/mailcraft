@@ -107,7 +107,7 @@ pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use message::{Address, Attachment, Body, FlagStatus, Importance, Message, Timestamp};
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
-pub use protected::{MAX_ORIGINAL, Protection, crlf, has_binary, is_protected, parse_fetched, protection};
+pub use protected::{MAX_ARMOUR_SCAN, MAX_ORIGINAL, Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use signed::{SignedKind, SignedParts, signed_parts};
 pub use words::{decode_words, encode_words};
 pub use write::{write, writes_original, written_message_id};
