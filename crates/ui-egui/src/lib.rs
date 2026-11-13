@@ -74,6 +74,8 @@ pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
 #[cfg(test)]
+mod dialog_report_tests;
+#[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
 #[cfg(test)]
@@ -137,6 +139,12 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 mod merge_contacts;
+pub mod motion;
+#[cfg(test)]
+mod motion_tests;
+mod move_items;
+#[cfg(test)]
+mod move_items_tests;
 pub mod nav;
 #[cfg(test)]
 mod on_top_tests;
@@ -150,11 +158,12 @@ pub mod opening;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
+pub mod paste_keys;
 pub mod people_view;
 mod pick_item;
 #[cfg(test)]
 mod pick_item_tests;
-mod platform;
+pub mod platform;
 #[cfg(test)]
 mod platform_tests;
 mod problem_log;
@@ -203,6 +212,8 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
+#[cfg(test)]
+mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
 mod symbol;
@@ -351,6 +362,11 @@ pub struct Services {
     /// when they name no provider this program knows, the servers its own SRV records name
     /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
+    /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
+    /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
+    /// so account setup can tell an address on an Exchange server from one on an IMAP server.
+    /// Only the domain is given, and none of the hosts is asked anything.
+    pub lookup_autodiscover: Option<Box<dyn Fn(String) -> Receiver<Result<Vec<String>, String>>>>,
     /// Desktop: try signing in to an account's servers with a secret (a password, or an access
     /// token for an account that signs in on its provider's page) on a background thread, before
     /// the account is added.
@@ -360,6 +376,9 @@ pub struct Services {
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
     pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
+    /// What the host's threads ask of the window through the desktop's platform, answered every
+    /// frame ([`Services::serve_platform`], [`platform::DesktopPlatform`]).
+    pub platform_calls: platform::PlatformCalls,
     /// Desktop: the owner's own certificates and keys (#30 R13; [`own_keys`]), on a background
     /// thread: list them where the system keeps them (the Windows certificate store, the macOS
     /// keychain, PKCS#11 tokens, GnuPG), read which OpenPGP keys GnuPG trusts fully, import a
@@ -378,6 +397,10 @@ pub struct Services {
     /// it by hand can sign in with Google, and anyone else gets Google's "Access blocked" page: so
     /// a new Gmail account starts on an app password, Google sign-in second with how to join.
     pub google_testers_only: bool,
+    /// Desktop: whether the system plays animations (Windows' Animation effects), for
+    /// File › Options › Animations › Use system setting (#1183). `None` where the system says
+    /// nothing MailCraft reads: animations then play unless the owner turns them off.
+    pub animations_enabled: Option<Box<dyn Fn() -> bool>>,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -471,6 +494,10 @@ pub struct Services {
     /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
     /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
+    /// Desktop, under Wayland: the window layer's clipboard shortcuts are off, so Ctrl+X, Ctrl+C
+    /// and Ctrl+V arrive as key presses and are turned into cut, copy and paste here
+    /// ([`paste_keys`]), in the main window and in the windows of their own alike (#1217).
+    pub clipboard_keys: bool,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
     /// ids and quoted text taken out. Never sent anywhere. Absent in the browser and the tests:
@@ -518,6 +545,11 @@ pub struct Services {
     /// Desktop: open an address in the system's browser, and say whether one could be started
     /// (the page a sign-in is made on). Absent in the browser and the tests.
     pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
+    /// The same as `open_page` for a page a host thread asked for ([`Services::serve_platform`]):
+    /// it may wait (for the window to hand the browser its activation token), so it runs on a
+    /// thread of its own and never on the window's, whose frame has to keep running meanwhile.
+    /// Absent: `open_page` is used, on the window's thread.
+    pub open_page_waiting: Option<std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync>>,
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
@@ -546,6 +578,10 @@ pub trait RichClipboard {
     /// The picture on the clipboard as PNG, when what is on it is a picture.
     fn image(&self) -> Option<Vec<u8>> {
         None
+    }
+    /// Whether the clipboard holds a picture, without reading it where that is cheaper.
+    fn has_image(&self) -> bool {
+        self.image().is_some()
     }
     /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
     /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
@@ -717,151 +753,8 @@ pub struct SignInRequest {
     pub replies: bool,
 }
 
-/// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
-pub struct CalendarCheckRequest {
-    pub account: mailcraft_model::Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token, to get a Graph token with when `access` is empty.
-    pub refresh: String,
-    /// A Graph access token from earlier in this session that is still good; else empty.
-    pub access: String,
-}
-
-/// One step of a calendar connection check, as the host reports it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CalendarCheckStep {
-    /// What was done ("Make an appointment", "Read it back"…).
-    pub what: String,
-    /// The server did it, and what it has is what was sent.
-    pub ok: bool,
-    /// The status of the server's answer; 0 when there was none.
-    pub status: u16,
-    /// What was sent and what the server has, or the server's own words for its refusal.
-    pub said: String,
-}
-
-/// What a [`CalendarCheckRequest`] came to.
-#[derive(Default)]
-pub struct CalendarCheckResult {
-    pub account: Id,
-    /// A Graph token that was obtained for this (kept for the session).
-    pub tokens: Option<Tokens>,
-    /// The owner hasn't allowed this program to use the calendar.
-    pub consent_needed: bool,
-    /// The token that was handed in is no longer taken.
-    pub token_refused: bool,
-    /// The steps that were taken, in order.
-    pub steps: Vec<CalendarCheckStep>,
-    /// Every step went through, and every reading was what was sent.
-    pub ok: bool,
-    /// The appointment the check made is gone again (or none was made).
-    pub cleaned_up: bool,
-    /// Why the check couldn't start, when it couldn't.
-    pub error: String,
-}
-
-/// What the host is asked to do with Microsoft Graph for one account ([`Services::graph`]).
-pub struct GraphRequest {
-    pub account: mailcraft_model::Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token, to get a Graph token with when `access` is empty.
-    pub refresh: String,
-    /// A Graph access token from earlier in this session that is still good; else empty.
-    pub access: String,
-    /// Mail waiting in the Outbox, to send through Graph.
-    pub outbox: Vec<mailcraft_model::Message>,
-    /// Also bring the calendar and the contacts down.
-    pub directory: bool,
-    /// A stretch of the calendar to bring down when `directory` isn't asked for (Unix seconds,
-    /// from and up to): the days on screen, for a refresh that costs one question.
-    pub calendar: Option<(i64, i64)>,
-    /// What was made, changed or deleted in the calendar here, for the server to be told before
-    /// the calendar is brought down.
-    pub changes: Option<mailcraft_model::remote::EventsUpload>,
-    /// The calendars of the account to bring down, each with the series the mailbox expects in
-    /// the stretch (the account's main calendar is the one with no name; it comes anyway).
-    pub asks: Vec<mailcraft_model::remote::CalendarAsk>,
-    /// Also bring the working hours the mailbox has set: an extra that takes a permission of its
-    /// own, without which the answer says [`GraphResult::extras_missing`].
-    pub settings: bool,
-    /// Also read the Favorites as Outlook has them ([`GraphResult::favorites`]).
-    pub favorites: bool,
-    /// A token that is obtained for this job is asked for with the permissions that reading the
-    /// Favorites takes ([`GraphResult::favorites_covered`] says whether it has them). Without
-    /// it, a token is asked for as it always was.
-    pub favorites_scopes: bool,
-    /// For an account kept in step through Microsoft Graph (R3): the folder changes to make and
-    /// the folders to list ([`GraphResult::mail`]). A token obtained for this job is asked for
-    /// with `Mail.ReadWrite`.
-    pub mail: Option<mailcraft_model::sync::GraphMailRequest>,
-    /// Where the pieces of that mail run go as they come (R3.2): the folders, then a page at a
-    /// time, each taken in by the window as it arrives. `None`: the run comes back whole in
-    /// [`GraphResult::mail`].
-    pub mail_pieces: Option<std::sync::mpsc::SyncSender<mailcraft_model::sync::GraphMailResult>>,
-    /// Set when the owner stops the run (Cancel): it stops after the page in hand.
-    pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
-}
-
-/// What a [`GraphRequest`] came to. Never an error as a whole: mail goes on either way.
-#[derive(Default)]
-pub struct GraphResult {
-    pub account: Id,
-    /// A Graph token that was obtained for this (kept for the session; its refresh token is the
-    /// account's newest).
-    pub tokens: Option<Tokens>,
-    /// The owner hasn't allowed this program to use Graph: "Connect calendar and contacts" asks.
-    pub consent_needed: bool,
-    /// A shared mailbox's run had mail to send, and the owner hasn't allowed sending from shared
-    /// mailboxes yet (`Mail.Send.Shared`, #70): none of it was sent (it waits); the window asks.
-    pub send_consent_needed: bool,
-    /// The account has calendars opened by address (#70) and the owner hasn't allowed reading
-    /// other people's calendars yet (`Calendars.ReadWrite.Shared`): they weren't read; the
-    /// window asks.
-    pub shared_calendars_consent_needed: bool,
-    /// The Graph token that was handed in is no longer taken.
-    pub token_refused: bool,
-    /// The sign-in itself was refused when a token was asked for (it has run out, or was taken
-    /// back): the owner has to sign in again.
-    pub sign_in_refused: bool,
-    /// Outbox messages that were sent (Microsoft files the Sent Items copy itself).
-    pub sent: Vec<Id>,
-    /// Outbox messages that must not be sent another way in this run: whether they went is not
-    /// known, or the server said to try later.
-    pub held: Vec<Id>,
-    /// Those of `held` whose answer was lost after they were handed over (a timeout, a broken
-    /// connection, an answer that doesn't say): they may have gone, and are held for the owner
-    /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
-    pub unsure: Vec<Id>,
-    pub events: Option<mailcraft_model::remote::EventsDownload>,
-    pub contacts: Option<mailcraft_model::remote::ContactsDownload>,
-    /// What the server said to the calendar changes it was told ([`GraphRequest::changes`]).
-    pub uploaded: Option<mailcraft_model::remote::EventsUploaded>,
-    pub errors: Vec<String>,
-    /// The same stretch of the account's other calendars.
-    pub more_events: Vec<mailcraft_model::remote::EventsDownload>,
-    /// The account's calendars and the groups they are listed in, when they were asked for.
-    pub calendars: Option<mailcraft_model::remote::CalendarsDownload>,
-    /// The mailbox's own categories with their colours, when they could be read.
-    pub categories: Option<mailcraft_model::remote::CategoriesDownload>,
-    /// The sign-in covers everything but an optional extra (reading the mailbox's category
-    /// list): all else works, and "Connect calendar and contacts" would add it.
-    pub extras_missing: bool,
-    /// The working hours the mailbox has set, when they were asked for and could be read.
-    pub mailbox_hours: Option<mailcraft_engine::cmd::calendar_settings::MailboxHours>,
-    /// The Favorites as Outlook has them, when they were asked for: the list, or how the read
-    /// went instead (the mailbox has none, the sign-in doesn't cover it, it failed).
-    pub favorites: Option<mailcraft_model::remote::FavoritesDownload>,
-    /// Why reading the Favorites failed, in a few plain words for the folder pane; no name
-    /// and no id in it.
-    pub favorites_error: String,
-    /// When a token was obtained for this job: whether it is good for reading the Favorites
-    /// (it was asked for with that, and the sign-in covers it).
-    pub favorites_covered: Option<bool>,
-    /// What the folders came to, when [`GraphRequest::mail`] asked.
-    pub mail: Option<mailcraft_model::sync::GraphMailResult>,
-}
+pub use mailcraft_host::calendar::{CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep};
+pub use mailcraft_host::graph::{GraphRequest, GraphResult};
 
 /// A sign-in the host is busy with.
 struct SigningIn {
@@ -912,6 +805,8 @@ pub struct UiState {
     /// High contrast: a stronger version of whichever theme is in use.
     #[serde(deserialize_with = "theme::lenient_bool")]
     pub high_contrast: bool,
+    /// File › Options › General › Animations (#1183): as the system says, on or off.
+    pub animations: motion::Motion,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -1028,6 +923,7 @@ impl Default for UiState {
             ribbon_mode: ribbon::Mode::default(),
             theme: theme::Appearance::default(),
             high_contrast: false,
+            animations: motion::Motion::default(),
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1102,11 +998,17 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
+    (
+        "ui.animations",
+        "Animations",
+        "File › Options",
+        r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
+    ),
     ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
     (
         "ui.lightMessages",
@@ -1120,7 +1022,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"zh_CN"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1617,18 +1519,10 @@ pub struct MailApp {
     graph_after_sign_in: Option<Id>,
     /// Messages of Microsoft accounts being fetched whole ([`graph_fetch`]).
     pub(crate) fetching: graph_fetch::Fetching,
-    /// Mail outside its window taken back to its headers and preview (#143, [`keep_offline`]).
-    pub(crate) thinning: keep_offline::Thinning,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
-    /// When each account's calendar and contacts were last brought down (milliseconds).
-    graph_checked: std::collections::HashMap<Id, f64>,
-    /// Accounts whose owner hasn't allowed Graph yet ("Connect calendar and contacts").
-    graph_consent_needed: std::collections::HashSet<Id>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
-    /// Keeping the Favorites of the folder pane the ones Outlook shows ([`favorites_sync`]).
-    favorites: favorites_sync::FavoritesSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
     favorites_next: bool,
     /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
@@ -1649,9 +1543,6 @@ pub struct MailApp {
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
-    /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
-    /// what a run found out, and what was asked.
-    shared_calendar_perm: std::collections::HashMap<Id, shared_calendars::Permission>,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1708,6 +1599,8 @@ pub struct MailApp {
     styled: bool,
     /// The interface theme last installed in egui ([`theme::apply`]).
     applied_theme: Option<(egui::ThemePreference, theme::ThemeChoice)>,
+    /// Whether animations play, and the system's answer as last asked ([`motion`], #1183).
+    motion: motion::Tracker,
     /// The interface language last told the host ([`Services::on_language`]).
     applied_language: Option<i18n::Lang>,
     fonts_frames: u32,
@@ -1773,6 +1666,8 @@ pub struct MailApp {
     /// Per account: how much was still waiting after its last Send/Receive, and when that was.
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
+    /// How many changes the server made in the JMAP run under way, as its pieces said so far.
+    jmap_made: usize,
     last_autosave: f64,
     /// When the messages being written were last saved by themselves, by the session's clock
     /// (seconds; `None`: none has had changes since one was opened).
@@ -1931,12 +1826,8 @@ impl MailApp {
             graph_pieces_taken: 0,
             graph_after_sign_in: None,
             fetching: Default::default(),
-            thinning: Default::default(),
             server_searching: Default::default(),
-            graph_checked: Default::default(),
-            graph_consent_needed: Default::default(),
             calendar: Default::default(),
-            favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
             shared_send_next: false,
@@ -1948,7 +1839,6 @@ impl MailApp {
             rules: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
-            shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_send_waits: Default::default(),
             shared_send_pressed: Default::default(),
@@ -1974,6 +1864,7 @@ impl MailApp {
             asking: Default::default(),
             styled: false,
             applied_theme: None,
+            motion: motion::Tracker::default(),
             applied_language: None,
             fonts_frames: 0,
             frame_ms: 0.0,
@@ -2001,6 +1892,7 @@ impl MailApp {
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
+            jmap_made: 0,
             last_autosave: 0.0,
             draft_saved_at: None,
             saved_rev,
@@ -2413,8 +2305,8 @@ impl MailApp {
             // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
-            self.graph_checked.remove(&account);
-            self.graph_consent_needed.remove(&account);
+            self.session.driver.calendar.checked.remove(&account);
+            self.session.driver.calendar.consent_needed.remove(&account);
             self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
@@ -2584,6 +2476,13 @@ impl MailApp {
                     Ok(json!({"value": a.code()}))
                 }
                 None => Err("`value` is light, dark or system".into()),
+            },
+            "ui.animations" => match s("value").and_then(motion::Motion::from_code) {
+                Some(m) => {
+                    self.ui.animations = m;
+                    Ok(json!({"value": m.code()}))
+                }
+                None => Err("`value` is system, on or off".into()),
             },
             "ui.highContrast" => match p.get("on").and_then(Value::as_bool) {
                 Some(on) => {
@@ -3412,7 +3311,7 @@ impl MailApp {
             if !after_graph
                 && microsoft
                 && !refresh.is_empty()
-                && !self.graph_consent_needed.contains(&account)
+                && !self.session.driver.calendar.consent_needed.contains(&account)
                 && self.services.graph.is_some()
                 && !request.outbox.is_empty()
             {
@@ -3591,6 +3490,14 @@ impl MailApp {
         self.push_seen.insert(account, (self.waiting_to_go(account), now_ms()));
     }
 
+    /// What waits to go from `account` is not what its last run left undone: the next look
+    /// ([`MailApp::auto_sync`]) starts a run for it without the wait a refusal is given.
+    pub(crate) fn push_again_soon(&mut self, account: Id) {
+        if self.waiting_to_go(account) > 0 {
+            self.push_seen.insert(account, (0, now_ms()));
+        }
+    }
+
     /// The passwords and sign-ins in memory belong to the accounts of the mailbox they were given
     /// for: a mailbox that takes its place (File › Open, File › New, whatever the way) drops them
     /// all, since its accounts have ids of their own choosing and servers of their own naming.
@@ -3626,6 +3533,7 @@ impl MailApp {
             // forgotten.
             self.clear_jobs_on_replace();
             self.fetching.forget();
+            self.session.driver.fetch.forget();
             self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
@@ -3772,7 +3680,7 @@ impl MailApp {
     /// Whether the owner still has to allow sending, calendar and contacts through Microsoft for
     /// `account` ("Connect calendar and contacts").
     pub fn graph_consent_needed(&self, account: Id) -> bool {
-        self.graph_consent_needed.contains(&account)
+        self.session.driver.calendar.consent_needed.contains(&account)
     }
 
     /// Graph answered: keep its token, take in the calendar and contacts, file what it sent, and
@@ -3810,7 +3718,7 @@ impl MailApp {
                 self.graph_pieces_taken = self.graph_pieces_taken.saturating_add(1);
                 // New mail may be waiting to be fetched whole: the background looks again.
                 if !piece.pages.is_empty() {
-                    self.fetching.wake();
+                    self.session.driver.fetch.wake();
                 }
                 // A shared mailbox the server won't open for the owner (#70).
                 if let Some(why) = piece.refused {
@@ -3931,16 +3839,23 @@ impl MailApp {
         let kept_in_step = self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
         if result.consent_needed {
             // (An account kept in step through Graph is asked below, for its mail.)
-            if self.graph_consent_needed.insert(account) && !quiet && !kept_in_step {
+            if self.session.driver.calendar.consent_needed.insert(account) && !quiet && !kept_in_step {
                 self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
             }
         } else {
-            self.graph_consent_needed.remove(&account);
+            self.session.driver.calendar.consent_needed.remove(&account);
         }
         // What the server said to the calendar changes it was told, then what it has now.
-        self.take_in_calendar_list(account, result.calendars.as_ref(), result.categories.as_ref(), result.extras_missing, &mut errors);
-        let calendar_ok = self.take_in_calendar_of_sync(account, result.uploaded.as_ref(), result.events.as_ref(), &mut errors);
-        self.take_in_more_calendars(&result.more_events, &mut errors);
+        let came = mailcraft_engine::sync_driver::CalendarCame {
+            uploaded: result.uploaded.as_ref(),
+            events: result.events.as_ref(),
+            more_events: &result.more_events,
+            calendars: result.calendars.as_ref(),
+            categories: result.categories.as_ref(),
+            extras_missing: result.extras_missing,
+            ..Default::default()
+        };
+        let calendar_ok = self.take_in_calendar_of_sync(account, &came, &mut errors);
         let mut contacts_ok = false;
         if let Some(contacts) = &result.contacts {
             match mailcraft_engine::cmd::remote::apply_contacts(&mut self.session, contacts) {
@@ -3949,7 +3864,7 @@ impl MailApp {
             }
         }
         if directory && calendar_ok && contacts_ok {
-            self.graph_checked.insert(account, now_ms());
+            self.session.driver.calendar.checked.insert(account, now_ms());
         }
         if !result.sent.is_empty() {
             // (A piece of the run, not the end of it: the mail server's leg comes next, and
@@ -4169,8 +4084,8 @@ impl MailApp {
                         }
                     }
                     self.graph_tokens.insert(account, tokens);
-                    self.graph_consent_needed.remove(&account);
-                    self.graph_checked.remove(&account);
+                    self.session.driver.calendar.consent_needed.remove(&account);
+                    self.session.driver.calendar.checked.remove(&account);
                     // Calendar changes that waited for this permission go now.
                     self.calendar_connected(account);
                     // Asked for with the Favorites' permissions, the token is good for them, and
@@ -4499,7 +4414,15 @@ impl MailApp {
                 // New mail doesn't ask the taskbar for attention: KDE and Windows keep the button lit
                 // until the window is clicked, and a first download lit it all day. System
                 // notifications (R7.1) are how new mail is announced; reminders still ask.
-                Ok(_) => {}
+                Ok(answer) => {
+                    // What the engine added after taking it in (a snooze given up): the run's
+                    // own problems did not include it, and the owner is to be told.
+                    let said: Vec<String> =
+                        answer["said"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+                    if !said.is_empty() {
+                        self.note_sync_problems(account, &said, false);
+                    }
+                }
                 Err(e) => {
                     self.status(e.to_string());
                     self.send_doubt = true;
@@ -4710,7 +4633,11 @@ impl MailApp {
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));
+            // (In case a theme ever sets them: its styles are told again whether animations play.)
+            self.motion.applied = None;
         }
+        let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
             ctx.set_zoom_factor(zoom);
@@ -4756,7 +4683,7 @@ impl MailApp {
         if self.server_searching.busy() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
-        if self.fetching.busy() {
+        if self.fetching.busy() || self.session.driver.fetch.held.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         // The pieces of a Graph mail run come without waking the window: it looks again soon.
@@ -4777,6 +4704,11 @@ impl MailApp {
             self.shared_check_tick();
         }
         self.check_secret_store();
+        // The host's threads' calls on the window (the desktop's platform).
+        if self.services.serve_platform() {
+            // A full batch: more may be waiting, and nothing else may bring another frame.
+            ctx.request_repaint();
+        }
         security::tick(self, ctx.input(|i| i.viewport().focused.unwrap_or(true)));
         self.data_removal_tick();
         if !self.data_removed {
@@ -5556,11 +5488,6 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         }
         "compose.send" => Some(tl!("Sent").to_string()),
         "compose.saveDraft" => Some(tl!("Draft saved").to_string()),
-        // A draft its JMAP account's server has isn't deleted yet (M6): the editor closes, and why
-        // the draft is still in Drafts is said, as the Move menu says it.
-        "compose.discard" => {
-            v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
-        }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
         // (A batch handed over by the import's window, `staged`, says nothing: the window does.)
         "file.importPst" if v.get("staged").is_none() => {

@@ -308,14 +308,19 @@ msgstr "@{login}: {prs} PR-uri integrate, {commits} commituri, +{added} / −{de
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "Se importă un fișier .pst: încercați din nou după ce se termină"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+msgid "A JMAP account's mail can't be snoozed yet."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "O modificare a calendarului nu a putut fi trimisă încă și va fi reîncercată: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "O modificare a calendarului unei cutii poștale partajate a fost refuzată: acest cont nu are voie să-l editeze. Se mai încearcă o dată, apoi se anulează."
@@ -669,6 +674,12 @@ msgstr ""
 #, fuzzy
 msgid "Account Settings"
 msgstr "Setări cont"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Account name"
+msgstr "Nume cont"
 
 #. interface, ribbon
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
@@ -1134,11 +1145,22 @@ msgstr "Descărcați mereu imaginile de la {sender}"
 msgid "Always from @{domain}"
 msgstr "Mereu de la @{domain}"
 
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Always play"
+msgstr "Redați întotdeauna"
+
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An Agent Is Asking"
 msgstr "Un agent întreabă"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "An Exchange server or IMAP?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1226,6 +1248,12 @@ msgid_plural "And {n} more links like it."
 msgstr[0] "Și încă {n} link asemănător."
 msgstr[1] "Și încă {n} linkuri asemănătoare."
 msgstr[2] "Și încă {n} de linkuri asemănătoare."
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Animations"
+msgstr "Animații"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1622,6 +1650,11 @@ msgid "Asking the server…"
 msgstr "Se întreabă serverul…"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Asking your domain's DNS…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
@@ -1897,6 +1930,11 @@ msgstr "Răspunsuri automate: se citesc…"
 #, fuzzy
 msgid "Automatic replies: your organisation doesn't let MailCraft change them"
 msgstr "Răspunsuri automate: organizația dvs. nu permite ca MailCraft să le modifice"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Automatic setup (Autodiscover)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -2386,8 +2424,8 @@ msgstr "Modificat: se salvează când alegeți altă semnătură sau părăsiți
 msgid "Change…"
 msgstr "Modificare…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Modificarea calendarului are nevoie de permisiunea dvs.: Fișier › Informații › Conectare calendar și contacte"
@@ -2959,7 +2997,7 @@ msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Contribuitorii își aleg singuri numele; vedeți docs/contributors.md."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Copiază un mesaj scurt cu adresa paginii Microsoft unde un administrator al organizației aprobă MailCraft, o dată pentru toți. Nu se trimite nimic: lipiți-l chiar dvs. într-un e-mail sau chat."
@@ -2992,6 +3030,12 @@ msgstr "Copiere diagnostic"
 msgid "Copy Event"
 msgstr "Copiere eveniment"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Copiere elemente"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3023,7 +3067,7 @@ msgid "Copy a Message for My Administrator"
 msgstr "Copiere mesaj pentru administratorul meu"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Copy a message for my administrator"
 msgstr "Copiați un mesaj pentru administratorul meu"
@@ -3039,6 +3083,12 @@ msgstr "Copiere integrală"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Copiere probleme"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "Copiați elementele selectate în dosarul:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -4966,6 +5016,11 @@ msgstr[2] "Redirecționat către {n} de persoane"
 #, fuzzy
 msgid "Forward…"
 msgstr "Redirecționare…"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -6995,17 +7050,16 @@ msgstr "MailCraft nu se poate conecta încă la acest server în acest fel (cere
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft nu a putut deschide browserul pentru pagina de aprobare Microsoft. Copiați în schimb mesajul: linkul din el deschide aceeași pagină."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
 msgstr "MailCraft nu cunoaște setările pentru această adresă. Serverele de mai jos sunt doar o presupunere făcută după domeniu: verificați-le cu furnizorul sau administratorul înainte de conectare."
-
-#. what a command says
-#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
-#, fuzzy
-msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
-msgstr "MailCraft nu mută și nu șterge încă e-mailurile unui cont JMAP: următoarea Trimitere/primire le-ar aduce înapoi"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7072,6 +7126,11 @@ msgstr "MailCraft păstrează fișierul, protejat în continuare de fraza de acc
 msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
 msgstr "MailCraft păstrează regulile acestui cont pe acest computer: regula rulează cât timp MailCraft e deschis."
 
+#. what a command says
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
+msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -7125,6 +7184,11 @@ msgstr "MailCraft a oprit citirea înainte de final."
 #, fuzzy
 msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
 msgstr "MailCraft a oprit citirea fișierului .pst înainte de final: ce a intrat se păstrează"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "MailCraft tries the usual places for your address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7735,6 +7799,12 @@ msgid "Move Folder"
 msgstr "Mutare dosar"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Mutare elemente"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7763,6 +7833,12 @@ msgstr "Mutare doar programări"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Mutați mesajul într-un dosar ca să-i deschideți sau salvați atașamentele"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "Mutați elementele selectate în dosarul:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7925,6 +8001,12 @@ msgstr "Nu blocați niciodată expeditorul"
 #, fuzzy
 msgid "Never Block Sender's Domain"
 msgstr "Nu blocați niciodată domeniul expeditorului"
+
+#. name
+#: crates/ui-egui/src/motion.rs
+#, fuzzy
+msgid "Never play"
+msgstr "Nu redați niciodată"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -8355,7 +8437,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Nu a putut fi pornit niciun manager de fișiere pentru afișarea dosarului."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Niciun dosar nu se potrivește"
@@ -8563,6 +8645,11 @@ msgstr "Nu este o dată"
 #, fuzzy
 msgid "Not allowed by your organisation"
 msgstr "Nepermis de organizația dvs."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Not an Exchange server? Set it up with IMAP"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8774,7 +8861,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11173,7 +11260,7 @@ msgid "Say yes only if you asked the agent for this. Text in a message can tell 
 msgstr "Spuneți da doar dacă i-ați cerut agentului asta. Textul dintr-un mesaj poate cere unui agent să facă lucruri pe care nu le-ați cerut."
 
 #. name
-#: crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Arată ce puteți face dvs. și administratorul organizației și îi permite unui administrator să aprobe MailCraft de aici, pe pagina Microsoft."
@@ -11241,6 +11328,11 @@ msgid "Search Suggestions"
 msgstr "Sugestii de căutare"
 
 #. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Search again"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/pick_item.rs
 #, fuzzy
 msgid "Search by subject or sender"
@@ -11259,7 +11351,7 @@ msgid "Search contacts"
 msgstr "Căutare contacte"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Căutare dosare"
@@ -12146,6 +12238,12 @@ msgstr "Afișat ca text: nimic din el nu rulează, nu se deschide și nu se desc
 #, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Afișat lângă numele contului și pe e-mailurile lui, acolo unde e-mailurile mai multor conturi apar împreună."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
+msgstr "Afișat în panoul de dosare, de exemplu Serviciu sau Acasă. Lăsați gol pentru a afișa adresa."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -13337,8 +13435,8 @@ msgstr "Calendarul „{name}” poate fi doar citit: proprietarul lui nu permite
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Calendarul „{name}” arată doar când proprietarul e ocupat: acest cont nu îl poate modifica."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Modificările de calendar nu au putut fi preluate: {error}"
@@ -13373,8 +13471,8 @@ msgstr "Conexiunea calendarului funcționează"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "Conexiunea calendarului funcționează: ce s-a trimis a ajuns, iar serverul îl are așa cum a fost trimis."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Calendarul nu a putut fi preluat: {error}"
@@ -13451,8 +13549,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "Calendarele cutiei poștale partajate așteaptă: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Categoriile nu au putut fi preluate: {error}"
@@ -13529,8 +13627,8 @@ msgstr "Contactul {id} este numit de două ori."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "Formularul contactului a fost închis: deschideți-l din nou ca să adăugați cheia"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Contactele nu au putut fi preluate: {error}"
@@ -13584,10 +13682,14 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr "Diagnosticul nu a fost salvat, deci pagina GitHub nu s-a deschis. Încercați din nou sau debifați Includeți diagnosticul."
 
 #. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "The draft stays in Drafts. {why}"
-msgstr "Ciorna rămâne în Ciorne. {why}"
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13736,8 +13838,8 @@ msgstr "Cheia a fost eliminată de pe acest computer."
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Linkul este în clipboard: trimiteți-l administratorului organizației"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "Lista de calendare nu a putut fi preluată: {error}"
@@ -13988,14 +14090,14 @@ msgstr "Răspunsul serviciului de rapoarte nu este unul pe care MailCraft îl î
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "Regulile de pe server nu au putut fi citite: operația s-a oprit neașteptat"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "Regulile de pe server nu au putut fi preluate: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Regulile trimise nu au putut fi înregistrate: {error}"
@@ -14251,8 +14353,8 @@ msgstr "Calendarul „{name}” al cutiei poștale partajate arată doar când p
 msgid "The shared mailbox's e-mail address"
 msgstr "Adresa de e-mail a cutiei poștale partajate"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Conectarea contului prin care este deschisă această cutie poștală partajată a fost refuzată: conectați-vă din nou cu Trimitere/primire"
@@ -14359,14 +14461,14 @@ msgstr "Textul nu a fost găsit."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "Sarcinile nu au putut fi sincronizate: operația s-a oprit neașteptat"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "Sarcinile nu au putut fi preluate: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "Sarcinile trimise nu au putut fi înregistrate: {error}"
@@ -14569,14 +14671,14 @@ msgstr "Acest cont nu are conectare cu Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr "Acest cont nu mai este în cutia poștală."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Acest cont nu are voie să-și modifice regulile pe server"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Acest cont nu are voie să-și folosească sarcinile prin Microsoft Graph"
@@ -14694,6 +14796,11 @@ msgstr "Această versiune nu poate descărca imagini"
 #, fuzzy
 msgid "This build can't download pictures: they stay placeholders."
 msgstr "Această versiune nu poate descărca imagini: rămân substituenți."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "This build can't look anything up. Type the server's address in Server settings."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -15920,10 +16027,16 @@ msgid "Use my own working hours"
 msgstr "Folosiți propriul program de lucru"
 
 #. name
-#: crates/ui-egui/src/theme.rs
+#: crates/ui-egui/src/motion.rs crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Use system setting"
 msgstr "Folosiți setarea sistemului"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+msgstr "„Folosiți setarea sistemului” urmează efectele de animație din setările Windows. Acolo unde MailCraft nu poate citi încă setarea sistemului, animațiile se redau până când alegeți „Nu redați niciodată”."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16160,7 +16273,7 @@ msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Ce trebuie făcut când organizația dvs. trebuie să aprobe MailCraft"
 
 #. interface, name
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/favorites_sync.rs
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Ce urmează"
@@ -16622,6 +16735,21 @@ msgstr "Calendarul dvs.: {day}"
 #, fuzzy
 msgid "Your certificates and keys"
 msgstr "Certificatele și cheile dvs."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -18795,8 +18923,8 @@ msgstr "serverul a închis conexiunea"
 msgid "the server continued a cancelled password authentication"
 msgstr "serverul a continuat o autentificare cu parolă anulată"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "serverul nu a putut fi contactat"
@@ -20205,8 +20333,8 @@ msgstr[0] "{n} modificare care așteaptă serverul IMAP nu va ajunge la el; răm
 msgstr[1] "{n} modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 msgstr[2] "{n} de modificări care așteaptă serverul IMAP nu vor ajunge la el; rămân în copia de rezervă."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} modificări ale calendarului „{name}” sunt reținute aici, netrimise: acest cont nu mai are voie să-l modifice. Se trimit dacă primește din nou voie."
@@ -21068,4 +21196,12 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+#~ msgstr "MailCraft nu mută și nu șterge încă e-mailurile unui cont JMAP: următoarea Trimitere/primire le-ar aduce înapoi"
+
+#, fuzzy
+#~ msgid "The draft stays in Drafts. {why}"
+#~ msgstr "Ciorna rămâne în Ciorne. {why}"
 

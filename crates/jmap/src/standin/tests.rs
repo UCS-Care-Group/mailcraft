@@ -309,7 +309,7 @@ fn a_call_that_is_wrong_is_refused_for_the_reason_a_server_gives() {
     let account = json!(ACCOUNT);
     let cases = vec![
         ("a method it has not", json!(["Foo/bar", {}, "c0"]), "unknownMethod"),
-        ("a method of another kind", json!(["Email/set", {"accountId": account}, "c0"]), "unknownMethod"),
+        ("a method of another kind", json!(["Thread/get", {"accountId": account}, "c0"]), "unknownMethod"),
         ("no account", json!(["Mailbox/get", {}, "c0"]), "invalidArguments"),
         ("another account", json!(["Mailbox/get", {"accountId": "A2"}, "c0"]), "accountNotFound"),
         ("an account that is no text", json!(["Mailbox/get", {"accountId": 1}, "c0"]), "invalidArguments"),

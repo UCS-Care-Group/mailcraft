@@ -45,7 +45,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -545,6 +545,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
+    let named_by_address = before.named_by_address();
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
     // An Exchange server account is the same: its ids are the server's.
@@ -602,10 +603,20 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         (a.email, a.kind, a.oauth, a.incoming, a.outgoing, a.username) = (before.email, before.kind, None, None, None, String::new());
         a.shared_of = before.shared_of;
     }
+    // The name in the folder pane (#1017): an empty one is the address again, and one that is the
+    // address follows it to a new one unless another name is given with it.
+    if a.name.trim().is_empty() || (p::str(v, "name").is_none() && named_by_address) {
+        a.name = a.name_by_default();
+    }
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // A shorter window: what is outside it now is thinned at the next tick, for any host.
+    let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
+    if shortened {
+        s.driver.thinning.now = true;
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
@@ -720,6 +731,10 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
+    // Where their permissions for to-dos and rules stood goes too: nobody is to be asked about an
+    // account that isn't there.
+    s.driver.tasks.forget_accounts(&going);
+    s.driver.rules.forget_accounts(&going);
     // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
     super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
@@ -971,6 +986,10 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     // messages, drafts.
     if s.mailbox.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)) {
         return super::graph_mail::unpushed(s, account);
+    }
+    // A JMAP account's are the changes of its messages (its folders' don't go up yet).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        return super::jmap_up::unpushed(&s.mailbox, account);
     }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
@@ -1268,6 +1287,9 @@ pub const MAX_PIECES_TOGETHER: usize = 256;
 pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, result: SyncResult) -> CmdResult {
     let mut taken = apply_sync_piece(s, run, result);
     let said = super::snooze::after(s);
+    // The run's own problems too, so that its summary and the end of the run know of them; the
+    // host reads them from the answer's `said` and puts them with the run's problems.
+    run.errors.extend(said.iter().filter(|line| !run.errors.contains(line)).cloned().collect::<Vec<_>>());
     super::snooze::tell(&mut taken, said);
     taken
 }
