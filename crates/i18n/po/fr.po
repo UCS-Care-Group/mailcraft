@@ -3617,7 +3617,7 @@ msgid "Don't ask again for this account"
 msgstr "Ne plus demander pour ce compte"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "Don't send"
 msgstr ""
 
@@ -5347,6 +5347,16 @@ msgstr "Si cette page indique qu'une approbation de l'administrateur est nécess
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."
 msgstr ""
 
 #. interface
@@ -8096,6 +8106,11 @@ msgid "Not every layout checked."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Not in Outlook's list: no colour there"
@@ -10802,7 +10817,7 @@ msgid "Send from a Shared Mailbox"
 msgstr "Envoyer depuis une boîte aux lettres partagée"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 msgid "Send my sign-in"
 msgstr ""
 
@@ -10867,6 +10882,11 @@ msgstr "Envoyer écrit à : {people}."
 #, fuzzy
 msgid "Send your answer to the organizer? You can write a note to go with it."
 msgstr "Envoyer votre réponse à l'organisateur ? Vous pouvez y joindre une note."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Send your password to another server?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12380,6 +12400,11 @@ msgid "The .pst file has {what} to import; nothing was imported"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The Digital signature can't be read."
 msgstr ""
@@ -13266,6 +13291,11 @@ msgstr ""
 #, fuzzy
 msgid "The server's name"
 msgstr "Le nom du serveur"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
