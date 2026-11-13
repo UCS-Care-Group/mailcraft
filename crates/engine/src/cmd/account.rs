@@ -1272,6 +1272,9 @@ pub const MAX_PIECES_TOGETHER: usize = 256;
 pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, result: SyncResult) -> CmdResult {
     let mut taken = apply_sync_piece(s, run, result);
     let said = super::snooze::after(s);
+    // The run's own problems too, so that its summary and the end of the run know of them; the
+    // host reads them from the answer's `said` and puts them with the run's problems.
+    run.errors.extend(said.iter().filter(|line| !run.errors.contains(line)).cloned().collect::<Vec<_>>());
     super::snooze::tell(&mut taken, said);
     taken
 }

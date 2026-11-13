@@ -112,7 +112,8 @@ fn return_due(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"returned": back, "calledOff": settled.called_off, "reset": settled.reset, "gaveUp": settled.gave_up}))
 }
 
-/// Add what [`after`] has to say to a run's problems (`errors` of its answer).
+/// Add what [`after`] has to say to a run's problems (`errors` of its answer), and give it
+/// alone as `said`, for a host that keeps the problems of a piece apart from its answer's.
 pub(crate) fn tell(answer: &mut CmdResult, said: Vec<String>) {
     if said.is_empty() {
         return;
@@ -120,7 +121,10 @@ pub(crate) fn tell(answer: &mut CmdResult, said: Vec<String>) {
     if let Ok(Value::Object(answer)) = answer
         && let Value::Array(errors) = answer.entry("errors").or_insert_with(|| json!([]))
     {
-        errors.extend(said.into_iter().map(Value::String));
+        errors.extend(said.iter().cloned().map(Value::String));
+    }
+    if let Ok(Value::Object(answer)) = answer {
+        answer.insert("said".into(), json!(said));
     }
 }
 
