@@ -55,9 +55,6 @@ class PhoneShellScreenshotTest {
     @Test
     fun languageLight100() =
         shoot("phone_language_light_100", night = false, fontScale = 1f, nav = NavState().openPage(SettingsPage.Language))
-
-    @Test
-    fun todayDark100() = shoot("phone_today_dark_100", night = true, fontScale = 1f, nav = NavState(tab = Tab.Today))
 }
 
 /** The shell on a tablet (an expanded window): the rail of five items instead of the bottom bar. */

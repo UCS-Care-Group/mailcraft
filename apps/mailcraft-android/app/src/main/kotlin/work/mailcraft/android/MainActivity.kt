@@ -76,6 +76,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
             else -> loadFolder(core, folderId, folder.name)
         }
     }
+    val hosted = rememberHosted(core, texts, ready = outlined != null)
     val data = ShellData(
         accounts = outline?.accounts.orEmpty(),
         folderName = folder?.name ?: texts.t("Mail"),
@@ -83,10 +84,18 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         mail = mail,
         version = version,
         chosenLanguage = chosenLanguage,
+        today = hosted.today,
+        people = hosted.people,
+        tasks = hosted.tasks,
     )
     AppShell(
         texts = texts,
         data = data,
-        actions = ShellActions(onFolder = { _, selected -> picked = selected.id.toLong() }, onLanguage = onLanguage),
+        actions = ShellActions(
+            onFolder = { _, selected -> picked = selected.id.toLong() },
+            onLanguage = onLanguage,
+            people = hosted.peopleActions,
+            tasks = hosted.tasksActions,
+        ),
     )
 }

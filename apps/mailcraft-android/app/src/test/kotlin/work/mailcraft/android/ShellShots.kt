@@ -44,10 +44,10 @@ internal object ShellShots {
     val actions = ShellActions(onFolder = { _, _ -> }, onLanguage = {})
 
     @Composable
-    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed) {
+    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, shown: ShellData = data) {
         MailCraftTheme {
             Surface {
-                AppShell(EnglishTexts, data, actions, initialNav = nav, initialDrawer = drawer)
+                AppShell(EnglishTexts, shown, actions, initialNav = nav, initialDrawer = drawer)
             }
         }
     }

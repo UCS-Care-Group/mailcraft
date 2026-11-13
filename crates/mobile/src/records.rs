@@ -163,6 +163,9 @@ pub struct TodayRecord {
     /// The owner's today, `YYYY-MM-DD`.
     pub date: String,
     pub events: Vec<EventRecord>,
+    /// What has not ended yet, from now through the next seven days (at most ten, none
+    /// cancelled), in order: the card of next events.
+    pub next_events: Vec<EventRecord>,
     /// Tasks not completed that are due today or were due before.
     pub tasks: Vec<TaskRecord>,
     /// Unread messages in the Inboxes of all accounts.
@@ -216,4 +219,58 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LabeledRecord {
+    /// What the contact's card calls it (`Work`, `Mobile`), as written there.
+    pub label: String,
+    pub value: String,
+}
+
+/// One person (a contact) as the detail page shows it. Read-only: the app offers no editing.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct PersonDetail {
+    pub rev: u64,
+    pub id: u64,
+    pub name: String,
+    pub company: String,
+    pub title: String,
+    pub department: String,
+    pub emails: Vec<LabeledRecord>,
+    pub phones: Vec<LabeledRecord>,
+    /// Postal addresses, each on one line.
+    pub addresses: Vec<LabeledRecord>,
+    pub favorite: bool,
+}
+
+/// One task as the editor shows it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskDetail {
+    pub rev: u64,
+    pub task: TaskRecord,
+    pub notes: String,
+    /// The notes are longer than what is handed over: an app must not write them back as they
+    /// stand, or the rest would be lost.
+    pub notes_cut: bool,
+    /// When its reminder goes off, `YYYY-MM-DDTHH:MM:SS` in the owner's zone.
+    pub reminder: Option<String>,
+    /// The account keeps it only on this phone (made here and not sent, or kept here by choice).
+    pub only_here: bool,
+}
+
+/// Where tasks can live, and what to ask about the ones that exist only on this phone.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskSetup {
+    pub rev: u64,
+    /// The accounts whose To Do is kept in step, in the owner's order.
+    pub accounts: Vec<AccountRecord>,
+    /// Tasks that exist only on this phone and could be sent to an account's To Do. Nothing is
+    /// sent until the owner has said yes (`tasks.sendLocal`).
+    pub local_waiting: u32,
+    /// The owner has been asked and said "Not now" or yes (the question is then not asked
+    /// again, only offered).
+    pub answered: bool,
+    /// The account the owner sent their local tasks to, when they did.
+    pub sent_to: Option<u64>,
 }

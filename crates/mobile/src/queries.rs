@@ -26,7 +26,7 @@ use crate::{Core, CoreError};
 /// (two lists would merge); a task whose list has a longer one is left out of the lists.
 const MAX_LIST_ID: usize = 1024;
 
-fn bad(message: &str) -> CoreError {
+pub(crate) fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
 }
 
@@ -42,11 +42,11 @@ pub(crate) fn address(a: &Address) -> AddressRecord {
     AddressRecord { name: text::clip(&a.name, MAX_NAME), address: text::clip(&a.email, MAX_ADDRESS) }
 }
 
-fn categories(c: &[String]) -> Vec<String> {
+pub(crate) fn categories(c: &[String]) -> Vec<String> {
     text::first(c, MAX_CATEGORIES, |c| text::clip(c, MAX_NAME))
 }
 
-fn event_record(s: &Session, e: &Event, start: String, end: String) -> EventRecord {
+pub(crate) fn event_record(s: &Session, e: &Event, start: String, end: String) -> EventRecord {
     let color = s.mailbox.calendars.iter().find(|c| c.id == e.calendar).map_or(0, |c| rgb(c.color));
     EventRecord {
         event: e.id,
@@ -65,6 +65,23 @@ fn event_record(s: &Session, e: &Event, start: String, end: String) -> EventReco
     }
 }
 
+/// The most upcoming events Today lists, and how many days ahead it looks.
+const MAX_NEXT: usize = 10;
+const NEXT_DAYS: i64 = 7;
+
+/// What has not ended yet from now through the next week, in order (a day-long event of today
+/// counts until the day is over).
+fn next_events(s: &Session, today: Date) -> Vec<EventRecord> {
+    let now = s.local_now();
+    occurrences(s, today, today.add_days(NEXT_DAYS - 1))
+        .into_iter()
+        .take(text::MAX_OCCURRENCES)
+        .filter(|o| o.end > now && s.mailbox.event(o.event).is_some_and(|e| !e.cancelled))
+        .take(MAX_NEXT)
+        .filter_map(|o| s.mailbox.event(o.event).map(|e| event_record(s, e, o.start.iso(), o.end.iso())))
+        .collect()
+}
+
 fn events_between(s: &Session, from: Date, to: Date) -> Vec<EventRecord> {
     occurrences(s, from, to)
         .into_iter()
@@ -73,7 +90,7 @@ fn events_between(s: &Session, from: Date, to: Date) -> Vec<EventRecord> {
         .collect()
 }
 
-fn task_record(t: &Task) -> TaskRecord {
+pub(crate) fn task_record(t: &Task) -> TaskRecord {
     TaskRecord {
         id: t.id,
         title: text::clip(&t.title, MAX_TITLE),
@@ -278,7 +295,8 @@ impl Core {
             let counts = s.folder_counts();
             let unread =
                 s.mailbox.folders.iter().filter(|f| f.kind == FolderKind::Inbox).map(|f| counts.unread(f.id)).fold(0usize, usize::saturating_add);
-            Ok(TodayRecord { rev: s.rev(), date: today.iso(), events, tasks, unread: text::count_of(unread) })
+            let next_events = next_events(s, today);
+            Ok(TodayRecord { rev: s.rev(), date: today.iso(), events, next_events, tasks, unread: text::count_of(unread) })
         })
         .await
     }

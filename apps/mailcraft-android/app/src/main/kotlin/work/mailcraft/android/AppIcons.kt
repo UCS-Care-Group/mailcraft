@@ -151,6 +151,14 @@ internal object AppIcons {
         }
     }
 
+    /** A plus, for making a new task. */
+    val Add: ImageVector by lazy {
+        icon("Add") {
+            line(12f, 5f, 12f, 19f)
+            line(5f, 12f, 19f, 12f)
+        }
+    }
+
     /** A pointing chevron, for a row that opens another page. */
     val Next: ImageVector by lazy {
         icon("Next") {

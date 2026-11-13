@@ -36,7 +36,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** Everything the shell draws, as plain values: it reads no core and no system service. */
+/**
+ * Everything the shell draws, as plain values: it reads no core and no system service. A bag of
+ * what the screens show, so it has a field for each.
+ */
+@Suppress("LongParameterList")
 internal class ShellData(
     val accounts: List<AccountItem>,
     val folderName: String,
@@ -45,12 +49,17 @@ internal class ShellData(
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
+    val today: TodayState = TodayState.Loading,
+    val people: PeopleData = PeopleData("", PeopleState.Loading),
+    val tasks: TasksData = TasksData(TasksState.Loading),
 )
 
 /** What the shell asks of the app. */
 internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
+    val people: PeopleActions = PeopleActions(),
+    val tasks: TasksActions = TasksActions(),
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -115,12 +124,40 @@ internal fun AppShell(
                 onTab = { nav = nav.select(it) },
                 onMenu = { scope.launch { drawer.open() } },
             ) { modifier ->
-                when (nav.tab) {
-                    Tab.Mail -> InboxScreen(texts, data.mail, modifier)
-                    else -> Centered(texts.t("Pending development"), modifier)
-                }
+                TabContent(texts, nav.tab, data, actions, modifier) { nav = it }
             }
         }
+    }
+}
+
+/** What the tab on show draws. Today's cards open the tab of what they show. */
+@Composable
+private fun TabContent(
+    texts: Texts,
+    tab: Tab,
+    data: ShellData,
+    actions: ShellActions,
+    modifier: Modifier,
+    go: (NavState) -> Unit,
+) {
+    when (tab) {
+        Tab.Today -> TodayScreen(
+            texts,
+            data.today,
+            TodayActions(
+                onMail = { go(NavState(tab = Tab.Mail)) },
+                onEvent = { go(NavState(tab = Tab.Calendar)) },
+                onTask = {
+                    actions.tasks.onOpen(it)
+                    go(NavState(tab = Tab.Tasks))
+                },
+            ),
+            modifier,
+        )
+        Tab.Mail -> InboxScreen(texts, data.mail, modifier)
+        Tab.People -> PeopleScreen(texts, data.people, actions.people, modifier)
+        Tab.Tasks -> TasksScreen(texts, data.tasks, actions.tasks, modifier)
+        Tab.Calendar -> Centered(texts.t("Pending development"), modifier)
     }
 }
 

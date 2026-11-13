@@ -28,6 +28,7 @@ mod core;
 mod error;
 mod events;
 mod message;
+mod people_tasks;
 mod platform;
 mod queries;
 mod queue;
@@ -40,6 +41,8 @@ mod fake_tests;
 mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
+mod people_tasks_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
