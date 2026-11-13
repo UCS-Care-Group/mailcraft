@@ -166,7 +166,7 @@ fn a_mark_made_while_another_mark_of_the_message_goes_up_has_a_run_of_its_own_at
     assert!(!app.syncing());
     assert_eq!(app.waiting_to_go(ada), 1, "the flag still waits");
     // It is not something the server turned down: the next look starts a run for it.
-    app.push_checked = 0.0;
+    app.session.driver.round.push_checked = 0.0;
     app.auto_sync();
     app.auto_sync();
     let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
@@ -176,7 +176,7 @@ fn a_mark_made_while_another_mark_of_the_message_goes_up_has_a_run_of_its_own_at
     tx.send(last(&job, JmapMailResult { whole: true, ..Default::default() })).unwrap();
     app.poll_sync();
     assert_eq!(app.waiting_to_go(ada), 1);
-    app.push_checked = 0.0;
+    app.session.driver.round.push_checked = 0.0;
     app.auto_sync();
     app.auto_sync();
     assert!(taken(&jobs).is_empty());

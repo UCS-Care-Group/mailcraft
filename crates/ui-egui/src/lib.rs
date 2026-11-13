@@ -1635,27 +1635,12 @@ pub struct MailApp {
     /// being handled: a password's eye doesn't answer it (#438), and what it selects in a message
     /// isn't put in the primary selection (`reading::select::settle`, `compose::editor`).
     driven: bool,
-    /// When the last round that started by itself began (milliseconds; 0 before the first).
-    last_auto_sync: f64,
-    /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
-    sync_queue: std::collections::VecDeque<(Id, bool)>,
-    /// Accounts whose Inbox pass is still to come, at the start of a round, and whether nobody
-    /// asked for it (#276).
-    inbox_queue: std::collections::VecDeque<(Id, bool)>,
     /// The account whose Inbox pass is under way.
     inbox_run: Option<Id>,
     /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
     inbox_check: inbox_pass::InboxCheck,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
-    /// When it was last looked whether something made here waits to go to a server (milliseconds).
-    push_checked: f64,
-    /// Accounts whose next run that nobody asked for only tells the server what changed here
-    /// (the quick way out for a read mark or a move), bringing nothing down.
-    push_only_next: std::collections::HashSet<Id>,
-    /// Per account: how much was still waiting after its last Send/Receive, and when that was.
-    /// What a server refuses keeps waiting, and must not start a run every few seconds.
-    push_seen: std::collections::HashMap<Id, (usize, f64)>,
     /// How many changes the server made in the JMAP run under way, as its pieces said so far.
     jmap_made: usize,
     last_autosave: f64,
@@ -1867,15 +1852,9 @@ impl MailApp {
             overlay_scroll_bars: cfg!(target_os = "macos"),
             headless_shots: false,
             driven: false,
-            last_auto_sync: 0.0,
-            sync_queue: Default::default(),
-            inbox_queue: Default::default(),
             inbox_run: None,
             inbox_check: Default::default(),
             snooze_last: 0,
-            push_checked: 0.0,
-            push_only_next: Default::default(),
-            push_seen: Default::default(),
             jmap_made: 0,
             last_autosave: 0.0,
             draft_saved_at: None,
@@ -2664,8 +2643,8 @@ impl MailApp {
                 // round that was under way is called off with it.
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.pause_fetch();
-                self.sync_queue.clear();
-                self.inbox_queue.clear();
+                self.session.driver.round.queue.clear();
+                self.session.driver.round.inbox_queue.clear();
                 // (Nor does a run called off for something else go on after.)
                 if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
                     *called_off = false;
@@ -3232,14 +3211,14 @@ impl MailApp {
                     return Err(none());
                 }
                 // One run of them all, in this order: the rest wait their turn.
-                self.sync_queue = round.iter().map(|a| (*a, quiet)).collect();
+                self.session.driver.round.begin_round(&round, quiet);
                 self.session.sync_progress.begin(&round);
                 // The Inbox of every account kept in step through Graph comes first (#276).
                 self.queue_inbox_passes(&round, quiet);
                 if let Some(started) = self.start_next_inbox_pass() {
                     return Ok(started);
                 }
-                self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
+                self.session.driver.round.queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
         // A message an earlier run handed to the server, whose answer never came back, may have
@@ -3267,7 +3246,7 @@ impl MailApp {
         }
         let mut request = mailcraft_engine::cmd::account::sync_request(&self.session, account).map_err(|e| e.to_string())?;
         // A run that only tells the server what changed here, when that is all it was started for.
-        request.push_only = self.push_only_next.remove(&account) && quiet && request.outbox.is_empty();
+        request.push_only = self.session.driver.round.push_only_next.remove(&account) && quiet && request.outbox.is_empty();
         let address = request.account.email.clone();
         if let Some(oauth) = request.account.oauth.clone() {
             // Signed in on the provider's page: a token that is still good goes along; without
@@ -3469,15 +3448,15 @@ impl MailApp {
     /// What a server refused, or what waits on the owner, then doesn't start a run every few
     /// seconds ([`MailApp::auto_sync`]), whichever way the account is kept in step.
     pub(crate) fn note_pushed(&mut self, account: Id) {
-        self.push_seen.insert(account, (self.waiting_to_go(account), now_ms()));
+        let waiting = self.waiting_to_go(account);
+        self.session.driver.round.note_pushed(account, waiting, now_ms());
     }
 
     /// What waits to go from `account` is not what its last run left undone: the next look
     /// ([`MailApp::auto_sync`]) starts a run for it without the wait a refusal is given.
     pub(crate) fn push_again_soon(&mut self, account: Id) {
-        if self.waiting_to_go(account) > 0 {
-            self.push_seen.insert(account, (0, now_ms()));
-        }
+        let waiting = self.waiting_to_go(account);
+        self.session.driver.round.push_again_soon(account, waiting, now_ms());
     }
 
     /// The passwords and sign-ins in memory belong to the accounts of the mailbox they were given
@@ -3571,9 +3550,8 @@ impl MailApp {
         if self.session.driver.auto_sync()
             && self.syncing()
             && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
-            && now_ms() - self.push_checked >= 3_000.0
+            && self.session.driver.round.run_look_due(true, now_ms())
         {
-            self.push_checked = now_ms();
             if self.waiting_to_go(whose) > baseline {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.sync_run = Some((whose, Some(baseline), true, quiet));
@@ -3587,19 +3565,26 @@ impl MailApp {
         }
         // The round's Inbox passes come before anything else of it (#276); neither starts while
         // the calendar's job is at work for the account: it is a short wait.
-        if self.inbox_queue.front().is_some_and(|(account, _)| self.calendar_job_for(*account)) || self.start_next_inbox_pass().is_some() {
+        if self.session.driver.round.inbox_front_blocked(|account| self.calendar_job_for(account)) || self.start_next_inbox_pass().is_some() {
             return;
         }
-        if self.sync_queue.front().is_some_and(|(account, _)| self.calendar_job_for(*account)) {
-            return;
-        }
-        if let Some((account, quiet)) = self.sync_queue.pop_front() {
-            // An account that would have to ask, or can't start, is left out of the run.
-            let started = (!quiet || self.can_sync_quietly(account)) && self.start_sync(&json!({"account": account, "quiet": quiet})).is_ok();
-            if !started {
-                self.session.sync_progress.leave_out(account);
+        use mailcraft_engine::sync_driver::{Next, Waiting};
+        let next = {
+            // (The line is the engine's; whether an account's calendar job is at work is the window's.)
+            let front_busy = self.session.driver.round.queue.front().is_some_and(|(account, _)| self.calendar_job_for(*account));
+            self.session.driver.round.next(|_| front_busy)
+        };
+        match next {
+            Next::Wait => return,
+            Next::Start { account, quiet } => {
+                // An account that would have to ask, or can't start, is left out of the run.
+                let started = (!quiet || self.can_sync_quietly(account)) && self.start_sync(&json!({"account": account, "quiet": quiet})).is_ok();
+                if !started {
+                    self.session.sync_progress.leave_out(account);
+                }
+                return;
             }
-            return;
+            Next::Idle => {}
         }
         self.settle_progress();
         let minutes = f64::from(self.session.prefs.sync_minutes);
@@ -3607,28 +3592,20 @@ impl MailApp {
         // Something made here waits to go out (a message to send, a read mark, a move): it
         // doesn't wait for the next round. Looked at every few seconds; what didn't go through
         // last time is left for a few minutes unless there is more of it.
-        if self.session.driver.auto_sync() && now - self.push_checked >= 1_500.0 {
-            self.push_checked = now;
-            for account in self.server_accounts() {
-                let waiting = self.waiting_to_go(account);
-                let (seen, at) = self.push_seen.get(&account).copied().unwrap_or((0, 0.0));
-                if waiting > 0 && (waiting != seen || now - at > 300_000.0) && self.can_sync_quietly(account) {
-                    self.sync_queue.push_back((account, true));
-                    self.push_only_next.insert(account);
-                }
-            }
-            if !self.sync_queue.is_empty() {
-                let round: Vec<Id> = self.sync_queue.iter().map(|(a, _)| *a).collect();
+        if self.session.driver.round.push_look_due(self.session.driver.auto_sync(), now) {
+            let waiting: Vec<Waiting> =
+                self.server_accounts().into_iter().map(|account| Waiting { account, count: self.waiting_to_go(account) }).collect();
+            let due: Vec<Id> = self.session.driver.round.pushes_due(&waiting, now).into_iter().filter(|a| self.can_sync_quietly(*a)).collect();
+            if let Some(round) = self.session.driver.round.queue_pushes(&due) {
                 self.session.sync_progress.begin(&round);
                 return;
             }
         }
-        if !self.session.driver.auto_sync() || minutes == 0.0 || (self.last_auto_sync != 0.0 && now - self.last_auto_sync < minutes * 60_000.0) {
+        if !self.session.driver.round.round_due(self.session.driver.auto_sync(), minutes, now) {
             return;
         }
-        self.last_auto_sync = now;
-        self.sync_queue = self.server_accounts().into_iter().map(|a| (a, true)).collect();
-        let round: Vec<Id> = self.sync_queue.iter().map(|(a, _)| *a).collect();
+        let round = self.server_accounts();
+        self.session.driver.round.begin_auto_round(&round, now);
         if !round.is_empty() {
             self.session.sync_progress.begin(&round);
             self.queue_inbox_passes(&round, true);
@@ -3640,7 +3617,7 @@ impl MailApp {
     /// or a password that came to nothing): the run is over, and what never started is left out.
     fn settle_progress(&mut self) {
         use mailcraft_engine::cmd::sync_progress::RunState;
-        if !self.session.sync_progress.running() || !self.sync_queue.is_empty() || self.syncing() || self.graph_rx.is_some() {
+        if !self.session.sync_progress.running() || !self.session.driver.round.queue.is_empty() || self.syncing() || self.graph_rx.is_some() {
             return;
         }
         let rows: Vec<(Id, RunState)> = self.session.sync_progress.accounts.iter().map(|r| (r.account, r.state)).collect();
@@ -3788,9 +3765,9 @@ impl MailApp {
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
             && let Some((whose, _, true, quiet)) = self.sync_run.take()
-            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+            && !self.session.driver.round.queue.iter().any(|(a, _)| *a == whose)
         {
-            self.sync_queue.push_front((whose, quiet));
+            self.session.driver.round.queue.push_front((whose, quiet));
         }
         let streamed = std::mem::take(&mut self.graph_pieces_taken) > 0;
         let after_sign_in = self.graph_after_sign_in.take() == Some(account);
@@ -4285,11 +4262,9 @@ impl MailApp {
         if self.sync_running_account() == Some(account) || row == Some(RunState::Running) {
             return Err(i18n::fmt(tl!("{name} is being sent and received now. Use Stop."), &[("name", &name)]));
         }
-        if !self.sync_queue.iter().any(|(a, _)| *a == account) {
+        if !self.session.driver.round.skip(account) {
             return Err(i18n::fmt(tl!("{name} isn't waiting its turn in a Send/Receive"), &[("name", &name)]));
         }
-        self.sync_queue.retain(|(a, _)| *a != account);
-        self.push_only_next.remove(&account);
         self.session.sync_progress.skip(account);
         Ok(json!({"skipped": account}))
     }
@@ -4426,7 +4401,7 @@ impl MailApp {
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, quiet));
+                self.session.driver.round.queue.push_front((whose, quiet));
             }
             let totals = std::mem::take(&mut self.sync_totals);
             if std::mem::take(&mut self.sync_refused) {
@@ -4727,7 +4702,7 @@ impl MailApp {
         self.collect_screenshots();
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
+        if !self.synthetic.is_empty() || waiting || !self.session.driver.round.queue.is_empty() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
         } else if self.session.driver.auto_sync()
             && self.services.can_sync()

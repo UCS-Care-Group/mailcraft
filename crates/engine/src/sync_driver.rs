@@ -39,6 +39,9 @@ pub mod offline;
 mod offline_tests;
 #[cfg(test)]
 mod reset_tests;
+pub mod round;
+#[cfg(test)]
+mod round_tests;
 pub mod rules;
 #[cfg(test)]
 mod rules_tests;
@@ -58,6 +61,7 @@ pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use free_busy::FreeBusyDriver;
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+pub use round::{Next, PUSH_LOOK_MS, PUSH_RETRY_MS, RUN_LOOK_MS, RoundDriver, Waiting};
 pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
 pub use sending::{GateStep, Pressed, SendingDriver};
 pub use tasks::{TasksCame, TasksDriver, TasksFacts};
@@ -423,6 +427,8 @@ pub struct Driver {
     /// What is marked as being sent, and the shared mailboxes whose Outbox waits for the
     /// permission to send from them.
     pub sending: SendingDriver,
+    /// The Send/Receive round: who waits their turn, when the next round is due.
+    pub round: RoundDriver,
     /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
     /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
     auto_sync_off: bool,
@@ -434,7 +440,9 @@ impl Driver {
     /// What the host set is not the mailbox's, and stays.
     pub fn reset(&mut self) {
         let auto_sync_off = self.auto_sync_off;
-        *self = Driver { auto_sync_off, ..Driver::default() };
+        let mut round = std::mem::take(&mut self.round);
+        round.reset();
+        *self = Driver { auto_sync_off, round, ..Driver::default() };
     }
 
     /// Accounts were removed: nothing of theirs is kept, whatever job it was for (an account
@@ -448,6 +456,7 @@ impl Driver {
         self.auto_replies.forget_accounts(gone);
         self.free_busy.forget_accounts(gone);
         self.sending.forget_accounts(gone);
+        self.round.forget_accounts(gone);
     }
 
     /// Whether jobs start by themselves: on unless the host turned it off ([`Driver::set_auto_sync`]).
