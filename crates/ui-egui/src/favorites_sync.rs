@@ -36,10 +36,8 @@ use serde_json::{Value, json};
 
 use crate::{GraphResult, MailApp, now_ms};
 
-/// How often an account's Favorites are read at most (milliseconds), and for how long the
-/// server is left alone after it said the sign-in doesn't cover them.
-const EVERY_MS: f64 = 900_000.0;
-const DAY_MS: f64 = 86_400_000.0;
+// How often an account's Favorites are read at most, and for how long the server is left alone
+// after it said the sign-in doesn't cover them, is the engine's ([`mailcraft_engine::sync_driver`]).
 /// What a sign-in for the Favorites says when it is not the owner's to turn into a yes: an
 /// administrator of the organisation has to approve it first; the organisation doesn't have it
 /// at all; this kind of account has no such permission. The host answers a
@@ -218,9 +216,8 @@ impl MailApp {
     fn favorites_are_due(&self, account: Id, now: f64, asked_for: bool) -> bool {
         let owner = self.favorites.due.contains(&account);
         // Told that the sign-in doesn't cover them: not again that day, unless the owner asks.
-        let refused = self.favorites.missing.get(&account).is_some_and(|at| (0.0..DAY_MS).contains(&(now - at)));
-        let due = owner || asked_for || self.favorites.asked.get(&account).is_none_or(|at| now - at >= EVERY_MS || now < *at);
-        due && (owner || !refused)
+        let refused_at = self.favorites.missing.get(&account).copied();
+        mailcraft_engine::sync_driver::favorites_due(owner, asked_for, self.favorites.asked.get(&account).copied(), refused_at, now)
     }
 
     /// Whether a Graph job for `account` that starts at `now` reads the Favorites (and so asks

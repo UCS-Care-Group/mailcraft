@@ -26,11 +26,62 @@ impl Pacing {
     /// The To Do job's: read every few minutes, a change goes after three quiet seconds.
     pub const TASKS: Pacing = Pacing { refresh_ms: 5.0 * 60_000.0, quiet_ms: 3_000.0, first_retry_ms: 30_000.0, longest_retry_ms: 15.0 * 60_000.0 };
 
+    /// The calendar's: a change goes at once (it is on the server as soon as it is in Outlook), a
+    /// look every five minutes while the calendar is behind ([`calendar_every_ms`]), and after a
+    /// failure this long, twice as long after each one more, never more than ten minutes.
+    pub const CALENDAR: Pacing = Pacing { refresh_ms: 300_000.0, quiet_ms: 0.0, first_retry_ms: 30_000.0, longest_retry_ms: 600_000.0 };
+
     /// How long to wait after `failures` failures in a row: the first wait, doubled for each
     /// further failure (at most eight doublings), and never more than the longest.
     pub fn patience_ms(&self, failures: u32) -> f64 {
         (self.first_retry_ms * f64::from(1u32 << failures.saturating_sub(1).min(8))).min(self.longest_retry_ms)
     }
+}
+
+/// How long the fetch of whole messages waits before looking again when there was nothing to fetch.
+pub const FETCH_IDLE_MS: f64 = 20_000.0;
+/// The longest it waits after batches that brought nothing, one after another.
+pub const FETCH_MOST_IDLE_MS: f64 = 15.0 * 60_000.0;
+
+/// How long the fetch of whole messages waits after `stuck` batches one after another brought
+/// nothing: [`FETCH_IDLE_MS`], doubling each time, at most [`FETCH_MOST_IDLE_MS`].
+pub fn fetch_backoff_ms(stuck: u32) -> f64 {
+    (FETCH_IDLE_MS * 2f64.powi(i32::try_from(stuck.min(10)).unwrap_or(10))).min(FETCH_MOST_IDLE_MS)
+}
+
+/// How often the calendar is asked for while it is in front of the owner (milliseconds).
+pub const CALENDAR_IN_FRONT_MS: f64 = 30_000.0;
+/// How often it is asked for while a change that was just sent is yet to be seen on the server.
+pub const CALENDAR_RECHECK_MS: f64 = 10_000.0;
+/// How often the wide stretch of the calendar and the contacts are brought down.
+pub const CALENDAR_DIRECTORY_MS: f64 = 900_000.0;
+/// How often the working hours the mailbox has set are asked for: they change when the owner
+/// changes them in the mailbox's settings, which is seldom.
+pub const CALENDAR_SETTINGS_MS: f64 = 3_600_000.0;
+
+/// How often an account's calendar is asked for: soon after a change that isn't seen on the
+/// server yet (`unseen`), else more often while the calendar is in front of the owner.
+pub fn calendar_every_ms(unseen: bool, in_front: bool) -> f64 {
+    match (unseen, in_front) {
+        (true, _) => CALENDAR_RECHECK_MS,
+        (false, true) => CALENDAR_IN_FRONT_MS,
+        (false, false) => Pacing::CALENDAR.refresh_ms,
+    }
+}
+
+/// How often an account's Favorites are read when nothing asks for them sooner (milliseconds).
+pub const FAVORITES_EVERY_MS: f64 = 900_000.0;
+/// How long an account whose server said the sign-in doesn't cover the Favorites is left alone.
+pub const FAVORITES_REFUSED_MS: f64 = 86_400_000.0;
+
+/// Whether an account's Favorites are due at `now`: the owner asked (`owner`, from a click, or
+/// `asked_for`, a Send/Receive), or a quarter of an hour has gone by since `last` (or the clock
+/// went back), and the server didn't say, within the day before (`refused_at`), that the sign-in
+/// doesn't cover them: only the owner's own ask overrides that.
+pub fn favorites_due(owner: bool, asked_for: bool, last: Option<f64>, refused_at: Option<f64>, now: f64) -> bool {
+    let refused = refused_at.is_some_and(|at| (0.0..FAVORITES_REFUSED_MS).contains(&(now - at)));
+    let due = owner || asked_for || last.is_none_or(|at| now - at >= FAVORITES_EVERY_MS || now < at);
+    due && (owner || !refused)
 }
 
 /// How many times a job tries again, quietly, when the owner has just allowed what it needs and
@@ -49,7 +100,7 @@ pub struct JobBook {
 impl JobBook {
     /// Note that `account` has `ready` changes waiting at `now`, and say whether the account's job
     /// is due: changes that have waited out the quiet time, or nothing asked for since the refresh
-    /// time, and not within the wait a failure asks for.
+    /// time, and, after a failure, the wait it asks for decides alone.
     pub fn due(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
         let since = match self.waiting.get(&account) {
             Some((seen, since)) if *seen == ready => *since,
@@ -58,13 +109,15 @@ impl JobBook {
                 now
             }
         };
+        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
+        if failures > 0 {
+            // After a failure the back-off alone decides: it is the retry, so the refresh time
+            // (counted from the failed check) is not waited out on top of it.
+            return now - at >= pacing.patience_ms(failures);
+        }
         let pushes = ready > 0 && now - since >= pacing.quiet_ms;
         let asked = self.checked.get(&account).copied();
-        if !(pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)) {
-            return false;
-        }
-        let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
-        !(failures > 0 && now - at < pacing.patience_ms(failures))
+        pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)
     }
 
     /// A job for `account` was started at `now`.

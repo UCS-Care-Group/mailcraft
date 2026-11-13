@@ -27,6 +27,7 @@ mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-assuan = { path = "crates/assuan" }
+mailcraft-jmap-types = { path = "crates/jmap-types" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
 mailcraft-ews = { path = "crates/ews" }
