@@ -1156,6 +1156,12 @@ msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "Une adresse sans domaine."
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -13313,6 +13319,12 @@ msgstr ""
 #, fuzzy
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
 msgstr "L'expéditeur utilise votre nom, mais ce message vient de {real}, qui n'est pas l'une de vos adresses."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "L'adresse de l'expéditeur est sur {domain}, une adresse internet sans nom de domaine : les vraies organisations envoient rarement depuis ce genre d'adresse."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

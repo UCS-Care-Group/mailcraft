@@ -62,7 +62,8 @@ pub const BRANDS: &[Brand] = &[
     // `p=reject`; the top-level `.google` is Google's.
     Brand { name: "Google", domains: &["google.com"], own_top_level: true, common_word: false },
     // Its stores' domains and Prime Video's, each with `p=quarantine`; the top-level `.amazon` is
-    // Amazon's.
+    // Amazon's. Amazon is a river too. AWS's `verificationemail.com` stays out: it is Amazon
+    // Cognito's default sender for every AWS customer's own app, so its mail isn't Amazon's.
     Brand {
         name: "Amazon",
         domains: &[
@@ -92,13 +93,13 @@ pub const BRANDS: &[Brand] = &[
             "primevideo.com",
         ],
         own_top_level: true,
-        common_word: false,
+        common_word: true,
     },
     // `linkedin.com`, with `p=reject`.
     Brand { name: "LinkedIn", domains: &["linkedin.com"], own_top_level: false, common_word: false },
-    // Dropbox's site and `dropboxmail.com`, whose site sends a visitor on to Dropbox's; both with
-    // `p=reject`.
-    Brand { name: "Dropbox", domains: &["dropbox.com", "dropboxmail.com"], own_top_level: false, common_word: false },
+    // Dropbox's site, `dropboxmail.com`, and Dropbox Sign's `hellosign.com`, whose sites send a
+    // visitor on to Dropbox's; each with `p=reject`.
+    Brand { name: "Dropbox", domains: &["dropbox.com", "dropboxmail.com", "hellosign.com"], own_top_level: false, common_word: false },
     // Facebook's site, and `facebookmail.com`, which its notifications come from and whose site
     // sends a visitor to Facebook's help; both with `p=reject`.
     Brand { name: "Facebook", domains: &["facebook.com", "facebookmail.com"], own_top_level: false, common_word: false },
@@ -110,8 +111,8 @@ pub const BRANDS: &[Brand] = &[
     // `.youtube` is YouTube's.
     Brand { name: "YouTube", domains: &["youtube.com", "google.com"], own_top_level: true, common_word: false },
     // Adobe's site, and Acrobat Sign's `adobesign.com` and `echosign.com`, whose sites send a
-    // visitor on to Adobe's; each with `p=reject`.
-    Brand { name: "Adobe", domains: &["adobe.com", "adobesign.com", "echosign.com"], own_top_level: false, common_word: false },
+    // visitor on to Adobe's; each with `p=reject`. Adobe is also a building material.
+    Brand { name: "Adobe", domains: &["adobe.com", "adobesign.com", "echosign.com"], own_top_level: false, common_word: true },
     // The domains of its country sites that send mail, each sending a visitor on to `paypal.com`
     // and each with `p=reject`. PayPal's help pages give `service@paypal.com` as the address its
     // mail comes from.
@@ -146,10 +147,69 @@ pub const BRANDS: &[Brand] = &[
     Brand { name: "OpenAI", domains: &["openai.com", "chatgpt.com"], own_top_level: false, common_word: false },
 ];
 
+/// What a brand's own mail says after its name ("Apple Support", "Amazon Prime"), in lower case:
+/// a brand whose name is also an ordinary word is only compared when the word after it is one of
+/// these ("Apple Valley" and "Tesla Jones" are somebody else).
+pub const SERVICE_WORDS: &[&str] = &[
+    "account",
+    "accounts",
+    "admin",
+    "alert",
+    "alerts",
+    "billing",
+    "business",
+    "care",
+    "center",
+    "centre",
+    "cloud",
+    "customer",
+    "delivery",
+    "help",
+    "helpdesk",
+    "id",
+    "info",
+    "login",
+    "mail",
+    "news",
+    "noreply",
+    "notification",
+    "notifications",
+    "online",
+    "order",
+    "orders",
+    "pay",
+    "payment",
+    "payments",
+    "prime",
+    "refund",
+    "refunds",
+    "rewards",
+    "security",
+    "seller",
+    "service",
+    "services",
+    "shop",
+    "sign",
+    "store",
+    "support",
+    "team",
+    "update",
+    "updates",
+    "verification",
+    "verify",
+];
+
+/// Each brand with its name as its skeleton, worked out once.
+pub fn with_skeletons() -> impl Iterator<Item = (&'static Brand, &'static str)> {
+    static SKELETONS: std::sync::LazyLock<Vec<String>> =
+        std::sync::LazyLock::new(|| BRANDS.iter().map(|b| crate::confusables::skeleton(b.name)).collect());
+    BRANDS.iter().zip(SKELETONS.iter().map(String::as_str))
+}
+
 /// The brand whose name `word` is, read as its skeleton (so `P\u{430}yPal` is PayPal).
 pub fn named(word: &str) -> Option<&'static Brand> {
     let word = crate::confusables::skeleton(word);
-    BRANDS.iter().find(|b| crate::confusables::skeleton(b.name) == word)
+    with_skeletons().find(|(_, theirs)| *theirs == word).map(|(b, _)| b)
 }
 
 impl Brand {

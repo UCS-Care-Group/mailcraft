@@ -111,6 +111,14 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
             tl!("The name is another domain.").to_string(),
             fill(tl!("The sender's name shows {shown}, but the message came from {real}."), &[("shown", &short(shown)), ("real", &real)]),
         ),
+        // An address literal (`x@[192.0.2.1]`, RFC 5321) is allowed, just not a domain.
+        Warning::MadeUpDomain { domain } if domain.starts_with('[') => (
+            tl!("An address with no domain.").to_string(),
+            fill(
+                tl!("The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."),
+                &[("domain", &short(domain))],
+            ),
+        ),
         Warning::MadeUpDomain { domain } => (
             tl!("A made-up domain.").to_string(),
             fill(
@@ -265,7 +273,8 @@ pub(super) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
 }
 
 /// Whether `m`'s row in the list wears the warning mark: a warning, not a caution (the server
-/// says its checks failed, or its name hides another address). Worked out for the rows on screen, without reading bodies.
+/// says its checks failed, its name hides another address, or it names a brand whose domains
+/// the sender's isn't one of). Worked out for the rows on screen, without reading bodies.
 pub(crate) fn row_mark(app: &mut MailApp, m: &Message) -> bool {
     app.session.sender_warnings(m, false).iter().any(|w| w.level() == Level::Warning)
 }

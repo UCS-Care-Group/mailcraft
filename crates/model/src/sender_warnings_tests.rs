@@ -735,6 +735,18 @@ fn a_brands_own_mail_gives_no_warning() {
         ("Amazon.com.tr", "siparis@amazon.com.tr"),
         ("LinkedIn", "messages-noreply@linkedin.com"),
         ("Dropbox", "no-reply@dropboxmail.com"),
+        ("Dropbox Sign", "noreply@mail.hellosign.com"),
+        ("Dropbox", "no-reply@dropbox.com"),
+        ("Facebook", "notification@facebook.com"),
+        ("WhatsApp", "no-reply@facebookmail.com"),
+        ("YouTube", "noreply@google.com"),
+        ("Adobe", "message@adobe.com"),
+        ("Adobe Acrobat Sign", "echosign@echosign.com"),
+        ("Microsoft Office", "no-reply@office.com"),
+        ("Microsoft Office 365", "no-reply@office365.com"),
+        ("Microsoft Online Services", "msonlineservicesteam@microsoftonline.com"),
+        ("PayPal", "service@paypal.co.uk"),
+        ("PayPal", "service@paypal.com.au"),
         ("Facebook", "security@facebookmail.com"),
         ("WhatsApp", "no-reply@whatsapp.com"),
         ("Tesla", "noreply@tesla.com"),
@@ -752,6 +764,45 @@ fn a_brands_own_mail_gives_no_warning() {
 fn words_that_are_not_a_brands_name_give_no_warning() {
     for name in ["Amazonas Coffee", "Paypalooza Festival", "Micro Soft Toys", "Maya Okafor", "DH Lawrence"] {
         assert!(!kinds(&from(name, "hello@coffee.example")).contains(&"brandName"), "{name}");
+    }
+}
+
+#[test]
+fn honest_mail_that_names_a_brand_gives_no_warning() {
+    for (name, sender) in [
+        // Bounces: Outlook.com's, and Microsoft 365's from a tenant's own name.
+        ("Microsoft Outlook", "postmaster@outlook.com"),
+        ("Microsoft Outlook", "postmaster@contoso.onmicrosoft.com"),
+        ("Mail Delivery Subsystem", "mailer-daemon@gmail.com"),
+        // A known address, at a public mail provider too (`facts` knows Sam's).
+        ("Sam Friend (Microsoft MVP)", "friend@gmail.com"),
+        // People and places whose name is a brand's word.
+        ("Tesla Jones", "tesla.jones@gmail.com"),
+        ("Apple Valley", "news@applevalley.example"),
+        ("Amazon Rainforest Trust", "hello@rainforest.example"),
+        ("Adobe Realty", "homes@realty.example"),
+        // AWS's Cognito sender is every AWS customer's, so it isn't Amazon's: three words.
+        ("Amazon Web Services", "no-reply@verificationemail.com"),
+        ("Micro Soft Toys", "hello@toys.example"),
+        ("Open Air Cinema", "tickets@cinema.example"),
+    ] {
+        let found = kinds(&from(name, sender));
+        assert!(!found.contains(&"brandName"), "{name} <{sender}>: {found:?}");
+    }
+    // A bounce address at a domain of anybody's own is still looked at.
+    assert!(kinds(&from("Microsoft Outlook", "postmaster@account-alerts.example")).contains(&"brandName"));
+    // Somebody unknown at the same provider is not Sam.
+    assert!(kinds(&from("Sam Friend (Microsoft MVP)", "sam.friend@gmail.com")).contains(&"brandName"));
+}
+
+#[test]
+fn every_brand_a_name_names_is_looked_at_and_run_together_names_too() {
+    // Google owns google.com, but not PayPal's name: Google Forms sends under any name.
+    let found = warnings(&from("Google PayPal Team", "forms-receipts-noreply@google.com"));
+    assert!(found.contains(&Warning::BrandName { brand: "PayPal".into(), domain: "google.com".into() }), "{found:?}");
+    for (name, brand) in [("Microsoft365", "Microsoft"), ("PayPalService", "PayPal"), ("Pay Pal", "PayPal"), ("AppleSupport", "Apple")] {
+        let found = warnings(&from(name, "help@account-alerts.example"));
+        assert!(found.iter().any(|w| matches!(w, Warning::BrandName { brand: b, .. } if b == brand)), "{name}: {found:?}");
     }
 }
 
@@ -775,7 +826,6 @@ fn a_domain_made_to_look_like_a_brands_is_a_caution() {
         ("x@paypa1.example", "PayPal"),
         ("x@rnicrosoft.example", "Microsoft"),
         ("x@microsoft-support.example", "Microsoft"),
-        ("x@amazom.example", "Amazon"),
         ("x@linkedln.example", "LinkedIn"),
         ("x@g00gle.example", "Google"),
         ("x@dropbox-share.example", "Dropbox"),
@@ -798,9 +848,21 @@ fn a_domain_made_to_look_like_a_brands_is_a_caution() {
 fn a_domain_far_from_a_brands_is_no_lookalike() {
     // Two characters away, a short name one character away, a public mail provider, a brand's own.
     // A name one letter from a short brand's (`abode`, `adobe`) is a word.
-    for sender in
-        ["x@amazonia.example", "x@abobe.example", "x@gmail.com", "x@email.microsoft.com", "x@paypal.co.uk", "x@lumen.example", "x@youtube.com"]
-    {
+    // Real companies one letter from a brand of fewer than 8 letters: a farm machinery maker,
+    // a Japanese payment service, a word and an audio library.
+    for sender in [
+        "x@amazonia.example",
+        "x@abobe.example",
+        "x@gmail.com",
+        "x@email.microsoft.com",
+        "x@paypal.co.uk",
+        "x@lumen.example",
+        "x@youtube.com",
+        "x@amazone.de",
+        "x@paypay.ne.jp",
+        "x@goggle.com",
+        "x@openal.org",
+    ] {
         assert!(!kinds(&from("Someone", sender)).contains(&"brandLookalike"), "{sender}");
     }
 }
@@ -824,6 +886,12 @@ fn a_name_that_is_the_senders_domain_or_no_domain_is_none() {
         ("J.Smith", "j@mailer.example"),
         ("Dr.No", "x@mailer.example"),
         ("Maya Okafor", "maya@mailer.example"),
+        // First and last names written with a dot.
+        ("Wei.Li", "wei@mailer.example"),
+        ("Tom.Ng", "tom@mailer.example"),
+        ("Anh.Vu", "anh@mailer.example"),
+        // A brand's mail from `<brand>mail.com`.
+        ("Expedia.com", "noreply@ind.expediamail.com"),
     ] {
         assert!(!kinds(&from(name, sender)).contains(&"domainInName"), "{name}");
     }
@@ -836,7 +904,26 @@ fn a_machine_made_name_is_told_from_words() {
     for name in ["k7x9q2w8", "bxkrtzqw", "zq3x8p1v", "lmnbvcxz-shop"] {
         assert!(machine_made(name), "{name}");
     }
-    for name in ["lumen", "harborworks", "schwarzkopf", "web2print", "1und1", "rsgsv", "mp3store", "strengths", "xn--bcher-kva", "bücher"] {
+    for name in [
+        "lumen",
+        "harborworks",
+        "schwarzkopf",
+        "web2print",
+        "1und1",
+        "rsgsv",
+        "mp3store",
+        "strengths",
+        "xn--bcher-kva",
+        "bücher",
+        // `ch`, `sh`, `th`, `ph`, `ck` and `sch` are one sound each.
+        "nightschool",
+        "catchphrase",
+        "lengthscale",
+        "rechtsschutz",
+        // Two digits among letters.
+        "web2print4you",
+        "b2b2c",
+    ] {
         assert!(!machine_made(name), "{name}");
     }
 }
@@ -849,6 +936,9 @@ fn a_made_up_or_impossible_domain_is_a_caution() {
         assert!(found.iter().any(|w| matches!(w, Warning::MadeUpDomain { .. })), "{sender}");
         assert_eq!(banner_level(&found), Some(Level::Caution), "{sender}");
     }
+    // An address literal (RFC 5321) is no domain: the window says so in its own words.
+    let found = warnings(&from("Someone", "x@[192.0.2.1]"));
+    assert!(found.iter().any(|w| matches!(w, Warning::MadeUpDomain { domain } if domain.starts_with('['))), "{found:?}");
     // Not for a domain the owner corresponds with.
     let mut b = FactsBuilder::default().accounts([&imap("avery@lumen.example", "Avery Quinn")]);
     b.known("ops@k7x9q2w8.example", "");

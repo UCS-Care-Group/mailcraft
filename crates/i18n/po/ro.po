@@ -1205,6 +1205,12 @@ msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this
 msgstr "Un certificat X.509 (.cer, .pem) sau o cheie publică OpenPGP (.asc) a acestei persoane de contact"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "O adresă fără domeniu."
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -14149,6 +14155,12 @@ msgstr "Mesajul selectat, ca .eml"
 #, fuzzy
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
 msgstr "Expeditorul folosește numele dvs., dar acest mesaj a venit de la {real}, care nu este una dintre adresele dvs."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "Adresa expeditorului este la {domain}, o adresă de internet fără nume de domeniu: organizațiile reale trimit rar de la una ca aceasta."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
