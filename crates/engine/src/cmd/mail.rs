@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(can_collapse)
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).reads().params(r#"{"id"?: number} (default: the selected message). An `id` or `ids` that names nothing (null, text, 0, a fraction) is refused"#),
-        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
+        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "sent" | "Inbox/Projects", "account"?: number, "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it. `folder` is an id, a standard folder's kind (inbox, drafts, sent, deleted, junk, archive, outbox) in any language of the mailbox, of `account` or else the account in view, or a path; digits that name no folder are an id. A kind comes before a folder of that name, which is still reached by its id or by a path with its parent"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.deletePermanently", "Delete Permanently", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
@@ -637,15 +637,10 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     if !looks_elsewhere {
         return list_in_view(s, limit);
     }
+    // (An id, a standard folder's kind in any language of the mailbox, or a path, #1200.)
     let folder = match v.get("folder").filter(|f| !f.is_null()) {
         None => s.view.folder,
-        Some(f) => match f.as_u64() {
-            Some(id) => s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?,
-            None => {
-                let path = f.as_str().unwrap_or("");
-                super::folder::by_path(s, None, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
-            }
-        },
+        Some(f) => super::folder::named(s, f, p::id(v, "account"))?,
     };
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());

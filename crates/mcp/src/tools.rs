@@ -238,9 +238,9 @@ pub fn tool_definitions() -> Value {
         tool(
             "list_messages",
             "List messages",
-            "The message list of a folder (by id, or by path such as \"Inbox/Projects\"), newest first, optionally narrowed by a search (from:, subject:, has:attachment, is:unread, before:/after:YYYY-MM-DD…).",
+            "The message list of a folder, newest first, optionally narrowed by a search (from:, subject:, has:attachment, is:unread, before:/after:YYYY-MM-DD…). The folder is an id, a standard folder's kind (inbox, sent, drafts, deleted, junk, archive, outbox), which works whatever the mailbox's language calls it, or a path of the folders' names as list_folders shows them, such as \"Inbox/Projects\". A kind is of the account that account names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or by its full path.",
             obj(
-                json!({"folder": s("Folder path or id (default: the folder in view)"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
+                json!({"folder": s("Folder id, kind (inbox, sent, drafts, deleted, junk, archive, outbox) or path (default: the folder in view)"), "account": n("Whose folder a kind means (default: the account in view); list_folders says each account's id"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
                 &[]
             ),
             true
@@ -483,6 +483,10 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             let mut params = json!({"query": st("query").unwrap_or(""), "limit": a.get("limit").and_then(Value::as_u64).unwrap_or(50)});
             if let Some(folder) = a.get("folder").filter(|v| !v.is_null()) {
                 params["folder"] = folder.clone();
+            }
+            // Whose Sent Items a kind means, when the agent doesn't want the account in view (#1200).
+            if let Some(account) = a.get("account").filter(|v| !v.is_null()) {
+                params["account"] = account.clone();
             }
             wrap(exec(b, "mail.list", params))
         }

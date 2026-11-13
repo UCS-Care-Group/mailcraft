@@ -17,10 +17,13 @@ mailcraft-cli — MailCraft from the command line
 USAGE:
   mailcraft-cli info <mailbox>                  accounts and counts (JSON)
   mailcraft-cli folders <mailbox>               the folder tree with counts (JSON)
-  mailcraft-cli list <mailbox> [--folder PATH] [--query Q] [--limit N]
-                                                messages, newest first (JSON)
+  mailcraft-cli list <mailbox> [--folder FOLDER] [--query Q] [--limit N]
+                                                messages, newest first (JSON); FOLDER is an id,
+                                                a kind (inbox, sent, drafts, deleted, junk,
+                                                archive, outbox) in any language of the mailbox,
+                                                or a path such as Inbox/Projects
   mailcraft-cli show <mailbox> <id>             one message in full (JSON)
-  mailcraft-cli import <mailbox> <file>... [--folder PATH]
+  mailcraft-cli import <mailbox> <file>... [--folder FOLDER]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
@@ -34,7 +37,7 @@ USAGE:
                                                 MAILCRAFT_PST_PASSWORD. Prints the import report
                                                 (JSON) and saves the mailbox (not with --dry-run);
                                                 a second import skips what is already there
-  mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
+  mailcraft-cli export <mailbox> <out> [--folder FOLDER] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
                                                 .mailcraft (everything, in one file)
@@ -285,10 +288,11 @@ fn parse_cmd(text: &str) -> Result<(String, Value), String> {
     }
 }
 
-/// Go to the folder `--folder` names (a path such as `Inbox/Projects`), when given.
+/// Go to the folder `--folder` names, when given: an id, a standard folder's kind (`sent`,
+/// `inbox`…) in any language of the mailbox, or a path such as `Inbox/Projects` (#1200).
 fn go_to_folder(s: &mut Session, args: &[String]) -> Result<(), Failure> {
-    if let Some(path) = arg_value(args, "--folder") {
-        s.run("folder.select", &json!({"path": path}))?;
+    if let Some(folder) = arg_value(args, "--folder") {
+        s.run("folder.select", &json!({"folder": folder}))?;
     }
     Ok(())
 }
@@ -716,6 +720,34 @@ mod tests {
         run(&strings(&["convert", &mbox, &back])).unwrap();
         assert_eq!(open(&back).unwrap().mailbox.messages.len(), 13);
         assert!(run(&strings(&["frobnicate"])).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `--folder` takes a standard folder's kind, a path or an id (#1200): the three name the
+    /// same folder and export the same messages.
+    #[test]
+    fn folder_takes_a_kind_a_path_or_an_id() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-cli-kinds-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("out.mailcraft").to_string_lossy().to_string();
+        run(&strings(&["run", "--sample", "--save", &out])).unwrap();
+        let s = open(&out).unwrap();
+        let account = s.mailbox.default_account().unwrap().id;
+        let sent = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Sent).unwrap();
+        let path = s.mailbox.folder_path(sent);
+        let export = |folder: &str, name: &str| {
+            let mbox = dir.join(name).to_string_lossy().to_string();
+            run(&strings(&["export", &out, &mbox, "--folder", folder])).unwrap();
+            std::fs::read(&mbox).unwrap()
+        };
+        let by_kind = export("sent", "kind.mbox");
+        assert!(!by_kind.is_empty());
+        assert_eq!(export(&path, "path.mbox"), by_kind);
+        assert_eq!(export(&sent.to_string(), "id.mbox"), by_kind);
+        assert_ne!(export("inbox", "inbox.mbox"), by_kind);
+        let missing = dir.join("none.mbox").to_string_lossy().to_string();
+        assert!(run(&strings(&["export", &out, &missing, "--folder", "Nowhere"])).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

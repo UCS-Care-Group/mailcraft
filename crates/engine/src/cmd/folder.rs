@@ -15,7 +15,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .reads()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
+            .params(r#"{"folder": number | "sent" | "Inbox/Projects", "account"?: number} (an id; a standard folder's kind, inbox, drafts, sent, deleted, junk, archive or outbox, in any language of the mailbox, of `account` or else the account in view; otherwise a path, and digits that name no folder an id. A kind comes before a folder of that name, which is still reached by its id or by a path with its parent; `folder` comes before `id`, `kind` and `path`) | {"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
@@ -191,9 +191,57 @@ pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id
         .map(|f| f.id)
 }
 
+/// A folder as an agent, a script or the command line names it (#1200): a number is its id; a
+/// word that is a standard folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`,
+/// `archive`, `outbox`, in any case) is that folder of `account`, else of the account in view,
+/// else of the default one, whatever it is called in the mailbox's language; any other text is
+/// a path (`Inbox/Projects`), and a path of digits that names no folder is the folder with that
+/// id. So `Sent` reaches "Gesendete Elemente", and a folder called "2024" is still that folder.
+///
+/// A kind comes before a path, so a folder of the owner's own called "Archive" is shadowed by the
+/// account's Archive; that one is still reached by its id or by a path with its parent. Where the
+/// account has no folder of that kind, a folder of that name is taken instead.
+pub(crate) fn named(s: &Session, folder: &Value, account: Option<Id>) -> Result<Id, CmdError> {
+    if let Some(id) = folder.as_u64() {
+        return s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id));
+    }
+    let text = folder
+        .as_str()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| bad("`folder` is an id, a kind such as \"sent\", or a path such as \"Inbox/Projects\""))?;
+    let kind = FolderKind::parse(text).filter(|k| *k != FolderKind::Custom);
+    // A kind is one account's: the one named, else the account in view, else the default one.
+    let of = account.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).or_else(|| s.mailbox.default_account().map(|a| a.id));
+    if let Some(kind) = kind {
+        if let Some(id) = of.and_then(|a| s.mailbox.folder_of_kind(a, kind)) {
+            return Ok(id);
+        }
+        // Its account has no folder of that kind: one of its own called that, and no other
+        // account's, so a word for a kind never reaches somebody else's mail.
+        if let Some(id) = by_path(s, of, text) {
+            return Ok(id);
+        }
+    } else if let Some(id) = by_path(s, account, text) {
+        return Ok(id);
+    }
+    if let Ok(id) = text.parse::<u64>()
+        && s.mailbox.folder(id).is_some()
+    {
+        return Ok(id);
+    }
+    // (A kind the account has no folder of, and nothing of that name either.)
+    match kind {
+        Some(kind) => Err(failed!("no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name()))),
+        None => Err(failed!("no folder \"{path}\"", path = text)),
+    }
+}
+
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account");
-    let id = if let Some(id) = p::id_strict(v, "id")? {
+    let id = if let Some(folder) = v.get("folder").filter(|f| !f.is_null()) {
+        named(s, folder, account)?
+    } else if let Some(id) = p::id_strict(v, "id")? {
         s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?
     } else if let Some(kind) = p::str(v, "kind") {
         let kind = FolderKind::parse(kind).ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted, junk, archive or outbox"))?;
@@ -204,7 +252,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     } else if let Some(path) = p::str(v, "path") {
         by_path(s, account, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
     } else {
-        return Err(bad("`id`, `kind` or `path` is required"));
+        return Err(bad("`folder`, `id`, `kind` or `path` is required"));
     };
     // One of Gmail's categories of a Gmail account's Inbox (#911).
     let gmail = match v.get("gmail") {
