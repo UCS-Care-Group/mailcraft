@@ -16,18 +16,23 @@
 //!   conversation arrived, and calls off the snooze of mail the server shows elsewhere. Mail is of
 //!   its conversation only by a link that is known: it answers the message (`In-Reply-To`,
 //!   `References`) or has the server's conversation id the message has.
-//! - A JMAP account's server isn't told of moves yet, so a message it has is refused.
+//! - Snoozing a JMAP account's server mail isn't built yet, so a message it has is refused.
 
 use mailcraft_model::{FolderKind, Id, MAX_SNOOZE_AHEAD, Mailbox, Message};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
-use super::{bad, fail, needs_message, needs_movable, select_after_removal, targets, targets_whole};
+use super::{bad, fail, needs_message, select_after_removal, targets, targets_whole};
 
 /// The years a Return time given as a date and time may be in, as an automatic reply's are.
 const FIRST_YEAR: i32 = 1990;
 const LAST_YEAR: i32 = 2200;
 use crate::{CmdResult, CommandSpec, Session};
+
+/// Enabled only with messages selected that may be snoozed: none that a JMAP account's server has, for now.
+fn needs_snoozable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| s.mailbox.snooze_refusal(&s.sel.messages))
+}
 
 /// The most messages one `mail.returnDue` brings back; the rest come at the next one, a minute on.
 pub const MOST_RETURNED_AT_ONCE: usize = 1_000;
@@ -38,7 +43,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(
                 r#"{"until": number (seconds since 1970, UTC) | "YYYY-MM-DDTHH:MM" (this computer's time, or with an offset), "ids"?: [number]} (default: the selected messages; for a conversation's row selected (closed), the messages it shows). The messages move to the account's Snoozed folder (made when missing) and come back at `until`, unread, to the folder they came from. `until` must be in the future and is brought back to five years ahead. Refused for a message being written, one in an Outbox, and one a JMAP account's server has (it can't be moved yet)"#,
             )
-            .selection(needs_movable),
+            .selection(needs_snoozable),
         CommandSpec::new("mail.unsnooze", "Return Now", "Home › Tags", unsnooze)
             .params(r#"{"ids"?: [number]} (default: the selected messages) — snoozed messages come back now, as at their Return time. Refused when none is snoozed"#)
             .selection(needs_message),

@@ -22,13 +22,14 @@
 //!   of method calls with result references, the results of each call, and ids.
 //! - [`redact`]: what a server says, made into short, clean excerpts with every known secret taken out.
 //!
-//! **The mail client** sits on it and reads, for the engine:
+//! **The mail client** sits on it, for the engine:
 //!
 //! - [`Connection::connect`] fetches the session through an [`HttpExchange`] and keeps the client and the
 //!   exchange together. Mail must be on offer, and every address the session names must be on the
 //!   session's own origin: the credentials go there and nowhere else.
-//! - [`sync_mail`] reads an account's mailboxes and the newest messages in them, as the request the
-//!   engine worked out says, and hands them over in pieces ([`mail`]).
+//! - [`sync_mail`] takes the changes of an account's messages up to its server (marks, moves, deletions:
+//!   `Email/set`), and reads its mailboxes and the newest messages in them, as the request the engine
+//!   worked out says; and hands what came of each over in pieces ([`mail`]).
 //! - [`fetch`] brings messages whole: the raw octets an email's blob holds.
 //!
 //! Everything a server sends is hostile: sizes, counts, nesting and the length of every string are

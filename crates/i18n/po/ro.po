@@ -308,6 +308,11 @@ msgstr "@{login}: {prs} PR-uri integrate, {commits} commituri, +{added} / −{de
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "Se importă un fișier .pst: încercați din nou după ce se termină"
 
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+msgid "A JMAP account's mail can't be snoozed yet."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
@@ -7045,17 +7050,16 @@ msgstr "MailCraft nu se poate conecta încă la acest server în acest fel (cere
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft nu a putut deschide browserul pentru pagina de aprobare Microsoft. Copiați în schimb mesajul: linkul din el deschide aceeași pagină."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
 msgstr "MailCraft nu cunoaște setările pentru această adresă. Serverele de mai jos sunt doar o presupunere făcută după domeniu: verificați-le cu furnizorul sau administratorul înainte de conectare."
-
-#. what a command says
-#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
-#, fuzzy
-msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
-msgstr "MailCraft nu mută și nu șterge încă e-mailurile unui cont JMAP: următoarea Trimitere/primire le-ar aduce înapoi"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7121,6 +7125,11 @@ msgstr "MailCraft păstrează fișierul, protejat în continuare de fraza de acc
 #, fuzzy
 msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
 msgstr "MailCraft păstrează regulile acestui cont pe acest computer: regula rulează cât timp MailCraft e deschis."
+
+#. what a command says
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
+msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -13693,12 +13702,6 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "The draft stays in Drafts. {why}"
-msgstr "Ciorna rămâne în Ciorne. {why}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -21256,14 +21259,10 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
 
 #, fuzzy
-#~ msgid "MailCraft tells {host} that you no longer want this list's mail. Only that is sent: no cookies, nothing about you."
-#~ msgstr "MailCraft îi spune lui {host} că nu mai doriți mesajele acestei liste. Doar atât se trimite: niciun cookie, nimic despre dvs."
+#~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+#~ msgstr "MailCraft nu mută și nu șterge încă e-mailurile unui cont JMAP: următoarea Trimitere/primire le-ar aduce înapoi"
 
 #, fuzzy
-#~ msgid "The list's page is open in your browser: unsubscribe there."
-#~ msgstr "Pagina listei este deschisă în browser: dezabonați-vă acolo."
-
-#, fuzzy
-#~ msgid "The request is in your Outbox and goes with the next Send/Receive."
-#~ msgstr "Cererea este în Mesaje de trimis și pleacă la următoarea Trimitere/primire."
+#~ msgid "The draft stays in Drafts. {why}"
+#~ msgstr "Ciorna rămâne în Ciorne. {why}"
 

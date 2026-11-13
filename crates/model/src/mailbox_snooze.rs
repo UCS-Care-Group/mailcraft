@@ -5,13 +5,16 @@
 //! is a [`Snooze`]; the account remembers the folder by its id ([`Account::snoozed_folder`]), so a
 //! rename or another language makes no second one.
 //!
-//! A JMAP account's server isn't told of moves yet ([`NOT_MOVING_YET`](super::NOT_MOVING_YET)), so
+//! Snoozing a JMAP account's server mail isn't built yet ([`JMAP_NOT_YET`]), so
 //! a message it has can't be snoozed; mail only this computer has in such an account can.
 //!
 //! The moves are the mailbox's own ([`Mailbox::move_each`]), so every kind of account tells its
 //! server what it tells for any move. Nothing here is I/O.
 
 use std::collections::HashSet;
+
+/// Why a JMAP account's server mail is refused a snooze for now.
+const JMAP_NOT_YET: &str = "A JMAP account's mail can't be snoozed yet.";
 use std::sync::Arc;
 
 use mailcraft_time::Timestamp;
@@ -156,8 +159,8 @@ impl Mailbox {
             if m.draft || self.is_send_queue(m.folder) {
                 return Err(invalid("a message being written or waiting to be sent can't be snoozed"));
             }
-            if self.stays_on_server(*id) {
-                return Err(invalid(super::NOT_MOVING_YET));
+            if self.jmap_has(*id) {
+                return Err(invalid(JMAP_NOT_YET));
             }
             if !m.snooze.is_some_and(|s| s.waiting()) && self.snoozed_candidate(m.account, name) == Some(m.folder) {
                 return Err(invalid("this message is in the Snoozed folder already"));
@@ -187,9 +190,20 @@ impl Mailbox {
         Ok(snoozes.len())
     }
 
+    /// Why a snooze of `ids` is refused for now: one is a message a JMAP account's server has.
+    /// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon.
+    pub fn snooze_refusal(&self, ids: &[Id]) -> Option<&'static str> {
+        (self.accounts.iter().any(|a| a.kind == crate::AccountKind::Jmap) && ids.iter().any(|id| self.jmap_has(*id))).then_some(JMAP_NOT_YET)
+    }
+
+    /// Whether `id` is a message a JMAP account's server has (snooze leaves those alone for now).
+    fn jmap_has(&self, id: Id) -> bool {
+        self.message(id).is_some_and(|m| m.server.is_some() && self.account(m.account).is_some_and(|a| a.kind == crate::AccountKind::Jmap))
+    }
+
     /// Whether `m` waits in its account's Snoozed folder and could come back.
     fn waits(&self, m: &crate::Message) -> bool {
-        m.snooze.is_some_and(|s| s.waiting()) && self.snoozed_folder(m.account) == Some(m.folder) && !self.stays_on_server(m.id)
+        m.snooze.is_some_and(|s| s.waiting()) && self.snoozed_folder(m.account) == Some(m.folder) && !self.jmap_has(m.id)
     }
 
     /// Messages waiting in a Snoozed folder whose Return time is `now` or earlier, the earliest
