@@ -98,3 +98,36 @@ fn a_window_that_does_not_answer_times_the_worker_out() {
     // Nobody serves the window's side.
     assert_eq!(worker.join().ok().unwrap(), Err(PlatformError::Failed("the window did not answer")));
 }
+
+#[test]
+fn a_page_that_waits_does_not_hold_up_the_window_s_frame() {
+    use std::sync::mpsc::channel;
+    let (release, released) = channel::<()>();
+    let released = std::sync::Mutex::new(released);
+    let s = Services {
+        // Would stop the frame if it ran on the window's thread.
+        open_page: Some(Box::new(|_| false)),
+        open_page_waiting: Some(Arc::new(move |_| {
+            let _ = released.lock().map(|r| r.recv_timeout(std::time::Duration::from_secs(5)));
+            true
+        })),
+        ..Default::default()
+    };
+    let (p, _) = platform_of(&s);
+    let worker = std::thread::spawn(move || p.open_sign_in_page("https://login.example.org/"));
+    let started = std::time::Instant::now();
+    // The frame keeps being served while the page waits; it never blocks.
+    while started.elapsed() < std::time::Duration::from_millis(200) {
+        let frame = std::time::Instant::now();
+        s.serve_platform();
+        assert!(frame.elapsed() < std::time::Duration::from_millis(100), "the frame was held up");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!worker.is_finished());
+    let _ = release.send(());
+    while !worker.is_finished() {
+        s.serve_platform();
+        std::thread::yield_now();
+    }
+    assert_eq!(worker.join().ok().unwrap(), Ok(()));
+}

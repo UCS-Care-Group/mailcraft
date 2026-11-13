@@ -8,6 +8,7 @@
 //! answered within [`ANSWER_WITHIN`] is told so. Nothing here does anything the window didn't
 //! already do; an entry the desktop doesn't have is left to the trait's default.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, channel, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread::ThreadId;
@@ -20,6 +21,12 @@ use crate::alerts::{AlertKind, DesktopAlert, Opens};
 
 /// How long a worker waits for the window to answer.
 pub const ANSWER_WITHIN: Duration = Duration::from_secs(10);
+
+/// The most pages waiting to be opened off the window's thread at once.
+const MOST_OPENING: usize = 8;
+
+/// Pages being opened off the window's thread now.
+static OPENING: AtomicUsize = AtomicUsize::new(0);
 
 /// The most calls the window answers in one frame.
 const MOST_PER_FRAME: usize = 16;
@@ -97,13 +104,7 @@ impl Services {
         for _ in 0..MOST_PER_FRAME {
             let Ok(call) = self.platform_calls.rx.try_recv() else { return };
             match call {
-                Call::OpenPage(url, answer) => {
-                    let _ = answer.send(match &self.open_page {
-                        Some(open) if open(&url) => Ok(()),
-                        Some(_) => Err(PlatformError::Failed("no browser could be started")),
-                        None => Err(PlatformError::Unsupported),
-                    });
-                }
+                Call::OpenPage(url, answer) => self.open_page_for(url, answer),
                 Call::OpenFile(name, bytes, answer) => {
                     let _ = answer.send(match &self.open_file {
                         Some(open) => open(&name, &bytes).map_err(|_| PlatformError::Failed("the file could not be opened")),
@@ -118,6 +119,39 @@ impl Services {
                 }
             }
         }
+    }
+}
+
+impl Services {
+    /// Open a page a worker asked for. A page that may wait for its activation token is opened on
+    /// a thread of its own, as the sign-in worker did before: waiting here would stop the frame,
+    /// and with it the code that gets the token (#144).
+    fn open_page_for(&self, url: String, answer: Answer) {
+        if let Some(open) = &self.open_page_waiting {
+            if OPENING.fetch_add(1, Ordering::SeqCst) >= MOST_OPENING {
+                OPENING.fetch_sub(1, Ordering::SeqCst);
+                let _ = answer.send(Err(PlatformError::Failed("too many pages are being opened")));
+                return;
+            }
+            let open = open.clone();
+            let task = {
+                let answer = answer.clone();
+                move || {
+                    let _ = answer.send(if open(&url) { Ok(()) } else { Err(PlatformError::Failed("no browser could be started")) });
+                    OPENING.fetch_sub(1, Ordering::SeqCst);
+                }
+            };
+            if std::thread::Builder::new().name("open page".into()).spawn(task).is_err() {
+                OPENING.fetch_sub(1, Ordering::SeqCst);
+                let _ = answer.send(Err(PlatformError::Failed("no browser could be started")));
+            }
+            return;
+        }
+        let _ = answer.send(match &self.open_page {
+            Some(open) if open(&url) => Ok(()),
+            Some(_) => Err(PlatformError::Failed("no browser could be started")),
+            None => Err(PlatformError::Unsupported),
+        });
     }
 }
 

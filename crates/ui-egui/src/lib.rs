@@ -523,6 +523,11 @@ pub struct Services {
     /// Desktop: open an address in the system's browser, and say whether one could be started
     /// (the page a sign-in is made on). Absent in the browser and the tests.
     pub open_page: Option<Box<dyn Fn(&str) -> bool>>,
+    /// The same as `open_page` for a page a host thread asked for ([`Services::serve_platform`]):
+    /// it may wait (for the window to hand the browser its activation token), so it runs on a
+    /// thread of its own and never on the window's, whose frame has to keep running meanwhile.
+    /// Absent: `open_page` is used, on the window's thread.
+    pub open_page_waiting: Option<std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync>>,
     /// The system's locale (`fr-FR`; the browser's in the browser build), which the interface
     /// language follows while it is Automatic. `None` (the tests, scripts): English.
     pub system_locale: Option<String>,
