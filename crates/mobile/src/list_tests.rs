@@ -189,6 +189,56 @@ fn triage_commands_change_the_list_and_undo_puts_it_back() {
     assert_eq!(block_on(core.message_list(query(folder), 0, 1)).unwrap().total, total - 1);
     assert!(all(&core, query(target)).iter().any(|r| r.id == first.id));
     exec(&core, "edit.undo", json!({})).unwrap();
+    // Archive and Junk are commands as well; a mailbox with no such folder refuses, and says so.
+    for command in ["mail.archive", "mail.junk"] {
+        let _ = exec(&core, command, json!({"ids": [first.id]}));
+        let _ = exec(&core, "edit.undo", json!({}));
+    }
     exec(&core, "mail.categorize", json!({"category": "Red category", "value": true, "ids": [first.id]})).unwrap();
     assert!(all(&core, query(folder)).iter().find(|r| r.id == first.id).unwrap().categories.contains(&"Red category".to_string()));
+}
+
+#[test]
+fn categories_are_listed_with_their_colours() {
+    let core = sample_core();
+    let list = block_on(core.categories(0)).unwrap();
+    assert!(!list.categories.is_empty());
+    assert!(list.categories.iter().all(|c| !c.name.is_empty() && c.color <= 0xFF_FFFF));
+    assert!(block_on(core.categories(u64::MAX)).is_ok());
+}
+
+#[test]
+fn deleting_a_conversation_row_takes_the_messages_it_stands_for() {
+    use crate::fake_tests::now;
+    let core = Core::start(FakePlatform::new(), || {
+        let mut mailbox = mailcraft_engine::sample::mailbox(now(), 0);
+        let inbox = mailbox.inbox().unwrap();
+        for date in [now() - 100, now() - 10] {
+            mailbox.add_message(Message { folder: inbox, subject: "Zebra planning".into(), date, ..Default::default() }).unwrap();
+        }
+        Session::at(mailbox, now(), 0)
+    })
+    .unwrap();
+    let folder = inbox(&core);
+    exec(&core, "folder.select", json!({"id": folder})).unwrap();
+    exec(&core, "view.conversations", json!({"value": true})).unwrap();
+    let q = ListQuery { conversations: true, ..query(folder) };
+    let rows = all(&core, q.clone());
+    let row = rows.iter().find(|r| r.subject == "Zebra planning").unwrap();
+    assert_eq!(row.members, 2);
+    exec(&core, "mail.select", json!({"id": row.id})).unwrap();
+    exec(&core, "mail.delete", json!({})).unwrap();
+    assert!(all(&core, q).iter().all(|r| r.subject != "Zebra planning"));
+    exec(&core, "edit.undo", json!({})).unwrap();
+    assert_eq!(all(&core, ListQuery { conversations: true, ..query(folder) }).iter().filter(|r| r.subject == "Zebra planning").count(), 1);
+}
+
+#[test]
+fn an_account_says_whether_it_has_a_server_and_a_refresh_with_none_is_refused() {
+    let core = sample_core();
+    let accounts = block_on(core.folders(0)).unwrap().accounts;
+    assert!(!accounts.is_empty() && accounts.iter().all(|a| !a.server));
+    assert!(exec(&core, "sync.request", json!({})).is_err());
+    let gmail = block_on(gmail_core().folders(0)).unwrap();
+    assert!(gmail.accounts.iter().all(|a| a.server));
 }

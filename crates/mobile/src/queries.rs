@@ -140,6 +140,7 @@ impl Core {
                 name: text::clip(&a.name, MAX_NAME),
                 email: text::clip(&a.email, MAX_ADDRESS),
                 display_name: text::clip(&a.display_name, MAX_NAME),
+                server: a.kind.has_server(),
             });
             let folders = text::first(s.mailbox.folders.iter().filter(|f| wanted(f.account)), MAX_FOLDERS, |f| FolderRecord {
                 id: f.id,

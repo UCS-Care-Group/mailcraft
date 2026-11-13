@@ -10,7 +10,7 @@ use mailcraft_model::GmailCategory;
 use serde_json::Value;
 
 use crate::queries::row;
-use crate::records::{InboxSplit, ListQuery, MessageWindow, SplitTab};
+use crate::records::{CategoryList, CategoryRecord, InboxSplit, ListQuery, MessageWindow, SplitTab};
 use crate::text;
 use crate::{Core, CoreError};
 
@@ -71,6 +71,19 @@ impl Core {
     pub async fn message_list(&self, query: ListQuery, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
         let count = text::window(count);
         self.call(move |s| window(s, &query, Some(query.conversations), offset, count)).await
+    }
+
+    /// The categories mail of `account` can be given (0: the list shared by accounts that keep
+    /// none of their own), with their colours.
+    pub async fn categories(&self, account: u64) -> Result<CategoryList, CoreError> {
+        self.call(move |s| {
+            let categories = text::first(s.mailbox.categories_of(account), text::MAX_LISTED, |c| CategoryRecord {
+                name: text::clip(&c.name, text::MAX_NAME),
+                color: (u32::from(c.color.0) << 16) | (u32::from(c.color.1) << 8) | u32::from(c.color.2),
+            });
+            Ok(CategoryList { rev: s.rev(), categories })
+        })
+        .await
     }
 
     /// The tabs over `folder` when it is an Inbox its server divides (Gmail's categories, for an

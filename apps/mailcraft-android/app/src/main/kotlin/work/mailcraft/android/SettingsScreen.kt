@@ -40,6 +40,7 @@ internal fun SettingsScreen(
     onOpen: (SettingsPage) -> Unit,
     onBack: () -> Unit,
     onLanguage: (String) -> Unit,
+    onSwipe: (SwipeConfig) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -63,6 +64,7 @@ internal fun SettingsScreen(
             when (page) {
                 null -> SettingsRows(texts, data, onOpen)
                 SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, onLanguage)
+                SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, onSwipe)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -79,6 +81,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
     SettingsPage.entries.forEach { entry ->
         val summary = when (entry) {
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
+            SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
             SettingsPage.About -> data.version
             else -> texts.t("Pending development")
         }
@@ -109,14 +112,36 @@ private fun languageName(texts: Texts, chosen: String): String =
 
 @Composable
 private fun LanguagePage(texts: Texts, chosen: String, onLanguage: (String) -> Unit) {
-    LanguageRow(texts.t("System default"), selected = chosen.isEmpty()) { onLanguage("") }
+    ChoiceRow(texts.t("System default"), selected = chosen.isEmpty()) { onLanguage("") }
     LANGUAGES.forEach { language ->
-        LanguageRow(language.nativeName, selected = language.tag == chosen) { onLanguage(language.tag) }
+        ChoiceRow(language.nativeName, selected = language.tag == chosen) { onLanguage(language.tag) }
     }
 }
 
 @Composable
-private fun LanguageRow(name: String, selected: Boolean, onClick: () -> Unit) {
+private fun SwipePage(texts: Texts, config: SwipeConfig, onSwipe: (SwipeConfig) -> Unit) {
+    Text(
+        texts.t("Swipe to the right"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    SwipeAction.entries.forEach { action ->
+        ChoiceRow(action.label(texts), selected = action == config.start) { onSwipe(config.copy(start = action)) }
+    }
+    Text(
+        texts.t("Swipe to the left"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    SwipeAction.entries.forEach { action ->
+        ChoiceRow(action.label(texts), selected = action == config.end) { onSwipe(config.copy(end = action)) }
+    }
+}
+
+@Composable
+private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

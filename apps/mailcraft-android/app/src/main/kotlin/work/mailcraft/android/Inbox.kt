@@ -8,27 +8,6 @@ import kotlinx.coroutines.withContext
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
-/** One line of the message list, as the screen draws it. */
-internal data class InboxRow(
-    val id: ULong,
-    val sender: String,
-    val subject: String,
-    val preview: String,
-    val unread: Boolean,
-    val whenSeconds: Long,
-)
-
-/** A folder's messages as the screen shows them: its name and count in the owner's language, and its rows. */
-internal data class InboxModel(val title: String, val count: String, val rows: List<InboxRow>)
-
-internal sealed interface InboxState {
-    data object Loading : InboxState
-
-    class Ready(val model: InboxModel) : InboxState
-
-    class Failed(val message: String) : InboxState
-}
-
 /** One folder as the drawer lists it; [depth] is how far down the folder tree it sits. */
 internal data class FolderItem(
     val id: ULong,
@@ -40,13 +19,18 @@ internal data class FolderItem(
 )
 
 /** An account and its folders, top folders first and each folder's own just after it. */
-internal data class AccountItem(val id: ULong, val name: String, val email: String, val folders: List<FolderItem>)
+internal data class AccountItem(
+    val id: ULong,
+    val name: String,
+    val email: String,
+    val folders: List<FolderItem>,
+    /** The account is kept in step with a mail server. */
+    val server: Boolean = false,
+)
 
 /** The accounts of the mailbox, and the folder the Mail tab opens on. */
 internal data class MailboxOutline(val accounts: List<AccountItem>, val inboxId: ULong?)
 
-/** The most rows the skeleton asks for at once. */
-private const val WINDOW = 100u
 
 /** How far down the folder tree the drawer goes; deeper folders sit at this depth. */
 internal const val MAX_FOLDER_DEPTH = 4
@@ -91,42 +75,29 @@ internal suspend fun loadOutline(
 ): MailboxOutline? = withContext(dispatcher) {
     try {
         core.execute("file.new", """{"sample":true}""")
-        val list = core.folders(0uL)
-        val accounts = list.accounts.map { account ->
-            val own = list.folders.filter { it.account == account.id }.map {
-                FolderItem(it.id, it.parent, it.name, it.kind, it.unread)
-            }
-            AccountItem(account.id, account.displayName.ifBlank { account.name }, account.email, folderTree(own))
-        }
-        val inbox = list.folders.firstOrNull { it.kind == "inbox" }
-        MailboxOutline(accounts, inbox?.id)
+        readOutline(core)
     } catch (_: CoreException) {
         null
     }
 }
 
-/** A window of the messages of [folder], read-only. */
-internal suspend fun loadFolder(
+/** The accounts and folders as they are now (with their unread counts), without opening anything. */
+internal suspend fun readOutline(
     core: Core,
-    folder: ULong,
-    name: String,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
-): InboxState = withContext(dispatcher) {
+): MailboxOutline? = withContext(dispatcher) {
     try {
-        val window = core.messages(folder, "all", 0u, WINDOW)
-        val rows = window.rows.map {
-            InboxRow(
-                id = it.id,
-                sender = senderLabel(it.fromName, it.fromAddress),
-                subject = it.subject,
-                preview = it.preview,
-                unread = it.unread,
-                whenSeconds = it.`when`,
-            )
+        val list = core.folders(0uL)
+        val accounts = list.accounts.map { account ->
+            val own = list.folders.filter { it.account == account.id }.map {
+                FolderItem(it.id, it.parent, it.name, it.kind, it.unread)
+            }
+            val name = account.displayName.ifBlank { account.name }
+            AccountItem(account.id, name, account.email, folderTree(own), account.server)
         }
-        val count = core.tn(window.total.toULong(), "{n} message", "{n} messages")
-        InboxState.Ready(InboxModel(name, count, rows))
+        val inbox = list.folders.firstOrNull { it.kind == "inbox" }
+        MailboxOutline(accounts, inbox?.id)
     } catch (_: CoreException) {
-        InboxState.Failed(core.t("The mailbox could not be read."))
+        null
     }
 }

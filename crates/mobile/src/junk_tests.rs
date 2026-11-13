@@ -94,6 +94,7 @@ fn every_query_with_junk_answers_and_never_panics() {
     for n in numbers {
         not_internal("folders", &block_on(core.folders(n)));
         not_internal("inbox_split", &block_on(core.inbox_split(n)));
+        not_internal("categories", &block_on(core.categories(n)));
         for t in texts {
             for off in counts {
                 for c in counts {

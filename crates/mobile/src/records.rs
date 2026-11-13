@@ -12,6 +12,8 @@ pub struct AccountRecord {
     pub name: String,
     pub email: String,
     pub display_name: String,
+    /// The account is kept in step with a mail server (so there is something to check for mail on).
+    pub server: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -253,4 +255,18 @@ pub struct InboxSplit {
     pub rev: u64,
     pub folder: u64,
     pub tabs: Vec<SplitTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryRecord {
+    pub name: String,
+    /// The category's colour, `0xRRGGBB`.
+    pub color: u32,
+}
+
+/// The categories the mail of an account can be given, with their colours.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryList {
+    pub rev: u64,
+    pub categories: Vec<CategoryRecord>,
 }

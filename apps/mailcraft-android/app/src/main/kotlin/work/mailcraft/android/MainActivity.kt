@@ -9,15 +9,24 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
+import uniffi.mailcraft_mobile.Event
 
 /**
  * The one window. An AppCompat activity, because that is what carries the per-app language to
@@ -61,32 +70,97 @@ internal fun Root(started: Started, version: String, chosenLanguage: String, onL
 /** What reading the sample mailbox's outline came to; [outline] is null when it could not be read. */
 private class Outlined(val outline: MailboxOutline?)
 
+/** How often the clock and the network are looked at again: the "Updated N min ago" line follows it. */
+private const val TICK_MILLIS = 30_000L
+
 @Composable
 private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     val texts = remember(core) { CoreTexts(core) }
-    val outlined by produceState<Outlined?>(null, core) { value = Outlined(loadOutline(core)) }
-    var picked by rememberSaveable { mutableStateOf<Long?>(null) }
+    val source = remember(core) { CoreMailSource(core) }
+    val controller = remember(core) { MailListController(source) }
+    val appContext = LocalContext.current.applicationContext
+    val prefs = remember { DeviceSwipePrefs(appContext) }
+    var outlined by remember { mutableStateOf<Outlined?>(null) }
+    var swipe by remember { mutableStateOf(prefs.load()) }
+    var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val categories by produceState(emptyList<CategoryItem>(), core) { value = source.categories() }
+    val ui by controller.ui.collectAsState()
     val outline = outlined?.outline
-    val folderId = picked?.toULong() ?: outline?.inboxId
+    val folderId = query.folder.takeIf { it != 0uL } ?: outline?.inboxId
     val folder = outline?.accounts?.flatMap { it.folders }?.firstOrNull { it.id == folderId }
-    val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folderId) {
-        value = when {
-            outlined == null -> InboxState.Loading
-            folder == null || folderId == null -> InboxState.Failed(core.t("The sample mailbox has no Inbox."))
-            else -> loadFolder(core, folderId, folder.name)
+
+    LaunchedEffect(core) { outlined = Outlined(loadOutline(core)) }
+    LaunchedEffect(core) { pumpEvents(core, controller) { outlined = Outlined(readOutline(core)) } }
+    LaunchedEffect(core) {
+        while (true) {
+            controller.checkNetwork()
+            now = System.currentTimeMillis()
+            delay(TICK_MILLIS)
         }
+    }
+    LaunchedEffect(outline) { controller.accountsHaveServer(outline?.accounts?.any { it.server } == true) }
+    LaunchedEffect(folderId, query) { if (folderId != null) controller.show(query.copy(folder = folderId)) }
+
+    val scope = rememberCoroutineScope()
+    val mailActions = remember(controller, scope) {
+        mailListActions(controller, scope) { change -> query = change(query) }
     }
     val data = ShellData(
         accounts = outline?.accounts.orEmpty(),
         folderName = folder?.name ?: texts.t("Mail"),
         folderId = folderId,
-        mail = mail,
+        mail = if (outlined != null && folderId == null) ui.copy(load = LoadState.Failed) else ui,
+        categories = categories,
+        nowMillis = now,
+        swipe = swipe,
         version = version,
         chosenLanguage = chosenLanguage,
     )
     AppShell(
         texts = texts,
         data = data,
-        actions = ShellActions(onFolder = { _, selected -> picked = selected.id.toLong() }, onLanguage = onLanguage),
+        actions = ShellActions(
+            onFolder = { _, selected -> query = MailQuery(selected.id) },
+            onLanguage = onLanguage,
+            mail = mailActions,
+            onSwipe = {
+                swipe = it
+                prefs.save(it)
+            },
+        ),
     )
 }
+
+/** Reads the core's events: a newer revision reads the list's pages again, a finished sync marks it fresh. */
+private suspend fun pumpEvents(core: Core, controller: MailListController, outlineChanged: suspend () -> Unit) {
+    while (true) {
+        val event = core.nextEvent() ?: break
+        when (event) {
+            is Event.RevChanged -> {
+                controller.revChanged(event.rev)
+                outlineChanged()
+            }
+            is Event.SyncProgress -> if (event.total > 0uL && event.done >= event.total) controller.updated()
+            else -> Unit
+        }
+    }
+}
+
+/** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
+private fun mailListActions(
+    controller: MailListController,
+    scope: CoroutineScope,
+    change: ((MailQuery) -> MailQuery) -> Unit,
+) = MailListActions(
+    onSearch = { text -> change { it.copy(search = text.trim()) } },
+    onEverywhere = { on -> change { it.copy(everywhere = on) } },
+    onFilter = { filter -> change { it.copy(filter = filter) } },
+    onConversations = { on -> change { it.copy(conversations = on) } },
+    onSplit = { code -> change { it.copy(split = code) } },
+    onRefresh = { scope.launch { controller.refresh() } },
+    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
+    onUndo = { scope.launch { controller.undo() } },
+    onNoticeShown = { seq -> controller.noticeShown(seq) },
+)
