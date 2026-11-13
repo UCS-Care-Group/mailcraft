@@ -166,7 +166,7 @@ impl Fields {
         if block.is_empty() {
             return Fields { cut: dropped, ..Fields::default() };
         }
-        let message = mailcraft_mime::parse(block.as_bytes());
+        let message = mailcraft_mime_model::parse(block.as_bytes());
         let cut = dropped
             || message.headers_cut
             || message.to.len() > MAX_PEOPLE

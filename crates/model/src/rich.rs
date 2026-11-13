@@ -7,7 +7,7 @@
 //! ([`Font`]), links to `http`,
 //! `https`, `mailto` and `tel` addresses, and paragraphs that are plain, bulleted or numbered.
 //! Nothing else can be expressed, so nothing else can be sent: pasted formatting is reduced to
-//! this set before it gets here (`mailcraft_mime::rich`), and the HTML that goes out is written
+//! this set before it gets here (`mailcraft_mime_model::rich`), and the HTML that goes out is written
 //! from it.
 //!
 //! A picture is a run of its own holding one [`OBJECT`] character and the picture's id

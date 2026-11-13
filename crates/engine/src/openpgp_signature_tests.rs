@@ -26,7 +26,7 @@ fn session_with(messages: &[&str]) -> (Session, Vec<u64>) {
     let inbox = mb.inbox().unwrap();
     let mut ids = Vec::new();
     for text in messages {
-        let mut m = mailcraft_mime::parse_fetched(&crlf(text));
+        let mut m = mailcraft_mime_model::parse_fetched(&crlf(text));
         m.folder = inbox;
         ids.push(mb.add_message(m).unwrap());
     }
@@ -108,7 +108,7 @@ fn a_from_shown_that_isnt_the_one_checked_is_a_mismatch() {
     let inbox = mb.inbox().unwrap();
     let mut ids = Vec::new();
     for shown in ["mallory@example.org", " Alice@Example.org "] {
-        let mut m = mailcraft_mime::parse_fetched(&crlf(WITH_KEY));
+        let mut m = mailcraft_mime_model::parse_fetched(&crlf(WITH_KEY));
         m.folder = inbox;
         m.from.email = shown.to_string();
         ids.push(mb.add_message(m).unwrap());
@@ -141,7 +141,7 @@ fn the_signers_key_in_the_message_is_kept_and_nobody_elses() {
 fn a_draft_is_never_checked_and_keeps_nothing() {
     let mut mb = Mailbox::with_local_account("Bob", "bob@example.org");
     let inbox = mb.inbox().unwrap();
-    let mut m = mailcraft_mime::parse_fetched(&crlf(WITH_KEY));
+    let mut m = mailcraft_mime_model::parse_fetched(&crlf(WITH_KEY));
     m.folder = inbox;
     m.draft = true;
     let id = mb.add_message(m).unwrap();
@@ -189,7 +189,7 @@ fn an_imported_revocation_stays_through_an_undo() {
 fn a_signed_message_read_before_its_bytes_were_kept_says_check_again() {
     let mut mb = Mailbox::with_local_account("Bob", "bob@example.org");
     let inbox = mb.inbox().unwrap();
-    let mut m = mailcraft_mime::parse(&crlf(SIGNED));
+    let mut m = mailcraft_mime_model::parse(&crlf(SIGNED));
     m.folder = inbox;
     let id = mb.add_message(m).unwrap();
     let mut s = Session::new(mb);

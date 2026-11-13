@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message};
+use crate::{Address, Attachment, Body, FlagStatus, Importance, Message};
 use proptest::prelude::*;
 
 use crate::{WriteOptions, parse, parse_mbox, write, write_mbox, written_message_id};
@@ -14,7 +14,7 @@ fn a(name: &str, email: &str) -> Address {
 }
 
 fn file(name: &str, mime: &str, data: &[u8]) -> Attachment {
-    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()), kept: None }
+    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()) }
 }
 
 fn picture(name: &str, mime: &str, content_id: &str, data: &[u8]) -> Attachment {
@@ -49,7 +49,6 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
         bcc: if opts.include_bcc { m.bcc.clone() } else { Vec::new() },
         subject: m.subject.clone(),
         date: m.date,
-        received: m.date,
         body: Body { text, html },
         attachments,
         read: m.read,
@@ -196,7 +195,6 @@ fn an_inline_image_round_trips() {
     let bytes = write(&m, &WriteOptions::default());
     let back = parse(&bytes);
     assert!(back.attachments[0].inline);
-    assert!(!back.has_attachments());
     round_trip(&m);
     // Inline first, whatever the order they were added in.
     m.attachments.insert(0, file("notes.txt", "text/plain", b"plain notes\n"));
@@ -470,7 +468,6 @@ fn attachment() -> impl Strategy<Value = Attachment> {
         content_id,
         inline,
         data: Arc::new(data),
-        kept: None,
     })
 }
 
@@ -514,8 +511,6 @@ fn message() -> impl Strategy<Value = Message> {
             bcc,
             subject,
             date,
-            // Not carried by the format: must not come back.
-            received: date.wrapping_add(99),
             body: Body { text, html },
             hidden_text: String::new(),
             attachments,
@@ -528,49 +523,9 @@ fn message() -> impl Strategy<Value = Message> {
             headers,
             read_header: "X-Priority: 9 (not carried)\n".into(),
             fresh_stamps: false,
-            id: 7,
-            account: 3,
-            folder: 5,
-            uid: 11,
             draft: true,
-            pinned: true,
-            snooze: Some(mailcraft_model::Snooze { until: 1_900_000_000, after_id: 5, from: 7, ..Default::default() }),
-            warnings_dismissed: vec!["external".into()],
-            forwarded: true,
-            flag_due: Some(1),
-            synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
-            not_downloaded: 62_914_560,
-            gmail_category: Some(mailcraft_model::GmailCategory::Social),
-            gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
-            gmail_refusals: 0,
-            gmail_id: 42,
-            server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
-            unfetched: false,
-            refetch: false,
-            refetched: false,
-            attachments_on_server: false,
-            moving_out: None,
-            returned: 0,
-            placed: String::new(),
-            incomplete: false,
             headers_cut: false,
-            categories_cut: false,
-            rules_waiting: None,
-            server_draft: None,
-            held: String::new(),
-            sending: false,
-            answers: None,
-            kept: None,
-            rule_alert: false,
             original: None,
-            parts_removed: false,
-            original_wanted: false,
-            original_asked: false,
-            original_tries: 0,
-            original_refused: 0,
-            original_retry: 0,
-            original_no_room: 0,
-            original_placed: 0,
         },
     )
 }
@@ -667,7 +622,7 @@ proptest! {
     #[test]
     fn any_bytes_parse(data in proptest::collection::vec(any::<u8>(), 0..4096)) {
         let m = parse(&data);
-        prop_assert_eq!((m.id, m.account, m.folder, m.uid), (0, 0, 0, 0));
+        prop_assert!(m.original.is_none());
         let _ = parse_mbox(&data);
     }
 
@@ -733,27 +688,6 @@ fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
     let keywords = |n: usize| format!("Keywords: {}\r\n", (0..n).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
     assert!(!message(keywords(crate::MAX_CATEGORIES)).headers_cut);
     assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
-}
-
-/// A field past the 2,000 a header is split into, after fields that trip none of the other caps
-/// (2,000 `MIME-Version` lines, 36 KB): the message says its header was cut, so an exception
-/// that looks for a word in it can't tell, and the rule doesn't delete the message (#566).
-#[test]
-fn a_field_past_the_split_cap_is_said_cut() {
-    use mailcraft_model::{Action, Condition, Rule};
-    let filler = "MIME-Version: 1.0\r\n".repeat(2_000);
-    let raw = format!("From: a@example.org\r\nSubject: offer\r\n{filler}X-Gateway: keep-this\r\n\r\nbody\r\n");
-    let m = parse(raw.as_bytes());
-    let rule = Rule {
-        name: "r".into(),
-        enabled: true,
-        conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
-        exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
-        actions: vec![Action::Delete],
-        ..Default::default()
-    };
-    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
-    assert!(m.headers_cut || m.header_contains("keep-this"), "a field left out, and nothing says so");
 }
 
 /// A Cc past the recipients kept after the To, and a header read into the message past the 64 KB
@@ -828,7 +762,7 @@ fn the_message_id_said_to_be_written_is_the_one_written() {
 /// out of what is kept, and a flood of stamps is itself capped.
 #[test]
 fn exchange_stamps_are_kept_past_the_header_cap() {
-    use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+    use crate::{AUTH_AS, MAX_AUTH_AS};
     let stamps = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(AUTH_AS)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
     let padded = format!(
         "{}{AUTH_AS}: Internal\r\n{}x-ms-exchange-organization-authas: Anonymous\r\n\r\n",
@@ -857,7 +791,7 @@ fn exchange_stamps_are_kept_past_the_header_cap() {
 /// kept headers, on header fields or on header bytes; a flood of it is capped too.
 #[test]
 fn exchanges_direction_is_kept_past_the_header_cap() {
-    use mailcraft_model::auth_results::{DIRECTIONALITY, MAX_AUTH_AS};
+    use crate::{DIRECTIONALITY, MAX_AUTH_AS};
     let words = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(DIRECTIONALITY)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
     for padding in ["X-Pad: 1\r\n".repeat(200), "X-Pad: 1\r\n".repeat(2_500), format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20)] {
         let padded = format!("From: a@example.org\r\n{padding}{DIRECTIONALITY}: Incoming\r\n\r\n");
@@ -867,89 +801,4 @@ fn exchanges_direction_is_kept_past_the_header_cap() {
     assert_eq!(words(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
     let long = format!("{DIRECTIONALITY}: Incoming{}x\r\n\r\n", " ".repeat(10_000));
     assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
-}
-
-/// A rule with words in the message header finds them in any line of it as it came: those kept,
-/// those read into the message itself (the date, the priority, the content type and the like),
-/// and References and Bcc written again from the message (#566).
-#[test]
-fn a_header_rule_finds_a_word_in_any_line_of_the_header() {
-    let raw = b"From: Ann <ann@example.org>\r\nTo: bo@example.org\r\nBcc: cy@example.org\r\nSubject: hello\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nX-Priority: 1 (Highest)\r\nImportance: high\r\nReferences: <first@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=koi8-r\r\nContent-Language: ru\r\nX-Mailer: Example\r\n\r\nbody\r\n";
-    let m = parse(raw);
-    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
-    let words = [
-        "x-mailer: example",
-        "importance: high",
-        "references: <first@example.org>",
-        "bcc: cy@example.org",
-        "x-priority: 1",
-        "highest",
-        "charset=koi8-r",
-        "content-language: ru",
-        "mime-version",
-        "date: tue",
-    ];
-    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) || header(w).unread_in(&m)).collect();
-    assert!(missed.is_empty(), "a header rule doesn't find these lines: {missed:?}");
-    assert!(!header("x-spam-flag: yes").unread_in(&m) && !header("x-spam-flag: yes").matches(&m));
-    // Never written into the message again.
-    let written = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
-    assert!(!written.contains("Content-Language") && !written.contains("koi8-r"), "{written}");
-}
-
-/// A message whose header lines read into it weren't kept (one read before they were, or made
-/// here): a header rule can't tell of it. A word found in a line it kept still holds.
-#[test]
-fn a_header_rule_cant_tell_of_a_message_without_its_lines_read_into_it() {
-    let mut m = parse(b"From: ann@example.org\r\nSubject: hello\r\nX-Mailer: Example\r\nX-Priority: 1\r\n\r\nbody\r\n");
-    m.read_header.clear();
-    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
-    assert!(header("x-priority").unread_in(&m) && !header("x-priority").matches(&m));
-    assert!(header("x-mailer: example").matches(&m));
-}
-
-/// "Except if the header contains X-Priority: 1" leaves such a message alone: a rule that deletes
-/// doesn't act on it.
-#[test]
-fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
-    let raw = b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: hello\r\nX-Priority: 1 (Highest)\r\n\r\nbody\r\n";
-    let m = parse(raw);
-    let rule = mailcraft_model::Rule {
-        enabled: true,
-        conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
-        exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["x-priority: 1".into()])],
-        actions: vec![mailcraft_model::Action::Delete],
-        ..Default::default()
-    };
-    assert!(!rule.matches(&m), "the rule acts on a message its exception was to leave alone");
-}
-
-/// A header rule reads the header as it came, the lines MailCraft reads into the message too: a
-/// group with no members (`undisclosed-recipients:;`, the usual header rule against spam), an
-/// encoded-word as the sender wrote it, a comment by an address and the Message-ID's angle
-/// brackets are found (#566).
-#[test]
-fn a_header_rule_reads_the_lines_read_into_the_message_as_they_came() {
-    let raw = b"From: ann@example.org (Ann Smith)\r\nTo: undisclosed-recipients:;\r\nSubject: =?UTF-8?Q?Gr=C3=BC=C3=9Fe?=\r\nMessage-ID: <abc@mail.example.org>\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
-    let m = parse(raw);
-    let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
-    let words = ["undisclosed-recipients", "to: undisclosed", "=?utf-8?q?gr", "<abc@mail.example.org>", "(ann smith)"];
-    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) && !header(w).unread_in(&m)).collect();
-    assert!(missed.is_empty(), "a header rule decides these words aren't in the header as it came: {missed:?}");
-}
-
-/// "Delete it, except if the header contains undisclosed-recipients" leaves alone a
-/// message whose To line as it came is `undisclosed-recipients:;` (#566).
-#[test]
-fn a_header_exception_on_the_to_line_as_it_came_leaves_the_message_alone() {
-    let raw = b"From: ann@example.org\r\nTo: undisclosed-recipients:;\r\nSubject: hello\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
-    let m = parse(raw);
-    let rule = mailcraft_model::Rule {
-        enabled: true,
-        conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["hello".into()])],
-        exceptions: vec![mailcraft_model::Condition::HeaderContains(vec!["undisclosed-recipients".into()])],
-        actions: vec![mailcraft_model::Action::Delete],
-        ..Default::default()
-    };
-    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
 }

@@ -349,7 +349,7 @@ fn a_size_rule_measures_a_message_as_the_list_shows_it() {
     let ids: Vec<(&str, Id)> = ["ordinary", "detached", "p7m file", "encrypted file"]
         .into_iter()
         .map(|kind| {
-            let mut m = mailcraft_mime::parse_fetched(&report(kind, 256 << 10));
+            let mut m = mailcraft_mime_model::parse_fetched(&report(kind, 256 << 10));
             m.folder = inbox;
             (kind, s.mailbox.add_message(m).unwrap())
         })
@@ -625,7 +625,7 @@ fn an_exception_for_a_word_in_a_header_line_read_into_the_message_leaves_it_alon
     });
     s.run("rules.add", &rule).unwrap();
     let mut add = |bytes: Vec<u8>| {
-        let mut m = mailcraft_mime::parse_fetched(&bytes);
+        let mut m = mailcraft_mime_model::parse_fetched(&bytes);
         m.folder = inbox;
         s.mailbox.add_message(m).unwrap()
     };

@@ -21,7 +21,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mailcraft_mime::{PLACE_HEADER, WriteOptions};
+use mailcraft_mime::PLACE_HEADER;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
@@ -615,9 +616,9 @@ impl<'a> Push<'a> {
             } else {
                 message
             };
-            let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
+            let written = mailcraft_mime_model::write_placed(message, &options, marker.unwrap_or_default());
             // Written from the bytes it came as (#30): what it was moved out of may go then.
-            let original = mailcraft_mime::writes_original(message);
+            let original = mailcraft_mime_model::writes_original(message);
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));

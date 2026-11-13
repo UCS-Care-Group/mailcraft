@@ -3,7 +3,7 @@
 //! mbox files (RFC 4155, in the `mboxrd` flavour): messages one after another, each after a
 //! `From ` line.
 
-use mailcraft_model::Message;
+use crate::Message;
 use mailcraft_time::{DateTime, month_short};
 
 use crate::{WriteOptions, header, parse_fetched, write};
@@ -135,7 +135,7 @@ pub fn write_mbox(messages: &[&Message], opts: &WriteOptions) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use mailcraft_model::{Address, Body};
+    use crate::{Address, Body};
 
     use super::*;
 
@@ -144,7 +144,6 @@ mod tests {
             from: Address { name: "Ada".into(), email: "ada@example.org".into() },
             subject: subject.into(),
             date: 1_057_049_557,
-            received: 1_057_049_557,
             body: Body { text: text.into(), html: None },
             ..Message::default()
         }
