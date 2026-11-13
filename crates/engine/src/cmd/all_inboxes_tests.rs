@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use mailcraft_model::FolderKind;
 use serde_json::json;
 
 use crate::{Session, sample};
@@ -101,4 +102,36 @@ fn listing_a_named_folder_does_not_list_every_inbox() {
     let folders: HashSet<u64> = listed["messages"].as_array().unwrap().iter().filter_map(|m| m["folder"].as_u64()).collect();
     assert_eq!(folders, HashSet::from([first]));
     assert!(s.view.all_inboxes, "the list in view is put back");
+}
+
+#[test]
+fn the_ribbon_reads_the_inboxes_on_screen_and_leaves_a_shared_mailbox() {
+    let mut s = session();
+    let inbox = s.mailbox.inboxes()[0];
+    let account = s.mailbox.folder(inbox).unwrap().account;
+    let sent = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let sent_mail = s.mailbox.messages_in(sent).next().unwrap().id;
+    let inbox_mail = s.mailbox.messages_in(inbox).next().unwrap().id;
+    s.run("mail.markUnread", &json!({"id": sent_mail})).unwrap();
+    s.run("mail.markUnread", &json!({"id": inbox_mail})).unwrap();
+    s.run("folder.select", &json!({"id": sent})).unwrap();
+    s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let shared_inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    assert!(!s.mailbox.inboxes().contains(&shared_inbox));
+    s.run("view.allInboxes", &json!({})).unwrap();
+    assert_eq!(s.view.folder, sent);
+    s.run("mail.markAllRead", &json!({})).unwrap();
+    assert!(s.mailbox.message(inbox_mail).unwrap().read);
+    assert!(!s.mailbox.message(sent_mail).unwrap().read, "Sent Items was open before, and is not the list on screen");
+}
+
+#[test]
+fn one_inbox_is_not_all_inboxes() {
+    let mut s = session();
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    s.run("view.allInboxes", &json!({})).unwrap();
+    assert!(s.view.all_inboxes);
+    s.run("account.remove", &json!({"id": added["id"]})).unwrap();
+    assert!(!s.view.all_inboxes);
 }

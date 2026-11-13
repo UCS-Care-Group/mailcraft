@@ -481,19 +481,23 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
-    let scope = match app.session.view.scope {
-        mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
-        // The account in view, by the name the folder pane gives it (#493).
-        mailcraft_engine::Scope::Mailbox => folder
-            .and_then(|f| mb.account(f.account))
-            .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
-        mailcraft_engine::Scope::Subfolders => {
-            folder.map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))])).unwrap_or_default()
+    let scope = if app.session.view.all_inboxes {
+        tl!("All Inboxes").to_string()
+    } else {
+        match app.session.view.scope {
+            mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+            // The account in view, by the name the folder pane gives it (#493).
+            mailcraft_engine::Scope::Mailbox => folder
+                .and_then(|f| mb.account(f.account))
+                .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
+            mailcraft_engine::Scope::Subfolders => folder
+                .map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))]))
+                .unwrap_or_default(),
+            // (A shared mailbox's folder with the mailbox it is in, #70.)
+            mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
         }
-        // (A shared mailbox's folder with the mailbox it is in, #70.)
-        mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
     };
     let said = match found {
         0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),

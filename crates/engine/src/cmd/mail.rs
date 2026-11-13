@@ -833,16 +833,20 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The folders `mail.markAllRead` and `rules.run` act on: every Inbox, or the one folder named
-/// (the folder in view when none is).
+/// (the folder in view when none is). While All Inboxes is the list on screen and the call names
+/// neither a folder nor `allInboxes`, the ribbon's buttons act on those Inboxes, not on
+/// `view.folder`, which is still the folder that was open before.
 pub(crate) fn folders_asked(s: &Session, v: &Value) -> Result<Vec<Id>, crate::CmdError> {
-    if p::opt_bool(v, "allInboxes")? == Some(true) {
+    let named = p::id(v, "folder");
+    let every = p::opt_bool(v, "allInboxes")?;
+    if every == Some(true) || (named.is_none() && every.is_none() && s.view.all_inboxes) {
         let ids = s.mailbox.inboxes();
         if ids.is_empty() {
             return Err(fail("there is no Inbox"));
         }
         return Ok(ids);
     }
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    let folder = named.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }

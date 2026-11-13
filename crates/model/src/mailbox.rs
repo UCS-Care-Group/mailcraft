@@ -1709,9 +1709,10 @@ impl Mailbox {
         self.default_account().and_then(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).or_else(|| self.folders.first().map(|f| f.id))
     }
 
-    /// Every account's Inbox, in the folder pane's order. All Inboxes is this list.
+    /// Every Inbox of the owner's own accounts, in the folder pane's order. A shared mailbox is
+    /// left out: marking it read would mark it for everyone who uses it. All Inboxes is this list.
     pub fn inboxes(&self) -> Vec<Id> {
-        self.accounts_in_order().into_iter().filter_map(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).collect()
+        self.accounts_in_order().into_iter().filter(|a| !a.is_shared()).filter_map(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).collect()
     }
 
     /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, standard

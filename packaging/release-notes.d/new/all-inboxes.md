@@ -1,1 +1,0 @@
-- **All Inboxes.** With two mailboxes or more, a row above Favorites lists every Inbox together, with the unread count. Mark All as Read and Run Rules Now cover each of them. Right-click Hide All Inboxes turns the row off, and File › Options › Mail turns it on again.

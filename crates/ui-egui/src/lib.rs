@@ -912,11 +912,6 @@ struct SigningIn {
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
-/// A switch that is on when a saved settings file doesn't mention it yet.
-fn default_on() -> bool {
-    true
-}
-
 /// UI state that persists between runs (and that agents can read and set).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -942,9 +937,9 @@ pub struct UiState {
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
     /// File › Options › Mail, "Show All Inboxes when there are two mailboxes or more": a row above
-    /// Favorites lists every Inbox together. On unless the owner turns it off. A settings file
-    /// from before the switch is read as on.
-    #[serde(default = "default_on")]
+    /// Favorites lists every Inbox of the owner's own accounts. Off unless the owner turns it on.
+    /// A settings file without the key is off.
+    #[serde(default)]
     pub all_inboxes: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
@@ -1056,7 +1051,7 @@ impl Default for UiState {
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
-            all_inboxes: true,
+            all_inboxes: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -4686,12 +4681,9 @@ impl MailApp {
         let account =
             self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
         match self.session.view.module {
+            Module::Mail if self.session.view.all_inboxes => tl!("All Inboxes").to_string(),
             Module::Mail => {
-                let folder = if self.session.view.all_inboxes {
-                    tl!("All Inboxes")
-                } else {
-                    self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name)
-                };
+                let folder = self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name);
                 match account.filter(|a| !a.is_empty()) {
                     Some(a) => i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder), ("mailbox", &a)]),
                     None => folder.to_string(),

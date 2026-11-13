@@ -2903,6 +2903,11 @@ impl Session {
         if self.mailbox.folder(self.view.folder).is_none() {
             self.view.folder = self.mailbox.inbox().unwrap_or(0);
         }
+        // All Inboxes needs two of the owner's own. One mailbox, or only a shared one beside it,
+        // is a single Inbox: the list and the title go back to that folder.
+        if self.mailbox.inboxes().len() < 2 {
+            self.view.all_inboxes = false;
+        }
         self.select_in_view();
         let mb = &self.mailbox;
         self.sel.messages.dedup();
