@@ -41,7 +41,7 @@ impl Drop for CancelOnDrop {
 pub struct Core {
     jobs: Mutex<Option<Sender<Job>>>,
     events: Arc<Queue<Event>>,
-    platform: Arc<dyn Platform>,
+    pub(crate) platform: Arc<dyn Platform>,
     memory_budget: u64,
     language: AtomicU8,
     /// Set when `shutdown` begins: a call still waiting in the queue is then cancelled and not run.
@@ -238,7 +238,7 @@ impl Core {
 }
 
 impl Core {
-    fn lang(&self) -> Lang {
+    pub(crate) fn lang(&self) -> Lang {
         Lang::ALL.get(usize::from(self.language.load(Ordering::Relaxed))).copied().unwrap_or_default()
     }
 }

@@ -55,6 +55,7 @@ internal class ReadingActions(
     val onAllow: (AllowScope) -> Unit,
     val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
+    val attachments: AttachmentActions = AttachmentActions.None,
 ) {
     companion object {
         val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
@@ -76,6 +77,7 @@ internal fun ReadingPane(
     ui: ReadingUi,
     actions: ReadingActions,
     modifier: Modifier = Modifier,
+    attachments: AttachmentUi = AttachmentUi(),
 ) {
     val dark = isSystemInDarkTheme()
     val snackbar = remember { SnackbarHostState() }
@@ -120,6 +122,7 @@ internal fun ReadingPane(
         }
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
+    AttachmentLayers(texts, attachments, actions.attachments) { notice = it }
     details?.let { link ->
         LinkDetails(texts, link, onOpen = {
             notice = linkNotice(texts, actions.onLink(link))
@@ -150,7 +153,9 @@ private fun MessageBody(
     LazyColumn(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(Gutter)) {
         item(key = "header") { MessageHeader(texts, view) }
         item(key = "banner") { PicturesBanner(texts, ui, actions) }
-        if (view.attachments.isNotEmpty()) item(key = "attachments") { AttachmentsLine(texts, view) }
+        if (opened.attachments.isNotEmpty()) {
+            item(key = "attachments") { AttachmentsList(texts, view.id, opened.attachments, actions.attachments) }
+        }
         item(key = "gap") { Box(modifier = Modifier.padding(top = Gutter)) }
         items(lines.size, key = { "line-$it" }) { index -> BodyLineView(lines[index], env, paper, bodyWidth) }
     }

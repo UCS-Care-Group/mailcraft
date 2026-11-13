@@ -68,18 +68,36 @@ internal class PictureStack(
     }
 
     /** What the reading pane asks, answered by [reading], with links followed by [links]. */
-    fun readingActions(links: LinkOpener) = ReadingActions(
+    fun readingActions(
+        links: LinkOpener,
+        attachments: AttachmentActions = AttachmentActions.None,
+        onLeft: () -> Unit = {},
+    ) = ReadingActions(
         onOpen = { id, width, dark -> reading.open(id, width, dark) },
-        onClose = reading::close,
+        onClose = {
+            reading.close(it)
+            onLeft()
+        },
         onAllow = {
             reading.allow(it)
             senderImages.redecide()
         },
         onDownloadNow = reading::downloadNow,
         onLink = links::open,
+        attachments = attachments,
     )
 
     private companion object {
         const val FOLDER = "pictures.cache"
     }
+}
+
+/** What the reading pane is made of: pictures, the links it follows, and attachments (open, save, share). */
+internal class ReadingStack(core: Core, context: Context, scope: CoroutineScope) {
+    val pictures = PictureStack(core, context, scope)
+    val attachments = AttachmentController(CoreAttachments(core), AndroidAttachmentDevice(context), scope)
+    private val links = CoreLinks(core)
+
+    /** What the reading pane asks; leaving a message lets go of what its attachments held. */
+    fun actions() = pictures.readingActions(links, attachments.actions(), attachments::reset)
 }

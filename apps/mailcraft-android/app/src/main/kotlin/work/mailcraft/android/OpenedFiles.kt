@@ -39,6 +39,19 @@ internal fun refuseUnlessOpenable(safeName: String, size: Int) {
     if (size > MAX_OPEN_BYTES) throw HostException.TooLong()
 }
 
+/**
+ * Where a temporary copy is written: a folder of its own ([folder], a random name made by the caller)
+ * under [root], and [name] (already made safe) in it. Never anywhere else: a name that would leave the folder
+ * is refused.
+ */
+internal fun stagedFile(root: File, folder: String, name: String): File {
+    if (folder.any { it == '/' || it == '\\' } || folder.contains("..")) throw IOException("outside")
+    val own = File(root, folder)
+    val file = File(own, safeFileName(name))
+    if (file.canonicalFile.parentFile?.canonicalFile != own.canonicalFile) throw IOException("outside")
+    return file
+}
+
 /** Removes everything under [dir], and [dir] itself. */
 internal fun clearDirectory(dir: File) {
     dir.walkBottomUp().forEach { it.delete() }
@@ -61,24 +74,44 @@ private const val FALLBACK = "attachment"
 internal class OpenedFiles(private val context: Context) {
     private val root: File get() = File(context.cacheDir, FOLDER)
 
-    fun open(name: String, bytes: ByteArray) {
+    /** Writes the temporary copy and gives back its read-only address and the name it is under. */
+    private fun stage(name: String, bytes: ByteArray): Pair<android.net.Uri, String> {
         val safe = safeFileName(name)
         refuseUnlessOpenable(safe, bytes.size)
-        val folder = File(root, UUID.randomUUID().toString())
-        if (!folder.mkdirs() && !folder.isDirectory) throw IOException("no folder")
-        val file = File(folder, safe)
+        val file = stagedFile(root, UUID.randomUUID().toString(), safe)
+        file.parentFile?.let { if (!it.mkdirs() && !it.isDirectory) throw IOException("no folder") }
         file.writeBytes(bytes)
-        val uri = FileProvider.getUriForFile(context, authority(context), file)
-        val mime = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(safe.substringAfterLast('.', "").lowercase(Locale.ROOT))
-            ?: "application/octet-stream"
+        return FileProvider.getUriForFile(context, authority(context), file) to safe
+    }
+
+    private fun mimeOf(safe: String): String =
+        mimeFor(safe) { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+
+    fun open(name: String, bytes: ByteArray) {
+        val (uri, safe) = stage(name, bytes)
         val intent = Intent(Intent.ACTION_VIEW)
-        intent.setDataAndType(uri, mime)
+        intent.setDataAndType(uri, mimeOf(safe))
         // The clip is what carries the grant to the program that answers.
         intent.clipData = ClipData.newRawUri(safe, uri)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            throw HostException.Failed()
+        }
+    }
+
+    /** Offers the file to the system's share sheet: the program the owner picks gets one read-only grant. */
+    fun share(name: String, bytes: ByteArray) {
+        val (uri, safe) = stage(name, bytes)
+        val send = Intent(Intent.ACTION_SEND).setType(mimeOf(safe)).putExtra(Intent.EXTRA_STREAM, uri)
+        send.clipData = ClipData.newRawUri(safe, uri)
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val chooser = Intent.createChooser(send, null)
+        chooser.clipData = ClipData.newRawUri(safe, uri)
+        chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(chooser)
         } catch (_: ActivityNotFoundException) {
             throw HostException.Failed()
         }

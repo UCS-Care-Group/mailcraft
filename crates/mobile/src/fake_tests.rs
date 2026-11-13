@@ -69,6 +69,8 @@ pub(crate) struct FakePlatform {
     pub(crate) secrets: Arc<FakeSecrets>,
     pub(crate) notified: AtomicUsize,
     pub(crate) opened: Mutex<Vec<String>>,
+    /// The files handed to another app: name and size.
+    pub(crate) files: Mutex<Vec<(String, usize)>>,
 }
 
 impl FakePlatform {
@@ -78,6 +80,7 @@ impl FakePlatform {
             secrets: Arc::new(FakeSecrets::default()),
             notified: AtomicUsize::new(0),
             opened: Mutex::new(Vec::new()),
+            files: Mutex::new(Vec::new()),
         })
     }
 
@@ -87,6 +90,7 @@ impl FakePlatform {
             secrets: Arc::new(FakeSecrets::default()),
             notified: AtomicUsize::new(0),
             opened: Mutex::new(Vec::new()),
+            files: Mutex::new(Vec::new()),
         })
     }
 }
@@ -113,8 +117,9 @@ impl Platform for FakePlatform {
         Err(HostError::Unsupported)
     }
 
-    fn open_file(&self, _name: String, _bytes: Vec<u8>) -> Result<(), HostError> {
-        Err(HostError::Unsupported)
+    fn open_file(&self, name: String, bytes: Vec<u8>) -> Result<(), HostError> {
+        self.files.lock().unwrap().push((name, bytes.len()));
+        Ok(())
     }
 
     fn open_link(&self, url: String) -> Result<(), HostError> {

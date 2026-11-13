@@ -20,7 +20,13 @@ internal enum class LinkGoes { Browser, Composer, Dialer, Part }
 internal data class LinkInfo(val goes: LinkGoes, val shown: String)
 
 /** A message as the reading pane gets it: its view, what the rules need of its sender, and its links. */
-internal class OpenedMessage(val view: MessageView, val facts: MessageFacts, val links: Map<String, LinkInfo>)
+internal class OpenedMessage(
+    val view: MessageView,
+    val facts: MessageFacts,
+    val links: Map<String, LinkInfo>,
+    /** Its files, each with what may be done with it. */
+    val attachments: List<AttachmentItem> = emptyList(),
+)
 
 /** What a download came to. */
 internal sealed interface Fetched {
@@ -78,7 +84,7 @@ internal class CoreReadSource(
             } catch (_: CoreException) {
                 MessageFacts(view.from.address, junk = true, vouched = false, known = false)
             }
-            OpenedMessage(view, facts, linksOf(view.blocks))
+            OpenedMessage(view, facts, linksOf(view.blocks), listedAttachments(view.attachments))
         } catch (_: CoreException) {
             null
         }

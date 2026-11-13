@@ -23,6 +23,7 @@ uniffi::setup_scaffolding!();
 pub mod android;
 #[cfg(target_os = "android")]
 mod android_jni;
+mod attachments;
 pub mod blocks;
 mod core;
 mod error;
@@ -37,6 +38,8 @@ mod queue;
 mod records;
 pub mod text;
 
+#[cfg(test)]
+mod attachments_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
@@ -54,6 +57,7 @@ mod review_tests;
 #[cfg(test)]
 mod tests;
 
+pub use attachments::{AttachmentCheck, AttachmentFile, CalendarImported, OpenVerdict, attachment_check};
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink};

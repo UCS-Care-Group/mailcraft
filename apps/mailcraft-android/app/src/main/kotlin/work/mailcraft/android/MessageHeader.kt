@@ -4,7 +4,6 @@ package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,15 +47,3 @@ private fun HeaderLine(label: String, people: List<AddressRecord>) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
-
-@Composable
-internal fun AttachmentsLine(texts: Texts, view: MessageView) {
-    val shown = view.attachments.filter { !it.inline }.ifEmpty { view.attachments }
-    val names = shown.joinToString(", ") { "${it.name} (${sizeLabel(it.size.toLong())})" }
-    Text(
-        "${texts.tn(shown.size.toULong(), "{n} attachment", "{n} attachments")}: $names",
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(top = 8.dp),
-    )
-}
-

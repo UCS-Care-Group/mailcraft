@@ -159,6 +159,38 @@ internal object AppIcons {
             lineTo(9f, 19f)
         }
     }
+
+    /** A sheet with a folded corner, for a file. */
+    val File: ImageVector by lazy {
+        icon("File") {
+            moveTo(6f, 3f)
+            lineTo(14f, 3f)
+            lineTo(19f, 8f)
+            lineTo(19f, 21f)
+            lineTo(6f, 21f)
+            close()
+            moveTo(14f, 3f)
+            lineTo(14f, 8f)
+            lineTo(19f, 8f)
+        }
+    }
+
+    /** Three dots one above the other: more actions. */
+    val More: ImageVector by lazy {
+        icon("More") {
+            circle(12f, 5f, 1.4f)
+            circle(12f, 12f, 1.4f)
+            circle(12f, 19f, 1.4f)
+        }
+    }
+
+    /** A cross, to close. */
+    val Close: ImageVector by lazy {
+        icon("Close") {
+            line(6f, 6f, 18f, 18f)
+            line(18f, 6f, 6f, 18f)
+        }
+    }
 }
 
 internal fun icon(name: String, build: PathBuilder.() -> Unit): ImageVector =

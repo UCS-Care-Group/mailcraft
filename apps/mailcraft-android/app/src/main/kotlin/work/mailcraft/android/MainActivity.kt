@@ -82,8 +82,9 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val appContext = hostContext.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
     val scope = rememberCoroutineScope()
-    val pictures = remember(core) { PictureStack(core, appContext, scope) }
-    val links = remember(core) { CoreLinks(core) }
+    val reader = remember(core) { ReadingStack(core, appContext, scope) }
+    val pictures = reader.pictures
+    val attachmentUi by reader.attachments.ui.collectAsState()
     val reading by pictures.reading.ui.collectAsState()
     val avatars by pictures.senderImages.images.collectAsState()
     val pictureSettings by pictures.settings.collectAsState()
@@ -115,6 +116,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         reading = reading,
         pictures = pictureSettings,
         avatars = if (pictureSettings.prefs.senderImages) avatars else null,
+        attachments = attachmentUi,
     )
     AppShell(
         texts = texts,
@@ -127,7 +129,7 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
                 swipe = it
                 prefs.save(it)
             },
-            reading = pictures.readingActions(links),
+            reading = reader.actions(),
             onPictures = pictures::changed,
             onClearPictures = pictures::clear,
         ),

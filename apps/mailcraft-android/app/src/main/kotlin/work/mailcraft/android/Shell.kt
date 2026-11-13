@@ -58,6 +58,8 @@ internal data class ShellData(
     val pictures: PicturesUi = PicturesUi(),
     /** Senders' pictures by row id, when sender images are on (null when off). */
     val avatars: Map<ULong, ByteArray>? = null,
+    /** What the attachments of the open message put in front of the owner (a question, a picture, a notice). */
+    val attachments: AttachmentUi = AttachmentUi(),
 )
 
 /** What the shell asks of the app. */
@@ -237,13 +239,13 @@ private fun MailTab(
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
             VerticalDivider()
             if (messageId != null) {
-                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f))
+                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f), data.attachments)
             } else {
                 Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
             }
         }
     } else if (messageId != null) {
-        ReadingPane(texts, messageId, data.reading, actions.reading, modifier)
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments)
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
