@@ -58,7 +58,7 @@ const FIELD_MARGIN: Margin = Margin::symmetric(8, 6);
 pub enum Page {
     /// Type the address.
     Address,
-    /// The host is asking the DNS who takes the domain's mail.
+    /// The host is asking the DNS who takes the domain's mail, and where its Autodiscover is.
     Detecting,
     /// Pick the kind of account by hand.
     Choose,
@@ -83,6 +83,9 @@ pub enum Page {
     Done,
     /// The settings of an account that exists already.
     Settings,
+    /// The domain's DNS names a host for Autodiscover that isn't Microsoft's: an Exchange
+    /// server's, or a hoster's that hands IMAP settings out that way too. The owner says which.
+    ExchangeOrImap,
     /// An Exchange server account (#252): the password, and Server settings.
     Exchange,
     /// The host is searching for the Exchange server and trying the account.
@@ -115,8 +118,8 @@ impl Kind {
     /// The kinds that have servers, in the order of their tiles.
     const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
 
-    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
-    /// choice: nothing detects it).
+    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (found from
+    /// the domain's Autodiscover records when it publishes them, and chosen here otherwise).
     fn tiles() -> Vec<Kind> {
         let mut tiles = Kind::HOSTED.to_vec();
         tiles.push(Kind::Exchange);
@@ -209,6 +212,10 @@ pub enum Action {
     UseSignedIn,
     /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
     KeepAlias,
+    /// Not an Exchange server after all: on to IMAP servers, guessed from the domain.
+    Imap,
+    /// Ask the domain's DNS again where its Autodiscover is (Search again).
+    LookAgain,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -476,6 +483,12 @@ pub struct AccountSetup {
     focus: bool,
     /// What the host found out about the domain (its mail exchangers, its own records), once it has it.
     lookup: Option<Receiver<Result<Discovered, String>>>,
+    /// The hosts the domain names for Autodiscover, once the host has them: asked beside the
+    /// exchangers, and looked at when those name nobody this program knows.
+    autodiscover: Option<Receiver<Result<Vec<String>, String>>>,
+    /// What the lookup found when it named no provider this program knows: kept while the
+    /// Autodiscover answer is awaited, and for IMAP when the owner says it isn't Exchange.
+    discovered: Option<Discovered>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
@@ -610,6 +623,8 @@ impl AccountSetup {
             error: String::new(),
             focus: true,
             lookup: None,
+            autodiscover: None,
+            discovered: None,
             check: None,
             waiting: false,
             reconnecting_google: false,
@@ -894,6 +909,11 @@ impl AccountSetup {
     // ---- moving between pages ----
 
     fn go(&mut self, page: Page) {
+        // A Search again still out is the Exchange page's: leaving the page drops it, so that its
+        // answer never lands on another address, nor keeps frames coming.
+        if self.page == Page::Exchange && page != Page::Exchange {
+            self.autodiscover = None;
+        }
         self.page = page;
         // A password shown on one page is dots on the next.
         self.reveal = false;
@@ -951,7 +971,7 @@ impl AccountSetup {
         match (self.page, action) {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
-                self.lookup = None;
+                (self.lookup, self.autodiscover) = (None, None);
                 self.go(Page::Address);
             }
             (Page::Choose, Action::Pick(kind)) => self.pick(app, kind),
@@ -1146,21 +1166,31 @@ impl AccountSetup {
         };
         let known = preset.known;
         self.take(preset);
+        self.discovered = None;
         if known {
             self.proceed(app);
             return;
         }
         // A domain nobody here has heard of: the servers are a guess for the owner to check,
-        // unless the domain's mail exchangers say whose it is.
+        // unless the domain's mail exchangers say whose it is, or its Autodiscover records name
+        // a host: Microsoft 365's, or one the owner is asked about (an Exchange server or IMAP).
+        // Only the domain is asked about.
         (self.guessed, self.settings_open) = (true, true);
-        let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase());
+        let Some(domain) = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()) else {
+            self.go(Page::Password);
+            return;
+        };
         // (Working offline, nobody is asked: the servers are a guess to check.)
-        match (app.services.discover.as_ref().filter(|_| !app.offline()), domain) {
-            (Some(lookup), Some(domain)) => {
-                self.lookup = Some(lookup(domain));
-                self.go(Page::Detecting);
-            }
-            _ => self.go(Page::Password),
+        if app.offline() {
+            self.go(Page::Password);
+            return;
+        }
+        self.lookup = app.services.discover.as_ref().map(|lookup| lookup(domain.clone()));
+        self.autodiscover = app.services.lookup_autodiscover.as_ref().map(|lookup| lookup(domain));
+        if self.lookup.is_some() || self.autodiscover.is_some() {
+            self.go(Page::Detecting);
+        } else {
+            self.go(Page::Password);
         }
     }
 
@@ -1609,38 +1639,89 @@ impl AccountSetup {
             }
             Page::Checking => self.poll_check(app),
             Page::ExchangeChecking | Page::ExchangeConsent => self.poll_exchange(app),
+            Page::Exchange => self.poll_look_again(),
             _ => {}
         }
     }
 
+    /// The exchangers first: a provider they name is the answer. Else the Autodiscover records:
+    /// Microsoft 365, or an Exchange server the owner is asked about; else the servers the
+    /// domain's own records name (#1063), or the guess.
     fn poll_lookup(&mut self, app: &mut MailApp) {
-        let answer = match self.lookup.as_ref().map(Receiver::try_recv) {
-            Some(Err(TryRecvError::Empty)) => return,
-            Some(Ok(answer)) => answer,
-            // The host gave up, or nobody was asked.
-            Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
-        };
-        self.lookup = None;
-        let found = answer
-            .ok()
-            .and_then(|found| self.preset_command(Some(&found), None))
-            .and_then(|(command, params)| app.execute(command, params).ok())
-            .map(|v| Preset::read(&v));
-        match found {
-            Some(preset) if preset.known => {
+        if self.lookup.is_some() {
+            let answer = match self.lookup.as_ref().map(Receiver::try_recv) {
+                Some(Err(TryRecvError::Empty)) => return,
+                Some(Ok(answer)) => answer,
+                // The host gave up.
+                Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
+            };
+            self.lookup = None;
+            let discovered = answer.ok();
+            let found = discovered
+                .as_ref()
+                .and_then(|found| self.preset_command(Some(found), None))
+                .and_then(|(command, params)| app.execute(command, params).ok())
+                .map(|v| Preset::read(&v))
+                .filter(|preset| preset.known);
+            if let Some(preset) = found {
+                self.autodiscover = None;
                 self.take(preset);
                 self.proceed(app);
+                return;
             }
-            // What the domain's own records name (#1063), with a guess for what they don't: for
-            // the owner to check, with where it came from said.
+            self.discovered = discovered;
+        }
+        let hosts = match self.autodiscover.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) => return,
+            Some(Ok(Ok(hosts))) => hosts,
+            // Not answered, the host gave up, or nobody was asked: nothing is known of it.
+            Some(Ok(Err(_)) | Err(TryRecvError::Disconnected)) | None => Vec::new(),
+        };
+        self.autodiscover = None;
+        match provider::by_autodiscover(&hosts) {
+            provider::Autodiscover::Microsoft => self.microsoft_by_autodiscover(app),
+            provider::Autodiscover::Exchange => self.exchange_or_imap(hosts),
+            // What the domain's own records name (#1063), else the guess made from the domain.
+            provider::Autodiscover::Nothing => self.imap_from_discovered(app),
+        }
+    }
+
+    /// IMAP at a domain whose exchangers name no provider this program knows: the servers its
+    /// own records name (#1063), with a guess for what they don't, for the owner to check, with
+    /// where they came from said; else the guess made from the domain.
+    pub(super) fn imap_from_discovered(&mut self, app: &mut MailApp) {
+        let preset = self
+            .preset_command(self.discovered.as_ref(), None)
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v));
+        match preset {
             Some(preset) if preset.found.is_some() => {
                 let (found, guessed, hosts) = (preset.found, preset.guessed.0 || preset.guessed.1, preset.found_hosts());
                 self.take(preset);
                 (self.found, self.found_hosts, self.guessed, self.settings_open) = (found, hosts, guessed, true);
-                self.go(Page::Password);
             }
-            // The guess made from the domain stays, for the owner to check.
-            _ => self.go(Page::Password),
+            Some(preset) => {
+                self.take(preset);
+                (self.guessed, self.settings_open) = (true, true);
+            }
+            None => {}
+        }
+        self.go(Page::Password);
+    }
+
+    /// The domain's Autodiscover is Microsoft's: the mail is in Microsoft 365, whoever takes it
+    /// in first (a filter in front of it is the mail exchanger then).
+    fn microsoft_by_autodiscover(&mut self, app: &mut MailApp) {
+        let preset = self
+            .preset_command(None, Kind::Microsoft365.service())
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v));
+        match preset {
+            Some(preset) => {
+                self.take(preset);
+                self.proceed(app);
+            }
+            None => self.go(Page::Password),
         }
     }
 
@@ -1711,7 +1792,12 @@ impl AccountSetup {
 
     /// Whether the host owes an answer: frames keep coming until it is in.
     fn busy(&self) -> bool {
-        self.lookup.is_some() || self.check.is_some() || self.waiting || self.approval.approving || self.exchange.pending()
+        self.lookup.is_some()
+            || self.autodiscover.is_some()
+            || self.check.is_some()
+            || self.waiting
+            || self.approval.approving
+            || self.exchange.pending()
     }
 
     /// Whether the dialog is finished, by what one of its pages did outside a frame (a command
@@ -1772,7 +1858,7 @@ impl AccountSetup {
             return true;
         }
         if self.busy() {
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
+            crate::software::repaint_after(ui.ctx(), Duration::from_millis(100));
         }
         let mut pass = Pass::new(ui, &app.session, &mut self.focus);
         let action = match self.page {
@@ -1792,6 +1878,7 @@ impl AccountSetup {
             }
             Page::Done => self.done_page(ui, &pass),
             Page::Settings => self.settings_page(app, ui, &mut pass),
+            Page::ExchangeOrImap => self.exchange_or_imap_page(ui, &pass),
             Page::Exchange => self.exchange_form(app, ui, &mut pass),
             Page::ExchangeChecking => self.exchange_checking(ui, &pass),
             Page::ExchangeConsent => self.exchange_consent(ui, &pass),
@@ -2374,7 +2461,7 @@ fn waiting_page(ui: &mut Ui, pass: &Pass, page_in_view: Page, text: &str, detail
     page(ui, &t, |ui| {
         ui.add_space(14.0);
         ui.vertical_centered(|ui| {
-            ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+            crate::software::spinner(ui, 30.0, Some(t.accent));
             ui.add_space(8.0);
             ui.label(RichText::new(text).font(medium(13.5)).color(t.text));
             if !detail.is_empty() {
@@ -2620,6 +2707,8 @@ mod tests {
     use crate::{Services, SignInRequest};
     use egui::Key;
 
+    /// An Exchange server found from the domain's Autodiscover records.
+    mod autodiscover;
     /// Servers found in the domain's own records, and the question before a password goes
     /// outside the domain (#1063).
     mod found_servers;

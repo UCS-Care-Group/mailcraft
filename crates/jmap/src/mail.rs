@@ -6,7 +6,13 @@
 //! read in pieces ([`JmapMailResult`]), each to be taken in as it comes. Nothing here keeps anything
 //! between runs: what the engine already has comes with the request.
 //!
-//! **What is asked of the server**, in order, each in one request:
+//! **What is asked of the server**, in order:
+//!
+//! - First what the request brings to the server, so that what is read afterwards already shows it: the
+//!   changes of messages made here ([`JmapMailRequest::changes`]: marks, moves, messages deleted for good)
+//!   with `Email/set`, as `changes` tells.
+//!
+//! Then the reading, each step in one request:
 //!
 //! 1. `Mailbox/get`, always: the mailboxes (their roles say which is the Inbox, which a run that reads
 //!    only the Inbox and the mailboxes on screen needs as much as one that reads them all). It is the
@@ -38,10 +44,18 @@
 //! name the place, it is a removal and an arrival.) The header fields are read from the raw `headers`,
 //! whatever else the server serves.
 //!
-//! **Pieces**, in this order: the folder list (when asked for), then one piece for each window read, then
+//! **Pieces**, in this order: what became of the changes ([`JmapMailResult::changes`], a piece for each
+//! call that took some up), the folder list (when asked for), then one piece for each window read, then
 //! the last, which says how the run ended: `partial` is false only there, `whole` is true when nothing
 //! went wrong and the run was not stopped, and the problems are in `errors`. [`JmapMailResult::stopped`]:
-//! the `cancel` flag was set, which is looked at before every request.
+//! the `cancel` flag was set, which is looked at before every request. A caller that takes the pieces in
+//! as they come has what became of the changes even when the reading fails after.
+//!
+//! **A change the server refuses** is told where it belongs
+//! ([`JmapOutcome`](mailcraft_model::sync::JmapOutcome)) and is nothing wrong with the run: no line, and
+//! `whole` as the reading has it. A change that got no answer is not reported at all, so the engine brings
+//! it again. Only a step that could not be asked (the call for the changes failed as a whole) is a line in
+//! `errors`, and a run that is not `whole`.
 //!
 //! **When something goes wrong.** The server refusing the credentials or the access (401, 403) ends the run
 //! with `auth_refused`; one that is busy (429, 503) ends it with `busy_for`, as many seconds as it asked, or
@@ -58,13 +72,18 @@
 //! with no mailbox in it is a line as well: an account always has an Inbox. The lines written here name no
 //! mailbox, and what a server says in one is scrubbed of the session's address, the account's, the
 //! credentials and any word that holds an `@`. A window that a stop (cancel, a busy server, a refused
-//! sign-in) cuts between its requests is not handed on. What the request asks that is not done here yet
-//! (`changes`, `sends`) gets no answer, so the engine asks again.
+//! sign-in) cuts between its requests is not handed on. The same ends hold while the changes go up: a
+//! refused sign-in, a busy server and a stop end the run there, and what was not answered by then is
+//! brought again by the engine; any other failure of that step is a line, and the run goes on to read.
+//! What the request asks that is not done here yet (`sends`) gets no answer.
 //!
 //! **What comes back is hostile.** Counts, ids, names, previews, addresses and header fields are cut to
 //! sizes; an answer is held to the size its request can need; an entry that cannot be read is passed over;
 //! nothing is indexed, unwrapped or recursed into.
 
+mod changes;
+#[cfg(test)]
+mod changes_tests;
 mod folders;
 mod message;
 #[cfg(test)]
@@ -128,9 +147,10 @@ const THREADS_AT_ONCE: usize = 100;
 /// The special mailboxes after the Inbox, in the order the folder pane lists them.
 const SPECIAL: [FolderKind; 5] = [FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted, FolderKind::Archive, FolderKind::Junk];
 
-/// Read the folders and the newest messages of a JMAP account as `request` says, and hand them to `emit`
-/// piece by piece (see the module documentation): the folder list when asked for, a piece for each window,
-/// and a last piece (the only one that is not `partial`) that says how the run ended. `connection` is signed
+/// Take the changes of a JMAP account's messages up, and read its folders and the newest messages in them,
+/// as `request` says; and hand what came of it to `emit` piece by piece (see the module documentation): what
+/// became of the changes, the folder list when asked for, a piece for each window, and a last piece (the
+/// only one that is not `partial`) that says how the run ended. `connection` is signed
 /// in already ([`Connection::connect`]); a caller whose sign-in failed ends the run with [`failed_run`]. `cancel`
 /// is read before every request: set, the run ends there, with a last piece that says `stopped`.
 ///
@@ -220,6 +240,9 @@ impl From<BuildError> for Stop {
 /// What went wrong in a run, to be said in a few lines at its end.
 #[derive(Default)]
 struct Outcome {
+    /// Why changes could not be taken up: a step that could not be asked. (A change the server refused is
+    /// not here: it is told with the change.)
+    changes: Option<String>,
     /// Why the mailboxes could not be listed.
     listing: Option<String>,
     /// A request failed in a way that ended the run (the server was busy, or could not be had).
@@ -239,9 +262,11 @@ struct Outcome {
 }
 
 impl Outcome {
-    /// Nothing went wrong, and the run was not stopped: every mailbox it meant to read was read.
+    /// Nothing went wrong, and the run was not stopped: every mailbox it meant to read was read, and what
+    /// it had to bring to the server could be asked.
     fn clean(&self) -> bool {
-        self.listing.is_none()
+        self.changes.is_none()
+            && self.listing.is_none()
             && self.halted.is_none()
             && self.windows.0 == 0
             && self.details.0 == 0
@@ -255,6 +280,9 @@ impl Outcome {
     fn lines(&self) -> Vec<String> {
         let plural = |n: usize, one: &str, many: &str| if n == 1 { format!("1 {one}") } else { format!("{n} {many}") };
         let mut lines = Vec::new();
+        if let Some(why) = &self.changes {
+            lines.push(format!("Couldn't take the changes of messages up to the server: {why}"));
+        }
         if let Some(why) = &self.listing {
             lines.push(format!("Couldn't list the mailboxes on the server: {why}"));
         }
@@ -434,8 +462,9 @@ impl<'a, H: HttpExchange> Run<'a, H> {
         if self.cancel.load(Ordering::Relaxed) { Err(Stop::Cancelled) } else { Ok(()) }
     }
 
-    /// The whole run: the mailboxes, then the windows.
+    /// The whole run: the changes go up, then the mailboxes, then the windows.
     async fn all(&self, out: &mut Outcome, emit: &mut dyn FnMut(JmapMailResult)) -> Result<(), Stop> {
+        self.changes(out, emit).await?;
         let places = self.list(out).await?;
         if self.request.list_folders
             && let Some(places) = &places
@@ -858,6 +887,19 @@ pub(crate) fn secrets_of(email: &str, session: &str, client: &Redactor, account_
         secrets.add_personal(account_id);
     }
     secrets
+}
+
+/// What a server says of something it would not change (a `SetError`, RFC 8620 §5.3), as a few
+/// words for the owner: its description, cleaned as every line is ([`said`]), else the error's type when
+/// that is a plain name, else that it did not say.
+pub(crate) fn refusal(secrets: &Redactor, error: &Value) -> String {
+    let described = error.get("description").and_then(Value::as_str).map(|text| said(secrets, &text)).filter(|text| !text.trim().is_empty());
+    let kind = error
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|kind| !kind.is_empty() && kind.len() <= 64 && kind.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
+        .filter(|kind| !secrets.mentions_secret(kind));
+    described.or_else(|| kind.map(str::to_string)).unwrap_or_else(|| "the server refused it without saying why".to_string())
 }
 
 /// `error` as a line: one line, short, the secrets taken out before it is cut ([`Redactor::excerpt`]), and
