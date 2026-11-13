@@ -3005,6 +3005,12 @@ msgstr "Diagnose kopiëren"
 msgid "Copy Event"
 msgstr "Gebeurtenis kopiëren"
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Items kopiëren"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3052,6 +3058,12 @@ msgstr "Alles kopiëren"
 #, fuzzy
 msgid "Copy problems"
 msgstr "Problemen kopiëren"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy the selected items to the folder:"
+msgstr "De geselecteerde items naar de map kopiëren:"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -7700,6 +7712,12 @@ msgid "Move Folder"
 msgstr "Map verplaatsen"
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move Items"
+msgstr "Items verplaatsen"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Move Recurring Item"
@@ -7728,6 +7746,12 @@ msgstr "Alleen de afspraken verplaatsen"
 #, fuzzy
 msgid "Move the message to a folder to open or save its attachments"
 msgstr "Verplaats het bericht naar een map om de bijlagen te openen of op te slaan"
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Move the selected items to the folder:"
+msgstr "De geselecteerde items naar de map verplaatsen:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8322,7 +8346,7 @@ msgid "No file manager could be started to show the folder."
 msgstr "Er kon geen bestandsbeheerder worden gestart om de map te tonen."
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
 msgstr "Geen mappen komen overeen"
@@ -8743,7 +8767,7 @@ msgid "Numbering"
 msgstr "Nummering"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11209,7 +11233,7 @@ msgid "Search contacts"
 msgstr "Contactpersonen zoeken"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Search folders"
 msgstr "Mappen zoeken"

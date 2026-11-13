@@ -2514,6 +2514,11 @@ msgstr ""
 msgid "Copy Event"
 msgstr ""
 
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+msgid "Copy Items"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Copy Link"
@@ -2552,6 +2557,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Copy problems"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+msgid "Copy the selected items to the folder:"
 msgstr ""
 
 #. interface
@@ -6450,6 +6460,11 @@ msgid "Move Folder"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/move_items.rs
+msgid "Move Items"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Move Recurring Item"
 msgstr ""
@@ -6472,6 +6487,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/move_items.rs
+msgid "Move the selected items to the folder:"
 msgstr ""
 
 #. interface
@@ -6961,7 +6981,7 @@ msgid "No file manager could be started to show the folder."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "No folders match"
 msgstr ""
 
@@ -7316,7 +7336,7 @@ msgid "Numbering"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -9369,7 +9389,7 @@ msgid "Search contacts"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "Search folders"
 msgstr ""
 
