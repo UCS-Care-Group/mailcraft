@@ -313,14 +313,14 @@ msgstr "正在导入 .pst 文件：完成后重试"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "日历更改尚无法发送，将重试：{error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "共享邮箱日历的更改被拒绝：此账户可能没有编辑权限。程序会再尝试一次，然后还原更改。"
@@ -2417,8 +2417,8 @@ msgstr "已更改：选择其他签名或离开此页面时会自动保存。"
 msgid "Change…"
 msgstr "更改…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "更改日历需要您的许可：文件 › 信息 › 连接日历和联系人"
@@ -13392,8 +13392,8 @@ msgstr "日历“{name}”为只读：其所有者尚未允许此账户修改。
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "日历“{name}”仅显示所有者的忙闲状态；此账户无法更改该日历。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "无法接收日历更改：{error}"
@@ -13428,8 +13428,8 @@ msgstr "日历连接有效"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "日历连接正常：发送的内容已到达，服务器保存的内容与发送时一致。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "日历无法读取：{error}"
@@ -13506,8 +13506,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "共享邮箱的日历正在等待：{error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "无法接收类别：{error}"
@@ -13584,8 +13584,8 @@ msgstr "联系人 {id} 被指定了两次。"
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "联系人的表单已关闭：再次打开以添加密钥"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "无法接收联系人：{error}"
@@ -13793,8 +13793,8 @@ msgstr "密钥已从此计算机上移除。"
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "链接已复制到剪贴板：请将其发送给您组织的管理员"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "无法读取日历列表：{error}"
@@ -14045,14 +14045,14 @@ msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达�
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "无法读取服务器上的规则：任务意外停止"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "无法导入服务器上的规则：{error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
@@ -14308,8 +14308,8 @@ msgstr "共享邮箱的日历“{name}”仅显示所有者的忙闲状态；此
 msgid "The shared mailbox's e-mail address"
 msgstr "共享邮箱的电子邮件地址"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "用于打开此共享邮箱的账户登录被拒绝：请使用“发送/接收”重新登录"
@@ -14416,14 +14416,14 @@ msgstr "未找到该文本。"
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "待办事项无法保持同步：作业意外停止"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "无法接收待办事项：{error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "无法记录发送的待办事项：{error}"
@@ -14626,14 +14626,14 @@ msgstr "此账户未使用 Microsoft 登录"
 msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "此账户无权更改服务器上的规则"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "此账户无权通过 Microsoft Graph 使用待办事项"
@@ -18827,8 +18827,8 @@ msgstr "服务器关闭了连接"
 msgid "the server continued a cancelled password authentication"
 msgstr "服务器继续执行已取消的密码验证"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "无法访问服务器"
@@ -20215,8 +20215,8 @@ msgid "{n} change waiting for the IMAP server won't reach it; it stays in the ba
 msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."
 msgstr[0] "等待发送到 IMAP 服务器的 {n} 项更改不会送达；它们会保留在备份副本中。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "对日历“{name}”的 {n} 项更改保留在此处，尚未发送：此账户可能已无权更改。若重新获得权限，将发送这些更改。"
