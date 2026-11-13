@@ -472,7 +472,8 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    // The last few signatures shown (one a window being written), under one key: not one entry in
+    // The last few signatures shown (one a window being written; at least one for each window
+    // open, so that none misses every frame), under one key: not one entry in
     // egui's memory for every signature ever shown.
     type Kept = Vec<(egui::Id, std::sync::Arc<mailcraft_model::Message>)>;
     const KEPT: usize = 4;
@@ -485,7 +486,7 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
             // As it is sent: cleaned.
             let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
             let mut known = known;
-            if known.len() >= KEPT {
+            if known.len() >= KEPT.max(app.windows.len().saturating_add(2)) {
                 known.remove(0);
             }
             known.push((this, m.clone()));

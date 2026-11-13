@@ -2718,8 +2718,9 @@ impl Session {
     /// first: `None`) on, as the budget does ([`Session::evict`]): a message whose body or files
     /// are in memory and safely on disk as they are goes back to naming them, and its Undo and
     /// Redo steps let go of them too. The messages `keep` names (open in a window, being written)
-    /// stay as they are. For a window out of sight a while; what is shown again is read again.
-    /// At most `most` messages are let go of in one call: the answer is the message to go on
+    /// and those selected stay as they are. For a window out of sight a while; what is shown
+    /// again is read again. At most `most` messages are looked at in one call, whether they could
+    /// go or not: the answer is the message to go on
     /// after, `None` once every message was looked at. Nothing is let go of while a command or a
     /// search runs.
     pub fn let_go_of_content(&mut self, from: Option<Id>, keep: &HashSet<Id>, most: usize) -> Option<Id> {
@@ -2736,13 +2737,16 @@ impl Session {
                     .mailbox
                     .messages
                     .range((next, std::ops::Bound::Unbounded))
-                    .find(|(id, m)| !keep.contains(id) && may_go(m))
+                    // What is selected stays, as the budget's own eviction leaves it.
+                    .find(|(id, m)| !keep.contains(id) && !self.sel.messages.contains(id) && may_go(m))
                     .map(|(id, m)| (*id, crate::store::evictable(&path, *id, m)));
                 let Some((id, lean)) = found else { break };
                 next = std::ops::Bound::Excluded(id);
-                let Some(lean) = lean else { continue };
-                self.put_in_place(id, lean, true);
-                self.loads += 1;
+                if let Some(lean) = lean {
+                    self.put_in_place(id, lean, true);
+                    self.loads += 1;
+                }
+                // Each one looked at counts, let go of or not: a slice is never a walk of all.
                 left -= 1;
                 if left == 0 {
                     return Some(id);
