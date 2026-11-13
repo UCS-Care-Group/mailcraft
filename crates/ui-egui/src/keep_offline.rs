@@ -50,7 +50,7 @@ impl MailApp {
             self.session.driver.thinning.now = true;
         } else {
             // What it covers now comes in the background, newest first.
-            self.fetching.wake();
+            self.session.driver.fetch.wake();
         }
         Ok(said(true))
     }

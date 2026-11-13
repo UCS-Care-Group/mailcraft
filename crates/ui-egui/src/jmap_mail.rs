@@ -131,7 +131,7 @@ impl MailApp {
             self.sync_refused |= piece.auth_refused;
             // New mail may be waiting to be fetched whole: the background looks again.
             if !piece.pages.is_empty() {
-                self.fetching.wake();
+                self.session.driver.fetch.wake();
             }
             match apply_jmap_mail(&mut self.session, piece) {
                 Ok(said) => {

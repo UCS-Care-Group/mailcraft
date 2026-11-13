@@ -10,6 +10,9 @@ use std::collections::HashMap;
 pub mod calendar;
 #[cfg(test)]
 mod calendar_tests;
+pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
 pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
@@ -19,6 +22,7 @@ mod offline_tests;
 
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
+pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 
 use mailcraft_model::Id;
@@ -251,4 +255,6 @@ pub struct Driver {
     pub calendar: CalendarDriver,
     /// Outlook's Favorites read from each Microsoft account's server.
     pub favorites: FavoritesDriver,
+    /// Messages fetched whole in the background and for the owner.
+    pub fetch: FetchDriver,
 }
