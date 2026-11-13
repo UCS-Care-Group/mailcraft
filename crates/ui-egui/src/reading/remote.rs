@@ -4,13 +4,14 @@
 //! the owner is told and can do about it.
 //!
 //! A picture on the web tells whoever serves it that the message was opened, when, and from
-//! what address. So none is asked for unless the owner said so, in one of four ways: "Download
+//! what address. So none is asked for unless the owner said so, in one of five ways: "Download
 //! pictures" for the message at hand (it holds until the program closes), "Always download
 //! pictures from" its sender or from everybody at its sender's domain (remembered in the
-//! settings), or the switch in File › Options that downloads them for all mail (off unless the
-//! owner turns it on). The last three do not hold for what is in Junk E-mail (or under it). A
-//! remembered sender or domain holds only for a message the receiving server vouches for
-//! ([`vouched`]): a `From:` line is anybody's to write.
+//! settings), the switch in File › Options that downloads them for mail from the owner's contacts
+//! (#891), or the one that downloads them for all mail (both off unless the owner turns them on).
+//! The last four do not hold for what is in Junk E-mail (or under it). A remembered sender or
+//! domain, and a contact, holds only for a message the receiving server vouches for
+//! ([`vouched`]): a `From:` line is anybody's to write, a contact's address too.
 //!
 //! This crate opens no connections and keeps no files. It hands an address to the host
 //! ([`Services::pictures`]) and takes back bytes or a refusal; the host is the one that checks
@@ -28,7 +29,7 @@
 //! [`Services::pictures`]: crate::Services::pictures
 //! [`Services::picture_cache`]: crate::Services::picture_cache
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -143,6 +144,9 @@ pub struct RemotePictures {
     retry: Vec<Id>,
     /// The owner cleared what is kept of pictures: what is in memory goes at the next frame.
     forget_all: bool,
+    /// The addresses of the contacts that the switch for the contacts' mail trusts, as of the
+    /// mailbox revision and number of contacts they were read at ([`from_contact`]).
+    contacts: std::cell::RefCell<Option<((u64, usize), HashSet<String>)>>,
 }
 
 impl RemotePictures {
@@ -216,6 +220,36 @@ fn remembered_unvouched(app: &MailApp, m: &Message) -> bool {
         && !vouched(app.session.mailbox.account(m.account), m)
 }
 
+/// Whether `address` is one of the contacts' own addresses: that address exactly, letter case
+/// aside, and plain ASCII ([`sender`]), so that a lookalike stands for nobody. Not one of a
+/// contact an agent made or gave the address to, until the owner has edited that contact
+/// ([`mailcraft_model::Contact::by_agent`]).
+///
+/// This is asked at every frame, for the reading pane and for each row of a list, so the contacts
+/// are read once, into a set of the addresses, which is made again when the mailbox changes.
+pub fn from_contact(app: &MailApp, address: &str) -> bool {
+    let Some(address) = sender(address) else { return false };
+    let key = (app.session.rev(), app.session.mailbox.contacts.len());
+    let mut kept = app.remote_pictures.contacts.borrow_mut();
+    if kept.as_ref().is_none_or(|(of, _)| *of != key) {
+        let all =
+            app.session.mailbox.contacts.values().filter(|c| !c.by_agent).flat_map(|c| c.emails.iter().filter_map(|e| sender(&e.value))).collect();
+        *kept = Some((key, all));
+    }
+    kept.as_ref().is_some_and(|(_, all)| all.contains(&address))
+}
+
+/// Whether the switch for the contacts' mail is on and `m`'s sender is a contact, before the
+/// server's word is asked for (the cheap tests first: this runs at every frame).
+fn contact_sender(app: &MailApp, m: &Message) -> bool {
+    app.ui.download_pictures_from_contacts && from_contact(app, &m.from.email)
+}
+
+/// The switch for the contacts' mail stands for `m`'s sender but nothing vouches for the address.
+fn contact_unvouched(app: &MailApp, m: &Message) -> bool {
+    !in_junk(app, m) && !app.ui.download_pictures && contact_sender(app, m) && !vouched(app.session.mailbox.account(m.account), m)
+}
+
 /// Whether this build can download pictures at all.
 pub fn available(app: &MailApp) -> bool {
     app.services.pictures.is_some()
@@ -227,7 +261,10 @@ pub fn access(app: &MailApp, m: &Message) -> Access {
         return Access::Unavailable;
     }
     // What lands in Junk E-mail is trusted by nobody's say-so but the owner's, message by message.
-    let trusted = !in_junk(app, m) && (app.ui.download_pictures || remembered_and_vouched(app, m));
+    let trusted = !in_junk(app, m)
+        && (app.ui.download_pictures
+            || remembered_and_vouched(app, m)
+            || (contact_sender(app, m) && vouched(app.session.mailbox.account(m.account), m)));
     if trusted || app.remote_pictures.asked.contains(&mark(m)) { Access::Allowed } else { Access::Blocked }
 }
 
@@ -394,6 +431,11 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             tl!("You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first.").to_string(),
             false,
         ),
+        Access::Blocked if contact_unvouched(app, m) => (
+            tl!("Pictures not downloaded.").to_string(),
+            tl!("You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first.").to_string(),
+            false,
+        ),
         Access::Blocked => (
             tl!("Pictures not downloaded.").to_string(),
             tl!("They are on the web, and fetching them would tell the sender that you opened this message.").to_string(),
@@ -507,6 +549,17 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if ui.checkbox(&mut all, tl!("Download pictures in mail automatically")).on_hover_text(tip).changed() {
         let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": all}));
     }
+    let mut contacts = app.ui.download_pictures_from_contacts;
+    let tip = tl!(
+        "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+    );
+    if ui
+        .add_enabled(!all, egui::Checkbox::new(&mut contacts, tl!("Download pictures in mail from people in my contacts")))
+        .on_hover_text(tip)
+        .changed()
+    {
+        let _ = app.run("ui.downloadPicturesFromContacts", json!({"value": contacts}));
+    }
     if !available(app) {
         ui.label(egui::RichText::new(tl!("This build can't download pictures: they stay placeholders.")).color(t.text_dim));
     }
@@ -601,6 +654,11 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.downloadPicturesAutomatically" => {
             let on = p.get("value").and_then(Value::as_bool).unwrap_or(!app.ui.download_pictures);
             app.ui.download_pictures = on;
+            Ok(json!({"value": on}))
+        }
+        "ui.downloadPicturesFromContacts" => {
+            let on = p.get("value").and_then(Value::as_bool).unwrap_or(!app.ui.download_pictures_from_contacts);
+            app.ui.download_pictures_from_contacts = on;
             Ok(json!({"value": on}))
         }
         "ui.retryPictures" => retry(app, p),

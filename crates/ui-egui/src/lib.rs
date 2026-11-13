@@ -856,6 +856,9 @@ pub struct UiState {
     /// Download the pictures mail refers to on the web without being asked. Off unless the owner
     /// turns it on: a picture on the web tells its sender that the message was opened.
     pub download_pictures: bool,
+    /// Download the pictures of mail from an address in the contacts without being asked, when
+    /// the server vouches for the sender (#891). Off unless the owner turns it on.
+    pub download_pictures_from_contacts: bool,
     /// Senders whose pictures are downloaded without asking (addresses, in lower case).
     pub picture_senders: Vec<String>,
     /// Domains whose senders' pictures are downloaded without asking (`shop.example`: what
@@ -936,6 +939,7 @@ impl Default for UiState {
             dismissed_reminders: Vec::new(),
             advanced_filters: Default::default(),
             download_pictures: false,
+            download_pictures_from_contacts: false,
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
             sender_images: false,
@@ -1279,6 +1283,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"sender": address} | {"domain": name (what follows the @; everybody at that domain)} | {"message"?: number} (its sender), "value"?: bool (default: true; false forgets the sender or the domain)"#,
     ),
     ("ui.downloadPicturesAutomatically", "Download Pictures in Mail Automatically", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    ("ui.downloadPicturesFromContacts", "Download Pictures in Mail from Contacts", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.senderImages",
         "Show Sender Images",

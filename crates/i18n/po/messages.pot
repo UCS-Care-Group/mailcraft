@@ -3265,12 +3265,27 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Download Pictures from Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 msgid "Download Pictures in All Mail"
 msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Download Pictures in Mail Automatically"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Download Pictures in Mail from Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Download from contacts"
 msgstr ""
 
 #. interface
@@ -3301,6 +3316,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Download pictures in mail automatically"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Download pictures in mail from people in my contacts"
 msgstr ""
 
 #. interface
@@ -8044,6 +8064,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
 msgid "Pictures not downloaded."
 msgstr ""
 
@@ -8060,6 +8085,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
 msgstr ""
 
 #. interface
@@ -13732,6 +13762,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
 msgstr ""
 
 #. interface

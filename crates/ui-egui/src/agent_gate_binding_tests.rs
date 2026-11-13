@@ -222,6 +222,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("signature.close", "{}", Setup::None),
     ("ui.alwaysDownloadPictures", "{}", Setup::None),
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
+    ("ui.downloadPicturesFromContacts", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),

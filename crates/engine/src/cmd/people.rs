@@ -248,6 +248,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if p::strings(v, "categories").is_some() {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &had, c.origin.account)?;
     }
+    // The owner's edit confirms a contact an agent made or gave an address (#891); an agent's
+    // edit doesn't, and leaves it as it was.
+    c.by_agent = s.agent.is_some() && c.by_agent;
     *s.mailbox.contact_mut(id)? = c;
     Ok(json!({"id": id}))
 }
@@ -308,7 +311,7 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
-        "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "importedFrom": c.imported_from, "byAgent": c.by_agent, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
         "keys": c.keys.iter().map(|k| json!({"kind": k.kind.name(), "fingerprint": super::keys::card_key_facts(k).fingerprint, "uri": k.uri})).collect::<Vec<_>>(),
     })
 }

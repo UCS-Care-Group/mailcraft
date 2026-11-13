@@ -3722,6 +3722,11 @@ msgstr "Télécharger les images"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Download Pictures from Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Download Pictures in All Mail"
 msgstr "Télécharger les images dans tous les courriers"
@@ -3731,6 +3736,17 @@ msgstr "Télécharger les images dans tous les courriers"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Télécharger automatiquement les images du courrier"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Télécharger les images du courrier des contacts"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Download from contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3767,6 +3783,12 @@ msgstr "Télécharger les images de chaque message sans demander, sauf dans Cour
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Télécharger automatiquement les images du courrier"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "Télécharger les images du courrier des personnes de mes contacts"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -9160,6 +9182,11 @@ msgstr "Images dans le courrier"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "Images non téléchargées."
@@ -9180,6 +9207,11 @@ msgstr ""
 #, fuzzy
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr "Les images sur le web seront téléchargées dans chaque message que vous ouvrez. Le serveur de chaque expéditeur saura alors quand vous avez ouvert le message et depuis quelle adresse Internet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15566,6 +15598,12 @@ msgid "You don't have access to {address}. If access was just given, try again i
 msgstr "Vous n'avez pas accès à {address}. Si l'accès vient d'être accordé, réessayez dans une heure."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "Vous téléchargez les images de vos contacts, mais le serveur de messagerie n'a pas confirmé que ce message venait de ce contact : la question est donc posée d'abord."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "You edited the signature by hand, so the details no longer change it."
@@ -19783,6 +19821,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail."
+#~ msgstr "Les images du courrier venant d'une adresse de vos contacts sont téléchargées sans demander : cette adresse exactement, seulement quand votre serveur de messagerie confirme que le message vient du domaine de cette adresse (il ne peut pas confirmer l'adresse elle-même), et jamais dans Courrier indésirable."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

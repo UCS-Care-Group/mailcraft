@@ -65,8 +65,18 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
   `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
   tracking pixel doesn't fire.
-- **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
-  holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
+- **"Always download pictures" is not a trust in a `From:` line**, and nor is "Download pictures
+  in mail from people in my contacts" (#891): a contact is an address anybody can write in a
+  `From:` too. A remembered sender or domain, and a sender in the contacts (that address exactly,
+  ASCII only and letter case aside, never a lookalike or another address at its domain;
+  `reading::remote::from_contact`; the server's word below is for the sender's domain, not the
+  mailbox, so whoever may send authenticated mail for a contact's domain can write the contact's
+  address, and File › Options says the switch trusts no more than that; and not a contact an
+  agent made or gave an address to: `people.new`, `people.edit`, `people.fromMessage` and a vCard
+  or .pst import are safe for agents, so the engine marks what they add (`Contact::by_agent`,
+  `agent::mark_agent_contacts`, never set by a command's params) and only the owner's `people.edit`
+  clears it; the addresses are read once into a set, made again when the mailbox changes), holds only for a message
+  whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**
   (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account (or

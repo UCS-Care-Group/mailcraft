@@ -1668,6 +1668,162 @@ fn a_lookalike_address_is_not_a_remembered_sender() {
     assert!(app.ui.picture_senders.is_empty());
 }
 
+/// A mailbox whose contacts are `addresses`, one contact each.
+fn with_contacts(app: &mut MailApp, addresses: &[&str]) {
+    for address in addresses {
+        let contact = mailcraft_model::Contact {
+            display_name: "A Contact".into(),
+            emails: vec![mailcraft_model::Labeled::new("work", *address)],
+            ..Default::default()
+        };
+        app.session.mailbox.add_contact(contact);
+    }
+}
+
+/// "Download pictures in mail from people in my contacts" (#891): off until the owner turns it
+/// on; then a contact's mail, by that address exactly and letter case aside, but not somebody
+/// else at the contact's domain, not mail the server doesn't vouch for, and never Junk's.
+#[test]
+fn a_contacts_pictures_come_by_themselves_once_the_owner_says() {
+    let ada = "ada@kite.example";
+    let mut forged = web_message(2, ada, "Not vouched", &web_pictures("c.kite.example", 1));
+    forged.headers = vec![("Authentication-Results".into(), "mx.example.org; dmarc=fail header.from=kite.example".into())];
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "Ada@Kite.Example", "From a contact", &web_pictures("a.kite.example", 1)),
+        web_message(1, "bob@kite.example", "Same domain, no contact", &web_pictures("b.kite.example", 1)),
+        forged,
+        web_message(3, ada, "In Junk", &web_pictures("d.kite.example", 1)),
+    ]);
+    let (contact, stranger, forged, junked) = (ids[0], ids[1], ids[2], ids[3]);
+    let account = app.session.mailbox.accounts[0].id;
+    let junk = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Junk).unwrap();
+    app.session.mailbox.message_mut(junked).unwrap().folder = junk;
+    // Kept in the contacts in another letter case.
+    with_contacts(&mut app, &["  ADA@kite.EXAMPLE "]);
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let from = |host: &Host, part: &str| host.asked().iter().filter(|url| url.contains(part)).count();
+    let mut harness = window(app, (1280.0, 800.0));
+
+    // Off until the owner turns it on.
+    assert!(!harness.state().ui.download_pictures_from_contacts);
+    select(&mut harness, contact);
+    assert_eq!(shown(&harness, contact), (0, 1, 1));
+    assert!(host.asked().is_empty(), "{:?}", host.asked());
+
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesFromContacts", json!({})).unwrap()["value"], true);
+    select(&mut harness, contact);
+    assert_eq!((from(&host, "a.kite"), shown(&harness, contact)), (1, (1, 0, 0)));
+    for id in [stranger, forged, junked] {
+        select(&mut harness, id);
+        assert_eq!(shown(&harness, id), (0, 1, 1), "message {id}");
+        // The message at hand is still the owner's to ask for.
+        assert!(harness.state().hit.rect("downloadPictures", id).is_some(), "message {id}");
+        if id == forged {
+            assert!(says(&harness, "the mail server didn't confirm that this message came from this one"));
+        }
+    }
+    assert_eq!(host.asked().len(), 1, "{:?}", host.asked());
+
+    // It is kept with the settings, and comes back with them; settings from before say nothing,
+    // which is "ask me".
+    let saved = serde_json::to_value(harness.state().prefs()).unwrap();
+    assert_eq!(saved["downloadPicturesFromContacts"], json!(true));
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.download_pictures_from_contacts);
+    let old: crate::UiState = serde_json::from_value(json!({"tab": "Home", "downloadPictures": false})).unwrap();
+    assert!(!old.download_pictures_from_contacts);
+
+    // File › Options shows the switch.
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    assert!(says(&harness, "Download pictures in mail from people in my contacts"));
+    harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+
+    // Off again: what is opened from then on waits to be asked.
+    assert_eq!(harness.state_mut().execute("ui.downloadPicturesFromContacts", json!({"value": false})).unwrap()["value"], false);
+    let mut later = harness.state().session.mailbox.clone();
+    let inbox = later.inbox().unwrap();
+    let again = later.add_message(Message { folder: inbox, ..web_message(4, ada, "Again", &web_pictures("e.kite.example", 1)) }).unwrap();
+    harness.state_mut().session.mailbox = later;
+    harness.state_mut().session.mailbox_changed();
+    select(&mut harness, again);
+    assert_eq!((from(&host, "e.kite"), shown(&harness, again)), (0, (0, 1, 1)));
+}
+
+/// The switch of File › Options for the contacts' mail asks first, saying what it tells each
+/// sender (#891), as the one for all mail does; off asks nothing.
+#[test]
+fn the_contacts_switch_asks_before_it_turns_on() {
+    let (app, _) = app_with(vec![]);
+    let mut harness = window(app, (1280.0, 800.0));
+    let asking = |harness: &Window| matches!(&harness.state().dialog, Some(crate::dialogs::Dialog::Confirm { command, .. }) if command == "ui.downloadPicturesFromContacts");
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    assert!(asking(&harness));
+    assert!(says(&harness, "Their servers then learn when you opened the message and from which internet address"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    harness.get_by_label("Download from contacts").click();
+    harness.run_steps(6);
+    assert!(harness.state().dialog.is_none() && harness.state().ui.download_pictures_from_contacts);
+    // Off asks nothing.
+    harness.get_by_label("Download pictures in mail from people in my contacts").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialog.is_none() && !harness.state().ui.download_pictures_from_contacts);
+}
+
+/// An agent can't widen the switch by adding a sender to the contacts, as the owner can (#891):
+/// what an agent's "Add to Contacts" keeps leaves that sender's pictures blocked until the owner
+/// edits the contact, and the owner's own contact brings them.
+#[test]
+fn a_contact_an_agent_adds_does_not_bring_pictures() {
+    let (mut app, ids) = app_with(vec![
+        web_message(0, "ada@kite.example", "From the agent's contact", &web_pictures("a.kite.example", 1)),
+        web_message(1, "bob@kite.example", "From the owner's contact", &web_pictures("b.kite.example", 1)),
+    ]);
+    let (by_agent, by_owner) = (ids[0], ids[1]);
+    app.ui.download_pictures_from_contacts = true;
+    // The agent's "Add to Contacts" comes in as an agent's does, over the control channel (MCP).
+    let (req, _rx) = crate::control::ControlRequest::new("engine.execute", json!({"command": "people.fromMessage", "params": {"id": by_agent}}));
+    let done = crate::control::handle(&mut app, &egui::Context::default(), &req.from_agent(Vec::new()));
+    assert!(matches!(&done, crate::control::Outcome::Done(v) if v["ok"] == true), "people.fromMessage is safe for an agent");
+    app.execute("people.fromMessage", json!({"id": by_owner})).unwrap();
+    assert!(!super::remote::from_contact(&app, "ada@kite.example"));
+    assert!(super::remote::from_contact(&app, "bob@kite.example"));
+    // (Add to Contacts moves the window to the People list.)
+    app.execute("view.mail", json!({})).unwrap();
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    select(&mut harness, by_agent);
+    assert_eq!(shown(&harness, by_agent), (0, 1, 1));
+    select(&mut harness, by_owner);
+    assert_eq!(shown(&harness, by_owner), (1, 0, 0));
+    assert!(host.asked().iter().all(|url| !url.contains("a.kite")), "{:?}", host.asked());
+
+    // The owner edits it: it is theirs now, and its mail comes without asking.
+    let contact = harness.state().session.mailbox.contacts.values().find(|c| c.has_email("ada@kite.example")).map(|c| c.id).unwrap();
+    harness.state_mut().session.run("people.edit", &json!({"id": contact, "notes": "my colleague"})).unwrap();
+    select(&mut harness, by_owner);
+    select(&mut harness, by_agent);
+    assert_eq!(shown(&harness, by_agent), (1, 0, 0));
+}
+
+/// A contact is that address exactly: not a lookalike of it, nor one of a lookalike.
+#[test]
+fn a_lookalike_address_is_not_a_contact() {
+    let (mut app, _) = app_with(vec![]);
+    with_contacts(&mut app, &["kim@kite.example", "\u{212A}im@lookalike.example"]);
+    assert!(super::remote::from_contact(&app, "KIM@Kite.Example"));
+    for nobody in ["\u{212A}im@kite.example", "kim@kite.exampl\u{0435}", "kim@lookalike.example", "im@kite.example", "kite.example", ""] {
+        assert!(!super::remote::from_contact(&app, nobody), "{nobody}");
+    }
+}
+
 /// Mail under Junk E-mail is Junk's, however deep, for the global switch and the lists alike.
 #[test]
 fn mail_in_a_subfolder_of_junk_is_junk_for_pictures() {
@@ -2421,6 +2577,7 @@ fn the_picture_commands_take_anything_and_never_panic() {
         "ui.downloadPictures",
         "ui.alwaysDownloadPictures",
         "ui.downloadPicturesAutomatically",
+        "ui.downloadPicturesFromContacts",
         "ui.retryPictures",
         "ui.clearPictureCache",
         "ui.openWindow",

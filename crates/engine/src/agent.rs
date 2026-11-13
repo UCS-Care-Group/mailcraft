@@ -532,6 +532,7 @@ const SETTINGS: &[&str] = &[
     "signature.close",
     "ui.alwaysDownloadPictures",
     "ui.downloadPicturesAutomatically",
+    "ui.downloadPicturesFromContacts",
     "ui.senderImages",
     "ui.desktopAlerts",
     "ui.repliesInWindow",
@@ -1903,6 +1904,32 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
         }
     }
     None
+}
+
+/// Marks the contacts an agent's command made, or gave an address the contact didn't have
+/// (#891), as the agent's ([`mailcraft_model::Contact::by_agent`]): "Download pictures in mail
+/// from people in my contacts" doesn't trust them until the owner edits them. Whatever path the
+/// command took there (`people.new`, `people.edit`, `people.fromMessage`, a vCard or .pst import,
+/// a merge); checked by [`Session::run`](crate::Session::run) for agents.
+pub(crate) fn mark_agent_contacts(before: &Mailbox, after: &mut Mailbox) {
+    let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
+    let marked: Vec<Id> = after
+        .contacts
+        .iter()
+        .filter(|(_, c)| !c.by_agent)
+        .filter(|(id, c)| match before.contacts.get(id) {
+            // (Not touched: most commands touch no contact, and the copy shares what they leave.)
+            Some(old) if std::sync::Arc::ptr_eq(old, c) => false,
+            None => c.emails.iter().any(|e| !e.value.trim().is_empty()),
+            Some(old) => c.emails.iter().any(|e| !e.value.trim().is_empty() && !old.emails.iter().any(|o| same(&o.value, &e.value))),
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    for id in marked {
+        if let Ok(c) = after.contact_mut(id) {
+            c.by_agent = true;
+        }
+    }
 }
 
 #[cfg(test)]

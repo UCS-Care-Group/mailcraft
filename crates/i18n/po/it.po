@@ -3731,6 +3731,11 @@ msgstr "Scarica immagini"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Download Pictures from Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Download Pictures in All Mail"
 msgstr "Scarica immagini in tutta la posta"
@@ -3740,6 +3745,17 @@ msgstr "Scarica immagini in tutta la posta"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Scarica automaticamente le immagini nella posta"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from Contacts"
+msgstr "Scarica le immagini nella posta dei contatti"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Download from contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3776,6 +3792,12 @@ msgstr "Scarica le immagini di ogni messaggio senza chiedere, tranne in Posta in
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Scarica automaticamente le immagini nella posta"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "Scarica le immagini nella posta delle persone nei miei contatti"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -9206,6 +9228,11 @@ msgstr "Immagini nella posta"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "Immagini non scaricate."
@@ -9226,6 +9253,11 @@ msgstr ""
 #, fuzzy
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr "Le immagini sul web verranno scaricate in ogni messaggio che apri. Il server di ogni mittente saprà allora quando hai aperto il messaggio e da quale indirizzo Internet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15667,6 +15699,12 @@ msgid "You don't have access to {address}. If access was just given, try again i
 msgstr "Non si dispone dell'accesso a {address}. Se l'accesso è stato appena concesso, riprovare tra un'ora."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "Scarichi le immagini dai tuoi contatti, ma il server di posta non ha confermato che questo messaggio provenga da questo contatto, quindi viene chiesto prima."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "You edited the signature by hand, so the details no longer change it."
@@ -19888,6 +19926,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail."
+#~ msgstr "Le immagini nella posta da un indirizzo dei tuoi contatti vengono scaricate senza chiedere: esattamente quell'indirizzo, solo quando il server di posta conferma che il messaggio proviene dal dominio di quell'indirizzo (non può confermare l'indirizzo stesso), e mai in Posta indesiderata."
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"
