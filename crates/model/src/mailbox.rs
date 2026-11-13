@@ -700,9 +700,11 @@ impl Account {
         !self.is_shared() && self.kind != AccountKind::Jmap && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
     }
 
-    /// Whether its contacts are read from Microsoft: as for its to-dos ([`Account::keeps_tasks`]).
+    /// Whether its contacts are read from its server: from Microsoft, as for its to-dos
+    /// ([`Account::keeps_tasks`]), or over JMAP (RFC 9610) for an account kept in step that way
+    /// (never a shared mailbox's).
     pub fn keeps_contacts(&self) -> bool {
-        self.keeps_tasks()
+        self.keeps_tasks() || (self.kind == AccountKind::Jmap && !self.is_shared())
     }
 
     /// The shared mailbox's own address, when this is one. Read here rather than at each call

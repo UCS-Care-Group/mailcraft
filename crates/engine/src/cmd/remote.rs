@@ -750,11 +750,12 @@ fn server_start(event: &Event, offset_at: &dyn Fn(Timestamp) -> i32) -> Timestam
 /// the mailbox still has the account: where an event made here goes to be on the server too.
 pub(crate) fn server_calendar(mailbox: &Mailbox) -> Option<&Calendar> {
     // The default account's first; never a shared mailbox's (#70), which is no place for what
-    // its owner makes without saying where.
+    // its owner makes without saying where; and never a JMAP account's, whose calendars are read
+    // and nothing made here goes up to yet.
     mailbox
         .accounts
         .iter()
-        .filter(|account| !account.is_shared())
+        .filter(|account| !account.is_shared() && account.kind != mailcraft_model::AccountKind::Jmap)
         .find_map(|account| mailbox.calendars.iter().find(|calendar| calendar.origin.account == account.id && calendar.origin.id.is_empty()))
 }
 
@@ -870,6 +871,12 @@ pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> 
                 ))
             }
         }
+        // A JMAP account's calendar: read from its server, and nothing made here goes up yet.
+        Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) => Err(failed!(
+            "The calendar \"{name}\" is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed here.",
+            name = c.name,
+            who = keeper(mailbox, &c.origin).map(who).unwrap_or("its account")
+        )),
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some() => {
             if c.rights == Rights::FreeBusy {
                 Err(failed!("The calendar \"{name}\" only shows when its owner is busy: this account can't change it.", name = c.name))

@@ -47,6 +47,8 @@ pub(crate) struct Held {
     graph_auto_replies: Option<Box<dyn Fn(crate::auto_replies::AutoRepliesJob) -> Receiver<crate::auto_replies::AutoRepliesResult>>>,
     jmap: Option<Box<dyn Fn(crate::jmap_mail::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
     jmap_fetch: Option<Box<dyn Fn(crate::jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    jmap_contacts: Option<Box<dyn Fn(crate::jmap_mail::JmapContactsJob) -> Receiver<mailcraft_model::sync::JmapContactsResult>>>,
+    jmap_calendar: Option<Box<dyn Fn(crate::jmap_mail::JmapCalendarJob) -> Receiver<mailcraft_model::sync::JmapCalendarResult>>>,
     ews: Option<Box<dyn Fn(crate::ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
     ews_fetch: Option<Box<dyn Fn(crate::ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
 }
@@ -165,6 +167,8 @@ impl MailApp {
             graph_auto_replies: s.graph_auto_replies.take(),
             jmap: s.jmap.take(),
             jmap_fetch: s.jmap_fetch.take(),
+            jmap_contacts: s.jmap_contacts.take(),
+            jmap_calendar: s.jmap_calendar.take(),
             ews: s.ews.take(),
             ews_fetch: s.ews_fetch.take(),
         };
@@ -183,6 +187,8 @@ impl MailApp {
         s.graph_auto_replies = held.graph_auto_replies.or(s.graph_auto_replies.take());
         s.jmap = held.jmap.or(s.jmap.take());
         s.jmap_fetch = held.jmap_fetch.or(s.jmap_fetch.take());
+        s.jmap_contacts = held.jmap_contacts.or(s.jmap_contacts.take());
+        s.jmap_calendar = held.jmap_calendar.or(s.jmap_calendar.take());
         s.ews = held.ews.or(s.ews.take());
         s.ews_fetch = held.ews_fetch.or(s.ews_fetch.take());
     }
