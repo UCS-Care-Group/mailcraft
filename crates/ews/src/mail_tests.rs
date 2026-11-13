@@ -160,10 +160,10 @@ fn folders_inside_folders_come_with_the_folder_above_them() {
 }
 
 /// A folder list read afresh that passed over a mail folder it couldn't read (here one without a
-/// name) is no whole list, so it goes on as a delta: the folder kept here for it isn't taken away
-/// for not being in it.
+/// name) says where that folder lies (the root is the top), so that what lies there here isn't
+/// taken away for not being in it; the rest of the list is whole.
 #[test]
-fn a_folder_list_read_afresh_past_a_mail_folder_it_could_not_read_is_handed_on_as_a_delta() {
+fn a_folder_list_read_afresh_past_a_mail_folder_it_could_not_read_says_where_it_lies() {
     let whole = StandIn::new();
     let (pieces, _) = run(&whole, &request());
     assert!(pieces.iter().find_map(|p| p.folders.as_ref()).unwrap().afresh, "every folder read: a whole list");
@@ -185,9 +185,39 @@ fn a_folder_list_read_afresh_past_a_mail_folder_it_could_not_read_is_handed_on_a
     }
     let (pieces, _) = run(&standin, &request());
     let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
-    assert!(!folders.afresh, "a mail folder couldn't be read: nothing may be removed for not being listed");
-    assert!(folders.incomplete, "and the next run reads the list from its start again");
+    assert!(folders.afresh, "read from its start");
+    assert_eq!(folders.unreadable_in, [String::new()], "at the top of the mail");
+    assert!(!folders.unreadable_anywhere);
     assert!(folders.changed.iter().any(|f| f.name == "Inbox"), "the folders that could be read still come");
+}
+
+/// One inside another folder is said to lie there, by the server's id of that folder.
+#[test]
+fn a_mail_folder_that_could_not_be_read_inside_another_is_said_to_lie_in_it() {
+    let standin = StandIn::new();
+    let projects = "AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq000500+Tk/Zm9sZGVyLWlkAAA=".to_string();
+    {
+        let mut s = standin.state();
+        let top = s.folders.iter().find(|f| f.distinguished == "msgfolderroot").unwrap().id.clone();
+        for (id, name, parent) in [
+            (projects.clone(), "Projects", top),
+            ("AAMkAGV4YW1wbGUtb3JnL2V3cy1zdGFuZC1pbgAuAAAAAACq000501+Tk/Zm9sZGVyLWlkAAA=".to_string(), "", projects.clone()),
+        ] {
+            s.folders.push(crate::standin::Folder {
+                distinguished: String::new(),
+                id,
+                name: name.into(),
+                total: 0,
+                unread: 0,
+                parent,
+                class: "IPF.Note".into(),
+            });
+        }
+    }
+    let (pieces, _) = run(&standin, &request());
+    let folders = pieces.iter().find_map(|p| p.folders.as_ref()).unwrap();
+    assert!(folders.afresh && !folders.unreadable_anywhere);
+    assert_eq!(folders.unreadable_in, [projects]);
 }
 
 /// Where each folder goes on from, as the pages of a run say: the last of each folder.

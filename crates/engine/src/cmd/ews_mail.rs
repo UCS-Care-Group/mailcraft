@@ -361,13 +361,13 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         let lost;
         (down.removed, lost) = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
         // The folder list goes on from here (with the folders it brought, in one step), or from
-        // its start when one of the server's own folders is missing here (#779) or a read from its
-        // start passed over a folder it couldn't read (#1108).
-        let again = lost || deltas.incomplete;
-        if (again || !result.hierarchy.is_empty())
+        // its start when one of the server's own folders is missing here (#779). (A read from its
+        // start past a folder it couldn't read goes on from where it ended too: what is deleted
+        // after it comes in the deltas, #1108.)
+        if (lost || !result.hierarchy.is_empty())
             && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
         {
-            server.hierarchy = if again { String::new() } else { result.hierarchy.clone() };
+            server.hierarchy = if lost { String::new() } else { result.hierarchy.clone() };
             // A list read from its start has each folder's parent, and so has what goes on from it.
             server.parents |= !lost && deltas.afresh;
         }
