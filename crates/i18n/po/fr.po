@@ -17654,7 +17654,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "le serveur a répondu à une commande qui n'a pas été envoyée"
@@ -17726,6 +17726,11 @@ msgid "the server didn't answer"
 msgstr "le serveur n'a pas répondu"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server didn't end IDLE properly"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
@@ -17773,7 +17778,7 @@ msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "le serveur a mis fin à la session : {reason}"
@@ -17783,6 +17788,11 @@ msgstr "le serveur a mis fin à la session : {reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "le serveur a salué par un refus : {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server isn't idling"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
@@ -17826,6 +17836,11 @@ msgid "the server requested more than one PLAIN response"
 msgstr "le serveur a demandé plus d'une réponse PLAIN"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server said something that is no news while idle"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "the server said: {reason}"
@@ -17849,6 +17864,11 @@ msgstr "le serveur a envoyé une page web au lieu d'une image"
 msgid "the server sent data before the secure connection started"
 msgstr "le serveur a envoyé des données avant le début de la connexion sécurisée"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server sent data it has no reason to send while idle"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -17856,7 +17876,7 @@ msgid "the server sent nothing"
 msgstr "le serveur n'a rien envoyé"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "le serveur a envoyé trop de réponses à une commande"
@@ -17886,7 +17906,7 @@ msgid "the server took too long"
 msgstr "le serveur a mis trop de temps"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server took too long to answer"
 msgstr "le serveur a mis trop de temps à répondre"

@@ -15594,7 +15594,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server answered a command that wasn't sent"
 msgstr ""
 
@@ -15654,6 +15654,11 @@ msgid "the server didn't answer"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server didn't end IDLE properly"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server didn't greet like an IMAP server"
 msgstr ""
@@ -15694,13 +15699,18 @@ msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
 msgid "the server ended the session: {reason}"
 msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server greeted with a refusal: {reason}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server isn't idling"
 msgstr ""
 
 #. what a command says, why a command can't run
@@ -15739,6 +15749,11 @@ msgid "the server requested more than one PLAIN response"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server said something that is no news while idle"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 msgid "the server said: {reason}"
 msgstr ""
@@ -15758,13 +15773,18 @@ msgstr ""
 msgid "the server sent data before the secure connection started"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server sent data it has no reason to send while idle"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "the server sent nothing"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server sent too many responses to one command"
 msgstr ""
 
@@ -15789,7 +15809,7 @@ msgid "the server took too long"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/line.rs
 msgid "the server took too long to answer"
 msgstr ""
 

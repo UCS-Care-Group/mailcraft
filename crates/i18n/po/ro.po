@@ -18829,7 +18829,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "serverul și MailCraft nu au găsit nicio criptare comună; adesea serverul oferă doar criptare mai veche (suite CBC) pe care MailCraft nu o folosește, iar administratorul lui poate activa suitele AES-GCM"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "serverul a răspuns la o comandă care nu a fost trimisă"
@@ -18901,6 +18901,11 @@ msgid "the server didn't answer"
 msgstr "serverul nu a răspuns"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server didn't end IDLE properly"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
@@ -18948,7 +18953,7 @@ msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "serverul a încheiat sesiunea: {reason}"
@@ -18958,6 +18963,11 @@ msgstr "serverul a încheiat sesiunea: {reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "serverul a salutat cu un refuz: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server isn't idling"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
@@ -19002,6 +19012,11 @@ msgid "the server requested more than one PLAIN response"
 msgstr "serverul a cerut mai mult de un răspuns PLAIN"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server said something that is no news while idle"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "the server said: {reason}"
@@ -19025,6 +19040,11 @@ msgstr "serverul a trimis o pagină web în loc de imagine"
 msgid "the server sent data before the secure connection started"
 msgstr "serverul a trimis date înainte să înceapă conexiunea securizată"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server sent data it has no reason to send while idle"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -19032,7 +19052,7 @@ msgid "the server sent nothing"
 msgstr "serverul nu a trimis nimic"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "serverul a trimis prea multe răspunsuri la o singură comandă"
@@ -19062,7 +19082,7 @@ msgid "the server took too long"
 msgstr "serverul a durat prea mult"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server took too long to answer"
 msgstr "serverul a răspuns prea greu"
