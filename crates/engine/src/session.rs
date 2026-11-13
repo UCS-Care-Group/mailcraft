@@ -4,7 +4,7 @@
 //! undo/redo.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -372,9 +372,11 @@ impl Drawn {
     /// Whether `row` is drawn selected: a conversation's row when its message is selected, and,
     /// while it is open, only when it was picked as the conversation; under an open conversation,
     /// each row whose message is taken: the row's own when the row was picked, and any picked
-    /// itself.
+    /// itself. A collapsed group's row (#929) when it is the row selected: it stands for itself
+    /// and never for its group, and no command acts on it ([`Session::acting_on`]).
     pub fn shows(&self, row: &Row) -> bool {
         match row.under {
+            None if row.folded.is_some() => self.messages.contains(&row.id),
             None => (!row.open && self.messages.contains(&row.id)) || self.whole.contains(&row.id),
             Some(_) => self.taken.contains(&row.id),
         }
@@ -893,6 +895,16 @@ pub struct Prefs {
     /// mail that is sent waits in the Outbox. Off unless the owner turns it on; kept between runs.
     #[serde(skip_serializing_if = "is_false")]
     pub offline: bool,
+    /// The groups of the message list the owner collapsed, by folder (#929; `view.collapseGroup`,
+    /// `view.expandGroup`): each folder opens with them as they were left. A group goes by its
+    /// heading as the list names it in English (`Last Month`, `Older`, a sender). Read through
+    /// [`Prefs::collapsed_in`], which keeps to the limits whatever the settings file says.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub collapsed_groups: BTreeMap<Id, BTreeSet<String>>,
+    /// Arranged by date, mail older than last month is grouped by the months of this year and
+    /// then by year, not in one Older group (#929; `view.olderByMonth`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub older_by_month: bool,
 }
 
 impl Default for Prefs {
@@ -929,6 +941,8 @@ impl Default for Prefs {
             zoom: Prefs::ZOOM_DEFAULT,
             recent_searches: Vec::new(),
             offline: false,
+            collapsed_groups: BTreeMap::new(),
+            older_by_month: false,
         }
     }
 }
@@ -941,6 +955,27 @@ impl Prefs {
     /// The most searches the list of recent ones keeps, and the most characters of each.
     pub const RECENT_SEARCHES: usize = 10;
     pub const RECENT_SEARCH_CHARS: usize = 200;
+    /// The most folders whose collapsed groups are kept, the most groups of one folder, and the
+    /// most characters of a group's heading (#929).
+    pub const COLLAPSED_FOLDERS: usize = 1_000;
+    pub const COLLAPSED_GROUPS: usize = 200;
+    pub const GROUP_CHARS: usize = 254;
+
+    /// The groups collapsed in `folder` (#929), as many as are kept.
+    pub fn collapsed_in(&self, folder: Id) -> impl Iterator<Item = &str> {
+        self.collapsed_groups
+            .get(&folder)
+            .into_iter()
+            .flat_map(|groups| groups.iter())
+            .filter(|g| g.chars().count() <= Self::GROUP_CHARS)
+            .take(Self::COLLAPSED_GROUPS)
+            .map(String::as_str)
+    }
+
+    /// Whether the group headed `group` is collapsed in `folder` (#929).
+    pub fn is_collapsed(&self, folder: Id, group: &str) -> bool {
+        self.collapsed_in(folder).any(|g| g == group)
+    }
 
     /// The zoom of the message being read, in percent, in range (a settings file may say anything).
     pub fn zoom_percent(&self) -> u16 {
@@ -1941,7 +1976,7 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{:?}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}",
             self.rev,
             self.today().to_days(),
             // `received:"last week"` is other days for another first day of the week, and
@@ -1950,6 +1985,9 @@ impl Session {
             self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
+            self.prefs.older_by_month,
+            // The groups collapsed in the folder in view (#929).
+            self.prefs.collapsed_in(self.view.folder).collect::<Vec<_>>().join("\u{1f}"),
             // (Not saved with the rest of the view, so not in its text.)
             self.view.gmail,
             serde_json::to_string(&self.view).unwrap_or_default()
@@ -2826,9 +2864,10 @@ impl Session {
     /// conversation's row is that row whichever way its message came to be selected: it is drawn
     /// selected, and what is drawn is what is taken. Not the conversation's messages in other
     /// folders (a reply in Sent Items): those go only when they are selected themselves, under the
-    /// open conversation, as in Outlook.
+    /// open conversation, as in Outlook. Nothing of a collapsed group's row (#929): that row is
+    /// the switch that expands the group, and stands for no message, its own included.
     pub fn acting_on(&mut self) -> Vec<Id> {
-        if !self.view.conversations || self.sel.messages.is_empty() {
+        if !self.rows_take_more() {
             return self.sel.messages.clone();
         }
         let rows = self.rows();
@@ -2838,10 +2877,17 @@ impl Session {
     /// [`Session::acting_on`] for a caller that can't fill the list's cache, such as the question
     /// put to the owner about an agent's Delete or Move: what it would take now.
     pub fn acting_on_now(&self) -> Vec<Id> {
-        if !self.view.conversations || self.sel.messages.is_empty() {
+        if !self.rows_take_more() {
             return self.sel.messages.clone();
         }
         self.acting_on_in(&crate::list::rows(self))
+    }
+
+    /// Whether a row selected may stand for more messages than its own: a conversation's, or a
+    /// collapsed group's (#929); without either the selection is what is taken, and the list
+    /// isn't built for it.
+    fn rows_take_more(&self) -> bool {
+        !self.sel.messages.is_empty() && (self.view.conversations || self.folds_now())
     }
 
     /// What the list's `rows` draw selected (#503), worked out once for them and the selection, so
@@ -2850,9 +2896,14 @@ impl Session {
         let messages: HashSet<Id> = self.sel.messages.iter().copied().collect();
         // The messages a conversation's row was picked by, as the conversation.
         let picked: HashSet<Id> = self.sel.whole.iter().copied().filter(|id| messages.contains(id)).collect();
+        // (Not a collapsed group's row: it stands for itself alone, #929.)
         let whole = match picked.is_empty() {
             true => HashSet::new(),
-            false => rows.iter().filter(|r| r.under.is_none() && r.members.iter().any(|m| picked.contains(m))).map(|r| r.id).collect(),
+            false => rows
+                .iter()
+                .filter(|r| r.under.is_none() && r.folded.is_none() && r.members.iter().any(|m| picked.contains(m)))
+                .map(|r| r.id)
+                .collect(),
         };
         // Rows under a conversation are listed only while one is open.
         let taken = match self.view.open.is_empty() {
@@ -2866,7 +2917,68 @@ impl Session {
     /// which needn't be the one on top of it now (a newer one came, or another tab lists the
     /// conversation with another message on top).
     pub fn picked_whole(&self, row: &Row) -> bool {
+        // (Never a collapsed group's row: it stands for itself alone, #929.)
+        if row.folded.is_some() {
+            return false;
+        }
         row.under.is_none() && self.sel.whole.iter().any(|id| row.members.contains(id) && self.sel.messages.contains(id))
+    }
+
+    /// Whether the list in view shows any group collapsed (#929), which is what makes a row able
+    /// to be a group's: the groups have to be on, the arrangement has to be one that folds, there
+    /// has to be no search, and the folder has to have something kept. Asked before any of the
+    /// work that looks for a folded row, so that a folder with nothing collapsed, a search, or a
+    /// list arranged by categories costs nothing.
+    pub(crate) fn folds_now(&self) -> bool {
+        self.prefs.show_groups
+            && self.view.sort != crate::SortBy::Categories
+            && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
+            && self.prefs.collapsed_in(self.view.folder).next().is_some()
+    }
+
+    /// Whether the selection ends on a collapsed group's row of the message list (#929). Such a
+    /// row is the switch that expands the group again and stands for no message, its own
+    /// included: no command acts on it ([`Session::acting_on`]), and the reading pane shows none.
+    /// Where the rows the list was built from can't be read, the answer is yes, because the one
+    /// that refuses a command is safer than the one that hands it a message out of sight. So a
+    /// command that changes which groups are kept and then asks this, or anything built on it,
+    /// has to build the list again in between, as `expand_for_selected` does: the rows from
+    /// before belong to a list that no longer exists.
+    pub(crate) fn focus_on_collapsed_group(&self) -> bool {
+        let Some(id) = self.sel.focus() else { return false };
+        if !self.folds_now() {
+            return false;
+        }
+        match self.rows_in_view() {
+            Some(rows) => rows.iter().any(|r| r.id == id && r.under.is_none() && r.folded.is_some()),
+            // The rows the list was built from can't be read here (the day rolled over, the word
+            // index finished, a zone changed), and a group is collapsed: whether the focus is on
+            // its row is unknown. The answer that refuses a command is the one to give, because
+            // the other hands a command a message that may be out of sight.
+            None => true,
+        }
+    }
+
+    /// Whether what is selected is one collapsed group's row and nothing else (#929).
+    pub fn on_collapsed_group(&self) -> bool {
+        self.sel.messages.len() == 1 && self.focus_on_collapsed_group()
+    }
+
+    /// The message the selection ends on, as the reading pane shows it and as Reply, Forward and
+    /// the rest take it: nothing while that row is a collapsed group's (#929), which is the
+    /// switch that expands the group and stands for no message.
+    ///
+    /// This reads the rows the list was last built from rather than building them, and answers
+    /// nothing where they can't be read while a group is collapsed
+    /// ([`Session::focus_on_collapsed_group`]).
+    pub fn reading(&self) -> Option<Id> {
+        self.sel.focus().filter(|_| !self.focus_on_collapsed_group())
+    }
+
+    /// The message [`Session::reading`] picks, for the commands that work on the one message the
+    /// owner is reading (#929): nothing while a collapsed group's row is what is selected.
+    pub fn reading_message(&self) -> Option<&Message> {
+        self.reading().and_then(|id| self.mailbox.message(id))
     }
 
     /// [`Session::acting_on`], with the list's `rows`.
@@ -2877,7 +2989,8 @@ impl Session {
         let tops = rows.iter().filter(|r| r.under.is_none());
         let mut rows_of: HashMap<Id, &Row> = tops.clone().map(|r| (r.id, r)).collect();
         if whole.iter().any(|id| !rows_of.contains_key(id)) {
-            for r in tops.filter(|r| r.conversation()) {
+            // (Not a collapsed group's row: a conversation picked in it isn't the group, #929.)
+            for r in tops.filter(|r| r.conversation() && r.folded.is_none()) {
                 for m in r.members.iter().filter(|m| whole.contains(m)) {
                     rows_of.entry(*m).or_insert(r);
                 }
@@ -2886,6 +2999,11 @@ impl Session {
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         for id in &self.sel.messages {
+            // A collapsed group's row (#929) is the switch that expands the group, and stands for
+            // no message, its own included: nothing of it is acted on while the group is collapsed.
+            if rows_of.get(id).is_some_and(|r| r.folded.is_some()) {
+                continue;
+            }
             let members = rows_of.get(id).filter(|r| r.conversation() && (whole.contains(id) || (!r.open && r.id == *id)));
             for x in members.map_or_else(|| std::slice::from_ref(id), |r| r.members.as_slice()) {
                 if seen.insert(*x) {
@@ -2901,6 +3019,13 @@ impl Session {
         if self.mailbox.folder(self.view.folder).is_none() {
             self.view.folder = self.mailbox.inbox().unwrap_or(0);
         }
+        // The calendar's times are by the clock of the zone it is shown in. First, because moving
+        // them makes the message list due again, and everything below reads the rows.
+        self.settle_zone();
+        // What a collapsed group hides leaves the selection (#929) before `select_in_view` does
+        // its own work: a message of another folder, listed under an open conversation, is let go
+        // of there, and the group's row would then have nothing to take the focus from.
+        self.drop_folded_selection();
         self.select_in_view();
         let mb = &self.mailbox;
         self.sel.messages.dedup();
@@ -2923,8 +3048,82 @@ impl Session {
                 c.account = fallback;
             }
         }
-        // And its times are by the clock of the zone the calendar is shown in.
-        self.settle_zone();
+    }
+
+    /// The groups kept for a folder that is gone go with it (#929), when an account is removed
+    /// and its folders with it: there, and not at a folder deleted on its own, because an undo
+    /// brings that folder back while preferences aren't put back with the mailbox. They would
+    /// otherwise count against the folders that may keep groups, and the refusal the owner meets
+    /// at the limit would name folders they no longer have.
+    pub(crate) fn forget_gone_groups(&mut self) {
+        if self.prefs.collapsed_groups.is_empty() {
+            return;
+        }
+        let mb = &self.mailbox;
+        self.prefs.collapsed_groups.retain(|folder, _| mb.folder(*folder).is_some());
+    }
+
+    /// The selected messages a command acts on one at a time (Mark Read, Flag, Categorize, Pin,
+    /// Copy to Folder, Forward as Attachment): the selection, less any collapsed group's row,
+    /// which is the switch that expands the group and stands for no message (#929). Unlike
+    /// [`Session::acting_on`], a conversation's row here is its own message, as it has always
+    /// been for these commands.
+    pub fn selected_alone(&mut self) -> Vec<Id> {
+        if self.sel.messages.is_empty() || !self.folds_now() {
+            return self.sel.messages.clone();
+        }
+        let rows = self.rows();
+        let folded: HashSet<Id> = rows.iter().filter(|r| r.under.is_none() && r.folded.is_some()).map(|r| r.id).collect();
+        self.sel.messages.iter().copied().filter(|id| !folded.contains(id)).collect()
+    }
+
+    /// No selected message is hidden by a collapsed group (#929). A collapsed group is one row,
+    /// the switch that expands it again, and it stands for itself alone: everything else of the
+    /// group is out of sight, so it leaves the selection, the way collapsing the group takes it
+    /// out. Where the focus was one of them, the group's row takes its place, so the keyboard
+    /// carries on from there and Right opens the group again.
+    ///
+    /// This runs from [`Session::normalize`], after every command and whenever the mailbox
+    /// changes, because a fold comes to hide a message in more ways than collapsing it: the
+    /// groups turned off and on again, another arrangement and back, a search that ends, an undo
+    /// that selects again, or mail arriving in a collapsed group and taking its row.
+    pub(crate) fn drop_folded_selection(&mut self) {
+        // The cheap questions first. Not the module in view: a selection made in Mail is still
+        // the selection while the calendar is shown, and a command from an agent or the control
+        // channel acts on it there, so a fold that comes over it while the owner is elsewhere
+        // has to be caught all the same.
+        if self.sel.messages.is_empty() || !self.folds_now() {
+            return;
+        }
+        let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        let rows = self.rows();
+        // What the collapsed groups hide of the selection, each with the row that hides it. Only
+        // those: a group holds every message of its days, and collecting them all would be a set
+        // the size of the folder for the answer "nothing", which is the usual one.
+        let hidden: HashMap<Id, Id> = rows
+            .iter()
+            .filter(|r| r.under.is_none() && r.folded.is_some())
+            .flat_map(|r| r.members.iter().chain(r.others.iter()).filter(|m| **m != r.id && selected.contains(m)).map(|m| (*m, r.id)))
+            .collect();
+        if hidden.is_empty() {
+            return;
+        }
+        // Looked up, not walked: Select All over a folder of a hundred thousand messages and then
+        // Collapse All Groups would otherwise ask this once per selected message per hidden one.
+        let head_of = |id: Id| hidden.get(&id).copied();
+        let landed = self.sel.focus().and_then(head_of);
+        self.sel.messages.retain(|id| head_of(*id).is_none());
+        self.sel.whole.retain(|id| head_of(*id).is_none());
+        match landed {
+            // (The last selected is the focus, and the row is in the selection once.)
+            Some(head) => {
+                self.sel.messages.retain(|id| *id != head);
+                self.sel.messages.push(head);
+                self.sel.focus_row = Some((head, 0));
+            }
+            None => self.sel.focus_row = self.sel.focus_row.filter(|(id, _)| head_of(*id).is_none()),
+        }
+        self.sel.anchor_row = self.sel.anchor_row.filter(|(id, _)| head_of(*id).is_none()).or(self.sel.focus_row);
     }
 
     /// A command changed the mailbox and goes on to ask of the list (a message it brought in, to
@@ -3457,7 +3656,10 @@ impl Session {
         if let Some(reason) = (spec.enabled)(self) {
             // A command that only lacks a selection still runs on what the caller names, and on
             // what it names wrongly, which the command refuses for what it is (#553).
-            let named = spec.selection && ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some());
+            // (`group`: a group of the message list named by its heading, for the commands that
+            // take one, #929.)
+            let group = matches!(id, "view.collapseGroup" | "view.expandGroup") && params.get("group").is_some();
+            let named = spec.selection && (group || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some()));
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
@@ -3619,6 +3821,7 @@ impl Session {
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {
                     crate::cmd::calendar_settings::forget_gone_hours(self);
+                    self.forget_gone_groups();
                 }
                 if staged {
                     self.rev += 1;

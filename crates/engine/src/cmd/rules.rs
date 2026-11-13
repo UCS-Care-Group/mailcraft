@@ -396,7 +396,7 @@ pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), Cm
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     refuse_send_queue(s, folder)?;
-    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // A shared mailbox's mail is left alone by the rules, and one for its owner's account would
     // move the owner's own mail into the folder it names.

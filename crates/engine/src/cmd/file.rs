@@ -176,9 +176,17 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     // First, so that opening the file the mailbox is kept in reads what was just written.
     settle(s)?;
     let (mailbox, left) = read(v)?;
-    s.replace_mailbox(mailbox);
     // Only a real file is a place to save back to.
-    s.path = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
+    let path: Option<std::path::PathBuf> = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
+    // The groups kept for each folder are kept by the folder's id, and another file gives those
+    // ids to folders of its own (#929): a heading of the file being left would collapse a group
+    // of a folder it was never meant for. The same file read again is not another file, and
+    // opening it is what Save does before it reads back, so its groups stay as they were.
+    if path.is_none() || path != s.path {
+        s.prefs.collapsed_groups.clear();
+    }
+    s.replace_mailbox(mailbox);
+    s.path = path;
     let after = after_opening(s);
     let (favorites_now_graph, fetched_again) = (after.favorites_now_graph, after.fetched_again());
     Ok(json!({
@@ -349,7 +357,7 @@ fn import_pst(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }

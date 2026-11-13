@@ -193,7 +193,7 @@ impl Count {
 
 /// A chevron centred on `c`, `half` its half-width when it points down (what is under it shows);
 /// it points right when that is folded away.
-fn chevron(painter: &Painter, c: Pos2, half: f32, open: bool, color: Color32) {
+pub(crate) fn chevron(painter: &Painter, c: Pos2, half: f32, open: bool, color: Color32) {
     let points = if open {
         vec![pos2(c.x - half, c.y - half / 2.0), pos2(c.x, c.y + half / 2.0), pos2(c.x + half, c.y - half / 2.0)]
     } else {

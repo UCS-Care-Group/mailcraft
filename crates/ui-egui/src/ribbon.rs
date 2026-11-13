@@ -398,7 +398,7 @@ fn no() -> Value {
 fn home_mail(app: &MailApp) -> Tab {
     // Junk ▾: Block Sender, Never Block…, Not Junk and Junk E-mail Options (#504).
     let junk = Item::small_menu("junk", "junk", "Junk", "Junk", Menu::Junk);
-    let pinned = app.session.focused_message().is_some_and(|m| m.pinned);
+    let pinned = app.session.reading_message().is_some_and(|m| m.pinned);
     Tab::of(vec![
         g(
             "New",
@@ -1508,6 +1508,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             ui.separator();
             let groups = app.session.prefs.show_groups;
             mi_check(ui, app, "Show in Groups", groups, "view.groups", json!({"value": !groups}));
+            // (#929: older mail by month and year, and the groups collapsed or expanded.)
+            let by_month = app.session.prefs.older_by_month;
+            mi_check(ui, app, "Older Mail by Month and Year", by_month, "view.olderByMonth", json!({"value": !by_month}));
+            mi(ui, app, "Collapse This Group", "view.collapseGroup", json!({}));
+            mi(ui, app, "Expand This Group", "view.expandGroup", json!({}));
+            mi(ui, app, "Collapse All Groups", "view.collapseAllGroups", json!({}));
+            mi(ui, app, "Expand All Groups", "view.expandAllGroups", json!({}));
         }
         Menu::Theme => {
             let theme = app.ui.theme;

@@ -23,7 +23,7 @@ const MAX_TRIES: u32 = 1000;
 /// `mail.saveAllAttachments`.
 pub(super) fn save_all(s: &mut Session, v: &Value) -> CmdResult {
     p::only(v, &["id", "path"])?;
-    let id = p::id_strict(v, "id")?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::id_strict(v, "id")?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let listed: Vec<(usize, String)> = m.listed_attachments().map(|(i, a)| (i, crate::opening::save_name(&a.name))).collect();
     if listed.is_empty() {

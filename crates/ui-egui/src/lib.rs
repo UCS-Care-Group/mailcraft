@@ -114,6 +114,8 @@ mod google_registration_tests;
 pub mod graph_fetch;
 mod graph_switch;
 #[cfg(test)]
+mod group_heading_tests;
+#[cfg(test)]
 mod host_said_tests;
 pub mod i18n;
 pub mod icons;

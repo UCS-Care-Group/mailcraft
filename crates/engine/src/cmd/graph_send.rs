@@ -284,7 +284,7 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn send_again(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| bad("select a message first"))?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));

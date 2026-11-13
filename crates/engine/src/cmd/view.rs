@@ -48,6 +48,19 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).reads().params(r#"{"value": 0-3}"#),
         CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).reads().params(TOGGLE),
+        CommandSpec::new("view.collapseGroup", "Collapse This Group", "View › Arrangement", collapse_group)
+            .reads()
+            .key("ArrowLeft")
+            .selection(can_collapse_group)
+            .params(GROUP),
+        CommandSpec::new("view.expandGroup", "Expand This Group", "View › Arrangement", expand_group)
+            .reads()
+            .key("ArrowRight")
+            .selection(can_expand_group)
+            .params(GROUP),
+        CommandSpec::new("view.olderByMonth", "Older Mail by Month and Year", "View › Arrangement", older_by_month).reads().params(TOGGLE),
+        CommandSpec::new("view.collapseAllGroups", "Collapse All Groups", "View › Arrangement", collapse_all_groups).reads().when(can_collapse_all).params("{}"),
+        CommandSpec::new("view.expandAllGroups", "Expand All Groups", "View › Arrangement", expand_all_groups).reads().when(can_expand_all).params("{}"),
         CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).reads().params(TOGGLE),
         CommandSpec::new("view.day", "Day", "Home › Arrange", day).reads().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
         CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).reads().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
@@ -74,6 +87,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const TOGGLE: &str = r#"{"value"?: bool} (default: toggle)"#;
+/// For collapsing and expanding the message list's groups (#929).
+const GROUP: &str = r#"{"group"?: string (a heading as the list names it: "Last Month", "Older", a sender)} (default: the group the focus is in) — in the folder in view, kept for it; while something is searched for, every group shows whole"#;
 
 fn module(s: &mut Session, m: Module) -> CmdResult {
     s.view.module = m;
@@ -214,6 +229,167 @@ fn preview_lines(s: &mut Session, v: &Value) -> CmdResult {
 fn groups(s: &mut Session, v: &Value) -> CmdResult {
     s.prefs.show_groups = p::bool(v, "value").unwrap_or(!s.prefs.show_groups);
     Ok(json!({"value": s.prefs.show_groups}))
+}
+
+/// The heading of the group the row at `at` is in: the nearest above it, itself included.
+fn group_at(rows: &[crate::list::Row], at: usize) -> Option<String> {
+    rows.get(..=at)?.iter().rev().find_map(|r| r.group.clone())
+}
+
+/// The list's rows as the window last had them, and where the focus is in them; nothing while
+/// the list has no groups or something is searched for (#929).
+fn grouped_focus(s: &Session) -> Option<(std::sync::Arc<Vec<crate::list::Row>>, usize)> {
+    if !collapsible(s) || !mailcraft_model::search::Query::parse(&s.view.search).is_empty() {
+        return None;
+    }
+    let rows = s.rows_in_view()?;
+    let at = s.sel.focus_in(&rows)?;
+    Some((rows, at))
+}
+
+/// Whether the list in view has groups that collapse: shown in groups, and not arranged by
+/// category, where a message is listed under each of its categories and one heading can't stand
+/// for its messages alone (#929).
+fn collapsible(s: &Session) -> bool {
+    s.prefs.show_groups && s.view.sort != SortBy::Categories
+}
+
+/// Collapse All Groups: while the list shows groups that collapse, and nothing is searched for
+/// (a search shows every group whole, and isn't what is kept for the folder).
+fn can_collapse_all(s: &Session) -> Option<&'static str> {
+    // (Written out at each state: the catalogue takes a reason from where it is given.)
+    if s.view.sort == SortBy::Categories {
+        Some("the groups of a list arranged by category don't collapse")
+    } else if !s.prefs.show_groups {
+        Some("the list isn't shown in groups")
+    } else if !mailcraft_model::search::Query::parse(&s.view.search).is_empty() {
+        Some("while something is searched for, every group shows whole")
+    } else {
+        None
+    }
+}
+
+/// Expand All Groups: while a group of the folder in view is collapsed.
+fn can_expand_all(s: &Session) -> Option<&'static str> {
+    if s.prefs.collapsed_in(s.view.folder).next().is_none() { Some("no group of this folder is collapsed") } else { None }
+}
+
+/// Left collapses the group the focus is in, when it is open (#929).
+fn can_collapse_group(s: &Session) -> Option<&'static str> {
+    match grouped_focus(s) {
+        Some((rows, at)) if rows.get(at).is_some_and(|r| r.folded.is_none()) && group_at(&rows, at).is_some() => None,
+        Some(_) => Some("the group is collapsed"),
+        None => Some("select a message in a list arranged in groups first"),
+    }
+}
+
+/// Right expands the collapsed group the focus is on (#929).
+fn can_expand_group(s: &Session) -> Option<&'static str> {
+    match grouped_focus(s) {
+        Some((rows, at)) if rows.get(at).is_some_and(|r| r.folded.is_some()) => None,
+        Some(_) => Some("the group is open"),
+        None => Some("select a collapsed group first"),
+    }
+}
+
+/// The group `v` names (`group`), else the one the focus is in.
+fn named_group(s: &mut Session, v: &Value) -> Result<String, crate::CmdError> {
+    if let Some(group) = v.get("group") {
+        let group = group.as_str().map(str::trim).filter(|g| !g.is_empty()).ok_or_else(|| bad("`group` is a heading of the list"))?;
+        if group.chars().count() > crate::Prefs::GROUP_CHARS {
+            return Err(bad("`group` is a heading of the list, at most 254 characters"));
+        }
+        return Ok(group.to_string());
+    }
+    let focus = s.sel.focus().ok_or_else(|| bad("select a message in a group first, or name the `group`"))?;
+    // Listed under an open conversation, a row is shown under that conversation's heading and not
+    // under its own date's (#503): the group the owner sees it in is the conversation's, and that
+    // is the one Left collapses.
+    let rows = s.rows();
+    let under = rows.iter().find(|r| r.id == focus && r.under.is_some()).and_then(|r| r.under);
+    crate::list::heading_of(s, under.unwrap_or(focus)).ok_or_else(|| bad("the message selected is in no group"))
+}
+
+/// What `view.collapseGroup` and `view.expandGroup` answer: the folder and its collapsed groups.
+fn collapsed_now(s: &Session) -> CmdResult {
+    let folder = s.view.folder;
+    Ok(json!({"folder": folder, "collapsed": s.prefs.collapsed_in(folder).collect::<Vec<_>>()}))
+}
+
+/// Keeps `groups` collapsed in the folder in view, as many as may be kept (#929).
+fn collapse(s: &mut Session, groups: Vec<String>) -> CmdResult {
+    // Every state the menu refuses in, refused here too: naming the `group` makes the command run
+    // while it is disabled (a command that takes a target isn't held back by the selection), so
+    // an agent or the control channel would otherwise collapse a group while a search shows every
+    // group whole, or with the groups turned off, and the heading would be kept for a list that
+    // doesn't fold.
+    if let Some(why) = can_collapse_all(s) {
+        return Err(bad(why));
+    }
+    let folder = s.view.folder;
+    let prefs = &mut s.prefs;
+    let kept = prefs.collapsed_groups.get(&folder);
+    if kept.is_none() && prefs.collapsed_groups.len() >= crate::Prefs::COLLAPSED_FOLDERS {
+        return Err(bad("too many folders have collapsed groups: expand the groups of another folder first"));
+    }
+    // A heading too long to be kept would be stored and then skipped, and would take one of the
+    // places all the same: it is refused here, wherever the headings came from (#929).
+    if let Some(long) = groups.iter().find(|g| g.chars().count() > crate::Prefs::GROUP_CHARS) {
+        return Err(failed!("the heading \"{group}\" is longer than 254 characters", group = long.chars().take(40).collect::<String>()));
+    }
+    // All or nothing: a group that can't be kept is said so, and none is collapsed.
+    let new: std::collections::BTreeSet<&String> = groups.iter().filter(|g| kept.is_none_or(|k| !k.contains(*g))).collect();
+    if kept.map_or(0, std::collections::BTreeSet::len).saturating_add(new.len()) > crate::Prefs::COLLAPSED_GROUPS {
+        return Err(bad("at most 200 groups of a folder stay collapsed: expand some of them first"));
+    }
+    let new: std::collections::BTreeSet<String> = new.into_iter().cloned().collect();
+    if new.is_empty() {
+        return collapsed_now(s);
+    }
+    s.prefs.collapsed_groups.entry(folder).or_default().extend(groups);
+    // (What the groups now hide leaves the selection in `Session::drop_folded_selection`, which
+    // `normalize` runs after this command as it does after every other, #929. Running it here as
+    // well would walk the list twice for every collapse.)
+    collapsed_now(s)
+}
+
+/// `view.collapseGroup`: the group shows as its heading alone, with how many messages it has (#929).
+fn collapse_group(s: &mut Session, v: &Value) -> CmdResult {
+    let group = named_group(s, v)?;
+    collapse(s, vec![group])
+}
+
+/// `view.collapseAllGroups`: every group of the list in view (#929).
+fn collapse_all_groups(s: &mut Session, _: &Value) -> CmdResult {
+    let groups = s.rows().iter().filter_map(|r| r.group.clone()).collect();
+    collapse(s, groups)
+}
+
+/// `view.expandGroup`: the group's messages show again (#929).
+fn expand_group(s: &mut Session, v: &Value) -> CmdResult {
+    let folder = s.view.folder;
+    let group = named_group(s, v)?;
+    if let Some(kept) = s.prefs.collapsed_groups.get_mut(&folder) {
+        kept.remove(&group);
+        if kept.is_empty() {
+            s.prefs.collapsed_groups.remove(&folder);
+        }
+    }
+    collapsed_now(s)
+}
+
+/// `view.expandAllGroups`: every group of the folder in view shows whole again (#929).
+fn expand_all_groups(s: &mut Session, _: &Value) -> CmdResult {
+    let folder = s.view.folder;
+    s.prefs.collapsed_groups.remove(&folder);
+    collapsed_now(s)
+}
+
+/// `view.olderByMonth`: arranged by date, mail older than last month in a group for each month of
+/// this year and then for each year, not in one Older group (#929).
+fn older_by_month(s: &mut Session, v: &Value) -> CmdResult {
+    s.prefs.older_by_month = p::bool(v, "value").unwrap_or(!s.prefs.older_by_month);
+    Ok(json!({"value": s.prefs.older_by_month}))
 }
 
 fn one_line(s: &mut Session, v: &Value) -> CmdResult {

@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(can_collapse)
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).reads().params(r#"{"id"?: number} (default: the selected message). An `id` or `ids` that names nothing (null, text, 0, a fraction) is refused"#),
-        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
+        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it. A collapsed group of the list is one item, its heading's message, with `collapsed`: the group's messages"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.deletePermanently", "Delete Permanently", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
@@ -230,15 +230,51 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
     // tab and with no search, when the list doesn't show it there.
     s.show_selected();
+    expand_for_selected(s, p::bool(v, "elsewhere") == Some(true));
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
+}
+
+/// A selected message that sits inside a collapsed group brings that group into sight again
+/// (#929): opened from an alert, a task, a search that ended or the reading pane's conversation
+/// list, it is the message that was asked for, and no collapsed group hides what is selected.
+/// Picked in the list itself, a group's own row is the switch that expands it, so it expands
+/// nothing; asked for from `elsewhere`, that row's message is a message like any other.
+fn expand_for_selected(s: &mut Session, elsewhere: bool) {
+    let folder = s.view.folder;
+    if s.prefs.collapsed_in(folder).next().is_none() {
+        return;
+    }
+    let selected: HashSet<Id> = s.sel.messages.iter().copied().collect();
+    let groups: Vec<String> = s
+        .rows()
+        .iter()
+        .filter(|r| r.under.is_none() && r.folded.is_some() && r.members.iter().any(|m| (elsewhere || *m != r.id) && selected.contains(m)))
+        .filter_map(|r| r.group.clone())
+        .collect();
+    if groups.is_empty() {
+        return;
+    }
+    if let Some(kept) = s.prefs.collapsed_groups.get_mut(&folder) {
+        kept.retain(|g| !groups.contains(g));
+        if kept.is_empty() {
+            s.prefs.collapsed_groups.remove(&folder);
+        }
+    }
+    // The groups that are kept are part of what the list was built for, so the rows held from
+    // before this belong to a list that no longer exists. Built again here, because what reads
+    // them without building (`Session::reading`, and `mark_opened` through it) answers "a
+    // collapsed group's row" while they can't be read, and the message just asked for would go
+    // unread.
+    let _ = s.rows();
 }
 
 /// Reading a message marks it read (File › Options). Not an undo step: it follows the selection.
 /// Marked once the command is done ([`Session::opened`]): selecting changes nothing else of the
 /// mailbox, and is a reading command, which takes no copy of it.
 fn mark_opened(s: &mut Session) {
-    if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 {
+    // (A collapsed group's row stands for no message, and opens none, #929.)
+    if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || s.on_collapsed_group() {
         s.opened = None;
         return;
     }
@@ -248,12 +284,17 @@ fn mark_opened(s: &mut Session) {
 fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     let rows = s.rows();
     let focus = s.sel.focus();
-    // Every row once: a message under its open conversation is its conversation's (#503).
-    let mut ids: Vec<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
-    // The message in the reading pane stays the focus.
-    ids.extend(focus.filter(|f| position(&rows, *f).is_some()));
+    // Every row once: a message under its open conversation is its conversation's (#503). Not a
+    // collapsed group's row (#929): it stands for no message, so Select All leaves its group out.
+    let mut ids: Vec<Id> =
+        rows.iter().filter(|r| r.copy == 0 && r.under.is_none() && r.folded.is_none()).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
+    // The message in the reading pane stays the focus, unless the row it is on is a collapsed
+    // group's: that row stands for no message, so Select All leaves it out as it does the rest
+    // of its group (#929).
+    let on_folded = |f: &Id| rows.iter().any(|r| r.id == *f && r.under.is_none() && r.folded.is_some());
+    ids.extend(focus.filter(|f| !on_folded(f) && position(&rows, *f).is_some()));
     let picked: HashSet<Id> = ids.iter().copied().collect();
-    s.sel.whole = rows.iter().filter(|r| r.conversation() && picked.contains(&r.id)).map(|r| r.id).collect();
+    s.sel.whole = rows.iter().filter(|r| r.conversation() && r.folded.is_none() && picked.contains(&r.id)).map(|r| r.id).collect();
     s.sel.messages = ids;
     s.keep_selected(&rows);
     Ok(json!({"selected": s.sel.messages.len()}))
@@ -290,7 +331,10 @@ struct Placed {
 
 impl Placed {
     fn of(s: &mut Session) -> Placed {
-        let rows = if s.view.conversations { s.rows() } else { Arc::default() };
+        // (Rows that stand for more than their message: a conversation's, and a collapsed
+        // group's, #929.)
+        let more = s.view.conversations || s.prefs.collapsed_in(s.view.folder).next().is_some();
+        let rows = if more { s.rows() } else { Arc::default() };
         let (mut exact, mut first) = (HashMap::new(), HashMap::new());
         for (i, r) in rows.iter().enumerate() {
             exact.entry((r.id, r.copy)).or_insert(i);
@@ -308,7 +352,7 @@ impl Placed {
     /// Whether row `copy` of message `id` is its conversation's row: selected by that row, the
     /// message stands for every message the row does.
     fn heads(&self, id: Id, copy: u16) -> bool {
-        self.row(id, copy).is_some_and(|r| r.id == id && r.conversation())
+        self.row(id, copy).is_some_and(|r| r.id == id && r.conversation() && r.folded.is_none())
     }
 }
 
@@ -322,6 +366,9 @@ fn ctrl_click(s: &mut Session, placed: &Placed, id: Id, copy: u16) {
     let by_row =
         |s: &Session, r: &Row| -> Vec<Id> { r.members.iter().copied().filter(|m| s.sel.whole.contains(m) && s.sel.messages.contains(m)).collect() };
     match row {
+        // A collapsed group's row (#929) stands for itself, as the switch that expands the group:
+        // it joins the selection and leaves it on its own, and no command acts on it.
+        Some(r) if r.folded.is_some() => toggle(s, id, selected),
         Some(r) if r.conversation() => {
             let picked = by_row(s, r);
             if !picked.is_empty() || (!r.open && selected) {
@@ -375,7 +422,7 @@ fn toggle(s: &mut Session, id: Id, selected: bool) {
 /// The messages of rows `a` to `b` selected by their conversation's row (#503).
 fn heads_in(rows: &[Row], a: usize, b: usize) -> Vec<Id> {
     let (lo, hi) = (a.min(b), a.max(b));
-    rows.iter().skip(lo).take((hi - lo).saturating_add(1)).filter(|r| r.conversation()).map(|r| r.id).collect()
+    rows.iter().skip(lo).take((hi - lo).saturating_add(1)).filter(|r| r.conversation() && r.folded.is_none()).map(|r| r.id).collect()
 }
 
 /// Moves the focus to row `i` of the list. With `extend` (Shift), the selection runs from the
@@ -392,7 +439,8 @@ fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
         }
         None => {
             s.sel.messages = vec![row.id];
-            s.sel.whole = if row.conversation() { vec![row.id] } else { Vec::new() };
+            // (Never a collapsed group's row: it stands for itself alone, #929.)
+            s.sel.whole = if row.conversation() && row.folded.is_none() { vec![row.id] } else { Vec::new() };
             s.sel.anchor_row = Some((row.id, row.copy));
         }
     }
@@ -464,6 +512,12 @@ const MAX_OPEN: usize = 1_000;
 /// keys, without building the list.
 fn focused_conversation(s: &Session) -> Option<bool> {
     if !s.view.conversations || s.view.sort != crate::SortBy::Date {
+        return None;
+    }
+    // (A collapsed group's row stands for the group, not for a conversation: Left and Right are
+    // the group's there, #929. What can't be read counts as the group's, so Right never opens the
+    // conversation of a message the list may not be showing.)
+    if s.focus_on_collapsed_group() {
         return None;
     }
     let m = s.focused_message()?;
@@ -581,7 +635,7 @@ fn collapse(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn get(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -621,7 +675,7 @@ fn signature_for_agent(s: &mut Session, id: Id) -> Value {
 
 /// What checking message `id`'s Digital signature found (#30), as an agent is given it.
 fn digital_signature(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -672,7 +726,11 @@ fn list_in_view(s: &mut Session, limit: usize) -> CmdResult {
         .filter_map(|r| {
             let mut m = message_summary(s, s.mailbox.message(r.id)?);
             if let Some(o) = m.as_object_mut() {
-                if r.conversation() {
+                // A collapsed group's heading (#929) names the group's messages, which the list
+                // doesn't show: they are no conversation.
+                if r.folded.is_some() {
+                    o.insert("collapsed".into(), json!(r.members));
+                } else if r.conversation() {
                     o.insert("conversation".into(), json!(r.members));
                 }
                 // Its conversation in other folders, and whether it is open (#503); a message
@@ -921,7 +979,7 @@ fn dismiss_warnings(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn find_related(s: &mut Session, _: &Value) -> CmdResult {
-    let m = s.focused_message().ok_or_else(|| fail("select a message first"))?;
+    let m = s.reading_message().ok_or_else(|| fail("select a message first"))?;
     let topic = m.topic();
     if topic.is_empty() {
         return Err(fail("this message has no subject to look for"));
@@ -939,7 +997,7 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
 /// back whole.
 fn find_from_sender(s: &mut Session, v: &Value) -> CmdResult {
     use mailcraft_model::search::{Query, is_address, keyword_value};
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let address = m.from.email.trim();
     if address.is_empty() {
@@ -958,7 +1016,7 @@ fn find_from_sender(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn attachment_target(s: &Session, v: &Value) -> Result<(Id, usize), crate::CmdError> {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let index = p::u64(v, "index").ok_or_else(|| bad("`index` (number) is required"))? as usize;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.attachments.get(index).is_none() {
