@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{GraphMessage, GraphProgress, MessagePage, ServerMessage, merge_categories};
 use mailcraft_model::time::Timestamp;
-use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow};
+use mailcraft_model::{AccountKind, Body, FlagStatus, FolderKind, Id, Mailbox, Message, OfflineWindow};
 
 /// Where each message a server knows is, by its server id: kept between pages, as finding one
 /// otherwise means a walk through every message of the mailbox.
@@ -277,6 +277,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let was_here = mb.folder_by_server(account, &last.folder);
     let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
     let in_drafts = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
+    // Only of a JMAP account: a Microsoft server keeps a follow-up's dates and "complete" itself.
+    let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
     let Ok(m) = mb.message_mut(id) else { return false };
     let now = &there.server;
     if m.read == last.read {
@@ -291,7 +293,18 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         m.forwarded = now.forwarded;
     }
     // The flag is its status and its due date: changed here, both stay as they are.
-    if m.flag == last.flag && m.flag_due == last.flag_due {
+    if flag_bit_alone {
+        // A JMAP server keeps `$flagged` and nothing else, so a due date or a "complete" here is
+        // no change it was ever told of, and no reason to hold its word off: whether the flag was
+        // changed here is told by that bit alone. Unchanged here and changed there, the server's
+        // state is taken, without a due date; in every other case what is here stays, with what
+        // only this computer keeps of it.
+        let flagged = |flag: FlagStatus| flag == FlagStatus::Flagged;
+        if flagged(m.flag) == flagged(last.flag) && flagged(now.flag) != flagged(last.flag) {
+            m.flag = now.flag;
+            m.flag_due = now.flag_due;
+        }
+    } else if m.flag == last.flag && m.flag_due == last.flag_due {
         m.flag = now.flag;
         m.flag_due = now.flag_due;
     }
@@ -752,6 +765,10 @@ fn keeps_whole(mb: &Mailbox, account: Id) -> Option<u64> {
 #[cfg(test)]
 #[path = "graph_down_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "graph_down_flag_tests.rs"]
+mod flag_tests;
 
 #[cfg(test)]
 #[path = "graph_sent_not_draft_tests.rs"]

@@ -20,7 +20,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(&self, key: &str, value: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.to_string(), value.to_string());
         Ok(())
     }
@@ -500,10 +500,8 @@ impl SecretStore for RejectStore {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, _: &str, value: &str) -> Result<(), String> {
-        // OS keychains can echo an attempted credential in their error message. No code
-        // should copy the store's text into a status, log or diagnostics.
-        Err(format!("the system rejected the secret: {value}"))
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
+        Err(mailcraft_host::SecretError::Refused)
     }
     fn delete(&self, _: &str) {}
 }
@@ -564,7 +562,7 @@ impl SecretStore for RecordingStore {
         self.calls.lock().unwrap().push("get");
         self.store.get(key)
     }
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(&self, key: &str, value: &str) -> Result<(), mailcraft_host::SecretError> {
         self.calls.lock().unwrap().push("set");
         self.store.set(key, value)
     }

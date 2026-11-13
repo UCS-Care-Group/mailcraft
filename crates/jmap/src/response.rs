@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mailcraft_jmap_types::method_error;
 use serde_json::{Map, Value};
 
 use crate::classify::parse_json;
@@ -74,25 +75,25 @@ pub enum MethodErrorKind {
 impl MethodErrorKind {
     fn from_type(kind: Option<&str>) -> Self {
         match kind.unwrap_or("") {
-            "serverUnavailable" => Self::ServerUnavailable,
-            "serverFail" => Self::ServerFail,
-            "serverPartialFail" => Self::ServerPartialFail,
-            "unknownMethod" => Self::UnknownMethod,
-            "invalidArguments" => Self::InvalidArguments,
-            "invalidResultReference" => Self::InvalidResultReference,
-            "forbidden" => Self::Forbidden,
-            "accountNotFound" => Self::AccountNotFound,
-            "accountNotSupportedByMethod" => Self::AccountNotSupportedByMethod,
-            "accountReadOnly" => Self::AccountReadOnly,
-            "requestTooLarge" => Self::RequestTooLarge,
-            "cannotCalculateChanges" => Self::CannotCalculateChanges,
-            "stateMismatch" => Self::StateMismatch,
-            "fromAccountNotFound" => Self::FromAccountNotFound,
-            "fromAccountNotSupportedByMethod" => Self::FromAccountNotSupportedByMethod,
-            "anchorNotFound" => Self::AnchorNotFound,
-            "unsupportedSort" => Self::UnsupportedSort,
-            "unsupportedFilter" => Self::UnsupportedFilter,
-            "tooManyChanges" => Self::TooManyChanges,
+            method_error::SERVER_UNAVAILABLE => Self::ServerUnavailable,
+            method_error::SERVER_FAIL => Self::ServerFail,
+            method_error::SERVER_PARTIAL_FAIL => Self::ServerPartialFail,
+            method_error::UNKNOWN_METHOD => Self::UnknownMethod,
+            method_error::INVALID_ARGUMENTS => Self::InvalidArguments,
+            method_error::INVALID_RESULT_REFERENCE => Self::InvalidResultReference,
+            method_error::FORBIDDEN => Self::Forbidden,
+            method_error::ACCOUNT_NOT_FOUND => Self::AccountNotFound,
+            method_error::ACCOUNT_NOT_SUPPORTED_BY_METHOD => Self::AccountNotSupportedByMethod,
+            method_error::ACCOUNT_READ_ONLY => Self::AccountReadOnly,
+            method_error::REQUEST_TOO_LARGE => Self::RequestTooLarge,
+            method_error::CANNOT_CALCULATE_CHANGES => Self::CannotCalculateChanges,
+            method_error::STATE_MISMATCH => Self::StateMismatch,
+            method_error::FROM_ACCOUNT_NOT_FOUND => Self::FromAccountNotFound,
+            method_error::FROM_ACCOUNT_NOT_SUPPORTED_BY_METHOD => Self::FromAccountNotSupportedByMethod,
+            method_error::ANCHOR_NOT_FOUND => Self::AnchorNotFound,
+            method_error::UNSUPPORTED_SORT => Self::UnsupportedSort,
+            method_error::UNSUPPORTED_FILTER => Self::UnsupportedFilter,
+            method_error::TOO_MANY_CHANGES => Self::TooManyChanges,
             other if other.len() <= MAX_ERROR_TYPE_LEN && other.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') => {
                 Self::Other(other.to_owned())
             }
@@ -103,25 +104,25 @@ impl MethodErrorKind {
     /// The type's name as the server sent it (empty for an unrecognisable one).
     pub fn as_str(&self) -> &str {
         match self {
-            Self::ServerUnavailable => "serverUnavailable",
-            Self::ServerFail => "serverFail",
-            Self::ServerPartialFail => "serverPartialFail",
-            Self::UnknownMethod => "unknownMethod",
-            Self::InvalidArguments => "invalidArguments",
-            Self::InvalidResultReference => "invalidResultReference",
-            Self::Forbidden => "forbidden",
-            Self::AccountNotFound => "accountNotFound",
-            Self::AccountNotSupportedByMethod => "accountNotSupportedByMethod",
-            Self::AccountReadOnly => "accountReadOnly",
-            Self::RequestTooLarge => "requestTooLarge",
-            Self::CannotCalculateChanges => "cannotCalculateChanges",
-            Self::StateMismatch => "stateMismatch",
-            Self::FromAccountNotFound => "fromAccountNotFound",
-            Self::FromAccountNotSupportedByMethod => "fromAccountNotSupportedByMethod",
-            Self::AnchorNotFound => "anchorNotFound",
-            Self::UnsupportedSort => "unsupportedSort",
-            Self::UnsupportedFilter => "unsupportedFilter",
-            Self::TooManyChanges => "tooManyChanges",
+            Self::ServerUnavailable => method_error::SERVER_UNAVAILABLE,
+            Self::ServerFail => method_error::SERVER_FAIL,
+            Self::ServerPartialFail => method_error::SERVER_PARTIAL_FAIL,
+            Self::UnknownMethod => method_error::UNKNOWN_METHOD,
+            Self::InvalidArguments => method_error::INVALID_ARGUMENTS,
+            Self::InvalidResultReference => method_error::INVALID_RESULT_REFERENCE,
+            Self::Forbidden => method_error::FORBIDDEN,
+            Self::AccountNotFound => method_error::ACCOUNT_NOT_FOUND,
+            Self::AccountNotSupportedByMethod => method_error::ACCOUNT_NOT_SUPPORTED_BY_METHOD,
+            Self::AccountReadOnly => method_error::ACCOUNT_READ_ONLY,
+            Self::RequestTooLarge => method_error::REQUEST_TOO_LARGE,
+            Self::CannotCalculateChanges => method_error::CANNOT_CALCULATE_CHANGES,
+            Self::StateMismatch => method_error::STATE_MISMATCH,
+            Self::FromAccountNotFound => method_error::FROM_ACCOUNT_NOT_FOUND,
+            Self::FromAccountNotSupportedByMethod => method_error::FROM_ACCOUNT_NOT_SUPPORTED_BY_METHOD,
+            Self::AnchorNotFound => method_error::ANCHOR_NOT_FOUND,
+            Self::UnsupportedSort => method_error::UNSUPPORTED_SORT,
+            Self::UnsupportedFilter => method_error::UNSUPPORTED_FILTER,
+            Self::TooManyChanges => method_error::TOO_MANY_CHANGES,
             Self::Other(name) => name,
         }
     }
