@@ -82,6 +82,7 @@ impl TasksDriver {
 
     /// Account removal: nothing of these accounts' permission is kept.
     pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.book.forget_accounts(gone);
         self.perm.retain(|account, _| !gone.contains(account));
         self.settling.retain(|account, _| !gone.contains(account));
     }

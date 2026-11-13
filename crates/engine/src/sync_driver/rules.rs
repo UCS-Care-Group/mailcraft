@@ -88,6 +88,7 @@ impl RulesDriver {
 
     /// Account removal: nothing of these accounts' permission or rules is kept.
     pub fn forget_accounts(&mut self, gone: &HashSet<Id>) {
+        self.book.forget_accounts(gone);
         self.perm.retain(|account, _| !gone.contains(account));
         self.settling.retain(|account, _| !gone.contains(account));
         self.read.retain(|account| !gone.contains(account));

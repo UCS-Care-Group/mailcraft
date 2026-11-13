@@ -123,6 +123,7 @@ impl MailApp {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);
+        self.session.driver.sending.forget_gate();
         (self.sync_run, self.inbox_run, self.graph_after_sign_in, self.shared_check_next) = (None, None, None, None);
         (self.sync_password, self.sync_refused, self.graph_pieces_taken) = (None, false, 0);
         self.sync_totals = Default::default();
@@ -132,7 +133,6 @@ impl MailApp {
         self.push_only_next.clear();
         self.shared_checking.clear();
         self.session.sync_progress = Default::default();
-        self.session.driver.sending.forget_gate();
         self.session.sync_status.clear();
     }
 }

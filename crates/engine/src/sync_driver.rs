@@ -240,6 +240,13 @@ impl JobBook {
         self.forget_failures(account);
     }
 
+    /// Account removal: nothing of these accounts' look is kept.
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.checked.retain(|account, _| !gone.contains(account));
+        self.failures.retain(|account, _| !gone.contains(account));
+        self.waiting.retain(|account, _| !gone.contains(account));
+    }
+
     /// How many failures in a row `account` has.
     pub fn failures(&self, account: Id) -> u32 {
         self.failures.get(&account).map_or(0, |(n, _)| *n)
@@ -428,6 +435,19 @@ impl Driver {
     pub fn reset(&mut self) {
         let auto_sync_off = self.auto_sync_off;
         *self = Driver { auto_sync_off, ..Driver::default() };
+    }
+
+    /// Accounts were removed: nothing of theirs is kept, whatever job it was for (an account
+    /// that isn't there is nobody to ask about, and an answer that comes for it changes nothing).
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.calendar.forget_accounts(gone);
+        self.favorites.forget_accounts(gone);
+        self.fetch.stuck.retain(|account, _| !gone.contains(account));
+        self.tasks.forget_accounts(gone);
+        self.rules.forget_accounts(gone);
+        self.auto_replies.forget_accounts(gone);
+        self.free_busy.forget_accounts(gone);
+        self.sending.forget_accounts(gone);
     }
 
     /// Whether jobs start by themselves: on unless the host turned it off ([`Driver::set_auto_sync`]).
