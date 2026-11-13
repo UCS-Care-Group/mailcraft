@@ -14,9 +14,9 @@
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
 //! any line; `{"scale": 1}` is a screen at 100 %, where the fonts' hinting shows) and opens the
 //! sample mailbox, as of a fixed Wednesday afternoon so shots compare, unless the first line is
-//! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line makes list
-//! scroll bars float over the rows as on a Mac (or keep their lanes as elsewhere), whatever
-//! the computer the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
+//! `{"empty": true}`. `{"overlayScrollBars": true}` (or `false`) on any line selects the Mac overlay style
+//! (or the usual style elsewhere) for the Mail, People and Tasks lists, whatever the computer
+//! the shot is taken on. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
 //! in another). The system has no language or regional format unless a line names one
 //! (`{"locale": "en-GB"}`: an interface language left on Automatic follows it, and dates are

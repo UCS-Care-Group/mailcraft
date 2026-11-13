@@ -297,8 +297,6 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     let plain = ui.style().clone();
     if overlay_scroll_bars {
         crate::widgets::overlay_scroll_style(ui, &t);
-    } else {
-        ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
     }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
         ui.set_style(plain.clone());

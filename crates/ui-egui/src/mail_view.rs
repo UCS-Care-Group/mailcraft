@@ -847,9 +847,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     // Wide enough to hit without aiming, a gap between them, and short enough to stay off the
     // time on the subject's line.
-    let flag_rect = Rect::from_center_size(pos2(rect.max.x - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
     let quick_inset = if app.overlay_scroll_bars { OVERLAY_SCROLL_INSET } else { 0.0 };
-    let flag_target = flag_rect.translate(vec2(-quick_inset, 0.0));
+    let flag_target = Rect::from_center_size(pos2(rect.max.x - quick_inset - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
     let delete_rect = flag_target.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
@@ -958,7 +957,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
 
     // The sender's line. On its right, the marks: the flag in its own column at the row's end
     // (the quick actions take that place while the pointer is over the row), the others before it.
-    let mut x = time_end;
+    let flag_mark = Rect::from_center_size(flag_target.center(), vec2(12.0, 12.0));
+    let sender_line_end = if m.flag == FlagStatus::None { time_end } else { time_end.min(flag_mark.min.x - 2.0) };
+    let mut x = sender_line_end;
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
@@ -978,10 +979,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         // The marks keep clear of delete, so a click meant for the row doesn't land on it.
         x = delete_rect.min.x - QUICK_GAP;
     } else {
-        let flag = Rect::from_center_size(flag_rect.center(), vec2(12.0, 12.0));
         match m.flag {
-            FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
-            FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
+            FlagStatus::Flagged => icons::paint(p, flag_mark, "flag", t.icon, t.accent),
+            FlagStatus::Complete => icons::paint(p, flag_mark, "complete", t.icon, t.accent),
             FlagStatus::None => {}
         }
     }
@@ -989,8 +989,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
     // while the pointer is over the row.
     let mut one_date_w = 0.0;
     if one && quick.is_none() {
-        one_date_w = p.text(pos2(time_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
-        x = time_end - one_date_w - 10.0;
+        one_date_w = p.text(pos2(sender_line_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
+        x = sender_line_end - one_date_w - 10.0;
     }
     // The server says its sender's checks failed, or its name hides another address (#508): the
     // first of the marks, where it is seen.
