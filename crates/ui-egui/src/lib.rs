@@ -1257,7 +1257,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.desktopAlerts",
         "Desktop Alerts",
         "File › Options",
-        r#"{"newMail"?: bool, "reminders"?: bool, "taskbar"?: bool} — whether the system shows a desktop alert when new mail arrives in an Inbox of your own accounts while the window isn't in front, and for each reminder as it falls due, and whether the taskbar icon shows a red dot for new mail in every Inbox since the window was last in front (not Junk, not mail already here, not a first download; looking at the window clears it). All on unless turned off. Nothing else is changed, and no alert is shown by this. Answers the switches"#,
+        r#"{"newMail"?: bool, "reminders"?: bool, "taskbar"?: bool} — whether the system shows a desktop alert when new mail arrives in an Inbox of your own accounts while the window isn't in front, and for each reminder as it falls due, and whether the taskbar icon shows a red dot for new mail in every Inbox since the main window was last in front (not Junk, not mail already here, not a first download; looking at the main window clears it). All on unless turned off. Nothing else is changed, and no alert is shown by this. Answers the switches"#,
     ),
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
