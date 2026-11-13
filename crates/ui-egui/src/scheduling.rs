@@ -1014,7 +1014,7 @@ mod tests {
         app.services.free_busy = host;
         // While the account's calendar is being seen to, the question waits its turn.
         app.auto_sync = true;
-        app.calendar.due = true;
+        app.session.driver.calendar.due = true;
         app.execute("view.calendar", json!({})).unwrap();
         assert!(app.calendar_tick_at(true, now_ms() + 400_000.0));
         assert!(!app.free_busy(calendar, &people, day.add_days(5)).pending);

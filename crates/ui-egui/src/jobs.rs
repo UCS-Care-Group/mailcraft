@@ -110,7 +110,7 @@ impl MailApp {
             match kind {
                 // (One Send/Receive at a time, whichever way: called off together.)
                 JobKind::Imap | JobKind::Graph | JobKind::Ews | JobKind::Jmap | JobKind::Inbox | JobKind::Shared => self.forget_mail_runs(),
-                JobKind::Calendar | JobKind::CalendarCheck => self.calendar.forget_jobs(),
+                JobKind::Calendar | JobKind::CalendarCheck => self.forget_calendar_jobs(),
                 JobKind::FreeBusy => self.free_busy.forget(),
                 // What was known of the to-dos and the rules is the old mailbox's: its account
                 // ids may name others here (#566).

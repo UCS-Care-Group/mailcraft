@@ -74,9 +74,9 @@ impl MailApp {
     /// next quarter of an hour (the wide stretch is what lists the calendars).
     pub(crate) fn read_opened_now(&mut self, account: Id) {
         self.graph_checked.remove(&account);
-        self.calendar.checked.remove(&account);
-        self.calendar.failures.remove(&account);
-        self.calendar.due = true;
+        self.session.driver.calendar.book.forget_checked(account);
+        self.session.driver.calendar.book.forget_failures(account);
+        self.session.driver.calendar.due = true;
     }
 
     /// What taking in the account's list of calendars said of those opened by address

@@ -368,8 +368,8 @@ impl MailApp {
         }
         self.favorites.due.insert(account);
         self.favorites.missing.remove(&account);
-        self.calendar.checked.remove(&account);
-        self.calendar.failures.remove(&account);
+        self.session.driver.calendar.book.forget_checked(account);
+        self.session.driver.calendar.book.forget_failures(account);
     }
 
     /// What was remembered of an account that is gone.

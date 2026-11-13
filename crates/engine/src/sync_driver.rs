@@ -7,10 +7,14 @@
 
 use std::collections::HashMap;
 
+pub mod calendar;
+#[cfg(test)]
+mod calendar_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
 
+pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
 
 use mailcraft_model::Id;
@@ -108,20 +112,61 @@ impl JobBook {
     /// is due: changes that have waited out the quiet time, or nothing asked for since the refresh
     /// time, and not within the wait a failure asks for.
     pub fn due(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
-        let since = match self.waiting.get(&account) {
+        let pushes = self.quiet_over(pacing, account, ready, now);
+        if !(pushes || self.checked.get(&account).is_none_or(|at| now - at >= pacing.refresh_ms)) {
+            return false;
+        }
+        self.patient(pacing, account, now)
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say since when that many
+    /// have waited (`now` when the number is new).
+    pub fn waiting_since(&mut self, account: Id, ready: usize, now: f64) -> f64 {
+        match self.waiting.get(&account) {
             Some((seen, since)) if *seen == ready => *since,
             _ => {
                 self.waiting.insert(account, (ready, now));
                 now
             }
-        };
-        let pushes = ready > 0 && now - since >= pacing.quiet_ms;
-        let asked = self.checked.get(&account).copied();
-        if !(pushes || asked.is_none_or(|at| now - at >= pacing.refresh_ms)) {
-            return false;
         }
+    }
+
+    /// Note that `account` has `ready` changes waiting at `now`, and say whether there are some
+    /// and they have waited out the quiet time.
+    pub fn quiet_over(&mut self, pacing: &Pacing, account: Id, ready: usize, now: f64) -> bool {
+        let since = self.waiting_since(account, ready, now);
+        ready > 0 && now - since >= pacing.quiet_ms
+    }
+
+    /// Whether any account had changes waiting at its last look.
+    pub fn any_waiting(&self) -> bool {
+        self.waiting.values().any(|(n, _)| *n > 0)
+    }
+
+    /// Whether `account` is not within the wait that its failures in a row ask for at `now`.
+    pub fn patient(&self, pacing: &Pacing, account: Id, now: f64) -> bool {
         let (failures, at) = self.failures.get(&account).copied().unwrap_or((0, 0.0));
         !(failures > 0 && now - at < pacing.patience_ms(failures))
+    }
+
+    /// When `account` was last asked for.
+    pub fn checked(&self, account: Id) -> Option<f64> {
+        self.checked.get(&account).copied()
+    }
+
+    /// Forget when every account was last asked for.
+    pub fn forget_all_checked(&mut self) {
+        self.checked.clear();
+    }
+
+    /// Forget the failures of `account`: the next look is not made to wait for them.
+    pub fn forget_failures(&mut self, account: Id) {
+        self.failures.remove(&account);
+    }
+
+    /// Forget every account's failures.
+    pub fn forget_all_failures(&mut self) {
+        self.failures.clear();
     }
 
     /// A job for `account` was started at `now`.
@@ -142,7 +187,7 @@ impl JobBook {
 
     /// The job worked: no failures in a row.
     pub fn worked(&mut self, account: Id) {
-        self.failures.remove(&account);
+        self.forget_failures(account);
     }
 
     /// How many failures in a row `account` has.
@@ -198,4 +243,6 @@ pub fn fingerprint(refresh: &str) -> u64 {
 pub struct Driver {
     /// Mail to keep offline: when it was last taken back.
     pub thinning: Thinning,
+    /// The calendar kept in step with each account's server.
+    pub calendar: CalendarDriver,
 }
