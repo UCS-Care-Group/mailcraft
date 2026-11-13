@@ -484,8 +484,11 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             if let Some(folder) = a.get("folder").filter(|v| !v.is_null()) {
                 params["folder"] = folder.clone();
             }
-            // Whose Sent Items a kind means, when the agent doesn't want the account in view (#1200).
-            if let Some(account) = a.get("account").filter(|v| !v.is_null()) {
+            // Whose Sent Items a kind means, when the agent doesn't want the account in view
+            // (#1200). An `account` the agent named goes through as it stands, `null` and all, so
+            // that `mail.list` is the one that says whether it is an id: dropped here, a wrong one
+            // would quietly become the account in view and the agent would read another mailbox.
+            if let Some(account) = a.get("account") {
                 params["account"] = account.clone();
             }
             wrap(exec(b, "mail.list", params))

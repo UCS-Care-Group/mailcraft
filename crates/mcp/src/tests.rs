@@ -175,4 +175,12 @@ fn list_messages_takes_the_account_a_kind_is_of() {
     let count = |v: &Value| v["messages"].as_array().unwrap().len();
     assert_eq!(count(&tool(&mut s, "list_messages", json!({"folder": "inbox", "account": second}))), 0);
     assert!(count(&tool(&mut s, "list_messages", json!({"folder": "inbox"}))) > 0, "the account in view is the first one");
+
+    // An `account` that isn't an id is passed on as it stands and refused there, never dropped
+    // for the account in view: the agent would read another mailbox and nothing would say so.
+    for account in [json!("2"), json!(0), json!(-1), json!(true), Value::Null] {
+        let args = json!({"name": "list_messages", "arguments": {"folder": "inbox", "account": account}});
+        let res = call(&mut s, 9, "tools/call", args)["result"].clone();
+        assert_eq!(res["isError"], true, "{account}: {res}");
+    }
 }
