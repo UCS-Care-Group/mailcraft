@@ -4086,6 +4086,11 @@ msgid "Downloading pictures…"
 msgstr "正在下载图片…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -4096,6 +4101,11 @@ msgstr "正在先下载邮件…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "正在先下载邮件…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5141,6 +5151,11 @@ msgstr "发件人包含"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "来自组织外部。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -8681,6 +8696,11 @@ msgstr "没有窗口显示邮件文件"
 #, fuzzy
 msgid "Nobody has proposed another time."
 msgstr "尚无人提出其他时间。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -14161,6 +14181,11 @@ msgid "The one this build came with"
 msgstr "此版本附带的设置"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -14398,6 +14423,11 @@ msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，�
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "服务器或组织未提供其设置。请向管理员询问服务器地址，并在服务器设置中输入。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

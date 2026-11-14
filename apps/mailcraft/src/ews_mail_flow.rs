@@ -83,7 +83,17 @@ fn answer(mut stream: TcpStream, standin: &StandIn, url: &str) -> std::io::Resul
     let mut body = vec![0u8; length];
     stream.read_exact(&mut body)?;
     let authorization = field("authorization").unwrap_or_default();
-    let request = HttpRequest::soap(url, &Secret::new(&authorization), String::from_utf8_lossy(&body).into_owned()).unwrap();
+    // The service's own address takes SOAP; the paths beside it (Autodiscover and the Offline
+    // Address Book, #1393) take what was asked of them, by method and path.
+    let mut line = head.lines().next().unwrap_or("").split(' ');
+    let (method, path) = (line.next().unwrap_or(""), line.next().unwrap_or("/"));
+    let origin = mailcraft_ews::oab::origin(url).unwrap();
+    let request = if url.ends_with(path) {
+        HttpRequest::soap(url, &Secret::new(&authorization), String::from_utf8_lossy(&body).into_owned()).unwrap()
+    } else {
+        let method = if method == "GET" { mailcraft_ews::Method::Get } else { mailcraft_ews::Method::Post };
+        HttpRequest::new(method, &format!("{origin}{path}"), &[("Authorization", &authorization)], body).unwrap()
+    };
     let response = block_on(standin.exchange(&request)).unwrap().unwrap();
     let mut out = format!(
         "HTTP/1.1 {} Answer\r\nContent-Length: {}\r\nConnection: close\r\nContent-Type: text/xml\r\n",

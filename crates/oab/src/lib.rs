@@ -80,5 +80,13 @@ pub mod tag {
     pub const MEMBERS: u16 = 0x8009;
 }
 
+/// The test writer: details files and stored compressed files, for this crate's tests and,
+/// through the `test-writer` feature (a dev-dependency only, never in a build that ships), for the
+/// tests of the crates that download and read them.
+#[cfg(any(test, feature = "test-writer"))]
+#[doc(hidden)]
+#[path = "tests/writer.rs"]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, dead_code)]
+pub mod test_writer;
 #[cfg(test)]
 mod tests;

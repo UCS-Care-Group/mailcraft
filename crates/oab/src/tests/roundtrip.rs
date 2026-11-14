@@ -5,8 +5,9 @@
 use proptest::prelude::*;
 
 use super::encoder::{Kind, Options, encode, encode_with_reference};
-use super::writer::{compressed, compressed_with, details};
+use super::packed::{compressed, compressed_with};
 use crate::lzxd::decode;
+use crate::test_writer::details;
 use crate::{Limits, PropDef, Record, Value, read, tag};
 
 /// Text that repeats itself, as an address list does, with a counter so that it isn't all the

@@ -96,11 +96,13 @@ fn a_password_the_server_turns_down_is_said_and_nothing_is_put_in() {
     assert!(!said.contains(&server.url) && !said.contains(USER));
 }
 
-/// People's Address Book: what is typed in the search box is looked up in the address list, and who
-/// is found is shown with how they are reached; the home number the server also holds is not kept.
+/// People's Address Book of a server that publishes no Offline Address Book: what is typed in the
+/// search box is looked up in the address list, and who is found is shown with how they are
+/// reached; the home number the server also holds is not kept.
 #[test]
 fn the_address_book_searches_the_address_list_for_what_is_typed() {
     let server = serve();
+    server.standin.state().oab.published = false;
     server.standin.state().directory = vec![
         Person {
             title: "Controller".into(),
@@ -134,6 +136,58 @@ fn the_address_book_searches_the_address_list_for_what_is_typed() {
     let asked: Vec<&str> = state.requests.iter().filter(|r| r.operation == "ResolveNames").map(|r| r.body.as_str()).collect();
     assert_eq!(asked.len(), 1);
     assert!(asked[0].contains("<m:UnresolvedEntry>grace</m:UnresolvedEntry>"));
+    assert!(state.writes.is_empty());
+    assert!(app.session.mailbox.contacts.is_empty());
+}
+
+/// People's Address Book of a server that publishes an Offline Address Book (#1393): the whole
+/// list is downloaded from the account's own server, in three reads with its sign-in, everybody
+/// in it is listed, and the search box narrows it without asking the server anything.
+#[test]
+fn the_address_book_downloads_the_whole_list_and_narrows_it_here() {
+    let server = serve();
+    server.standin.state().directory = vec![
+        Person {
+            title: "Controller".into(),
+            phone: "+1 555 0100".into(),
+            mobile: "+1 555 0199".into(),
+            office: "Building 2".into(),
+            home: "+1 555 0123".into(),
+            ..Person::new("Grace Hopper", "grace@example.org")
+        },
+        Person { kind: "PublicDL".into(), ..Person::new("Graceful Team", "team@example.org") },
+        Person::new("Ada Lovelace", "ada.lovelace@example.org"),
+    ];
+    let (mut app, account) = window(&server.url, "");
+    signed_in(&mut app, account, &server.standin);
+    app.run("people.addressBook", json!({"account": account})).unwrap();
+    let ctx = egui::Context::default();
+    for _ in 0..5_000 {
+        app.poll_address_book(&ctx);
+        if app.address_list(account).is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    app.poll_address_book(&ctx);
+    let names: Vec<String> = app.address_book_found().iter().map(|p| p.name.clone()).collect();
+    assert_eq!(names, ["Ada Lovelace", "Grace Hopper", "Graceful Team"]);
+    assert_eq!(app.address_list(account).map(|l| l.sequence), Some(7));
+    let grace = &app.address_book_found()[1];
+    assert_eq!(
+        (grace.phone.as_str(), grace.mobile.as_str(), grace.office.as_str(), grace.title.as_str()),
+        ("+1 555 0100", "+1 555 0199", "Building 2", "Controller")
+    );
+    assert!(!format!("{:?}", serde_json::to_value(app.address_book_found()).unwrap()).contains("0123"));
+    app.type_people_search("grace");
+    app.poll_address_book(&ctx);
+    let names: Vec<String> = app.address_book_found().iter().map(|p| p.name.clone()).collect();
+    assert_eq!(names, ["Grace Hopper", "Graceful Team"]);
+    // Three reads, signed in (besides the first, bodiless, which asks how to sign in), no name looked
+    // up, nothing that writes, and nothing kept in the mailbox.
+    let state = server.standin.state();
+    let asked: Vec<&str> = state.requests.iter().filter(|r| r.status != 401).map(|r| r.operation.as_str()).collect();
+    assert_eq!(asked, ["Autodiscover", "oab.xml", "OAB file"]);
     assert!(state.writes.is_empty());
     assert!(app.session.mailbox.contacts.is_empty());
 }

@@ -21,6 +21,8 @@ pub const MAX_RESOLVE_TEXTS: usize = 10;
 pub const MAX_RESOLVE_PEOPLE: usize = 100;
 /// The longest text looked up, in characters.
 pub const MAX_RESOLVE_TEXT: usize = 256;
+/// The most people of an Offline Address Book kept (#1393).
+pub const MAX_ADDRESS_LIST: usize = 200_000;
 /// The longest name, company, department, job title or office kept, in characters.
 const MAX_FIELD: usize = 256;
 /// The longest phone number kept, in characters.
@@ -124,6 +126,10 @@ pub struct EwsResolveRequest {
     pub trusted: String,
     /// The names as typed, each looked up as it is: at most [`MAX_RESOLVE_TEXTS`].
     pub texts: Vec<String>,
+    /// The whole address list is wanted instead (#1393): the account's Offline Address Book,
+    /// downloaded from its own server, and no name is looked up.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub address_list: bool,
 }
 
 /// Counts only: no address, and no name looked up.
@@ -133,6 +139,7 @@ impl std::fmt::Debug for EwsResolveRequest {
             .field("account", &self.account)
             .field("trusted", &!self.trusted.is_empty())
             .field("texts", &self.texts.len())
+            .field("address_list", &self.address_list)
             .finish()
     }
 }
@@ -168,6 +175,31 @@ pub struct EwsResolveResult {
     /// The server turned the password down: the window asks for it again.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub auth_refused: bool,
+    /// The whole address list, when it was asked for and could be had.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_list: Option<EwsAddressList>,
+}
+
+/// The whole address list of an Exchange server account, as its Offline Address Book has it
+/// (#1393): everybody mail can go to, at most [`MAX_ADDRESS_LIST`].
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsAddressList {
+    /// The name of the address list.
+    pub name: String,
+    /// Its generation: one more each time the server writes it anew.
+    pub sequence: u32,
+    pub people: Vec<DirectoryPerson>,
+    /// The list has more people than were kept.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub more: bool,
+}
+
+/// Counts only.
+impl std::fmt::Debug for EwsAddressList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsAddressList").field("sequence", &self.sequence).field("people", &self.people.len()).field("more", &self.more).finish()
+    }
 }
 
 impl std::fmt::Debug for EwsResolveResult {
@@ -177,6 +209,7 @@ impl std::fmt::Debug for EwsResolveResult {
             .field("found", &self.found)
             .field("error", &self.error.is_some())
             .field("auth_refused", &self.auth_refused)
+            .field("address_list", &self.address_list)
             .finish()
     }
 }

@@ -1757,6 +1757,9 @@ pub struct MailApp {
     /// What the owner typed in People's search box: only that is looked up in an address list,
     /// never what a script or an agent put there (#1262).
     pub(crate) people_typed: String,
+    /// The whole address lists of Exchange server accounts, downloaded from their Offline Address
+    /// Books for People's Address Book: in memory while the program runs, never written (#1393).
+    pub(crate) address_lists: Vec<address_book::HeldList>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -1931,6 +1934,7 @@ impl MailApp {
             resolving: None,
             address_book: None,
             people_typed: String::new(),
+            address_lists: Vec::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,

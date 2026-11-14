@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Writes version 4 details files and their compressed form ([MS-OXOAB] 2.9, 2.11) for the
-//! tests.
+//! Writes version 4 details files and their compressed form, stored ([MS-OXOAB] 2.9, 2.11), for
+//! the tests: this crate's, and through the `test-writer` feature other crates'.
 
-use super::encoder::{Options, encode};
 use crate::{PropDef, Record, Value, crc32};
 
 fn integer(out: &mut Vec<u8>, v: u32) {
@@ -90,30 +89,20 @@ pub fn details(header_schema: &[PropDef], schema: &[PropDef], header: &Record, r
     file
 }
 
-/// `data` as a compressed file of blocks of `block_max` bytes; every `stored`th block is stored
-/// rather than packed (never, for 0). Each block is packed with the window that holds it, as a
-/// server does, unless `largest_window`: then with the one that holds `block_max`.
-pub fn compressed_with(data: &[u8], block_max: usize, stored: usize, opts: &Options, largest_window: bool) -> Vec<u8> {
+/// `data` as a compressed file whose blocks of `block_max` bytes are all stored, not packed:
+/// what a reader of a server's file is given in other crates' tests.
+pub fn stored(data: &[u8], block_max: usize) -> Vec<u8> {
     let mut file = Vec::new();
     for word in [3u32, 1, block_max as u32, data.len() as u32] {
         file.extend_from_slice(&word.to_le_bytes());
     }
-    for (i, block) in data.chunks(block_max).enumerate() {
-        let store = stored > 0 && (i + 1) % stored == 0;
-        let size = if largest_window { block_max } else { block.len() };
-        let opts = Options { window_bits: crate::compressed::window_bits(size).unwrap(), ..opts.clone() };
-        let packed = if store { block.to_vec() } else { encode(block, &opts) };
-        for word in [u32::from(!store), packed.len() as u32, block.len() as u32, crc32(block)] {
+    for block in data.chunks(block_max) {
+        for word in [0, block.len() as u32, block.len() as u32, crc32(block)] {
             file.extend_from_slice(&word.to_le_bytes());
         }
-        file.extend_from_slice(&packed);
+        file.extend_from_slice(block);
     }
     file
-}
-
-/// [`compressed_with`], each block packed with the window that holds it.
-pub fn compressed(data: &[u8], block_max: usize, stored: usize, opts: &Options) -> Vec<u8> {
-    compressed_with(data, block_max, stored, opts, false)
 }
 
 /// The sample details file of [MS-OXOAB] 3.3, as its bytes are listed there.

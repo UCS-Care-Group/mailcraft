@@ -44,6 +44,7 @@ use std::sync::mpsc::{Receiver, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mailcraft_ews::oab::OabError;
 use mailcraft_ews::{
     AuthError, Candidate, Client, HttpExchange, HttpRequest, HttpResponse, NtlmCredentials, RecipientKind, ResolveNames, Scheme, Secret,
     TransportError, auth, ntlm,
@@ -585,6 +586,9 @@ const MOST_RESOLVE_WAIT_MS: u32 = 10_000;
 /// what was found before it and the reason in words that name neither the server nor anybody.
 pub(crate) fn run_resolve_with(request: &EwsResolveRequest, password: &str, cancel: &Arc<AtomicBool>) -> EwsResolveResult {
     let mut out = EwsResolveResult { account: request.account, ..Default::default() };
+    if request.address_list {
+        return run_address_list(request, password, cancel, out);
+    }
     let client = match client(&request.url, &request.username, &request.email, password) {
         Ok(client) => client,
         Err(why) => {
@@ -622,6 +626,46 @@ pub(crate) fn run_resolve_with(request: &EwsResolveRequest, password: &str, canc
                 return out;
             }
         }
+    }
+    out
+}
+
+/// The whole address list of the account (#1393): its Offline Address Book, from its own server
+/// (`mailcraft_ews::oab::fetch`: Autodiscover there, `oab.xml`, the full file), with the same
+/// sign-in, certificate and caps as every other request of the account. Reads and changes nothing.
+fn run_address_list(request: &EwsResolveRequest, password: &str, cancel: &Arc<AtomicBool>, mut out: EwsResolveResult) -> EwsResolveResult {
+    const LINE: &str = "Couldn't download the organisation's address book";
+    if cancel.load(Ordering::Relaxed) {
+        return out;
+    }
+    let secret = match client(&request.url, &request.username, &request.email, password) {
+        Ok(_) => {
+            let name = if request.username.trim().is_empty() { request.email.trim() } else { request.username.trim() };
+            match Secret::basic(name, password) {
+                Ok(secret) => secret,
+                Err(_) => {
+                    out.error = Some(format!("{LINE}: the user name or the password can't be used to sign in"));
+                    return out;
+                }
+            }
+        }
+        Err(why) => {
+            out.error = Some(format!("{LINE}: {why}"));
+            return out;
+        }
+    };
+    let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
+    match crate::block_on::block_on(mailcraft_ews::oab::fetch(&transport, &request.url, &request.email, &secret)) {
+        Ok(list) => out.address_list = Some(list),
+        Err(OabError::Ews(error)) => {
+            out.auth_refused = matches!(error, mailcraft_ews::Error::Unauthorized) && transport.auth_problem().is_none();
+            let said = resolve_words(&error, transport.problem().as_ref(), transport.auth_problem());
+            let why = said.split_once(": ").map_or(said.as_str(), |(_, why)| why);
+            out.error = Some(format!("{LINE}: {why}"));
+        }
+        Err(OabError::NotPublished) => out.error = Some(format!("{LINE}: the server publishes none for this account")),
+        Err(OabError::TooLarge) => out.error = Some(format!("{LINE}: it is larger than MailCraft downloads")),
+        Err(OabError::File(_)) => out.error = Some(format!("{LINE}: the file the server sent can't be read")),
     }
     out
 }

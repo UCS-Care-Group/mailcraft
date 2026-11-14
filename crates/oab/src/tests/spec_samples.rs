@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The samples the specifications print.
 
-use super::writer::spec_sample;
 use crate::lzxd::{base_position, decode, footer_bits, position_slots};
+use crate::test_writer::spec_sample;
 use crate::{Limits, Value, crc32, read_details, tag};
 
 /// [MS-PATCH] 3: "abc" in an uncompressed block.

@@ -6,6 +6,6 @@
 mod caps;
 pub(crate) mod encoder;
 mod hostile;
+mod packed;
 mod roundtrip;
 mod spec_samples;
-pub(crate) mod writer;

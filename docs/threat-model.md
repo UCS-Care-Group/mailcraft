@@ -277,6 +277,18 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
   person matches it, and asks the owner to choose among several. A server can offer a wrong
   person for a name; the owner sees the address before the message goes.
+- **An Offline Address Book is a server's file, read as hostile** (#1393). People's Address Book
+  downloads an Exchange server account's whole address list when it is first shown in a run (and
+  again a day later): Autodiscover at the host of the account's own Exchange Web Services address
+  for `OABUrl`, which is taken only when it names that same host (so the sign-in goes nowhere
+  else), `oab.xml` there (at most 2 MB, read by the hostile XML reader, a file name of letters,
+  digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB
+  (`crates/ews/src/oab.rs`). The file is unpacked and read by `mailcraft-oab`, written from
+  [MS-OXOAB] and [MS-PATCH]: no panics, no indexing or unchecked arithmetic, every block's CRC
+  and the file's checked, every size checked against the bytes there are and against caps before
+  anything is allocated, a match never before the start or across a block or a chunk; its own
+  property tests and fuzz target. Of each entry only what `DirectoryPerson::checked` keeps for a
+  look-up is kept (at most 200,000 people), in memory while the program runs and never written.
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 

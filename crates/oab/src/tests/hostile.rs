@@ -5,8 +5,9 @@
 use proptest::prelude::*;
 
 use super::encoder::{Kind, Options, encode};
-use super::writer::{compressed, spec_sample};
+use super::packed::compressed;
 use crate::lzxd::decode;
+use crate::test_writer::spec_sample;
 use crate::{Error, Limits, crc32, decompress, read, read_details};
 
 fn small() -> Limits {

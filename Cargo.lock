@@ -3244,6 +3244,7 @@ dependencies = [
  "log",
  "mailcraft-mime-model",
  "mailcraft-model",
+ "mailcraft-oab",
  "mailcraft-time",
  "md-5 0.11.0",
  "md4",

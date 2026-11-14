@@ -15,6 +15,8 @@ workspace = true
 mailcraft-model = { workspace = true }
 mailcraft-time = { workspace = true }
 mailcraft-mime-model = { workspace = true }
+# The organisation's Offline Address Book (`oab`), read (#1393).
+mailcraft-oab = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true }
 # NTLMv2 (`ntlm`): MD4 of the password, then HMAC-MD5.
@@ -25,7 +27,8 @@ hmac = { workspace = true }
 [features]
 # An in-process Exchange Web Services server that holds a client to the documented schema
 # (`standin`), for the tests of the crates that sit on this one. Never in a build that isn't a test's.
-stand-in = []
+stand-in = ["mailcraft-oab/test-writer"]
 
 [dev-dependencies]
 proptest = { workspace = true }
+mailcraft-oab = { workspace = true, features = ["test-writer"] }

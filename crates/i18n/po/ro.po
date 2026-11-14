@@ -4099,6 +4099,11 @@ msgid "Downloading pictures…"
 msgstr "Se descarcă imaginile…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -4109,6 +4114,11 @@ msgstr "Se descarcă întâi mesajul…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Se descarcă întâi mesajele…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5158,6 +5168,11 @@ msgstr "De la conține"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "Din afara organizației dvs."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -8717,6 +8732,11 @@ msgstr "Nicio fereastră nu afișează un fișier de mesaj"
 #, fuzzy
 msgid "Nobody has proposed another time."
 msgstr "Nimeni nu a propus altă oră."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -14212,6 +14232,11 @@ msgid "The one this build came with"
 msgstr "Cel cu care a venit această versiune"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -14449,6 +14474,11 @@ msgstr "Serverul are {total} dosare: o rulare citește primele {max} și omite c
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "Serverul sau organizația nu a vrut să-și dea setările. Cereți administratorului adresa serverului și scrieți-o în Setări server."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

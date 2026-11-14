@@ -3,7 +3,8 @@
 //! The caps of `Limits`, and keeping only some values.
 
 use super::encoder::Options;
-use super::writer::{compressed, spec_sample};
+use super::packed::compressed;
+use crate::test_writer::spec_sample;
 use crate::{Cap, Error, Limits, read_details, read_details_keeping, tag};
 
 #[test]

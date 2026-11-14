@@ -3884,6 +3884,11 @@ msgid "Downloading pictures…"
 msgstr "Descargando imágenes…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -3894,6 +3899,11 @@ msgstr "Descargando primero el mensaje…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Descargando primero los mensajes…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -4885,6 +4895,11 @@ msgstr "De contiene"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "From outside your organisation."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
 msgstr ""
 
 #. interface
@@ -8227,6 +8242,11 @@ msgstr ""
 #, fuzzy
 msgid "Nobody has proposed another time."
 msgstr "Nadie ha propuesto otra hora."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -13371,6 +13391,11 @@ msgid "The one this build came with"
 msgstr "El que incluye esta compilación"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -13583,6 +13608,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
 msgstr ""
 
 #. interface
