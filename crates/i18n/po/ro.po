@@ -170,6 +170,11 @@ msgid "(none)"
 msgstr "(niciunul)"
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "(the server didn't confirm the sender)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
@@ -551,6 +556,16 @@ msgstr "Răspunsurile automate ale unei cutii poștale partajate sunt setate de 
 #, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "Regulile unei cutii poștale partajate sunt ale ei: această versiune nu le creează"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -2059,6 +2074,11 @@ msgstr "Blocare expeditor"
 msgid "Blue"
 msgstr "Albastru"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -2420,6 +2440,11 @@ msgstr "Modificare adresă de e-mail"
 #, fuzzy
 msgid "Change the colour"
 msgstr "Schimbați culoarea"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3425,6 +3450,16 @@ msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 #, fuzzy
 msgid "Dark"
 msgstr "Întunecat"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8101,6 +8136,11 @@ msgstr "Necesită Verificare versiuni noi."
 msgid "Needs Google sign-in"
 msgstr "Necesită conectare Google"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12388,6 +12428,11 @@ msgstr "Afișat lângă numele contului și pe e-mailurile lui, acolo unde e-mai
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
 msgstr "Afișat în panoul de dosare, de exemplu Serviciu sau Acasă. Lăsați gol pentru a afișa adresa."
@@ -13936,6 +13981,11 @@ msgstr "Redirecționarea mai multor mesaje care aștepta a fost anulată: altă 
 #, fuzzy
 msgid "The full report is in:"
 msgstr "Raportul complet este în:"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs

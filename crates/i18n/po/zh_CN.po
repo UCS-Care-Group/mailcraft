@@ -170,6 +170,11 @@ msgid "(none)"
 msgstr "（无）"
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "(the server didn't confirm the sender)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
@@ -551,6 +556,16 @@ msgstr "共享邮箱的自动回复由其管理员设置；MailCraft 只能设�
 #, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "共享邮箱有自己的规则：此版本不会创建这些规则"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -2050,6 +2065,11 @@ msgstr "阻止发件人"
 msgid "Blue"
 msgstr "蓝色"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -2411,6 +2431,11 @@ msgstr "更改电子邮件地址"
 #, fuzzy
 msgid "Change the colour"
 msgstr "更改颜色"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3412,6 +3437,16 @@ msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 #, fuzzy
 msgid "Dark"
 msgstr "深色"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8064,6 +8099,11 @@ msgstr "需要启用“检查新版本”。"
 msgid "Needs Google sign-in"
 msgstr "需要 Google 登录"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12337,6 +12377,11 @@ msgstr "显示在账户名称旁；多个账户的邮件一起列出时，也显
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
 msgstr ""
 
@@ -13880,6 +13925,11 @@ msgstr "等待中的多封邮件转发操作已取消：另一个下载任务取
 #, fuzzy
 msgid "The full report is in:"
 msgstr "完整报告位于："
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs

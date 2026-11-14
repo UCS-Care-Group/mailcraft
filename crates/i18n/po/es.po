@@ -167,6 +167,11 @@ msgid "(none)"
 msgstr "(ninguna)"
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "(the server didn't confirm the sender)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
@@ -525,6 +530,16 @@ msgstr ""
 #, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "Las reglas de un buzón compartido son suyas: esta versión no las crea"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -1942,6 +1957,11 @@ msgstr "Bloquear remitente"
 msgid "Blue"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Body"
@@ -2278,6 +2298,11 @@ msgstr "Cambiar dirección de correo electrónico"
 #, fuzzy
 msgid "Change the colour"
 msgstr "Cambiar el color"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3243,6 +3268,16 @@ msgstr ""
 #, fuzzy
 msgid "Dark"
 msgstr "Oscuro"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -7635,6 +7670,11 @@ msgstr "Requiere Buscar nuevas versiones."
 msgid "Needs Google sign-in"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 msgid "Never Block Sender"
@@ -11685,6 +11725,11 @@ msgstr "Se muestra junto al nombre de la cuenta y en su correo donde se lista ju
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
 msgstr "Se muestra en el panel de carpetas, por ejemplo Trabajo o Casa. Déjelo vacío para mostrar la dirección."
@@ -13113,6 +13158,11 @@ msgstr "Se canceló el reenvío de varios mensajes que estaba en espera: otra de
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "The full report is in:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
 msgstr ""
 
 #. interface

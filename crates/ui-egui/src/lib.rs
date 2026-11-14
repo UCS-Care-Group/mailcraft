@@ -241,6 +241,8 @@ mod text_menu_tests;
 pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
+#[cfg(test)]
+mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
 mod update_switches_tests;
@@ -832,6 +834,8 @@ pub struct UiState {
     pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
+    /// The greys of the dark theme: neutral (the default) or tinted blue (#1384).
+    pub dark_style: theme::DarkStyle,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
@@ -950,6 +954,7 @@ impl Default for UiState {
             close_to_tray: false,
             close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
+            dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
@@ -1035,6 +1040,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
     ),
     ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
+    ("ui.darkStyle", "Dark Theme Style", "File › Options", r#"{"value": "neutral"|"blue"}"#),
     (
         "ui.lightMessages",
         "Messages on a Light Background",
@@ -2502,6 +2508,13 @@ impl MailApp {
                     Ok(json!({"accent": a.code()}))
                 }
                 None => Err("`accent` is blue, teal, violet or graphite".into()),
+            },
+            "ui.darkStyle" => match s("value").and_then(theme::DarkStyle::from_code) {
+                Some(style) => {
+                    self.ui.dark_style = style;
+                    Ok(json!({"value": style.code()}))
+                }
+                None => Err("`value` is neutral or blue".into()),
             },
             "ui.language" => {
                 let code = s("language").unwrap_or_default();
@@ -4595,7 +4608,12 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: self.ui.accent, high_contrast: self.ui.high_contrast };
+        let choice = theme::ThemeChoice {
+            appearance: self.ui.theme,
+            accent: self.ui.accent,
+            high_contrast: self.ui.high_contrast,
+            dark_style: self.ui.dark_style,
+        };
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));
