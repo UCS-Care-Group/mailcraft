@@ -536,6 +536,16 @@ impl State {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
         }
+        if self.exchange2010 && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+            return Err(invalid("the schema has no such property"));
+        }
+        if self.exchange2010 && extra.iter().any(|e| e == "message:ToRecipients" || e == "message:CcRecipients") {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
+            ));
+        }
         if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
             || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
         {
