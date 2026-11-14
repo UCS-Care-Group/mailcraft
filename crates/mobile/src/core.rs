@@ -442,51 +442,37 @@ impl Core {
     /// there (the session starts over with an empty mailbox all the same, so that nothing removed
     /// is written back); calling it again tries again. `DataRemoved::SignInsMayRemain` says that it was
     /// done but the list of the sign-ins kept was damaged, so older ones may still be in the
-    /// phone's credential store: the app shows its message.
+    /// phone's credential store: the app shows its message and then calls
+    /// [`Core::sign_ins_notice_shown`]; until it does, every removal says it again.
     pub async fn delete_local_data(&self) -> Result<DataRemoved, CoreError> {
         let keep = self.keep.clone();
         let sync = self.sync.clone();
-        let answer = self
-            .call(move |session| {
-                // Both are tried, so that one failing doesn't leave the other undone.
-                let signed_in = sync.forget_sign_ins(session);
-                let removed = match &keep {
-                    Some(keep) => keep.delete_all(),
-                    None => Ok(()),
-                };
-                // Whatever came of it, the session lets go of the mail: some or all of its files may
-                // be gone, and a mailbox kept in memory would be written back by the next save. The
-                // fresh one counts as saved, so nothing is written until the owner changes something;
-                // the names of sign-ins still in the store are kept by `sync` for the retry.
-                session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
-                if let Some(keep) = &keep {
-                    keep.reset(session);
-                }
-                let forgotten = match (signed_in, removed) {
-                    (Ok(forgotten), Ok(())) => forgotten,
-                    (Err(reason), _) | (_, Err(reason)) => return Err(CoreError::Failed { reason }),
-                };
-                Ok(if forgotten.some_may_remain {
-                    DataRemoved::SignInsMayRemain { message: may_remain(session.interface_language) }
-                } else {
-                    DataRemoved::All
-                })
+        self.call(move |session| {
+            // Both are tried, so that one failing doesn't leave the other undone.
+            let signed_in = sync.forget_sign_ins(session);
+            let removed = match &keep {
+                Some(keep) => keep.delete_all(),
+                None => Ok(()),
+            };
+            // Whatever came of it, the session lets go of the mail: some or all of its files may
+            // be gone, and a mailbox kept in memory would be written back by the next save. The
+            // fresh one counts as saved, so nothing is written until the owner changes something;
+            // the names of sign-ins still in the store are kept by `sync` for the retry.
+            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            if let Some(keep) = &keep {
+                keep.reset(session);
+            }
+            let forgotten = match (signed_in, removed) {
+                (Ok(forgotten), Ok(())) => forgotten,
+                (Err(reason), _) | (_, Err(reason)) => return Err(CoreError::Failed { reason }),
+            };
+            Ok(if forgotten.some_may_remain {
+                DataRemoved::SignInsMayRemain { message: may_remain(session.interface_language) }
+            } else {
+                DataRemoved::All
             })
-            .await?;
-        // Only once the answer has come back is the notice taken as given: a removal that failed,
-        // or a call given up before its answer, says it again at the retry. (On the session's
-        // thread, as everything that touches the credential store; a core shut down meanwhile
-        // gives it again after the restart.)
-        if matches!(answer, DataRemoved::SignInsMayRemain { .. }) {
-            let sync = self.sync.clone();
-            let _ = self
-                .call(move |_| {
-                    sync.notice_given();
-                    Ok(())
-                })
-                .await;
-        }
-        Ok(answer)
+        })
+        .await
     }
 
     /// Run the command `id` with `params_json` (a JSON object; empty means `{}`) through

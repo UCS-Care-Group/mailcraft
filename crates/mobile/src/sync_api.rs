@@ -107,21 +107,30 @@ impl Core {
 
     /// Remove every sign-in the core kept (from the credential store and from memory), for
     /// "remove all my data". Says how many entries were looked for, and when the list of the
-    /// sign-ins kept was damaged (and set aside) that older ones may still be in the store; an
-    /// error says that some are still in the store (calling it again tries again).
+    /// sign-ins kept was damaged (and set aside) that older ones may still be in the store (the
+    /// app shows those words, then calls [`Core::sign_ins_notice_shown`]); an error says that
+    /// some are still in the store (calling it again tries again).
     pub async fn forget_sign_ins(&self) -> Result<SignInsForgotten, CoreError> {
         let sync = self.sync.clone();
         self.call(move |session| match sync.forget_sign_ins(session) {
-            Ok(forgotten) => {
-                if forgotten.some_may_remain {
-                    sync.notice_given();
-                }
-                Ok(SignInsForgotten {
-                    looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
-                    may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
-                })
-            }
+            Ok(forgotten) => Ok(SignInsForgotten {
+                looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
+                may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
+            }),
             Err(reason) => Err(CoreError::Failed { reason }),
+        })
+        .await
+    }
+
+    /// The app has shown the owner the words that older sign-ins may remain
+    /// (`DataRemoved::SignInsMayRemain`, `SignInsForgotten::may_remain`): later removals don't
+    /// say it again. Until it is called they all do, after a restart too, so that a notice whose
+    /// answer was lost on its way to the window is never lost with it.
+    pub async fn sign_ins_notice_shown(&self) -> Result<(), CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |_| {
+            sync.notice_given();
+            Ok(())
         })
         .await
     }

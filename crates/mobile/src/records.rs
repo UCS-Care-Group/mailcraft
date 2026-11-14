@@ -227,7 +227,8 @@ pub enum DataRemoved {
     All,
     /// The mail and every sign-in that could be found are gone, but the list of the sign-ins
     /// kept was damaged (it was set aside): older ones may still be in the phone's credential
-    /// store. `message`, in the owner's language, says so and how to remove them.
+    /// store. `message`, in the owner's language, says so and how to remove them; once it has
+    /// been shown, `Core::sign_ins_notice_shown` keeps later removals from saying it again.
     SignInsMayRemain { message: String },
 }
 

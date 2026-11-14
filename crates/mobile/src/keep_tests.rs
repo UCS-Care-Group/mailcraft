@@ -480,7 +480,10 @@ fn an_index_that_does_not_parse_is_set_aside_and_never_taken_for_an_empty_one() 
     assert!(!kept.iter().any(|(k, _)| k == "mailcraft:index"), "the fresh index is removed with the rest: {kept:?}");
     // The sign-in only the garbage named can't be found: it is what the message is about.
     assert!(kept.iter().any(|(k, _)| *k == gone), "{kept:?}");
-    // The next removal finds a sound (absent) index and says nothing more.
+    // Until the app says it was shown, every removal says it again.
+    assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    // Once shown, the next removal finds a sound (absent) index and says nothing more.
+    block_on(core.sign_ins_notice_shown()).unwrap();
     assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All);
 }
 
@@ -500,6 +503,7 @@ fn an_index_that_does_not_parse_starts_a_fresh_one_with_the_names_known_now() {
     assert!(platform.secrets.kept.lock().unwrap().iter().any(|(k, v)| k.starts_with("mailcraft:index.unreadable-") && v == "[not, json"));
     platform.secrets.stuck.store(false, Ordering::Relaxed);
     assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    block_on(core.sign_ins_notice_shown()).unwrap();
     let kept = platform.secrets.kept.lock().unwrap().clone();
     assert!(kept.iter().all(|(k, _)| k.starts_with("mailcraft:index.unreadable-")), "only the set-aside garbage is left: {kept:?}");
 }
@@ -513,6 +517,7 @@ fn an_index_that_does_not_parse_and_cannot_be_set_aside_is_kept_and_the_rest_rem
     platform.secrets.fail_index.store(usize::MAX, Ordering::Relaxed);
     let answer = block_on(core.delete_local_data()).unwrap();
     assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "{answer:?}");
+    block_on(core.sign_ins_notice_shown()).unwrap();
     let kept = platform.secrets.kept.lock().unwrap().clone();
     assert_eq!(kept, vec![("mailcraft:index".to_string(), "{not a list".to_string())], "the garbage is kept as it was, the sign-in removed");
 }
@@ -546,7 +551,8 @@ fn the_notice_of_a_damaged_index_waits_for_a_removal_that_succeeds() {
     restore_access(&dir.0);
     let answer = block_on(core.delete_local_data()).unwrap();
     assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "the retry still says it: {answer:?}");
-    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
+    block_on(core.sign_ins_notice_shown()).unwrap();
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once it was shown");
 }
 
 #[cfg(unix)]
@@ -569,12 +575,13 @@ fn the_notice_of_a_damaged_index_outlives_a_restart_before_the_retry() {
     let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
     let answer = block_on(core.delete_local_data()).unwrap();
     assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "the retry after the restart still says it: {answer:?}");
+    block_on(core.sign_ins_notice_shown()).unwrap();
     let kept = platform.secrets.kept.lock().unwrap().clone();
     assert!(
         kept.iter().all(|(k, _)| k.starts_with("mailcraft:index.unreadable-")),
-        "once said, nothing of it is left but the set-aside garbage: {kept:?}"
+        "once shown, nothing of it is left but the set-aside garbage: {kept:?}"
     );
-    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once it was shown");
 }
 
 #[test]
@@ -601,8 +608,9 @@ fn a_removal_is_not_taken_for_complete_while_a_notice_still_due_cannot_be_read()
     assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
     platform.secrets.notice_unreadable.store(false, Ordering::Relaxed);
     assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    block_on(core.sign_ins_notice_shown()).unwrap();
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
-    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once it was shown");
 }
 
 #[cfg(unix)]
