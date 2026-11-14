@@ -211,6 +211,8 @@ impl eframe::App for App {
         }
         // Pages to open, with the browser brought in front (`browser`).
         open_pages(ctx, frame);
+        // A click on an alert brings the window in front with the desktop's token (#959).
+        activate(frame, mailcraft_ui_egui::alerts::take_activation(&mut self.0));
         // Leaving (the close button, Quit, the Dock): a message being written asks first, then
         // the platform's own way out (`quit`). Last in `logic`, which runs while minimized too.
         self.6.pump(ctx, &mut self.0);
@@ -598,6 +600,21 @@ fn open_pages(ctx: &egui::Context, _frame: &eframe::Frame) {
         let _ = std::thread::Builder::new().name("browser".into()).spawn(move || browser::system_open(&url));
     }
 }
+
+/// Bring the window in front with a token the desktop gave for it (a click on an alert): under
+/// Wayland a window may raise itself only so (xdg-activation), and `ViewportCommand::Focus` does
+/// nothing there (#959). A token the compositor doesn't take leaves the window where it was.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn activate(frame: &eframe::Frame, token: Option<String>) {
+    use winit::platform::startup_notify::WindowExtStartupNotify as _;
+    if let (Some(window), Some(token)) = (frame.winit_window(), token) {
+        window.activate_with_token(winit::window::ActivationToken::from_raw(token));
+    }
+}
+
+/// Elsewhere, asking for the focus is enough (`alerts::open`).
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+fn activate(_frame: &eframe::Frame, _token: Option<String>) {}
 
 /// eframe's own handling of winit's events, and the activation tokens the window asked for
 /// (`open_pages`), which eframe would drop, handed to the pages waiting for them.
