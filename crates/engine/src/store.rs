@@ -4051,13 +4051,20 @@ fn compact(
     let fresh = pack::current(&dir).is_some_and(|n| pack::len(&dir, n).saturating_sub(pack_live) > pack::PACK_SLACK);
     let mut pack = pack::Writer::compacting(&dir, fresh);
     let saved = compact_with(st, path, mailbox, keep, &mut pack, pinned, progress);
+    if !fresh {
+        return saved;
+    }
+    let Err(e) = saved else { return saved };
     // (A fresh pack nothing names goes with the file that would have named it.)
-    if saved.is_err()
-        && let Some(n) = pack.pack().filter(|_| fresh)
-    {
+    if let Some(n) = pack.pack() {
         pack::remove(&dir, n);
     }
-    saved
+    // A block that couldn't be read for it (no permission, a file in use, the disk) must not go
+    // with the old pack, nor stop every save until it can be: the file is written whole without a
+    // fresh pack, naming the blocks where they are, the old pack kept. A later save tries again.
+    log::warn!("{}: the space of its header lines couldn't be given back ({e}); written without", path.display());
+    let mut pack = pack::Writer::compacting(&dir, false);
+    compact_with(st, path, mailbox, keep, &mut pack, pinned, progress)
 }
 
 /// [`compact`], its header blocks going through `pack`.

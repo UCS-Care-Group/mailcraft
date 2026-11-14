@@ -459,11 +459,12 @@ fn a_save_after_another_program_wrote_a_fresh_pack_names_where_the_blocks_are_no
     assert!(named.iter().all(|n| on_disk.contains(n)), "{named:?} {on_disk:?}");
 }
 
-/// Review of #1376, P1: a block known to be in the pack that can't be read when a fresh pack is
-/// written fails that save, the old pack kept, rather than the block being dropped with it.
+/// Review of #1376, P1 and P2: a block known to be in the pack that can't be read when a fresh
+/// pack would be written is never dropped with the old pack, nor stops the saves: the file is
+/// written whole without a fresh pack, the old one kept, and every later save goes through.
 #[cfg(unix)]
 #[test]
-fn a_block_that_cant_be_read_fails_the_fresh_pack_and_the_old_one_stays() {
+fn a_block_that_cant_be_read_keeps_the_old_pack_and_the_saves_go_on() {
     use std::os::unix::fs::PermissionsExt as _;
     let all = with_exchange_headers(60);
     let tmp = Temp::new("pack-unreadable");
@@ -478,19 +479,55 @@ fn a_block_that_cant_be_read_fails_the_fresh_pack_and_the_old_one_stays() {
         return;
     }
     // (Nothing held of what is taken out: the pack is mostly dead, and a fresh one is written.)
-    let few = only_first(&mine, 5);
+    let mut few = only_first(&mine, 5);
     drop(mine);
-    let failed = save(&path, &few);
+    save(&path, &few).unwrap();
+    assert_eq!(packs(&path), std::slice::from_ref(&old_pack), "no fresh pack, the old one kept");
+    // An edit after it is saved too, while the pack still can't be read.
+    for _ in 0..2 {
+        few = toggled(&few);
+        save(&path, &few).unwrap();
+    }
+    assert_eq!(packs(&path), std::slice::from_ref(&old_pack));
     fs::set_permissions(&old_pack, fs::Permissions::from_mode(0o600)).unwrap();
-    assert!(failed.is_err(), "{failed:?}");
     assert_eq!(fs::read(&old_pack).unwrap(), old_bytes, "the old pack is there, whole");
     clear_cache();
-    assert_eq!(lines_of(&path), lines(&all), "the file is as it was");
-    // Readable again, the same save goes through and the survivors keep their lines.
-    let few = only_first(&opened_lazily(&path), 5);
-    assert!(save(&path, &few).unwrap().compacted);
+    let back = whole(&path);
+    assert_eq!(back.messages.len(), 5);
+    assert_eq!(lines_of(&path), lines(&only_first(&all, 5)), "every line of what was kept");
+    assert_eq!(back.messages.values().next().unwrap().read, few.messages.values().next().unwrap().read, "the edit is in the file");
+    // Readable again, the next save gives the space back.
+    assert!(save(&path, &toggled(&few)).unwrap().compacted);
+    assert_ne!(packs(&path), [old_pack]);
     clear_cache();
     assert_eq!(lines_of(&path), lines(&only_first(&all, 5)));
+}
+
+/// Review of #1376, P3: a pack an opening wrote into unflushed stays the one a save flushes when
+/// another program's file is read over what is known, until it is flushed.
+#[cfg(unix)]
+#[test]
+fn a_pack_an_opening_left_unflushed_is_flushed_before_another_programs_file_takes_over() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let tmp = Temp::new("pack-refresh-unsynced");
+    let dir = blob_dir(&tmp.file());
+    fs::create_dir_all(&dir).unwrap();
+    let stash = dir.join(pack::name(1).unwrap());
+    fs::write(&stash, b"blocks").unwrap();
+    // Can't be opened to be flushed: it stays the one to flush, and stays current.
+    pack::install(&dir, Some(1), HashMap::new(), true);
+    fs::set_permissions(&stash, fs::Permissions::from_mode(0o000)).unwrap();
+    let blocked = fs::OpenOptions::new().append(true).open(&stash).is_err();
+    if blocked {
+        pack::refresh(&dir, Some(2), HashMap::new());
+        assert!(pack::unsynced(&dir));
+        assert_eq!(pack::current(&dir), Some(1));
+    }
+    fs::set_permissions(&stash, fs::Permissions::from_mode(0o600)).unwrap();
+    // Flushed, the other file's pack takes over.
+    pack::refresh(&dir, Some(2), HashMap::new());
+    assert!(!pack::unsynced(&dir));
+    assert_eq!(pack::current(&dir), Some(2));
 }
 
 /// Review of #1376, P2: blocks an Undo step holds are copied into the fresh pack, and count as

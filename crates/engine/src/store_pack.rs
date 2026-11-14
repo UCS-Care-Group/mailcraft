@@ -104,9 +104,40 @@ pub(super) fn refresh(dir: &Path, named: Option<u32>, at: HashMap<Digest, Loc>) 
     let mut all = lock(known());
     let k = all.entry(dir.to_path_buf()).or_default();
     k.at.extend(at);
+    // A pack an opening wrote into unflushed, whose places are still known, is flushed before it
+    // stops being the one a save flushes ([`Writer::sync`]); one that can't be stays that one.
+    if k.unsynced {
+        if let Some(n) = k.current
+            && sync_pack(dir, n).is_err()
+        {
+            return;
+        }
+        k.unsynced = false;
+    }
     // Appended to from now on: the pack the file names last, else the one known if it is there.
     k.current = named.or(k.current.filter(|n| len(dir, *n) > 0));
-    k.unsynced = false;
+}
+
+/// Flush pack `n` of `dir` and the folder it is in. One that is gone is no error: what it held is
+/// unavailable, which the reads say, and a save that failed for it would fail every time.
+fn sync_pack(dir: &Path, n: u32) -> std::io::Result<()> {
+    let Some(file) = name(n).map(|name| dir.join(name)) else { return Ok(()) };
+    match fs::OpenOptions::new().append(true).open(&file) {
+        Ok(f) => f.sync_data()?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log::warn!("{}: a pack of header lines is gone", dir.display());
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    }
+    sync_dir_of(&file);
+    Ok(())
+}
+
+/// Whether a pack of `dir` an opening wrote into is still to be flushed.
+#[cfg(test)]
+pub(super) fn unsynced(dir: &Path) -> bool {
+    lock(known()).get(dir).is_some_and(|k| k.unsynced)
 }
 
 /// Nothing is known of the packs of `dir` (the file there is of a form that names none).
@@ -475,17 +506,8 @@ impl Writer {
             let known = lock(known());
             known.get(&self.dir).filter(|k| k.unsynced).and_then(|k| k.current)
         };
-        if let Some(n) = pending.filter(|n| !self.fresh && Some(*n) != self.pack.filter(|_| self.file.is_some()))
-            && let Some(file) = name(n).map(|name| self.dir.join(name))
-        {
-            match fs::OpenOptions::new().append(true).open(&file) {
-                Ok(f) => f.sync_data()?,
-                // Gone: what it held is unavailable, which the reads say; a save that failed for it
-                // would fail every time.
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => log::warn!("{}: a pack of header lines is gone", self.dir.display()),
-                Err(e) => return Err(e),
-            }
-            sync_dir_of(&file);
+        if let Some(n) = pending.filter(|n| !self.fresh && Some(*n) != self.pack.filter(|_| self.file.is_some())) {
+            sync_pack(&self.dir, n)?;
         }
         self.synced_known = pending.is_some() && !self.fresh;
         Ok(())
