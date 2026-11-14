@@ -271,7 +271,7 @@ fn a_job_that_ends_without_an_answer_is_tried_again_later() {
 fn the_window_takes_in_the_jobs_answer_by_itself() {
     let (mut app, owner, answers, jobs, _) = window();
     answers.lock().unwrap().push_back(covered(owner, &["Red category", "Made in Outlook"]));
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     let mut h =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
             |ui, app: &mut MailApp| {
@@ -585,7 +585,7 @@ fn an_agents_change_to_outlooks_list_runs_on_the_owners_yes() {
     assert!(s.mailbox.category_is_local(owner, "Old local"));
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     for (command, params) in [
         ("category.addToOutlook", json!({"account": owner, "name": "Old local"})),
         ("category.rename", json!({"account": owner, "from": "Red category", "to": "Crimson"})),

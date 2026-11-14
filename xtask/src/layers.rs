@@ -70,6 +70,9 @@ pub const TABLE: &[(&str, Class)] = &[
     // Host services (credential store, platform entries) below the window, over engine and net.
     ("host", Class::Layer(5)),
     ("ui-egui", Class::Layer(6)),
+    // The binding for the phone apps (UniFFI to Kotlin and Swift): a front end beside `ui-egui`
+    // that never depends on a UI toolkit, and is not part of the browser build.
+    ("mobile", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
     ("mailcraft", Class::Exempt),

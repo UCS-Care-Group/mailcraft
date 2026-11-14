@@ -52,8 +52,8 @@ pub struct CalendarFacts {
     pub focused: bool,
     /// File is open over the calendar.
     pub backstage: bool,
-    /// Automatic checking is on and the host has a way to reach the calendar's server.
-    pub enabled: bool,
+    /// The host has a way to reach the calendar's server.
+    pub reachable: bool,
     /// What is at work now.
     pub busy: Busy,
 }
@@ -120,7 +120,7 @@ impl Session {
         }
         let in_front = self.view.module == crate::Module::Calendar && !facts.backstage;
         self.driver.calendar.looked(facts.focused, in_front);
-        if !facts.enabled {
+        if !facts.reachable || !self.driver.auto_sync() {
             return look;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.

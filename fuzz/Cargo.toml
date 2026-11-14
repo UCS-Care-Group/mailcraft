@@ -218,3 +218,10 @@ path = "fuzz_targets/assuan.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "header_block"
+path = "fuzz_targets/header_block.rs"
+test = false
+doc = false
+bench = false

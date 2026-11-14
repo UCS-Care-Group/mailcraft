@@ -175,7 +175,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
-                    self.send_doubt = true;
+                    self.session.driver.sending.doubted();
                     // A piece that was refused is not skipped over: the run is called off, and the
                     // pages after it (read from the state it would have kept) are left out by the
                     // engine, whichever of them still come ([`apply_ews_mail`]).
@@ -191,10 +191,10 @@ impl MailApp {
             self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.run_answered(account);
+            self.session.send_run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, quiet));
+                self.session.driver.round.queue.push_front((whose, quiet));
             }
             if std::mem::take(&mut self.sync_refused) {
                 // Turned down: the next Send/Receive asks for it again, and no round by itself goes

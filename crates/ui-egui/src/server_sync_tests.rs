@@ -267,7 +267,7 @@ fn mailbox_settings_allowed_already_are_left_out_of_the_question() {
         *answer.lock().unwrap() = Err(crate::approval::NO_BROWSER.into());
         match given {
             "rules" => drop(app.session.driver.rules.perm.insert(owner, crate::rule_sync::Permission::Given)),
-            "automatic replies" => drop(app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Given)),
+            "automatic replies" => drop(app.session.driver.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Given)),
             _ => drop(app.category_sync.perm.insert(owner, Permission::Given)),
         }
         assert!(app.tasks_tick_at(0.0));

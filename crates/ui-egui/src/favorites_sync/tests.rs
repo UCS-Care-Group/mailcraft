@@ -450,7 +450,7 @@ fn window(rig: Rig) -> (egui_kittest::Harness<'static, MailApp>, Arc<Mutex<Host>
     let host = rig.host.clone();
     let mut app = rig.app;
     // (The harness looks at the server by the real clock: nothing is due there but the start.)
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
             |ui, app: &mut MailApp| {

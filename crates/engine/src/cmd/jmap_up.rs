@@ -29,7 +29,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use mailcraft_model::sync::{JmapChange, JmapChangeDone, JmapMailResult, JmapOutcome, ServerMessage};
+use mailcraft_model::sync::{JmapChange, JmapChangeDone, JmapMailResult, JmapOutcome, MAX_SENDS, SendOutcome, ServerMessage};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Queued};
 
 use super::graph_up::{self, Kind, Refusals, Why};
@@ -59,7 +59,7 @@ fn mailboxes_of(mb: &Mailbox, account: Id) -> HashMap<Id, &str> {
 }
 
 /// The changes of messages made in `account` that its server hasn't heard of: at most `limit`
-/// spelled out, and how many there are. What lies in the Outbox is no change of a message.
+/// spelled out, and how many there are. What waits in the Outbox is sent, not changed.
 pub fn changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<JmapChange>, usize) {
     let (mut changes, mut count) = (Vec::new(), 0usize);
     let mut note = |change: &dyn Fn() -> JmapChange| {
@@ -110,13 +110,21 @@ fn bounded_change(done: &mut JmapChangeDone) -> bool {
     named
 }
 
-/// What a piece says became of the changes, held to sizes: as many answers as a run asks about,
-/// ids that are ids, reasons of one line. What became of mail sent is taken out: nothing is sent
-/// from such an account yet, so it answers nothing that was asked.
+/// What a piece says became of the changes and of the mail sent, held to sizes: as many answers
+/// as a run asks about, ids that are ids, reasons of one line. Nothing of a draft comes back from
+/// a JMAP run (none went up), so nothing of one is taken: not what became of it, and no id of one
+/// for the server to delete later.
 pub(crate) fn bounded(result: &mut JmapMailResult) {
     result.changes.truncate(MAX_JMAP_CHANGES);
     result.changes.retain_mut(bounded_change);
-    result.sent.clear();
+    result.sent.truncate(MAX_SENDS);
+    for done in &mut result.sent {
+        done.draft = None;
+        done.draft_left.clear();
+        if let SendOutcome::Held { why, .. } = &mut done.outcome {
+            *why = line(why, MAX_LINE);
+        }
+    }
 }
 
 /// What the server wouldn't do in a run, for saying it once per kind of change and reason: what it

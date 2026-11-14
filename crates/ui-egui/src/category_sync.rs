@@ -149,7 +149,7 @@ impl MailApp {
         }
         self.categories_ask_tick();
         // (Offline, nothing goes, so what would go isn't looked through either.)
-        if !self.auto_sync || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
+        if !self.session.driver.auto_sync() || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
         }
         // One thing at a time: the calendar's, the to-dos' and the rules' jobs, a Send/Receive and
@@ -216,7 +216,8 @@ impl MailApp {
         self.categories_tick_at(now_ms());
         if self.category_sync.rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        } else if self.services.graph_categories.is_some() && self.auto_sync && !category_accounts(&self.session.mailbox).is_empty() {
+        } else if self.services.graph_categories.is_some() && self.session.driver.auto_sync() && !category_accounts(&self.session.mailbox).is_empty()
+        {
             ctx.request_repaint_after(std::time::Duration::from_secs(2));
         }
     }
@@ -485,7 +486,7 @@ impl MailApp {
         let shown = |why: &str| crate::forms::kit::shown(why, crate::server_sync::REASON_SHOWN);
         Some(match self.category_sync.perm.get(&account) {
             Some(Permission::Given) => (tl!("Categories: kept in step with Outlook").to_string(), false, Perm::Fine),
-            Some(Permission::Needed | Permission::Declined) => {
+            Some(Permission::Needed | Permission::Declined | Permission::Denied) => {
                 (tl!("Categories: read-only here (MailCraft may not change them)").to_string(), true, Perm::Waits)
             }
             Some(Permission::Asking) => (tl!("Categories: asking for your permission…").to_string(), false, Perm::Asking),

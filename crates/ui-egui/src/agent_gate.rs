@@ -96,7 +96,7 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
             let params = p.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
             Some(gate(app, req, &id, params, allow))
         }
-        "app.quit" | "auth" => Some(err(format!("`{}` isn't available to agents", req.method))),
+        "app.quit" | "auth" | "ui.minimize" => Some(err(format!("`{}` isn't available to agents", req.method))),
         other => Some(gate(app, req, other, p.clone(), allow)),
     }
 }

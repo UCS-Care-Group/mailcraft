@@ -3,8 +3,17 @@
 
 use super::jobs::*;
 
-const ALL: [Start; 8] =
-    [Start::Calendar, Start::CalendarAround, Start::CalendarCheck, Start::Tasks, Start::Rules, Start::Categories, Start::InboxCheck, Start::FreeBusy];
+const ALL: [Start; 9] = [
+    Start::Calendar,
+    Start::CalendarAround,
+    Start::CalendarCheck,
+    Start::Tasks,
+    Start::Rules,
+    Start::Categories,
+    Start::AutoReplies,
+    Start::InboxCheck,
+    Start::FreeBusy,
+];
 
 #[test]
 fn nothing_at_work_blocks_nothing() {

@@ -75,6 +75,8 @@ pub enum Start {
     Rules,
     /// The categories' job (#661).
     Categories,
+    /// The automatic replies' job.
+    AutoReplies,
     /// An Inbox pass by itself, between rounds.
     InboxCheck,
     /// A look at other people's free and busy times.
@@ -132,6 +134,9 @@ impl Busy {
             // The calendar's, the to-dos' and the rules' jobs, a Send/Receive and a sign-in go
             // first (#661).
             Start::Categories => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || signing || self.queued,
+            // The calendar's, the to-dos' and the rules' jobs, a Send/Receive and a sign-in go
+            // first; a Send/Receive that is only waiting its turn doesn't hold it back.
+            Start::AutoReplies => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || signing,
             Start::InboxCheck => self.mail_run || self.graph || self.queued || self.inbox_queued || signing || self.approving || self.switching,
             // One question at a time, and not while the account's sign-in or calendar is being seen to.
             Start::FreeBusy => self.free_busy || signing || self.graph || self.calendar,

@@ -248,8 +248,7 @@ fn open_path(path: &str) -> Result<std::io::BufReader<std::fs::File>, CmdError> 
 /// The keys of every message and contact brought in from a .pst file ([`PST_ITEM_HEADER`],
 /// [`Contact::imported`]).
 pub fn known_keys(mb: &Mailbox) -> HashSet<String> {
-    let messages =
-        mb.messages.values().filter_map(|m| m.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(PST_ITEM_HEADER)).map(|(_, v)| v.clone()));
+    let messages = mb.messages.values().filter_map(|m| m.header(PST_ITEM_HEADER).map(str::to_string));
     messages.chain(known_plans_and_people(mb)).collect()
 }
 
@@ -1185,12 +1184,8 @@ impl Running {
     fn own_folder(&mut self, s: &mut Session, name: &str) -> Result<Id, CmdError> {
         let mb = &s.mailbox;
         let prefix = format!("{}:", self.identity);
-        let holding: HashSet<Id> = mb
-            .messages
-            .values()
-            .filter(|m| m.headers.iter().any(|(k, v)| k.eq_ignore_ascii_case(PST_ITEM_HEADER) && v.starts_with(&prefix)))
-            .map(|m| m.folder)
-            .collect();
+        let holding: HashSet<Id> =
+            mb.messages.values().filter(|m| m.header_values(PST_ITEM_HEADER).any(|v| v.starts_with(&prefix))).map(|m| m.folder).collect();
         let made_before = s.pst_tops.get(&self.identity).copied();
         for n in 1..100u32 {
             let candidate = if n == 1 { name.to_string() } else { format!("{name} ({n})") };

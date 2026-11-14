@@ -78,7 +78,7 @@ impl MailApp {
     pub(crate) fn calendar_tick(&mut self, ctx: &egui::Context) {
         let focused = ctx.input(|i| i.focused);
         self.calendar_tick_at(focused, now_ms());
-        if self.services.graph.is_none() || !self.auto_sync {
+        if self.services.graph.is_none() || !self.session.driver.auto_sync() {
             return;
         }
         if self.calendar.rx.is_some() {
@@ -115,8 +115,7 @@ impl MailApp {
     /// starts the job on the host, and tells the owner.
     pub fn calendar_tick_at(&mut self, focused: bool, now: f64) -> bool {
         self.session.driver.calendar.clock = now;
-        let facts =
-            CalendarFacts { focused, backstage: self.ui.backstage, enabled: self.auto_sync && self.services.graph.is_some(), busy: self.job_busy() };
+        let facts = CalendarFacts { focused, backstage: self.ui.backstage, reachable: self.services.graph.is_some(), busy: self.job_busy() };
         let look = self.session.calendar_due(&facts, now);
         self.tell_dropped(&look.dropped);
         // A calendar ticked in a shared mailbox that the owner's permission is missing for: asked.

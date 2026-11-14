@@ -18,6 +18,7 @@ pub mod dav;
 pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
+pub mod headers;
 mod jmap_server;
 mod junk;
 pub mod load_limit;
@@ -63,13 +64,14 @@ pub use calendar::{
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
+pub use headers::{HeaderBlock, HeaderLine};
 pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_NOT_DELETED_YET,
-    FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_CATEGORIES, MAX_FOLDER_DEPTH,
-    MAX_FOLDERS, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, NOT_SENDING_YET, OAuth,
+    FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, ImapStatus, MAX_CATEGORIES,
+    MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth,
     OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze,
     categories_read_only_text, category_key,
 };
@@ -173,7 +175,11 @@ mod calendar_rights_tests;
 #[cfg(test)]
 mod contact_key_tests;
 #[cfg(test)]
+mod gmail_labels_tests;
+#[cfg(test)]
 mod gmail_tests;
+#[cfg(test)]
+mod headers_tests;
 #[cfg(test)]
 mod hidden_text_tests;
 #[cfg(test)]
@@ -232,3 +238,5 @@ mod tests {
         assert!(!contains_ci("Quarterly", "report"));
     }
 }
+#[cfg(test)]
+mod address_tests;

@@ -283,8 +283,8 @@ fn the_headers_it_was_sent_with_come_first() {
     assert_eq!(m.message_id, "hdr-1@example.org");
     assert_eq!(m.date, DELIVERED_AT - 600);
     assert_eq!(m.received, DELIVERED_AT);
-    assert!(m.headers.iter().any(|(k, v)| k == "X-Mailer" && v == "Test"));
-    assert!(m.headers.iter().any(|(k, _)| k == "Received"));
+    assert!(m.all_headers().iter().any(|(k, v)| k == "X-Mailer" && v == "Test"));
+    assert!(m.all_headers().iter().any(|(k, _)| k == "Received"));
 }
 
 #[test]

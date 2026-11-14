@@ -94,7 +94,7 @@ impl MailApp {
     /// itself) while its to-dos wait: the question and its texts then say only the to-dos.
     fn sync_only_tasks(&self, account: Id) -> bool {
         let settings = matches!(self.session.driver.rules.perm.get(&account), Some(crate::rule_sync::Permission::Given))
-            || matches!(self.auto_replies.perm.get(&account), Some(crate::auto_replies::Permission::Given))
+            || matches!(self.session.driver.auto_replies.perm.get(&account), Some(crate::auto_replies::Permission::Given))
             || matches!(self.category_sync.perm.get(&account), Some(crate::task_sync::Permission::Given));
         settings && !self.sync_tasks_kept(account)
     }
