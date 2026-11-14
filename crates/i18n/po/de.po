@@ -3470,7 +3470,7 @@ msgstr "Diagnose kopiert. Es wurde nichts gesendet."
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Diagram"
-msgstr "Diagramm"
+msgstr "Schaubild"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
