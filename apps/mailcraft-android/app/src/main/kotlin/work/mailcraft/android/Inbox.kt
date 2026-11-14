@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
@@ -36,7 +39,10 @@ internal fun senderLabel(name: String, address: String): String = name.ifBlank {
  * Opens the sample mailbox and reads its Inbox, read-only. The sample is the core's own invented
  * mailbox; no account is signed in and nothing is fetched.
  */
-internal suspend fun loadInbox(core: Core): InboxState =
+internal suspend fun loadInbox(
+    core: Core,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+): InboxState = withContext(dispatcher) {
     try {
         core.execute("file.new", """{"sample":true}""")
         val folders = core.folders(0uL)
@@ -61,3 +67,4 @@ internal suspend fun loadInbox(core: Core): InboxState =
     } catch (_: CoreException) {
         InboxState.Failed(core.t("The mailbox could not be read."))
     }
+}

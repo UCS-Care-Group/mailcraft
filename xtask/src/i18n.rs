@@ -21,6 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use crate::i18n_kotlin;
+
 use mailcraft_i18n::plural::Rule;
 use mailcraft_i18n::po::{self, Entry};
 
@@ -197,6 +199,8 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (file, toks) in sources(root, "crates/mobile/src")? {
         engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);
     }
+    // What the Android app says: `t("…")` and `tn(n, "…", "…")` in its Kotlin (`cargo xtask mobile`'s app).
+    kotlin(root, &mut texts)?;
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
     }
@@ -209,6 +213,25 @@ fn gather(root: &Path) -> Result<Texts, String> {
         }
     }
     Ok(texts)
+}
+
+/// The texts of the Android app's Kotlin sources (not its tests, and not the generated bindings).
+fn kotlin(root: &Path, texts: &mut Texts) -> Result<(), String> {
+    let dir = root.join("apps/mailcraft-android/app/src/main/kotlin");
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    walk_ext(&dir, "kt", &mut files)?;
+    files.sort();
+    for path in files {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let file = rel(root, &path);
+        for said in i18n_kotlin::scan(&text) {
+            add(texts, &said.id, said.plural.as_deref(), &file, "android");
+        }
+    }
+    Ok(())
 }
 
 /// Every `.rs` file under `dir` but tests (`tests.rs`, `*_tests.rs`, `#[cfg(test)] mod tests`),
@@ -230,12 +253,16 @@ fn sources(root: &Path, dir: &str) -> Result<Vec<(String, Vec<Tok>)>, String> {
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    walk_ext(dir, "rs", out)
+}
+
+fn walk_ext(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            walk(&path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            walk_ext(&path, ext, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some(ext) {
             out.push(path);
         }
     }
