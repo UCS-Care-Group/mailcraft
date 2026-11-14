@@ -32,7 +32,8 @@ fn window() -> (MailApp, Id, Jobs) {
 
 /// `app` with the account and the message of [`window`].
 fn microsoft(app: &mut MailApp) -> (Id, Jobs) {
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let account = app.execute("account.add", json!({"email": "one@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let message = Message {

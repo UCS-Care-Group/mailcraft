@@ -77,7 +77,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 pub use mailcraft_html as html;
-pub use mailcraft_mime as mime;
+pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
@@ -431,6 +431,8 @@ mod ews_account_tests;
 mod focus_stays_tests;
 #[cfg(test)]
 mod gmail_tests;
+#[cfg(test)]
+mod imap_status_tests;
 #[cfg(test)]
 mod import_pst_calendar_tests;
 #[cfg(test)]

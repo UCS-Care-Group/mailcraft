@@ -611,7 +611,12 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // A shorter window: what is outside it now is thinned at the next tick, for any host.
+    let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
+    if shortened {
+        s.driver.thinning.now = true;
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
@@ -726,6 +731,10 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
+    // Where the sync driver's jobs and permissions stood for them goes too (to-dos, rules,
+    // automatic replies, the calendar, the Favorites, free and busy times, what waited to be
+    // sent): nobody is to be asked about an account that isn't there.
+    s.driver.forget_accounts(&going);
     // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
     super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
@@ -822,6 +831,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
     }
     let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
+    let now = s.now();
     let folders = s
         .mailbox
         .folders
@@ -836,6 +846,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
             again: again.remove(&f.id).unwrap_or_default(),
+            // Good to pass the folder over by until the next reading in full is due (#276).
+            status: f.imap_status.filter(|st| (0..super::graph_mail::FULL_SWEEP_EVERY).contains(&now.saturating_sub(st.at))),
         })
         .collect();
     let (ops, _) = remote_ops(s, account, MAX_OPS);
@@ -1811,7 +1823,7 @@ fn merge_flags(mb: &mut Mailbox, id: Id, theirs: RemoteFlags) -> bool {
 /// The Message-ID a message was sent with, when a server gave it another on the way and kept the
 /// first in a header of its own (Microsoft's do that to mail sent through them).
 fn original_id(m: &Message) -> Option<&str> {
-    let value = m.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case("X-Microsoft-Original-Message-ID")).map(|(_, value)| value.as_str())?;
+    let value = m.header("X-Microsoft-Original-Message-ID")?;
     Some(value.trim().trim_start_matches('<').trim_end_matches('>').trim()).filter(|id| !id.is_empty())
 }
 
@@ -1837,8 +1849,7 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let waiting = |id: &Id| mb.message(*id).filter(|m| m.folder == folder && m.uid == 0 && m.synced.is_some());
     // A copy put there from elsewhere is known by its marker alone: mail that merely looks like
     // it may be the server's own (#451).
-    let carries =
-        |m: &Message| theirs.headers.iter().any(|(name, value)| name.eq_ignore_ascii_case(mailcraft_mime::PLACE_HEADER) && *value == m.placed);
+    let carries = |m: &Message| theirs.header_values(mailcraft_mime::PLACE_HEADER).any(|value| value == m.placed);
     let by_id = expected.iter().position(|id| waiting(id).is_some_and(|m| if m.placed.is_empty() { same_id(m) } else { carries(m) }));
     let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| m.placed.is_empty() && same_mail(m, theirs))))?;
     let id = expected.swap_remove(at);
@@ -2292,6 +2303,11 @@ fn take_in(
     if let Ok(f) = mb.folder_mut(folder) {
         if delta.complete {
             f.whole = Some(true);
+            // What the server said of it before it was read to the end (#276), or nothing.
+            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: now, ..status });
+        }
+        if reset {
+            f.imap_status = None;
         }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {

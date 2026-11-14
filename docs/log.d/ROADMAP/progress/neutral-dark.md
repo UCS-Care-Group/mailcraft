@@ -1,0 +1,1 @@
+| 2026-11-13 | The dark theme is neutral greys, as in the other Craft programs, in place of blue-tinted ones, in normal and high contrast; the accents' washes (a selected row, a selected folder, today) were moved onto the new greys and every pair still meets its contrast |

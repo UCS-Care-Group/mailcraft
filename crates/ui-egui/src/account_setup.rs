@@ -2599,7 +2599,7 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 
 fn google_testers_note() -> &'static str {
-    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft.")
 }
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
@@ -2749,7 +2749,8 @@ mod tests {
         let mailbox = if sample { mailcraft_engine::sample::mailbox(NOW, 0) } else { mailcraft_model::Mailbox::with_local_account("", "") };
         let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
         // Nothing happens by itself: what a test sees synchronised, it or the wizard asked for.
-        (app.autosave, app.auto_sync) = (false, false);
+        app.autosave = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 

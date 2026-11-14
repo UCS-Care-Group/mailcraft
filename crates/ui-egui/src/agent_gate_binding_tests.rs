@@ -21,7 +21,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 

@@ -32,6 +32,8 @@ mod browser;
 #[cfg(test)]
 mod calendar_flow;
 mod clipboard;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod clipboard_mime;
 #[cfg(test)]
 mod control_challenge_flow;
 mod control_server;
@@ -221,6 +223,12 @@ impl eframe::App for App {
         #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
         if let Some(desktop) = DESKTOP_THEME.get() {
             desktop.apply(raw);
+        }
+        // Under Wayland the clipboard keys come as key events, to be turned into cut, copy and
+        // paste here, where a picture on the clipboard can be seen (`mailcraft_ui_egui::paste_keys`, #1217).
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if self.0.services.clipboard_keys {
+            mailcraft_ui_egui::paste_keys::translate(&mut raw.events, self.0.services.clipboard.as_deref());
         }
         self.0.raw_input_hook(raw);
     }
@@ -1257,7 +1265,7 @@ fn services(
         alert: alerts::host(alert_ctx),
         open_page: Some(Box::new(open_in_browser)),
         open_page_waiting: Some(std::sync::Arc::new(open_in_browser)),
-        clipboard: clipboard::board(),
+        clipboard: clipboard::board(None),
         // Help › Copy Diagnostics: the version, the platform and the redacted end of the logs.
         diagnostics: Some(Box::new(|| diagnostics::report(env!("CARGO_PKG_VERSION"), build_sha(), log_dir().filter(|_| prefs_enabled()).as_deref()))),
         // Help › Report a Problem › Send report (#956), on the owner's click alone: the report the
@@ -1539,6 +1547,17 @@ fn main() -> eframe::Result {
     if let Some(icon) = app_icon() {
         options.viewport = options.viewport.with_icon(icon);
     }
+    // Under Wayland the window layer's clipboard can't see a picture or HTML (in the Flatpak it
+    // has no clipboard of its own at all): the clipboard keys are handled by `mailcraft_ui_egui::paste_keys` (#1217).
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    let clipboard_keys = mailcraft_ui_egui::paste_keys::wayland_session(
+        std::env::var("WAYLAND_SOCKET").ok().as_deref(),
+        std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
+    );
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    if clipboard_keys {
+        options.clipboard_shortcuts = false;
+    }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 only, or OpenGL when
     // DirectX 12 has no GPU driver (see graphics.rs).
     #[cfg(target_os = "windows")]
@@ -1586,6 +1605,8 @@ fn main() -> eframe::Result {
             let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
             let ctx = cc.egui_ctx.clone();
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            let wayland_display = clipboard::wayland_display(cc);
             let (first_prefs, host_updates) = (prefs.clone(), updates.clone());
             let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
                 let (mailbox, path, unavailable, unchecked, damaged) =
@@ -1601,6 +1622,12 @@ fn main() -> eframe::Result {
                 let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());
                 services.window_identity =
                     Some(mailcraft_ui_egui::windows::WindowIdentity { icon: app_icon().map(std::sync::Arc::new), app_id: Some(APP_ID.into()) });
+                // Under Wayland the clipboard goes through the window's own connection (#1217).
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                {
+                    services.clipboard = clipboard::board(wayland_display);
+                    services.clipboard_keys = clipboard_keys;
+                }
                 services.update_start = update_start;
                 services.claim_mailbox =
                     claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
