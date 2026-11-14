@@ -113,6 +113,8 @@ fn new_mail_is_told_and_nothing_else_is() {
     assert!(imap.world().log.iter().any(|line| line.contains("EXAMINE")) && !imap.world().log.iter().any(|line| line.contains(" SELECT ")));
     // Flags, and a count that goes down, are no news of mail.
     imap.world().idle_events = vec!["* 1 FETCH (FLAGS (\\Seen))".into(), "* 1 EXPUNGE".into()];
+    // Sent before the next lines take their place (a slow machine may not have got to them yet).
+    wait_until("the server to tell it", || imap.world().idle_events.is_empty());
     assert_eq!(watch.next(Duration::from_millis(300)), None);
     // A count that goes up is: 2 - 1 = 1 now, so 2 is up.
     imap.world().idle_events = vec!["* 2 EXISTS".into(), "* 1 RECENT".into()];
