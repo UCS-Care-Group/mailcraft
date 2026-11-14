@@ -291,13 +291,16 @@ impl SyncHost {
     }
 
     /// The index of names, read from the store the first time it can be. `None` while the store
-    /// can't be reached or read: an index nobody could read is never taken for an empty one (and
+    /// can't be reached or read, or what it holds as the index doesn't parse: an index nobody could read is never taken for an empty one (and
     /// written over). Names noted meanwhile join it once it is read.
     fn keys_of<'a>(&self, inner: &'a mut Inner, store: Option<&dyn HostSecretStore>) -> Option<&'a mut BTreeSet<String>> {
         if inner.keys.is_none() {
             let found = store?.read(INDEX_KEY).ok()?;
-            let mut keys: BTreeSet<String> =
-                found.and_then(|json| serde_json::from_str::<Vec<String>>(&json).ok()).unwrap_or_default().into_iter().take(MOST_KEYS).collect();
+            // An absent index is an empty one; one that is there but doesn't parse is as unread.
+            let mut keys: BTreeSet<String> = match found {
+                None => BTreeSet::new(),
+                Some(json) => serde_json::from_str::<Vec<String>>(&json).ok()?.into_iter().take(MOST_KEYS).collect(),
+            };
             let waiting = std::mem::take(&mut inner.unindexed);
             if !waiting.is_empty() {
                 inner.index_pending = true;

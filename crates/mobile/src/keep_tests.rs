@@ -394,6 +394,23 @@ fn a_restarted_core_keeps_an_index_it_could_not_read_and_a_retry_removes_what_it
     assert!(platform.secrets.kept.lock().unwrap().is_empty(), "{:?}", platform.secrets.kept.lock().unwrap());
 }
 
+#[test]
+fn an_index_that_does_not_parse_is_kept_and_not_taken_for_an_empty_one() {
+    let dir = Dir::new();
+    let platform = FakePlatform::new();
+    // An earlier run kept a sign-in for an account the mailbox no longer has; the index that
+    // named it is now garbage.
+    let gone = "refresh:gone@example.org|graph".to_string();
+    platform.secrets.kept.lock().unwrap().push((gone.clone(), "old-refresh".to_string()));
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    fill(&core);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    assert!(kept.iter().any(|(k, v)| k == "mailcraft:index" && v == "{not a list"), "the index is left as it was: {kept:?}");
+    assert!(kept.iter().any(|(k, _)| *k == gone), "the sign-in it may name is not reported removed: {kept:?}");
+}
+
 #[cfg(unix)]
 #[test]
 fn a_file_that_cannot_be_looked_at_is_never_written_over() {
