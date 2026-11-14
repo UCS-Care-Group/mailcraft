@@ -299,8 +299,8 @@ mod toasts {
     use super::{Clicks, drain};
 
     /// What the `.msi`'s Start menu shortcut tells Windows the program is (its
-    /// `System.AppUserModel.ID`, `packaging/windows/mailcraft.wxs`).
-    pub const APP_ID: &str = "MailCraft.MailCraft";
+    /// `System.AppUserModel.ID`, `packaging/windows/mailcraft.wxs`). Toasts use it.
+    const APP_ID: &str = "MailCraft.MailCraft";
     /// How many toasts are kept, so that a click on one is still heard.
     const KEPT: usize = 50;
 

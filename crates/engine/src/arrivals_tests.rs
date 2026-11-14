@@ -56,11 +56,24 @@ fn new_mail_in_an_inbox_read_before_arrives_with_its_sender_and_subject() {
 }
 
 #[test]
+fn advancing_a_mark_does_not_start_watching_a_first_download() {
+    let (mut s, account, inbox) = session();
+    let before = mark(&s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(5, "A", "Old")])]);
+    let refreshed = mark(&s.mailbox);
+    let moved = advance(&before, &s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(6, "B", "Older")])]);
+    assert_eq!(new_inbox_count(&s.mailbox, &moved), 0);
+    assert_eq!(new_inbox_count(&s.mailbox, &refreshed), 1);
+}
+
+#[test]
 fn an_accounts_first_download_is_not_new_mail() {
     let (mut s, account, inbox) = session();
     let before = mark(&s.mailbox);
     apply(&mut s, account, vec![inbox_delta(inbox, vec![message(1, "A", "One"), message(2, "B", "Two")])]);
     assert!(arrivals(&s.mailbox, &before).is_empty());
+    assert_eq!(new_inbox_count(&s.mailbox, &before), 0);
     // Even when the first download comes in pieces: the mark is taken before the run.
     apply(&mut s, account, vec![inbox_delta(inbox, vec![message(3, "C", "Three")])]);
     assert!(arrivals(&s.mailbox, &before).is_empty());
@@ -104,6 +117,7 @@ fn junk_and_other_folders_are_not_new_mail() {
         ],
     );
     assert_eq!(subjects(&arrivals(&s.mailbox, &before)), ["In the Inbox"]);
+    assert_eq!(new_inbox_count(&s.mailbox, &before), 1, "Junk and another folder are not in the count");
     // A message moved by hand into Junk after it arrived is not new mail either.
     let before = mark(&s.mailbox);
     apply(&mut s, account, vec![inbox_delta(inbox, vec![message(6, "Spammer", "Moved away")])]);
@@ -154,6 +168,7 @@ fn a_shared_mailbox_and_a_local_account_are_not_watched() {
         s.mailbox.add_message(Message { folder: *f, subject: format!("to {account}"), ..Default::default() }).unwrap();
     }
     assert_eq!(subjects(&arrivals(&s.mailbox, &before)), [format!("to {owner}")], "only the owner's own Microsoft account");
+    assert_eq!(new_inbox_count(&s.mailbox, &before), 2, "the taskbar counts the shared Inbox too, not the local account");
 }
 
 #[test]

@@ -44,6 +44,7 @@ const OTHER_WRITERS: &[(&str, &str)] = &[
     ("apps/mailcraft/src/picture_cache.rs", "pictures kept for the window, never handed out"),
     ("apps/mailcraft/src/self_update.rs", "the program's own update"),
     ("apps/mailcraft/src/single_instance.rs", "a lock"),
+    ("apps/mailcraft/src/taskbar_count.rs", "the taskbar dot's icon, kept only while it is loaded"),
     ("apps/mailcraft-cli/src/main.rs", "its tests"),
 ];
 
