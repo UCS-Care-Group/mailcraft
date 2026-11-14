@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -92,17 +93,28 @@ internal class AccountsController(
     /** Which sign-in owns the Add Account screen: a result of an earlier one is never shown. */
     private var signInOperation = 0L
 
+    /** The last sign-in started: the next waits for it to be over. */
+    private var signInJob: Job? = null
+
     /** Opens Microsoft's page and waits for the owner. Only from the form or the approval help. */
     fun signIn() {
         val email = emailOf(ui.value.add) ?: return
         val operation = ++signInOperation
         ui.update { it.copy(add = AddAccountState.Waiting(email)) }
-        scope.launch {
+        val previous = signInJob
+        signInJob = scope.launch {
+            // A sign-in the owner left (leaving the screen calls it off) is over before this one begins:
+            // one at a time, so that its end can't call off, or disarm, the new one.
+            if (previous?.isActive == true) {
+                api.cancel()
+                previous.join()
+            }
             val result = api.signIn(email)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
             if (result is SignInResult.SignedIn) {
-                // The sign-in is new: what was known of this account's permissions is asked again.
-                ui.update { state -> state.copy(statuses = state.statuses.filterKeys { it.account != result.account }) }
+                // The sign-in is new: where this account's permissions stand is asked again, now (the
+                // Accounts page may stay on screen with the same list, which asks nothing by itself).
+                PermissionKind.entries.forEach { setStatus(result.account, it) }
                 changed()
             }
             ui.update { state ->
@@ -166,16 +178,31 @@ internal class AccountsController(
 
     private fun removeCancel() = ui.update { it.copy(removing = null, removeFailed = false) }
 
+    /** The accounts whose removal is under way: a second tap on Remove for one of them does nothing. */
+    private val removals = HashSet<ULong>()
+
     private fun remove() {
         val account = ui.value.removing ?: return
+        if (!removals.add(account.id)) return
         scope.launch {
+            var removed = false
+            try {
+                removed = api.remove(account.id)
+            } finally {
+                removals.remove(account.id)
+            }
+            // The confirmation is this removal's only while it is still the one for this account: one
+            // the owner dismissed, or another account's opened meanwhile, is left as it is.
+            fun owns(state: AccountsUi) = state.removing?.id == account.id
             // (Only a removal that happened cleans up; a failed one says so and can be tried again.)
-            if (!api.remove(account.id)) {
-                ui.update { it.copy(removing = account, removeFailed = true) }
+            if (!removed) {
+                ui.update { state -> if (owns(state)) state.copy(removeFailed = true) else state }
                 return@launch
             }
-            ui.update { it.copy(removing = null, removeFailed = false) }
-            ui.update { state -> state.copy(statuses = state.statuses.filterKeys { it.account != account.id }) }
+            ui.update { state ->
+                val closed = if (owns(state)) state.copy(removing = null, removeFailed = false) else state
+                closed.copy(statuses = closed.statuses.filterKeys { it.account != account.id })
+            }
             changed()
         }
     }

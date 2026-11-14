@@ -49,6 +49,13 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
     /** This process started a sign-in or grant that has not ended: its recovery record is not lost. */
     private val live = AtomicBoolean(false)
 
+    /** Guards [owner] and [issued]. */
+    private val lock = Any()
+
+    /** The ticket of the sign-in or grant under way; 0 when none is. */
+    private var owner = 0L
+    private var issued = 0L
+
     /** Where an accepted address goes; false from it means no sign-in took it. Set once the core exists. */
     @Volatile
     var sink: (String) -> Boolean = { false }
@@ -60,10 +67,29 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
     @Volatile
     var interrupted: (String) -> Unit = {}
 
-    /** A sign-in for [email] begins: should the app be closed meanwhile, the next start knows. */
-    fun remember(email: String) {
+    /**
+     * A sign-in (for [email]: should the app be closed meanwhile, the next start knows) or a grant
+     * (null) begins. Gives its ticket, which alone [end]s it; null while another is under way, which is
+     * left exactly as it is: one at a time, as the core has it.
+     */
+    fun begin(email: String? = null): Long? = synchronized(lock) {
+        if (owner != 0L) return null
+        issued += 1
+        owner = issued
         live.set(true)
-        pending?.save(email)
+        email?.let { pending?.save(it) }
+        owner
+    }
+
+    /** The sign-in or grant of [ticket] is over: nobody waits any more. An older one's end changes nothing. */
+    fun end(ticket: Long) {
+        synchronized(lock) {
+            if (ticket != owner) return
+            owner = 0L
+            live.set(false)
+            armed.set(false)
+            pending?.clear()
+        }
     }
 
     /** A sign-in is about to open its page: the next address is for it. */
@@ -72,11 +98,9 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
         armed.set(true)
     }
 
-    /** Nobody waits any more. */
+    /** The page could not be opened: no address will come for it (its [end] follows). */
     fun disarm() {
-        live.set(false)
         armed.set(false)
-        pending?.clear()
     }
 
     /** What the redirect's activity got; false when it was not taken. */

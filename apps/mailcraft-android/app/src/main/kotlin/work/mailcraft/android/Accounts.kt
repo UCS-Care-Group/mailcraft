@@ -121,10 +121,11 @@ internal interface AccountsApi {
 
 /** [AccountsApi] over the Rust core. What it hands the screens carries no token: the core keeps those. */
 internal class CoreAccounts(private val core: Core, private val handback: SignInHandback) : AccountsApi {
-    override suspend fun signIn(email: String): SignInResult =
-        try {
-            // (If the system closes the app while the page is open, the next start knows this was under way.)
-            handback.remember(email)
+    override suspend fun signIn(email: String): SignInResult {
+        // (If the system closes the app while the page is open, the next start knows this was under way.)
+        // One at a time: a second is refused here and leaves the first's hand-back as it is.
+        val ticket = handback.begin(email) ?: return SignInResult.Failed("")
+        return try {
             when (val outcome = core.signInMicrosoft(email)) {
                 is SignInOutcome.SignedIn -> SignInResult.SignedIn(outcome.account, outcome.email, outcome.name)
                 is SignInOutcome.NeedsApproval -> SignInResult.NeedsApproval
@@ -138,11 +139,13 @@ internal class CoreAccounts(private val core: Core, private val handback: SignIn
         } catch (_: CoreException) {
             SignInResult.Failed("")
         } finally {
-            handback.disarm()
+            handback.end(ticket)
         }
+    }
 
-    override suspend fun grant(account: ULong, permission: PermissionKind): GrantResult =
-        try {
+    override suspend fun grant(account: ULong, permission: PermissionKind): GrantResult {
+        val ticket = handback.begin() ?: return GrantResult.Failed("")
+        return try {
             when (val outcome = core.grantPermission(account, permission.toCore())) {
                 is PermissionOutcome.Granted -> GrantResult.Granted
                 is PermissionOutcome.NeedsApproval -> GrantResult.NeedsApproval
@@ -157,8 +160,9 @@ internal class CoreAccounts(private val core: Core, private val handback: SignIn
         } catch (_: CoreException) {
             GrantResult.Failed("")
         } finally {
-            handback.disarm()
+            handback.end(ticket)
         }
+    }
 
     override suspend fun status(account: ULong, permission: PermissionKind): PermissionStatus =
         try {

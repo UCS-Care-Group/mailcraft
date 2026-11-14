@@ -48,8 +48,11 @@ private class FakeApi : AccountsApi {
         return states[permission] ?: PermissionStatus.NotAllowed
     }
 
+    var removeGate: CompletableDeferred<Unit>? = null
+
     override suspend fun remove(account: ULong): Boolean {
         removed.add(account)
+        removeGate?.await()
         return removable
     }
 
@@ -379,18 +382,101 @@ class AccountsTest {
     }
 
     @Test
-    fun aSignInAgainThatWorksDropsWhatWasKnownOfTheAccountSoItIsAskedAgain() {
+    fun aSignInAgainThatWorksAsksWhereThePermissionsStandAtOnce() {
         val api = FakeApi()
         val rig = Rig(api)
+        rig.actions.onShown(listOf(ada))
         rig.controller.signInNeeded(7u)
+        assertTrue(rig.ui.statuses.values.all { it == PermissionStatus.SignInNeeded })
+        api.states[PermissionKind.Tasks] = PermissionStatus.Allowed
         rig.actions.onSignInAgain(ada)
         rig.actions.onSignIn()
         assertEquals(AddAccountState.Done(7u), rig.ui.add)
-        assertTrue(rig.ui.statuses.isEmpty())
-        // The page asks again when it is shown, and now says what the core says.
-        api.states[PermissionKind.Tasks] = PermissionStatus.Allowed
-        rig.actions.onShown(listOf(ada))
+        // The Accounts page stays on screen with the same list, so it asks nothing by itself: the
+        // sign-in asked, and no row is left at Checking or at the old word.
         assertEquals(PermissionStatus.Allowed, rig.ui.statuses[StatusKey(7u, PermissionKind.Tasks)])
+        assertEquals(PermissionStatus.NotAllowed, rig.ui.statuses[StatusKey(7u, PermissionKind.SharedMail)])
+        assertEquals(PermissionStatus.NotAllowed, rig.ui.statuses[StatusKey(7u, PermissionKind.SharedSend)])
+    }
+
+    @Test
+    fun aSignInAgainThatIsStillBeingCheckedShowsCheckingUntilTheCoreAnswers() {
+        val api = FakeApi().apply { statusGate = CompletableDeferred() }
+        val rig = Rig(api)
+        rig.actions.onSignInAgain(ada)
+        rig.actions.onSignIn()
+        assertTrue(rig.ui.statuses.values.all { it == PermissionStatus.Checking })
+        assertEquals(PermissionKind.entries.size, rig.ui.statuses.size)
+        api.statusGate?.complete(Unit)
+        assertTrue(rig.ui.statuses.values.none { it == PermissionStatus.Checking })
+    }
+
+    @Test
+    fun aNewSignInWaitsForTheOneTheOwnerLeftToBeOverBeforeItBegins() {
+        val first = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            signInGates.addAll(listOf(first, CompletableDeferred<Unit>().apply { complete(Unit) }))
+            signInResults.addAll(listOf(SignInResult.SignedIn(9u, "old@example.org", "Old"), SignInResult.SignedIn(7u, "ada@example.org", "Ada Example")))
+        }
+        val rig = Rig(api)
+        rig.actions.onEmail("old@example.org")
+        rig.actions.onSignIn()
+        // The owner leaves Add Account while Microsoft's page is open, comes back and signs in again.
+        rig.actions.onLeaveAdd()
+        rig.actions.onEmail("ada@example.org")
+        rig.actions.onSignIn()
+        // The first is called off and the second waits for it to be over: it hasn't begun.
+        assertEquals(1, api.cancelled)
+        assertEquals(listOf("old@example.org"), api.signIns)
+        assertEquals(AddAccountState.Waiting("ada@example.org"), rig.ui.add)
+        first.complete(Unit)
+        // Then it begins, and only its own answer is shown.
+        assertEquals(listOf("old@example.org", "ada@example.org"), api.signIns)
+        assertEquals(AddAccountState.Done(7u), rig.ui.add)
+    }
+
+    @Test
+    fun aRemovalThatEndsLateNeverTouchesAnotherAccountsConfirmation() {
+        val bob = AccountItem(8u, "Bob Example", "bob@example.org", emptyList())
+        val api = FakeApi().apply {
+            removeGate = CompletableDeferred()
+            removable = false
+        }
+        val rig = Rig(api)
+        rig.accounts = listOf(ada, bob)
+        rig.actions.onRemoveAsk(ada)
+        rig.actions.onRemove()
+        // Ada's removal waits; the owner dismisses it and asks about Bob.
+        rig.actions.onRemoveCancel()
+        rig.actions.onRemoveAsk(bob)
+        api.removeGate?.complete(Unit)
+        // Ada's failure neither replaces Bob's confirmation nor reopens Ada's.
+        assertEquals(bob, rig.ui.removing)
+        assertFalse(rig.ui.removeFailed)
+        // A removal that worked closes only its own confirmation.
+        api.removeGate = CompletableDeferred()
+        api.removable = true
+        rig.actions.onRemoveCancel()
+        rig.actions.onRemoveAsk(ada)
+        rig.actions.onRemove()
+        rig.actions.onRemoveCancel()
+        rig.actions.onRemoveAsk(bob)
+        api.removeGate?.complete(Unit)
+        assertEquals(bob, rig.ui.removing)
+        assertEquals(1, rig.changes)
+    }
+
+    @Test
+    fun aSecondTapOnRemoveWhileTheRemovalRunsRemovesOnce() {
+        val api = FakeApi().apply { removeGate = CompletableDeferred() }
+        val rig = Rig(api)
+        rig.actions.onRemoveAsk(ada)
+        rig.actions.onRemove()
+        rig.actions.onRemove()
+        api.removeGate?.complete(Unit)
+        assertEquals(listOf(7uL), api.removed)
+        assertNull(rig.ui.removing)
+        assertEquals(1, rig.changes)
     }
 
     @Test

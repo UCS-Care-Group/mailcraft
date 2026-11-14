@@ -178,9 +178,9 @@ class SignInHandbackTest {
         val dir = tmp.newFolder("r")
         val record = java.io.File(dir, "pending")
         val handback = SignInHandback(PendingSignIn(record))
-        handback.remember("ada@example.org")
+        val ticket = handback.begin("ada@example.org")!!
         assertTrue(record.exists())
-        handback.disarm()
+        handback.end(ticket)
         assertFalse(record.exists())
         PendingSignIn(record).save("ada@example.org")
         val later = PendingSignIn(record, now = { record.lastModified() + 11 * 60 * 1000L })
@@ -195,11 +195,48 @@ class SignInHandbackTest {
         val told = mutableListOf<String>()
         handback.sink = { true }
         handback.interrupted = { told.add(it) }
-        handback.remember("ada@example.org")
+        handback.begin("ada@example.org")
         handback.arm()
         assertTrue(handback.deliver(good))
         assertFalse(handback.deliver(good))
         assertTrue(told.isEmpty())
         assertTrue("still there for a later process death", record.exists())
+    }
+
+    @Test
+    fun aSecondSignInWhileOneIsUnderWayIsRefusedAndLeavesTheFirstWaiting() {
+        val record = java.io.File(tmp.newFolder("t"), "pending")
+        val got = mutableListOf<String>()
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.sink = { got.add(it) }
+        val first = handback.begin("ada@example.org")!!
+        handback.arm()
+        // A second sign-in, or a grant, finds the first under way and touches nothing.
+        assertNull(handback.begin("bob@example.org"))
+        assertNull(handback.begin())
+        assertEquals("ada@example.org", record.readText())
+        // The first's redirect still reaches the core.
+        assertTrue(handback.deliver(good))
+        handback.end(first)
+        assertEquals(1, got.size)
+    }
+
+    @Test
+    fun anOlderSignInsEndNeverDisarmsANewerOne() {
+        val record = java.io.File(tmp.newFolder("u"), "pending")
+        val got = mutableListOf<String>()
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.sink = { got.add(it) }
+        val a = handback.begin("ada@example.org")!!
+        handback.end(a)
+        val b = handback.begin("bob@example.org")!!
+        handback.arm()
+        // A's completion arrives late, after B armed: it changes nothing of B's.
+        handback.end(a)
+        assertTrue("B's record is kept", record.exists())
+        assertTrue("B's redirect is taken", handback.deliver(good))
+        assertEquals(1, got.size)
+        handback.end(b)
+        assertFalse(record.exists())
     }
 }
