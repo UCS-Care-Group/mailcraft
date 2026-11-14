@@ -48,6 +48,28 @@ pub fn certificates() -> Result<Vec<HeldCertificate>, KeyHolderError> {
     Ok(super::usable(found.into_iter().map(|(_, der)| der), now()))
 }
 
+/// The certificates in Current User › Intermediate Certification Authorities (`CA`) and
+/// Personal (`MY`), that a signer's chain may be made of ([`super::certificate::chain`]): within
+/// [`super::certificate::gather`]'s caps. A store that can't be read gives nothing.
+pub fn authorities() -> Vec<Vec<u8>> {
+    let mut pool = Vec::new();
+    for store in ["CA", "MY"] {
+        let Ok(query) = CertificateQuery::new() else { continue };
+        if query.SetStoreName(&HSTRING::from(store)).is_err() {
+            continue;
+        }
+        let Ok(found) = CertificateStores::FindAllWithQueryAsync(&query).and_then(|operation| operation.join()) else { continue };
+        for certificate in found.into_iter().take(MAX_SCANNED) {
+            let Ok(blob) = certificate.GetCertificateBlob() else { continue };
+            let Ok(der) = bytes(&blob) else { continue };
+            if !super::certificate::gather(&mut pool, der) {
+                return pool;
+            }
+        }
+    }
+    pool
+}
+
 /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`: the raw RSA
 /// signature, or DER `Ecdsa-Sig-Value` for ECDSA. The certificate must be for mail and in its
 /// dates.

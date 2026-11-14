@@ -306,6 +306,32 @@ pub(crate) fn held() -> Result<Vec<Held>, KeyHolderError> {
     Err(KeyHolderError::Unavailable("no certificate store is used on this system".into()))
 }
 
+/// The certificates a signer's chain is looked for among ([`key_holders::certificate::chain`]):
+/// the store's own. Windows: Current User's Intermediate Certification Authorities and Personal
+/// stores. macOS: the keychains the system searches. Linux and FreeBSD: every certificate on the
+/// PKCS#11 tokens; there is no system store of intermediate authorities there, so a token that
+/// holds only the owner's own certificate signs without its chain, and a recipient who doesn't
+/// have the issuer's certificate may not be able to check the signature.
+#[cfg(target_os = "windows")]
+fn authorities() -> Vec<Vec<u8>> {
+    key_holders::windows_store::authorities()
+}
+
+#[cfg(target_os = "macos")]
+fn authorities() -> Vec<Vec<u8>> {
+    key_holders::macos_keychain::authorities()
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn authorities() -> Vec<Vec<u8>> {
+    key_holders::pkcs11::open_default().map(|holder| holder.authorities()).unwrap_or_default()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd")))]
+fn authorities() -> Vec<Vec<u8>> {
+    Vec::new()
+}
+
 #[cfg(target_os = "windows")]
 fn sign_digest(_host: &Host, held: &Held, scheme: SignatureScheme, algorithm: DigestAlgorithm, digest: &[u8]) -> Result<Vec<u8>, KeyHolderError> {
     key_holders::windows_store::sign_digest(&held.certificate.fingerprint, scheme, algorithm, digest)
@@ -358,10 +384,13 @@ fn smime(host: &Host, entity: &[u8], key: &SigningKey, now: i64) -> Result<(Vec<
         return imported(key);
     };
     let (scheme, algorithm, cms_scheme, cms_digest) = smime_scheme(found.certificate.key).ok_or("its key isn't one that signs mail")?;
+    // The authorities between the certificate and its root go with it (RFC 8551 §2.4.1), so that
+    // a recipient who trusts only the root can check it.
+    let chain = key_holders::certificate::chain(&found.certificate.der, &authorities(), mailcraft_smime::MAX_CHAIN);
     let request = mailcraft_smime::SignRequest {
         content: entity,
         certificate: &found.certificate.der,
-        chain: &[],
+        chain: &chain,
         digest: cms_digest,
         scheme: cms_scheme,
         signing_time: now,
