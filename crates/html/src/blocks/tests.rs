@@ -477,6 +477,28 @@ fn nested_lists() {
 }
 
 #[test]
+fn every_block_inside_a_list_item_is_marked_as_part_of_it_whatever_it_looks_like() {
+    fn marks(blocks: &[Block], out: &mut Vec<(String, bool)>) {
+        for b in blocks {
+            match &b.kind {
+                BlockKind::Table(t) => {
+                    out.push(("table".to_string(), b.in_item));
+                    for cell in t.rows.iter().flat_map(|r| &r.cells) {
+                        marks(&cell.blocks, out);
+                    }
+                }
+                _ => out.push((b.text(), b.in_item)),
+            }
+        }
+    }
+    let html = "<p>before</p><ul><li>a<pre>b</pre><h2>c</h2><table><tr><td>d</td><td>e</td></tr></table></li></ul><p>after</p>";
+    let mut out = Vec::new();
+    marks(&parse(html), &mut out);
+    let read: Vec<(&str, bool)> = out.iter().map(|(text, item)| (text.as_str(), *item)).collect();
+    assert_eq!(read, [("before", false), ("a", true), ("b", true), ("c", true), ("table", true), ("d", true), ("e", true), ("after", false)]);
+}
+
+#[test]
 fn outlook_list_paragraphs_become_list_items() {
     // What Outlook writes for a bulleted and a numbered list: paragraphs with the marker as text.
     let bullet = "<p class=MsoListParagraph style='text-indent:-.25in;mso-list:l0 level1 lfo1'><![if !supportLists]>\
