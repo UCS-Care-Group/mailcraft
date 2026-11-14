@@ -110,3 +110,35 @@ fn another_outgoing_host_is_saved_with_what_the_tick_shows() {
     let (_, params) = wizard(&h).unwrap().edit_command().unwrap();
     assert_eq!(params["outgoingWithoutSignIn"], false);
 }
+
+#[test]
+fn the_page_says_the_connection_test_cannot_tell_whether_the_relay_wants_a_sign_in() {
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let (mut h, _) = settings_for(incoming, Some(relay));
+    h.run();
+    let hint = "The connection test only checks that this server answers";
+    // Only where the tick is set: otherwise the test signs in, and there is nothing to add.
+    assert!(!says(&h, hint));
+    h.get_by_label("My outgoing server needs no sign-in").click();
+    h.run();
+    assert!(says(&h, hint));
+    wizard_mut(&mut h).outgoing_without_sign_in = false;
+    h.run();
+    assert!(!says(&h, hint));
+}
+
+#[test]
+fn the_tick_takes_the_keyboard_like_the_fields_around_it() {
+    let incoming = Server { host: "imap.lumen.example".into(), port: 0, security: Security::Tls };
+    let relay = Server { host: "relay.lumen.example".into(), port: 25, security: Security::StartTls };
+    let (mut h, _) = settings_for(incoming, Some(relay));
+    h.run();
+    let tick = "My outgoing server needs no sign-in";
+    h.get_by_label(tick).focus();
+    h.run_steps(2);
+    // Enter on the focused tick is the tick's (it is not taken for OK), and the page stays.
+    press(&mut h, Key::Enter);
+    assert!(wizard(&h).is_some_and(|w| w.outgoing_without_sign_in), "Enter toggles the focused tick");
+    assert!(wizard(&h).is_some(), "the settings stay open");
+}

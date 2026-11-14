@@ -1712,13 +1712,25 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 email => email,
             };
             if id == "account.edit" {
-                let moved = crate::cmd::account::edited(account, params)
-                    .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(&new)))
+                let new = crate::cmd::account::edited(account, params);
+                let moved = new
+                    .as_ref()
+                    .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(new)))
                     .filter(|(was, now)| was != now);
-                return match moved {
+                let mut text = match moved {
                     Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
                     None => format!("change the account {a}"),
                 };
+                // The tick of a relay that takes mail without a sign-in (#836) is named: it decides
+                // whether the password is shown to the outgoing server.
+                match new.map(|new| new.outgoing_without_sign_in) {
+                    Some(true) if !account.outgoing_without_sign_in => {
+                        text.push_str("; the outgoing server needs no sign-in (the password is never sent to it)");
+                    }
+                    Some(false) if account.outgoing_without_sign_in => text.push_str("; MailCraft signs in to the outgoing server again"),
+                    _ => {}
+                }
+                return text;
             }
             // The only account leaves an empty mailbox, as at a first start (#313); the shared
             // mailboxes opened through it go with it. The placeholder of an empty mailbox isn't

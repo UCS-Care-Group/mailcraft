@@ -190,13 +190,13 @@ mod original_tests;
 #[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]
-mod plain_servers_tests;
-#[cfg(test)]
 mod pop_tests;
 #[cfg(test)]
 mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
+#[cfg(test)]
+mod relay_without_sign_in_tests;
 #[cfg(test)]
 mod rule_tests;
 #[cfg(test)]

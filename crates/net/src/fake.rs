@@ -422,6 +422,9 @@ pub(crate) struct SmtpWorld {
     pub(crate) offer_starttls: bool,
     /// Recipients to answer 550 for.
     pub(crate) refuse: Vec<String>,
+    /// With `auth` and `auth_optional`: take MAIL FROM, then refuse every recipient of a connection that hasn't
+    /// signed in as a relay does ("Relay access denied").
+    pub(crate) deny_relay: bool,
     pub(crate) delivered: Vec<Delivery>,
     /// Every line received (not the messages).
     pub(crate) log: Vec<String>,
@@ -1153,7 +1156,9 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
             }
         } else if upper.starts_with("RCPT TO:") {
             let address = path(&line);
-            if world.refuse.contains(&address) {
+            if world.deny_relay && !signed_in {
+                "554 5.7.1 <Relay access denied>".to_string()
+            } else if world.refuse.contains(&address) {
                 "550 5.1.1 no such user".to_string()
             } else {
                 recipients.push(address);

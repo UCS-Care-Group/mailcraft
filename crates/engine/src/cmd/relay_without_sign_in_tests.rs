@@ -70,3 +70,26 @@ fn a_relay_tick_goes_with_the_outgoing_host_it_was_set_for() {
     s.run("account.edit", &json!({"id": id, "outgoing": {"host": "other.relay.example"}, "outgoingWithoutSignIn": true})).unwrap();
     assert!(reloaded(&s, id).outgoing_without_sign_in);
 }
+
+#[test]
+fn the_question_for_an_agents_account_edit_names_the_tick() {
+    let mut s = session();
+    let relay = json!({"email": "ada@relay.example", "incoming": {"host": "imap.relay.example"},
+        "outgoing": {"host": "relay.example.org", "port": 25, "security": "starttls"}});
+    let id = s.run("account.add", &relay).unwrap()["id"].as_u64().unwrap();
+    let ask = |s: &Session, params: Value| crate::agent::describe(s, "account.edit", &params);
+    let set = ask(&s, json!({"id": id, "outgoingWithoutSignIn": true}));
+    assert!(set.contains("the outgoing server needs no sign-in"), "{set}");
+    // Said once, and what it means for the password.
+    assert!(set.contains("never sent"), "{set}");
+    // Already set, nothing changes: nothing to name.
+    s.run("account.edit", &json!({"id": id, "outgoingWithoutSignIn": true})).unwrap();
+    assert!(!ask(&s, json!({"id": id, "outgoingWithoutSignIn": true})).contains("sign-in"));
+    assert!(!ask(&s, json!({"id": id, "displayName": "Ada"})).contains("sign-in"));
+    // Taken off again.
+    let off = ask(&s, json!({"id": id, "outgoingWithoutSignIn": false}));
+    assert!(off.contains("signs in to the outgoing server again"), "{off}");
+    // Another host clears it, and the question says so.
+    let moved = ask(&s, json!({"id": id, "outgoing": {"host": "smtp.other.example"}}));
+    assert!(moved.contains("signs in to the outgoing server again") && moved.contains("smtp.other.example"), "{moved}");
+}

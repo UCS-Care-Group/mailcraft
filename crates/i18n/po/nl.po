@@ -13729,6 +13729,12 @@ msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit d
 msgid "The colour is set in Outlook"
 msgstr "De kleur wordt in Outlook ingesteld"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "De verbindingstest controleert alleen of deze server antwoordt. Vraagt hij toch om inloggen, dan zegt het eerste bericht dat u verstuurt dat."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

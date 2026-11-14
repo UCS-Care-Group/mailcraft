@@ -13818,6 +13818,11 @@ msgstr "该证书不是由该计算机信任的证书颁发机构颁发的。"
 msgid "The colour is set in Outlook"
 msgstr "颜色是在 Outlook 中设置的"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

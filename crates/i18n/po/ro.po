@@ -13871,6 +13871,11 @@ msgstr "Certificatul nu a fost emis de o autoritate de certificare în care are 
 msgid "The colour is set in Outlook"
 msgstr "Culoarea se setează în Outlook"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

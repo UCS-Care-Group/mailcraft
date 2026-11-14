@@ -121,13 +121,29 @@ pub(crate) fn dated(message: &Message) -> Cow<'_, Message> {
     if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) }
 }
 
-/// Whether the server's words are a 530 that asks for a sign-in (and not for STARTTLS, which a 530 says too).
+/// Whether the server's words ask for a sign-in: a 530, or an enhanced status code of class 7
+/// ("security or policy", `5.7.x`; `4.7.x` for a refusal that may be tried again), which is how a relay
+/// refuses at MAIL or at RCPT ("554 5.7.1 Relay access denied", the address in front of it).
+/// Not when it asks for STARTTLS, which a 530 says too.
 fn wants_sign_in(said: &str) -> bool {
-    said.starts_with("530") && !said.to_ascii_lowercase().contains("starttls")
+    if said.to_ascii_lowercase().contains("starttls") {
+        return false;
+    }
+    said.split_whitespace().any(|word| word == "530" || is_security_status(word))
 }
 
-/// What a relay that was told "no sign-in" says when it turns out to want one (530, "authentication
-/// required"): what the server said, with a hint to untick the choice (#836). Anything else is
+/// `4.7.1`, `5.7.0`, `5.7.26`: an enhanced status code (RFC 3463) of class 7.
+fn is_security_status(word: &str) -> bool {
+    let mut parts = word.split('.');
+    let (class, subject, detail) = (parts.next(), parts.next(), parts.next());
+    matches!(class, Some("4" | "5"))
+        && subject == Some("7")
+        && detail.is_some_and(|d| (1..=3).contains(&d.len()) && d.bytes().all(|b| b.is_ascii_digit()))
+        && parts.next().is_none()
+}
+
+/// What a relay that was told "no sign-in" says when it turns out to want one (530, or 5.7.x:
+/// "authentication required", "relay access denied"): what the server said, with a hint to untick the choice (#836). Anything else is
 /// left as it is.
 pub(crate) fn relay_hint(account: &Account, e: NetError) -> NetError {
     match e {

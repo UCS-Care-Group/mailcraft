@@ -2590,8 +2590,19 @@ impl AccountSetup {
         // A relay that takes mail without a sign-in (#836). A token always goes, so an account
         // that signs in on the provider's page has no such choice.
         if self.oauth.is_none() && !self.outgoing.host.trim().is_empty() {
-            ui.checkbox(&mut self.outgoing_without_sign_in, tl!("My outgoing server needs no sign-in"))
+            let tick = ui
+                .checkbox(&mut self.outgoing_without_sign_in, tl!("My outgoing server needs no sign-in"))
                 .on_hover_text(tl!("For a relay that takes mail without a password: it is never sent yours."));
+            // Registered like the fields around it, for the keyboard (focus, Enter).
+            pass.field(&tick);
+            if self.outgoing_without_sign_in {
+                // The test only asks the server to answer: a server that does want a sign-in is found out by the first message.
+                note(
+                    ui,
+                    tl!("The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."),
+                    pass.t.text_dim,
+                );
+            }
         }
     }
 }
@@ -2877,7 +2888,7 @@ mod tests {
     /// Explicit confirmation of personal Outlook.com custom-domain aliases.
     mod legacy_alias;
     /// An outgoing server that needs no sign-in (#836).
-    mod plain_servers;
+    mod relay_without_sign_in;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).

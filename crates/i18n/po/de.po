@@ -13055,6 +13055,12 @@ msgstr ""
 msgid "The colour is set in Outlook"
 msgstr "Die Farbe wird in Outlook festgelegt"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
+msgstr "Der Verbindungstest prüft nur, ob dieser Server antwortet. Verlangt er doch eine Anmeldung, sagt es Ihnen die erste gesendete Nachricht."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "The contact {id} chosen for a field is not one of those merged."
