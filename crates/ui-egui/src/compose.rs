@@ -34,9 +34,11 @@ fn field(ui: &mut Ui, label: &str, text: &str, label_width: f32) -> Option<Strin
 fn line(ui: &mut Ui, label: &str, label_width: f32, right: f32) -> Rect {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-    ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, label, regular(12.0), t.text_dim);
+    let end = r.max.x - 12.0 - right;
+    let start = (r.min.x + 16.0 + label_width).min(end);
+    paint_clipped(ui.painter(), pos2(r.min.x + 16.0, r.center().y), (start - r.min.x - 24.0).max(0.0), label, regular(12.0), t.text_dim);
     ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
-    Rect::from_min_max(pos2(r.min.x + 16.0 + label_width, r.min.y + 3.0), pos2(r.max.x - 12.0 - right, r.max.y - 3.0))
+    Rect::from_min_max(pos2(start, r.min.y + 3.0), pos2(end, r.max.y - 3.0))
 }
 
 /// The text of a labelled line, `width` wide.
@@ -142,7 +144,8 @@ fn bcc_link(app: &MailApp) -> bool {
 
 /// The Bcc link's hit area, including room on either side of its translated label.
 fn bcc_width(ui: &Ui) -> f32 {
-    (ui.painter().layout_no_wrap(tl!("Bcc").to_owned(), regular(11.5), egui::Color32::PLACEHOLDER).size().x + 12.0).max(40.0)
+    let text = ui.painter().layout_no_wrap(tl!("Bcc").to_owned(), regular(11.5), egui::Color32::PLACEHOLDER).size().x;
+    (text + 12.0).max(40.0).min(((ui.available_width() - 28.0) / 2.0).max(0.0))
 }
 
 /// A recipient line, with the recipient suggestions under it ([`recipient_line`]).
@@ -405,16 +408,22 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
     let t = Tokens::get(ui.ctx());
     let top = ui.cursor().min.y;
     let [from, to, cc, bcc, reply_to, subject] = [tl!("From"), tl!("To"), tl!("Cc"), tl!("Bcc"), tl!("Reply to"), tl!("Subject")];
+    let bcc_width = bcc_width(ui);
+    let reserved = if bcc_link(app) { bcc_width + 4.0 } else { 0.0 };
+    // In a narrow pane the translated labels yield space to the address fields.
+    let label_limit = ((ui.available_width() - 28.0 - reserved) / 2.0).max(0.0);
     let label_width = [from, to, cc, bcc, reply_to, subject]
         .into_iter()
         .map(|label| ui.painter().layout_no_wrap(label.to_owned(), regular(12.0), t.text_dim).size().x + 8.0)
-        .fold(MIN_LABEL_WIDTH, f32::max);
+        .fold(MIN_LABEL_WIDTH, f32::max)
+        .min(label_limit);
     // From, when there is a choice.
     if app.session.mailbox.accounts.len() > 1 {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-        ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, from, regular(12.0), t.text_dim);
+        paint_clipped(ui.painter(), pos2(r.min.x + 16.0, r.center().y), (label_width - 8.0).max(0.0), from, regular(12.0), t.text_dim);
         let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
-        let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + label_width, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
+        let end = r.max.x - 12.0;
+        let pick = Rect::from_min_max(pos2((r.min.x + 16.0 + label_width).min(end), r.min.y + 4.0), pos2(end, r.max.y - 4.0));
         let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
@@ -448,13 +457,13 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
     if bcc_link(app) {
         // A quiet way to get the Bcc line.
         let last = ui.min_rect();
-        let width = bcc_width(ui);
         let br = Rect::from_min_size(
-            pos2(last.max.x - 12.0 - width, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }),
-            vec2(width, 22.0),
+            pos2(last.max.x - 12.0 - bcc_width, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }),
+            vec2(bcc_width, 22.0),
         );
         let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
-        ui.painter().text(br.center(), Align2::CENTER_CENTER, bcc, regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
+        let color = if resp.hovered() { t.accent_text } else { t.text_dim };
+        ui.painter().with_clip_rect(br).text(br.center(), Align2::CENTER_CENTER, bcc, regular(11.5), color);
         if resp.clicked()
             && let Some(id) = app.session.compose_id()
         {
