@@ -412,6 +412,13 @@ pub struct Message {
     /// stopped mid-send.
     #[serde(skip_serializing_if = "is_false")]
     pub sending: bool,
+    /// A Microsoft account's draft sent here as the draft its server has (#1160): kept in Sent
+    /// Items under that server id while the server may still list it in Drafts, a draft, for a
+    /// while. No move into Sent Items goes up for it (Exchange files it there itself), and a
+    /// listing of it as a draft outside Sent Items is not followed. Cleared once the server says
+    /// it is gone from a folder other than Sent Items. False for every other message.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_here: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.

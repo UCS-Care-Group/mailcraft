@@ -45,12 +45,17 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     let now = s.now();
     // What waits in the Outbox is sent, not moved (R3.4.2).
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    let sent_items = mb.folder_of_kind(account, FolderKind::Sent);
     for m in mb.messages.values().filter(|m| m.account == account && Some(m.folder) != outbox) {
         let Some(server) = m.server.as_ref().filter(|server| !server.gone && !server.id.is_empty()) else { continue };
         if let Some(update) = update_of(m, server, today, now) {
             note(&|| Some(update.clone()));
         }
-        if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder) {
+        // A draft sent here as the server's draft is in Sent Items here at once, and Exchange
+        // files it there itself: moved meanwhile, it would be refused while it is being sent and
+        // put back into Drafts here (#1160).
+        let filed_by_server = m.sent_here && Some(m.folder) == sent_items;
+        if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder && !filed_by_server) {
             note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }
     }

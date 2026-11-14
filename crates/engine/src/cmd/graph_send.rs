@@ -137,11 +137,13 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
             // Sent Items under the same id, but the delta may list it in Drafts, a draft, a while
             // longer. Kept here as the message sent, in Sent Items, under that id, it is that
             // message when it is listed: never a new [Draft] that looks unsent (#1160). Moved here,
-            // it doesn't follow the server into Drafts, and follows it nowhere else.
+            // it doesn't follow the server into Drafts, and follows it nowhere else; marked so, no
+            // move into Sent Items goes up for it while the server still has it in Drafts.
             if let Some(sent_items) = sent_as_draft(mb, account, done.message)
                 && let Ok(m) = mb.message_mut(done.message)
             {
                 (m.folder, m.draft, m.server_draft, m.held, m.sending) = (sent_items, false, None, String::new(), false);
+                m.sent_here = true;
                 return true;
             }
             mb.forget_message(done.message).is_ok() || changed

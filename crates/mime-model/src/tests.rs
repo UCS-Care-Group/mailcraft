@@ -553,6 +553,7 @@ fn message() -> impl Strategy<Value = Message> {
             server_draft: None,
             held: String::new(),
             sending: false,
+            sent_here: false,
             answers: None,
             kept: None,
             original: None,
