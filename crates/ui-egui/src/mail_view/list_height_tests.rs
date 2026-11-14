@@ -3,7 +3,9 @@
 //! The message list's height with the reading pane at the bottom (#1372): kept as the owner
 //! dragged the splitter under it, and only then, through the saved settings to the next start.
 
+use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, Pos2, Vec2};
+use egui_kittest::kittest::Queryable as _;
 use mailcraft_engine::Session;
 use serde_json::json;
 
@@ -147,4 +149,35 @@ fn a_slow_drag_of_half_a_point_a_frame_is_kept() {
     let shown = list(&harness).height();
     assert!((shown - (start + 20.0)).abs() < 2.0, "{start} {shown}");
     assert!((harness.state().ui.list_height - shown).abs() < 0.5, "{} {shown}", harness.state().ui.list_height);
+}
+
+/// A screen reader's Increment on the splitter under the list (a horizontal one, at the list's
+/// foot; the folder pane's runs up and down).
+fn increment_splitter(harness: &mut Window) {
+    let foot = list(harness).max.y;
+    {
+        let nodes: Vec<_> = harness.get_all_by_role(Role::Splitter).collect();
+        let node = nodes
+            .iter()
+            .find(|n| {
+                let r = n.rect();
+                r.width() > r.height() && (r.center().y - foot).abs() < 8.0
+            })
+            .unwrap_or_else(|| panic!("no splitter under the list"));
+        node.increment_accesskit();
+    }
+    harness.run_steps(3);
+}
+
+#[test]
+fn a_resize_through_assistive_technology_is_saved_and_comes_back() {
+    let mut harness = window(900.0, None);
+    let start = list(&harness).height();
+    increment_splitter(&mut harness);
+    let shown = list(&harness).height();
+    assert!(shown > start + 1.0, "{start} {shown}");
+    assert!((harness.state().ui.list_height - shown).abs() < 0.5, "{} {shown}", harness.state().ui.list_height);
+
+    let again = window(900.0, Some(&saved(&harness)));
+    assert!((list(&again).height() - shown).abs() < 0.5, "{:?} {shown}", list(&again));
 }

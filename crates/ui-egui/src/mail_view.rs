@@ -143,9 +143,11 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .frame(frame)
             .show(ui, |ui| list(app, ui));
         app.hit.add("messageList", 0, shown.response.rect);
-        // Only the owner's drag of the splitter, its last frame included, changes the height kept: a
-        // window too short for it lays the list out shorter, and that isn't kept (#1372).
-        if ui.ctx().read_response(splitter).is_some_and(|r| r.dragged() || r.drag_stopped()) {
+        // Only the owner's resize of the splitter changes the height kept, by a drag (its last frame
+        // included) or through assistive technology: a window too short for it lays the list out
+        // shorter, and that isn't kept (#1372).
+        let dragged = ui.ctx().read_response(splitter).is_some_and(|r| r.dragged() || r.drag_stopped());
+        if dragged || splitter_asked(ui, splitter) {
             app.ui.list_height = shown.response.rect.height();
         }
     } else {
@@ -175,6 +177,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("mail.editDraft", json!({}));
         }
     }
+}
+
+/// Whether assistive technology asked the splitter `id` this frame to move (AccessKit's Increment,
+/// Decrement or SetValue, which egui's panel answers by resizing).
+fn splitter_asked(ui: &Ui, id: egui::Id) -> bool {
+    use egui::accesskit::Action;
+    ui.input(|i| [Action::Increment, Action::Decrement, Action::SetValue].into_iter().any(|a| i.has_accesskit_action_request(id, a)))
 }
 
 /// A row and the line under it: 72 with one line of preview (15 clear above the sender's
