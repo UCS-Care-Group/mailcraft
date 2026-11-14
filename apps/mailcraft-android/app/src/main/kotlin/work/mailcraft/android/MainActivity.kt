@@ -19,6 +19,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -33,6 +34,7 @@ import androidx.core.content.ContextCompat
 import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.flow.MutableStateFlow
 import uniffi.mailcraft_mobile.Core
 
 /**
@@ -44,15 +46,24 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
-        val started = application?.started ?: Started.Failed
-        if (started is Started.Ready) {
-            // The language in use is the owner's choice when there is one, else the system's; the
-            // window is built again when it changes, so the words are read afresh.
-            started.core.setLanguage(LanguageChoice.inUse(resources.configuration.locales))
-            createChannels(applicationContext, channelSpecs(started.core::t))
-        }
+        application?.begin()
+        val starting = application?.started ?: MutableStateFlow(Phase.Failed)
         val version = getString(R.string.app_version)
         setContent {
+            // What the window shows: the core's phase, passed on once a ready core has this window's
+            // language (the core opens off the main thread; until then the window says it is opening).
+            var started by remember { mutableStateOf<Started>(Phase.Loading) }
+            LaunchedEffect(starting) {
+                starting.collect { phase ->
+                    if (phase is Phase.Ready) {
+                        // The language in use is the owner's choice when there is one, else the system's;
+                        // the window is built again when it changes, so the words are read afresh.
+                        phase.value.core.setLanguage(LanguageChoice.inUse(resources.configuration.locales))
+                        createChannels(applicationContext, channelSpecs(phase.value.core::t))
+                    }
+                    started = phase
+                }
+            }
             MailCraftTheme {
                 DeviceDateSettings {
                     Surface(modifier = Modifier.fillMaxSize()) {
@@ -71,9 +82,16 @@ class MainActivity : AppCompatActivity() {
 @Composable
 internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, started.hub, version, chosenLanguage, onLanguage)
-        Started.Failed -> Centered(stringResource(R.string.start_failed))
+        is Phase.Ready -> CoreShell(started.value.core, started.value.hub, version, chosenLanguage, onLanguage)
+        Phase.Loading -> Opening()
+        Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
+}
+
+/** The window while the core opens the mailbox, before any of its words can be asked for. */
+@Composable
+internal fun Opening() {
+    Centered(stringResource(R.string.starting))
 }
 
 /** What reading the mailbox's outline came to; [outline] is null when it could not be read. */

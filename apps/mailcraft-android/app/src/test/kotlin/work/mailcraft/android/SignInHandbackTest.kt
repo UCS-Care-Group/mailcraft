@@ -165,6 +165,21 @@ class SignInHandbackTest {
     }
 
     @Test
+    fun aLostSignInsRedirectThatComesBeforeTheCoreIsOpenIsToldOnceItIs() {
+        val record = java.io.File(tmp.newFolder("early"), "pending")
+        PendingSignIn(record).save("ada@example.org")
+        val handback = SignInHandback(PendingSignIn(record))
+        // The core is still opening: nobody is set to be told yet.
+        assertFalse(handback.deliver(good))
+        val told = mutableListOf<String>()
+        handback.interrupted = { told.add(it) }
+        assertEquals(listOf("ada@example.org"), told)
+        // Only once, also when it is set again.
+        handback.interrupted = { told.add(it) }
+        assertEquals(1, told.size)
+    }
+
+    @Test
     fun aStrangersAddressWithNoSignInUnderWayTellsNothing() {
         val handback = SignInHandback(PendingSignIn(java.io.File(tmp.newFolder("q"), "pending")))
         val told = mutableListOf<String>()

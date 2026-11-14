@@ -60,12 +60,30 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
     @Volatile
     var sink: (String) -> Boolean = { false }
 
+    /** A lost sign-in's address that arrived before anybody was set to be told it (guarded by [lock]). */
+    private var untold: String? = null
+
     /**
      * Told the address of a sign-in that was under way when the system closed the app, once, when
-     * its redirect arrives to a process that knows nothing of it.
+     * its redirect arrives to a process that knows nothing of it. The core opens off the main thread,
+     * so the redirect may come first: what came is kept and told as soon as this is set.
      */
-    @Volatile
-    var interrupted: (String) -> Unit = {}
+    var interrupted: ((String) -> Unit)? = null
+        set(value) {
+            val waiting = synchronized(lock) {
+                field = value
+                if (value == null) null else untold.also { untold = null }
+            }
+            if (value != null && waiting != null) value(waiting)
+        }
+
+    /** Tells [interrupted] of a lost sign-in, or keeps it for when that is set. */
+    private fun tellInterrupted(address: String) {
+        val told = synchronized(lock) {
+            interrupted.also { if (it == null) untold = address }
+        }
+        told?.invoke(address)
+    }
 
     /**
      * A sign-in (for [email]: should the app be closed meanwhile, the next start knows) or a grant
@@ -112,7 +130,7 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
             // address finds no such record and costs nothing.)
             // (Not while this process's own sign-in is still under way, e.g. past its first redirect:
             // its record stays for a later process death.)
-            if (!live.get()) pending?.take()?.let(interrupted)
+            if (!live.get()) pending?.take()?.let(::tellInterrupted)
             return false
         }
         return sink(accepted)

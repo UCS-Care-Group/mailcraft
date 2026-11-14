@@ -9,16 +9,16 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
-/** What starting the Rust core came to: the core, or why there is none. */
-internal sealed interface Started {
-    class Ready(val core: Core, val hub: AccountsHub) : Started
+/** The Rust core and what the app built on it, once both are ready. */
+internal class Opened(val core: Core, val hub: AccountsHub)
 
-    data object Failed : Started
-}
+/** What starting the Rust core has come to: under way, the core, or why there is none. */
+internal typealias Started = Phase<Opened>
 
 /** Holds the one [Core] for the life of the process. */
 class MailCraftApplication : Application() {
@@ -32,7 +32,11 @@ class MailCraftApplication : Application() {
     /** The one reader of the core's events (a window never reads them itself). */
     private val events = EventDispatcher()
 
-    internal val started: Started by lazy { start() }
+    /** Opening the core: off the main thread, and nothing touches the core before it is ready. */
+    private val startup = Startup<Opened>(scope)
+
+    /** Where starting the core stands; [begin] it first. */
+    internal val started: StateFlow<Started> get() = startup.state
 
     override fun onCreate() {
         super.onCreate()
@@ -55,18 +59,26 @@ class MailCraftApplication : Application() {
         runCatching { OpenedFiles(this).clearOld() }
     }
 
-    /** The mailbox is written when no window is on screen: the system may end the process after it. */
+    /** Starts the core, the first time a window asks; later calls change nothing. */
+    internal fun begin() {
+        startup.begin(::open, ::wire)
+    }
+
+    /**
+     * The mailbox is written when no window is on screen: the system may end the process after it.
+     * (A core still opening has nothing of the owner's to write yet.)
+     */
     internal fun saveNow() {
-        val ready = (started as? Started.Ready) ?: return
+        val ready = startup.readyOrNull() ?: return
         // (A failure is shown and tried again; the core says so itself too, with a SaveFailed event.)
         scope.launch { ready.hub.saveNow() }
     }
 
     // Setting up the system's certificate check and opening the core can each fail without
     // being a bug in the app (the library did not load, the platform refused), so a failure is
-    // an answer for the screen to show and never a crash.
+    // an answer for the screen to show and never a crash. Runs on a background thread.
     @Suppress("TooGenericExceptionCaught")
-    private fun start(): Started =
+    private fun open(): Opened? =
         try {
             Bridge.initVerifier(applicationContext)
             // The core keeps the mailbox itself: opened from here (a phone that has one keeps it),
@@ -77,8 +89,6 @@ class MailCraftApplication : Application() {
                 File(noBackupFilesDir, "mailbox").path,
             )
             createChannels(applicationContext, channelSpecs(core::t))
-            // The address the sign-in's page comes back to goes to the core as it is.
-            handback.sink = core::handBackRedirect
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
@@ -86,16 +96,27 @@ class MailCraftApplication : Application() {
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
             )
-            handback.interrupted = hub.controller::signInInterrupted
-            events.register(hub::handle)
-            events.launchIn(scope) { nextEvent(core) }
-            Started.Ready(core, hub)
+            Opened(core, hub)
         } catch (_: CoreException) {
-            Started.Failed
+            null
         } catch (_: LinkageError) {
-            Started.Failed
+            null
         } catch (_: RuntimeException) {
-            Started.Failed
+            null
+        }
+
+    /** Wires the core that was opened to the rest of the app, on the main thread, before anything else sees it. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun wire(opened: Opened): Boolean =
+        try {
+            // The address the sign-in's page comes back to goes to the core as it is.
+            handback.sink = opened.core::handBackRedirect
+            handback.interrupted = opened.hub.controller::signInInterrupted
+            events.register(opened.hub::handle)
+            events.launchIn(scope) { nextEvent(opened.core) }
+            true
+        } catch (_: RuntimeException) {
+            false
         }
 }
 
