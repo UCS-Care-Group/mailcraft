@@ -218,7 +218,7 @@ fn export_takes_every_contact_whatever_the_list_shows() {
     run(&mut s, "view.peopleAccount", json!({"value": work}));
     assert_eq!(sorted(&s, "").len(), 1);
     assert_eq!(run(&mut s, "file.exportContacts", json!({}))["contacts"], every);
-    assert_eq!(sorted_of(&s, "", AccountChoice::All).len(), every);
+    assert_eq!(sorted_of(&s, "", &super::Shown::of(AccountChoice::All)).len(), every);
 }
 
 #[test]

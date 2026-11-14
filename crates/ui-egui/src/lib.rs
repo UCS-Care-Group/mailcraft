@@ -2125,6 +2125,11 @@ impl MailApp {
         let mailbox = &self.session.mailbox;
         v.task_account = restored_choice(mailbox, saved.task_account, &self.ui.task_account_address);
         v.people_account = restored_choice(mailbox, saved.people_account, &self.ui.people_account_address);
+        // One address book of that account, while it is the same account (#1275); a book the
+        // server no longer lists is simply not found, and the list shows all of the account's.
+        if matches!(v.people_account, mailcraft_model::AccountChoice::Account(_)) && v.people_account == saved.people_account {
+            v.people_book = saved.people_book.chars().take(1024).collect();
+        }
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);

@@ -197,3 +197,63 @@ fn the_contact_picker_lists_every_account_whatever_people_shows() {
     assert_eq!(rows(w.state(), PickKind::Contact, "").len(), every);
     assert!(rows(w.state(), PickKind::Contact, "wren").iter().any(|row| row.0 == id));
 }
+
+/// An account with two address books, one read-only (#1275): People offers them under the
+/// account, and picking one lists only its contacts.
+#[test]
+fn one_address_book_of_an_account_is_picked_under_it() {
+    use mailcraft_model::Rights;
+    use mailcraft_model::remote::RemoteAddressBook;
+    let mut w = testing::window("view.people");
+    let work = add(&mut w, "work@example.org");
+    let own = RemoteAddressBook { id: "own".into(), name: "Contacts".into(), rights: Rights::Edit };
+    let external = RemoteAddressBook { id: "pf-external".into(), name: "External contacts".into(), rights: Rights::Read };
+    let contact = |id: &str, name: &str, book: &RemoteAddressBook| RemoteContact {
+        id: id.into(),
+        display_name: name.into(),
+        book: book.name.clone(),
+        book_id: book.id.clone(),
+        ..Default::default()
+    };
+    let download = ContactsDownload {
+        account: work,
+        email: "work@example.org".into(),
+        complete: true,
+        books: vec![own.clone(), external.clone()],
+        contacts: vec![contact("w1", "Wren Own", &own), contact("w2", "Pell External", &external)],
+    };
+    mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
+    // Every account's contacts: one list to choose from, the accounts'.
+    show(&mut w, json!("all"));
+    assert_eq!(w.get_all_by_role(Role::ComboBox).count(), 1);
+    show(&mut w, json!(work));
+    let combos: Vec<_> = w.get_all_by_role(Role::ComboBox).collect();
+    assert_eq!(combos.len(), 2, "the account's books under it");
+    combos[1].click();
+    w.run_steps(3);
+    w.get_by_label("External contacts (read-only)").click();
+    w.run_steps(3);
+    assert_eq!(w.state().session.view.people_book, "pf-external");
+    let ctx = w.state().ctx.clone().unwrap();
+    let one = list_layout(w.state(), &ctx);
+    assert_eq!((one.total, listed(&one.layout)), (1, 1));
+    let pell = w.state().session.mailbox.contacts.values().find(|c| c.display_name == "Pell External").unwrap().id;
+    assert_eq!(people::sorted(&w.state().session, ""), [pell]);
+    // All address books again.
+    w.get_all_by_role(Role::ComboBox).nth(1).unwrap().click();
+    w.run_steps(3);
+    w.get_by_label("All address books").click();
+    w.run_steps(3);
+    assert_eq!(w.state().session.view.people_book, "");
+    assert_eq!(list_layout(w.state(), &ctx).total, 2);
+}
+
+/// One address book is no choice: the list shows no second drop-down for it.
+#[test]
+fn an_account_with_one_address_book_offers_no_choice_of_books() {
+    let mut w = testing::window("view.people");
+    let work = add(&mut w, "work@example.org");
+    from_server(&mut w, work, "work@example.org", "Wren Work");
+    show(&mut w, json!(work));
+    assert_eq!(w.get_all_by_role(Role::ComboBox).count(), 1);
+}

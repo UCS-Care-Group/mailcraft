@@ -908,6 +908,11 @@ msgid "Address Book"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Address book unavailable"
 msgstr ""
@@ -982,6 +987,11 @@ msgstr "Alle postvakken"
 #, fuzzy
 msgid "All accounts"
 msgstr "Alle accounts"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "All address books"
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -11792,6 +11802,11 @@ msgstr ""
 "Training\n"
 "weergeven"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Address Book"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -19439,6 +19454,11 @@ msgstr "{address}: {error}. Zie Bestand › Info."
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}: meer manieren om te antwoorden"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{book} (read-only)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

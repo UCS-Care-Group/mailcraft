@@ -50,8 +50,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 /// command) ends the pick.
 pub(crate) fn keep_picked(app: &mut MailApp) {
     let contacts = &app.session.mailbox.contacts;
-    let shown = people::shown_account(&app.session);
-    app.people_picked.retain(|id| contacts.get(id).is_some_and(|c| shown.shows(&c.origin)));
+    let shown = people::shown(&app.session);
+    app.people_picked.retain(|id| contacts.get(id).is_some_and(|c| shown.shows(c)));
     if app.people_picked.len() < 2 || app.session.sel.contact.is_none_or(|c| !app.people_picked.contains(&c)) {
         app.people_picked.clear();
     }
@@ -331,7 +331,7 @@ impl std::ops::Deref for PeopleList {
 /// The layout kept between frames, with what it was made from.
 #[derive(Clone)]
 struct CachedLayout {
-    key: (u64, usize, String, PeopleSort, AccountChoice),
+    key: (u64, usize, String, PeopleSort, people::Shown),
     list: Arc<PeopleList>,
 }
 
@@ -341,8 +341,8 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
     let slot = egui::Id::unique("people_list_layout");
     let s = &app.session;
     let query = &s.view.people_search;
-    let shown = people::shown_account(s);
-    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown);
+    let shown = people::shown(s);
+    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown.clone());
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
         return cached.list;
     }
@@ -359,7 +359,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }
     };
-    let total = s.mailbox.contacts.values().filter(|c| shown.shows(&c.origin)).count();
+    let total = s.mailbox.contacts.values().filter(|c| shown.shows(c)).count();
     let list = Arc::new(PeopleList { layout, names, total });
     ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, list: list.clone() }));
     list
@@ -578,6 +578,9 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
         if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
             let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
         }
+        if let AccountChoice::Account(account) = shown {
+            book_choice(app, ui, account);
+        }
         ui.add_space(8.0);
     }
     let line = ui.cursor().min.y;
@@ -592,6 +595,48 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     let labelled = labelled(app);
     show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+}
+
+/// Under one account, its address books when it has more than one (#1275): all of them, or one
+/// alone. The books are as the account's server lists them, a read-only one marked so.
+fn book_choice(app: &mut MailApp, ui: &mut Ui, account: Id) {
+    let books: Vec<(String, String)> = app
+        .session
+        .mailbox
+        .contact_books
+        .iter()
+        .filter(|book| book.account == account)
+        .map(|book| {
+            let name = if book.name.trim().is_empty() { tl!("Address book").to_string() } else { book.name.clone() };
+            let label = if book.rights == Rights::Edit { name } else { crate::i18n::fmt(tl!("{book} (read-only)"), &[("book", &name)]) };
+            (book.id.clone(), label)
+        })
+        .collect();
+    if books.len() < 2 {
+        return;
+    }
+    let current = people::shown_book(&app.session).map(str::to_owned);
+    let all = tl!("All address books").to_string();
+    let selected = current.as_deref().and_then(|id| books.iter().find(|(book, _)| book == id)).map_or(all.clone(), |(_, label)| label.clone());
+    let mut picked: Option<String> = None;
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.add_space(10.0);
+        let width = (ui.available_width() - 10.0).max(60.0);
+        egui::ComboBox::from_id_salt("people_book_choice").width(width).selected_text(selected).truncate().show_ui(ui, |ui| {
+            if ui.selectable_label(current.is_none(), all.as_str()).clicked() {
+                picked = Some(String::new());
+            }
+            for (id, label) in &books {
+                if ui.selectable_label(current.as_deref() == Some(id.as_str()), label.as_str()).clicked() {
+                    picked = Some(id.clone());
+                }
+            }
+        });
+    });
+    if let Some(value) = picked {
+        let _ = app.run("view.peopleBook", json!({"value": value}));
+    }
 }
 
 /// Whether each row says where its contact is: every account's contacts are in one list.

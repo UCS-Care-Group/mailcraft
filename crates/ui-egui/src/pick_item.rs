@@ -129,11 +129,13 @@ pub fn rows(app: &MailApp, kind: PickKind, query: &str) -> Vec<(Id, String, Stri
                 })
                 .collect()
         }
-        PickKind::Contact => mailcraft_engine::cmd::people::sorted_of(&app.session, q, mailcraft_model::AccountChoice::All)
-            .into_iter()
-            .take(MAX_ROWS)
-            .filter_map(|id| mb.contact(id))
-            .map(|c| (c.id, c.name(), c.address().map(|a| a.email).unwrap_or_default()))
-            .collect(),
+        PickKind::Contact => {
+            mailcraft_engine::cmd::people::sorted_of(&app.session, q, &mailcraft_engine::cmd::people::Shown::of(mailcraft_model::AccountChoice::All))
+                .into_iter()
+                .take(MAX_ROWS)
+                .filter_map(|id| mb.contact(id))
+                .map(|c| (c.id, c.name(), c.address().map(|a| a.email).unwrap_or_default()))
+                .collect()
+        }
     }
 }

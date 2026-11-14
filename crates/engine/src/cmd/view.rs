@@ -65,7 +65,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"value": "all" | "here" | number} — every account's tasks, those kept on this computer (0 is the same), or one account's"#),
         CommandSpec::new("view.peopleAccount", "Show Contacts Of", "People", people_account)
             .reads()
-            .params(r#"{"value": "all" | "here" | number} — every account's contacts, those kept on this computer (0 is the same), or one account's"#),
+            .params(r#"{"value": "all" | "here" | number} — every account's contacts, those kept on this computer (0 is the same), or one account's (all of its address books)"#),
+        CommandSpec::new("view.peopleBook", "Show Address Book", "People", people_book)
+            .reads()
+            .params(r#"{"value": string} — of the one account People shows, the address book to show alone: an id of people.addressBooks; "" shows all of the account's address books"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
     ];
@@ -332,11 +335,35 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
     if matches!(value, AccountChoice::Account(account) if !people::keeps_contacts(&s.mailbox, account)) {
         return Err(bad("that account's contacts aren't read from its server"));
     }
+    if s.view.people_account != value {
+        s.view.people_book.clear();
+    }
     s.view.people_account = value;
-    // The selected contact stays selected only where it is listed.
-    let shown = people::shown_account(s);
-    s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
+    keep_shown_contact(s);
     Ok(json!({"value": value.code()}))
+}
+
+/// The selected contact stays selected only where it is listed.
+fn keep_shown_contact(s: &mut Session) {
+    let shown = people::shown(s);
+    s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(c)));
+}
+
+fn people_book(s: &mut Session, v: &Value) -> CmdResult {
+    let value = p::req_str(v, "value")?.trim();
+    if value.is_empty() {
+        s.view.people_book.clear();
+    } else {
+        let AccountChoice::Account(account) = people::shown_account(s) else {
+            return Err(bad("an address book is one account's: show that account's contacts first (view.peopleAccount)"));
+        };
+        if !s.mailbox.contact_books.iter().any(|book| book.account == account && book.id == value) {
+            return Err(bad("the account shown has no address book with this id (people.addressBooks)"));
+        }
+        s.view.people_book = value.to_owned();
+    }
+    keep_shown_contact(s);
+    Ok(json!({"value": s.view.people_book}))
 }
 
 fn reset(s: &mut Session, _: &Value) -> CmdResult {

@@ -418,7 +418,7 @@ fn export_contacts(s: &mut Session, v: &Value) -> CmdResult {
     let ids: Vec<Id> = match p::ids_strict(v)? {
         Some(ids) => ids,
         // Every contact, whichever the People list shows.
-        None => crate::cmd::people::sorted_of(s, "", mailcraft_model::AccountChoice::All),
+        None => crate::cmd::people::sorted_of(s, "", &crate::cmd::people::Shown::of(mailcraft_model::AccountChoice::All)),
     };
     let contacts: Vec<&mailcraft_model::Contact> = ids.iter().filter_map(|id| s.mailbox.contact(*id)).collect();
     if contacts.is_empty() {

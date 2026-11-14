@@ -15,6 +15,8 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 #[cfg(test)]
 mod account_tests;
 #[cfg(test)]
+mod book_choice_tests;
+#[cfg(test)]
 mod book_tests;
 #[cfg(test)]
 mod share_tests;
@@ -30,10 +32,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
         CommandSpec::new("people.list", "List Contacts", "People", list)
             .pure()
-            .params(r#"{"query"?: string, "account"?: "all" | "here" | number} (default: what the list shows; 0 is "here")"#),
+            .params(r#"{"query"?: string, "account"?: "all" | "here" | number, "book"?: string (an address book of that account, as people.addressBooks lists it; "" all of them)} (default: what the list shows; 0 is "here")"#),
         CommandSpec::new("people.addressBooks", "List Address Books", "People", address_books)
             .pure()
-            .params(r#"{} — the address books the accounts' servers list: {"books": [{"account", "accountName", "id", "name", "rights": "freeBusy"|"read"|"edit"}]}"#),
+            .params(r#"{} — the address books the accounts' servers list: {"books": [{"account", "accountName", "id", "name", "rights": "freeBusy"|"read"|"edit", "shown": bool (the one People shows alone, view.peopleBook)}]}"#),
         CommandSpec::new("people.search", "Search People", "Home › Find", search).pure().params(r#"{"query": string}"#),
         CommandSpec::new("people.favorite", "Add to Favorites", "Home › Actions", favorite)
             .params(r#"{"value"?: bool (default: toggle), "id"?: number}"#)
@@ -87,14 +89,50 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
+/// The address book People shows alone (#1275): what the owner chose, of the account the list
+/// shows, while that account's server still lists it. None: all of the account's contacts.
+pub fn shown_book(s: &Session) -> Option<&str> {
+    let AccountChoice::Account(account) = shown_account(s) else { return None };
+    let book = s.view.people_book.as_str();
+    (!book.is_empty() && s.mailbox.contact_books.iter().any(|b| b.account == account && b.id == book)).then_some(book)
+}
+
+/// What a list of contacts shows: whose, and of which of their address books.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Shown {
+    pub account: AccountChoice,
+    /// The id of one address book of `account`; None: all of them.
+    pub book: Option<String>,
+}
+
+impl Shown {
+    /// Every contact of `account`, whatever its book.
+    pub fn of(account: AccountChoice) -> Shown {
+        Shown { account, book: None }
+    }
+
+    pub fn shows(&self, c: &Contact) -> bool {
+        self.account.shows(&c.origin) && self.book.as_deref().is_none_or(|book| c.book_id == book)
+    }
+}
+
+/// What the People list shows ([`shown_account`], [`shown_book`]).
+pub fn shown(s: &Session) -> Shown {
+    Shown { account: shown_account(s), book: shown_book(s).map(str::to_owned) }
+}
+
 /// A contact just made or picked is in view: where the list doesn't show it, the list moves to it,
 /// and a search that would leave it out is cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
-    let shown = shown_account(s);
+    let shown = shown(s);
     let Some(c) = s.mailbox.contact(id) else { return };
-    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
+    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.account.shows(&c.origin), !c.matches(&s.view.people_search));
     if hidden {
         s.view.people_account = choice;
+    }
+    // (In another address book than the one shown: the list shows all of the account's.)
+    if hidden || !shown.shows(c) {
+        s.view.people_book.clear();
     }
     if unmatched {
         s.view.people_search.clear();
@@ -296,15 +334,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 /// The contacts the People list shows, in its order ([`sorted_of`]): `people.list` and the
 /// neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
-    sorted_of(s, query, shown_account(s))
+    sorted_of(s, query, &shown(s))
 }
 
-/// Contacts of `account` in the People list's order: by name, favourites first; arranged by
+/// Contacts `shown` in the People list's order: by name, favourites first; arranged by
 /// categories, by name alone (the list then puts each under each of its categories, and favourites
 /// have no heading of their own there). Each contact once.
-pub fn sorted_of(s: &Session, query: &str, account: AccountChoice) -> Vec<Id> {
-    let mut v: Vec<&Contact> =
-        s.mailbox.contacts.values().map(|c| c.as_ref()).filter(|c| account.shows(&c.origin)).filter(|c| c.matches(query)).collect();
+pub fn sorted_of(s: &Session, query: &str, shown: &Shown) -> Vec<Id> {
+    let mut v: Vec<&Contact> = s.mailbox.contacts.values().map(|c| c.as_ref()).filter(|c| shown.shows(c)).filter(|c| c.matches(query)).collect();
     let by_name = |a: &Contact, b: &Contact| a.file_as().to_lowercase().cmp(&b.file_as().to_lowercase()).then(a.id.cmp(&b.id));
     match s.view.people_sort {
         PeopleSort::Name => v.sort_by(|a, b| b.favorite.cmp(&a.favorite).then_with(|| by_name(a, b))),
@@ -369,10 +406,25 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let query = p::str(v, "query").unwrap_or(&s.view.people_search).to_string();
-    let account = match v.get("account") {
-        Some(a) => AccountChoice::parse(a).ok_or_else(|| bad("`account` is all, here or an account's id"))?,
-        None => shown_account(s),
+    let book = p::str(v, "book").map(str::trim);
+    let shown = match (v.get("account"), book) {
+        (None, None) => shown(s),
+        (account, book) => {
+            let account = match account {
+                Some(a) => AccountChoice::parse(a).ok_or_else(|| bad("`account` is all, here or an account's id"))?,
+                None => shown_account(s),
+            };
+            let book = book.filter(|book| !book.is_empty()).map(str::to_owned);
+            Shown { account, book }
+        }
     };
+    let account = shown.account;
+    if let Some(book) = shown.book.as_deref() {
+        let AccountChoice::Account(id) = account else { return Err(bad("`book` is one account's: name the account")) };
+        if !s.mailbox.contact_books.iter().any(|b| b.account == id && b.id == book) {
+            return Err(bad("that account has no address book with this id"));
+        }
+    }
     // As `view.peopleAccount`: an account whose contacts aren't read from its server is refused,
     // not listed as empty.
     if matches!(account, AccountChoice::Account(id) if !keeps_contacts(&s.mailbox, id)) {
@@ -382,11 +434,12 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         let kept_at = kept_at(&s.mailbox, &c.origin);
         json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at})
     };
-    let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
-    Ok(json!({"account": account.code(), "contacts": items}))
+    let items: Vec<Value> = sorted_of(s, &query, &shown).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
+    Ok(json!({"account": account.code(), "book": shown.book, "contacts": items}))
 }
 
 fn address_books(s: &mut Session, _: &Value) -> CmdResult {
+    let shown = shown(s);
     let books: Vec<Value> = s
         .mailbox
         .contact_books
@@ -395,6 +448,7 @@ fn address_books(s: &mut Session, _: &Value) -> CmdResult {
             let account = s.mailbox.account(book.account)?;
             Some(json!({
                 "account": book.account, "accountName": account.email, "id": book.id, "name": book.name, "rights": book.rights,
+                "shown": shown.account == AccountChoice::Account(book.account) && shown.book.as_deref() == Some(book.id.as_str()),
             }))
         })
         .collect();
