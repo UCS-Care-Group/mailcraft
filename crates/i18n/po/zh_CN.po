@@ -2506,6 +2506,11 @@ msgid "Check Now"
 msgstr "立即查看"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
@@ -7883,6 +7888,11 @@ msgstr "正在将其移到另一个日历：账户服务器先在目标日历中
 #, fuzzy
 msgid "Moving them puts them into your account's calendar, where Outlook and your other devices have them too."
 msgstr "移动后，这些项目将进入您账户的日历，并在 Outlook 和其他设备上同步显示。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14250,6 +14260,16 @@ msgstr "服务器名称"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -16255,6 +16275,11 @@ msgstr "您所写的内容已从此窗口中清除。"
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "您输入的内容太长，无法放入 GitHub 链接。请缩短内容，并在 GitHub 上补充其余部分。"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -17639,6 +17664,11 @@ msgstr "图片已损坏或超过可显示的大小"
 msgid "it is too large to show"
 msgstr "图片过大，无法显示"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -18257,6 +18287,11 @@ msgid "that event doesn't repeat"
 msgstr "此日程不重复"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18387,6 +18422,11 @@ msgstr "此账户已不存在"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "此账户的服务器没有可用名称"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18635,6 +18675,11 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18695,10 +18740,25 @@ msgid "the parent folder belongs to another account"
 msgstr "上级文件夹属于另一个账户"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "要替换的位置不在文本范围内"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -19795,6 +19855,21 @@ msgstr "{host} 位于您地址所在的域中，但它不是该域指定的自�
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} 未启用加密，网络上的任何人都可能看到密码；请选择 TLS 或 STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs

@@ -18,6 +18,7 @@ pub mod dav;
 pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
+pub mod headers;
 mod jmap_server;
 mod junk;
 pub mod load_limit;
@@ -62,6 +63,7 @@ pub use calendar::{
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
+pub use headers::{HeaderBlock, HeaderLine};
 pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
@@ -172,6 +174,8 @@ mod contact_key_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
+mod headers_tests;
+#[cfg(test)]
 mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
@@ -229,3 +233,5 @@ mod tests {
         assert!(!contains_ci("Quarterly", "report"));
     }
 }
+#[cfg(test)]
+mod address_tests;

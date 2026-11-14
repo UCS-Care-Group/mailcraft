@@ -264,7 +264,7 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
 
 /// `deserialize_with` for the messages of a mailbox ([`crate::Messages`]).
 pub(crate) fn capped_messages<'de, D: Deserializer<'de>>(deserializer: D) -> Result<crate::Messages, D::Error> {
-    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::from)
+    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::read)
 }
 
 /// `deserialize_with` for a list of ids a file may have got wrong (the owner's order of the

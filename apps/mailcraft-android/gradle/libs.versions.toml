@@ -1,0 +1,30 @@
+# Every version is pinned exactly, and every artifact's hash is in verification-metadata.xml.
+[versions]
+agp = "8.13.0"
+kotlin = "2.2.20"
+detekt = "1.23.8"
+composeBom = "2025.09.01"
+activityCompose = "1.11.0"
+coroutines = "1.10.2"
+# UniFFI's Kotlin runtime; the generated bindings load the Rust library through it.
+jna = "5.17.0"
+# The Kotlin half of rustls-platform-verifier; must be the version Cargo.lock names (the build checks).
+platformVerifier = "0.2.0"
+junit = "4.13.2"
+
+[libraries]
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+platform-verifier = { module = "org.rustls:rustls-platform-verifier", version.ref = "platformVerifier" }
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

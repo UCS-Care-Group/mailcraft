@@ -193,6 +193,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
             hosts_say(toks, file, &consts, &mut texts);
         }
     }
+    // What the phone binding says to its owner (`s.interface_language.t("…")`).
+    for (file, toks) in sources(root, "crates/mobile/src")? {
+        engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);
+    }
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
     }

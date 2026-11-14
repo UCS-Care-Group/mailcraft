@@ -2361,6 +2361,11 @@ msgid "Check Now"
 msgstr "Comprobar ahora"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -7445,6 +7450,11 @@ msgstr "Moviéndolo al otro calendario: el servidor de la cuenta lo crea allí y
 #, fuzzy
 msgid "Moving them puts them into your account's calendar, where Outlook and your other devices have them too."
 msgstr "Al moverlas pasan al calendario de su cuenta, donde también las tienen Outlook y sus otros dispositivos."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13418,6 +13428,16 @@ msgstr "El nombre del servidor"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -15300,6 +15320,11 @@ msgstr ""
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -16591,6 +16616,11 @@ msgstr "está dañada, o es más grande de lo que se puede mostrar"
 msgid "it is too large to show"
 msgstr "es demasiado grande para mostrarla"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -17180,6 +17210,11 @@ msgid "that event doesn't repeat"
 msgstr "ese evento no se repite"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -17300,6 +17335,11 @@ msgstr "la cuenta ya no existe"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "el servidor de la cuenta no tiene un nombre utilizable"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -17530,6 +17570,11 @@ msgid "the message can't hold that much text"
 msgstr "el mensaje no admite tanto texto"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the message has no HTML signature"
 msgstr ""
@@ -17588,8 +17633,23 @@ msgid "the parent folder belongs to another account"
 msgstr "la carpeta principal pertenece a otra cuenta"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 msgid "the places to replace are not places in the text"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
 msgstr ""
 
 #. what a command says
@@ -18644,6 +18704,21 @@ msgstr ""
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} está configurado sin cifrado, lo que mostraría la contraseña a cualquiera en la red; elija TLS o STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
