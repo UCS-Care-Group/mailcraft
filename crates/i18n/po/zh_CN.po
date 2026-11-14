@@ -14002,6 +14002,11 @@ msgstr "域名列表已满：请在文件 › 选项中删除一些域名"
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "发件人列表已满：在“文件” › “选项”中删除一些发件人"
 
+#. what a command says
+#: crates/mobile/src/core.rs
+msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy

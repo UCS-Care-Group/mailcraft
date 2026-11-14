@@ -340,7 +340,7 @@ fn tokens_handed_over_by_the_app_are_kept_and_remembered_and_forgotten_on_reques
     assert!(block_on(core.background_sync(10_000)).unwrap().ran);
     assert_eq!(seen.lock().unwrap().first().map(String::as_str), Some("fresh-refresh"));
     // Remove all data: nothing of it is left.
-    assert!(block_on(core.forget_sign_ins()).unwrap() >= 1);
+    assert!(block_on(core.forget_sign_ins()).unwrap().looked_for >= 1);
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
 }
 
@@ -432,8 +432,8 @@ fn the_index_of_names_is_written_again_after_a_failed_write() {
     platform.secrets.fail_index.store(1, Ordering::Relaxed);
     block_on(core.adopt_tokens(id, tokens())).unwrap();
     let index = |p: &FakePlatform| p.secrets.kept.lock().unwrap().iter().find(|(k, _)| k.contains("index")).map(|(_, v)| v.clone());
-    assert_eq!(index(&platform), None, "the first write failed");
-    // The same credential again: the set doesn't grow, the index is written all the same.
+    // The same credential again: the set doesn't grow, the index is written all the same
+    // (or the wake has already written it).
     block_on(core.adopt_tokens(id, tokens())).unwrap();
     assert!(index(&platform).is_some_and(|i| i.contains(&key)));
 }
@@ -476,6 +476,28 @@ fn a_tick_queued_before_shutdown_starts_no_round() {
     blocker.join().unwrap();
     std::thread::sleep(Duration::from_millis(400));
     assert_eq!(calls.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn a_failed_index_write_is_retried_at_the_next_wake_with_nothing_new_written() {
+    let (runner, _) = stand_in();
+    let platform = FakePlatform::new();
+    let core = core_with(platform.clone(), session, runner);
+    let (id, key) = account_of(&core);
+    platform.secrets.fail_index.store(1, Ordering::Relaxed);
+    let tokens = Tokens { access: "a".into(), refresh: "r".into(), expires_at: i64::MAX, email: EMAIL.into(), ..Default::default() };
+    block_on(core.adopt_tokens(id, tokens)).unwrap();
+    let index = || platform.secrets.kept.lock().unwrap().iter().find(|(k, _)| k.contains("index")).map(|(_, v)| v.clone());
+    // The write with the adoption was tried and failed. (The driver, woken by it, may already
+    // have written the index again: that is not asked here.)
+    assert_eq!(platform.secrets.fail_index.load(Ordering::Relaxed), 0, "the first write of the index failed");
+    // The driver wakes by itself; no credential is written again.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while index().is_none() {
+        assert!(Instant::now() < deadline, "the index was never written again");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(index().is_some_and(|i| i.contains(&key)));
 }
 
 #[test]

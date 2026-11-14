@@ -15,15 +15,18 @@ use mailcraft_i18n::Lang;
 use serde_json::Value;
 
 use crate::events::{Event, EventSink};
+use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
 use crate::sign_in::Redirects;
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
-use crate::{CoreError, android};
+use crate::{CoreError, DataRemoved, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
 const MAX_COMMAND_ID: usize = 128;
+/// The longest `shutdown` waits for the last save.
+const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 const MAX_PARAMS_BYTES: usize = 8 * 1024 * 1024;
 
 pub(crate) type Job = Box<dyn FnOnce(&mut Session) + Send>;
@@ -133,6 +136,11 @@ pub struct Core {
     pub(crate) redirects: Arc<Redirects>,
     /// A sign-in is open (one at a time).
     pub(crate) signing_in: Arc<AtomicBool>,
+    /// The mailbox's storage, when it has one.
+    keep: Option<Arc<Keep>>,
+    /// Told once the session thread has ended (after its last save).
+    finished: Mutex<Option<mpsc::Receiver<()>>>,
+    session_thread: Option<std::thread::ThreadId>,
 }
 
 impl Core {
@@ -142,11 +150,28 @@ impl Core {
         Core::start_with(platform, make, SendReceive::new())
     }
 
+    /// A core over the mailbox kept in `dir` (the app's private, no-backup folder), restored when
+    /// there is one.
+    pub(crate) fn start_in(platform: Arc<dyn Platform>, dir: &str) -> Result<Arc<Core>, CoreError> {
+        Core::start_stored(platform, |keep| keep.map_or_else(Session::empty, |k| Session::new(k.open())), SendReceive::new(), Some(dir.to_string()))
+    }
+
     /// [`Core::start`] with the Send/Receive state the caller made (the tests': runs that ask no server).
     pub(crate) fn start_with(
         platform: Arc<dyn Platform>,
         make: impl FnOnce() -> Session + Send + 'static,
         send_receive: SendReceive,
+    ) -> Result<Arc<Core>, CoreError> {
+        Core::start_stored(platform, move |_| make(), send_receive, None)
+    }
+
+    /// The one start: `make` builds the session (given the mailbox's storage when there is one
+    /// it is to open from), on the core's thread.
+    pub(crate) fn start_stored(
+        platform: Arc<dyn Platform>,
+        make: impl FnOnce(Option<&Keep>) -> Session + Send + 'static,
+        send_receive: SendReceive,
+        dir: Option<String>,
     ) -> Result<Arc<Core>, CoreError> {
         android::check()?;
         let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
@@ -154,12 +179,33 @@ impl Core {
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
         let budget_id = enter_budget(host.platform().memory_budget());
         let events = Queue::new();
+        let sink = EventSink { queue: events.clone() };
+        let keep = match dir {
+            Some(dir) => match Keep::prepare(&dir, sink.clone()) {
+                Ok(k) => Some(k),
+                Err(e) => {
+                    budget_id.iter().for_each(|id| leave_budget(*id));
+                    return Err(e);
+                }
+            },
+            None => None,
+        };
         // The phone's own zone stands in where the system names none (Android often has no
         // `/etc/localtime`), so that the day near midnight is the owner's.
         let zone_host = platform.clone();
         let zone_platform = platform.clone();
+        let opening = keep.clone();
         let make = move || {
-            let mut session = make();
+            let mut session = make(opening.as_deref());
+            if let Some(keep) = &opening {
+                // What the file holds is the mailbox as built (what opening puts right after
+                // is written with the next save).
+                session.path = Some(keep.path().to_path_buf());
+                keep.opened(&session);
+                // The steps every opening of a mailbox file takes (mail fetched again, a retired
+                // choice dropped); the next save writes what they changed.
+                let _ = mailcraft_engine::cmd::file::after_opening(&mut session);
+            }
             // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
             // left at that default follows the zone, one it chose stays. Asked before either change.
             let default_date = session.view.date == session.today();
@@ -173,19 +219,23 @@ impl Core {
             session
         };
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
-        let sink = EventSink { queue: events.clone() };
         let memory_budget = host.memory_budget();
-        // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for a asked one.
-        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only()));
+        // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for an asked one.
+        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only(), keep.clone()));
         // The session is built before `start` returns, so a `make` that panics is an error here and
         // not a core whose every call would wait for a reply that never comes.
         let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
-        std::thread::Builder::new().name("mailcraft-session".to_string()).spawn(move || run_session(make, inbox, &sink, &ready_tx)).map_err(
-            |_| {
-                budget_id.iter().for_each(|id| leave_budget(*id));
-                CoreError::Init { reason: "a thread for the session could not be started".to_string() }
-            },
-        )?;
+        let (done_tx, finished) = mpsc::sync_channel::<()>(1);
+        let thread_keep = keep.clone();
+        let spawned = std::thread::Builder::new().name("mailcraft-session".to_string()).spawn(move || {
+            run_session(make, inbox, &sink, &ready_tx, thread_keep.as_deref());
+            let _ = done_tx.send(());
+        });
+        let session_thread = spawned.as_ref().ok().map(|h| h.thread().id());
+        spawned.map_err(|_| {
+            budget_id.iter().for_each(|id| leave_budget(*id));
+            CoreError::Init { reason: "a thread for the session could not be started".to_string() }
+        })?;
         if ready.recv() != Ok(true) {
             budget_id.iter().for_each(|id| leave_budget(*id));
             return Err(CoreError::Init { reason: "the session could not be opened".to_string() });
@@ -203,6 +253,9 @@ impl Core {
             sync,
             redirects: Arc::default(),
             signing_in: Arc::default(),
+            keep,
+            finished: Mutex::new(Some(finished)),
+            session_thread,
         });
         core.start_driver();
         Ok(core)
@@ -315,17 +368,32 @@ fn busy() -> CoreError {
     CoreError::Failed { reason: "too many calls are waiting; try again in a moment".to_string() }
 }
 
-/// The session thread: one job after another, and `RevChanged` when a job moved the revision.
-fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink: &EventSink, ready: &mpsc::SyncSender<bool>) {
+/// The session thread: one job after another, `RevChanged` when a job moved the revision, the
+/// autosave when it is due, and a last save when the core ends.
+fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink: &EventSink, ready: &mpsc::SyncSender<bool>, keep: Option<&Keep>) {
     let Ok(mut session) = catch_unwind(AssertUnwindSafe(make)) else {
         let _ = ready.send(false);
         return sink.queue.close();
     };
     let _ = ready.send(true);
     let mut last = session.rev();
-    while let Ok(job) = inbox.recv() {
+    let mut wait: Option<std::time::Duration> = None;
+    loop {
+        let job = match wait {
+            Some(w) => match inbox.recv_timeout(w) {
+                Ok(job) => Some(job),
+                Err(mpsc::RecvTimeoutError::Timeout) => None,
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            },
+            None => match inbox.recv() {
+                Ok(job) => Some(job),
+                Err(_) => break,
+            },
+        };
         // (A job catches its own panic; this is for what it does outside it.)
-        if catch_unwind(AssertUnwindSafe(|| job(&mut session))).is_err() {
+        if let Some(job) = job
+            && catch_unwind(AssertUnwindSafe(|| job(&mut session))).is_err()
+        {
             continue;
         }
         let now = session.rev();
@@ -333,6 +401,11 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
             last = now;
             sink.push(Event::RevChanged { rev: now });
         }
+        wait = keep.and_then(|k| catch_unwind(AssertUnwindSafe(|| k.after_job(&session))).unwrap_or(None));
+    }
+    if let Some(keep) = keep {
+        // The last state goes to disk before the thread ends (a failure was reported by `save`).
+        let _ = catch_unwind(AssertUnwindSafe(|| keep.save(&session)));
     }
     sink.queue.close();
 }
@@ -344,6 +417,62 @@ impl Core {
     #[uniffi::constructor]
     pub fn new(platform: Arc<dyn Platform>) -> Result<Arc<Core>, CoreError> {
         Core::start(platform, Session::empty)
+    }
+
+    /// A core over the mailbox kept in `data_dir`, an absolute path of the app's private folder
+    /// that is left out of backups (Android: `noBackupFilesDir/mailbox`): restored when there is
+    /// one, new on a first start. The mail's bodies stay on disk as on the desktop. It is saved
+    /// a few seconds after a change, before a send goes out, by [`Core::save_now`] and when the
+    /// core ends. A file that can't be read is kept aside and a `StorageNotice` says so.
+    #[uniffi::constructor]
+    pub fn open(platform: Arc<dyn Platform>, data_dir: String) -> Result<Arc<Core>, CoreError> {
+        Core::start_in(platform, &data_dir)
+    }
+
+    /// Write the mailbox to disk now (the app calls it from `onStop`). Nothing to do for a core
+    /// that keeps no file. An error leaves the last good file as it was.
+    pub async fn save_now(&self) -> Result<(), CoreError> {
+        let Some(keep) = self.keep.clone() else { return Ok(()) };
+        self.call(move |session| keep.save(session).map_err(|e| CoreError::Failed { reason: format!("the mailbox couldn't be saved: {e}") })).await
+    }
+
+    /// Remove the mail kept on this phone (the mailbox file, its content folder and what was
+    /// kept aside) and every sign-in the credential store holds, and start over with an empty
+    /// mailbox, for Settings > Remove account and data. An error says that some of it is still
+    /// there (the session starts over with an empty mailbox all the same, so that nothing removed
+    /// is written back); calling it again tries again. `DataRemoved::SignInsMayRemain` says that it was
+    /// done but the list of the sign-ins kept was damaged, so older ones may still be in the
+    /// phone's credential store: the app shows its message and then calls
+    /// [`Core::sign_ins_notice_shown`]; until it does, every removal says it again.
+    pub async fn delete_local_data(&self) -> Result<DataRemoved, CoreError> {
+        let keep = self.keep.clone();
+        let sync = self.sync.clone();
+        self.call(move |session| {
+            // Both are tried, so that one failing doesn't leave the other undone.
+            let signed_in = sync.forget_sign_ins(session);
+            let removed = match &keep {
+                Some(keep) => keep.delete_all(),
+                None => Ok(()),
+            };
+            // Whatever came of it, the session lets go of the mail: some or all of its files may
+            // be gone, and a mailbox kept in memory would be written back by the next save. The
+            // fresh one counts as saved, so nothing is written until the owner changes something;
+            // the names of sign-ins still in the store are kept by `sync` for the retry.
+            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            if let Some(keep) = &keep {
+                keep.reset(session);
+            }
+            let forgotten = match (signed_in, removed) {
+                (Ok(forgotten), Ok(())) => forgotten,
+                (Err(reason), _) | (_, Err(reason)) => return Err(CoreError::Failed { reason }),
+            };
+            Ok(if forgotten.some_may_remain {
+                DataRemoved::SignInsMayRemain { message: may_remain(session.interface_language) }
+            } else {
+                DataRemoved::All
+            })
+        })
+        .await
     }
 
     /// Run the command `id` with `params_json` (a JSON object; empty means `{}`) through
@@ -383,6 +512,14 @@ impl Core {
         self.sync.pacer.poke();
         self.redirects.close();
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner).take();
+        // The session thread saves the mailbox as its last act: wait for it a little (never from
+        // that thread itself, and never for long), so that a process about to end keeps the mail.
+        if self.keep.is_some() && self.session_thread != Some(std::thread::current().id()) {
+            let finished = self.finished.lock().unwrap_or_else(PoisonError::into_inner).take();
+            if let Some(finished) = finished {
+                let _ = finished.recv_timeout(SHUTDOWN_WAIT);
+            }
+        }
         self.events.close();
     }
 
@@ -435,6 +572,11 @@ impl Core {
     pub(crate) fn lang(&self) -> Lang {
         Lang::ALL.get(usize::from(self.language.load(Ordering::Relaxed))).copied().unwrap_or_default()
     }
+}
+
+/// What the owner is told when the list of the sign-ins kept was damaged and set aside.
+pub(crate) fn may_remain(lang: Lang) -> String {
+    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
 }
 
 impl Drop for Core {
