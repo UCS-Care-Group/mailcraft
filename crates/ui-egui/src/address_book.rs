@@ -555,8 +555,26 @@ fn new_email(app: &mut MailApp, person: &DirectoryPerson) {
     let _ = app.run("mail.new", json!({"to": person.address().full(), "account": account}));
 }
 
-/// A contact on this computer made of `person`, on the owner's say-so.
+/// The contact that already has `person`'s address, if any: Add to Contacts makes no second one.
+fn known_contact(app: &MailApp, person: &DirectoryPerson) -> Option<Id> {
+    (!person.email.trim().is_empty()).then(|| app.session.mailbox.contact_by_email(&person.email).map(|c| c.id)).flatten()
+}
+
+/// The contact `id` shown among the contacts, leaving the address list.
+fn open_contact(app: &mut MailApp, id: Id) {
+    if let Err(e) = app.run("people.select", json!({"id": id})) {
+        app.status(tl!(&e));
+    }
+}
+
+/// A contact on this computer made of `person`, on the owner's say-so; one that has the address
+/// already is not made twice. The address list stays in view, and the card says the contact is
+/// there, with Open Contact.
 fn add_to_contacts(app: &mut MailApp, person: &DirectoryPerson) {
+    if known_contact(app, person).is_some() {
+        app.status(tl!("Already in your contacts"));
+        return;
+    }
     let mut phones = Vec::new();
     for (label, number) in [("work", &person.phone), ("mobile", &person.mobile)] {
         if !number.is_empty() {
@@ -568,7 +586,6 @@ fn add_to_contacts(app: &mut MailApp, person: &DirectoryPerson) {
         "department": person.department, "title": person.title, "phones": phones,
     });
     match app.run("people.new", params) {
-        // (`people.new` shows the new contact: People goes back to the contacts.)
         Ok(_) => app.status(tl!("Added to Contacts")),
         Err(e) => app.status(tl!(&e)),
     }
@@ -621,8 +638,21 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
                 if widgets::primary_button(ui, tl!("Email"), true).clicked() {
                     new_email(app, &person);
                 }
-                if widgets::icon_text_button(ui, "newContact", tl!("Add to Contacts"), true).clicked() {
-                    add_to_contacts(app, &person);
+                match known_contact(app, &person) {
+                    Some(id) => {
+                        if widgets::icon_text_button(ui, "people", tl!("Open Contact"), true).clicked() {
+                            open_contact(app, id);
+                        }
+                        ui.add_space(4.0);
+                        let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                        icons::paint(ui.painter(), r, "check", t.text_dim, t.text_dim);
+                        ui.label(RichText::new(tl!("In your contacts")).font(regular(12.5)).color(t.text_dim));
+                    }
+                    None => {
+                        if widgets::icon_text_button(ui, "newContact", tl!("Add to Contacts"), true).clicked() {
+                            add_to_contacts(app, &person);
+                        }
+                    }
                 }
             });
             crate::people_view::section(ui, tl!("Contact"));

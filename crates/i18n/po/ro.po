@@ -1135,7 +1135,7 @@ msgid "Allow Sending from Shared Mailboxes"
 msgstr "Permiteți trimiterea din cutii poștale partajate"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Este deja în contactele dvs."
@@ -6138,6 +6138,11 @@ msgid "In this calendar:"
 msgstr "În acest calendar:"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "In {folder}"
@@ -9346,6 +9351,11 @@ msgstr "Deschidere și export"
 #, fuzzy
 msgid "Open Attachment"
 msgstr "Deschidere atașament"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs

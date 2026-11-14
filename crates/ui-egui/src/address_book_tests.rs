@@ -181,6 +181,10 @@ fn the_owner_writes_to_somebody_found_or_makes_a_contact_of_them() {
     search(&mut app, &ctx, "ada");
     let ada = app.address_book.as_ref().unwrap().people[0].clone();
     add_to_contacts(&mut app, &ada);
+    // Pressed again, nothing more is made: the address is in a contact already.
+    add_to_contacts(&mut app, &ada);
+    assert_eq!(app.session.mailbox.contacts.len(), 1);
+    assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some("Already in your contacts"));
     let contact = app.session.mailbox.contacts.values().next().cloned().unwrap();
     assert_eq!((contact.display_name.as_str(), contact.company.as_str(), contact.title.as_str()), ("Ada Lovelace", "Example Ltd", "Controller"));
     let phones: Vec<&str> = contact.phones.iter().map(|p| p.value.as_str()).collect();
@@ -348,4 +352,37 @@ fn a_long_list_draws_only_what_is_on_screen() {
     assert!(h.state().hit.rect("addressListRow", 0).is_some());
     assert!(h.state().hit.rect("addressListRow", 4000).is_none(), "a row far down is not drawn");
     assert_eq!(h.state().address_book_found().len(), 5000);
+}
+
+/// Add to Contacts says on the card that the person is in the contacts now, and becomes Open
+/// Contact, which shows that contact among the contacts: nothing is made twice (#1393).
+#[test]
+fn the_card_says_who_is_in_the_contacts_and_opens_them() {
+    let (app, _, _) = window_with(false, Some(organisation()));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(4);
+    let first = h.state().address_book.as_ref().and_then(|b| b.people.first().cloned()).unwrap();
+    h.state_mut().address_book.as_mut().unwrap().selected = Some(0);
+    h.run_steps(2);
+    h.get_by_label("Add to Contacts").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.mailbox.contacts.len(), 1);
+    assert!(h.query_by_label("Add to Contacts").is_none());
+    h.get_by_label("In your contacts");
+    // Still the address list, with the same person's card.
+    assert_eq!(h.state().address_book.as_ref().and_then(|b| b.chosen()).map(|p| p.email.clone()), Some(first.email.clone()));
+
+    h.get_by_label("Open Contact").click();
+    h.run_steps(3);
+    let id = h.state().session.mailbox.contact_by_email(&first.email).map(|c| c.id);
+    assert!(h.state().address_book.is_none());
+    assert_eq!(h.state().session.sel.contact, id);
 }

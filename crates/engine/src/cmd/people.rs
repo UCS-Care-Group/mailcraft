@@ -332,6 +332,8 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         None => None,
     };
     if let Some(id) = s.sel.contact {
+        // A contact chosen is shown among the contacts, so People leaves the address list.
+        s.view.people_book = None;
         reveal(s, id);
     }
     done()

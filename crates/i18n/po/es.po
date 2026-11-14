@@ -1088,7 +1088,7 @@ msgid "Allow Sending from Shared Mailboxes"
 msgstr "Permitir enviar desde buzones compartidos"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Ya está en sus contactos"
@@ -5767,6 +5767,11 @@ msgid "In this calendar:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "In {folder}"
 msgstr ""
@@ -8831,6 +8836,11 @@ msgstr "Abrir y exportar"
 #, fuzzy
 msgid "Open Attachment"
 msgstr "Abrir datos adjuntos"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs

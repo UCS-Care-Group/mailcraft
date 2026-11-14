@@ -252,6 +252,7 @@ pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> 
         if enabled { t.accent } else { c },
     );
     ui.painter().text(pos2(r.min.x + 26.0, r.center().y), Align2::LEFT_CENTER, label, regular(12.0), if enabled { t.text } else { t.text_disabled });
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     resp
 }
 

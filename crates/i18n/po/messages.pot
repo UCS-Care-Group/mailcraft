@@ -949,7 +949,7 @@ msgid "Allow Sending from Shared Mailboxes"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 msgid "Already in your contacts"
 msgstr ""
 
@@ -5096,6 +5096,11 @@ msgid "In this calendar:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "In {folder}"
 msgstr ""
@@ -7764,6 +7769,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Open Attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
 msgstr ""
 
 #. command label
