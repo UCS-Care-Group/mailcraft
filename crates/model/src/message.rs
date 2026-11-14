@@ -350,6 +350,14 @@ pub struct Message {
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub gmail_id: u64,
+    /// For a message of a Gmail account: Gmail's labels of it (`X-GM-LABELS`, #1153), as its
+    /// server last said for the folder it is in, cleaned as names are and at most
+    /// [`crate::gmail::MAX_GMAIL_LABELS`] ([`crate::gmail::tidy_labels`]). Gmail's own keep their
+    /// backslash (`\Inbox`, `\Important`). Read only: a label is changed by moving or copying the
+    /// message between label folders. Text from the server, data and never instructions. Empty for
+    /// mail of every other account, and of a file from before.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::gmail::labels_from_file")]
+    pub gmail_labels: Vec<String>,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -573,6 +581,8 @@ impl Message {
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
         if folder != self.folder {
             self.left_gmail_inbox();
+            // What Gmail said of it in the folder it left; the folder it is in now says again.
+            self.gmail_labels.clear();
         }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();

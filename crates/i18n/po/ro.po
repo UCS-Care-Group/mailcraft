@@ -5297,6 +5297,11 @@ msgstr "Categorii Gmail"
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr "Gmail încă nu a comunicat ID-ul acestui mesaj: faceți întâi Trimitere/primire"
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Gmail label: {label}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy

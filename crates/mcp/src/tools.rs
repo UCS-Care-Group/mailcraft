@@ -96,6 +96,9 @@ const TEXT_KEYS: &[&str] = &[
     "joinUrl",
     // Categories a server or a file gave, a message's or a meeting's own identifiers.
     "categories",
+    // A Gmail account's labels of a message (#1153): names from the server, which anyone who
+    // shares a label, or a filter, may have written.
+    "gmailLabels",
     "messageId",
     "uid",
     // A contact's names, postal addresses, phones and addresses with their labels.

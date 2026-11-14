@@ -4390,6 +4390,11 @@ msgstr ""
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Gmail label: {label}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"

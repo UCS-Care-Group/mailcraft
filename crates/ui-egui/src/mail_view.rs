@@ -666,6 +666,10 @@ const FOLDER_W: f32 = TEXT_RIGHT - TIME_RIGHT;
 /// in `text_dim` (4.5:1 or more on every row's background, selected, flagged or under the
 /// pointer, in both palettes), ending at `end` and cut short with an ellipsis to the column's
 /// width. Where it starts.
+/// Most of a message's Gmail labels a row of the list shows (#1153), and the widest one's tag.
+const LIST_LABELS: usize = 2;
+const LIST_LABEL_MAX: f32 = 80.0;
+
 fn paint_result_folder(p: &egui::Painter, end: egui::Pos2, label: &str, t: &Tokens) -> f32 {
     const ICON: f32 = 12.0;
     const GAP: f32 = 3.0;
@@ -1080,6 +1084,25 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Dr
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
+    }
+    // A Gmail account's labels of it (#1153): the first two, by the last part of their path, as
+    // tags, and how many more; the reading pane shows them all with their paths.
+    let folder_remote = app.session.mailbox.folder(m.folder).map(|f| f.remote.as_str()).unwrap_or_default();
+    let labels: Vec<&str> = m.shown_gmail_labels(folder_remote).take(LIST_LABELS).collect();
+    if !labels.is_empty() {
+        let more = m.shown_gmail_labels(folder_remote).count().saturating_sub(LIST_LABELS);
+        if more > 0 {
+            let w = p.text(pos2(sx, tail_y), Align2::RIGHT_CENTER, format!("+{more}"), regular(10.0), t.text_dim).width();
+            sx -= w + 4.0;
+        }
+        for label in labels.iter().rev() {
+            let text = crate::widgets::label_tag_text(p, mailcraft_model::gmail::label_leaf(label), 10.0, LIST_LABEL_MAX);
+            let w = crate::widgets::label_tag_width(&text);
+            let left = sx - w;
+            crate::widgets::paint_label_tag(p, pos2(left, tail_y), text, 14.0);
+            app.hit.add("messageGmailLabel", row.id, Rect::from_min_max(pos2(left, tail_y - 7.0), pos2(sx, tail_y + 7.0)));
+            sx = left - 4.0;
+        }
     }
     for c in m.categories.iter().take(4) {
         let color = crate::theme::c32(app.session.mailbox.category_color_of(m.account, c));
