@@ -41,7 +41,7 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
         }
         count += 1;
     };
-    let today = s.zone().instant(DateTime::at_midnight(s.today()));
+    let today = s.instant_of(DateTime::at_midnight(s.today()));
     let now = s.now();
     // What waits in the Outbox is sent, not moved (R3.4.2).
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);

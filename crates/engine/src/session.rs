@@ -1074,6 +1074,10 @@ pub struct Session {
     /// The mailbox changed since it was opened or saved.
     pub dirty: bool,
     pub clock: Clock,
+    /// Minutes east of UTC at an instant, from a host that knows its owner's zone (a phone), for
+    /// when the calendar names no zone and the system names none either ([`Session::offset_at`]).
+    /// An explicitly chosen zone and a detected system zone go before it.
+    pub fallback_offset: Option<Arc<dyn Fn(Timestamp) -> i32 + Send + Sync>>,
     /// What the last synchronisation reported, for the status bar.
     pub sync_status: String,
     /// The sync driver's state: what a front end's background jobs remember between looks
@@ -1300,6 +1304,7 @@ impl Session {
             path: None,
             dirty: false,
             clock,
+            fallback_offset: None,
             sync_status: String::new(),
             driver: Default::default(),
             sync_progress: Default::default(),
@@ -1419,7 +1424,36 @@ impl Session {
     pub fn offset_at(&self, ts: Timestamp) -> i32 {
         match self.clock.offset {
             Some(offset) => offset,
-            None => self.zone().offset_at(ts),
+            None => {
+                let zone = self.zone();
+                match (&self.fallback_offset, zone.is_local()) {
+                    (Some(fallback), true) => fallback(ts).clamp(-18 * 60, 18 * 60),
+                    _ => zone.offset_at(ts),
+                }
+            }
+        }
+    }
+
+    /// The wall-clock time in the zone the calendar is shown in at `ts`, by the same offset as
+    /// [`Session::offset_at`] (the phone's, where the system names no zone).
+    pub fn wall_at(&self, ts: Timestamp) -> DateTime {
+        DateTime::from_civil_seconds(ts.saturating_add(i64::from(self.offset_at(ts)) * 60))
+    }
+
+    /// The instant of a wall-clock time in the zone the calendar is shown in, by the same offset as
+    /// [`Session::offset_at`]. Where the offset is the phone's (the system names no zone), a time
+    /// the clocks skip or repeat takes the offset in force at the time read as if it were UTC.
+    pub fn instant_of(&self, wall: DateTime) -> Timestamp {
+        let zone = self.zone();
+        match (&self.fallback_offset, zone.is_local(), self.clock.offset) {
+            (Some(fallback), true, None) => {
+                let first = wall.to_timestamp(0);
+                let guess = fallback(first).clamp(-18 * 60, 18 * 60);
+                let at = wall.to_timestamp(guess);
+                wall.to_timestamp(fallback(at).clamp(-18 * 60, 18 * 60))
+            }
+            (_, _, Some(offset)) => wall.to_timestamp(offset.clamp(-18 * 60, 18 * 60)),
+            _ => zone.instant(wall),
         }
     }
 
