@@ -112,10 +112,15 @@ impl Core {
     pub async fn forget_sign_ins(&self) -> Result<SignInsForgotten, CoreError> {
         let sync = self.sync.clone();
         self.call(move |session| match sync.forget_sign_ins(session) {
-            Ok(forgotten) => Ok(SignInsForgotten {
-                looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
-                may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
-            }),
+            Ok(forgotten) => {
+                if forgotten.some_may_remain {
+                    sync.notice_given();
+                }
+                Ok(SignInsForgotten {
+                    looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
+                    may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
+                })
+            }
             Err(reason) => Err(CoreError::Failed { reason }),
         })
         .await

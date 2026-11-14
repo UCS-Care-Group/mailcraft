@@ -193,7 +193,7 @@ struct Inner {
     /// The last write of the index of names failed: it is written again at the next wake.
     index_pending: bool,
     /// An index that didn't parse was set aside (or kept) by a removal of the sign-ins, so some
-    /// it named may still be in the store: the next removal that succeeds says so.
+    /// it named may still be in the store: removals say so until one that succeeds has.
     index_garbled: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
@@ -413,8 +413,8 @@ impl SyncHost {
             inner.keys = if garbled_kept { None } else { Some(BTreeSet::new()) };
             inner.unindexed.clear();
             inner.index_pending = false;
-            let some_may_remain = std::mem::take(&mut inner.index_garbled);
-            return Ok(Forgotten { count: names.len(), some_may_remain });
+            // The notice stays until the caller has given it (`notice_given`).
+            return Ok(Forgotten { count: names.len(), some_may_remain: inner.index_garbled });
         }
         // What is left stays in the index, so that the next call finds it.
         left.remove(INDEX_KEY);
@@ -437,6 +437,12 @@ impl SyncHost {
             inner.index_pending = false;
         }
         Err(format!("{} sign-ins couldn't be removed from the credential store", count.max(1)))
+    }
+
+    /// The owner was told that sign-ins only a damaged index named may still be in the store:
+    /// the next removal doesn't say it again.
+    pub(crate) fn notice_given(&self) {
+        self.lock().index_garbled = false;
     }
 
     pub(crate) fn status(&self, session: &Session) -> SyncStatus {

@@ -465,6 +465,10 @@ impl Core {
             if let Some(keep) = &keep {
                 keep.reset(session);
             }
+            // Only now is the notice given: a removal that failed says it at its retry.
+            if forgotten.some_may_remain {
+                sync.notice_given();
+            }
             Ok(answer)
         })
         .await
@@ -571,7 +575,7 @@ impl Core {
 
 /// What the owner is told when the list of the sign-ins kept was damaged and set aside.
 pub(crate) fn may_remain(lang: Lang) -> String {
-    lang.t("Your mail and sign-ins were removed, but the list of sign-ins was damaged, so some older ones may still be kept on this phone. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
+    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
 }
 
 impl Drop for Core {
