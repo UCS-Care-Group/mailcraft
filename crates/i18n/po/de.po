@@ -1942,6 +1942,11 @@ msgstr "Absender blockieren"
 msgid "Blue"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Body"
@@ -3231,6 +3236,16 @@ msgstr ""
 #, fuzzy
 msgid "Dark"
 msgstr "Dunkel"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -7605,6 +7620,11 @@ msgstr "Erfordert „Nach neuen Versionen suchen“."
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
 msgid "Needs Google sign-in"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
 msgstr ""
 
 #. command label, interface
@@ -13071,6 +13091,11 @@ msgstr "Die wartende Weiterleitung mehrerer Nachrichten wurde abgebrochen: Ein a
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "The full report is in:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
 msgstr ""
 
 #. interface

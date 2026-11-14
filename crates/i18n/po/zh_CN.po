@@ -2050,6 +2050,11 @@ msgstr "阻止发件人"
 msgid "Blue"
 msgstr "蓝色"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3402,6 +3407,16 @@ msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 #, fuzzy
 msgid "Dark"
 msgstr "深色"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8043,6 +8058,11 @@ msgstr "需要启用“检查新版本”。"
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "需要 Google 登录"
+
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -13855,6 +13875,11 @@ msgstr "等待中的多封邮件转发操作已取消：另一个下载任务取
 #, fuzzy
 msgid "The full report is in:"
 msgstr "完整报告位于："
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs

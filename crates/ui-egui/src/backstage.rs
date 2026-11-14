@@ -580,6 +580,27 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    // The greys of the dark theme (#1384): neutral, or tinted blue as before #1242.
+    let mut dark_style = egui::Rect::NOTHING;
+    row(ui, tl!("Dark theme"), |ui| {
+        let cur = app.ui.dark_style;
+        let combo = egui::ComboBox::from_id_salt("opt_dark_style").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for s in crate::theme::DarkStyle::ALL {
+                if ui.selectable_label(s == cur, tl!(s.label())).clicked() {
+                    let _ = app.run("ui.darkStyle", json!({"value": s.code()}));
+                }
+            }
+        });
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Dark theme"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        dark_style = combo.response.rect;
+        combo.response.on_hover_text(tl!("The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."));
+    });
+    app.hit.add("optionDarkStyle", 0, dark_style);
     let mut animations = egui::Rect::NOTHING;
     row(ui, tl!("Animations"), |ui| {
         let cur = app.ui.animations;

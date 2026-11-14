@@ -2059,6 +2059,11 @@ msgstr "Blocare expeditor"
 msgid "Blue"
 msgstr "Albastru"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3413,6 +3418,16 @@ msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 #, fuzzy
 msgid "Dark"
 msgstr "Întunecat"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8076,6 +8091,11 @@ msgstr "Necesită Verificare versiuni noi."
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "Necesită conectare Google"
+
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -13906,6 +13926,11 @@ msgstr "Redirecționarea mai multor mesaje care aștepta a fost anulată: altă 
 #, fuzzy
 msgid "The full report is in:"
 msgstr "Raportul complet este în:"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs

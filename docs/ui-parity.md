@@ -60,7 +60,7 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 ## Themes, sizes, input
 
-- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. The dark theme is neutral greys, as in the other Craft programs, with only the accent and its washes coloured. Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light. In the dark theme, the owner may keep messages on a light page in their own colours while the rest of the window stays dark (File › Options, #634).
+- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. The dark theme is neutral greys, as in the other Craft programs, with only the accent and its washes coloured, or the blue-tinted greys it had before (File › Options › General › Dark theme, `ui.darkStyle`, #1384). Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light. In the dark theme, the owner may keep messages on a light page in their own colours while the rest of the window stays dark (File › Options, #634).
 - **Interface size** 80–200 % on top of the system scale.
 - **Keyboard:** the registry's shortcuts follow the target's where it has them (Ctrl+N, Ctrl+R,
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
