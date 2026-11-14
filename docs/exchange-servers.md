@@ -9,8 +9,11 @@ other than Microsoft's, one at a time, and what has not. Everything here was tri
 data on a server running on the same computer; no real mailbox was used.
 
 The directory is read after the mail of a Send/Receive: the account's calendars, books and lists
-(the folders the server gives that kind), the events of the days on screen and a week either side,
-and every contact and to-do. What is made, changed or deleted here goes up before it is read.
+(the folders the server gives that kind), the events of a month back and a year ahead (with the
+days on screen when they are within two years of it), and every contact and to-do. What is made,
+changed or deleted here goes up before it is read. While the calendar is in front, days the owner
+goes to that weren't read in the last five minutes are read by themselves, the calendars alone and
+nothing sent, with the password the Send/Receive was given (#1274).
 Another mailbox's calendar or address book is read with the owner's sign-in by putting its address
 in every folder request; it is listed under Shared Calendars or with the account's books. Grommunio
 lets the owner into the shared folder it is given but not list that mailbox's other folders, so a

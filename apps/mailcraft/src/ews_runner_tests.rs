@@ -58,6 +58,37 @@ fn a_run_without_a_certificate_problem_is_left_as_it_was_and_a_piece_under_way_i
     assert!(fetched.errors[0].contains("not one this computer trusts"));
 }
 
+/// A read of the calendar alone (#1274) has the certificate question and the words for a sign-in
+/// that could not be had, as a run's last piece has them.
+#[test]
+fn a_calendar_read_has_the_certificate_question_as_a_run_has_it() {
+    let failed = || EwsDirectoryResult { errors: vec![NO_SECURE_LINE.into()], ..Default::default() };
+    let asked = settled_directory(failed(), Some(&CertificateProblem::NotTrusted(info())), None);
+    assert_eq!(asked.untrusted, "ab".repeat(32));
+    assert!(asked.errors.is_empty());
+    let told = settled_directory(failed(), Some(&CertificateProblem::Unacceptable(CertificateFault::Expired, info())), None);
+    assert!(told.untrusted.is_empty());
+    assert_eq!(told.errors.len(), 1);
+    assert!(!told.errors[0].contains("mail.example.org"));
+    assert_eq!(settled_directory(EwsDirectoryResult::default(), None, None), EwsDirectoryResult::default());
+}
+
+/// A read that can't begin says why, and goes nowhere: a Microsoft host is never signed in to.
+#[test]
+fn a_calendar_read_that_cannot_begin_ends_with_a_line() {
+    let request = EwsDirectoryRequest {
+        account: 7,
+        email: "ada@example.org".into(),
+        url: "https://outlook.office365.com/EWS/Exchange.asmx".into(),
+        calendars: true,
+        ..Default::default()
+    };
+    let result = run_calendar_with(&request, "secret", &AtomicBool::new(false));
+    assert_eq!(result.account, 7);
+    assert_eq!(result.errors.len(), 1);
+    assert!(result.events.is_empty() && result.calendars.is_none());
+}
+
 #[test]
 fn a_failed_exchange_is_told_by_its_kind_and_a_certificate_is_kept_apart() {
     let transport = Transport::new(" ");

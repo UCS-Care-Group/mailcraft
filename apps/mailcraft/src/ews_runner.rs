@@ -49,12 +49,13 @@ use mailcraft_ews::{
     TransportError, auth, ntlm,
 };
 use mailcraft_model::sync::{
-    DirectoryKind, DirectoryPerson, EwsFetchRequest, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsResolveResult, EwsResolved,
-    GraphFetchResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, SyncPhase, Timings,
+    DirectoryKind, DirectoryPerson, EwsDirectoryRequest, EwsDirectoryResult, EwsFetchRequest, EwsMailRequest, EwsMailResult, EwsResolveRequest,
+    EwsResolveResult, EwsResolved, GraphFetchResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, SyncPhase, Timings,
 };
 use mailcraft_net::https::Connection;
 use mailcraft_net::{CertificateProblem, NetError};
 use mailcraft_ui_egui::check_names::EwsResolveJob;
+use mailcraft_ui_egui::ews_calendar::EwsCalendarJob;
 use mailcraft_ui_egui::ews_mail::{EwsFetchJob, EwsJob};
 
 /// What the run says when the secure connection could not be had for a reason the owner can't
@@ -416,6 +417,30 @@ pub(crate) fn settled_fetch(mut result: GraphFetchResult, problem: Option<&Certi
     result
 }
 
+/// The same for a read of the calendar alone (#1274): the certificate question as a run's last
+/// piece has it, and a sign-in that could not be had in words.
+pub(crate) fn settled_directory(
+    mut result: EwsDirectoryResult,
+    problem: Option<&CertificateProblem>,
+    auth: Option<AuthProblem>,
+) -> EwsDirectoryResult {
+    if let Some(auth) = auth {
+        result.auth_refused = false;
+        if !result.errors.iter().any(|line| line == auth.words()) {
+            result.errors.insert(0, auth.words().to_owned());
+        }
+        return result;
+    }
+    let Some(problem) = problem else { return result };
+    result.errors.retain(|line| line != NO_SECURE_LINE);
+    if problem.can_be_trusted() {
+        result.untrusted = problem.info().fingerprint.clone();
+    } else {
+        result.errors.insert(0, format!("{problem}"));
+    }
+    result
+}
+
 /// The Basic credential of `username` (the address when it is empty) and `password`, as a client for
 /// `url`. Why not: words that name neither.
 pub(crate) fn client(url: &str, username: &str, email: &str, password: &str) -> Result<Client, &'static str> {
@@ -580,6 +605,22 @@ pub(crate) fn run_resolve(job: EwsResolveJob, wake: &egui::Context) -> Receiver<
     rx
 }
 
+/// Reads the calendar of an Exchange server account for the days the owner went to (#1274), on a
+/// thread of its own.
+pub(crate) fn run_calendar(job: EwsCalendarJob, wake: &egui::Context) -> Receiver<EwsDirectoryResult> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let wake = wake.clone();
+    let spawned = std::thread::Builder::new().name("exchange calendar".into()).spawn(move || {
+        let EwsCalendarJob { request, secret, cancel } = job;
+        let _ = tx.send(run_calendar_with(&request, &secret, &cancel));
+        wake.request_repaint();
+    });
+    if let Err(e) = spawned {
+        log::error!("couldn't start reading the calendar of an Exchange server account: {e}");
+    }
+    rx
+}
+
 /// How long a busy server is waited for before a name is asked again, at most.
 const MOST_RESOLVE_WAIT_MS: u32 = 10_000;
 
@@ -671,6 +712,24 @@ fn resolve_words(error: &mailcraft_ews::Error, problem: Option<&CertificateProbl
         _ => "the server's answer can't be read",
     };
     format!("{LINE}: {why}")
+}
+
+/// [`run_calendar`] on this thread.
+pub(crate) fn run_calendar_with(request: &EwsDirectoryRequest, password: &str, cancel: &AtomicBool) -> EwsDirectoryResult {
+    let client = match client(&request.url, &request.username, &request.email, password) {
+        Ok(client) => client,
+        Err(why) => {
+            return EwsDirectoryResult { account: request.account, email: request.email.clone(), errors: vec![why.to_owned()], ..Default::default() };
+        }
+    };
+    let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
+    let mut pause = |ms: u32| wait(cancel, ms);
+    let result = crate::block_on::block_on(mailcraft_ews::sync_directory(&client, &transport, request, cancel, &mut pause));
+    let mut result = settled_directory(result, transport.problem().as_ref(), transport.auth_problem());
+    if let Some(scheme) = transport.scheme_name() {
+        scheme.clone_into(&mut result.signed_in_with);
+    }
+    result
 }
 
 #[cfg(test)]

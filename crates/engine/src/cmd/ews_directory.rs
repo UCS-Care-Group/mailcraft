@@ -24,12 +24,18 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 const MAX_SHARED: usize = 50;
 /// The days a calendar read covers beyond the calendar in view, either side.
 const MARGIN_DAYS: i64 = 8;
+/// The stretch a Send/Receive reads besides the days on screen (#1274): a month back, a year
+/// ahead (seconds).
+const WIDE_BEHIND: i64 = 31 * 86_400;
+const WIDE_AHEAD: i64 = 366 * 86_400;
+/// The longest stretch one request asks a server for: two years (seconds).
+const MAX_SPAN: i64 = 730 * 86_400;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.ewsDirectoryRequest", "Exchange Calendar, Contacts and To-dos to Read", "Send / Receive", request)
             .pure()
-            .params(r#"{"account"?: number, "from"?: seconds, "to"?: seconds, "background"?: bool} — for an Exchange server account: answers what a host should read of its calendars, address books and to-do lists (and those shared with it), after its mail."#)
+            .params(r#"{"account"?: number, "from"?: seconds, "to"?: seconds, "calendarOnly"?: bool, "background"?: bool} — for an Exchange server account: answers what a host should read of its calendars, address books and to-do lists (and those shared with it), after its mail; with calendarOnly, its calendars alone in the stretch (the days on screen when none is given), read and nothing sent."#)
             .when(available),
         CommandSpec::new("sync.applyEwsDirectory", "Apply Read Exchange Calendar, Contacts and To-dos", "Send / Receive", apply)
             .pure()
@@ -63,27 +69,57 @@ fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &Account, &EwsSer
     Ok((a, signer, server))
 }
 
-/// What the directory of `account` should read: its calendars in `from..to`, its address books and
-/// to-do lists whole, and what was changed here since the server last said.
+/// The days on screen and [`MARGIN_DAYS`] either side, as instants.
+fn on_screen(s: &Session) -> (i64, i64) {
+    let (first, last) = super::view::calendar_range(s);
+    let instant = |day: mailcraft_time::Date| {
+        let midnight = mailcraft_time::DateTime::at_midnight(day);
+        midnight.to_timestamp(s.offset_at(midnight.to_timestamp(0)))
+    };
+    (instant(first.add_days(-MARGIN_DAYS)), instant(last.add_days(MARGIN_DAYS + 1)))
+}
+
+/// The stretch of the calendar a Send/Receive reads (#1274): a month back and a year ahead, as a
+/// Microsoft account's calendar is kept, and the days on screen with it when the two together
+/// stay within [`MAX_SPAN`]; days further off are read when the owner goes to them.
+pub fn send_receive_stretch(s: &Session) -> (i64, i64) {
+    let now = s.now();
+    let wide = (now.saturating_sub(WIDE_BEHIND), now.saturating_add(WIDE_AHEAD));
+    let screen = on_screen(s);
+    let both = (wide.0.min(screen.0), wide.1.max(screen.1));
+    if both.1.saturating_sub(both.0) <= MAX_SPAN { both } else { wide }
+}
+
+/// Which of the directory a request reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Part {
+    /// Everything: the calendars, the address books and the to-do lists, and what was changed
+    /// here of them first (a Send/Receive's part).
+    Whole,
+    /// The calendars alone, for the days the owner went to (#1274): read and nothing more. What
+    /// was changed here waits for the next Send/Receive, and the merge leaves it as it is.
+    Calendar,
+}
+
+/// What the directory of `account` should read: its calendars in `from..to` (the days on screen
+/// and [`MARGIN_DAYS`] either side when not given), and for [`Part::Whole`] its address books and
+/// to-do lists whole and what was changed here since the server last said.
 pub fn ews_directory_request(
     s: &Session,
     account: Id,
     from: Option<i64>,
     to: Option<i64>,
+    part: Part,
     background: bool,
 ) -> Result<EwsDirectoryRequest, CmdError> {
     let (a, _signer, server) = ews_account(&s.mailbox, account)?;
     let (from, to) = match (from, to) {
         (Some(from), Some(to)) if to > from => (from, to),
-        _ => {
-            let (first, last) = super::view::calendar_range(s);
-            let instant = |day: mailcraft_time::Date| {
-                let midnight = mailcraft_time::DateTime::at_midnight(day);
-                midnight.to_timestamp(s.offset_at(midnight.to_timestamp(0)))
-            };
-            (instant(first.add_days(-MARGIN_DAYS)), instant(last.add_days(MARGIN_DAYS + 1)))
-        }
+        _ => on_screen(s),
     };
+    // (Never longer than a server is asked for at once.)
+    let to = to.min(from.saturating_add(MAX_SPAN));
+    let whole = part == Part::Whole;
     let mut shared: Vec<EwsSharedMailbox> = Vec::new();
     let mut add = |address: String, calendar: bool, contacts: bool, tasks: bool| {
         let address = address.trim().to_owned();
@@ -102,13 +138,13 @@ pub fn ews_directory_request(
         for opened in a.opened_calendars.iter().take(mailcraft_model::MAX_OPENED_CALENDARS) {
             add(opened.address.clone(), true, false, false);
         }
-        for opened in a.opened_address_books.iter().take(mailcraft_model::MAX_OPENED_ADDRESS_BOOKS) {
+        for opened in a.opened_address_books.iter().take(mailcraft_model::MAX_OPENED_ADDRESS_BOOKS).filter(|_| whole) {
             add(opened.address.clone(), false, true, false);
         }
     }
-    let changes = super::remote::event_upload(s, account).ok().filter(|upload| !upload.ops.is_empty());
-    let contact_changes = super::remote::contact_upload(s, account).filter(|upload| !upload.ops.is_empty());
-    let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| !upload.ops.is_empty());
+    let changes = super::remote::event_upload(s, account).ok().filter(|upload| whole && !upload.ops.is_empty());
+    let contact_changes = super::remote::contact_upload(s, account).filter(|upload| whole && !upload.ops.is_empty());
+    let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| whole && !upload.ops.is_empty());
     Ok(EwsDirectoryRequest {
         account,
         email: a.email.clone(),
@@ -117,8 +153,8 @@ pub fn ews_directory_request(
         mailbox: if a.is_shared() { a.email.clone() } else { String::new() },
         trusted: server.trusted.clone(),
         calendars: true,
-        contacts: true,
-        tasks: a.keeps_tasks(),
+        contacts: whole,
+        tasks: whole && a.keeps_tasks(),
         from,
         to,
         shared,
@@ -133,7 +169,8 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = named_account(s, v)?;
     let from = v.get("from").and_then(Value::as_i64);
     let to = v.get("to").and_then(Value::as_i64);
-    let request = ews_directory_request(s, account, from, to, p::bool(v, "background").unwrap_or(false))?;
+    let part = if p::bool(v, "calendarOnly").unwrap_or(false) { Part::Calendar } else { Part::Whole };
+    let request = ews_directory_request(s, account, from, to, part, p::bool(v, "background").unwrap_or(false))?;
     serde_json::to_value(request).map_err(|e| fail(e.to_string()))
 }
 
