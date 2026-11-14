@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Add Account for an Exchange server account (#252, E7): an explicit choice, nothing sent before Connect, the host's search with the owner's questions, the certificate
+//! Add Account for an Exchange server account (#252, E7): chosen here (found from the domain's Autodiscover records: `tests/autodiscover.rs`), nothing sent before Connect, the host's search with the owner's questions, the certificate
 //! question, a mailbox in Microsoft 365, the password remembered, and File › Info. The host is a
 //! stand-in that records the jobs it is given and says what the test tells it to; nothing here
 //! leaves the machine, and every name, address and fingerprint is invented.
@@ -99,7 +99,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
         Ok(())
     }
@@ -111,7 +111,8 @@ impl SecretStore for Store {
 fn app() -> MailApp {
     let session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app
 }
 
@@ -340,6 +341,7 @@ fn the_other_reasons_for_asking_are_said_in_plain_words() {
         (EwsConsentReason::OtherDomain, "asks to start again with an address in another domain, mail.other.example"),
         (EwsConsentReason::MailServer, "name mail.other.example, which isn't in your address's own domain, as the mail server"),
         (EwsConsentReason::SignIn, "mail.other.example is in your address's own domain, but it isn't the Autodiscover server your domain names"),
+        (EwsConsentReason::Alias, "points its autodiscover name at mail.other.example, but doesn't name it in the record"),
     ] {
         let mut a = app();
         let host = Host::default();

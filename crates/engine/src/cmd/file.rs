@@ -356,9 +356,9 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     // Whole: what the mailbox keeps outside memory goes into the file.
     let m = s.loaded_message(id)?;
     // A draft keeps its Bcc line; a sent or received message never had one to show.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
     let name = eml_name(&m);
-    deliver(v, &name, mailcraft_mime::write(&m, &opts))
+    deliver(v, &name, mailcraft_mime_model::write(&m, &opts))
 }
 
 /// The name of a message as a file of its own: its subject, fit for a file name, as `.eml`;
@@ -377,8 +377,8 @@ fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     }
     whole.sort_by_key(|m| (m.date, m.id));
     let messages: Vec<&mailcraft_model::Message> = whole.iter().map(|m| m.as_ref()).collect();
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(s.now()) };
-    let bytes = mailcraft_mime::write_mbox(&messages, &opts);
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(s.now()) };
+    let bytes = mailcraft_mime_model::write_mbox(&messages, &opts);
     let r = deliver(v, &export_name(&folder.name, "mbox"), bytes)?;
     Ok(with(r, "messages", json!(messages.len())))
 }

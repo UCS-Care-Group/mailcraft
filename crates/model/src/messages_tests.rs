@@ -155,3 +155,54 @@ proptest! {
         prop_assert_eq!(found, each);
     }
 }
+
+#[test]
+fn a_message_put_in_place_in_copies_shares_their_chunks() {
+    let mut live = Messages::new();
+    for id in 1..=5 {
+        live.insert(id, message(id, "full"));
+    }
+    let old = live.get(&3).unwrap().clone();
+    // Two copies kept to undo to, sharing every chunk with each other; a third that changed
+    // message 1 since.
+    let mut third = live.clone();
+    third.insert(1, message(1, "changed"));
+    let mut copies = [live.clone(), live.clone(), third];
+    // Message 3 is let go of in the live map.
+    let lean = message(3, "lean");
+    live.insert(3, lean.clone());
+    let mut done = crate::messages::Replaced::default();
+    for copy in &mut copies {
+        assert!(copy.put_in_place_of(3, &old, &lean, &live, &mut done));
+    }
+    drop(done);
+    for copy in &copies {
+        assert!(Arc::ptr_eq(copy.get(&3).unwrap(), &lean));
+    }
+    // The two that held what the live map holds now share its chunk; the third keeps its own change.
+    let chunk = |m: &Messages| m.chunks().values().next().unwrap().clone();
+    assert!(Arc::ptr_eq(&chunk(&copies[0]), &chunk(&live)) && Arc::ptr_eq(&chunk(&copies[1]), &chunk(&live)));
+    assert_eq!(copies[2].get(&1).unwrap().subject, "changed");
+    assert_eq!(Arc::strong_count(&old), 1, "nothing holds the full message any more");
+    // A copy that doesn't hold `old` itself is left as it is.
+    let mut done = crate::messages::Replaced::default();
+    let mut other = Messages::new();
+    other.insert(3, message(3, "another"));
+    assert!(!other.put_in_place_of(3, &old, &lean, &live, &mut done));
+    assert!(!other.put_in_place_of(99, &old, &lean, &live, &mut done));
+    assert_eq!(other.get(&3).unwrap().subject, "another");
+    // One record kept across two messages of a chunk: the second is put in place of its own, and
+    // the first's replacement is never taken for it.
+    let mut live = Messages::new();
+    for id in 1..=5 {
+        live.insert(id, message(id, "full"));
+    }
+    let (old1, old2) = (live.get(&1).unwrap().clone(), live.get(&2).unwrap().clone());
+    let (mut a, mut b) = (live.clone(), live.clone());
+    let lean1 = message(1, "lean");
+    let lean2 = message(2, "lean");
+    let mut done = crate::messages::Replaced::default();
+    assert!(a.put_in_place_of(1, &old1, &lean1, &live, &mut done));
+    assert!(b.put_in_place_of(2, &old2, &lean2, &live, &mut done));
+    assert!(Arc::ptr_eq(b.get(&2).unwrap(), &lean2) && Arc::ptr_eq(b.get(&1).unwrap(), &old1));
+}

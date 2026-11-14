@@ -103,7 +103,8 @@ fn answer(mut stream: TcpStream, standin: &StandIn, url: &str) -> std::io::Resul
 fn window(server: &Server) -> (MailApp, Id) {
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let ctx = egui::Context::default();
     let (run_ctx, fetch_ctx) = (ctx.clone(), ctx);
     app.services.ews = Some(Box::new(move |job| crate::ews_runner::run_mail(job, &run_ctx)));

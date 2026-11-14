@@ -362,7 +362,7 @@ fn parse_found(mut w: Walk, top: String, count_only: bool, progress: &Progress) 
         let mut ids = Vec::new();
         let mut messages = Vec::new();
         let mut more = false;
-        for m in mailcraft_mime::mbox_messages(&bytes) {
+        for m in mailcraft_mime_model::mbox_messages(&bytes) {
             if ids.len() >= limit {
                 more = true;
                 break;

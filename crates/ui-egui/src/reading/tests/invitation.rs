@@ -102,7 +102,7 @@ fn carrying(subject: &str, calendar: Vec<u8>) -> Message {
 fn mail_app(messages: Vec<Message>) -> (MailApp, u64, Vec<u64>) {
     let mut app = MailApp::new(Session::at(Mailbox::default(), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let account = app.execute("account.add", json!({"email": OWNER, "name": "Avery Quinn", "incoming": {"host": "imap.mail.example"}})).unwrap();
     let account = account["id"].as_u64().unwrap();
     let ids = deliver(&mut app, account, messages);
@@ -393,7 +393,8 @@ fn an_account_that_cannot_send_answers_in_its_calendar_only() {
     let inbox = mailbox.inbox().unwrap();
     let request = mailbox.add_message(Message { folder: inbox, ..Meeting::default().mail() }).unwrap();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness = window(app, (1280.0, 900.0));
     select(&mut harness, request);
     assert_eq!(said(&mut harness, request)["canSend"], false);
@@ -425,9 +426,10 @@ fn sync(app: &mut MailApp) {
         app.poll_calendar();
     }
     // (Also for an app that starts nothing by itself: this look is the test's own.)
-    let by_itself = std::mem::replace(&mut app.auto_sync, true);
+    let by_itself = app.session.driver.auto_sync();
+    app.session.driver.set_auto_sync(true);
     app.calendar_tick_at(true, crate::now_ms() + later);
-    app.auto_sync = by_itself;
+    app.session.driver.set_auto_sync(by_itself);
     for _ in 0..4 {
         app.poll_calendar();
     }
@@ -453,7 +455,7 @@ const THURSDAY: i64 = NOW + 22 * 3_600;
 fn on_a_server_the_request_and_the_calendars_item_are_one_meeting() {
     // The server has put the meeting on the calendar (the same UID, in other letters).
     let (mut app, server, account) = microsoft(vec![invited("g-1", "UID-DESIGN-REVIEW", THURSDAY)]);
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let request = deliver(&mut app, account, vec![Meeting::default().mail()])[0];
     let mut harness = window(app, (1280.0, 900.0));
     select(&mut harness, request);
@@ -523,7 +525,8 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     use crate::{GraphRequest, GraphResult};
     // A host that notes what it is asked, and answers when the test lets it.
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     type Asked = (usize, bool, bool, Option<(i64, i64)>, bool);
     let asked: Arc<Mutex<Vec<Asked>>> = Default::default();
     let held: Arc<Mutex<Vec<mpsc::Sender<GraphResult>>>> = Default::default();
@@ -566,15 +569,15 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     mailcraft_engine::cmd::remote::apply_events(&mut app.session, &download.for_account(&owner)).unwrap();
     let review = app.session.mailbox.events.values().find(|e| e.title == "Budget review").map(|e| e.id).unwrap();
     app.execute("calendar.move", json!({"id": review, "start": "2026-10-15T09:00"})).unwrap();
-    assert!(app.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
+    assert!(app.session.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
     app.session.mailbox.event_changes.clear();
     // Nor while a Send/Receive is about to ask, nor before the owner has allowed the calendar.
-    app.sync_queue.push_back((account, true));
+    app.session.driver.round.queue.push_back((account, true));
     assert!(app.calendar_job_around(account, day).is_err());
-    app.sync_queue.clear();
-    app.graph_consent_needed.insert(account);
+    app.session.driver.round.queue.clear();
+    app.session.driver.calendar.consent_needed.insert(account);
     assert!(app.calendar_job_around(account, day).is_err());
-    app.graph_consent_needed.remove(&account);
+    app.session.driver.calendar.consent_needed.remove(&account);
     assert_eq!(asked.lock().unwrap().len(), 1);
     // An account that signs in nowhere, a day at the end of time, a build without a host.
     assert!(app.calendar_job_around(1, day).is_err() && app.calendar_job_around(u64::MAX, day).is_err());
@@ -585,7 +588,7 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     app.services.graph = None;
     assert!(app.calendar_job_around(account, day).is_err());
     // Asking as it did left alone when the days on screen were last asked for.
-    assert!(!app.calendar.checked.contains_key(&account));
+    assert!(app.session.driver.calendar.book.checked(account).is_none());
 }
 
 #[test]

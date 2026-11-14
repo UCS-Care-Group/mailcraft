@@ -519,7 +519,7 @@ impl Draft {
         }
         if sending {
             ui.horizontal(|ui| {
-                ui.add(egui::Spinner::new().size(14.0));
+                crate::software::spinner(ui, 14.0, None);
                 ui.label(dim(tl!("Sending the report…")));
             });
         }

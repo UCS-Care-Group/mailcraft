@@ -10,11 +10,13 @@
 //! Sent Items and decides with Send Again. The run's answer, when it is taken in, clears the mark.
 //!
 //! Where the mailbox is kept by the background saver, the run waits for the saver to have written
-//! the marks ([`MailApp::send_gate_tick`]); a save that fails sends nothing.
+//! the marks ([`MailApp::send_gate_tick`]); a save that fails sends nothing. What is marked, when
+//! the marks come off and whether the run may go yet are the engine's
+//! ([`mailcraft_engine::sync_driver::sending`]); this writes the mailbox and hands the run over.
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-use mailcraft_engine::cmd::graph_send;
+use mailcraft_engine::sync_driver::GateStep;
 use mailcraft_model::Id;
 use mailcraft_model::sync::{EwsMailResult, JmapMailResult, SyncRequest, SyncResult};
 use serde_json::json;
@@ -42,16 +44,6 @@ pub(crate) enum Waiting {
     Jmap(Box<JmapJob>, Sender<JmapMailResult>),
 }
 
-/// A Send/Receive that waits for the saver.
-pub(crate) struct SendGate {
-    /// The mailbox opening it was started under.
-    opening: u64,
-    /// The state of the mailbox with the marks.
-    rev: u64,
-    account: Id,
-    waiting: Waiting,
-}
-
 fn not_saved(why: &str) -> String {
     crate::i18n::fmt(tl!("Nothing was sent: the mailbox couldn't be saved first ({error})"), &[("error", why)])
 }
@@ -60,16 +52,11 @@ impl MailApp {
     /// Mark `ids` of `account` as being sent, and write the mailbox, before they leave.
     fn saved_before_sending(&mut self, account: Id, ids: &[Id]) -> Saved {
         // (A new run: what an earlier one's refused piece said is not this one's.)
-        self.send_doubt = false;
-        if !graph_send::mark_sending(&mut self.session.mailbox, account, ids) {
-            return Saved::Now;
-        }
-        self.session.mailbox_changed();
+        let Some(rev) = self.session.send_marking(account, ids) else { return Saved::Now };
         // (A mailbox that isn't kept between runs has nothing to come back to.)
         if !self.autosave {
             return Saved::Now;
         }
-        let rev = self.session.rev();
         let written = if let Some(persist) = &self.services.persist {
             mailcraft_engine::io::write_mailbox(&self.session.mailbox).and_then(|bytes| persist(&bytes))
         } else if let (Some(saver), Some(path)) = (&self.services.saver, &self.session.path) {
@@ -88,7 +75,7 @@ impl MailApp {
             }
             Err(e) => {
                 log::warn!("send/receive: the mailbox couldn't be saved before sending; nothing is sent: {e}");
-                self.sending_answered(account);
+                self.session.sending_answered(account);
                 Saved::Failed(not_saved(&e))
             }
         }
@@ -98,7 +85,8 @@ impl MailApp {
     fn wait_for_save<A>(&mut self, rev: u64, account: Id, waiting: impl FnOnce(Sender<A>) -> Waiting) -> Receiver<A> {
         let (tx, rx) = channel();
         // (One run at a time: a gate left from another is the old mailbox's, and goes.)
-        self.send_gate = Some(SendGate { opening: self.session.openings(), rev, account, waiting: waiting(tx) });
+        self.session.send_gate_wait(account, rev);
+        self.send_gate = Some(waiting(tx));
         rx
     }
 
@@ -150,19 +138,21 @@ impl MailApp {
     /// Every frame, once the saver has reported: the run that waited for its marks to be written
     /// goes to the host, or, when the save failed (`failed`), sends nothing and ends saying so.
     pub(crate) fn send_gate_tick(&mut self, failed: Option<&str>) {
-        let Some(gate) = &self.send_gate else { return };
-        if gate.opening != self.session.openings() {
+        if self.send_gate.is_none() {
+            return;
+        }
+        let account = match self.session.send_gate_step(self.saved_rev, failed.is_some()) {
+            GateStep::Waiting => return,
             // (Nothing went: the mailbox it was for is gone, and its marks with it.)
-            self.send_gate = None;
-            return;
-        }
-        if failed.is_none() && self.saved_rev < gate.rev {
-            return;
-        }
-        let Some(SendGate { account, waiting, .. }) = self.send_gate.take() else { return };
+            GateStep::Idle | GateStep::Gone => {
+                self.send_gate = None;
+                return;
+            }
+            GateStep::Failed(account) | GateStep::Open(account) => account,
+        };
+        let Some(waiting) = self.send_gate.take() else { return };
         if let Some(e) = failed {
             log::warn!("send/receive: the mailbox couldn't be saved before sending; nothing is sent: {e}");
-            self.sending_answered(account);
             let errors = vec![not_saved(e)];
             // The stand-in answers: the run ends as any run that couldn't go.
             match waiting {
@@ -217,39 +207,6 @@ impl MailApp {
             }
         };
         // The run was called off while it waited: nothing went, so nothing is in doubt.
-        if !went {
-            self.sending_answered(account);
-        }
-    }
-
-    /// The answer of `account`'s run was taken in: no mark is left on its messages.
-    pub(crate) fn sending_answered(&mut self, account: Id) {
-        if graph_send::sending_answered(&mut self.session.mailbox, account) {
-            self.session.mailbox_changed();
-        }
-    }
-
-    /// The run of `account` is over: when every piece of its answer was taken in, what it sent is
-    /// filed and what it didn't send is known not to have gone, so no mark is left. A piece that
-    /// was refused leaves them, for the next run to hold (AU3-26).
-    pub(crate) fn run_answered(&mut self, account: Id) {
-        if std::mem::take(&mut self.send_doubt) {
-            log::warn!("send/receive: part of the answer was refused; what it sent is held at the next run");
-        } else {
-            self.sending_answered(account);
-        }
-    }
-
-    /// A run of `account` begins: what an earlier run handed over without an answer coming back
-    /// is held, and the owner told.
-    pub(crate) fn hold_unanswered(&mut self, account: Id) {
-        let mut said = Vec::new();
-        if graph_send::hold_unanswered(&mut self.session.mailbox, account, self.session.interface_language, &mut said) {
-            log::warn!("send/receive: {} message(s) handed to the server by an earlier run got no answer; held", said.len());
-            self.session.mailbox_changed();
-            if let Some(first) = said.first() {
-                self.status(first.clone());
-            }
-        }
+        self.session.send_gate_went(account, went);
     }
 }

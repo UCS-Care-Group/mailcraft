@@ -1,0 +1,1 @@
+| 2026-11-12 | The log carries the text of each Send/Receive problem (once, cut short, capped at 20 a run), so a diagnostics report shows what failed; quoted names, addresses and links are taken out as the line is written, and hosts and paths when the report is copied. |

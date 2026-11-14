@@ -8,7 +8,9 @@ use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily,
 use mailcraft_model::rich::Font;
 
 mod accent;
+mod blue;
 pub use accent::{Accent, AccentInk, lenient_bool};
+pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
@@ -367,54 +369,57 @@ impl Tokens {
             avatar_shade: 1.0,
         }
     }
-    /// The dark palette: one cool ramp, window to folder pane to list to ribbon, and a lighter
-    /// blue accent.
+    /// The dark palette: neutral greys, window to folder pane to list to ribbon, as in the other
+    /// Craft programs (no blue in the greys; only the accent and what it washes are coloured),
+    /// and a lighter blue accent.
     pub fn dark() -> Self {
-        let window = c(0x12, 0x16, 0x1D);
-        let panel = c(0x16, 0x1B, 0x23);
-        let surface = c(0x1B, 0x21, 0x2B);
-        let border = c(0x2C, 0x34, 0x42);
-        let text = c(0xF1, 0xF4, 0xF9);
-        let hover = c(0x2A, 0x32, 0x40);
+        let window = c(0x18, 0x18, 0x1A);
+        let panel = c(0x1D, 0x1D, 0x1F);
+        let surface = c(0x22, 0x22, 0x24);
+        let border = c(0x38, 0x38, 0x3C);
+        let text = c(0xEE, 0xEE, 0xF0);
+        let hover = c(0x32, 0x32, 0x36);
         let accent = c(0x5A, 0xA2, 0xFF);
         let on_accent = c(0x08, 0x13, 0x2B);
-        let soft = c(0x1F, 0x33, 0x58);
-        let selection = c(0x1F, 0x2B, 0x40);
-        let input_border = c(0x7D, 0x88, 0x9C);
+        let soft = c(0x26, 0x34, 0x51);
+        let selection = c(0x26, 0x2C, 0x39);
+        let input_border = c(0x84, 0x84, 0x8B);
+        let ribbon = c(0x2A, 0x2A, 0x2D);
+        let dim = c(0xB6, 0xB6, 0xBC);
         Tokens {
             dark: true,
             high_contrast: false,
             sender_dark: false,
             title_bar: window,
-            ribbon: c(0x20, 0x27, 0x33),
+            ribbon,
             tab_strip: window,
             nav: window,
             canvas: window,
             panel,
             surface,
             border,
-            border_strong: c(0x4A, 0x55, 0x68),
+            border_strong: c(0x55, 0x55, 0x5B),
             text,
-            text_dim: c(0xB4, 0xBC, 0xCB),
-            text_disabled: c(0x6E, 0x78, 0x8C),
-            icon: c(0xDF, 0xE4, 0xEC),
+            text_dim: dim,
+            text_disabled: c(0x7A, 0x7A, 0x80),
+            icon: c(0xDE, 0xDE, 0xE2),
             hover,
-            pressed: c(0x36, 0x40, 0x52),
+            pressed: c(0x3E, 0x3E, 0x43),
             checked: soft,
             accent,
             accent_text: c(0x8F, 0xBF, 0xFF),
             on_accent,
             input: surface,
             input_border,
-            group_label: c(0xB4, 0xBC, 0xCB),
+            group_label: dim,
             status_bar: window,
             selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xC8, 0xA8, 0x00, 0x70),
-            flagged_row: c(0x34, 0x26, 0x2C),
+            flagged_row: c(0x3A, 0x2A, 0x2E),
             overdue: c(0xFF, 0x99, 0x99),
-            off_hours: c(0x17, 0x1C, 0x24),
-            today: c(0x1B, 0x2B, 0x45),
-            menu: c(0x20, 0x27, 0x33),
+            off_hours: c(0x1E, 0x1E, 0x20),
+            today: c(0x22, 0x2C, 0x3E),
+            menu: ribbon,
             blue: c(0x6C, 0x9B, 0xEA),
             red: c(0xEE, 0x6A, 0x6A),
             green: c(0x5B, 0xC0, 0x8A),
@@ -427,23 +432,23 @@ impl Tokens {
             shadow_popup: Color32::from_black_alpha(120),
             shadow_window: Color32::from_black_alpha(140),
             text_selection: accent.linear_multiply(0.45),
-            selection_unfocused: c(0x1A, 0x22, 0x30),
+            selection_unfocused: c(0x2A, 0x2A, 0x2E),
             selection_edge: accent,
-            selection_edge_unfocused: c(0x4A, 0x58, 0x72),
+            selection_edge_unfocused: c(0x60, 0x60, 0x68),
             group_header: Color32::TRANSPARENT,
             selection_pill: soft,
             accent_soft: soft,
             accent_soft_text: c(0xCF, 0xE0, 0xFF),
-            pill_quiet: c(0x26, 0x2E, 0x3B),
+            pill_quiet: c(0x30, 0x30, 0x34),
             hover_subtle: hover.linear_multiply(0.6),
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0x25, 0x2C, 0x38),
-            border_faint: c(0x22, 0x29, 0x34),
-            track: c(0x36, 0x40, 0x52),
+            rule: c(0x2E, 0x2E, 0x32),
+            border_faint: c(0x2A, 0x2A, 0x2D),
+            track: c(0x3E, 0x3E, 0x43),
             lane: panel,
-            ribbon_edge: Stroke::new(1.0, c(0x2A, 0x32, 0x40)),
+            ribbon_edge: Stroke::new(1.0, c(0x33, 0x33, 0x37)),
             pane_rule: true,
             field_edge: input_border,
             backstage_column: panel,
@@ -514,9 +519,9 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off.
-    pub fn for_choice(accent: Accent, high_contrast: bool) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build(true, accent, high_contrast) }
+    /// The built-in look in `accent`, with high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build_dark(style, accent, high_contrast) }
     }
 
     fn slot() -> egui::Id {
@@ -534,12 +539,14 @@ pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
     pub high_contrast: bool,
+    /// The greys of the dark theme (#1384).
+    pub dark_style: DarkStyle,
 }
 
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast)
+        Palette::for_choice(self.accent, self.high_contrast, self.dark_style)
     }
 }
 
@@ -1683,6 +1690,7 @@ mod tests {
     /// space French puts before a colon) has a glyph in every weight of the bundled fonts.
     #[test]
     fn the_catalogues_are_drawn_with_the_bundled_fonts() {
+        // Chinese needs a system CJK fallback; the bundled fonts do not cover its characters.
         let catalogues = [
             ("fr", include_str!("../../i18n/po/fr.po")),
             ("de", include_str!("../../i18n/po/de.po")),

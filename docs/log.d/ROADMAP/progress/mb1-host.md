@@ -1,0 +1,1 @@
+| 2026-11-13 | MB1.3 to MB1.5: the To Do, Graph, message-fetch and calendar runs, and the pacing of the background jobs (patience, back-off, how often), move below the window, onto the new host crate and the engine; the desktop behaves as before |

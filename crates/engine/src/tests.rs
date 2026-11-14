@@ -767,6 +767,145 @@ fn accounts_that_sign_in_on_the_providers_page() {
         (mx["known"].as_bool(), mx["via"].as_str(), mx["incoming"]["host"].as_str()),
         (Some(false), Some("guess"), Some("imap.lumen.example"))
     );
+    // What the host found in the domain's own records (#1063): for the owner to confirm, so not
+    // "known"; the address as the user name (RFC 6186); the usual names for what it lacks; and a
+    // found host outside the address's domain said to be so, for an agent to ask the owner.
+    let found = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "mx": ["mx.lumen.example"], "found": {
+            "incoming": {"host": "Mail.Hosted.Example.", "port": 993, "security": "tls", "via": "srv"},
+            "outgoing": {"host": "smtp.lumen.example", "security": "starttls", "via": "srv"}
+        }}),
+    );
+    assert_eq!(
+        (found["known"].as_bool(), found["via"].as_str(), found["username"].as_str()),
+        (Some(false), Some("srv"), Some("Avery@lumen.example"))
+    );
+    assert_eq!(
+        (
+            found["incoming"]["host"].as_str(),
+            found["incoming"]["port"].as_u64(),
+            found["incoming"]["security"].as_str(),
+            found["incoming"]["via"].as_str(),
+            found["incoming"]["outside"].as_bool()
+        ),
+        (Some("mail.hosted.example"), Some(993), Some("tls"), Some("srv"), Some(true))
+    );
+    assert_eq!(
+        (
+            found["outgoing"]["host"].as_str(),
+            found["outgoing"]["port"].as_u64(),
+            found["outgoing"]["security"].as_str(),
+            found["outgoing"]["via"].as_str(),
+            found["outgoing"]["outside"].as_bool()
+        ),
+        (Some("smtp.lumen.example"), Some(587), Some("starttls"), Some("srv"), Some(false))
+    );
+    let half = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "found": {"outgoing": {"host": "smtp.lumen.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (half["via"].as_str(), half["incoming"]["via"].as_str(), half["incoming"]["host"].as_str()),
+        (Some("srv"), Some("guess"), Some("imap.lumen.example"))
+    );
+    assert_eq!(
+        (half["outgoing"]["port"].as_u64(), half["outgoing"]["via"].as_str(), half["username"].as_str()),
+        (Some(465), Some("srv"), Some("avery@lumen.example"))
+    );
+    // A guess is never "outside": it is made from the address's own domain.
+    assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // #1112: what the domain publishes for mail programs or Mozilla's ISP database lists is
+    // taken the same way, and the user name is what the source's placeholders make of the address.
+    let published = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "found": {
+            "incoming": {"host": "mail.lumen.example", "security": "tls", "via": "autoconfig"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "ispdb"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!(
+        (published["known"].as_bool(), published["via"].as_str(), published["username"].as_str()),
+        (Some(false), Some("autoconfig"), Some("Avery"))
+    );
+    assert_eq!(
+        (published["incoming"]["port"].as_u64(), published["incoming"]["via"].as_str(), published["incoming"]["outside"].as_bool()),
+        (Some(993), Some("autoconfig"), Some(false))
+    );
+    assert_eq!(
+        (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
+        (Some(587), Some("ispdb"), Some(true))
+    );
+    // What is put in for a placeholder is never read as one again: a `%` in the address stays.
+    for (email, template, name) in [
+        ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
+        ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
+        ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+    ] {
+        let filled = run(
+            &mut s,
+            "account.preset",
+            json!({"email": email, "found": {"incoming": {"host": "imap.lumen.example", "security": "tls", "via": "autoconfig"}, "username": template}}),
+        );
+        assert_eq!(filled["username"], name, "{email} {template}");
+    }
+    // A placeholder nobody knows, or a user name without a found incoming server: the address.
+    for (records, why) in [
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
+            "unknown placeholder",
+        ),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
+        (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+        (
+            json!({"outgoing": {"host": "smtp.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%"}),
+            "no incoming server found",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
+            "half a placeholder",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}),
+            "an SRV record writes no user name",
+        ),
+    ] {
+        let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
+        assert_eq!(odd["username"], "avery@lumen.example", "{why}");
+    }
+    // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
+    // usual names stand in.
+    for (bad, why) in [
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "none", "via": "srv"}}), "plain"),
+        (json!({"incoming": {"host": "imap.hosted.example", "via": "srv"}}), "no security"),
+        (json!({"incoming": {"host": "imap.hosted.example/path", "security": "tls", "via": "srv"}}), "not a host"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "rumour"}}), "unknown source"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 0}}), "port 0"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 70000}}), "port too big"),
+        (json!({"incoming": "imap.hosted.example"}), "not an object"),
+        (json!([]), "a list"),
+    ] {
+        let preset = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": bad}));
+        assert_eq!(
+            (preset["via"].as_str(), preset["incoming"]["host"].as_str(), preset["incoming"]["security"].as_str()),
+            (Some("guess"), Some("imap.lumen.example"), Some("tls")),
+            "{why}"
+        );
+    }
+    // A provider the domain or its exchangers name needs nothing found.
+    let known = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "mx": ["aspmx.l.google.com"], "found": {"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (known["via"].as_str(), known["incoming"]["host"].as_str(), known["incoming"]["via"].as_str(), known["incoming"]["outside"].as_bool()),
+        (Some("mx"), Some("imap.gmail.com"), Some("mx"), Some(false))
+    );
     // Or the owner says whose it is.
     let named = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "Outlook.com"}));
     assert_eq!((named["via"].as_str(), named["outgoing"]["host"].as_str()), (Some("asked"), Some("smtp-mail.outlook.com")));
@@ -2320,10 +2459,26 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // A folder named as a kind or a path (#1200): the branch that reads the text, walks the
+        // paths of every account and then tries the digits as an id. Without one of these, that
+        // whole branch is never entered by this test. No `account` on the first four, because one
+        // that is refused ends the call before `folder` is looked at.
+        json!({"folder": "\u{0}inbox/../..", "ids": [[[]]]}),
+        json!({"folder": "x".repeat(100_000)}),
+        json!({"folder": "18446744073709551615", "query": "\u{202e}"}),
+        json!({"folder": "///", "limit": 1e300}),
+        json!({"folder": "inbox", "account": 18446744073709551615u64}),
         // Messages forwarded together (#360): more than one message carries, each named again and
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        // Snooze (#949): Return times that are none, far, past or the end of time.
+        json!({"ids": [1, 2, 3], "until": i64::MAX}),
+        json!({"ids": [1], "until": i64::MIN}),
+        json!({"ids": [1, 1, 1], "until": 1e300}),
+        json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
+        json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
+        json!({"ids": [1], "until": {"deep": [[[]]]}}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),

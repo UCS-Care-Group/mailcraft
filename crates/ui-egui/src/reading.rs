@@ -67,9 +67,21 @@ pub(crate) use warnings::row_mark as warning_mark;
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+/// Let go of what is kept to show messages again quickly (the window is out of sight,
+/// [`crate::out_of_sight`]): the bodies laid out, the pictures' textures and bytes, the pictures
+/// from the web and the faces read for messages. Each is made, asked for or read again when it
+/// is next shown; what is on its way is not waited for, and not kept.
+pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
+    view::Store::let_go(ctx);
+    app.remote_pictures.let_go(ctx);
+    fonts::let_go(ctx);
+}
+
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
 const SHOWN_NAMES: usize = 50;
 const SHOWN_CATEGORIES: usize = 8;
+/// Most of a message's Gmail labels shown in the reading pane (#1153).
+const SHOWN_LABELS: usize = 16;
 
 /// The widest a picture in a message's body is shown, in points. Its text fills the pane, as
 /// Outlook's does, and as the body of a reply being written does above the original (#47).
@@ -102,12 +114,12 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
     let doc = view::doc_shown(&ctx, m, place, false, view::env_of(app, ui, place));
     let access = Access::Blocked;
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-    header(app, ui, m, place, |_, ui, t| {
+    header(app, ui, m, place, |app, ui, t| {
         if !doc.remote.is_empty() {
             let said = tl!("Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first.");
             ui.add(egui::Label::new(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim)).wrap());
         }
-        unreadable_line(ui, m, t);
+        unreadable_line(ui, m, t, app.windows.len());
     });
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
@@ -202,7 +214,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
-        unreadable_line(ui, m, t);
+        unreadable_line(ui, m, t, app.windows.len());
     });
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
@@ -260,10 +272,10 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     } else if app.jmap_refused.contains(&m.account) {
         // Its server turned the account's sign-in down: nothing downloads until it is given again.
         tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.")
-    } else if app.fetching.offline && !app.session.mailbox.within_window(m, app.session.now()) {
+    } else if app.session.driver.fetch.offline && !app.session.mailbox.within_window(m, app.session.now()) {
         // Older than its mail to keep offline (#143): only its headers and preview are kept here.
         tl!("Not connected: the rest of this message is on the server")
-    } else if app.fetching.offline {
+    } else if app.session.driver.fetch.offline {
         tl!("This message isn't on this computer yet. It will download when you're online.")
     } else if app.opened_after_batch(m.id) {
         tl!("This message downloads once the messages being downloaded now are here.")
@@ -282,16 +294,29 @@ pub(crate) fn has_unreadable(m: &Message) -> bool {
         .any(|text| text.contains(MARK))
 }
 
+/// Messages whose [`has_unreadable`] answer is kept ([`unreadable_line`]), at the least: more
+/// with more windows open, so that every message on screen keeps its answer.
+const UNREADABLE_KEPT: usize = 8;
+
 /// The line above a message that holds a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
-fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens) {
-    let key = egui::Id::unique(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
-    let unreadable = match ui.ctx().data(|d| d.get_temp::<bool>(key)) {
-        Some(kept) => kept,
+fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens, windows: usize) {
+    // Kept for the last few messages shown (the pane and windows), under one key: not one entry
+    // in egui's memory for every message ever read.
+    let key = egui::Id::unique("mailcraft-unreadable");
+    let this = egui::Id::unique((m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
+    let known = ui.ctx().data(|d| d.get_temp::<Vec<(egui::Id, bool)>>(key)).unwrap_or_default();
+    let unreadable = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, kept)) => *kept,
         None => {
             let found = has_unreadable(m);
-            ui.ctx().data_mut(|d| d.insert_temp(key, found));
+            let mut known = known;
+            if known.len() >= UNREADABLE_KEPT.max(windows.saturating_add(2)) {
+                known.remove(0);
+            }
+            known.push((this, found));
+            ui.ctx().data_mut(|d| d.insert_temp(key, known));
             found
         }
     };
@@ -423,20 +448,6 @@ pub(crate) const ACTIONS: [(&str, &str, &str); 4] = [
     ("delete", "Delete", "mail.delete"),
 ];
 
-/// The widths the sender's name and address get in `room` (what is left of the row after the
-/// tag), given the widths they would like. Both fit when they can; else the address is
-/// shortened first, down to 60% of the room, and the name gets the rest, shortened in turn
-/// (#630). The two never add up to more than `room`.
-pub(crate) fn header_widths(room: f32, name: f32, address: f32) -> (f32, f32) {
-    let room = room.max(0.0);
-    let (name, address) = (name.max(0.0), address.max(0.0));
-    if name + address <= room {
-        return (name, address);
-    }
-    let address_w = address.min((room * 0.6).max(room - name));
-    ((room - address_w).min(name).max(0.0), address_w)
-}
-
 /// Whether the date goes on a line of its own: the pane is too narrow to give the sender a
 /// useful row beside it.
 pub(crate) fn header_date_on_own_line(row: f32, date: f32) -> bool {
@@ -493,58 +504,70 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                 let date_label = |fields: &mut select::Fields, ui: &mut Ui| {
                     fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when.clone()).font(regular(11.5)).color(t.text_dim)));
                 };
-                let sender_row = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui, room: f32| {
-                    // From outside the organisation: a quiet tag after the address, which
-                    // keeps its room.
+                let sender = |app: &mut MailApp, fields: &mut select::Fields, ui: &mut Ui| {
+                    const ADDRESS_GAP: f32 = 4.0;
+                    const TAG_GAP: f32 = 6.0;
+                    let room = ui.available_width();
                     let external = warnings::external(app, m);
-                    let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
-                    let address_text = format!("<{}>", m.from.email);
-                    let name_text = m.from.display();
-                    let name_nat = ui.painter().layout_no_wrap(name_text.to_string(), semibold(13.0), t.text).size().x;
-                    let address_nat = if m.from.name.is_empty() {
-                        0.0
-                    } else {
-                        ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x
-                    };
-                    let gap = ui.spacing().item_spacing.x;
-                    let (name_w, address_w) = header_widths(room - tag_w - gap, name_nat, address_nat);
+                    let tag_room = if external { warnings::external_tag_width(ui, &t) + TAG_GAP } else { 0.0 };
+                    let has_address = !m.from.name.is_empty();
                     let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
-                    let name =
-                        egui::RichText::new(name_text.to_string()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
-                    ui.scope(|ui| {
-                        ui.set_max_width(name_w);
-                        fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                    let name = egui::RichText::new(m.from.display().to_string()).font(semibold(13.0)).color(if looks_like_address {
+                        t.orange
+                    } else {
+                        t.text
                     });
-                    if !m.from.name.is_empty() {
-                        let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                    let address_text = format!("<{}>", m.from.email);
+                    let name_width = ui.painter().layout_no_wrap(m.from.display().to_string(), semibold(13.0), t.text).size().x;
+                    let address_width = ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x;
+                    let address_on_own_line = has_address && name_width + ADDRESS_GAP + address_width + tag_room > room;
+
+                    let name_label = |fields: &mut select::Fields, ui: &mut Ui, width: f32| {
                         ui.scope(|ui| {
-                            ui.set_max_width(address_w);
-                            fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                            ui.set_max_width(width.max(0.0));
+                            fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
                         });
-                    }
-                    if external {
-                        ui.add_space(6.0);
-                        let tag = warnings::external_tag(ui, &t);
-                        if place == Place::Pane {
-                            app.hit.add("externalTag", m.id, tag.rect);
+                    };
+                    let address_and_tag = |fields: &mut select::Fields, ui: &mut Ui| {
+                        if has_address {
+                            let width = (ui.available_width() - tag_room).max(0.0);
+                            ui.scope(|ui| {
+                                ui.set_max_width(width);
+                                let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
+                                fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                            });
                         }
+                        if external {
+                            ui.add_space(TAG_GAP);
+                            let tag = warnings::external_tag(ui, &t);
+                            if place == Place::Pane {
+                                app.hit.add("externalTag", m.id, tag.rect);
+                            }
+                        }
+                    };
+
+                    if address_on_own_line {
+                        name_label(fields, ui, room);
+                        ui.horizontal(|ui| address_and_tag(fields, ui));
+                    } else {
+                        ui.horizontal(|ui| {
+                            name_label(fields, ui, if has_address { name_width } else { room - tag_room });
+                            if has_address {
+                                ui.add_space(ADDRESS_GAP);
+                            }
+                            address_and_tag(fields, ui);
+                        });
                     }
                 };
                 if on_own_line {
-                    ui.horizontal(|ui| {
-                        let room = ui.available_width();
-                        sender_row(app, &mut fields, ui, room);
-                    });
+                    sender(app, &mut fields, ui);
                     date_label(&mut fields, ui);
                 } else {
                     ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                             ui.add_space(8.0);
                             date_label(&mut fields, ui);
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                let room = ui.available_width();
-                                sender_row(app, &mut fields, ui, room);
-                            });
+                            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| sender(app, &mut fields, ui));
                         });
                     });
                 }
@@ -618,6 +641,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                 + 6.0;
         }
     }
+    gmail_labels(app, ui, m);
     // The rest of the conversation, to jump to.
     // (Worked out once per change to the mailbox, not at every frame.)
     let thread = app.session.conversation(m.id);
@@ -646,6 +670,27 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
             }
         });
     }
+}
+
+/// A Gmail account's labels of the message (#1153), as tags under the categories: read only, the
+/// owner's own labels but the one of the folder it is in ([`Message::shown_gmail_labels`]), each
+/// by the last part of its path, the whole path in its tooltip.
+fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
+    let folder = app.session.mailbox.folder(m.folder).map(|f| f.remote.as_str()).unwrap_or_default();
+    let labels: Vec<String> = m.shown_gmail_labels(folder).take(SHOWN_LABELS).map(str::to_string).collect();
+    if labels.is_empty() {
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+        for label in &labels {
+            let text = crate::widgets::label_tag_text(ui.painter(), mailcraft_model::gmail::label_leaf(label), 10.5, crate::widgets::LABEL_TAG_MAX);
+            let (r, response) = ui.allocate_exact_size(vec2(crate::widgets::label_tag_width(&text), 18.0), Sense::hover());
+            crate::widgets::paint_label_tag(ui.painter(), pos2(r.min.x, r.center().y), text, 16.0);
+            app.hit.add("gmailLabel", m.id, r);
+            response.on_hover_text(crate::i18n::fmt(tl!("Gmail label: {label}"), &[("label", label)]));
+        }
+    });
 }
 
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {

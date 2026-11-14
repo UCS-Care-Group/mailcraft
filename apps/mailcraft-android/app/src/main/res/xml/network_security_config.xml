@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+
+  No cleartext, and only the system's certificate authorities: no user-added ones, no pinned
+  exceptions. (The program's own connections are made in Rust, which asks the system's trust
+  manager; this file also covers anything the platform's HTTP stack is asked to do.)
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

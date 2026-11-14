@@ -95,6 +95,7 @@ Home|Tags|New Category|category.set
 Home|Tags|Rename Category|category.rename
 Home|Tags|Delete Category|category.remove
 Home|Tags|Follow Up|mail.flag
+Home|Tags|Snooze|mail.snooze
 Home|Tags|Flag Message|mail.toggleFlag
 Home|Tags|Mark Complete|mail.complete
 Home|Tags|Clear Flag|mail.clearFlag

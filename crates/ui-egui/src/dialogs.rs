@@ -38,6 +38,9 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
+    /// it was run without one; runs `mail.move` or `mail.copy`.
+    MoveItems(crate::move_items::MoveItems),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -230,6 +233,7 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
@@ -301,6 +305,7 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -419,12 +424,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     let mb = &app.session.mailbox;
     // Read as the command reads it (#553): one named wrongly asks nothing, and the command refuses it.
     let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
-    // (Not a JMAP account's yet, nor an Exchange server account's: nothing done here goes up to
-    // its server until the engine sends its changes, so nothing is removed there.)
-    let on_server = |account: u64| {
-        mb.account(account)
-            .is_some_and(|a| a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange))
-    };
+    // (A JMAP account's too: its deletions go up with its next run. Not an Exchange server
+    // account's, as before.)
+    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Exchange);
     let server_too = |yes: bool| if yes { format!(" {}", tl!("They are removed from the mail server too.")) } else { String::new() };
     let question = |title: &str, text: String, action: &str| Some(Question::new(title, text, action, Value::Null));
     match id {
@@ -484,7 +486,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 tln!(n, "{n} message will be permanently deleted.", "{n} messages will be permanently deleted.")
             };
-            let text = if going.iter().any(|m| on_server(m.account)) {
+            // (Of a JMAP account, only what its server has: the rest is this computer's alone.)
+            let jmap = |m: &mailcraft_model::Message| mb.account(m.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let text = if going.iter().any(|m| on_server(m.account) && (m.server.is_some() || !jmap(m))) {
                 let too = if n == 1 {
                     tl!("It is removed from the mail server too, and that can't be undone.")
                 } else {
@@ -521,7 +525,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             }
             let everything =
                 crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
-            let text = format!("{everything}{}", server_too(on_server(f.account)));
+            // (Of a JMAP account, only when its server has some of it: what is this computer's
+            // alone, a draft or mail brought in from a file, is removed nowhere else.)
+            let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let going = mb.subtree(f.id);
+            let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
+            let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
         "folder.delete" => {
@@ -995,7 +1004,7 @@ pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");
         let day = params.get("occurrence").and_then(Value::as_str).and_then(mailcraft_time::Date::parse_iso).filter(|_| one);
-        app.calendar.opened = params.get("scope").is_some().then_some((event, day));
+        app.session.driver.calendar.opened = params.get("scope").is_some().then_some((event, day));
     }
     let opened = if command == "ui.openWindow" { app.run_or_else(command, params.clone()) } else { app.run(command, params.clone()) };
     if opened.is_err() && command == "ui.openWindow" {
@@ -1074,7 +1083,7 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     // What the form of an item saves that was opened as one occurrence (or as the series) is
     // meant for that, whatever is selected by now: [`as_opened`] says so when the command is
     // run, so it has to be run that way (and is then asked nothing).
-    let opened = app.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
+    let opened = app.session.driver.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
     let day = match opened {
         Some((_, said)) => said.or(day).or(Some(e.start.date)),
         None => day,
@@ -1188,15 +1197,15 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
     // Opened anew, with nothing said of which is meant: what was said the last time no longer
     // holds. (What is said now, when the question is asked, is noted by [`go_ahead`].)
     if (id == "ui.openWindow" || input_dialog(id, &params) == Some("editEvent")) && params.get("scope").is_none() {
-        app.calendar.opened = None;
+        app.session.driver.calendar.opened = None;
         return params;
     }
-    let Some((event, day)) = app.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
+    let Some((event, day)) = app.session.driver.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
     if params.get("id").and_then(Value::as_u64).or(app.session.sel.event) != Some(event) {
         return params;
     }
     // Said once, used once: the next time the item is opened, the owner is asked again.
-    app.calendar.opened = None;
+    app.session.driver.calendar.opened = None;
     let mut params = params;
     if let Some(map) = params.as_object_mut() {
         match day {
@@ -1217,6 +1226,7 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
 pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     let has = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
     let empty = params.as_object().is_none_or(|m| m.is_empty());
+    let names_messages = params.get("id").is_some() || params.get("ids").is_some();
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
@@ -1243,6 +1253,12 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        // Move to Folder and Copy to Folder without a folder (their keys, the menu bar) ask which
+        // (#1176).
+        // The dialog moves the selection, so a call that names messages (`id`, `ids`, even as
+        // null) isn't sent there: it runs, and is refused for want of a folder.
+        "mail.move" if !has("folder") && !names_messages => Some("moveItems"),
+        "mail.copy" if !has("folder") && !names_messages => Some("copyItems"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
@@ -1543,6 +1559,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
+        Dialog::MoveItems(d) => {
+            let mut outcome = crate::move_items::Outcome::Open;
+            let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
+        }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
             let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
@@ -1840,15 +1861,19 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
         }
         Dialog::Report { title, lines, .. } => {
+            // As tall as the report needs, up to most of the window's height; scrolled past that.
+            let tallest = (ctx.content_rect().height() * 0.6).clamp(200.0, 560.0);
             let open = window(ctx, title, 560.0, |ui| {
-                egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(tallest).auto_shrink([false, true]).show(ui, |ui| {
                     for line in lines.iter() {
                         // Selectable, so a line can be copied by itself too.
                         ui.add(egui::Label::new(line.as_str()).selectable(true).wrap());
                     }
                 });
                 ui.add_space(6.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // One button high: a right-to-left layout of its own would take all the height
+                // that is left and leave a gap above the buttons.
+                button_row(ui, |ui| {
                     if ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked() {
                         close = true;
                     }

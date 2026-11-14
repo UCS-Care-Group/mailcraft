@@ -142,6 +142,10 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Snoozing is filing, like a move (#949): into the Snoozed folder, and back by itself.
+    "mail.snooze",
+    "mail.unsnooze",
+    "mail.returnDue",
     // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
     // named (`NEEDS_IDS`).
     "mail.setGmailCategory",
@@ -250,6 +254,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
+    "view.navigationBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",
@@ -385,7 +390,9 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",
+    "ui.animations",
     "ui.accent",
+    "ui.darkStyle",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
@@ -529,11 +536,13 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.closeToTray",
     "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
     "ui.dismissSettingsNotice",
+    "ui.dismissSoftwareNotice",
 ];
 
 const NEVER: &[&str] = &[
@@ -1025,6 +1034,8 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.snooze",
+    "mail.unsnooze",
     "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",
@@ -1351,8 +1362,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(f) if !is_outbox(&s.mailbox, f.id) => {
                     format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                // An IMAP account's holds what is put there (#607).
-                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                // An IMAP account's holds what is put there (#607), and so does a JMAP account's
+                // what is moved there (#1074).
+                Some(f) if s.mailbox.holds_what_is_moved_in(f.id) => {
                     format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
                 }
                 _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),

@@ -384,14 +384,14 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
         return Err(failed!("{name}: not a message file", name));
     }
     let folder = s.mailbox.imported_folder(false)?;
-    let mut m = mailcraft_mime::parse_fetched(bytes);
-    m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+    let mut m = mailcraft_mime_model::parse_fetched(bytes);
+    m.remove_header(OPENED_FROM);
     let hash = file_sha256(bytes);
     // The same Message-ID (none for both, too), and, when the copy there keeps the SHA-256 of the
     // file it came from, the same file; a copy without one (imported before) by its Message-ID
     // alone, when there is one.
     let same = |x: &mailcraft_model::Message| {
-        let stored = x.headers.iter().find(|(key, _)| key.eq_ignore_ascii_case(OPENED_FROM)).map(|(_, value)| value.as_str());
+        let stored = x.header(OPENED_FROM);
         x.message_id == m.message_id
             && match stored {
                 Some(stored) => hash.as_deref() == Some(stored),
@@ -424,8 +424,8 @@ pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Messag
     if Format::detect(name, bytes) != Some(Format::Eml) {
         return Err(failed!("{name}: not a message file", name));
     }
-    let mut m = mailcraft_mime::parse_fetched(bytes);
-    m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+    let mut m = mailcraft_mime_model::parse_fetched(bytes);
+    m.remove_header(OPENED_FROM);
     (m.id, m.uid, m.folder, m.draft, m.read) = (0, 0, 0, false, true);
     (m.server, m.synced) = (None, None);
     if m.received == 0 {
@@ -474,9 +474,9 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // At most MAX_IMPORT_MESSAGES are taken from a file; the one after them tells whether
             // the file went on ("stopped after N").
             let mut messages: Vec<_> = if format == Format::Eml {
-                vec![mailcraft_mime::parse_fetched(bytes)]
+                vec![mailcraft_mime_model::parse_fetched(bytes)]
             } else {
-                mailcraft_mime::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
+                mailcraft_mime_model::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
             };
             let stopped = messages.len() > MAX_IMPORT_MESSAGES;
             messages.truncate(MAX_IMPORT_MESSAGES);
@@ -505,7 +505,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 m.left_gmail_inbox();
                 m.draft = drafts;
                 // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
-                m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+                m.remove_header(OPENED_FROM);
                 if m.received == 0 {
                     m.received = if m.date != 0 { m.date } else { now };
                 }

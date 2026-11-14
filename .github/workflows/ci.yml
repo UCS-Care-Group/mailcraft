@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      android: ${{ steps.diff.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,8 +43,14 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; echo android=true >> "$GITHUB_OUTPUT"; exit 0; fi
           files=$(git diff --name-only "$BASE"...HEAD)
+          # The Android app is built and linted only when it or what it is built from changes.
+          if printf '%s\n' "$files" | grep -qE '^(apps/mailcraft-android/|crates/mobile/|crates/host/|xtask/src/mobile|\.github/workflows/ci\.yml)'; then
+            echo android=true >> "$GITHUB_OUTPUT"
+          else
+            echo android=false >> "$GITHUB_OUTPUT"
+          fi
           if printf '%s\n' "$files" | grep -qvE '^docs/|^\.github/|\.md$|^$' || printf '%s\n' "$files" | grep -qxE 'ATTRIBUTION\.md|\.github/workflows/.*\.ya?ml'; then
             echo code=true >> "$GITHUB_OUTPUT"
           else
@@ -77,7 +84,7 @@ jobs:
           # A main run whose tests fail still keeps what it compiled for the next run.
           cache-on-failure: true
       # Runs the test binaries side by side (`cargo xtask ci` uses it when it is there).
-      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-nextest@0.9.150
       # Windowing and file-dialog headers the desktop app links against.
@@ -100,7 +107,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-deny@0.20.2
       - run: cargo run --locked --package xtask -- deny
@@ -127,10 +134,73 @@ jobs:
       - run: cargo run --locked --package xtask -- docs-log --check
       - run: cargo run --locked --package xtask -- release-notes > /dev/null
 
+  # The phone binding (`mailcraft-mobile`) must keep building for Android: a check, no tests, with
+  # the NDK the runner image provides. Its own job and not behind `changes`: a change anywhere
+  # below it (the engine, the network crate, the model) can break it, so it runs on every pull
+  # request, and it is cheap (a check of one target).
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: android
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      # The NDK's clang for C code in the build scripts (ring) and as the linker, at Android 10's
+      # level (API 29), the least the app supports.
+      - name: cargo check for Android
+        run: |
+          bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$bin/aarch64-linux-android29-clang"
+          export AR_aarch64_linux_android="$bin/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$bin/aarch64-linux-android29-clang"
+          cargo check --locked --target aarch64-linux-android -p mailcraft-mobile
+
+  # The Android app (`apps/mailcraft-android`): `cargo xtask mobile` builds the Rust library for
+  # Android with cargo-ndk, generates the Kotlin bindings, builds the debug and release apps, runs
+  # Android Lint and detekt as errors and the unit tests, checks the licences of what ships and that
+  # no Play Services or Firebase is in the tree. Only when the app, the binding or the host crate
+  # changes (`changes`).
+  android-app:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: android-app
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      - name: Android SDK pieces the app is built with
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" > /dev/null
+      - name: cargo-ndk
+        run: cargo install cargo-ndk --locked --version 4.1.2
+      - name: cargo xtask mobile
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"  # Paparazzi 2 runs on 21; the app still targets 17
+          cargo run --locked --package xtask -- mobile
+
   # The one check main's protection requires: passes when every platform passed, or when there
   # was nothing but documentation to check.
   ci-ok:
-    needs: [changes, ci, deny, fragments]
+    needs: [changes, ci, deny, fragments, android, android-app]
     if: always()
     runs-on: ubuntu-24.04
     steps:

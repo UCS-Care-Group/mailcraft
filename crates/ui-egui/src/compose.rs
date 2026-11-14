@@ -295,11 +295,15 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     });
 }
 
-/// What the message is and its actions, over its lines in the reading pane: Send, Attach, Save
-/// draft, Discard, and at the right Close and Pop Out.
+/// What the message is and its actions, over its lines in the reading pane. The actions use
+/// icons when their labels don't fit, and the status can have a line below them.
 fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
+    use crate::widgets::{icon_button, icon_text_button, icon_text_width, primary_button, primary_button_width};
+
+    const ACTION_ICON: f32 = 16.0;
+    const WINDOW_ICON: f32 = 14.0;
+    const GAP: f32 = 6.0;
     let t = Tokens::get(ui.ctx());
-    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
     let title = match c.mode {
         ComposeMode::New => tl!("New message"),
         ComposeMode::Reply => tl!("Reply"),
@@ -307,48 +311,71 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         ComposeMode::Forward => tl!("Forward"),
         ComposeMode::Draft => tl!("Draft"),
     };
-    let mut actions =
-        ui.new_child(egui::UiBuilder::new().max_rect(bar.shrink2(vec2(12.0, 8.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    {
-        let ui = &mut actions;
-        ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
-        let sc = crate::widgets::shortcut_text(app, "compose.send");
-        if crate::widgets::primary_button(ui, tl!("Send"), true).on_hover_text(format!("{} ({sc})", tl!("Send"))).clicked() {
-            let _ = app.run("compose.send", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "attach", tl!("Attach"), true).clicked() {
-            let _ = app.run("ui.attach", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "saveDraft", tl!("Save draft"), c.dirty || !c.draft).clicked() {
-            let _ = app.run("compose.saveDraft", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "discard", tl!("Discard"), true).clicked() {
-            let _ = app.run("compose.discard", json!({}));
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // In the reading pane: Close, and Pop Out at the top right, which moves the message
-            // into a window of its own (#286).
-            if window.is_none() {
-                if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
-                    let _ = app.run("compose.close", json!({}));
-                }
-                let pop = crate::widgets::icon_button(ui, "popOut", tl!("Pop Out"), 14.0, true);
-                app.hit.add("composePopOut", 0, pop.rect);
-                if pop.clicked() {
-                    let _ = app.run("compose.popOut", json!({}));
+    let state = if c.dirty {
+        tl!("Not saved")
+    } else if c.draft {
+        tl!("Saved to Drafts")
+    } else {
+        ""
+    };
+    let status = if state.is_empty() { title.to_string() } else { format!("{title}  {state}") };
+    let tools = [
+        ("attach", tl!("Attach"), "ui.attach", true),
+        ("saveDraft", tl!("Save draft"), "compose.saveDraft", c.dirty || !c.draft),
+        ("discard", tl!("Discard"), "compose.discard", true),
+    ];
+    let send = tl!("Send");
+    let bar = egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 9)).show(ui, |ui| {
+        let room = ui.available_width();
+        ui.set_min_width(room);
+        ui.spacing_mut().item_spacing = vec2(GAP, 4.0);
+        let send_width = primary_button_width(ui, send);
+        let status_width = ui.painter().layout_no_wrap(status.clone(), regular(11.5), t.text_dim).size().x;
+        let right_width = status_width + GAP + if window.is_none() { 2.0 * (WINDOW_ICON + 8.0 + GAP) } else { 0.0 };
+        let labeled_width: f32 = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum();
+        let labeled = send_width + labeled_width + right_width <= room;
+        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + right_width > room;
+
+        let actions = |app: &mut MailApp, ui: &mut Ui| {
+            let shortcut = crate::widgets::shortcut_text(app, "compose.send");
+            if primary_button(ui, send, true).on_hover_text(format!("{send} ({shortcut})")).clicked() {
+                let _ = app.run("compose.send", json!({}));
+            }
+            for (icon, label, command, enabled) in tools {
+                let button = if labeled { icon_text_button(ui, icon, label, enabled) } else { icon_button(ui, icon, label, ACTION_ICON, enabled) };
+                button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
+                if enabled && button.clicked() {
+                    let _ = app.run(command, json!({}));
                 }
             }
-            let state = if c.dirty {
-                tl!("Not saved")
-            } else if c.draft {
-                tl!("Saved to Drafts")
-            } else {
-                ""
-            };
-            ui.label(egui::RichText::new(format!("{title}  {state}")).font(regular(11.5)).color(t.text_dim));
-        });
-    }
-    ui.painter().line_segment([pos2(bar.min.x, bar.max.y), pos2(bar.max.x, bar.max.y)], Stroke::new(1.0, t.border));
+        };
+        let details = |app: &mut MailApp, ui: &mut Ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if window.is_none() {
+                    if icon_button(ui, "close", tl!("Close"), WINDOW_ICON, true).clicked() {
+                        let _ = app.run("compose.close", json!({}));
+                    }
+                    let pop = icon_button(ui, "popOut", tl!("Pop Out"), WINDOW_ICON, true);
+                    app.hit.add("composePopOut", 0, pop.rect);
+                    if pop.clicked() {
+                        let _ = app.run("compose.popOut", json!({}));
+                    }
+                }
+                ui.add(egui::Label::new(egui::RichText::new(&status).font(regular(11.5)).color(t.text_dim)).truncate()).on_hover_text(&status);
+            });
+        };
+        if stacked {
+            ui.horizontal_wrapped(|ui| actions(app, ui));
+            ui.horizontal(|ui| details(app, ui));
+        } else {
+            ui.horizontal(|ui| {
+                actions(app, ui);
+                details(app, ui);
+            });
+        }
+    });
+    let r = bar.response.rect;
+    ui.painter().line_segment([pos2(r.min.x, r.max.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, t.border));
 }
 
 /// Send, beside the lines of a message in a window of its own, as tall as To and Cc.
@@ -445,13 +472,25 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
-    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
-        Some(m) => m,
+    // The last few signatures shown (one a window being written; at least one for each window
+    // open, so that none misses every frame), under one key: not one entry in
+    // egui's memory for every signature ever shown.
+    type Kept = Vec<(egui::Id, std::sync::Arc<mailcraft_model::Message>)>;
+    const KEPT: usize = 4;
+    let key = egui::Id::unique("mailcraft-compose-signature");
+    let this = egui::Id::unique(&html);
+    let known = ctx.data(|d| d.get_temp::<Kept>(key)).unwrap_or_default();
+    let message = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, m)) => m.clone(),
         None => {
             // As it is sent: cleaned.
             let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
-            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            let mut known = known;
+            if known.len() >= KEPT.max(app.windows.len().saturating_add(2)) {
+                known.remove(0);
+            }
+            known.push((this, m.clone()));
+            ctx.data_mut(|d| d.insert_temp(key, known));
             m
         }
     };
