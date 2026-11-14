@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use mailcraft_model::sync::Tokens;
 
-use crate::signin::{Endpoints, Page, SignIns, Why, forget, hint_of, keep_refresh, page, sensible_email, signed_in_address, tenant_of};
+use crate::signin::{Endpoints, Page, SignIns, Why, forget, hint_of, keep_refresh, page, renewed, sensible_email, signed_in_address, tenant_of};
 use crate::{Platform, PlatformError, Redirect, SecretError, SecretStore};
 
 #[derive(Default)]
@@ -228,4 +228,22 @@ fn a_called_off_sign_in_does_not_arm_the_slot_again() {
     let called_off = std::sync::atomic::AtomicBool::new(true);
     assert!(armer.arm_unless(&called_off).is_none());
     assert!(!signins.deliver("x://z".to_string()), "nothing waits for it");
+}
+
+#[test]
+fn a_check_writes_nothing_and_a_renewed_sign_in_is_kept_only_when_the_caller_keeps_it() {
+    let kept = Arc::new(Kept::default());
+    let phone = Phone(Some(kept.clone()));
+    let tokens = |email: &str, refresh: &str| Tokens { email: email.to_string(), refresh: refresh.to_string(), ..Default::default() };
+    // Somebody else's, or none: nothing to keep.
+    assert!(renewed("ada@lumen.example", &tokens("bob@lumen.example", "theirs")).is_none());
+    assert!(renewed("ada@lumen.example", &tokens("ada@lumen.example", "")).is_none());
+    // The account's own is given back, not written: the caller keeps it once it knows the account is there.
+    let fresh = renewed("ada@lumen.example", &tokens("ada@lumen.example", "rotated-secret")).unwrap();
+    assert!(kept.0.lock().unwrap().is_empty());
+    assert!(!format!("{fresh:?}").contains("rotated-secret"));
+    fresh.keep(&phone, "Ada@Lumen.Example");
+    assert_eq!(kept.get("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-secret"));
+    // No store: nothing, and no panic.
+    fresh.keep(&Phone(None), "ada@lumen.example");
 }

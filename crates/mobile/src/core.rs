@@ -19,7 +19,6 @@ use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
-use crate::sign_in::Redirects;
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
 use crate::{CoreError, DataRemoved, android};
 
@@ -126,7 +125,8 @@ pub struct Core {
     pub(crate) platform: Arc<dyn Platform>,
     /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
     pub(crate) native: Arc<Native>,
-    /// The sign-in that is open, and where its redirect lands (`accounts.rs`).
+    /// The sign-in that is open, and where its redirect lands (`accounts.rs`): the one sign-in of
+    /// the phone, Add Account's and an account's signing in again alike.
     pub(crate) signins: SignIns,
     memory_budget: u64,
     language: AtomicU8,
@@ -137,10 +137,6 @@ pub struct Core {
     pub(crate) closing: Arc<AtomicBool>,
     /// Send/Receive: what is due, what a run brought, the sign-ins of the session.
     pub(crate) sync: Arc<SyncHost>,
-    /// Where the address a sign-in page came back to is handed over.
-    pub(crate) redirects: Arc<Redirects>,
-    /// A sign-in is open (one at a time).
-    pub(crate) signing_in: Arc<AtomicBool>,
     /// The mailbox's storage, when it has one.
     keep: Option<Arc<Keep>>,
     /// Told once the session thread has ended (after its last save).
@@ -259,8 +255,6 @@ impl Core {
             pending_language: Arc::default(),
             closing: Arc::new(AtomicBool::new(false)),
             sync,
-            redirects: Arc::default(),
-            signing_in: Arc::default(),
             keep,
             finished: Mutex::new(Some(finished)),
             session_thread,
@@ -518,7 +512,8 @@ impl Core {
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
         self.sync.pacer.poke();
-        self.redirects.close();
+        // (A sign-in waiting for its page is called off; none begins after this.)
+        self.signins.cancel();
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner).take();
         // The session thread saves the mailbox as its last act: wait for it a little (never from
         // that thread itself, and never for long), so that a process about to end keeps the mail.

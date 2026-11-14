@@ -218,8 +218,10 @@ impl Rig {
         self.phone.secrets.kept.lock().unwrap().iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
     }
 
+    /// The sign-ins kept (Send/Receive's own entries, the index of the names it wrote among them,
+    /// are no sign-in).
     fn secrets_kept(&self) -> usize {
-        self.phone.secrets.kept.lock().unwrap().len()
+        self.phone.secrets.kept.lock().unwrap().iter().filter(|(k, _)| !k.starts_with("mailcraft:")).count()
     }
 
     fn accounts(&self) -> Vec<(u64, String)> {
@@ -639,4 +641,133 @@ fn a_check_for_a_removed_account_takes_back_what_it_renewed_when_nobody_else_has
     block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
     assert!(rig.accounts().is_empty());
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+}
+
+/// Polls `fut` (without waiting on a waker: the core's calls are polled again every few
+/// milliseconds) until `until` holds, then drops it unfinished, as an app's cancelled coroutine does.
+fn drop_when<F: std::future::Future>(fut: F, until: impl Fn() -> bool) {
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    let mut fut = std::pin::pin!(fut);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !until() {
+        assert!(fut.as_mut().poll(&mut cx).is_pending(), "the call ended before it could be dropped");
+        assert!(std::time::Instant::now() < deadline, "the call never got there");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// Holds the session's thread until the sender is dropped or sent to.
+fn hold_session(core: &Arc<Core>) -> std::sync::mpsc::Sender<()> {
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let (started, running) = std::sync::mpsc::channel::<()>();
+    let core = core.clone();
+    std::thread::spawn(move || {
+        let _ = block_on(core.call(move |_| {
+            let _ = started.send(());
+            let _ = held.recv();
+            Ok(())
+        }));
+    });
+    running.recv().unwrap();
+    release
+}
+
+#[test]
+fn a_sign_in_dropped_before_its_account_is_in_keeps_no_sign_in_and_makes_no_account() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.page_comes_back_with(CODE_BACK);
+    // The session is busy when the page comes back: the account waits for it.
+    let release = hold_session(&rig.core);
+    drop_when(rig.core.sign_in_microsoft(String::new()), || server.asked() == 1);
+    // (A moment for anything the dropped call might still do on its own.)
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert_eq!(rig.secrets_kept(), 0, "a sign-in was kept for no account");
+    drop(release);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert_eq!((rig.secrets_kept(), rig.accounts().len()), (0, 0));
+    // The place is given up: the next sign-in goes through.
+    assert!(matches!(rig.sign_in(""), SignInOutcome::SignedIn { .. }));
+}
+
+#[test]
+fn a_check_dropped_while_its_account_is_removed_never_puts_its_sign_in_back() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let answered = Arc::new(AtomicBool::new(false));
+    let told = answered.clone();
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            // Microsoft's answer is held until the test lets it go.
+            let _ = wait.lock().unwrap().recv();
+            told.store(true, Ordering::Release);
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    // The check is on its way to Microsoft; the app's coroutine is cancelled.
+    drop_when(rig.core.permission_state(account, Permission::Tasks), || server.asked() > asked);
+    block_on(rig.core.remove_account(account)).unwrap();
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    // Microsoft's renewed sign-in arrives after the removal.
+    answer.send(()).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !answered.load(Ordering::Acquire) {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None, "the removed account's sign-in came back");
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn signing_an_account_in_again_is_the_same_one_sign_in_as_add_accounts() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    // Its page has the account's address as the hint, and the redirect is handed back the one way.
+    rig.page_comes_back_with(CODE_BACK);
+    block_on(rig.core.sign_in(account)).unwrap();
+    assert_eq!(query_of(rig.phone.pages.lock().unwrap().last().unwrap())["login_hint"], ADA);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    // One at a time: while one is open the other is refused, and the open one is left as it is.
+    let place = rig.core.signins.begin().unwrap();
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.sign_in(""), SignInOutcome::Failed { reason: "a sign-in is already open".to_string() });
+    drop(place);
+    // Called off the one way too.
+    let core = rig.core.clone();
+    *rig.phone.on_page.lock().unwrap() = Box::new(move |_, _| core.cancel_sign_in());
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Cancelled)));
+    // An account that isn't there, or isn't Microsoft's, opens nothing.
+    let pages = rig.phone.pages.lock().unwrap().len();
+    assert!(matches!(block_on(rig.core.sign_in(account + 99)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.phone.pages.lock().unwrap().len(), pages);
+}
+
+#[test]
+fn signing_an_account_in_again_as_somebody_else_keeps_nothing() {
+    let rig = Rig::new(&good_server());
+    let account = signed_in(&rig);
+    let other = TokenServer::start(|_| (200, tokens_for("bob@lumen.example", "Bob", "bobs-refresh-token")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", other.port), format!("http://127.0.0.1:{0}/token", other.port)));
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    assert!(rig.secret("refresh:bob@lumen.example|graph").is_none());
+}
+
+#[test]
+fn no_sign_in_begins_once_the_core_is_shut_down() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.page_comes_back_with(CODE_BACK);
+    rig.core.shutdown();
+    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new())), Err(CoreError::Cancelled)));
+    assert!(rig.phone.pages.lock().unwrap().is_empty());
 }

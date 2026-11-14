@@ -34,7 +34,6 @@ mod platform;
 mod queries;
 mod queue;
 mod records;
-mod sign_in;
 mod sync;
 mod sync_api;
 pub mod text;
@@ -55,8 +54,6 @@ mod preview_tests;
 mod queue_tests;
 #[cfg(test)]
 mod review_tests;
-#[cfg(test)]
-mod sign_in_tests;
 #[cfg(test)]
 mod sync_tests;
 #[cfg(test)]

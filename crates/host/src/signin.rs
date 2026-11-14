@@ -31,7 +31,7 @@ pub use mailcraft_net::NetError;
 pub use mailcraft_net::oauth::{Ending, Endpoints, FavoritesRefusal, Permission, Resource, admin_consent_url, permission_endpoints};
 
 use crate::secrets::microsoft_secret_key;
-use crate::{Platform, Redirect, SecretStore};
+use crate::{Platform, Redirect};
 
 /// The application (client) id this build presents to Microsoft's page: the project's own
 /// registration, an identifier and not a secret (`MAILCRAFT_MS_CLIENT_ID` in `.cargo/config.toml`).
@@ -306,43 +306,65 @@ pub enum Standing {
     Unknown,
 }
 
-/// Keep the refresh token Microsoft sent with an answer, when it is the account's own: the old
-/// one is replaced by the one Microsoft rotated it to, so a stored sign-in doesn't age out.
-fn renewed(store: &dyn SecretStore, email: &str, tokens: &Tokens) {
-    if !tokens.refresh.is_empty() && !tokens.someone_else(email, "") {
-        // (A store that refuses leaves the old token, which is good until Microsoft says otherwise.)
-        let _ = store.set(&microsoft_secret_key("refresh", email), &tokens.refresh);
+/// A refresh token Microsoft rotated the stored one to in the answer to a check, the account's
+/// own. It is not kept by the check: the caller keeps it ([`Renewed::keep`]) where it can first
+/// make sure the account is still there, so that an answer arriving after the account was removed
+/// never puts its sign-in back. Its `Debug` says nothing of the token.
+pub struct Renewed(String);
+
+impl std::fmt::Debug for Renewed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Renewed(…)")
     }
+}
+
+impl Renewed {
+    /// Keep it as the sign-in of the account at `email`, in place of the old one. A store that
+    /// refuses leaves the old token, which is good until Microsoft says otherwise.
+    pub fn keep(&self, platform: &dyn Platform, email: &str) {
+        if let Some(store) = platform.secrets() {
+            let _ = store.set(&microsoft_secret_key("refresh", email), &self.0);
+        }
+    }
+}
+
+/// What a check of a stored sign-in came to: where the permission stands, and the refresh token
+/// Microsoft rotated the stored one to, when it sent one that is the account's own.
+#[derive(Debug)]
+pub struct Checked {
+    pub standing: Standing,
+    pub renewed: Option<Renewed>,
+}
+
+/// The refresh token of an answer, when it is the account's own.
+pub(crate) fn renewed(email: &str, tokens: &Tokens) -> Option<Renewed> {
+    (!tokens.refresh.is_empty() && !tokens.someone_else(email, "")).then(|| Renewed(tokens.refresh.clone()))
 }
 
 /// Whether the sign-in kept for `email` covers `permission`, asked of Microsoft with the stored
 /// refresh token (nothing is opened and the owner is not asked). `mail` and `graph` are the
-/// token endpoints for mail and for Graph. A new refresh token in an answer is kept. Blocks.
-pub fn permission_standing(platform: &dyn Platform, email: &str, permission: Permission, mail: &Endpoints, graph: &Endpoints) -> Standing {
-    let Some(oauth) = client_oauth() else { return Standing::Unknown };
-    let Some(store) = platform.secrets() else { return Standing::SignInNeeded };
-    let Some(refresh) = store.get(&microsoft_secret_key("refresh", email)) else { return Standing::SignInNeeded };
+/// token endpoints for mail and for Graph. Nothing is written: a new refresh token in an answer is
+/// given back for the caller to keep. Blocks.
+pub fn permission_standing(platform: &dyn Platform, email: &str, permission: Permission, mail: &Endpoints, graph: &Endpoints) -> Checked {
+    let only = |standing| Checked { standing, renewed: None };
+    let Some(oauth) = client_oauth() else { return only(Standing::Unknown) };
+    let Some(store) = platform.secrets() else { return only(Standing::SignInNeeded) };
+    let Some(refresh) = store.get(&microsoft_secret_key("refresh", email)) else { return only(Standing::SignInNeeded) };
     let asked = match permission {
         Permission::Tasks => refresh_graph_tasks_at(graph, (mail, Resource::GraphMail), &oauth, &refresh).map(|g| g.tokens),
         Permission::SharedMail => refresh_graph_shared_at(mail, &oauth, &refresh).map(|g| g.tokens),
         Permission::SharedSend => refresh_graph_shared_send_at(mail, &oauth, &refresh).map(|g| g.tokens),
     };
     match asked {
-        Ok(tokens) => {
-            renewed(store.as_ref(), email, &tokens);
-            Standing::Allowed
-        }
-        Err(e) if e.is_consent_needed() => Standing::NotAllowed,
+        Ok(tokens) => Checked { standing: Standing::Allowed, renewed: renewed(email, &tokens) },
+        Err(e) if e.is_consent_needed() => only(Standing::NotAllowed),
         // "No longer good": for this permission only, or for the whole sign-in?
         Err(e) if e.is_refused_sign_in() => match refresh_for_at(mail, &oauth, &refresh, Resource::GraphMail) {
-            Ok(tokens) => {
-                renewed(store.as_ref(), email, &tokens);
-                Standing::NotAllowed
-            }
-            Err(e) if e.is_refused_sign_in() => Standing::SignInNeeded,
-            Err(_) => Standing::Unknown,
+            Ok(tokens) => Checked { standing: Standing::NotAllowed, renewed: renewed(email, &tokens) },
+            Err(e) if e.is_refused_sign_in() => only(Standing::SignInNeeded),
+            Err(_) => only(Standing::Unknown),
         },
-        Err(_) => Standing::Unknown,
+        Err(_) => only(Standing::Unknown),
     }
 }
 
