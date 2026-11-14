@@ -58,13 +58,8 @@ class MailCraftApplication : Application() {
     /** The mailbox is written when no window is on screen: the system may end the process after it. */
     internal fun saveNow() {
         val ready = (started as? Started.Ready) ?: return
-        scope.launch {
-            try {
-                ready.core.saveNow()
-            } catch (_: CoreException) {
-                // The core says so itself (a SaveFailed event) and tries again.
-            }
-        }
+        // (A failure is shown and tried again; the core says so itself too, with a SaveFailed event.)
+        scope.launch { ready.hub.saveNow() }
     }
 
     // Setting up the system's certificate check and opening the core can each fail without
@@ -74,21 +69,22 @@ class MailCraftApplication : Application() {
     private fun start(): Started =
         try {
             Bridge.initVerifier(applicationContext)
-            val core = Core(AndroidPlatform(applicationContext, handback, foreground::get))
+            // The core keeps the mailbox itself: opened from here (a phone that has one keeps it),
+            // saved after a change, at `saveNow` and when it ends. Private and left out of every
+            // backup (the manifest's rules), as the mail is private.
+            val core = Core.open(
+                AndroidPlatform(applicationContext, handback, foreground::get),
+                File(noBackupFilesDir, "mailbox").path,
+            )
             createChannels(applicationContext, channelSpecs(core::t))
             // The address the sign-in's page comes back to goes to the core as it is.
             handback.sink = core::handBackRedirect
-            val store = MailboxFile(File(noBackupFilesDir, "mailbox"), scope = scope)
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
                 scope = scope,
-                restore = { store.restore(core) },
-                keep = { store.keep(core) },
+                save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
-                savingOff = store.savingOff,
-                saveFailed = store.saveFailed,
-                retrySave = { store.keepAgain() },
             )
             handback.interrupted = hub.controller::signInInterrupted
             events.register(hub::handle)

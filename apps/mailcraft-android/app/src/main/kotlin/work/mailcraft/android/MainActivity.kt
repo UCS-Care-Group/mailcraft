@@ -103,17 +103,21 @@ private fun CoreShell(
     onLanguage: (String) -> Unit,
 ) {
     val texts = remember(core) { CoreTexts(core) }
-    // The mailbox is opened once, when the application starts (`AccountsHub`), and not by a window.
-    val restored by hub.restored.collectAsState()
+    // The mailbox was opened with the core, when the application started, and not by a window. It is
+    // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
+    // announced, a synchronisation's among them), and so are the messages of the folder on screen.
     val reload by hub.reloads.collectAsState()
-    val outlined by produceState<Outlined?>(null, core, restored, reload) {
-        value = if (restored) Outlined(loadOutline(core)) else null
+    val outlined by produceState<Outlined?>(null, core, reload) {
+        value = Outlined(loadOutline(core))
     }
     var picked by rememberSaveable { mutableStateOf<Long?>(null) }
     val folder = chosenFolder(outlined?.outline, picked)
+    val shownFolder = remember { arrayOfNulls<ULong>(1) }
     val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folder) {
-        // The last folder's messages must not stay under the new folder's name while it loads.
-        value = InboxState.Loading
+        // The last folder's messages must not stay under the new folder's name while it loads; the same
+        // folder read again keeps what it shows until the new list is in.
+        if (folder?.id != shownFolder[0]) value = InboxState.Loading
+        shownFolder[0] = folder?.id
         value = loadMail(core, outlined, folder)
     }
     val accounts = outlined?.outline?.accounts.orEmpty()
