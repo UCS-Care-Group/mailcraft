@@ -487,7 +487,7 @@ msgstr "შენიშვნა ორგანიზატორისთვ�
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "A on top"
-msgstr "ა ზემოთ"
+msgstr "ჯერ A"
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -877,19 +877,19 @@ msgstr "ჯერ დაამატეთ ანგარიში"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Add another account"
-msgstr "სხვა ანგარიშის დამატება"
+msgstr "კიდევ ერთი ანგარიშის დამატება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Add another e-mail address"
-msgstr "სხვა ელფოსტის მისამართის დამატება"
+msgstr "კიდევ ერთი ელფოსტის მისამართის დამატება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Add another phone number"
-msgstr "სხვა ტელეფონის ნომრის დამატება"
+msgstr "კიდევ ერთი ტელეფონის ნომრის დამატება"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -1205,7 +1205,7 @@ msgstr "OpenPGP საიდუმლო გასაღები, საიდ�
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "An S/MIME certificate is trusted through its certification authority and isn't marked Verified"
-msgstr "S/MIME სერტიფიკატს ენდობიან მისი სასერტიფიკაციო ცენტრის მეშვეობით და დადასტურებულად არ აღინიშნება"
+msgstr "S/MIME სერტიფიკატი სანდოა თავისი სასერტიფიკაციო ცენტრის მეშვეობით და დადასტურებულად არ მოინიშნება"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1277,7 +1277,7 @@ msgstr "მიმდინარეობს იმპორტი"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
-msgstr "განმეორებადი ჩანაწერი სხვა კალენდარში ასე ვერ გადავა. მხოლოდ ამ დღის იქ დასაკოპირებლად დააჭირეთ Ctrl-ს, მთელი სერიისთვის კი მის მენიუში გამოიყენეთ კალენდარში გადატანა."
+msgstr "განმეორებადი ელემენტი სხვა კალენდარში ასე ვერ გადავა. მხოლოდ ამ დღის იქ დასაკოპირებლად დაჭერილი გეჭიროთ Ctrl, მთელი სერიისთვის კი მის მენიუში გამოიყენეთ „კალენდარში გადატანა“."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1607,7 +1607,7 @@ msgstr "როგორც ხედავენ ისინი, ვისა�
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Ask again"
-msgstr "ხელახლა კითხვა"
+msgstr "ხელახლა მოთხოვნა"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1661,7 +1661,7 @@ msgstr "სურათების, რომლებიც ვერ ჩა�
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Ask the account's server for the calendar round this meeting now."
-msgstr "ანგარიშის სერვერისთვის ამ შეხვედრის გარშემო კალენდრის ახლავე მოთხოვნა."
+msgstr "ანგარიშის სერვერისგან კალენდრის იმ მონაკვეთის ახლავე მოთხოვნა, რომელშიც ეს შეხვედრაა."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1679,13 +1679,13 @@ msgstr "სხვა ადამიანების დროის მოთ
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Asking the server when everybody is free…"
-msgstr "სერვერს ვეკითხებით, როდის არიან ყველა თავისუფალი…"
+msgstr "სერვერის გამოკითხვა, როდის არის ყველა თავისუფალი…"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Asking the server…"
-msgstr "სერვერს ვეკითხებით…"
+msgstr "სერვერის გამოკითხვა…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -1913,7 +1913,7 @@ msgstr "ავტომატური პასუხები: Microsoft შ�
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies: asking for your permission to change them…"
-msgstr "ავტომატური პასუხები: ითხოვს თქვენს ნებართვას მათ შესაცვლელად…"
+msgstr "ავტომატური პასუხები: თქვენი ნებართვის მოთხოვნა მათ შესაცვლელად…"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2249,7 +2249,7 @@ msgstr "კალენდრები: დაშვებულია, იკ�
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
 msgid "Calendars: asking for your permission…"
-msgstr "კალენდრები: ითხოვს თქვენს ნებართვას…"
+msgstr "კალენდრები: თქვენი ნებართვის მოთხოვნა…"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -2267,7 +2267,7 @@ msgstr "კალენდრები: ჯერ არ მოთხოვნ�
 #: crates/ui-egui/src/shared_calendars.rs
 #, fuzzy
 msgid "Calendars: waiting for your permission"
-msgstr "კალენდრები: თქვენს ნებართვას ელოდება"
+msgstr "კალენდრები: ელოდება თქვენს ნებართვას"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3861,7 +3861,7 @@ msgstr "პასუხების მიმართვა"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Discard"
-msgstr "გაუქმება"
+msgstr "გადაგდება"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
@@ -4355,7 +4355,7 @@ msgstr "კალენდრის ელფოსტით გაგზავ�
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email Message"
-msgstr "ელწერილი"
+msgstr "ელფოსტის წერილი"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4379,7 +4379,7 @@ msgstr "ემოჯი"
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Empty"
-msgstr "ცარიელი"
+msgstr "დაცლა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6161,7 +6161,7 @@ msgstr "შემოსულები"
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Include"
-msgstr "ჩართვა"
+msgstr "დართვა"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -6173,7 +6173,7 @@ msgstr "დიაგნოსტიკის დართვა"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Include the original message when replying"
-msgstr "პასუხისას საწყისი წერილის ჩართვა"
+msgstr "პასუხისას საწყისი წერილის დართვა"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6607,13 +6607,13 @@ msgstr "ფანჯრის დახურვისას MailCraft ფოს
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "Keep Rule on Server"
-msgstr "წესის სერვერზე შენარჩუნება"
+msgstr "წესის სერვერზე შენახვა"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
 msgid "Keep Rules on the Server"
-msgstr "წესების სერვერზე შენარჩუნება"
+msgstr "წესების სერვერზე შენახვა"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -6631,13 +6631,13 @@ msgstr "ლოდინის გაგრძელება"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Keep on the server of {address}"
-msgstr "შენარჩუნება ანგარიშის {address} სერვერზე"
+msgstr "შენახვა ანგარიშის {address} სერვერზე"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Keep the notes and journal entries"
-msgstr "შენიშვნებისა და ჟურნალის ჩანაწერების შენარჩუნება"
+msgstr "შენიშვნებისა და ჟურნალის ჩანაწერების შენახვა"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6937,7 +6937,7 @@ msgstr "ადგილი"
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Look Again"
-msgstr "ხელახლა ნახვა"
+msgstr "ხელახლა ძებნა"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -6961,7 +6961,7 @@ msgstr "თქვენი სერტიფიკატებისა და 
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Lookalike address."
-msgstr "მსგავსი მისამართი."
+msgstr "მიმსგავსებული მისამართი."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -8141,7 +8141,7 @@ msgstr "საჭიროებს პარამეტრს „ახალ�
 #: crates/ui-egui/src/gmail_move.rs
 #, fuzzy
 msgid "Needs Google sign-in"
-msgstr "საჭიროებს Google-ით შესვლას"
+msgstr "საჭიროა Google-ით შესვლა"
 
 #. name
 #: crates/ui-egui/src/theme/blue.rs
@@ -8701,7 +8701,7 @@ msgstr "ხელმოწერები ჯერ არ არის"
 #: crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "No such account"
-msgstr "ასეთი ანგარიში არ არის"
+msgstr "ასეთი ანგარიში არ არსებობს"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9629,7 +9629,7 @@ msgstr "სხვა ადამიანების კალენდრე�
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Otherwise they start in the reading pane, where Pop Out moves them into a window of their own."
-msgstr "სხვა შემთხვევაში ისინი კითხვის პანელში იხსნება, სადაც „ცალკე გამოტანა“ მათ საკუთარ ფანჯარაში გადაიტანს."
+msgstr "სხვა შემთხვევაში ისინი კითხვის პანელში იხსნება, სადაც „ცალკე გამოტანა“ მათ ცალკე ფანჯარაში გადაიტანს."
 
 #. name
 #: crates/model/src/calendar.rs
@@ -10485,7 +10485,7 @@ msgstr "დამახსოვრებულია პარამეტრ�
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Remind me again later"
-msgstr "მოგვიანებით შემახსენე"
+msgstr "მოგვიანებით ხელახლა შეხსენება"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -10881,7 +10881,7 @@ msgstr "პასუხი"
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Respond to Recurring Item"
-msgstr "პასუხი განმეორებად ჩანაწერზე"
+msgstr "პასუხი განმეორებად ელემენტზე"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -11333,7 +11333,7 @@ msgstr "შენახული ტექსტი"
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Saved on this computer only: this item is not in your Outlook calendar"
-msgstr "შენახულია მხოლოდ ამ კომპიუტერზე: ეს ჩანაწერი თქვენს Outlook-ის კალენდარში არ არის"
+msgstr "შენახულია მხოლოდ ამ კომპიუტერზე: ეს ელემენტი თქვენს Outlook-ის კალენდარში არ არის"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -11839,7 +11839,7 @@ msgstr "გაგზავნა მისამართზე {address}"
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Send writes to: {people}."
-msgstr "გაგზავნა მიწერს: {people}."
+msgstr "გაგზავნისას წერილი მიუვა: {people}."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -11857,7 +11857,7 @@ msgstr "გავუგზავნო თქვენი პაროლი ს
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Send your sign-in to another server?"
-msgstr "გაეგზავნოს თქვენი შესვლის მონაცემები სხვა სერვერს?"
+msgstr "გავუგზავნო თქვენი შესვლის მონაცემები სხვა სერვერს?"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -12793,7 +12793,7 @@ msgstr "Skype for Business"
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Smallest on top"
-msgstr "ყველაზე პატარა ზემოთ"
+msgstr "ჯერ უმცირესი"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12961,13 +12961,13 @@ msgstr "შტატი ან რეგიონი"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Status bar"
-msgstr "მდგომარეობის ზოლი"
+msgstr "სტატუსის ზოლი"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Status bar · File"
-msgstr "მდგომარეობის ზოლი · ფაილი"
+msgstr "სტატუსის ზოლი · ფაილი"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
@@ -13285,7 +13285,7 @@ msgstr "დავალებები: ინახება მხოლოდ
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Tasks: not allowed ({why})"
-msgstr "დავალებები: არ არის დაშვებული ({why})"
+msgstr "დავალებები: არ დაიშვა ({why})"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -13681,7 +13681,7 @@ msgstr "კალენდარი „{name}“ მხოლოდ იმას
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
-msgstr "კალენდრის ცვლილებები ვერ მივიღეთ: {error}"
+msgstr "კალენდრის ცვლილებების ჩაწერა ვერ მოხერხდა: {error}"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -13717,7 +13717,7 @@ msgstr "კალენდართან კავშირი მუშაო�
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
-msgstr "კალენდარი ვერ მივიღეთ: {error}"
+msgstr "კალენდრის ჩაწერა ვერ მოხერხდა: {error}"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -13795,7 +13795,7 @@ msgstr "საერთო საფოსტო ყუთის კალენ
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
-msgstr "კატეგორიები ვერ მივიღეთ: {error}"
+msgstr "კატეგორიების ჩაწერა ვერ მოხერხდა: {error}"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -13873,7 +13873,7 @@ msgstr "კონტაქტის ფორმა დაიხურა: გ�
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
-msgstr "კონტაქტები ვერ მივიღეთ: {error}"
+msgstr "კონტაქტების ჩაწერა ვერ მოხერხდა: {error}"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -13989,7 +13989,7 @@ msgstr[1] "საქაღალდე „{name}“ არ წაიშალა
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "The folder isn't there."
-msgstr "საქაღალდე იქ არ არის."
+msgstr "საქაღალდე არ არსებობს."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -14061,13 +14061,13 @@ msgstr "გასაღები სისტემის ავტორიზ�
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "The key is marked as verified."
-msgstr "გასაღები მონიშნულია როგორც გადამოწმებული."
+msgstr "გასაღები დადასტურებულად არის მონიშნული."
 
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "The key is not marked as verified."
-msgstr "გასაღები არ არის მონიშნული როგორც გადამოწმებული."
+msgstr "გასაღები დადასტურებულად არ არის მონიშნული."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -14091,7 +14091,7 @@ msgstr "ბმული გაცვლის ბუფერშია: გა�
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
-msgstr "კალენდრების სია ვერ მივიღეთ: {error}"
+msgstr "კალენდრების სიის ჩაწერა ვერ მოხერხდა: {error}"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -14133,7 +14133,7 @@ msgstr "ამ ანგარიშის ფოსტა შემდეგ Mi
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The mail, contacts, calendar, tasks and notes of a .pst file, onto this computer"
-msgstr ".pst ფაილის ფოსტა, კონტაქტები, კალენდარი, დავალებები და ჩანაწერები ამ კომპიუტერზე"
+msgstr ".pst ფაილის ფოსტა, კონტაქტები, კალენდარი, დავალებები და შენიშვნები ამ კომპიუტერზე"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -14355,7 +14355,7 @@ msgstr "სერვერზე არსებული წესები ვ
 #: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
-msgstr "სერვერზე არსებული წესები ვერ მივიღეთ: {error}"
+msgstr "სერვერზე არსებული წესების ჩაწერა ვერ მოხერხდა: {error}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
@@ -14691,7 +14691,7 @@ msgstr "წერილის ხელმოწერისას ხელმ�
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The signer's key hasn't been marked verified."
-msgstr "ხელმომწერის გასაღები გადამოწმებულად არ არის მონიშნული."
+msgstr "ხელმომწერის გასაღები დადასტურებულად არ არის მონიშნული."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -14769,7 +14769,7 @@ msgstr "To Do-ს დავალებების სინქრონიზ�
 #: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
-msgstr "To Do-ს დავალებები ვერ მივიღეთ: {error}"
+msgstr "To Do-ს დავალებების ჩაწერა ვერ მოხერხდა: {error}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/tasks.rs
@@ -15369,7 +15369,7 @@ msgstr "ეს ის ანგარიში არ არის, რომე
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This item has changes that aren't saved. Save them?"
-msgstr "ამ ელემენტს შეუნახავი ცვლილებები აქვს. შევინახოთ?"
+msgstr "ამ ელემენტს შეუნახავი ცვლილებები აქვს. შევინახო?"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -16347,7 +16347,7 @@ msgstr "სისტემის პარამეტრის გამოყ�
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
-msgstr "„სისტემის პარამეტრის გამოყენება“ Windows-ის პარამეტრებში „ანიმაციის ეფექტებს“ მიჰყვება. სადაც MailCraft სისტემის პარამეტრს ჯერ ვერ კითხულობს, ანიმაციები ჩანს, სანამ „არასოდეს ჩვენებას“ არ აირჩევთ."
+msgstr "„სისტემის პარამეტრის გამოყენება“ Windows-ის პარამეტრებში „ანიმაციის ეფექტებს“ მიჰყვება. სადაც MailCraft სისტემის პარამეტრს ჯერ ვერ კითხულობს, ანიმაციები ეშვება, სანამ „არასოდეს გაშვებას“ არ აირჩევთ."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17299,7 +17299,7 @@ msgstr "თქვენი სახელი."
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Z on top"
-msgstr "Z ზემოთ"
+msgstr "ჯერ Z"
 
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -17413,7 +17413,7 @@ msgstr ".pst ფაილი შემოდის მხოლოდ ამ კ
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
-msgstr "JMAP ანგარიშის სერვერისა და მისამართის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქაა: წაშალეთ და დაამატეთ მეორე"
+msgstr "JMAP ანგარიშის სერვერისა და მისამართის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქაა: წაშალეთ ეს ანგარიში და დაამატეთ ახალი"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -17593,7 +17593,7 @@ msgstr "საერთო საფოსტო ყუთი რჩება �
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
-msgstr "საერთო საფოსტო ყუთის მისამართის შეცვლა შეუძლებელია: წაშალეთ და დაამატეთ მეორე"
+msgstr "საერთო საფოსტო ყუთის მისამართის შეცვლა შეუძლებელია: წაშალეთ ეს ყუთი და დაამატეთ ახალი"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -17641,7 +17641,7 @@ msgstr "დაამატეთ ერთი მიმღები მაინ
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr "Exchange სერვერის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქაა: წაშალეთ და დაამატეთ მეორე"
+msgstr "Exchange სერვერის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქაა: წაშალეთ ეს ანგარიში და დაამატეთ ახალი"
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -17659,7 +17659,7 @@ msgstr "HTML ხელმოწერა სურათებს მათი �
 #: crates/engine/src/digital_signature.rs
 #, fuzzy
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
-msgstr "S/MIME სერტიფიკატი სანდოა თავისი სასერტიფიკაციო ცენტრის მეშვეობით და „დადასტურებულად“ არ მოინიშნება"
+msgstr "S/MIME სერტიფიკატი სანდოა თავისი სასერტიფიკაციო ცენტრის მეშვეობით და დადასტურებულად არ მოინიშნება"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -17785,7 +17785,7 @@ msgstr "სერვერთან {host} უსაფრთხო კავშ
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
-msgstr "სერვერს {host} ვერ დავუკავშირდით: {reason}"
+msgstr "სერვერთან {host} დაკავშირება ვერ მოხერხდა: {reason}"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -18177,7 +18177,7 @@ msgstr "არასდროს"
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
-msgstr "IMAP-ით არცერთი Microsoft ანგარიში არ სინქრონიზდება"
+msgstr "IMAP-ით არცერთი Microsoft-ის ანგარიში არ სინქრონიზდება"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
@@ -18189,7 +18189,7 @@ msgstr "არცერთი Microsoft ან Exchange სერვერის
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
 #, fuzzy
 msgid "no Public key with that fingerprint is kept for that address"
-msgstr "ამ მისამართისთვის ამ ანაბეჭდით საჯარო გასაღები შენახული არ არის"
+msgstr "ამ მისამართისთვის ამ ანაბეჭდის მქონე საჯარო გასაღები არ ინახება"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -19191,7 +19191,7 @@ msgstr "ძიება ამ გამგზავნის მისამა
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "the search involves no mailbox of a Microsoft account"
-msgstr "ძიება Microsoft ანგარიშის არცერთ საფოსტო ყუთს არ მოიცავს"
+msgstr "ძიება Microsoft-ის ანგარიშის არცერთ საფოსტო ყუთს არ მოიცავს"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -19329,7 +19329,7 @@ msgstr "სერვერი არ იძლევა მის გვერ�
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"
-msgstr "სერვერი არ იძლევა ამ წესის შეცვლის ნებას"
+msgstr "სერვერი ამ წესის შეცვლის საშუალებას არ იძლევა"
 
 #. why a mail server couldn't be used
 #: crates/net/src/send.rs crates/net/src/sync.rs
@@ -19689,7 +19689,7 @@ msgstr "ძიება არ არის"
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "there is nothing to take in"
-msgstr "მისაღები არაფერია"
+msgstr "ჩასაწერი არაფერია"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
@@ -20519,7 +20519,7 @@ msgstr "{name} MailCraft-ის საფოსტო ყუთი არ არ
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "{name} isn't a Microsoft account kept in step by IMAP"
-msgstr "{name} არ არის IMAP-ით სინქრონიზებული Microsoft ანგარიში"
+msgstr "{name} არ არის IMAP-ით სინქრონიზებული Microsoft-ის ანგარიში"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
@@ -20627,7 +20627,7 @@ msgstr "{name} პირობითად დაეთანხმა ამ �
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "{name}, pending development"
-msgstr "{name}, დამუშავების პროცესშია"
+msgstr "{name}, დამუშავების მოლოდინში"
 
 #. what a command says
 #: crates/engine/src/io.rs
