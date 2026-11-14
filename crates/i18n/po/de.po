@@ -5878,7 +5878,7 @@ msgstr "Seine E-Mails können hier gelesen werden. Was Sie darin ändern, wird i
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
-msgstr "Seine E-Mails werden über Microsoft Graph synchronisiert, ohne Mailserver"
+msgstr "Seine E-Mails werden über Microsoft Graph auf dem neuesten Stand gehalten, ohne Mailserver"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7670,7 +7670,7 @@ msgstr "Kein Datum"
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "No Microsoft account is kept in step by IMAP"
-msgstr "Kein Microsoft-Konto wird über IMAP synchronisiert"
+msgstr "Kein Microsoft-Konto wird über IMAP auf dem neuesten Stand gehalten"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11571,7 +11571,7 @@ msgstr "Signaturen"
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit Outlook synchronisiert werden: Richten Sie sie auf einem anderen Gerät dort ein, oder fügen Sie eine aus Outlook im Web ein (Einstellungen › Signaturen)."
+msgstr "Signaturen werden auf diesem Computer gespeichert. Sie können nicht mit Outlook auf dem neuesten Stand gehalten werden: Richten Sie sie auf einem anderen Gerät dort ein, oder fügen Sie eine aus Outlook im Web ein (Einstellungen › Signaturen)."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -11628,7 +11628,7 @@ msgstr "Meldet sich mit Benutzername und Passwort bei einem Exchange-Server an"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Signs in with Microsoft · folders kept in step through Microsoft Graph (testing)"
-msgstr "Meldet sich bei Microsoft an · Ordner werden über Microsoft Graph synchronisiert (Test)"
+msgstr "Meldet sich bei Microsoft an · Ordner werden über Microsoft Graph auf dem neuesten Stand gehalten (Test)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -12127,7 +12127,7 @@ msgstr "Aufgaben: Ihre Zustimmung wird angefordert…"
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: kept in step with Microsoft To Do"
-msgstr "Aufgaben: Mit Microsoft To Do synchronisiert"
+msgstr "Aufgaben: Mit Microsoft To Do auf dem neuesten Stand gehalten"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -13523,7 +13523,7 @@ msgstr "Diese Aufgaben gibt es nur auf diesem Computer. Wählen Sie das Microsof
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
-msgstr "Diese Aufgaben gibt es nur auf diesem Computer. Wenn Sie sie senden, werden sie mit Microsoft To Do synchronisiert. Bis dahin bleiben sie hier, und nichts davon wird gesendet. Datei › Informationen bietet dies erneut an."
+msgstr "Diese Aufgaben gibt es nur auf diesem Computer. Wenn Sie sie senden, werden sie mit Microsoft To Do auf dem neuesten Stand gehalten. Bis dahin bleiben sie hier, und nichts davon wird gesendet. Datei › Informationen bietet dies erneut an."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16537,7 +16537,7 @@ msgstr "niemals"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "no Microsoft account is kept in step by IMAP"
-msgstr "kein Microsoft-Konto wird über IMAP synchronisiert"
+msgstr "kein Microsoft-Konto wird über IMAP auf dem neuesten Stand gehalten"
 
 #. why a command can't run
 #: crates/engine/src/cmd/offline.rs
@@ -16573,13 +16573,13 @@ msgstr "kein Konto ist mit einem Mailserver verbunden (Datei › Konto hinzufüg
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "no account is kept in step over JMAP"
-msgstr "kein Konto wird über JMAP synchronisiert"
+msgstr "kein Konto wird über JMAP auf dem neuesten Stand gehalten"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
-msgstr "kein Konto wird über Microsoft Graph synchronisiert"
+msgstr "kein Konto wird über Microsoft Graph auf dem neuesten Stand gehalten"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -16978,13 +16978,13 @@ msgstr "wählen Sie zuerst einen Termin aus"
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
 msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph synchronisiert wird"
+msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph synchronisiert wird"
+msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -18711,12 +18711,12 @@ msgstr "{name} ist mit keinem Mailserver verbunden"
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} isn't kept in step over JMAP"
-msgstr "{name} wird nicht über JMAP synchronisiert"
+msgstr "{name} wird nicht über JMAP auf dem neuesten Stand gehalten"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "{name} isn't kept in step through Microsoft Graph"
-msgstr "{name} wird nicht über Microsoft Graph synchronisiert"
+msgstr "{name} wird nicht über Microsoft Graph auf dem neuesten Stand gehalten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
