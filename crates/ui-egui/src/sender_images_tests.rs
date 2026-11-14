@@ -258,6 +258,59 @@ fn who_sent_mail_went_to_needs_no_word_from_the_server() {
     assert_eq!(*asked.lock().unwrap(), ["ada@example.org"]);
 }
 
+/// One frame of People: which of `shown` have a picture.
+fn people(app: &mut MailApp, ctx: &egui::Context, shown: &[Address]) -> Vec<bool> {
+    let mut got = Vec::new();
+    ctx.run_ui(egui::RawInput::default(), |ui| got = shown.iter().map(|who| contact_picture(app, ui.ctx(), who).is_some()).collect())
+        .drop_without_applying_deltas();
+    got
+}
+
+#[test]
+fn a_contact_has_their_picture_in_people_without_any_mail() {
+    let (mut app, asked, _) = window(|_| Ok(png()));
+    app.session.mailbox.add_contact(Contact {
+        display_name: "Lin".into(),
+        emails: vec![Labeled::new("work", "lin@studio.example")],
+        ..Default::default()
+    });
+    let long = format!("{}@studio.example", "x".repeat(400));
+    app.session.mailbox.add_contact(Contact { display_name: "Long".into(), emails: vec![Labeled::new("work", &long)], ..Default::default() });
+    // A contact nobody has mail from, an address that is nobody's contact, and a contact's
+    // address too long to be anybody's.
+    let shown = [Address::new("Lin", "lin@studio.example"), Address::new("", "stranger@spam.example"), Address::new("Long", long)];
+    let ctx = egui::Context::default();
+    for _ in 0..4 {
+        people(&mut app, &ctx, &shown);
+    }
+    assert_eq!(*asked.lock().unwrap(), ["lin@studio.example"]);
+    assert_eq!(people(&mut app, &ctx, &shown), [true, false, false]);
+    // Turned off, nobody is asked again.
+    app.run("ui.senderImages", json!({"value": false})).unwrap();
+    for _ in 0..4 {
+        assert_eq!(people(&mut app, &ctx, &shown), [false; 3]);
+    }
+    assert_eq!(*asked.lock().unwrap(), ["lin@studio.example"]);
+}
+
+#[test]
+fn a_contacts_picture_in_people_lends_nothing_to_mail_the_server_doesnt_vouch_for() {
+    let (mut app, asked, mut shown) = window(|_| Ok(png()));
+    shown[0].headers.clear();
+    let ctx = egui::Context::default();
+    for _ in 0..4 {
+        people(&mut app, &ctx, &[Address::new("Ada", "ada@example.org")]);
+    }
+    assert_eq!(people(&mut app, &ctx, &[Address::new("Ada", "ada@example.org")]), [true]);
+    // Her picture is in hand, and still a `From:` with her address and no word from the server
+    // keeps her initials in the list.
+    for _ in 0..4 {
+        frame(&mut app, &ctx, &shown);
+    }
+    assert_eq!(frame(&mut app, &ctx, &shown), [false, true, false, false]);
+    assert_eq!(*asked.lock().unwrap(), ["ada@example.org", "grace@shop.example"]);
+}
+
 #[test]
 fn who_is_known_follows_the_contacts_and_sent_items() {
     let (mut app, _, _) = window(|_| Ok(png()));
