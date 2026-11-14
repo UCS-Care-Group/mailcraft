@@ -3,7 +3,8 @@
   SPDX-FileCopyrightText: MailCraft contributors
   SPDX-License-Identifier: MIT OR Apache-2.0
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -17,7 +18,20 @@
         android:usesCleartextTraffic="false"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:localeConfig="@xml/locales_config"
+        tools:targetApi="33"
+        android:theme="@style/Theme.MailCraft">
+        <!-- Keeps the per-app language across restarts on Android 12 and before; Android 13 and
+             later keep it themselves. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

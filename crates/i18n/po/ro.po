@@ -564,8 +564,8 @@ msgstr "O adresă web, o adresă de e-mail, un număr de telefon (tel:) sau alt�
 msgid "AM"
 msgstr "AM"
 
-#. ribbon location
-#: crates/ui-egui/src/lib.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "About"
 msgstr "Despre"
@@ -686,8 +686,8 @@ msgstr "Setări cont"
 msgid "Account name"
 msgstr "Nume cont"
 
-#. interface, ribbon
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Accounts"
 msgstr "Conturi"
@@ -1965,8 +1965,8 @@ msgstr "Doar disponibilitatea: când sunteți liber sau ocupat"
 msgid "Available formats:"
 msgstr "Formate disponibile:"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "Înapoi"
@@ -2145,8 +2145,8 @@ msgstr "După dimensiune"
 msgid "By Subject"
 msgstr "După subiect"
 
-#. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, name, ribbon, ribbon location, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendar"
@@ -6660,8 +6660,8 @@ msgstr "Keychain"
 msgid "Label"
 msgstr "Etichetă"
 
-#. interface, ribbon
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Language"
 msgstr "Limbă"
@@ -6953,8 +6953,8 @@ msgstr "Realizat de contribuitorii săi:"
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Creat în alt program sau pe web, cu părți pe care MailCraft nu le poate afișa"
 
-#. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "E-mail"
@@ -7048,8 +7048,8 @@ msgstr "Doar e-mail"
 msgid "Mail to Keep Offline"
 msgstr "E-mail păstrat offline"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Mail to keep offline"
 msgstr "E-mail păstrat offline"
@@ -7473,6 +7473,11 @@ msgstr "mai"
 #, fuzzy
 msgid "Meeting"
 msgstr "Întâlnire"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+msgid "Menu"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -8908,6 +8913,11 @@ msgstr "Nu s-a trimis nimic către Microsoft, iar parola dvs. nu este păstrată
 msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
 msgstr "Nu s-a trimis nimic: cutia poștală nu a putut fi salvată înainte ({error})"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Notifications"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -9709,14 +9719,14 @@ msgstr "Lipiți sau scrieți codul HTML al semnăturii"
 msgid "Pattern"
 msgstr "Model"
 
-#. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "În dezvoltare"
 
-#. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "People"
 msgstr "Persoane"
@@ -9793,8 +9803,8 @@ msgstr "Imagine deasupra textului"
 msgid "Picture beside text"
 msgstr "Imagine lângă text"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pictures"
 msgstr "Imagini"
@@ -11827,6 +11837,11 @@ msgstr "Trimitere/primire prin JMAP"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Trimitere/primire prin Microsoft Graph"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Sender images"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11986,8 +12001,8 @@ msgstr "Configurare manuală"
 msgid "Setting up the account stopped unexpectedly"
 msgstr "Configurarea contului s-a oprit neașteptat"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Settings"
 msgstr "Setări"
@@ -13038,6 +13053,11 @@ msgstr "Sincronizare"
 msgid "System"
 msgstr "Sistem"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "System default"
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13098,8 +13118,8 @@ msgstr "Raport de stare sarcină:"
 msgid "Task:"
 msgstr "Sarcină:"
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Sarcini"
@@ -13969,7 +13989,7 @@ msgid "The mailbox at {address} can't be reached through Microsoft Graph."
 msgstr "Cutia poștală de la {address} nu poate fi accesată prin Microsoft Graph."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
 msgid "The mailbox could not be read."
 msgstr ""
 
@@ -14190,7 +14210,7 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "Regulile trimise nu au putut fi înregistrate: {error}"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
 msgid "The sample mailbox has no Inbox."
 msgstr ""
 
@@ -15758,8 +15778,8 @@ msgstr "Către:"
 msgid "To: {names}"
 msgstr "Către: {names}"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, command label, interface, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Today"
 msgstr "Azi"
@@ -16211,6 +16231,11 @@ msgstr "Verificare cheie publică"
 #, fuzzy
 msgid "Verify…"
 msgstr "Verificare…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Version"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -21081,6 +21106,14 @@ msgid_plural "{n} unread"
 msgstr[0] "{n} necitit"
 msgstr[1] "{n} necitite"
 msgstr[2] "{n} necitite"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
+msgid "{n} unread message"
+msgid_plural "{n} unread messages"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

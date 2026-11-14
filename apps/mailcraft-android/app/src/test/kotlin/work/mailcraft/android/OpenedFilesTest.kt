@@ -77,6 +77,21 @@ class OpenedFilesTest {
     }
 
     @Test
+    fun onlyOldCopiesAreCleared() {
+        val root = tmp.newFolder("attachments2")
+        val old = File(root, "old").apply { mkdirs() }
+        File(old, "a.txt").writeText("x")
+        val recent = File(root, "recent").apply { mkdirs() }
+        File(recent, "b.txt").writeText("y")
+        old.setLastModified(1_000L)
+        recent.setLastModified(1_000_000L)
+        clearOlderThan(root, maxAgeMillis = 100_000L, now = 1_050_000L)
+        assertFalse(old.exists())
+        assertTrue(File(recent, "b.txt").exists())
+        clearOlderThan(File(root, "missing"), 1L, 1L)
+    }
+
+    @Test
     fun savingWritesTheBytes() {
         val out = ByteArrayOutputStream()
         assertTrue(SaveToFiles.write({ out }, byteArrayOf(1, 2, 3)))
