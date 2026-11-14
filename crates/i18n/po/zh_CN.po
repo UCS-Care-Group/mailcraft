@@ -577,11 +577,6 @@ msgstr ""
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr ""
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "A sign-in is already open."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -9007,7 +9002,7 @@ msgid "Nothing came back from Microsoft's sign-in page. It may have been closed,
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Nothing came back from the sign-in page in time."
 msgstr ""
 
@@ -12766,11 +12761,6 @@ msgstr "使用“发送/接收”登录，以查看其他人的忙闲状态。"
 msgid "Sign-in cancelled"
 msgstr "登录已取消"
 
-#. what a command says
-#: crates/mobile/src/sign_in.rs
-msgid "Sign-in isn't set up on this phone."
-msgstr ""
-
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12824,11 +12814,6 @@ msgstr "已登录，但 Microsoft 仍不允许 MailCraft 读取 {account} 的邮
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "登录未返回结果"
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "Signing in isn't available on this phone."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -14758,18 +14743,13 @@ msgstr "共享邮箱的日历“{name}”仅显示所有者的忙闲状态；此
 msgid "The shared mailbox's e-mail address"
 msgstr "共享邮箱的电子邮件地址"
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "The sign-in couldn't be started."
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "The sign-in didn't go through."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in didn't work. Try again."
 msgstr ""
 
@@ -14796,7 +14776,7 @@ msgid "The sign-in was cancelled."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in was declined."
 msgstr ""
 
@@ -15278,11 +15258,6 @@ msgstr "此版本无法登录此类账户。请使用桌面应用。"
 #, fuzzy
 msgid "This build doesn't check for new versions."
 msgstr "此版本不检查新版本。"
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "This build has no application id to sign in with."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17319,7 +17294,7 @@ msgid "Your organisation has approved MailCraft. Now sign in with your own accou
 msgstr "您的组织已批准 MailCraft。现在请使用您自己的账户登录。"
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
 msgstr ""
 

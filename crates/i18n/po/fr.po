@@ -551,11 +551,6 @@ msgstr ""
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr ""
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "A sign-in is already open."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -8542,7 +8537,7 @@ msgid "Nothing came back from Microsoft's sign-in page. It may have been closed,
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Nothing came back from the sign-in page in time."
 msgstr ""
 
@@ -12096,11 +12091,6 @@ msgstr "Connectez-vous avec Envoyer/Recevoir pour voir quand les autres personne
 msgid "Sign-in cancelled"
 msgstr "Connexion annulée"
 
-#. what a command says
-#: crates/mobile/src/sign_in.rs
-msgid "Sign-in isn't set up on this phone."
-msgstr ""
-
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12151,11 +12141,6 @@ msgstr "Connecté, mais Microsoft ne permet toujours pas à MailCraft de lire le
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "La connexion n'a rien renvoyé"
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "Signing in isn't available on this phone."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13920,18 +13905,13 @@ msgstr ""
 msgid "The shared mailbox's e-mail address"
 msgstr "L'adresse e-mail de la boîte aux lettres partagée"
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "The sign-in couldn't be started."
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "The sign-in didn't go through."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in didn't work. Try again."
 msgstr ""
 
@@ -13957,7 +13937,7 @@ msgid "The sign-in was cancelled."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in was declined."
 msgstr ""
 
@@ -14404,11 +14384,6 @@ msgstr "Cette version ne peut pas se connecter à ce type de compte. Utilisez l'
 #, fuzzy
 msgid "This build doesn't check for new versions."
 msgstr "Cette version ne recherche pas de nouvelles versions."
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "This build has no application id to sign in with."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16320,7 +16295,7 @@ msgid "Your organisation has approved MailCraft. Now sign in with your own accou
 msgstr "Votre organisation a approuvé MailCraft. Connectez-vous maintenant avec votre propre compte."
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
 msgstr ""
 

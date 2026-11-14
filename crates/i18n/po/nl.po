@@ -573,11 +573,6 @@ msgstr ""
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr ""
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "A sign-in is already open."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8943,7 +8938,7 @@ msgid "Nothing came back from Microsoft's sign-in page. It may have been closed,
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Nothing came back from the sign-in page in time."
 msgstr ""
 
@@ -12681,11 +12676,6 @@ msgstr "Meld u aan met Verzenden/ontvangen om te zien wanneer andere personen be
 msgid "Sign-in cancelled"
 msgstr "Aanmelding geannuleerd"
 
-#. what a command says
-#: crates/mobile/src/sign_in.rs
-msgid "Sign-in isn't set up on this phone."
-msgstr ""
-
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12739,11 +12729,6 @@ msgstr "Aangemeld, maar Microsoft laat MailCraft de e-mail van {account} nog ste
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "Aanmelden heeft niets opgeleverd"
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "Signing in isn't available on this phone."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -14632,18 +14617,13 @@ msgstr "De agenda „{name}” van het gedeelde postvak toont alleen wanneer de 
 msgid "The shared mailbox's e-mail address"
 msgstr "Het e-mailadres van het gedeelde postvak"
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "The sign-in couldn't be started."
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "The sign-in didn't go through."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in didn't work. Try again."
 msgstr ""
 
@@ -14670,7 +14650,7 @@ msgid "The sign-in was cancelled."
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "The sign-in was declined."
 msgstr ""
 
@@ -15146,11 +15126,6 @@ msgstr "Deze build kan zich niet aanmelden bij dit soort account. Gebruik de des
 #, fuzzy
 msgid "This build doesn't check for new versions."
 msgstr "Deze build controleert niet op nieuwe versies."
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-msgid "This build has no application id to sign in with."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17169,7 +17144,7 @@ msgid "Your organisation has approved MailCraft. Now sign in with your own accou
 msgstr "Uw organisatie heeft MailCraft goedgekeurd. Meld u nu aan met uw eigen account."
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
 msgstr ""
 
