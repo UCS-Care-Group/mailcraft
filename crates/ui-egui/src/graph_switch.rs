@@ -114,7 +114,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool 
     }
     let whose = address(app, account);
     let mut answer: Option<&str> = None;
-    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, |ui| {
+    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, None, |ui| {
         let lines = wording(&whose);
         for line in &lines {
             if line == tl!("When you switch:") {
@@ -161,7 +161,7 @@ fn copying(app: &MailApp, account: Id) -> bool {
 /// it doesn't stop anything; the status bar says when the switch is made.
 fn show_copying(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
     let whose = address(app, account);
-    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, |ui| {
+    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, None, |ui| {
         ui.horizontal(|ui| {
             ui.add(egui::Spinner::new().size(18.0));
             ui.add_space(6.0);
@@ -186,7 +186,7 @@ fn show_waiting(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
     let whose = address(app, account);
     let n = mailcraft_engine::cmd::graph_switch::left_behind(&app.session, account);
     let mut answer: Option<&str> = None;
-    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, |ui| {
+    let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, None, |ui| {
         for line in waiting_wording(&whose, n) {
             ui.add(egui::Label::new(line.as_str()).wrap());
         }

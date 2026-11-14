@@ -959,6 +959,20 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
         "rules.enable" => {
             p::opt_bool(params, "value").is_ok_and(|value| named().is_some_and(|r| value.unwrap_or(!r.enabled) && there(r) && deletes(r)))
         }
+        // rules.edit judges the rule as it would be after the edit.
+        "rules.edit" => {
+            // Build the rule as it would be after the edit, then check if it would be on the server and delete.
+            crate::cmd::rules::rule_from_params(s, params).is_ok_and(|mut r| {
+                // Apply the edits from params if an existing rule is named
+                if let Some(existing) = named() {
+                    r.id = existing.id;
+                    r.account = existing.account;
+                    r.keep = existing.keep;
+                    r.server = existing.server.clone();
+                }
+                there(&r) && deletes(&r)
+            })
+        }
         _ => false,
     }
 }
@@ -977,6 +991,17 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, one_account(&r)).is_some()),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
+        // rules.edit judges the rule as it would be after the edit.
+        "rules.edit" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|mut r| {
+            // Apply the edits from params if an existing rule is named
+            if let Some(existing) = mb.rules.iter().find(|x| x.id == p::id(params, "id").unwrap_or_default()) {
+                r.id = existing.id;
+                r.account = existing.account;
+                r.keep = existing.keep;
+                r.server = existing.server.clone();
+            }
+            rule_onto_server(s, &r, one_account(&r)).is_some()
+        }),
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             p::id(params, "id")
@@ -1554,10 +1579,24 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "rules.edit" => {
-            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            // Build the rule as it would be after the edit, judging what it would do
+            let rule_id = p::id(params, "id").unwrap_or_default();
+            let existing = s.mailbox.rules.iter().find(|r| r.id == rule_id);
+            let r = crate::cmd::rules::rule_from_params(s, params).ok().and_then(|mut r| {
+                // Apply the edits from params if an existing rule is named
+                if let Some(ex) = existing {
+                    r.id = ex.id;
+                    r.account = ex.account;
+                    r.keep = ex.keep;
+                    r.server = ex.server.clone();
+                    Some(r)
+                } else {
+                    None
+                }
+            });
             match r {
                 Some(r) => {
-                    let addresses = s.mailbox.rule_reads_addresses(r);
+                    let addresses = s.mailbox.rule_reads_addresses(&r);
                     let when = r.conditions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" and ");
                     let mut then: Vec<String> = r.actions.iter().map(|a| plain(&a.describe())).collect();
                     if let Some(server) = r.server.as_ref().filter(|s| !s.unknown.is_empty()) {

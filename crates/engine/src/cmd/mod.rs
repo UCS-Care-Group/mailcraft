@@ -115,6 +115,10 @@ mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+#[cfg(test)]
+mod rules_edit_agent_tests;
+#[cfg(test)]
+mod rules_edit_tests;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;

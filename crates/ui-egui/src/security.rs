@@ -575,7 +575,7 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
             };
             let place = app.security.listing.as_ref().map(|l| l.smime).unwrap_or_default();
             let watch = app.secret_watch();
-            let open = window(ctx, title, 460.0, |ui| {
+            let open = window(ctx, title, 460.0, None, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(tl!("File:")).font(semibold(12.5)));
                     ui.add(egui::Label::new(d.name.as_str()).wrap());
@@ -632,7 +632,7 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
         }
         SecurityDialog::Verify(v) => {
             let mut close = false;
-            let open = window(ctx, tl!("Verify a Public Key"), 480.0, |ui| {
+            let open = window(ctx, tl!("Verify a Public Key"), 480.0, None, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(tl!("Address:")).font(semibold(12.5)));
                     ui.add(egui::Label::new(crate::own_keys::clip(&v.address)).wrap());

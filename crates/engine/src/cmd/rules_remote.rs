@@ -293,6 +293,10 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             sequence,
             synced_enabled: remote.enabled,
             synced_sequence: remote.sequence,
+            synced_name: remote.name.clone(),
+            synced_conditions: remote.conditions.clone(),
+            synced_actions: actions.clone(),
+            synced_stop: remote.stop,
             unknown: unknown.clone(),
             read_only: remote.read_only,
             error: remote.error,
@@ -315,6 +319,13 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
                 rule.actions = actions;
             }
             rule.stop = remote.stop;
+            // After updating the rule's fields, set the synced fields to the rule's final values
+            if let Some(server) = rule.server.as_mut() {
+                server.synced_name = rule.name.clone();
+                server.synced_conditions = rule.conditions.clone();
+                server.synced_actions = rule.actions.clone();
+                server.synced_stop = rule.stop;
+            }
             rule.keep = Keep::Server;
             rule.refused.clear();
             if rule == *old {
@@ -342,6 +353,11 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         {
             // Switched on or off here meanwhile: that stays, and the difference goes up.
             rule.server = Some(fresh(remote.sequence));
+            // Update the rule's fields to match the server's values
+            rule.name = remote.name.clone();
+            rule.conditions = remote.conditions.clone();
+            rule.actions = actions;
+            rule.stop = remote.stop;
             rule.unanswered = false;
             merged.updated += 1;
             continue;
@@ -442,6 +458,10 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                         sequence,
                         synced_enabled: enabled,
                         synced_sequence: sequence,
+                        synced_name: rule.name.clone(),
+                        synced_conditions: rule.conditions.clone(),
+                        synced_actions: rule.actions.clone(),
+                        synced_stop: rule.stop,
                         ..Default::default()
                     });
                     rule.refused.clear();
@@ -456,13 +476,20 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                 }
             }
             (RuleOpKind::Update, RuleResult::Done) => {
-                if let Some(server) = at.and_then(|i| mailbox.rules.get_mut(i)).and_then(|r| r.server.as_mut()) {
+                if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i))
+                    && let Some(server) = rule.server.as_mut()
+                {
                     if let Some(enabled) = outcome.enabled {
                         server.synced_enabled = enabled;
                     }
                     if let Some(sequence) = outcome.sequence {
                         server.synced_sequence = sequence;
                     }
+                    // After a successful update, the server has the rule as it is locally
+                    server.synced_name = rule.name.clone();
+                    server.synced_conditions = rule.conditions.clone();
+                    server.synced_actions = rule.actions.clone();
+                    server.synced_stop = rule.stop;
                     merged.updated += 1;
                 }
             }

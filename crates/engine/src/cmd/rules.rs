@@ -595,42 +595,67 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         rule.stop = p::opt_bool(v, "stop")?.unwrap_or(rule.stop);
     }
 
-    // Check if server location is being changed
-    if let Some(should_be_server) = v.get("server") {
-        let should_be_server = !should_be_server.as_bool().unwrap_or(false);
+    // Now handle server location change if requested
+    if v.get("server").is_some() {
+        let should_be_server = p::opt_bool(v, "server")?.unwrap_or(rule.keep == Keep::Server);
         let account = rule.account;
 
-        // Only allow changing server setting if the rule isn't already on server
-        // or if it was already on server and we're moving it here
-        if should_be_server && rule.on_server() {
-            // Moving from server to here
-            if let Some(r) = s.mailbox.rules.get_mut(i) {
-                r.keep = Keep::Here;
-                r.server = None;
-                r.refused.clear();
-            }
-            return Ok(json!({"id": id}));
-        } else if !should_be_server && !rule.on_server() {
-            // Trying to keep on server but currently here - validate and update
-            if account == 0 {
-                return Err(bad("say which account's server is to keep it (`account`)"));
-            }
+        if should_be_server {
+            if !rule.on_server() {
+                // Moving from here to server - validate first
+                if account == 0 {
+                    return Err(bad("say which account's server is to keep it (`account`)"));
+                }
 
-            if let Some(why) = server_cannot(&s.mailbox, &rule, account) {
-                return Err(CmdError::Failed(why.said().to_string()));
-            }
+                if let Some(why) = server_cannot(&s.mailbox, &rule, account) {
+                    return Err(CmdError::Failed(why.said().to_string()));
+                }
 
-            if let Some(r) = s.mailbox.rules.get_mut(i) {
-                r.account = account;
-                r.keep = Keep::Server;
-                r.refused.clear();
+                if let Some(r) = s.mailbox.rules.get_mut(i) {
+                    *r = rule.clone(); // Apply all edits before changing server location
+                    r.account = account;
+                    r.keep = Keep::Server;
+                    r.refused.clear();
+                }
+                return Ok(json!({"id": id}));
             }
-            return Ok(json!({"id": id}));
+            // If already on server and should_be_server is true, apply edits in place
+            if let Some(r) = s.mailbox.rules.get_mut(i) {
+                *r = rule.clone();
+            }
+        } else {
+            if rule.on_server() {
+                // Moving from server to here
+                // Capture the server ID before clearing server
+                let server_id = rule.server.as_ref().and_then(|s| (!s.id.is_empty()).then_some(s.id.clone()));
+                // Clear server from the local rule too so it's not copied
+                rule.server = None;
+                if let Some(r) = s.mailbox.rules.get_mut(i) {
+                    *r = rule.clone(); // Apply all edits before changing server location
+                    r.keep = Keep::Here;
+                    r.refused.clear();
+                }
+                // Tell the server to delete the rule
+                if s.mailbox.rule_gone.len() < mailcraft_model::MAX_RULE_GONE
+                    && let Some(server_id) = server_id
+                {
+                    s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: server_id, made: None });
+                }
+                return Ok(json!({"id": id}));
+            }
+            // If already here and should_be_server is false, apply edits in place
+            // Clear server in case it was set (e.g., rule was previously on server)
+            rule.server = None;
+            if let Some(r) = s.mailbox.rules.get_mut(i) {
+                *r = rule.clone();
+            }
         }
     }
 
-    // Update rule in place
-    if let Some(r) = s.mailbox.rules.get_mut(i) {
+    // Update rule in place if no server change was requested
+    if v.get("server").is_none()
+        && let Some(r) = s.mailbox.rules.get_mut(i)
+    {
         *r = rule;
     }
 

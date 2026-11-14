@@ -320,6 +320,13 @@ fn change_body(op: &RuleOp) -> Option<Value> {
     if let Some(sequence) = op.sequence {
         body.insert("sequence".into(), json!(sequence.max(1)));
     }
+    // If body is set, use it for the full rule update
+    if let Some(rule) = &op.body
+        && let Ok(body_val) = rule_body(rule)
+        && let Value::Object(obj) = body_val
+    {
+        body = obj;
+    }
     if body.is_empty() { None } else { Some(Value::Object(body)) }
 }
 

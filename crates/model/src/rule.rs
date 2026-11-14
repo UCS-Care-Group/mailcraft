@@ -134,6 +134,12 @@ pub struct ServerRule {
     /// changed here since is the difference ([`Rule::changed_here`]), and only that is sent.
     pub synced_enabled: bool,
     pub synced_sequence: i32,
+    /// The name, conditions, actions, and stop flag as the server last had them. What was
+    /// changed here since is the difference ([`Rule::changed_here`]), and only that is sent.
+    pub synced_name: String,
+    pub synced_conditions: Vec<Condition>,
+    pub synced_actions: Vec<Action>,
+    pub synced_stop: bool,
     /// The parts of it this version doesn't know, by the server's names (`forwardTo`,
     /// `exceptions`…). Such a rule is switched on and off, moved and deleted, and never
     /// rewritten or run here.
@@ -245,8 +251,41 @@ impl Rule {
         self.server.as_ref().is_some_and(|s| s.read_only)
     }
 
-    /// Whether it was switched on or off, or moved, here since the server last had it.
+    /// Whether two condition lists are the same, ignoring order and capitalization.
+    fn conditions_eq(&self, other: &[Condition]) -> bool {
+        let same = |a: &Condition, b: &Condition| match (a, b) {
+            (Condition::FromContains(x), Condition::FromContains(y)) => x.eq_ignore_ascii_case(y),
+            (Condition::ToContains(x), Condition::ToContains(y)) => x.eq_ignore_ascii_case(y),
+            (Condition::SubjectContains(x), Condition::SubjectContains(y)) => x.eq_ignore_ascii_case(y),
+            (Condition::BodyContains(x), Condition::BodyContains(y)) => x.eq_ignore_ascii_case(y),
+            _ => a == b,
+        };
+        self.conditions.len() == other.len()
+            && self.conditions.iter().all(|c| other.iter().any(|d| same(c, d)))
+            && other.iter().all(|d| self.conditions.iter().any(|c| same(c, d)))
+    }
+
+    /// Whether two action lists are the same, ignoring order and capitalization.
+    fn actions_eq(&self, other: &[Action]) -> bool {
+        let same = |a: &Action, b: &Action| match (a, b) {
+            (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
+            _ => a == b,
+        };
+        self.actions.len() == other.len()
+            && self.actions.iter().all(|a| other.iter().any(|b| same(a, b)))
+            && other.iter().all(|b| self.actions.iter().any(|a| same(a, b)))
+    }
+
+    /// Whether it was switched on or off, moved, or changed name/conditions/actions/stop here since the server last had it.
     pub fn changed_here(&self) -> bool {
-        self.server.as_ref().is_some_and(|s| !s.id.is_empty() && (self.enabled != s.synced_enabled || s.sequence != s.synced_sequence))
+        self.server.as_ref().is_some_and(|s| {
+            !s.id.is_empty()
+                && (self.enabled != s.synced_enabled
+                    || s.sequence != s.synced_sequence
+                    || !self.name.eq_ignore_ascii_case(&s.synced_name)
+                    || !self.conditions_eq(&s.synced_conditions)
+                    || !self.actions_eq(&s.synced_actions)
+                    || self.stop != s.synced_stop)
+        })
     }
 }

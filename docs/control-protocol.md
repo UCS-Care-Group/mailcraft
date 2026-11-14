@@ -380,3 +380,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-11-01 | minor | #252: Exchange server accounts no longer need `MAILCRAFT_EWS=1`; nothing refuses for a switch |
 | 2026-11-01 | major | #286: several messages being written at once, each with an id (`compose`) that the commands starting one answer and those acting on one take; `ui.inspect` lists them under `beingWritten`; starting another no longer closes or saves the one being written; an agent names the id once more than one is open |
 | 2026-11-01 | minor | #566: the rule commands read `id`, `ids` and `rules.run`'s `folder` strictly too, and `rules.enable` its `value` (#553) |
+| 2026-11-14 | minor | #992: `rules.edit` applies edits before the server location change, and server rules' `changed_here` checks name/conditions/actions/stop with case-insensitive/equivalent comparison |

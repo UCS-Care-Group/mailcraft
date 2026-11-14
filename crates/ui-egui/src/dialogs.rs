@@ -1381,13 +1381,13 @@ pub(crate) fn scrim_layer() -> egui::LayerId {
 
 /// The frame shared by the dialogs: a centred window with a title. Returns `false` when it was
 /// closed with its close button.
-pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnOnce(&mut Ui)) -> bool {
+pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, height: Option<f32>, add: impl FnOnce(&mut Ui)) -> bool {
     let mut open = true;
     let id = egui::Id::unique("dialog");
     // A click on the scrim lifts it to the top of its order, over the dialog, where it would take
     // every click after (Escape alone still answered): the dialog goes back above it each frame.
     ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
-    egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
+    let builder = egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
         .id(id)
         .open(&mut open)
         .collapsible(false)
@@ -1395,13 +1395,12 @@ pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnO
         .anchor(Align2::CENTER_CENTER, vec2(0.0, -40.0))
         .default_width(width)
         .min_width(width)
-        .max_width(width)
-        .default_height(500.0)
-        .min_height(400.0)
-        .show(ctx, |ui| {
-            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            add(ui);
-        });
+        .max_width(width);
+    let builder = if let Some(h) = height { builder.default_height(h).min_height(h) } else { builder.default_height(500.0).min_height(400.0) };
+    builder.show(ctx, |ui| {
+        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+        add(ui);
+    });
     open
 }
 
@@ -1447,7 +1446,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let mut mark: Option<Value> = None;
     match &mut dialog {
         Dialog::Commands { query, selected } => {
-            let open = window(ctx, tl!("Search Commands"), 520.0, |ui| {
+            let open = window(ctx, tl!("Search Commands"), 520.0, None, |ui| {
                 let resp = ui.add(
                     egui::TextEdit::singleline(query).hint_text(tl!("Type what you want to do")).desired_width(f32::INFINITY).font(regular(14.0)),
                 );
@@ -1516,7 +1515,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Folder { mode, name, error } => {
             let title = if matches!(mode, FolderMode::New { .. }) { tl!("New Folder") } else { tl!("Rename Folder") };
             let mut submit = false;
-            let open = window(ctx, title, 380.0, |ui| {
+            let open = window(ctx, title, 380.0, None, |ui| {
                 if let FolderMode::New { parent } = mode {
                     let place = parent.map(|p| crate::nav::folder_path(&app.session.mailbox, p)).unwrap_or_else(|| tl!("the top level").to_string());
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("In {place}"), &[("place", &place)])).color(t.text_dim));
@@ -1547,7 +1546,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
-            let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
+            let open = window(ctx, tl!("Go to Date"), 320.0, None, |ui| {
                 ui.label(tl!("Date (YYYY-MM-DD)"));
                 let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
                 if error.is_empty() {
@@ -1570,7 +1569,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::ReplyTo { text, error } => {
             let mut submit = false;
-            let open = window(ctx, tl!("Direct Replies To"), 420.0, |ui| {
+            let open = window(ctx, tl!("Direct Replies To"), 420.0, None, |ui| {
                 ui.label(tl!("Have replies sent to"));
                 let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
                 if error.is_empty() {
@@ -1599,7 +1598,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             if checking.is_some_and(|id| !app.shared_checking.contains(&id)) {
                 *checking = None;
             }
-            let open = window(ctx, tl!("Add Shared Mailbox"), 420.0, |ui| {
+            let open = window(ctx, tl!("Add Shared Mailbox"), 420.0, None, |ui| {
                 ui.label(tl!("The shared mailbox's e-mail address"));
                 let field = egui::TextEdit::singleline(address).hint_text("support@example.org").desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add_enabled(checking.is_none(), field));
@@ -1657,7 +1656,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 *reading = None;
             }
-            let open = window(ctx, tl!("Open Shared Calendar"), 420.0, |ui| {
+            let open = window(ctx, tl!("Open Shared Calendar"), 420.0, None, |ui| {
                 ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
                 let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add_enabled(reading.is_none(), field));
@@ -1693,7 +1692,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::Link { url, error, linked } => {
             let (mut submit, mut remove) = (false, false);
-            let open = window(ctx, tl!("Insert Link"), 420.0, |ui| {
+            let open = window(ctx, tl!("Insert Link"), 420.0, None, |ui| {
                 ui.label(tl!("Address"));
                 let resp = ui.add(egui::TextEdit::singleline(url).hint_text("https://www.example.org").desired_width(f32::INFINITY));
                 let resp = crate::text_menu::field(resp);
@@ -1734,7 +1733,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::DateTime { choices, selected, at } => {
             let mut submit = false;
-            let open = window(ctx, tl!("Date and Time"), 360.0, |ui| {
+            let open = window(ctx, tl!("Date and Time"), 360.0, None, |ui| {
                 ui.label(tl!("Available formats:"));
                 if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
                     *selected = (*selected + 1).min(choices.len().saturating_sub(1));
@@ -1785,7 +1784,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
         }
         Dialog::WordCount { counts, selection } => {
-            let open = window(ctx, tl!("Word Count"), 320.0, |ui| {
+            let open = window(ctx, tl!("Word Count"), 320.0, None, |ui| {
                 let what = if *selection { tl!("In the selection") } else { tl!("In the message") };
                 ui.label(egui::RichText::new(what).color(t.text_dim));
                 let names = [tl!("Words"), tl!("Characters (no spaces)"), tl!("Characters (with spaces)"), tl!("Paragraphs")];
@@ -1815,7 +1814,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
             let asked = if token { tl!("Access token for {account}") } else { tl!("Password for {account}") };
             let mut submit = false;
-            let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
+            let open = window(ctx, tl!("Sign In"), 380.0, None, |ui| {
                 ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
                 // (The room round its text that a field has by default.)
                 let room = egui::Margin::from(ui.spacing().button_padding);
@@ -1842,7 +1841,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
         }
         Dialog::Report { title, lines, .. } => {
-            let open = window(ctx, title, 560.0, |ui| {
+            let open = window(ctx, title, 560.0, None, |ui| {
                 egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
                     for line in lines.iter() {
                         // Selectable, so a line can be copied by itself too.
@@ -1863,11 +1862,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::ViewSource(source) => {
             let title = crate::i18n::fmt(tl!("Source of {subject}"), &[("subject", &source.subject)]);
-            let open = window(ctx, &title, 720.0, |ui| close |= crate::view_source::show(ui, source, &t));
+            let open = window(ctx, &title, 720.0, None, |ui| close |= crate::view_source::show(ui, source, &t));
             close |= !open;
         }
         Dialog::Refused { text } => {
-            let open = window(ctx, "MailCraft", 420.0, |ui| {
+            let open = window(ctx, "MailCraft", 420.0, None, |ui| {
                 ui.horizontal_top(|ui| {
                     // A warning mark drawn here: a round red dot with a white bar.
                     let (mark, _) = ui.allocate_exact_size(vec2(28.0, 28.0), egui::Sense::hover());
@@ -1890,7 +1889,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Confirm { command, params, ask } => {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
-            let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
+            let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, None, |ui| {
                 ui.label(ask.text.as_str());
                 if let Some((_, note, hint)) = &mut ask.note {
                     let field = ui
@@ -1950,7 +1949,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::DiscardDraft { then, params } => {
             let mut answer: Option<&str> = None;
-            let open = window(ctx, tl!("Unsaved Message"), 400.0, |ui| {
+            let open = window(ctx, tl!("Unsaved Message"), 400.0, None, |ui| {
                 let n = if closes_all(then) { unsaved_closed_by(app, "file.new", params) } else { 1 };
                 if n > 1 {
                     ui.label(tln!(
@@ -1987,7 +1986,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 AboutTab::Contributors => 720.0,
                 AboutTab::Testers => 520.0,
             };
-            let open = window(ctx, tl!("About MailCraft"), width, |ui| {
+            let open = window(ctx, tl!("About MailCraft"), width, None, |ui| {
                 ui.horizontal(|ui| {
                     for (which, label) in [(AboutTab::About, "About"), (AboutTab::Contributors, "Contributors"), (AboutTab::Testers, "Testers")] {
                         if ui.selectable_label(*tab == which, tl!(label)).clicked() {
@@ -2042,7 +2041,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Form(form) => {
             let title = form.title();
             let mut done = false;
-            let open = window(ctx, &title, form.width(), |ui| done = form.show(app, ui));
+            let open = window(ctx, &title, form.width(), form.height(), |ui| done = form.show(app, ui));
             if !open {
                 form.closed(app);
             }
@@ -2051,7 +2050,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         // (Enter is nobody's in this one either: it has boxes of several lines.)
         Dialog::ReportProblem(draft) => {
             let mut done = false;
-            let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, |ui| done = draft.show(app, ui));
+            let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, None, |ui| done = draft.show(app, ui));
             close |= !open || done;
             // A report on its way keeps the window until its answer is said (the reference, or why not).
             close &= draft.sending.is_none();
@@ -2059,24 +2058,24 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         // (Enter is nobody's in these: what they send, they send from a button.)
         Dialog::Meeting(dialog) => {
             let mut done = false;
-            let open = window(ctx, dialog.title(), dialog.width(), |ui| done = dialog.show(app, ui));
+            let open = window(ctx, dialog.title(), dialog.width(), None, |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
         // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
         // keyboard is that button's.
         Dialog::Pick(dialog) => {
             let mut done = false;
-            let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::MergeContacts(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::Symbol(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Symbol"), crate::symbol::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
             if close {
                 app.want_body_focus();
@@ -2085,7 +2084,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::FindReplace(dialog) => {
             let mut done = false;
             let title = if dialog.replace { tl!("Replace") } else { tl!("Find") };
-            let open = window(ctx, title, crate::find_replace::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, title, crate::find_replace::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
             // The keyboard goes back to the text.
             if close {
@@ -2094,12 +2093,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::ImportTree(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::ImportPst(dialog) => {
             let mut done = false;
-            let open = window(ctx, tl!("Import a .pst File"), crate::import_pst::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            let open = window(ctx, tl!("Import a .pst File"), crate::import_pst::WIDTH, None, |ui| done = dialog.show(app, ui, enter));
             // (Closed, or Escape, while it reads: the reading stops, and what was read goes in and
             // the report is shown first.)
             let asked = close || !open;
@@ -2109,7 +2108,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::AutomaticReplies(dialog) => {
             let mut done = false;
             let title = dialog.title();
-            let open = window(ctx, &title, crate::auto_replies::WIDTH, |ui| done = dialog.show(app, ui));
+            let open = window(ctx, &title, crate::auto_replies::WIDTH, None, |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
         Dialog::Security(security) => {
@@ -2120,7 +2119,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let over = dialog.size_open;
             let mut done = false;
             let title = dialog.title.clone();
-            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && idle));
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, None, |ui| done = dialog.show(ui, enter && idle));
             if over {
                 let size = crate::folder_properties::size_layer();
                 let (escape, enter) = (crate::keys::escape(ctx, size), crate::keys::enter(ctx, size) && idle);

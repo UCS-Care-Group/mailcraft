@@ -98,6 +98,14 @@ impl Form {
         }
     }
 
+    /// The dialog's height in points.
+    pub fn height(&self) -> Option<f32> {
+        match self {
+            Form::Rules(_) => Some(680.0),
+            _ => None,
+        }
+    }
+
     /// Lay out the form. Returns `true` when the dialog should close (OK succeeded, or Cancel).
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
         match self {
@@ -5244,10 +5252,7 @@ pub(crate) mod rules {
             }
             row(ui, "", |ui| {
                 add = ui
-                    .add_enabled(
-                        ready,
-                        egui::Button::new(if self.is_editing() { tl!("Edit Rule") } else { tl!("Add Rule") }).min_size(vec2(84.0, 24.0)),
-                    )
+                    .add_enabled(ready, egui::Button::new(if self.is_editing() { tl!("Save") } else { tl!("Add Rule") }).min_size(vec2(84.0, 24.0)))
                     .clicked();
                 if !ready {
                     ui.label(egui::RichText::new(tl!("A rule needs a name, and something to look for.")).color(t.text_dim).size(11.5));
