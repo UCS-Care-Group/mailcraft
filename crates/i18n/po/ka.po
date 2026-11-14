@@ -1181,7 +1181,7 @@ msgstr "ყოველთვის დომენიდან @{domain}"
 #: crates/ui-egui/src/motion.rs
 #, fuzzy
 msgid "Always play"
-msgstr "ყოველთვის ჩვენება"
+msgstr "ყოველთვის გაშვება"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -8165,7 +8165,7 @@ msgstr "გამგზავნის დომენის არასოდ�
 #: crates/ui-egui/src/motion.rs
 #, fuzzy
 msgid "Never play"
-msgstr "არასოდეს ჩვენება"
+msgstr "არასოდეს გაშვება"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
