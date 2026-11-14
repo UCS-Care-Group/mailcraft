@@ -1977,6 +1977,11 @@ msgid "Bring in"
 msgstr "Incorporar"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse This PC…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -8086,6 +8091,11 @@ msgid "No preview helper is available for this attachment."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 msgid "No recent searches"
 msgstr ""
@@ -9719,6 +9729,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Recent Searches"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
 msgstr ""
 
 #. interface

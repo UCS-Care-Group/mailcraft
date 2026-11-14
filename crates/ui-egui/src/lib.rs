@@ -177,6 +177,7 @@ pub mod platform;
 mod platform_tests;
 mod problem_log;
 pub mod reading;
+mod recent_attachments;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
@@ -273,6 +274,8 @@ pub use unconfirmed::ConfirmedMailbox;
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
+    pub recent_attachments: Option<recent_attachments::Loader>,
     /// Desktop: the icon and application id of the main window, which every other window of the
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,

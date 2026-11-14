@@ -3105,6 +3105,7 @@ dependencies = [
  "dispatch2",
  "eframe",
  "egui",
+ "encoding_rs",
  "fmv-macos-events",
  "image",
  "keyring-core",

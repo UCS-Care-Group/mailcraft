@@ -58,6 +58,8 @@ mod favorites_flow;
 mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
+#[cfg(windows)]
+mod recent_attachments;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -1096,6 +1098,8 @@ fn services(
     Services {
         platform_calls,
         file_dialog: Some(file_dialog),
+        #[cfg(windows)]
+        recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
         // channel short enough that a busy window holds the run back instead of piling pieces up.
         sync: Some(Box::new(move |request| {

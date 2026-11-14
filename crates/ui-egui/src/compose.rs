@@ -332,9 +332,10 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         let send_width = primary_button_width(ui, send);
         let status_width = ui.painter().layout_no_wrap(status.clone(), regular(11.5), t.text_dim).size().x;
         let right_width = status_width + GAP + if window.is_none() { 2.0 * (WINDOW_ICON + 8.0 + GAP) } else { 0.0 };
-        let labeled_width: f32 = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum();
+        let recent_width = if app.services.recent_attachments.is_some() { crate::recent_attachments::ARROW + 8.0 + GAP } else { 0.0 };
+        let labeled_width = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum::<f32>() + recent_width;
         let labeled = send_width + labeled_width + right_width <= room;
-        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + right_width > room;
+        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + recent_width + right_width > room;
 
         let actions = |app: &mut MailApp, ui: &mut Ui| {
             let shortcut = crate::widgets::shortcut_text(app, "compose.send");
@@ -346,6 +347,9 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
                 button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
                 if enabled && button.clicked() {
                     let _ = app.run(command, json!({}));
+                }
+                if command == "ui.attach" && app.services.recent_attachments.is_some() {
+                    crate::recent_attachments::arrow(ui, app);
                 }
             }
         };
