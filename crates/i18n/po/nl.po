@@ -5387,9 +5387,8 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8499,8 +8498,8 @@ msgstr "Niemand meldt zich aan"
 msgid "Nobody matches the search"
 msgstr "Niemand komt overeen met de zoekopdracht"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Niemand met een adres is uitgenodigd"
@@ -11285,8 +11284,8 @@ msgstr "Tweede tijdzone"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Zien wanneer andere personen bezet zijn, vereist uw toestemming: Bestand › Info › Agenda en contactpersonen verbinden"
@@ -14006,8 +14005,8 @@ msgstr "De server heeft 1 bericht uit \"{name}\" niet gegeven"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "De server heeft {count} berichten uit \"{name}\" niet gegeven"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
@@ -14566,8 +14565,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Deze build kan een server niet vragen wanneer andere personen bezet zijn: alleen uw eigen agenda wordt weergegeven."
@@ -15003,8 +15002,8 @@ msgstr "Deze vergadering staat hier nog niet in uw agenda. Deze kan worden beant
 msgid "This meeting was called off by its organizer."
 msgstr "Deze vergadering is afgezegd door de organisator."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "De agenda van deze vergadering wordt op deze computer bewaard. Die kan niet aangeven wanneer andere personen bezet zijn: alleen uw eigen agenda wordt weergegeven."
@@ -16502,8 +16501,8 @@ msgstr "U bent aangemeld als {signedIn}, niet als {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "U hebt deze vergadering voorlopig geaccepteerd."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "U werkt offline. Schakel Offline werken uit (Verzenden/ontvangen) om verbinding te maken."
@@ -17482,6 +17481,11 @@ msgstr "het is beschadigd, of groter dan kan worden weergegeven"
 msgid "it is too large to show"
 msgstr "het is te groot om weer te geven"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -18096,6 +18100,11 @@ msgid "that event doesn't repeat"
 msgstr "die gebeurtenis herhaalt zich niet"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18225,6 +18234,11 @@ msgstr "het account is verdwenen"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "de server van het account heeft geen bruikbare naam"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18464,6 +18478,11 @@ msgid "the message can't hold that much text"
 msgstr "het bericht kan niet zoveel tekst bevatten"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18524,10 +18543,25 @@ msgid "the parent folder belongs to another account"
 msgstr "de bovenliggende map hoort bij een ander account"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "de te vervangen plaatsen zijn geen plaatsen in de tekst"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18595,7 +18629,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "de server antwoordde op een opdracht die niet was verzonden"
@@ -18625,7 +18659,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "de server vroeg om meer dan een gebruikersnaam en wachtwoord"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "de server vroeg om meer dan de opdracht had"
@@ -18707,6 +18741,11 @@ msgstr "de server accepteert geen wachtwoord via deze verbinding"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "de server beëindigde de opdracht te vroeg"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18792,13 +18831,13 @@ msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "de server stuurde te veel antwoorden op één opdracht"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "de server stuurde te veel als antwoord op één opdracht"
@@ -18893,7 +18932,7 @@ msgid "the text can't be looked for on the server"
 msgstr "naar de tekst kan niet op de server worden gezocht"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "de tekst bevat een teken dat niet kan worden verzonden"
@@ -20833,6 +20872,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

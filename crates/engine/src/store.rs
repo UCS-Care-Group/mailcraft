@@ -108,8 +108,8 @@ pub const MAX_CONTENT: u64 = 256 << 20;
 /// What the bodies get when the machine's memory can't be read (128 MB).
 pub const FALLBACK_BUDGET: u64 = 128 << 20;
 
-/// Most bytes of fetched content kept in memory for the next time they are wanted (128 MB).
-pub const CACHE_MAX: u64 = 128 << 20;
+/// Most bytes of fetched content kept in memory for the next time they are wanted (64 MB).
+pub const CACHE_MAX: u64 = 64 << 20;
 
 /// A fetched piece larger than this is handed over but not kept.
 const CACHE_ITEM_MAX: u64 = 64 << 20;
@@ -2150,6 +2150,8 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
         folder.uid_from = 0;
         // Fetched again, it is a first download: the junk lists leave it alone (#504).
         folder.whole = Some(false);
+        // What STATUS said can't pass over a folder whose mail is to be fetched again (#276).
+        folder.imap_status = None;
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;
@@ -2231,10 +2233,30 @@ pub(crate) fn with_budget<T>(budget: u64, f: impl FnOnce() -> T) -> T {
     out
 }
 
-/// How many bytes of bodies a mailbox brings into memory when it opens: a sixteenth of the
-/// machine's memory, [`FALLBACK_BUDGET`] when that can't be read, and never more than
-/// [`MAX_CONTENT`]. The newest mail gets it; the rest is read when it is wanted.
+/// The most bytes of bodies a device lets this program keep in memory (0: no limit set), from
+/// [`set_device_budget`]. Nothing sets it on the desktop.
+static DEVICE_BUDGET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Tell the store the most bytes of bodies the device can spare (`None`: no limit beyond the
+/// engine's own). [`body_budget`] is then the lower of the two.
+pub fn set_device_budget(bytes: Option<u64>) {
+    DEVICE_BUDGET.store(bytes.unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// How many bytes of bodies a mailbox brings into memory when it opens: the engine's own budget
+/// ([`engine_body_budget`]), or what the device allows ([`set_device_budget`]) when that is lower.
 pub fn body_budget() -> u64 {
+    let engine = engine_body_budget();
+    match DEVICE_BUDGET.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => engine,
+        device => device.min(engine),
+    }
+}
+
+/// The engine's own budget, whatever the device says: a sixteenth of the machine's memory,
+/// [`FALLBACK_BUDGET`] when that can't be read, and never more than [`MAX_CONTENT`]. The newest
+/// mail gets it; the rest is read when it is wanted.
+pub fn engine_body_budget() -> u64 {
     #[cfg(test)]
     {
         let set = TEST_BUDGET.get();
@@ -3591,11 +3613,30 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
                 saved.blob_bytes += r.len;
             }
             Some(Ok(false)) => {}
+            // A virus scanner took the file away as it was written: that one part is left out
+            // (it reads as unavailable, like any missing content) and the rest of the mailbox is
+            // saved, rather than every save failing for as long as the message is open.
+            Some(Err(e)) if refused_by_scanner(&dir, r, &e) => {
+                log::warn!("content file {}: removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
+            }
             Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
             None => return Err("the content couldn't be written".into()),
         }
     }
     Ok(())
+}
+
+/// Whether writing the content `r` under `dir` failed because something on this computer (a
+/// virus scanner) refused it or took it away: Windows says so (`ERROR_VIRUS_INFECTED`,
+/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice.
+/// Anything else (a full disk, a folder that went) still fails the save.
+fn refused_by_scanner(dir: &Path, r: &Ref, e: &std::io::Error) -> bool {
+    const VIRUS_INFECTED: i32 = 225;
+    const VIRUS_DELETED: i32 = 226;
+    if cfg!(windows) && matches!(e.raw_os_error(), Some(VIRUS_INFECTED | VIRUS_DELETED)) {
+        return true;
+    }
+    e.kind() == std::io::ErrorKind::NotFound && blob_path(dir, &r.hash).is_some_and(|(sub, _)| sub.is_dir())
 }
 
 /// Append `group` to the mailbox file at `path`, which must be `at` bytes long, flushed to the

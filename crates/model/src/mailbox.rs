@@ -116,6 +116,11 @@ pub struct Folder {
     /// How far down the folder was last read ([`crate::sync::FolderState::uid_from`]).
     #[serde(skip_serializing_if = "is_zero")]
     pub uid_from: u32,
+    /// What an IMAP server's STATUS said of the folder when it was last read whole (#276): the
+    /// same again later, and the folder may be passed over by a Send/Receive. `None` until then,
+    /// and when what was read wasn't the whole of it.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub imap_status: Option<ImapStatus>,
     /// An IMAP folder's first download has ended with all of it here, or it was empty when first
     /// read (#504): what arrives in it from then on is new mail, which the Safe and Blocked
     /// Senders lists sort. `false` again when the server numbers it anew. A file from before
@@ -193,6 +198,23 @@ pub struct ServerFolder {
     /// False until a listing says so.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub well_known: bool,
+}
+
+/// What an IMAP server's STATUS said of a folder (#276), with the limit on how many of its
+/// messages to have here and the time of the reading it was kept with. A folder whose STATUS is
+/// the same again, under the same limit, and whose reading is not too old, has not changed in
+/// any way a count shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ImapStatus {
+    pub messages: u32,
+    pub uid_next: u32,
+    pub unseen: u32,
+    /// How many of the folder's newest messages were to be had here (0: all of them).
+    pub limit: u32,
+    /// When the reading this was kept with ended ([`mailcraft_time::Timestamp`]); set when it is
+    /// taken in, 0 in what a run says.
+    pub at: i64,
 }
 
 /// A folder's message counts as its server's listing gives them (#276).
