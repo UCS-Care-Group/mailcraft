@@ -436,7 +436,11 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let from_html = match html {
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
-            let rich = mailcraft_mime_model::rich::from_html(html);
+            let rich = if !plain && s.signature_edit.is_none() {
+                mailcraft_mime_model::rich::from_html_for_compose(html)
+            } else {
+                mailcraft_mime_model::rich::from_html(html)
+            };
             Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
         }
         None => None,

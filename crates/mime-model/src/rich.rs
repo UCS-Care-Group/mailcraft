@@ -5,19 +5,24 @@
 //! [`to_html`] writes the owner's text as the HTML part of a message: `<div>` paragraphs, `<ul>`
 //! and `<ol>` lists, `<b>`, `<i>`, `<u>`, `<span style="…">` with a font size, a colour and a
 //! font from the model's list, `<a href>`, and pictures as `<img src="cid:…">` when the text's
-//! holder says which ([`to_html_with`]), and nothing else. Every character of text and of an
+//! holder says which ([`to_html_with`]), and bounded tables. Every character of text and of an
 //! address is escaped, and a link is written only when its address is one the model accepts
 //! (`rich::safe_link`: any scheme but `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out, its first picture
 //! beside or above the text when it asks for that, in a two-cell table, as Outlook writes it.
 //!
-//! [`from_html`] is the way back, and the way in for anything pasted: the HTML is read by
+//! HTML is read by
 //! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
 //! set (a link keeps only an address a reader follows, `http`, `https`, `mailto`, `tel` or `cid`; a
-//! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts). Tables give their cells' paragraphs in reading order; colours are kept; pictures, rules,
-//! fonts, alignment and everything else are dropped.
+//! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts).
+//! [`from_html_for_compose`] and draft reopening preserve bounded text tables with cell alignment,
+//! colours, and merged cells. [`from_html`] and tables outside those bounds give their cells'
+//! paragraphs in reading order.
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
-use mailcraft_model::rich::{Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{
+    CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE, MIN_SIZE,
+    OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
+};
 use mailcraft_model::signature::{Layout, Picture, Signature};
 
 /// How a picture of the text is written: its `cid:` address (without the scheme), the width it
@@ -118,6 +123,37 @@ fn paragraph(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<I
     }
 }
 
+/// Write the table using fixed markup and the same escaped text runs as the rest of the body.
+fn write_table(out: &mut String, table: &PastedTable) {
+    out.push_str("<table border=\"1\" cellpadding=\"4\" cellspacing=\"0\" style=\"border-collapse:collapse\">");
+    for row in table.rows() {
+        out.push_str("<tr>");
+        for cell in row {
+            let tag = if cell.header { "th" } else { "td" };
+            let align = match cell.alignment {
+                CellAlignment::Left => "left",
+                CellAlignment::Center => "center",
+                CellAlignment::Right => "right",
+            };
+            out.push_str(&format!("<{tag} colspan=\"{}\" rowspan=\"{}\" align=\"{align}\"", cell.colspan, cell.rowspan));
+            if let Some(color) = cell.background.as_deref().and_then(safe_color) {
+                out.push_str(&format!(" style=\"background-color:{color}\""));
+            }
+            out.push('>');
+            for (i, line) in cell.lines.iter().enumerate() {
+                if i > 0 {
+                    out.push_str("<br>");
+                }
+                let text = Paragraph::new(line.iter().map(|run| Run::new(&run.text, run.style.clone())).collect(), ListKind::None);
+                runs(out, &text, &|_| None);
+            }
+            out.push_str(&format!("</{tag}>"));
+        }
+        out.push_str("</tr>");
+    }
+    out.push_str("</table>");
+}
+
 /// A picture as `<img>`: its `cid:` address, width and description, all escaped.
 fn img(out: &mut String, img: &Img) {
     let cid: String = img.content_id.chars().filter(|c| c.is_ascii_graphic() && !matches!(c, '<' | '>' | '"')).collect();
@@ -192,6 +228,12 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
     let mut after_space = true;
     for run in &p.runs {
         let style = run.style.clone().clean();
+        if let Some(table) = &run.table {
+            write_table(out, table);
+            index += 1;
+            after_space = true;
+            continue;
+        }
         if let Some(id) = run.picture {
             index += 1;
             after_space = false;
@@ -257,7 +299,12 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
 /// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
 /// them there.
 pub fn from_html(html: &str) -> RichText {
-    read(html, false)
+    read(html, false, false)
+}
+
+/// Paste into a message body, keeping the cells of a table as an editor object.
+pub fn from_html_for_compose(html: &str) -> RichText {
+    read(html, false, true)
 }
 
 /// An `<img src="cid:…">` of an HTML draft this program wrote.
@@ -279,7 +326,7 @@ pub struct ImgRef {
 /// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
 /// received mail.
 pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
-    read(&mark_pictures(html, claim), true)
+    read(&mark_pictures(html, claim), true, true)
 }
 
 /// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
@@ -394,12 +441,12 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
     Some(img)
 }
 
-fn read(html: &str, pictures: bool) -> RichText {
+fn read(html: &str, pictures: bool, tables: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
     let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
     let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
     let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
-    let mut reader = Reader { out: Vec::new(), pictures, copies };
+    let mut reader = Reader { out: Vec::new(), pictures, copies, tables };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -441,12 +488,16 @@ const COPY_ALLOWANCE: usize = 4;
 /// What the runs of a short document may repeat besides ([`COPY_ALLOWANCE`]).
 const COPY_FLOOR: usize = 64 * 1024;
 
+#[cfg(test)]
+mod table_tests;
+
 struct Reader {
     out: Vec<Paragraph>,
     /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
     pictures: bool,
     /// What the runs still to be made may repeat of links ([`COPY_ALLOWANCE`]).
     copies: usize,
+    tables: bool,
 }
 
 impl Reader {
@@ -458,8 +509,14 @@ impl Reader {
             match &b.kind {
                 BlockKind::Table(table) => {
                     self.gap(b.space);
-                    for cell in table.rows.iter().flat_map(|r| &r.cells) {
-                        self.blocks(&cell.blocks);
+                    if self.tables
+                        && let Some(table) = self.table(table)
+                    {
+                        self.out.push(Paragraph::new(vec![Run::table(std::sync::Arc::new(table))], ListKind::None));
+                    } else {
+                        for cell in table.rows.iter().flat_map(|r| &r.cells) {
+                            self.blocks(&cell.blocks);
+                        }
                     }
                 }
                 BlockKind::Rule | BlockKind::Image { .. } => {}
@@ -475,6 +532,44 @@ impl Reader {
                 }
             }
         }
+    }
+
+    fn table(&mut self, source: &mailcraft_html::Table) -> Option<PastedTable> {
+        if !(1..=MAX_PASTED_ROWS).contains(&source.rows.len()) || !(1..=MAX_PASTED_COLUMNS).contains(&usize::from(source.columns)) {
+            return None;
+        }
+        let cells = source.rows.iter().map(|row| row.cells.len()).sum::<usize>();
+        if !(1..=MAX_PASTED_CELLS).contains(&cells) {
+            return None;
+        }
+        let mut spans = 0;
+        let mut copies = self.copies;
+        let mut rows = Vec::with_capacity(source.rows.len());
+        for row in &source.rows {
+            let mut cells = Vec::with_capacity(row.cells.len());
+            for cell in &row.cells {
+                let mut reader = Reader { out: Vec::new(), pictures: self.pictures, copies, tables: false };
+                reader.blocks(&cell.blocks);
+                copies = reader.copies;
+                spans += reader.out.iter().map(|p| p.runs.len()).sum::<usize>();
+                if spans > MAX_PASTED_SPANS || reader.out.iter().flat_map(|p| &p.runs).any(|run| run.picture.is_some()) {
+                    return None;
+                }
+                let lines =
+                    reader.out.into_iter().map(|p| p.runs.into_iter().map(|run| CellText { text: run.text, style: run.style }).collect()).collect();
+                let alignment = match cell.blocks.first().map(|block| block.align) {
+                    Some(mailcraft_html::Align::Center) => CellAlignment::Center,
+                    Some(mailcraft_html::Align::Right) => CellAlignment::Right,
+                    _ => CellAlignment::Left,
+                };
+                let background = cell.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2));
+                cells.push(TableCell { lines, header: cell.header, colspan: cell.colspan, rowspan: cell.rowspan, background, alignment });
+            }
+            rows.push(cells);
+        }
+        let table = PastedTable::new(source.columns, rows)?;
+        self.copies = copies;
+        Some(table)
     }
 
     /// The blank lines above a block, as empty paragraphs (none above the first).

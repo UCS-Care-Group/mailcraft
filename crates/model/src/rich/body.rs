@@ -197,10 +197,10 @@ impl RichBody {
     fn push_undo(&mut self) {
         self.undo.push(Step { text: self.text.clone(), selection: self.selection });
         self.redo.clear();
-        let mut kept: usize = self.undo.iter().map(|s| s.text.len()).sum();
+        let mut kept: usize = self.undo.iter().map(|s| s.text.storage_len()).sum();
         while self.undo.len() > MAX_UNDO || (kept > MAX_UNDO_CHARS && self.undo.len() > 1) {
             let gone = self.undo.remove(0);
-            kept = kept.saturating_sub(gone.text.len());
+            kept = kept.saturating_sub(gone.text.storage_len());
         }
     }
 
