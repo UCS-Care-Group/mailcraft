@@ -140,9 +140,9 @@ dependencies = [
 
 [[package]]
 name = "aes"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32"
+checksum = "fc0fc36d7440d015b45468ba08a21e80e056ebbd014c611c6298bb7503e04bd1"
 dependencies = [
  "cipher 0.5.2",
  "cpubits",
@@ -1640,7 +1640,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 
 [[package]]
 name = "dpi"
@@ -3110,6 +3110,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-ber"
+version = "0.12.0"
+
+[[package]]
 name = "mailcraft-charset"
 version = "0.12.0"
 dependencies = [
@@ -3165,6 +3169,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-openpgp",
@@ -3187,7 +3192,7 @@ version = "0.12.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "md-5 0.11.0",
@@ -3200,7 +3205,11 @@ dependencies = [
 name = "mailcraft-host"
 version = "0.12.0"
 dependencies = [
+ "log",
  "mailcraft-engine",
+ "mailcraft-i18n",
+ "mailcraft-model",
+ "mailcraft-net",
  "mailcraft-time",
 ]
 
@@ -3237,10 +3246,21 @@ version = "0.12.0"
 dependencies = [
  "log",
  "mailcraft-charset",
- "mailcraft-mime",
+ "mailcraft-jmap-types",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-time",
  "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mailcraft-jmap-types"
+version = "0.12.0"
+dependencies = [
+ "proptest",
+ "serde",
  "serde_json",
 ]
 
@@ -3266,13 +3286,25 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.12.0"
 dependencies = [
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-html",
- "mailcraft-model",
  "mailcraft-time",
  "proptest",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailcraft-mime-model"
+version = "0.12.0"
+dependencies = [
+ "mailcraft-html",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-time",
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]
@@ -3319,11 +3351,13 @@ dependencies = [
 name = "mailcraft-net"
 version = "0.12.0"
 dependencies = [
+ "cryptoki",
  "flate2",
  "log",
  "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-proto",
  "mailcraft-time",
@@ -3376,13 +3410,14 @@ dependencies = [
 name = "mailcraft-smime"
 version = "0.12.0"
 dependencies = [
- "aes 0.9.3",
+ "aes 0.9.4",
  "cbc",
  "cms",
  "const-oid 0.10.2",
  "der 0.8.3",
  "des 0.9.0",
  "hmac 0.13.0",
+ "mailcraft-ber",
  "mailcraft-charset",
  "mailcraft-model",
  "mailcraft-time",
@@ -3427,7 +3462,7 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
- "mailcraft-mime",
+ "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",
@@ -5435,7 +5470,7 @@ version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5107b24b91445dd2aa449a258a1807b63240942157292354dc5bfdbeb8bc6db8"
 dependencies = [
- "aes 0.9.3",
+ "aes 0.9.4",
  "cbc",
  "futures-util",
  "getrandom 0.4.3",
@@ -6188,9 +6223,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "1.1.8+spec-1.1.0"
+version = "1.2.0+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20489e00e4d8741d6be680764cc12e270655e375a20d1011e844a9c3379e678d"
+checksum = "c5ffcdf8f50436dbbfd675c1fe1b8e0854f42b7defea8584bdebe1aee900e561"
 dependencies = [
  "indexmap",
  "serde_core",
@@ -6233,9 +6268,9 @@ dependencies = [
 
 [[package]]
 name = "toml_writer"
-version = "1.1.3+spec-1.1.0"
+version = "1.2.0+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
+checksum = "009dbb7700f11c55ef83aebbe4c0e9cf1f1ac0844bd8d6f00dc38f302026e13a"
 
 [[package]]
 name = "tracing"
@@ -7208,7 +7243,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 dependencies = [
  "ahash",
  "android-activity",

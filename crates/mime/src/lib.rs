@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! MailCraft Internet messages: reading and writing RFC 5322 + MIME (`.eml`) and mbox files.
 //!
-//! [`parse()`] turns the bytes of a message into a [`mailcraft_model::Message`]; [`write()`] does the
-//! reverse. [`parse_mbox`] and [`write_mbox`] do the same for a file of many messages, and
+//! [`parse()`] turns the bytes of a message into a [`Message`], this crate's own; [`write()`] does
+//! the reverse. Nothing here knows of a mailbox, and nothing does I/O, so the reader is reusable
+//! outside the client (#1235); MailCraft converts to and from its own model in
+//! `mailcraft-mime-model`. [`parse_mbox`] and [`write_mbox`] do the same for a file of many messages, and
 //! [`parse_mailto`] reads the link that starts a new one. Written from the public RFCs: 5322
 //! (messages), 2045–2049 (MIME), 2047 (encoded-words), 2231 (parameter values), 4155 (mbox) and
 //! 6068 (`mailto:` links).
@@ -19,9 +21,9 @@ mod header;
 mod mailto;
 mod mbox;
 mod media;
+mod message;
 mod parse;
 mod protected;
-pub mod rich;
 mod signed;
 mod transfer;
 mod words;
@@ -61,6 +63,15 @@ pub const PST_ITEM_HEADER: &str = "X-MailCraft-Pst-Item";
 /// ([`write_placed`]), never from a message's kept headers into anything else.
 pub const PLACE_HEADER: &str = "X-MailCraft-Place";
 
+/// Exchange's stamp of who sent a message as its server saw it (`Internal`, `Anonymous`…), which
+/// the reader keeps apart from its cap on header fields, as it does [`DIRECTIONALITY`]: a
+/// sender's padding can't push them out.
+pub const AUTH_AS: &str = "X-MS-Exchange-Organization-AuthAs";
+/// Exchange's word on which way a message went.
+pub const DIRECTIONALITY: &str = "X-MS-Exchange-Organization-MessageDirectionality";
+/// Most [`AUTH_AS`] fields, and most [`DIRECTIONALITY`] fields, kept from one message.
+pub const MAX_AUTH_AS: usize = 16;
+
 /// `message` as [`write()`] writes it, for a copy put on a mail server, with [`PLACE_HEADER`]
 /// carrying `marker` first (none when it is empty): for a
 /// Digitally signed or Encrypted message that keeps its original, its body as it came, which a
@@ -70,12 +81,12 @@ pub const PLACE_HEADER: &str = "X-MailCraft-Place";
 /// `ARC-Seal`, `ARC-Message-Signature`) are left out: they cover header fields as the sender
 /// wrote them, which a copy written from the message doesn't keep byte for byte, so they would
 /// fail there. A Digital signature (S/MIME, OpenPGP) covers the body, which goes as it came.
-pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
+pub fn write_placed(message: &Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
     let breaks = |name: &str| ["dkim-signature", "arc-seal", "arc-message-signature"].iter().any(|n| name.eq_ignore_ascii_case(n));
     let unsigned;
     let message = if message.headers.iter().any(|(name, _)| breaks(name)) {
         let headers = message.headers.iter().filter(|(name, _)| !breaks(name)).cloned().collect();
-        unsigned = mailcraft_model::Message { headers, ..message.clone() };
+        unsigned = Message { headers, ..message.clone() };
         &unsigned
     } else {
         message
@@ -94,8 +105,9 @@ pub fn carries_place(header: &[u8], marker: &str) -> bool {
 }
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
+pub use message::{Address, Attachment, Body, FlagStatus, Importance, Message, Timestamp};
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
-pub use protected::{Protection, crlf, has_binary, is_protected, parse_fetched, protection};
+pub use protected::{MAX_ARMOUR_SCAN, MAX_ORIGINAL, Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use signed::{SignedKind, SignedParts, signed_parts};
 pub use words::{decode_words, encode_words};
 pub use write::{write, writes_original, written_message_id};
@@ -157,7 +169,7 @@ mod id_tests {
     #[test]
     fn an_id_survives_a_message() {
         let id = new_message_id("example.org", 1_700_000_000, 0xDEAD_BEEF);
-        let m = mailcraft_model::Message { message_id: id.clone(), ..Default::default() };
+        let m = Message { message_id: id.clone(), ..Default::default() };
         assert_eq!(parse(&write(&m, &WriteOptions::default())).message_id, id);
     }
 }

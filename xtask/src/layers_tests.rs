@@ -159,3 +159,14 @@ fn metadata_parsing() {
     assert_eq!(doc.deps[2].kind, Dev);
     assert!(check(&g).is_empty());
 }
+
+#[test]
+fn the_mailbox_adapter_uses_the_reader_and_not_the_other_way() {
+    assert_eq!(classify("mailcraft-mime-model"), Some(Class::Layer(2)));
+    assert!(check(&[c("mailcraft-mime-model", &[("mailcraft-mime", Normal, true), ("mailcraft-model", Normal, true)])]).is_empty());
+    let v = check(&[c("mailcraft-mime", &[("mailcraft-mime-model", Normal, true)])]);
+    assert!(matches!(v[..], [Violation::Upward { from: 2, to: 2, .. }]), "{v:?}");
+    // `ber` stands on its own.
+    let v = check(&[c("mailcraft-ber", &[("mailcraft-time", Normal, true)])]);
+    assert!(matches!(&v[..], [Violation::StandaloneHasWorkspaceDep { .. }]), "{v:?}");
+}
