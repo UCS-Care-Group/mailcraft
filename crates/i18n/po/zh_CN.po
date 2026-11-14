@@ -17639,6 +17639,11 @@ msgstr "图片已损坏或超过可显示的大小"
 msgid "it is too large to show"
 msgstr "图片过大，无法显示"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -18257,6 +18262,11 @@ msgid "that event doesn't repeat"
 msgstr "此日程不重复"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18387,6 +18397,11 @@ msgstr "此账户已不存在"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "此账户的服务器没有可用名称"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18635,6 +18650,11 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18695,10 +18715,25 @@ msgid "the parent folder belongs to another account"
 msgstr "上级文件夹属于另一个账户"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "要替换的位置不在文本范围内"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs

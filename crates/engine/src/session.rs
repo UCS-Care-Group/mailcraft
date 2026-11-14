@@ -49,6 +49,8 @@ pub enum Part {
     Attachment(usize),
     /// The bytes a Digitally signed or Encrypted message came as (`Message::original`, #30).
     Original,
+    /// The header lines nothing reads by name (`Message::header_block`, HS), as it keeps them.
+    Headers,
 }
 
 /// The part of the app in front: mail, calendar, people or tasks.
@@ -2206,6 +2208,34 @@ impl Session {
                     None => Ok(o.data.clone()),
                 }
             }
+            Part::Headers => match m.header_block.kept.filter(|_| m.header_block.data.is_empty()) {
+                Some(r) => self.fetch(&r),
+                None => Ok(m.header_block.data.clone()),
+            },
+        }
+    }
+
+    /// Message `m` with its header block in memory (HS), for what shows or writes its header
+    /// whole: View Source, an export, a copy put elsewhere. A block that can't be read is
+    /// unavailable: the message is as it is without it, with a line in the log.
+    pub(crate) fn with_header_block(&self, m: Arc<Message>) -> Arc<Message> {
+        if m.header_block.is_loaded() {
+            return m;
+        }
+        match self.content(m.id, Part::Headers).map(|bytes| mailcraft_model::HeaderBlock::read(&bytes)) {
+            Ok(Some(block)) => {
+                let mut copy = Message::clone(&m);
+                copy.header_block = block;
+                Arc::new(copy)
+            }
+            Ok(None) => {
+                log::warn!("message {}: its header lines are damaged; it is written without them", m.id);
+                m
+            }
+            Err(e) => {
+                log::warn!("message {}: its header lines couldn't be read ({e}); it is written without them", m.id);
+                m
+            }
         }
     }
 
@@ -2240,7 +2270,7 @@ impl Session {
     /// that can't be read is no reason to keep the message from going anywhere: the copy is
     /// without it then (built from the parts, as before it was kept), with a line in the log.
     pub fn loaded_message(&self, id: Id) -> Result<Arc<Message>, CmdError> {
-        let m = self.loaded_message_where(id, |_| true)?;
+        let m = self.with_header_block(self.loaded_message_where(id, |_| true)?);
         if m.original.as_ref().is_none_or(|o| o.is_loaded()) {
             return Ok(m);
         }
@@ -2834,7 +2864,7 @@ impl Session {
     pub fn loaded_mailbox(&self) -> Result<Mailbox, CmdError> {
         let mut mailbox = self.mailbox.clone();
         for (id, m) in &self.mailbox.messages {
-            if !m.is_loaded() {
+            if !m.is_loaded() || !m.header_block.is_loaded() {
                 mailbox.messages.insert(*id, self.loaded_message(*id)?);
             }
         }
@@ -2848,7 +2878,7 @@ impl Session {
         outbox
             .into_iter()
             .filter_map(|m| {
-                if m.is_loaded() {
+                if m.is_loaded() && m.header_block.is_loaded() {
                     return Some(m);
                 }
                 match self.loaded_message(m.id) {

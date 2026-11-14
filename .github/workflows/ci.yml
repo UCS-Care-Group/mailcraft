@@ -127,10 +127,39 @@ jobs:
       - run: cargo run --locked --package xtask -- docs-log --check
       - run: cargo run --locked --package xtask -- release-notes > /dev/null
 
+  # The phone binding (`mailcraft-mobile`) must keep building for Android: a check, no tests, with
+  # the NDK the runner image provides. Its own job and not behind `changes`: a change anywhere
+  # below it (the engine, the network crate, the model) can break it, so it runs on every pull
+  # request, and it is cheap (a check of one target).
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: android
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      # The NDK's clang for C code in the build scripts (ring) and as the linker, at Android 10's
+      # level (API 29), the least the app supports.
+      - name: cargo check for Android
+        run: |
+          bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$bin/aarch64-linux-android29-clang"
+          export AR_aarch64_linux_android="$bin/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$bin/aarch64-linux-android29-clang"
+          cargo check --locked --target aarch64-linux-android -p mailcraft-mobile
+
   # The one check main's protection requires: passes when every platform passed, or when there
   # was nothing but documentation to check.
   ci-ok:
-    needs: [changes, ci, deny, fragments]
+    needs: [changes, ci, deny, fragments, android]
     if: always()
     runs-on: ubuntu-24.04
     steps:
