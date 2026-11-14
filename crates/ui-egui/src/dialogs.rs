@@ -46,6 +46,11 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Save the message being written as a local template (#952); runs `template.create`.
+    SaveTemplate {
+        name: String,
+        error: String,
+    },
     /// The address of a shared mailbox to open under a Microsoft account (#70): it only collects
     /// the address, then runs `account.addSharedMailbox`.
     SharedMailbox {
@@ -235,6 +240,7 @@ impl Dialog {
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
+            Dialog::SaveTemplate { .. } => "saveTemplate",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
@@ -307,6 +313,11 @@ impl Dialog {
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
             "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
+            "saveTemplate" => {
+                let c = app.session.compose.as_ref()?;
+                let name = params.get("name").and_then(Value::as_str).unwrap_or(c.subject.trim()).to_string();
+                Dialog::SaveTemplate { name, error: String::new() }
+            }
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
                 let can = |a: &&mailcraft_model::Account| crate::shared_mailboxes::can_open_shared(a);
@@ -1262,6 +1273,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
+        "template.create" if !has("name") && !has("body") => Some("saveTemplate"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
@@ -1608,6 +1620,38 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 match app.execute("compose.replyTo", json!({"value": text.trim()})) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::SaveTemplate { name, error } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Save as Template"), 420.0, |ui| {
+                ui.label(tl!("Template name"));
+                let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY)));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.label(
+                    egui::RichText::new(crate::i18n::fmt(
+                        tl!("Fields such as {fields} are filled in when the template is inserted."),
+                        &[("fields", "{recipient.name}, {recipient.company}, {date}")],
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let can_save = !name.trim().is_empty();
+                let (ok, cancel) = buttons(ui, tl!("Save"), can_save);
+                submit = can_save && (ok || enter);
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("template.create", json!({"name": name.trim()})) {
+                    Ok(_) => close = true,
+                    Err(e) => *error = tl!(&e).to_string(),
                 }
             }
         }

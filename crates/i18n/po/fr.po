@@ -4393,6 +4393,11 @@ msgstr ""
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Fields such as {fields} are filled in when the template is inserted."
+msgstr ""
+
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -5717,7 +5722,7 @@ msgid "Inbox"
 msgstr "Boîte de réception"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Include"
 msgstr "Inclure"
@@ -5783,6 +5788,11 @@ msgstr "Insérer un lien"
 #, fuzzy
 msgid "Insert Picture"
 msgstr "Insérer une image"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Insert Template"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6435,6 +6445,11 @@ msgstr ""
 msgid "List Tasks"
 msgstr "Lister les tâches"
 
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "List Templates"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/InboxScreen.kt
 msgid "Loading…"
@@ -7068,7 +7083,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Message"
@@ -8132,6 +8147,11 @@ msgstr "Aucune signature pour l'instant"
 #, fuzzy
 msgid "No such account"
 msgstr "Ce compte n'existe pas"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No templates yet"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9828,7 +9848,7 @@ msgid "Reminders Window"
 msgstr "Fenêtre des rappels"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Supprimer"
@@ -9904,6 +9924,11 @@ msgstr ""
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Supprimer la boîte aux lettres partagée"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Remove Template"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -10549,6 +10574,16 @@ msgstr ""
 #, fuzzy
 msgid "Save Signature"
 msgstr "Enregistrer la signature"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as Template"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save as Template…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -12448,6 +12483,28 @@ msgstr "Réunion Teams"
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tem-\n"
+"plates"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template name"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Templates"
 msgstr ""
 
 #. interface
@@ -16577,6 +16634,11 @@ msgstr "les dossiers sont imbriqués trop profondément"
 msgid "from {from} to {to}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "give the template a name, subject or body"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
@@ -16976,7 +17038,7 @@ msgid "no message being written has the id {id}"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/template.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "aucun message n'est en cours de rédaction"
@@ -17068,6 +17130,16 @@ msgstr "paragraphe introuvable"
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "aucune tâche avec l'id {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template named \"{name}\""
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -18467,6 +18539,11 @@ msgstr ""
 #, fuzzy
 msgid "too many flags for one command"
 msgstr "trop d'indicateurs pour une seule commande"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "too many templates"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs

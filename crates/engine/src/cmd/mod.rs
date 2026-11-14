@@ -149,6 +149,9 @@ pub mod tasks_remote;
 mod tasks_remote_tests;
 #[cfg(test)]
 mod tasks_tests;
+pub mod template;
+#[cfg(test)]
+mod template_tests;
 mod thread_ids;
 pub mod view;
 #[cfg(test)]
@@ -199,6 +202,7 @@ pub fn registry() -> Registry {
     v.extend(junk::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
+    v.extend(template::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());

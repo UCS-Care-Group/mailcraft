@@ -70,6 +70,8 @@ pub mod close_to_tray;
 mod close_to_tray_tests;
 pub mod compose;
 #[cfg(test)]
+mod compose_template_tests;
+#[cfg(test)]
 mod confirm_ids_tests;
 pub mod control;
 pub mod credits;
