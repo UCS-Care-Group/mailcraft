@@ -7931,7 +7931,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Organizația mea trebuie întâi să aprobe MailCraft: ce trebuie făcut"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nume"
@@ -18386,6 +18386,11 @@ msgstr "acel mesaj nu este o ciornă"
 #, fuzzy
 msgid "that message isn't held"
 msgstr "acel mesaj nu este reținut"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_tree.rs

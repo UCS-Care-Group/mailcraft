@@ -1595,7 +1595,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         close = true;
                         app.advanced_search_held = None;
                     }
-                    Err(e) => *error = e,
+                    Err(e) => *error = app.words_of(&e),
                 }
             }
         }

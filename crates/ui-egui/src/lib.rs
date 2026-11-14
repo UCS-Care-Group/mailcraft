@@ -2208,14 +2208,20 @@ impl MailApp {
         self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
     }
 
+    /// The refusal `e` in the interface language: the engine's last error, its template filled,
+    /// or the text looked up whole.
+    pub(crate) fn words_of(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
+    }
+
     /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.words_of(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }

@@ -1264,3 +1264,33 @@ fn a_saved_search_from_a_file_is_tidied() {
     mb.search_favorites.clear();
     assert!(!serde_json::to_string(&mb).unwrap().contains("searchFavorites"));
 }
+
+#[test]
+fn repair_forgets_a_saved_search_folder_once_that_folder_is_gone() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let gone = mb.add_folder(account, None, "Old").unwrap();
+    mb.folders.iter_mut().find(|f| f.id == gone).unwrap().account = 9_999;
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "from:ada".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "from:bob".into(), scope: "folder".into(), folder: gone },
+    ];
+    mb.repair();
+    assert!(mb.folder(gone).is_none());
+    assert_eq!(mb.search_favorites.iter().find(|f| f.name == "Here").unwrap().folder, kept);
+    assert_eq!(mb.search_favorites.iter().find(|f| f.name == "There").unwrap().folder, 0);
+}
+
+#[test]
+fn removing_a_folder_clears_a_saved_search_that_named_it() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.inbox().unwrap();
+    let gone = mb.add_folder(account, None, "Old").unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "a".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "b".into(), scope: "folder".into(), folder: gone },
+    ];
+    mb.remove_folders(&[gone]);
+    assert_eq!(mb.search_favorites[0].folder, kept);
+    assert_eq!(mb.search_favorites[1].folder, 0);
+}

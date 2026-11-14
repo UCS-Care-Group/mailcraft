@@ -7461,7 +7461,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Name"
@@ -17229,6 +17229,11 @@ msgid "that message isn't held"
 msgstr "diese Nachricht wird nicht zurückgehalten"
 
 #. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr "Diese Suche ist schon in den Favoriten"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "that was only looked at, not read in full"
 msgstr ""
@@ -17994,7 +17999,7 @@ msgstr "Der Benutzername oder das Passwort ist zu lang"
 #. what a command says
 #: crates/engine/src/cmd/view.rs
 msgid "there are already 50 saved searches"
-msgstr ""
+msgstr "Es gibt schon 50 gespeicherte Suchen"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

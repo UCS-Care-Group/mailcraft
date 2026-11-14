@@ -6570,7 +6570,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Name"
 msgstr ""
 
@@ -15226,6 +15226,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 msgid "that message isn't held"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
 msgstr ""
 
 #. what a command says

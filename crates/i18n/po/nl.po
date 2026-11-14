@@ -7844,7 +7844,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mijn organisatie moet MailCraft eerst goedkeuren: wat u moet doen"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Naam"
@@ -18163,6 +18163,11 @@ msgstr "dat bericht is geen concept"
 #, fuzzy
 msgid "that message isn't held"
 msgstr "dat bericht wordt niet vastgehouden"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_tree.rs

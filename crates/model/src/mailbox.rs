@@ -1864,6 +1864,11 @@ impl Mailbox {
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
+        for saved in &mut self.search_favorites {
+            if gone.contains(&saved.folder) {
+                saved.folder = 0;
+            }
+        }
         for list in &mut self.favorites_from_server {
             list.folders.retain(|folder| !gone.contains(folder));
         }
@@ -3516,9 +3521,7 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
-        if self.repair_search_favorites() {
-            fixed.push("saved searches tidied".to_string());
-        }
+        let mut saved_searches = self.repair_search_favorites();
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }
@@ -3690,6 +3693,12 @@ impl Mailbox {
                 Some(clean) => f.name = clean,
                 None => f.name = f.kind.default_name().into(),
             }
+        }
+        // Again, now that folders of unknown accounts are gone and folder ids are corrected:
+        // a favorite that named one of those is the current folder (`0`), as `delete_folder` does.
+        saved_searches |= self.repair_search_favorites();
+        if saved_searches {
+            fixed.push("saved searches tidied".to_string());
         }
         // Parents must exist, be in the same account and not loop.
         let mut snapshot: HashMap<Id, (Id, Option<Id>)> = HashMap::with_capacity(self.folders.len());
