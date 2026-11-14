@@ -219,6 +219,7 @@ fn running_rules_with_all_inboxes_on_asks_before_filing_onto_another_server() {
     assert!(matches!(classify(&s, "rules.run", &json!({})), Access::Owner(Class::Send)));
     assert!(matches!(classify(&s, "rules.run", &json!({"allInboxes": true, "folder": 0})), Access::Owner(Class::Send)));
     assert!(matches!(classify(&s, "rules.run", &json!({"folder": 0})), Access::Owner(Class::Send)));
+    assert!(matches!(classify(&s, "rules.run", &json!({"folder": null})), Access::Owner(Class::Send)));
     assert!(!matches!(classify(&s, "rules.run", &json!({"folder": s.view.folder})), Access::Owner(Class::Send)));
     assert_eq!(inbox, s.mailbox.folder_of_kind(here, FolderKind::Inbox).unwrap());
 }
