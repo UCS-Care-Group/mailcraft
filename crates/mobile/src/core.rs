@@ -20,7 +20,7 @@ use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
 use crate::sign_in::Redirects;
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
-use crate::{CoreError, android};
+use crate::{CoreError, DataRemoved, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
@@ -439,25 +439,33 @@ impl Core {
     /// Remove the mail kept on this phone (the mailbox file, its content folder and what was
     /// kept aside) and every sign-in the credential store holds, and start over with an empty
     /// mailbox, for Settings > Remove account and data. An error says that some of it is still
-    /// there; calling it again tries again.
-    pub async fn delete_local_data(&self) -> Result<(), CoreError> {
+    /// there; calling it again tries again. `DataRemoved::SignInsMayRemain` says that it was
+    /// done but the list of the sign-ins kept was damaged, so older ones may still be in the
+    /// phone's credential store: the app shows its message.
+    pub async fn delete_local_data(&self) -> Result<DataRemoved, CoreError> {
         let keep = self.keep.clone();
         let sync = self.sync.clone();
         self.call(move |session| {
             // Both are tried, so that one failing doesn't leave the other undone.
-            let signed_in = sync.forget_sign_ins(session).map(|_| ());
+            let signed_in = sync.forget_sign_ins(session);
             let removed = match &keep {
                 Some(keep) => keep.delete_all(),
                 None => Ok(()),
             };
-            if let Some(reason) = signed_in.err().or(removed.err()) {
-                return Err(CoreError::Failed { reason });
-            }
+            let forgotten = match (signed_in, removed) {
+                (Ok(forgotten), Ok(())) => forgotten,
+                (Err(reason), _) | (_, Err(reason)) => return Err(CoreError::Failed { reason }),
+            };
+            let answer = if forgotten.some_may_remain {
+                DataRemoved::SignInsMayRemain { message: may_remain(session.interface_language) }
+            } else {
+                DataRemoved::All
+            };
             session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
             if let Some(keep) = &keep {
                 keep.reset(session);
             }
-            Ok(())
+            Ok(answer)
         })
         .await
     }
@@ -559,6 +567,11 @@ impl Core {
     pub(crate) fn lang(&self) -> Lang {
         Lang::ALL.get(usize::from(self.language.load(Ordering::Relaxed))).copied().unwrap_or_default()
     }
+}
+
+/// What the owner is told when the list of the sign-ins kept was damaged and set aside.
+pub(crate) fn may_remain(lang: Lang) -> String {
+    lang.t("Your mail and sign-ins were removed, but the list of sign-ins was damaged, so some older ones may still be kept on this phone. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
 }
 
 impl Drop for Core {

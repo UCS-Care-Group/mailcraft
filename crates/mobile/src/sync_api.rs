@@ -19,7 +19,7 @@ use crate::core::CancelOnDrop;
 use crate::queue::Queue;
 use crate::sign_in::{self, Ended};
 use crate::sync::{SyncAnswer, SyncStatus, SyncSummary, Wake};
-use crate::{Core, CoreError, RedirectKind};
+use crate::{Core, CoreError, RedirectKind, SignInsForgotten};
 
 /// The shortest and the longest time a background sync is given (the system gives a worker some
 /// minutes; a `0` or a day is a mistake).
@@ -106,11 +106,16 @@ impl Core {
     }
 
     /// Remove every sign-in the core kept (from the credential store and from memory), for
-    /// "remove all my data". Returns how many entries were looked for; an error says that some are still in the store (calling it again tries again).
-    pub async fn forget_sign_ins(&self) -> Result<u64, CoreError> {
+    /// "remove all my data". Says how many entries were looked for, and when the list of the
+    /// sign-ins kept was damaged (and set aside) that older ones may still be in the store; an
+    /// error says that some are still in the store (calling it again tries again).
+    pub async fn forget_sign_ins(&self) -> Result<SignInsForgotten, CoreError> {
         let sync = self.sync.clone();
         self.call(move |session| match sync.forget_sign_ins(session) {
-            Ok(count) => Ok(u64::try_from(count).unwrap_or(u64::MAX)),
+            Ok(forgotten) => Ok(SignInsForgotten {
+                looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
+                may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
+            }),
             Err(reason) => Err(CoreError::Failed { reason }),
         })
         .await

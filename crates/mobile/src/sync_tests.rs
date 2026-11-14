@@ -340,7 +340,7 @@ fn tokens_handed_over_by_the_app_are_kept_and_remembered_and_forgotten_on_reques
     assert!(block_on(core.background_sync(10_000)).unwrap().ran);
     assert_eq!(seen.lock().unwrap().first().map(String::as_str), Some("fresh-refresh"));
     // Remove all data: nothing of it is left.
-    assert!(block_on(core.forget_sign_ins()).unwrap() >= 1);
+    assert!(block_on(core.forget_sign_ins()).unwrap().looked_for >= 1);
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
 }
 

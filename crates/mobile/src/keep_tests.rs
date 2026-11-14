@@ -17,7 +17,7 @@ use mailcraft_model::{Address, FolderKind, Message};
 use serde_json::json;
 
 use crate::fake_tests::{FakePlatform, block_on};
-use crate::{Core, CoreError, Event, StorageNotice};
+use crate::{Core, CoreError, DataRemoved, Event, StorageNotice};
 
 /// A directory of this test's own, removed afterwards.
 struct Dir(PathBuf);
@@ -395,7 +395,7 @@ fn a_restarted_core_keeps_an_index_it_could_not_read_and_a_retry_removes_what_it
 }
 
 #[test]
-fn an_index_that_does_not_parse_is_kept_and_not_taken_for_an_empty_one() {
+fn an_index_that_does_not_parse_is_set_aside_and_never_taken_for_an_empty_one() {
     let dir = Dir::new();
     let platform = FakePlatform::new();
     // An earlier run kept a sign-in for an account the mailbox no longer has; the index that
@@ -405,10 +405,64 @@ fn an_index_that_does_not_parse_is_kept_and_not_taken_for_an_empty_one() {
     platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
     let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
     fill(&core);
-    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    // The removal goes through, and says that older sign-ins may be left.
+    let answer = block_on(core.delete_local_data()).unwrap();
+    assert!(matches!(&answer, DataRemoved::SignInsMayRemain { message } if message.contains("Settings")), "{answer:?}");
+    assert!(subjects(&core).is_empty(), "the mail is removed");
     let kept = platform.secrets.kept.lock().unwrap().clone();
-    assert!(kept.iter().any(|(k, v)| k == "mailcraft:index" && v == "{not a list"), "the index is left as it was: {kept:?}");
-    assert!(kept.iter().any(|(k, _)| *k == gone), "the sign-in it may name is not reported removed: {kept:?}");
+    // The garbage is set aside, not lost, and nothing parses as the index any more.
+    assert!(kept.iter().any(|(k, v)| k.starts_with("mailcraft:index.unreadable-") && v == "{not a list"), "set aside: {kept:?}");
+    assert!(!kept.iter().any(|(k, _)| k == "mailcraft:index"), "the fresh index is removed with the rest: {kept:?}");
+    // The sign-in only the garbage named can't be found: it is what the message is about.
+    assert!(kept.iter().any(|(k, _)| *k == gone), "{kept:?}");
+    // The next removal finds a sound (absent) index and says nothing more.
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All);
+}
+
+#[test]
+fn an_index_that_does_not_parse_starts_a_fresh_one_with_the_names_known_now() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    let index = |platform: &FakePlatform| platform.secrets.kept.lock().unwrap().iter().find(|(k, _)| k == "mailcraft:index").map(|(_, v)| v.clone());
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "[not, json".to_string()));
+    // The account's sign-in can't be removed this time: the fresh index names it, so a retry
+    // finds it, and the notice waits for the removal that succeeds.
+    platform.secrets.stuck.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    let fresh = index(&platform).unwrap_or_default();
+    let names: Vec<String> = serde_json::from_str(&fresh).unwrap();
+    assert!(names.iter().any(|n| n.starts_with("refresh:")), "{fresh}");
+    assert!(platform.secrets.kept.lock().unwrap().iter().any(|(k, v)| k.starts_with("mailcraft:index.unreadable-") && v == "[not, json"));
+    platform.secrets.stuck.store(false, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    assert!(kept.iter().all(|(k, _)| k.starts_with("mailcraft:index.unreadable-")), "only the set-aside garbage is left: {kept:?}");
+}
+
+#[test]
+fn an_index_that_does_not_parse_and_cannot_be_set_aside_is_kept_and_the_rest_removed() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    // The store refuses another name beside the index (and the index itself).
+    platform.secrets.fail_index.store(usize::MAX, Ordering::Relaxed);
+    let answer = block_on(core.delete_local_data()).unwrap();
+    assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "{answer:?}");
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    assert_eq!(kept, vec![("mailcraft:index".to_string(), "{not a list".to_string())], "the garbage is kept as it was, the sign-in removed");
+}
+
+#[test]
+fn an_index_the_store_cannot_read_is_kept_and_the_removal_refused() {
+    // Unchanged by the setting aside: a read error is not garbage.
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    platform.no_store.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    platform.no_store.store(false, Ordering::Relaxed);
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    assert!(kept.iter().any(|(k, _)| k == "mailcraft:index") && !kept.iter().any(|(k, _)| k.contains("unreadable")), "{kept:?}");
 }
 
 #[cfg(unix)]

@@ -15920,6 +15920,11 @@ msgid "Your keychain keeps the certificate and its private key, and macOS asks y
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/core.rs
+msgid "Your mail and sign-ins were removed, but the list of sign-ins was damaged, so some older ones may still be kept on this phone. Clearing MailCraft's storage in Android's Settings removes them."
+msgstr ""
+
+#. what a command says
 #: crates/mobile/src/sync.rs
 msgid "Your mail couldn't be saved first, so nothing was sent."
 msgstr ""
