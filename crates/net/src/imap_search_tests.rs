@@ -288,3 +288,92 @@ fn an_attachment_in_a_nested_part_is_found() {
     assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
     assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
 }
+
+#[test]
+fn a_deferred_word_matches_in_any_letter_case() {
+    let message = |uid: u32, body: &str| FakeMessage {
+        uid,
+        flags: String::new(),
+        internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+        body: format!("From: Ada <ada@example.org>\r\nSubject: alpha beta gamma delta epsilon zeta\r\n\r\n{body}\r\n").into_bytes(),
+        claimed_size: None,
+    };
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: "hunter2".into(),
+        mailboxes: vec![FakeMailbox {
+            raw: "INBOX".into(),
+            flags: "\\HasNoChildren".into(),
+            uid_validity: 11,
+            messages: vec![message(1, "nothing else"), message(2, "The word is ÄLTER here")],
+            refuse_open: false,
+            next_uid: 0,
+        }],
+        ..Default::default()
+    });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta älter", &none_known(), false, |page| {
+        pages.push(page)
+    });
+    assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
+    assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:2"]);
+}
+
+#[test]
+fn a_message_larger_than_the_fetch_limit_does_not_end_the_search() {
+    let message = |uid: u32, body: &str, claimed: Option<u64>| FakeMessage {
+        uid,
+        flags: String::new(),
+        internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+        body: format!("From: Ada <ada@example.org>\r\nSubject: alpha beta gamma delta epsilon zeta\r\n\r\n{body}\r\n").into_bytes(),
+        claimed_size: claimed,
+    };
+    let imap = Fake::imap(ImapWorld {
+        user: "ada".into(),
+        password: "hunter2".into(),
+        mailboxes: vec![FakeMailbox {
+            raw: "INBOX".into(),
+            flags: "\\HasNoChildren".into(),
+            uid_validity: 11,
+            messages: vec![message(1, "seventh is in this one", None), message(2, "seventh is in the huge one", Some(crate::sync::MAX_MESSAGE + 1))],
+            refuse_open: false,
+            next_uid: 0,
+        }],
+        ..Default::default()
+    });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &["INBOX".into()], "alpha beta gamma delta epsilon zeta seventh", &none_known(), false, |page| {
+        pages.push(page)
+    });
+    assert!(pages[0].errors.is_empty(), "{:?}", pages[0].errors);
+    assert_eq!(pages[0].messages.iter().map(|m| m.server.id.as_str()).collect::<Vec<_>>(), ["imap:11:1"]);
+    assert!(pages[0].capped, "the message past the fetch limit was not read");
+}
+
+#[test]
+fn folders_past_the_limit_keep_the_search_open() {
+    let mailbox = |n: u32, body: &[u8]| FakeMailbox {
+        raw: format!("Box{n:02}"),
+        flags: "\\HasNoChildren".into(),
+        uid_validity: 11,
+        messages: vec![FakeMessage {
+            uid: 1,
+            flags: String::new(),
+            internal_date: " 1-Jul-2003 09:52:37 +0000".into(),
+            body: body.to_vec(),
+            claimed_size: None,
+        }],
+        refuse_open: false,
+        next_uid: 0,
+    };
+    let quiet = b"From: Ada <ada@example.org>\r\nSubject: quiet\r\n\r\nquiet\r\n";
+    let needle = b"From: Ada <ada@example.org>\r\nSubject: needle\r\n\r\nneedle\r\n";
+    let mailboxes: Vec<FakeMailbox> = (1..=25).map(|n| mailbox(n, if n == 25 { needle.as_slice() } else { quiet.as_slice() })).collect();
+    let names: Vec<String> = (1..=25).map(|n| format!("Box{n:02}")).collect();
+    let imap = Fake::imap(ImapWorld { user: "ada".into(), password: "hunter2".into(), mailboxes, ..Default::default() });
+    let mut pages = Vec::new();
+    search(&account_on(imap.port), "hunter2", 9, &names, "needle", &none_known(), false, |page| pages.push(page));
+    assert!(pages.iter().all(|page| page.errors.is_empty()), "{pages:?}");
+    assert!(pages.iter().all(|page| page.messages.is_empty()), "the folder past the limit was not asked");
+    assert!(pages.last().is_some_and(|page| page.capped), "folders left out are said");
+}

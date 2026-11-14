@@ -253,7 +253,11 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
-    let subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
+    let mut subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
+    // In one line the marks sit on the subject's line, to the left of the date.
+    if one {
+        subject_end = subject_end.min(x - 4.0);
+    }
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
     let subject_x = if one { who_end + 10.0 } else { left };
     paint_clipped(p, pos2(subject_x, line2), (subject_end - subject_x).max(0.0), subject, font, color);

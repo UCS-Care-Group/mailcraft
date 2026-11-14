@@ -55,7 +55,7 @@ pub fn search(
             return;
         }
     };
-    let folders = chosen(folders, gmail_all);
+    let (folders, folders_left) = chosen(folders, gmail_all);
     let mut hits = 0usize;
     let last = folders.len().saturating_sub(1);
     for (at, folder) in folders.iter().enumerate() {
@@ -113,6 +113,9 @@ pub fn search(
         uids.sort_unstable_by(|a, b| b.cmp(a));
         let held = known.get(folder.as_str());
         let mut stopped = false;
+        // A message larger than a synchronisation will fetch cannot be checked for a word that
+        // lives in its body. It is left out, and the page says the search was cut short.
+        let mut oversized = false;
         for uid in uids {
             if held.is_some_and(|uids| uids.contains(&uid)) {
                 continue;
@@ -133,6 +136,30 @@ pub fn search(
                 }
             }
             let whole = check.iter().any(Left::needs_body);
+            if whole {
+                let size = match imap.uid_fetch_sizes(&uid.to_string()) {
+                    Ok(sizes) => sizes.into_iter().find(|(found, _)| *found == uid).map(|(_, size)| size).unwrap_or(0),
+                    Err(e) => {
+                        let e = NetError::from(e);
+                        if e.is_fatal() {
+                            page.partial = false;
+                            page.offline = e.is_unreachable();
+                            page.errors.push(format!("Couldn't search this mailbox: {}", e.without(secret)));
+                            on_page(page);
+                            let _ = imap.logout();
+                            return;
+                        }
+                        continue;
+                    }
+                };
+                // The same limit a synchronisation uses. Past it, the body is not fetched: a
+                // header cannot answer a word that may sit only in the body, and one huge
+                // message must not end the search.
+                if size > MAX_MESSAGE {
+                    oversized = true;
+                    continue;
+                }
+            }
             let fetched = match if whole { imap.uid_fetch_message(uid) } else { imap.uid_fetch_header(uid) } {
                 Ok(Some(fetched)) => fetched,
                 Ok(None) => continue,
@@ -160,7 +187,7 @@ pub fn search(
         }
         let more_folders = at != last && hits < MAX_HITS && !stopped;
         page.partial = more_folders;
-        page.capped = stopped || truncated || (hits >= MAX_HITS && at != last);
+        page.capped = stopped || truncated || oversized || folders_left || (hits >= MAX_HITS && at != last);
         on_page(page);
         if !more_folders {
             let _ = imap.logout();
@@ -287,18 +314,19 @@ fn contains_address(address: &mailcraft_model::Address, text: &str) -> bool {
 }
 
 fn contains_str(hay: &str, needle: &str) -> bool {
-    hay.to_ascii_lowercase().contains(&needle.to_ascii_lowercase())
+    hay.to_lowercase().contains(&needle.to_lowercase())
 }
 
 /// All Mail first when the whole Gmail mailbox is searched; otherwise Inbox first, and at most
-/// [`MAX_FOLDERS`].
-fn chosen(folders: &[String], gmail_all: bool) -> Vec<String> {
+/// [`MAX_FOLDERS`]. `true` when eligible folders were left out.
+fn chosen(folders: &[String], gmail_all: bool) -> (Vec<String>, bool) {
     if gmail_all && let Some(all) = folders.iter().find(|name| is_all_mail(name)) {
-        return vec![all.clone()];
+        return (vec![all.clone()], false);
     }
+    let eligible = folders.iter().filter(|name| !name.is_empty()).count();
     let mut names: Vec<String> = folders.iter().filter(|name| !name.is_empty()).take(MAX_FOLDERS).cloned().collect();
     names.sort_by_key(|name| !name.eq_ignore_ascii_case("INBOX"));
-    names
+    (names, eligible > MAX_FOLDERS)
 }
 
 fn is_all_mail(remote: &str) -> bool {
