@@ -113,6 +113,36 @@ fn current_mailbox_leaves_out_deleted_items_and_junk_as_all_mailboxes_does() {
 }
 
 #[test]
+fn all_inboxes_searches_every_inbox_for_the_folder_its_subfolders_and_its_mailbox() {
+    let mut t = two();
+    let s = &mut t.s;
+    let account = s.mailbox.folder(t.inbox).unwrap().account;
+    let sent = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    let other_sent = s.mailbox.folder_of_kind(s.mailbox.folder(t.other_inbox).unwrap().account, FolderKind::Sent).unwrap();
+    put(s, t.inbox, "budget in the inbox");
+    put(s, t.under, "budget in projects");
+    put(s, t.other_inbox, "budget elsewhere");
+    put(s, sent, "budget sent");
+    put(s, other_sent, "budget sent elsewhere");
+    // The folder that was open before is Sent Items. All Inboxes must not search only there.
+    run(s, "folder.select", json!({"id": sent}));
+    run(s, "view.allInboxes", json!({}));
+    assert_eq!(found(s, "budget", "folder"), ["budget elsewhere", "budget in the inbox"]);
+    assert_eq!(found(s, "budget", "subfolders"), ["budget elsewhere", "budget in projects", "budget in the inbox"]);
+    assert_eq!(
+        found(s, "budget", "mailbox"),
+        ["budget elsewhere", "budget in projects", "budget in the inbox", "budget sent", "budget sent elsewhere"]
+    );
+}
+
+#[test]
+fn all_inboxes_needs_two_mailboxes() {
+    let mut s = Session::empty();
+    assert!(s.run("view.allInboxes", &json!({})).is_err());
+    assert!(!s.view.all_inboxes);
+}
+
+#[test]
 fn view_search_refuses_a_scope_it_does_not_know() {
     let mut t = two();
     let s = &mut t.s;

@@ -988,6 +988,21 @@ msgstr "Toate categoriile"
 msgid "All Categories…"
 msgstr "Toate categoriile…"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All Inboxes and their subfolders"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "All Inboxes needs two mailboxes"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -1017,6 +1032,11 @@ msgstr "Toate"
 #, fuzzy
 msgid "All the conditions must hold"
 msgstr "Toate condițiile trebuie îndeplinite"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All your mailboxes"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -3563,7 +3583,7 @@ msgid "Delete Conversation"
 msgstr "Ștergere conversație"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Delete Folder"
 msgstr "Ștergere dosar"
@@ -4331,7 +4351,7 @@ msgstr ""
 "dosar"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Empty Folder"
 msgstr "Golire dosar"
@@ -4601,6 +4621,11 @@ msgstr "Favorit"
 #, fuzzy
 msgid "Favorites"
 msgstr "Favorite"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Favorites Are Set in Outlook"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
@@ -5585,6 +5610,11 @@ msgstr "Ajutor"
 #, fuzzy
 msgid "Hide"
 msgstr "Ascundere"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Hide All Inboxes"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -7396,8 +7426,8 @@ msgstr ""
 "Marcare toate\n"
 "ca citite"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mark All as Read"
 msgstr "Marcare toate ca citite"
@@ -8196,6 +8226,11 @@ msgstr "E-mail nou"
 #, fuzzy
 msgid "New Folder"
 msgstr "Dosar nou"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "New Folder…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9096,6 +9131,11 @@ msgstr "O apariție a unei serii nu poate fi în alt calendar decât restul seri
 #, fuzzy
 msgid "One of a series: {rule}"
 msgstr "Parte dintr-o serie: {rule}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "One row above Favorites then lists every Inbox together, with the unread count."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10611,6 +10651,11 @@ msgstr "Redenumire categorie"
 msgid "Rename Folder"
 msgstr "Redenumire dosar"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Rename Folder…"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -11018,7 +11063,7 @@ msgstr ""
 "acum"
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "Rulare reguli acum"
@@ -12086,6 +12131,16 @@ msgid ""
 msgstr ""
 "Afișare\n"
 "instruire"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show All Inboxes when there are two mailboxes or more"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -17333,6 +17388,11 @@ msgstr "o regulă este pentru e-mailurile proprii ale unui cont, nu ale unei cut
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule is run on one folder"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "o regulă a unui cont nu poate ajunge pe serverul altui cont"
@@ -19399,6 +19459,11 @@ msgstr "sunt prea multe semnături"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "există deja o semnătură numită „{to}”"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "there is no Inbox"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

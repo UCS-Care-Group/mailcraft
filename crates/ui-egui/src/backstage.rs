@@ -657,6 +657,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if ui.checkbox(&mut mark, tl!("Mark a message as read when it is opened in the reading pane")).changed() {
         set(app, json!({"markReadOnOpen": mark}));
     }
+    let mut all_inboxes = app.ui.all_inboxes;
+    if ui
+        .checkbox(&mut all_inboxes, tl!("Show All Inboxes when there are two mailboxes or more"))
+        .on_hover_text(tl!("One row above Favorites then lists every Inbox together, with the unread count."))
+        .changed()
+    {
+        let _ = app.run("ui.allInboxes", json!({"value": all_inboxes}));
+    }
     let mut quote = prefs.quote_on_reply;
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));

@@ -315,8 +315,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         s.view.gmail = gmail;
         s.sel.messages.clear();
     }
-    // A search belongs to the folder it was typed in.
+    // A search belongs to the folder it was typed in. All Inboxes is another list.
     s.view.search.clear();
+    s.view.all_inboxes = false;
     // From the counts the window has anyway, not two walks over every message.
     let counts = s.folder_counts();
     let mut out = json!({"folder": id, "path": s.mailbox.folder_path(id), "messages": counts.total(id), "unread": counts.unread(id)});

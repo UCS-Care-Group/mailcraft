@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use super::people;
 use super::tasks_remote::keeps_tasks;
-use super::{bad, done, mac_or};
+use super::{bad, done, fail, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
@@ -45,6 +45,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .key("Mod+E / F3")
             .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
+        CommandSpec::new("view.allInboxes", "All Inboxes", "Navigation", all_inboxes)
+            .reads()
+            .params("{} — the message list shows every account's Inbox together"),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).reads(),
         CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).reads().params(
             r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
@@ -150,6 +153,21 @@ fn reverse_sort(s: &mut Session, _: &Value) -> CmdResult {
 fn filter(s: &mut Session, v: &Value) -> CmdResult {
     s.view.filter = parse_enum::<Filter>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is all, unread, flagged, attachments or toMe"))?;
     Ok(json!({"value": s.view.filter, "shown": crate::list::listed(&s.rows())}))
+}
+
+fn all_inboxes(s: &mut Session, _: &Value) -> CmdResult {
+    let inboxes = s.mailbox.inboxes();
+    if inboxes.len() < 2 {
+        return Err(fail("All Inboxes needs two mailboxes"));
+    }
+    s.show_whole_folder();
+    s.view.all_inboxes = true;
+    s.view.module = Module::Mail;
+    s.sel.messages.clear();
+    let counts = s.folder_counts();
+    let messages: usize = inboxes.iter().map(|id| counts.total(*id)).sum();
+    let unread: usize = inboxes.iter().map(|id| counts.unread(*id)).sum();
+    Ok(json!({"folders": inboxes, "messages": messages, "unread": unread}))
 }
 
 fn search(s: &mut Session, v: &Value) -> CmdResult {

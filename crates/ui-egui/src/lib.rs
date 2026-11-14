@@ -831,6 +831,11 @@ pub struct UiState {
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
     pub replies_in_window: bool,
+    /// File › Options › Mail, "Show All Inboxes when there are two mailboxes or more": a row above
+    /// Favorites lists every Inbox of the owner's own accounts. Off unless the owner turns it on.
+    /// A settings file without the key is off.
+    #[serde(default)]
+    pub all_inboxes: bool,
     /// Interface size in percent: scales the whole interface on top of the system's display scale.
     pub interface_size: theme::InterfaceSize,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -944,6 +949,7 @@ impl Default for UiState {
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
+            all_inboxes: false,
             interface_size: theme::InterfaceSize::default(),
             window: None,
             window_places: Default::default(),
@@ -1038,6 +1044,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Open Replies and Forwards in a New Window",
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
+    ),
+    (
+        "ui.allInboxes",
+        "Show All Inboxes",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — with two mailboxes or more, a row above Favorites lists every Inbox together (off unless turned on). Answers the switch"#,
     ),
     ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"zh_CN"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
@@ -2406,6 +2418,23 @@ impl MailApp {
                     self.ui.backstage_page = page.to_string();
                 }
                 Ok(json!({"value": self.ui.backstage, "page": self.ui.backstage_page}))
+            }
+            "ui.allInboxes" => {
+                let value = match p.get("value").filter(|v| !v.is_null()) {
+                    None => !self.ui.all_inboxes,
+                    Some(v) => match v.as_bool() {
+                        Some(value) => value,
+                        None => return Some(Err("`value` is true or false".into())),
+                    },
+                };
+                self.ui.all_inboxes = value;
+                if !value {
+                    self.session.view.all_inboxes = false;
+                    // A message picked in another Inbox is no longer in the list. Drop it before
+                    // the next Delete or Move reads the selection.
+                    self.session.normalize();
+                }
+                Ok(json!({"value": value}))
             }
             "ui.repliesInWindow" => {
                 let value = match p.get("value").filter(|v| !v.is_null()) {
@@ -4497,6 +4526,7 @@ impl MailApp {
         let account =
             self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
         match self.session.view.module {
+            Module::Mail if self.session.view.all_inboxes => tl!("All Inboxes").to_string(),
             Module::Mail => {
                 let folder = self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name);
                 match account.filter(|a| !a.is_empty()) {

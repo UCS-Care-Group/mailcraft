@@ -987,6 +987,21 @@ msgstr "所有类别"
 msgid "All Categories…"
 msgstr "所有类别…"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All Inboxes and their subfolders"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "All Inboxes needs two mailboxes"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -1016,6 +1031,11 @@ msgstr "全部"
 #, fuzzy
 msgid "All the conditions must hold"
 msgstr "所有条件必须成立"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All your mailboxes"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -3552,7 +3572,7 @@ msgid "Delete Conversation"
 msgstr "删除对话"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Delete Folder"
 msgstr "删除文件夹"
@@ -4318,7 +4338,7 @@ msgstr ""
 "文件夹"
 
 #. command label, interface
-#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Empty Folder"
 msgstr "清空文件夹"
@@ -4588,6 +4608,11 @@ msgstr "收藏"
 #, fuzzy
 msgid "Favorites"
 msgstr "收藏夹"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Favorites Are Set in Outlook"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
@@ -5564,6 +5589,11 @@ msgstr "帮助"
 #, fuzzy
 msgid "Hide"
 msgstr "隐藏"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Hide All Inboxes"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -7371,8 +7401,8 @@ msgstr ""
 "将全部\n"
 "标记为已读"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mark All as Read"
 msgstr "全部标记为已读"
@@ -8162,6 +8192,11 @@ msgstr "新建邮件"
 #, fuzzy
 msgid "New Folder"
 msgstr "新建文件夹"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "New Folder…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9060,6 +9095,11 @@ msgstr "同一系列中的单个事件不能与该系列的其他事件放在不
 #, fuzzy
 msgid "One of a series: {rule}"
 msgstr "系列中的一次：{rule}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "One row above Favorites then lists every Inbox together, with the unread count."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10573,6 +10613,11 @@ msgstr "重命名类别"
 msgid "Rename Folder"
 msgstr "重命名文件夹"
 
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Rename Folder…"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -10980,7 +11025,7 @@ msgstr ""
 "规则"
 
 #. command label, interface
-#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "立即运行规则"
@@ -12040,6 +12085,16 @@ msgid ""
 "Show\n"
 "Training"
 msgstr "显示↵培训内容"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Show All Inboxes when there are two mailboxes or more"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -17271,6 +17326,11 @@ msgstr "规则适用于账户自己的邮件，不适用于共享邮箱的邮件
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule is run on one folder"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "一个账户的规则不能放到另一个账户的服务器上"
@@ -19332,6 +19392,11 @@ msgstr "签名太多"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "已经有一个名为“{to}”的签名"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "there is no Inbox"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

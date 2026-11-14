@@ -203,7 +203,38 @@ fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
             .flat_map(|f| mb.subtree(f.id))
             .collect()
     };
-    // The folders looked in, or (for every mailbox) the folders left out.
+    // All Inboxes is the list on screen. A search of the current folder, of subfolders or of the
+    // current mailbox looks through every one of those Inboxes, not the folder that was open before.
+    // All Mailboxes stays every mailbox.
+    if s.view.all_inboxes {
+        let inboxes = mb.inboxes();
+        if !inboxes.is_empty() {
+            match scope {
+                Scope::Folder => return (false, inboxes.into_iter().collect()),
+                Scope::Subfolders => {
+                    let mut folders = HashSet::new();
+                    for id in inboxes {
+                        folders.extend(mb.subtree(id));
+                    }
+                    return (false, folders);
+                }
+                Scope::Mailbox => {
+                    let mut folders = HashSet::new();
+                    let mut accounts = HashSet::new();
+                    for id in inboxes {
+                        let Some(account) = mb.folder(id).map(|f| f.account) else { continue };
+                        if !accounts.insert(account) {
+                            continue;
+                        }
+                        let skip = hidden(Some(account));
+                        folders.extend(mb.folders.iter().filter(|f| f.account == account && !skip.contains(&f.id)).map(|f| f.id));
+                    }
+                    return (false, folders);
+                }
+                Scope::Everywhere => {}
+            }
+        }
+    }
     let (everywhere, folders): (bool, HashSet<Id>) = match scope {
         Scope::Folder => (false, HashSet::from([folder])),
         Scope::Subfolders => (false, mb.subtree(folder).into_iter().collect()),

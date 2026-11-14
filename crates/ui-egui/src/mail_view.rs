@@ -481,19 +481,28 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
-    let scope = match app.session.view.scope {
-        mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
-        // The account in view, by the name the folder pane gives it (#493).
-        mailcraft_engine::Scope::Mailbox => folder
-            .and_then(|f| mb.account(f.account))
-            .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
-        mailcraft_engine::Scope::Subfolders => {
-            folder.map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))])).unwrap_or_default()
+    let scope = if app.session.view.all_inboxes {
+        match app.session.view.scope {
+            mailcraft_engine::Scope::Folder => tl!("All Inboxes").to_string(),
+            mailcraft_engine::Scope::Subfolders => tl!("All Inboxes and their subfolders").to_string(),
+            mailcraft_engine::Scope::Mailbox => tl!("All your mailboxes").to_string(),
+            mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
         }
-        // (A shared mailbox's folder with the mailbox it is in, #70.)
-        mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
+    } else {
+        match app.session.view.scope {
+            mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+            // The account in view, by the name the folder pane gives it (#493).
+            mailcraft_engine::Scope::Mailbox => folder
+                .and_then(|f| mb.account(f.account))
+                .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
+            mailcraft_engine::Scope::Subfolders => folder
+                .map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))]))
+                .unwrap_or_default(),
+            // (A shared mailbox's folder with the mailbox it is in, #70.)
+            mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
+        }
     };
     let said = match found {
         0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
@@ -731,16 +740,17 @@ fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
 /// one folder (its subfolders, its mailbox or every mailbox), as Outlook's rows do (#195, #493);
 /// in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    s.view.all_inboxes || (s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty())
 }
 
 /// Whether the list may hold mail of more than one account: a search of every mailbox, with more
 /// than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
 /// owner knows whose mail it is, and the rows stay as they were.
 fn mixes_accounts(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope == mailcraft_engine::Scope::Everywhere
-        && s.mailbox.accounts.len() > 1
-        && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    (s.view.all_inboxes && s.mailbox.accounts.len() > 1)
+        || (s.view.scope == mailcraft_engine::Scope::Everywhere
+            && s.mailbox.accounts.len() > 1
+            && !mailcraft_model::search::Query::parse(&s.view.search).is_empty())
 }
 
 /// The colour of the stripe on `m`'s row (#893): its account's, in a list of more than one
