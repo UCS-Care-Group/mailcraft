@@ -318,7 +318,7 @@ fn stamp_of(line: &ContentLine, value: &str, zones: &FileZones, notes: &mut Vec<
         return Some(Stamp::plain(when));
     }
     let instant = source.instant(written);
-    let (zone, said) = source.zone_in(Some(zones), tzid, written, instant.unwrap_or(0));
+    let (zone, said) = source.zone_in(Some(zones), tzid, instant.unwrap_or(0));
     if let Some(said) = said
         && notes.len() < MAX_NOTES
         && !notes.contains(&said)
@@ -336,15 +336,39 @@ fn stamp_of(line: &ContentLine, value: &str, zones: &FileZones, notes: &mut Vec<
 /// series that repeats in a zone of its own, by that zone.
 fn series_day(series: &Event, at: &Stamp, offset_at: OffsetAt) -> Date {
     match (series.zone(), at.when) {
-        (Some(_), When::Utc(_)) if !series.all_day => series.occurrence_day(at.when.timestamp(offset_at), offset_at),
+        (Some(zone), When::Utc(_)) if !series.all_day => {
+            let instant = at.when.timestamp(offset_at);
+            at.zone
+                .filter(|written_in| *written_in == zone)
+                .and_then(|_| day_written(series, zone, at.written, instant, offset_at))
+                .unwrap_or_else(|| series.occurrence_day(instant, offset_at))
+        }
         // Written as a day, or as a time without a zone: in the reckoning of the series itself.
-        (Some(zone), When::Local(written)) if !series.all_day => series.occurrence_day(zone.instant(written), offset_at),
+        (Some(zone), When::Local(written)) if !series.all_day => {
+            let instant = zone.instant(written);
+            day_written(series, zone, written, instant, offset_at).unwrap_or_else(|| series.occurrence_day(instant, offset_at))
+        }
         (Some(zone), When::Date(day)) if !series.all_day => {
             let first = zone.wall(series.instants(offset_at).0);
             series.occurrence_day(zone.instant(DateTime { date: day, ..first }), offset_at)
         }
         _ => at.when.local(offset_at).date,
     }
+}
+
+/// The day of `series` whose occurrence the rule names `written` by the clock of the series'
+/// own `zone`, when that occurrence is at `instant`. The rule names its occurrences by that
+/// clock (RFC 5545 §3.8.5.3), also on a day the clocks skip the series' time: Pacific/Apia
+/// skipped 30 December 2011, and a series at midnight there names that day although its
+/// occurrence is at a time the clock shows as midnight on the 31st. `None` when `written` is
+/// not a time the rule names.
+fn day_written(series: &Event, zone: Zone, written: DateTime, instant: Timestamp, offset_at: OffsetAt) -> Option<Date> {
+    let first = zone.wall(series.instants(offset_at).0);
+    if written.seconds_of_day() != first.seconds_of_day() {
+        return None;
+    }
+    let day = series.start.date.add_days(first.date.days_until(written.date));
+    (series.occurrence_instant(day, offset_at) == instant).then_some(day)
 }
 
 /// A text property that may be given once: the first one counts.
