@@ -140,7 +140,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .resizable(true)
             .frame(frame)
             .show(ui, |ui| list(app, ui));
-        app.ui.list_height = shown.response.rect.height();
+        let height = shown.response.rect.height();
+        app.hit.add("messageList", 0, shown.response.rect);
+        // Only the owner's drag changes the height kept: a window too short for it lays the list
+        // out shorter, and that isn't kept (#1372).
+        let key = egui::Id::unique("message_list_height");
+        let before = ui.ctx().data_mut(|d| {
+            let before = d.get_temp::<f32>(key);
+            d.insert_temp(key, height);
+            before
+        });
+        app.ui.list_height = dragged_height(app.ui.list_height, before, height, ui.ctx().dragged_id().is_some());
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
         let shown = egui::Panel::left("message_list")
@@ -167,6 +177,16 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         if draft && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
             let _ = app.run("mail.editDraft", json!({}));
         }
+    }
+}
+
+/// The message list's height to keep with the reading pane at the bottom: the one it is laid out
+/// at when a drag (`dragging`) changed it from the frame `before`, else the one kept (`kept`; 0: a
+/// share of the window's height) (#1372).
+fn dragged_height(kept: f32, before: Option<f32>, shown: f32, dragging: bool) -> f32 {
+    match before {
+        Some(before) if dragging && (shown - before).abs() > 0.5 => shown,
+        _ => kept,
     }
 }
 
@@ -1280,6 +1300,8 @@ mod forward_attachment_tests;
 mod from_sender_menu_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
+#[cfg(test)]
+mod list_height_tests;
 #[cfg(test)]
 mod open_conversation_tests;
 #[cfg(test)]
