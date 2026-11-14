@@ -174,6 +174,18 @@ impl<H: HttpExchange> Connection<H> {
         ApiResponse::parse(answer.body(), redactor)
     }
 
+    /// Upload `octets` as a blob of `media_type` (RFC 8620 §6.1): the blob's id. The upload address is on the
+    /// session's own origin, as every address of a connection is. Octets over the server's `maxSizeUpload`
+    /// are refused before anything is sent ([`BuildError::TooLarge`]).
+    pub(crate) async fn upload(&self, media_type: &str, octets: Vec<u8>, redactor: &Redactor) -> Result<Id, Error> {
+        let sent = self.client.upload_request(media_type, octets)?;
+        // The address names the account: hidden as the session's is, should a server say it back.
+        let mut redactor = redactor.clone();
+        redactor.add_personal(sent.url());
+        let answer = self.http.exchange(&sent).await?;
+        crate::client::read_upload(&sent, &answer, &redactor)
+    }
+
     /// Download the blob `blob` (RFC 8620 §6.2), asking for it as `media_type` and `name`: its octets, `most`
     /// of them at the most. A blob the server doesn't have is [`Error::NotFound`].
     pub(crate) async fn download(&self, blob: &Id, media_type: &str, name: &str, most: usize, redactor: &Redactor) -> Result<Vec<u8>, Error> {

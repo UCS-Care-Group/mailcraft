@@ -26,7 +26,8 @@ const NOW: i64 = 1_791_993_600;
 /// The Inbox of the first account is in view, and nothing is fetched in the background.
 fn window() -> (MailApp, [[Id; 3]; 2], Jobs) {
     let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::default(), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let mut ids = [[0; 3]; 2];
     for (k, address) in ["one@example.org", "two@example.org"].iter().enumerate() {
         let account = app.execute("account.add", json!({"email": address, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
@@ -477,8 +478,11 @@ fn those_come_by_other_means_meanwhile_go_on() {
         // brings none: the server busy, or the network gone.
         let fetched =
             ["AA0M0", "AA0M2"].map(|id| GraphFetched { id: id.into(), mime: format!("Subject: Whole {id}\r\n\r\nAll of {id}.\r\n").into_bytes() });
-        take_in(&mut app, GraphFetchResult { account: one, email: "one@example.org".into(), fetched: fetched.to_vec(), ..Default::default() })
-            .unwrap();
+        mailcraft_engine::sync_driver::fetch::apply_fetch(
+            &mut app.session,
+            GraphFetchResult { account: one, email: "one@example.org".into(), fetched: fetched.to_vec(), ..Default::default() },
+        )
+        .unwrap();
         for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
             let result = GraphFetchResult { account: job.request.account, offline, busy_for: (!offline).then_some(30), ..Default::default() };
             tx.send(result).unwrap();
@@ -503,9 +507,9 @@ fn a_message_opened_while_a_batch_is_on_its_way_is_fetched_after_it() {
     let said = |app: &MailApp| crate::reading::unfetched_said(app, app.session.mailbox.message(x).unwrap());
     assert_eq!(said(&app), "This message downloads once the messages being downloaded now are here.");
     // (Offline, it says that first.)
-    app.fetching.offline = true;
+    app.session.driver.fetch.offline = true;
     assert_eq!(said(&app), "This message isn't on this computer yet. It will download when you're online.");
-    app.fetching.offline = false;
+    app.session.driver.fetch.offline = false;
     answer(&mut app, &jobs, &[], &[]);
     assert_eq!(asked(&jobs), [(two, vec!["AA1M0".to_string()])]);
 }

@@ -1013,10 +1013,10 @@ fn a_jmap_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
 fn only_a_jmap_or_microsoft_account_has_server_ids() {
     use AccountKind::*;
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::server_ids), [false, false, true, true, false]);
-    // A JMAP account is kept in step with a server, but nothing sends its Outbox yet. An account of a
+    // A JMAP account is kept in step with a server, and its Outbox is sent over JMAP. An account of a
     // kind this version doesn't know is neither: whatever it is, this version doesn't know how.
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::has_server), [false, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, false, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, true, false]);
 }
 
 /// A JMAP account's server's mailboxes keep their names and places until changes go up: a rename
@@ -1042,6 +1042,64 @@ fn a_jmap_servers_folder_is_neither_renamed_nor_moved_until_changes_go_up() {
     mb.move_folder(ours, None).unwrap();
     assert_eq!(mb.folder(ours).map(|f| (f.name.as_str(), f.parent)), Some(("Mine", None)));
     assert_eq!(mb.folder(theirs), before.folder(theirs));
+}
+
+/// Mail a JMAP account's server has moves between the folders that server has, and nowhere else:
+/// there is no move its server could make. Deleted for good, it waits in the queue for the server
+/// to delete it too. Mail only this computer has moves and goes as any other, with no word to it.
+#[test]
+fn a_jmap_servers_mail_moves_between_its_folders_and_its_deletion_is_queued() {
+    use crate::sync::ServerMessage;
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let local = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Inbox).unwrap();
+    let account = mb.add_account(Account { email: "ada@jmap.example".into(), kind: AccountKind::Jmap, ..Default::default() });
+    assert!(mb.queues_deletions(account) && !mb.keeps_changes_for_server(account) && !mb.queues_deletions(mb.accounts[0].id));
+    let [inbox, deleted, outbox] = [FolderKind::Inbox, FolderKind::Deleted, FolderKind::Outbox].map(|kind| mb.folder_of_kind(account, kind).unwrap());
+    for (folder, id) in [(inbox, "M1"), (deleted, "M2")] {
+        mb.folder_mut(folder).unwrap().server = Some(ServerFolder { id: id.into(), ..Default::default() });
+    }
+    let ours = mb.add_folder(account, None, "Ours").unwrap();
+    let server = ServerMessage { id: "E1".into(), folder: "M1".into(), ..Default::default() };
+    let theirs = mb.add_message(Message { folder: inbox, subject: "Theirs".into(), server: Some(server.clone()), ..Default::default() }).unwrap();
+    let mine = mb.add_message(Message { folder: inbox, subject: "Mine".into(), ..Default::default() }).unwrap();
+    assert!(mb.on_jmap_server(theirs) && !mb.on_jmap_server(mine));
+    // Into a folder the server hasn't got, its Outbox or another account: refused, and nothing moves.
+    for folder in [ours, outbox, local] {
+        assert!(mb.stays_out_of(theirs, folder) && !mb.stays_out_of(mine, folder));
+        assert_eq!(mb.move_message(theirs, folder).unwrap_err().to_string(), ONLY_SERVER_FOLDERS);
+        assert_eq!(mb.move_messages(&[theirs], folder).unwrap_err().to_string(), ONLY_SERVER_FOLDERS);
+    }
+    assert_eq!(mb.message(theirs).map(|m| m.folder), Some(inbox));
+    // Nor into a folder whose server id is none a server hands out (a mailbox file can say
+    // anything): it is no mailbox a move could name, so the move is refused, not left unsent.
+    for id in [
+        "",
+        "../M9",
+        "M 9",
+        "M9
+",
+        &"M".repeat(256),
+    ] {
+        mb.folder_mut(ours).unwrap().server = Some(ServerFolder { id: id.into(), ..Default::default() });
+        assert!(!crate::is_jmap_id(id) && mb.jmap_mailbox(account, ours).is_none(), "{id:?}");
+        assert!(mb.stays_out_of(theirs, ours) && !mb.stays_out_of(mine, ours));
+        assert_eq!(mb.move_message(theirs, ours).unwrap_err().to_string(), ONLY_SERVER_FOLDERS);
+    }
+    mb.folder_mut(ours).unwrap().server = None;
+    // (An id is 1 to 255 of the letters, digits, `-` and `_`; a folder is its own account's.)
+    assert!(crate::is_jmap_id("M-9_a") && crate::is_jmap_id(&"M".repeat(255)));
+    assert_eq!((mb.jmap_mailbox(account, deleted), mb.jmap_mailbox(mb.accounts[0].id, deleted)), (Some("M2"), None));
+    // Into one it has: moved here, and what the server last said of it stays, for the difference to go up.
+    assert!(!mb.stays_out_of(theirs, deleted));
+    mb.move_message(theirs, deleted).unwrap();
+    assert_eq!(mb.message(theirs).map(|m| (m.folder, m.server.clone())), Some((deleted, Some(server))));
+    assert!(mb.queued.is_empty() && mb.pending.is_empty());
+    // Deleted for good: queued for the server by its id. What only this computer has is just gone.
+    mb.remove_message(theirs).unwrap();
+    assert!(matches!(mb.queued.as_slice(), [Queued::DeleteMessage { account: a, id, .. }] if *a == account && id == "E1"));
+    mb.move_message(mine, ours).unwrap();
+    mb.remove_message(mine).unwrap();
+    assert_eq!(mb.queued.len(), 1);
 }
 
 #[test]

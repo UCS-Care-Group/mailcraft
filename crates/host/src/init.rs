@@ -9,7 +9,7 @@ use crate::Platform;
 
 /// The program's hold on its platform, from [`init`].
 pub struct Host {
-    platform: Arc<dyn Platform>,
+    pub(crate) platform: Arc<dyn Platform>,
     memory_budget: u64,
 }
 
@@ -51,7 +51,7 @@ pub fn memory_budget(device: Option<u64>) -> u64 {
 /// The engine's own cap on mail content in memory.
 #[cfg(not(target_arch = "wasm32"))]
 fn engine_cap() -> u64 {
-    mailcraft_engine::store::body_budget()
+    mailcraft_engine::store::engine_body_budget()
 }
 
 /// The browser has no mailbox file to keep bodies in, so the engine's fallback stands in.

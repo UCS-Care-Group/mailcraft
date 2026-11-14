@@ -3,7 +3,8 @@
 > **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** major
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
-such an account in the browser build. The desktop app and the command line have no way to reach a
+such an account in the browser build, takes what you change in its mail up to its server, and sends
+mail through it. The desktop app and the command line have no way to reach a
 JMAP server yet: the desktop app leaves such an account out of Send/Receive, and `mailcraft-cli
 sync` refuses it.
 
@@ -21,10 +22,53 @@ sync` refuses it.
   and mail gone from a mailbox small enough to be read whole in a run (no more messages than
   Messages to download per folder, nor than the server takes in one request).
 
-Not yet: nothing you change goes up to the server and nothing is sent from such an account. Moving or
-deleting a message the server has, renaming, moving or deleting one of its mailboxes, and emptying
-a folder that holds the server's mail, are refused with the reason until changes go up, since the
-next Send/Receive would bring them back.
+- **What you change goes up** (#1074): a read mark, a flag, the answered and forwarded marks, a
+  move between two of the server's mailboxes (Delete is a move into its Deleted Items) and a
+  deletion for good. They go with the next Send/Receive, before it reads, and one starts by itself
+  a few seconds after the change once the password or token is at hand. Only the marks you changed
+  are touched; the server's other keywords stay. A change the server refuses is put back to how
+  the server has it and said once, in the status bar and in Send/Receive Progress, and so is a
+  change to a message the server no longer has.
+- **A flag is the server's `$flagged` and nothing else.** A JMAP server keeps no due date and no
+  "complete": a follow-up's due date stays on this computer, and one marked complete is not flagged
+  there. So whether a flag was changed here is told by that one bit. A flag you didn't change since
+  the last Send/Receive follows the server: cleared on another device, it is cleared here with its
+  due date; flagged again there after you marked it complete, it is flagged here. One you changed
+  here goes up, whatever the server said meanwhile. Changed on both sides between two runs, the two
+  can only have gone the same way, and the due date or the "complete" kept here stays.
+- **A move takes the message out of the mailbox it was in and puts it into the other**, and says
+  nothing of any other mailbox (`mailboxIds/<from>` and `mailboxIds/<to>`, never the whole of
+  `mailboxIds`). That way it doesn't undo what another program did to the message meanwhile, and
+  never takes it out of a mailbox this computer didn't know it was in (a server may keep a message
+  in several). The other side of it: a message another program moved on in the meantime, or one
+  that lay in a second mailbox already, ends up in both. The next Send/Receive that reads those
+  mailboxes lists it where the server has it, and it is shown there (in one of them, when the
+  server keeps it in two).
+- **Mail is sent** (#1074): a message written from the account waits in its Outbox and goes with
+  the next Send/Receive, which starts by itself a few seconds after Send; Send asks for the
+  password or token when it isn't at hand. The server itself sends it (JMAP submission, RFC 8621):
+  the message is uploaded, filed in the server's Sent mailbox (in Drafts where it has none) and
+  submitted, as the identity the server has for the account's address. Who is named in Bcc is told
+  to the server as recipients only; the message names none of them. A message the server refuses
+  is held in the Outbox with the reason, and so is one whose answer was lost, which may have gone:
+  neither is sent again by itself. The copy is filed in Sent (or Drafts) marked as a draft before
+  it is submitted, and the mark comes off once it is sent: for one whose answer was lost, a copy no
+  longer marked as a draft went, and one still marked may have gone too (the mark stays when the
+  server sends it and then fails to change the copy), and the message held says so. A server that
+  offers no submission, or has no identity for the
+  account's address, sends nothing: the message is held and says so. Only Send sends: a message
+  moved into the account's Outbox (a draft, or mail only this computer has) is held there until
+  Send Again, and a copy doesn't go into it. A message that was never dated is dated before its
+  first try and keeps that date, and what is read or flagged here is not in the message, so that a
+  try after one that ended early uploads the same message; a copy the server has from that earlier
+  try is sent instead, and filed in Sent as well wherever else it lies (moved into Sent on a server
+  that keeps an email in one mailbox).
+
+Not yet: what you change in an account's folders doesn't go up.
+Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
+server's mail, and moving the server's mail into a folder the server hasn't got (one made here,
+another account's) are refused with the reason, since the next Send/Receive would bring them back.
+What you write in a draft the server has stays on this computer.
 
 ## The password, or the access token
 
@@ -66,7 +110,8 @@ The browser asks the server from the page's own address, so the server has to le
 
 - answer the preflight (`OPTIONS`) of `GET` and `POST` with the fields `Authorization`,
   `Content-Type` and `Accept` allowed, for the page's origin;
-- send `Access-Control-Allow-Origin` with every answer, the session's, the API's and a download's;
+- send `Access-Control-Allow-Origin` with every answer, the session's, the API's, a download's and
+  an upload's (a message that is sent is uploaded first, a `POST` with `Content-Type: message/rfc822`);
 - send `Access-Control-Expose-Headers: Retry-After`, so that what a busy server asks is read: the
   status line then says how long it asked to wait, and the background download of whole messages
   waits at least that long.

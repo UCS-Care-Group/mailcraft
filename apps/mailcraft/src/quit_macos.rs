@@ -48,7 +48,9 @@ pub fn install_app_menu(ctx: &Context, name: &str) -> Result<(), Box<dyn std::er
     menu.init_for_nsapp();
     let ctx = ctx.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
-        on_menu_event(&ctx, event.id.as_ref());
+        if !crate::tray::on_menu_event(&ctx, event.id.as_ref()) {
+            on_menu_event(&ctx, event.id.as_ref());
+        }
     }));
     // The native menu refers to its items for as long as the program runs: keep them.
     std::mem::forget((menu, app_menu, quit));

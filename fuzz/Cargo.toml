@@ -26,6 +26,7 @@ mailcraft-jmap = { path = "../crates/jmap" }
 mailcraft-ews = { path = "../crates/ews" }
 mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
+mailcraft-mime-model = { path = "../crates/mime-model" }
 mailcraft-model = { path = "../crates/model" }
 mailcraft-openpgp = { path = "../crates/openpgp" }
 mailcraft-proto = { path = "../crates/proto" }
@@ -214,6 +215,13 @@ bench = false
 [[bin]]
 name = "assuan"
 path = "fuzz_targets/assuan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_block"
+path = "fuzz_targets/header_block.rs"
 test = false
 doc = false
 bench = false

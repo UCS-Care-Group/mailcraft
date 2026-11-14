@@ -48,6 +48,11 @@ pub struct FolderState {
     /// mail kept with U+FFFD). A few at a time; the run asks for them without setting `\Seen`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub again: Vec<u32>,
+    /// What the server's STATUS said of the folder when it was last read whole, and is still
+    /// good to pass it over by (#276); `None` when it isn't. The engine drops it once it is
+    /// too old, so that every folder is read in full now and then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<crate::ImapStatus>,
 }
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
@@ -543,6 +548,10 @@ pub struct FolderDelta {
     /// the folder has been read whole once ([`crate::Folder::read_whole`]).
     #[serde(skip_serializing_if = "is_false")]
     pub complete: bool,
+    /// With the piece that ends a folder's reading whole: what the server's STATUS said of it
+    /// before it was read ([`crate::Folder::imap_status`], #276).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<crate::ImapStatus>,
     /// Messages of [`FolderState::again`] downloaded again (`uid` set): only their subject,
     /// names and text are taken from them (#650).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -885,6 +894,7 @@ impl SyncResult {
                         flags,
                         removed,
                         complete,
+                        status,
                         refetched,
                         refetch_done,
                         refetch_too_large,
@@ -906,6 +916,9 @@ impl SyncResult {
                     folder.refetch_refused.extend(refetch_refused);
                     folder.gmail.extend(gmail);
                     folder.complete |= complete;
+                    if status.is_some() {
+                        folder.status = status;
+                    }
                 }
                 None => self.folders.push(delta),
             }

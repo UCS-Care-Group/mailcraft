@@ -27,57 +27,39 @@ use crate::dialogs::Dialog;
 use crate::forms::Form;
 use crate::{MailApp, MailRun};
 
-macro_rules! job_kinds {
-    ($($(#[$doc:meta])* $kind:ident),* $(,)?) => {
-        /// Every kind of background job the window starts.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        pub(crate) enum JobKind {
-            $($(#[$doc])* $kind),*
-        }
-
-        impl JobKind {
-            /// Every kind, each once.
-            #[cfg_attr(not(test), allow(dead_code))]
-            pub(crate) const ALL: &[JobKind] = &[$(JobKind::$kind),*];
-        }
-    };
-}
-
-job_kinds! {
-    /// An IMAP (and SMTP) account's Send/Receive.
-    Imap,
-    /// A Send/Receive through Microsoft Graph: an account kept in step through Graph, or the
-    /// sending that goes before an IMAP account's mail.
-    Graph,
-    /// An Exchange server account's Send/Receive.
-    Ews,
-    /// A JMAP account's Send/Receive.
-    Jmap,
-    /// An Inbox pass, a round's or the Inbox checked by itself, and the checks that gave way.
-    Inbox,
-    /// A shared mailbox's Send/Receive, read with its owner's sign-in.
-    Shared,
-    /// The calendar and contacts kept current between runs.
-    Calendar,
-    /// A check of the calendar connection.
-    CalendarCheck,
-    /// Other people's free and busy times.
-    FreeBusy,
-    /// The to-dos kept in step with Microsoft To Do.
-    Tasks,
-    /// The rules kept on the server.
-    Rules,
-    /// The automatic replies.
-    AutoReplies,
-    /// A sign-in on a provider's page.
-    SignIn,
-    /// What the Add Account dialog asks of the host (mail exchangers, the servers' check).
-    AccountSetup,
-    /// An administrator's approval on Microsoft's page.
-    AdminConsent,
-}
+// The kinds of job, and what may start while another is at work, are the engine's
+// ([`mailcraft_engine::sync_driver::jobs`]); this says which are at work.
+use mailcraft_engine::sync_driver::Busy;
+pub(crate) use mailcraft_engine::sync_driver::JobKind;
 
 impl MailApp {
+    /// What the window says of itself when the engine is asked which question to the owner is next.
+    pub(crate) fn ask_window(&self) -> mailcraft_engine::sync_driver::AskWindow {
+        mailcraft_engine::sync_driver::AskWindow {
+            dialog_open: self.dialog.is_some(),
+            backstage: self.ui.backstage,
+            signing_in: self.signing_in.is_some(),
+        }
+    }
+
+    /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.
+    pub(crate) fn job_busy(&self) -> Busy {
+        Busy {
+            calendar: self.calendar.rx.is_some(),
+            tasks: self.tasks.busy(),
+            rules: self.rules.busy(),
+            auto_replies: self.auto_replies.busy(),
+            free_busy: self.free_busy.busy(),
+            graph: self.graph_rx.is_some(),
+            mail_run: self.sync_rx.is_some(),
+            signing_in: self.signing_in.is_some(),
+            queued: !self.sync_queue.is_empty(),
+            inbox_queued: !self.inbox_queue.is_empty(),
+            approving: self.approving(),
+            switching: self.graph_switch_copy.is_some(),
+        }
+    }
+
     /// Whether a job of `kind` is under way, or its answer is still to be taken in.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn job_running(&self, kind: JobKind) -> bool {
@@ -110,7 +92,7 @@ impl MailApp {
             match kind {
                 // (One Send/Receive at a time, whichever way: called off together.)
                 JobKind::Imap | JobKind::Graph | JobKind::Ews | JobKind::Jmap | JobKind::Inbox | JobKind::Shared => self.forget_mail_runs(),
-                JobKind::Calendar | JobKind::CalendarCheck => self.calendar.forget_jobs(),
+                JobKind::Calendar | JobKind::CalendarCheck => self.forget_calendar_jobs(),
                 JobKind::FreeBusy => self.free_busy.forget(),
                 // What was known of the to-dos and the rules is the old mailbox's: its account
                 // ids may name others here (#566).
@@ -141,6 +123,7 @@ impl MailApp {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);
+        self.session.driver.sending.forget_gate();
         (self.sync_run, self.inbox_run, self.graph_after_sign_in, self.shared_check_next) = (None, None, None, None);
         (self.sync_password, self.sync_refused, self.graph_pieces_taken) = (None, false, 0);
         self.sync_totals = Default::default();

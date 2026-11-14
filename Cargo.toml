@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
+# The phone apps are Gradle (and Xcode) projects, not crates: they only hold the generator of the
+# bindings (its own lock file).
+exclude = ["apps/mailcraft-android"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
@@ -14,12 +17,14 @@ repository = "https://github.com/UCS-Care-Group/mailcraft"
 # internal
 mailcraft-time = { path = "crates/time" }
 mailcraft-charset = { path = "crates/charset" }
+mailcraft-ber = { path = "crates/ber" }
 mailcraft-link = { path = "crates/link" }
 mailcraft-names = { path = "crates/names" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
 mailcraft-mime = { path = "crates/mime" }
+mailcraft-mime-model = { path = "crates/mime-model" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
@@ -27,6 +32,7 @@ mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-assuan = { path = "crates/assuan" }
+mailcraft-jmap-types = { path = "crates/jmap-types" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
 mailcraft-ews = { path = "crates/ews" }
@@ -177,5 +183,5 @@ debug = 0
 # winit 0.30.13 with two patches, each dropped when winit itself has it: an activation token that
 # names the latest click, which KWin needs before it brings the browser forward (#144); and
 # Wayland file drops plus the clipboard on winit's one data device (rust-windowing/winit#4729),
-# so that files dropped on a window are attached (#523).
-winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "951b6c131897a80d27a925af7c5da22ea522eb0d" }
+# so that files dropped on a window are attached (#523); and reading HTML and pictures from it (#1217).
+winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "1477b126a8c3d3d2add446c93492454ba833074d" }
