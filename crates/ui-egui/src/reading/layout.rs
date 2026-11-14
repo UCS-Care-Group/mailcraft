@@ -197,6 +197,10 @@ pub struct TextLink {
     pub range: Range<usize>,
     pub url: Arc<str>,
     pub ink: Color32,
+    /// Whether its line is drawn: a link is underlined unless it said otherwise itself
+    /// (`Span::bare`) and nothing in it asks for the line. What it opens is shown when the
+    /// pointer is over it, whatever it looks like.
+    pub underlined: bool,
 }
 
 /// A picture: one of the message's own, or one from the web that the owner asked for.
@@ -689,7 +693,7 @@ fn text_job(
         };
         let count = span.text.chars().count();
         if let Some(url) = &span.link {
-            links.push(TextLink { range: chars..chars + count, url: Arc::clone(url), ink });
+            links.push(TextLink { range: chars..chars + count, url: Arc::clone(url), ink, underlined: !span.bare || span.underline });
         }
         chars += count;
         job.append(&span.text, 0.0, format);
@@ -1836,7 +1840,7 @@ fn cell_paper(cx: &Cx<'_>, table: &Table, cell: &Cell, around: Paper) -> (Paper,
     match cell.background {
         Some(bg) => (Paper::of(bg, &cx.t), true),
         // A header cell of a data table is shaded a little when the message gives it no colour.
-        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own }, true),
+        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, asked: None }, true),
         None => (around, false),
     }
 }
