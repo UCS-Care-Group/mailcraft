@@ -1674,6 +1674,11 @@ msgid "At start time"
 msgstr "开始时"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "At the Foot of the Pane"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "At the same time: {items}"
@@ -1970,6 +1975,11 @@ msgstr "返回邮件"
 #, fuzzy
 msgid "Back to account settings"
 msgstr "返回账户设置"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bar on the Left"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -7953,6 +7963,18 @@ msgstr "姓名或地址，用 ; 分隔"
 #, fuzzy
 msgid "Navigation"
 msgstr "导航"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Navigation Bar"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
