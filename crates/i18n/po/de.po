@@ -6592,7 +6592,7 @@ msgstr "MailCraft hält es im Arbeitsspeicher, bis Sie die App schließen. Es wi
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "MailCraft keeps the file, still protected by its passphrase, in the system's credential store. Only an ECDSA certificate (P-256 or P-384) is kept this way: an RSA one belongs on a smartcard or token (PKCS#11)."
-msgstr "MailCraft speichert die Datei, weiterhin durch ihre Passphrase geschützt, im Anmeldedatenspeicher des Systems. Auf diese Weise wird nur ein ECDSA-Zertifikat (P-256 oder P-384) gespeichert: Ein RSA-Zertifikat gehört auf eine Smartcard oder einen Token (PKCS#11)."
+msgstr "MailCraft speichert die Datei, weiterhin durch ihre Passphrase geschützt, im Anmeldedatenspeicher des Systems. Auf diese Weise wird nur ein ECDSA-Zertifikat (P-256 oder P-384) gespeichert: Ein RSA-Zertifikat gehört auf eine Smartcard oder ein Token (PKCS#11)."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
