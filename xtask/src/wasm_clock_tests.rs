@@ -137,3 +137,30 @@ fn native_cfgs_are_told_from_the_rest() {
         assert!(!is_native_cfg(browser), "{browser}");
     }
 }
+
+#[test]
+fn a_cfg_is_native_only_when_it_is_false_on_wasm_whatever_else_holds() {
+    // True on wasm32 too: `not(any(unix, windows))` holds there, and so may the feature.
+    assert!(!is_native_cfg("any(target_os = \"macos\", not(any(unix, windows)))"));
+    assert!(!is_native_cfg("any(feature = \"x\", not(target_arch = \"wasm32\"))"));
+    // `all` is native when one arm is, `any` when every arm is.
+    assert!(is_native_cfg("all(feature = \"x\", not(target_arch = \"wasm32\"))"));
+    assert!(is_native_cfg("any(unix, windows)"));
+    assert!(is_native_cfg("not(target_family = \"wasm\")"));
+    assert!(!is_native_cfg("not(target_os = \"macos\")"));
+    // What can't be read is not native.
+    assert!(!is_native_cfg("all(test"));
+    assert!(!is_native_cfg("weird(test)"));
+}
+
+#[test]
+fn waits_with_a_time_out_are_calls_too() {
+    let text = "fn f() {\n    rx.recv_timeout(D);\n    let g = cv.wait_timeout(g, D);\n    std::thread::park_timeout(D);\n}\n";
+    assert_eq!(calls(text), vec![(2, ".recv_timeout("), (3, ".wait_timeout("), (4, "park_timeout(")]);
+}
+
+#[test]
+fn a_call_that_says_why_the_browser_never_reaches_it_is_allowed() {
+    let text = "fn f() {\n    // wasm-clock: only the desktop app makes this\n    rx.recv_timeout(D);\n    rx.recv_timeout(D); // wasm-clock: the same\n    // wasm-clock:\n    rx.recv_timeout(D);\n    rx.recv_timeout(D);\n}\n";
+    assert_eq!(calls(text), vec![(6, ".recv_timeout("), (7, ".recv_timeout(")]);
+}

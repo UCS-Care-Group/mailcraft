@@ -3,20 +3,28 @@
 //! `cargo xtask wasm-clock`: no std clock in code the browser runs (#1337).
 //!
 //! On wasm32-unknown-unknown the standard library has no clock and no sleep: `Instant::now()`,
-//! `SystemTime::now()`, `Instant::elapsed()` and `thread::sleep` panic there, and a panic in the
+//! `SystemTime::now()`, `Instant::elapsed()`, `thread::sleep` and the waits with a time-out
+//! (`recv_timeout`, `wait_timeout`, `park_timeout`) panic there, and a panic in the
 //! browser build ends the program. `cargo xtask wasm` can't see it (it compiles), so this reads
 //! the source of every workspace crate the browser app links, module by module from each crate's
 //! root, and fails on such a call outside code that is compiled natively only: a module, an item,
 //! a block or a statement under `#[cfg(not(target_arch = "wasm32"))]` (or `test`, `windows`,
 //! `unix`, a `target_os`). Code the browser runs asks `mailcraft_time` instead (`now`,
 //! `Stopwatch`), which asks the browser's clock there.
+//!
+//! A call the browser build compiles but can never reach (a type only the desktop app makes)
+//! says so in a comment on its line or the line above: `// wasm-clock: <why>`.
+//!
+//! It reads the calls as written: a clock reached through an import under another name
+//! (`use std::thread::sleep as nap`) or from inside a third-party crate is not found. The browser
+//! has to be run for those.
 
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The calls that panic on wasm32-unknown-unknown.
-pub const CALLS: &[&str] = &["Instant::now", "SystemTime::now", "thread::sleep", ".elapsed()"];
+pub const CALLS: &[&str] = &["Instant::now", "SystemTime::now", "thread::sleep", ".elapsed()", ".recv_timeout(", ".wait_timeout(", "park_timeout("];
 
 /// A `mod name;` declared in a file.
 #[derive(Debug, PartialEq, Eq)]
@@ -36,23 +44,96 @@ pub struct Scan {
 }
 
 /// Whether a `cfg(…)` predicate (the part inside the parentheses) holds on native targets only.
+/// `test` counts as native: the browser build is never a test build. A predicate that can't be
+/// read, or depends on something else (a feature), is not native.
 pub fn is_native_cfg(pred: &str) -> bool {
     let p: String = pred.chars().filter(|c| !c.is_whitespace()).collect();
-    if p.contains("not(target_arch=\"wasm32\")") {
-        return true;
+    parse_cfg(&p, 0).is_some_and(|(cfg, rest)| rest.is_empty() && on_wasm(&cfg) == Some(false))
+}
+
+/// A `cfg` predicate.
+#[derive(Debug)]
+enum Cfg {
+    /// `name` or `name = "value"`.
+    Key(String, Option<String>),
+    All(Vec<Cfg>),
+    Any(Vec<Cfg>),
+    Not(Box<Cfg>),
+}
+
+/// Reads one predicate from the front of `p` (no white space); the rest after it.
+fn parse_cfg(p: &str, depth: usize) -> Option<(Cfg, &str)> {
+    if depth > 32 {
+        return None;
     }
-    if p.starts_with("not(") {
-        return false;
+    let name_len = p.find(|c: char| !(c.is_alphanumeric() || c == '_')).unwrap_or(p.len());
+    let (name, rest) = p.split_at(name_len);
+    if name.is_empty() {
+        return None;
     }
-    p == "test"
-        || p.starts_with("all(test")
-        || p == "windows"
-        || p == "unix"
-        || p.starts_with("all(unix")
-        || p.starts_with("all(windows")
-        || p.starts_with("target_os=")
-        || p.starts_with("any(target_os=")
-        || p.starts_with("all(target_os=")
+    if let Some(mut rest) = rest.strip_prefix('(') {
+        let mut arms = Vec::new();
+        while !rest.starts_with(')') {
+            let (arm, after) = parse_cfg(rest, depth + 1)?;
+            arms.push(arm);
+            rest = after.strip_prefix(',').unwrap_or(after);
+            if !after.starts_with(',') && !after.starts_with(')') {
+                return None;
+            }
+        }
+        let rest = rest.strip_prefix(')')?;
+        let cfg = match name {
+            "all" => Cfg::All(arms),
+            "any" => Cfg::Any(arms),
+            "not" if arms.len() == 1 => Cfg::Not(Box::new(arms.pop()?)),
+            _ => return None,
+        };
+        return Some((cfg, rest));
+    }
+    if let Some(rest) = rest.strip_prefix("=\"") {
+        let end = rest.find('"')?;
+        let (value, after) = rest.split_at(end);
+        return Some((Cfg::Key(name.to_string(), Some(value.to_string())), after.get(1..)?));
+    }
+    Some((Cfg::Key(name.to_string(), None), rest))
+}
+
+/// What a predicate is on wasm32-unknown-unknown in the browser build: `None` when it depends
+/// on something else.
+fn on_wasm(cfg: &Cfg) -> Option<bool> {
+    match cfg {
+        Cfg::Key(name, None) => match name.as_str() {
+            "test" | "windows" | "unix" => Some(false),
+            _ => None,
+        },
+        Cfg::Key(name, Some(value)) => match name.as_str() {
+            "target_arch" => Some(value == "wasm32"),
+            "target_os" => Some(value == "unknown"),
+            "target_family" => Some(value == "wasm"),
+            _ => None,
+        },
+        Cfg::All(arms) => {
+            let said: Vec<Option<bool>> = arms.iter().map(on_wasm).collect();
+            if said.contains(&Some(false)) {
+                Some(false)
+            } else if said.iter().all(|s| *s == Some(true)) {
+                Some(true)
+            } else {
+                None
+            }
+        }
+        Cfg::Any(arms) => {
+            let said: Vec<Option<bool>> = arms.iter().map(on_wasm).collect();
+            if said.contains(&Some(true)) {
+                Some(true)
+            } else if said.iter().all(|s| *s == Some(false)) {
+                Some(false)
+            } else {
+                None
+            }
+        }
+        Cfg::Not(inner) => on_wasm(inner).map(|b| !b),
+    }
 }
 
 /// `text` with comments and the insides of string and character literals turned to spaces (line
@@ -233,6 +314,16 @@ pub fn scan(text: &str, native: bool) -> Scan {
         }
         i += 1;
     }
+    // A call the browser build compiles but never reaches says why, on its line or the one above.
+    let lines: Vec<&str> = text.lines().collect();
+    let allowed = |n: usize| {
+        [n.checked_sub(1), n.checked_sub(2)]
+            .into_iter()
+            .flatten()
+            .filter_map(|k| lines.get(k))
+            .any(|l| l.split_once("// wasm-clock:").is_some_and(|(_, why)| !why.trim().is_empty()))
+    };
+    out.calls.retain(|(n, _)| !allowed(*n));
     out
 }
 
