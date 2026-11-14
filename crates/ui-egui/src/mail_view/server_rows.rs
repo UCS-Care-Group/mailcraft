@@ -233,10 +233,6 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         m.from.display().to_string()
     };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    // A single line puts the sender in the same column a local row uses. The same y and the
-    // same left edge would draw the sender on top of the subject.
-    let who_end = if one { (left + super::one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
-    paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), &who, who_font, t.text);
     let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width() };
     // In a search of every mailbox the folder it is in, under the time (or before it, with no
     // preview), then its categories; its preview before them.
@@ -261,6 +257,11 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
+    // A single line puts the sender in the same column a local row uses. With no preview the
+    // categories share that line, so the name stops before them and not only before the marks.
+    let who_limit = if one && lines == 0 { sx } else { x };
+    let who_end = if one { (left + super::one_line_sender_width(time_end - left)).min(who_limit - 4.0) } else { text_end.min(x - 4.0) };
+    paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), &who, who_font, t.text);
     let mut subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
     // In one line the marks sit on the subject's line, to the left of the date.
     if one {
