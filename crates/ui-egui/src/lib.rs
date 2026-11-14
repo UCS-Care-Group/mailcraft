@@ -120,6 +120,7 @@ mod graph_switch;
 mod host_said_tests;
 pub mod i18n;
 pub mod icons;
+mod idle_watch;
 pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
@@ -238,6 +239,8 @@ mod text_menu_tests;
 pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
+#[cfg(test)]
+mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
 mod update_switches_tests;
@@ -264,6 +267,7 @@ use serde_json::{Value, json};
 pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
+pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
 pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
@@ -313,6 +317,10 @@ pub struct Services {
     /// Set to call a Send/Receive off: the host's run stops at the next safe place and says so
     /// in its last piece. The host clears it when it starts a run.
     pub sync_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Desktop: keep a connection to an IMAP account's server open in IDLE on its Inbox, on a
+    /// thread of the host's, and say when mail arrives (#276, [`idle_watch`]). The watch ends when
+    /// its flag is set. Absent in the browser, and where the host doesn't listen.
+    pub idle: Option<Box<dyn Fn(SyncRequest) -> IdleWatch>>,
     /// Desktop: sign an account's owner in on the provider's own page (OAuth 2.0) on a background
     /// thread: renew quietly with the refresh token when there is one, else open the browser and
     /// wait. The tokens, or why there are none, arrive through the channel and the host wakes the
@@ -824,6 +832,8 @@ pub struct UiState {
     pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
+    /// The greys of the dark theme: neutral (the default) or tinted blue (#1384).
+    pub dark_style: theme::DarkStyle,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
@@ -942,6 +952,7 @@ impl Default for UiState {
             close_to_tray: false,
             close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
+            dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
@@ -1027,6 +1038,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
     ),
     ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
+    ("ui.darkStyle", "Dark Theme Style", "File › Options", r#"{"value": "neutral"|"blue"}"#),
     (
         "ui.lightMessages",
         "Messages on a Light Background",
@@ -1660,6 +1672,8 @@ pub struct MailApp {
     inbox_run: Option<Id>,
     /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
     inbox_check: inbox_pass::InboxCheck,
+    /// The Inboxes listened to for new mail (#276, [`idle_watch`]).
+    idle: idle_watch::IdleWatches,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
     /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
@@ -1881,6 +1895,7 @@ impl MailApp {
             driven: false,
             inbox_run: None,
             inbox_check: Default::default(),
+            idle: Default::default(),
             snooze_last: 0,
             jmap_send_asks: Default::default(),
             jmap_made: 0,
@@ -2489,6 +2504,13 @@ impl MailApp {
                     Ok(json!({"accent": a.code()}))
                 }
                 None => Err("`accent` is blue, teal, violet or graphite".into()),
+            },
+            "ui.darkStyle" => match s("value").and_then(theme::DarkStyle::from_code) {
+                Some(style) => {
+                    self.ui.dark_style = style;
+                    Ok(json!({"value": style.code()}))
+                }
+                None => Err("`value` is neutral or blue".into()),
             },
             "ui.language" => {
                 let code = s("language").unwrap_or_default();
@@ -4582,7 +4604,12 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: self.ui.accent, high_contrast: self.ui.high_contrast };
+        let choice = theme::ThemeChoice {
+            appearance: self.ui.theme,
+            accent: self.ui.accent,
+            high_contrast: self.ui.high_contrast,
+            dark_style: self.ui.dark_style,
+        };
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));
@@ -4672,6 +4699,8 @@ impl MailApp {
             self.auto_sync();
             // The Inbox by itself every minute, between rounds (#276).
             self.inbox_check_tick();
+            // New mail the moment it arrives, where the server says so (#276).
+            self.idle_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).

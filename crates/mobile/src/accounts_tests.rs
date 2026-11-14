@@ -167,6 +167,10 @@ impl Platform for Phone {
         Ok(0)
     }
 
+    fn time_zone_name(&self) -> Result<String, HostError> {
+        Err(HostError::Unsupported)
+    }
+
     fn memory_budget(&self) -> Result<Option<u64>, HostError> {
         Ok(None)
     }

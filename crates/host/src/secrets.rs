@@ -9,6 +9,17 @@ pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
     fn set(&self, key: &str, secret: &str) -> Result<(), SecretError>;
     fn delete(&self, key: &str);
+    /// `get`, telling a store that couldn't be read from one that holds nothing under `key`. The
+    /// default can't tell them apart (`Ok(None)` for both); a store that can, says so.
+    fn read(&self, key: &str) -> Result<Option<String>, SecretError> {
+        Ok(self.get(key))
+    }
+    /// `delete`, saying whether the store removed the entry. The default can't tell (`Ok` always);
+    /// a store that can, says so.
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        self.delete(key);
+        Ok(())
+    }
     /// Why the store itself couldn't be used the last time something was asked of it (none is
     /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
     /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it

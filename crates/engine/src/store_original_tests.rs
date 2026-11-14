@@ -42,7 +42,7 @@ fn the_original_is_kept_outside_named_read_back_and_written_whole() {
     save(&path, &mb).unwrap();
     clear_cache();
     // The record has none of it and names the content file, which holds it.
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(!String::from_utf8_lossy(&record.json).contains("multipart/signed"));
     assert_eq!(record.parts.original.map(|p| p.r.len), Some(bytes.len() as u64));
     assert!(String::from_utf8_lossy(&record.refs).contains("\"original\""));

@@ -198,6 +198,30 @@ impl std::fmt::Debug for SyncRequest {
     }
 }
 
+/// What the watch on an IMAP account's Inbox (IDLE, #276) tells the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleNote {
+    /// The server says the Inbox has more messages than it had: a Send/Receive of the account
+    /// brings them.
+    Arrived,
+    /// The watch is over, and why.
+    Ended(IdleEnd),
+}
+
+/// Why a watch on an Inbox ended ([`IdleNote::Ended`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleEnd {
+    /// It was told to stop.
+    Stopped,
+    /// The server can't do IDLE (or won't, for this mailbox): the account keeps to its timer.
+    NoIdle,
+    /// The server wouldn't have the sign-in, or there was nothing to sign in with: asking again
+    /// with the same credentials changes nothing.
+    Refused,
+    /// The connection kept dropping: the watch gave up for now, not to make a server's life hard.
+    TooOften,
+}
+
 /// What an OAuth sign-in brought back. Kept in memory only: it has no way to be written out, and
 /// it doesn't show in debug output.
 #[derive(Clone, Default, PartialEq, Eq)]

@@ -152,7 +152,7 @@ msgid "(no recipients)"
 msgstr "(fără destinatari)"
 
 #. interface, what a command says, why a mail server couldn't be used
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(fără subiect)"
@@ -168,6 +168,11 @@ msgstr "(fără titlu)"
 #, fuzzy
 msgid "(none)"
 msgstr "(niciunul)"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "(the server didn't confirm the sender)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -561,6 +566,21 @@ msgstr "Răspunsurile automate ale unei cutii poștale partajate sunt setate de 
 #, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "Regulile unei cutii poștale partajate sunt ale ei: această versiune nu le creează"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "A sign-in is already open."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1221,6 +1241,11 @@ msgstr "Un certificat X.509 (.cer, .pem) sau o cheie publică OpenPGP (.asc)"
 #, fuzzy
 msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"
 msgstr "Un certificat X.509 (.cer, .pem) sau o cheie publică OpenPGP (.asc) a acestei persoane de contact"
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "An account couldn't be sent and received."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -2077,6 +2102,11 @@ msgstr "Blocare expeditor"
 msgid "Blue"
 msgstr "Albastru"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -2438,6 +2468,11 @@ msgstr "Modificare adresă de e-mail"
 #, fuzzy
 msgid "Change the colour"
 msgstr "Schimbați culoarea"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3446,6 +3481,16 @@ msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 #, fuzzy
 msgid "Dark"
 msgstr "Întunecat"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8210,6 +8255,11 @@ msgstr "Necesită Verificare versiuni noi."
 msgid "Needs Google sign-in"
 msgstr "Necesită conectare Google"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8376,8 +8426,8 @@ msgstr "Categorie nouă"
 msgid "New items go to the calendar that is picked here"
 msgstr "Elementele noi merg în calendarul ales aici"
 
-#. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "New mail"
 msgstr "E-mail nou"
@@ -8388,8 +8438,8 @@ msgstr "E-mail nou"
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
 msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă."
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
+#. interface, what a command says
+#: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
 msgstr "Mesaj nou"
@@ -8986,6 +9036,11 @@ msgstr ""
 msgid "Nothing came back from Microsoft's sign-in page. It may have been closed, or left open too long. You can try again."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Nothing came back from the sign-in page in time."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -9277,6 +9332,11 @@ msgstr "Online"
 #, fuzzy
 msgid "Online meeting"
 msgstr "Întâlnire online"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "Only a Microsoft account signs in on the phone for now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -12546,6 +12606,11 @@ msgstr "Afișat lângă numele contului și pe e-mailurile lui, acolo unde e-mai
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
 msgstr "Afișat în panoul de dosare, de exemplu Serviciu sau Acasă. Lăsați gol pentru a afișa adresa."
@@ -12744,6 +12809,11 @@ msgstr "Conectați-vă cu Trimitere/primire ca să vedeți când sunt ocupate al
 msgid "Sign-in cancelled"
 msgstr "Conectare anulată"
 
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Sign-in isn't set up on this phone."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12797,6 +12867,11 @@ msgstr "Conectat, dar Microsoft tot nu permite ca MailCraft să citească e-mail
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "Conectarea nu a adus nimic înapoi"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "Signing in isn't available on this phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13505,6 +13580,11 @@ msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
 msgstr "Mulțumesc, joi la zece îmi convine. Aduc schițele."
 
 #. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "That account is gone."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "That calendar is kept by an account's server already."
@@ -13599,6 +13679,11 @@ msgstr "Aceasta nu este parola acestui fișier."
 msgid "That key is on the card already"
 msgstr "Cheia aceea este deja pe card"
 
+#. what a command says
+#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
@@ -13639,6 +13724,11 @@ msgstr "Semnătura digitală a expirat."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "Toată seria"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The account can't be signed in now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -14091,6 +14181,11 @@ msgid "The full report is in:"
 msgstr "Raportul complet este în:"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "The import gave back something that isn't a key's name in the credential store."
@@ -14185,6 +14280,11 @@ msgstr "Lista de domenii este plină: eliminați câteva din Fișier › Opțiun
 #, fuzzy
 msgid "The list of senders is full: remove some in File › Options"
 msgstr "Lista de expeditori este plină: eliminați câțiva din Fișier › Opțiuni"
+
+#. what a command says
+#: crates/mobile/src/core.rs
+msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -14703,9 +14803,19 @@ msgstr "Calendarul „{name}” al cutiei poștale partajate arată doar când p
 msgid "The shared mailbox's e-mail address"
 msgstr "Adresa de e-mail a cutiei poștale partajate"
 
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The sign-in couldn't be started."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "The sign-in didn't go through."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "The sign-in didn't work. Try again."
 msgstr ""
 
 #. interface, what a command says
@@ -14713,6 +14823,11 @@ msgstr ""
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "Conectarea contului prin care este deschisă această cutie poștală partajată a fost refuzată: conectați-vă din nou cu Trimitere/primire"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The sign-in page couldn't be opened."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -14723,6 +14838,11 @@ msgstr "Conectarea la {address} care aștepta în browser a fost oprită ca să 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "The sign-in was cancelled."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "The sign-in was declined."
 msgstr ""
 
 #. interface
@@ -15204,6 +15324,11 @@ msgstr "Această versiune nu se poate conecta la acest tip de cont. Folosiți ap
 msgid "This build doesn't check for new versions."
 msgstr "Această versiune nu verifică dacă există versiuni noi."
 
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "This build has no application id to sign in with."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -15461,6 +15586,11 @@ msgstr "Această cheie nu are frază de acces, deci MailCraft nu o păstrează. 
 #, fuzzy
 msgid "This key signs with an algorithm MailCraft doesn't use: only Ed25519 and ECDSA keys are imported here."
 msgstr "Această cheie semnează cu un algoritm pe care MailCraft nu îl folosește: aici se importă doar chei Ed25519 și ECDSA."
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "This kind of account can't be sent and received on the phone yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -17132,6 +17262,11 @@ msgstr ""
 msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
 msgstr "Keychain păstrează certificatul și cheia lui privată, iar macOS vă întreabă înainte ca MailCraft să le folosească."
 
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "Your mail couldn't be saved first, so nothing was sent."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -17238,6 +17373,11 @@ msgstr "Organizația dvs. a aprobat MailCraft"
 #, fuzzy
 msgid "Your organisation has approved MailCraft. Now sign in with your own account."
 msgstr "Organizația dvs. a aprobat MailCraft. Acum conectați-vă cu propriul cont."
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -19269,7 +19409,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "serverul și MailCraft nu au găsit nicio criptare comună; adesea serverul oferă doar criptare mai veche (suite CBC) pe care MailCraft nu o folosește, iar administratorul lui poate activa suitele AES-GCM"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "serverul a răspuns la o comandă care nu a fost trimisă"
@@ -19341,6 +19481,11 @@ msgid "the server didn't answer"
 msgstr "serverul nu a răspuns"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server didn't end IDLE properly"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
@@ -19388,7 +19533,7 @@ msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "serverul a încheiat sesiunea: {reason}"
@@ -19398,6 +19543,11 @@ msgstr "serverul a încheiat sesiunea: {reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "serverul a salutat cu un refuz: {reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server isn't idling"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
@@ -19442,6 +19592,11 @@ msgid "the server requested more than one PLAIN response"
 msgstr "serverul a cerut mai mult de un răspuns PLAIN"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server said something that is no news while idle"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "the server said: {reason}"
@@ -19465,6 +19620,11 @@ msgstr "serverul a trimis o pagină web în loc de imagine"
 msgid "the server sent data before the secure connection started"
 msgstr "serverul a trimis date înainte să înceapă conexiunea securizată"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server sent data it has no reason to send while idle"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -19472,7 +19632,7 @@ msgid "the server sent nothing"
 msgstr "serverul nu a trimis nimic"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "serverul a trimis prea multe răspunsuri la o singură comandă"
@@ -19502,7 +19662,7 @@ msgid "the server took too long"
 msgstr "serverul a durat prea mult"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server took too long to answer"
 msgstr "serverul a răspuns prea greu"
@@ -21148,7 +21308,7 @@ msgstr[1] "Încă {n} au fost omise: cel mult {most} fișiere odată"
 msgstr[2] "Încă {n} au fost omise: cel mult {most} fișiere odată"
 
 #. interface, what a command says
-#: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
+#: crates/mobile/src/sync.rs crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "{n} new message"
 msgid_plural "{n} new messages"
