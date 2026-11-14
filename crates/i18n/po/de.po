@@ -10749,7 +10749,7 @@ msgstr "Automatisch senden und empfangen"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Send automatic replies"
-msgstr "Automatisch antworten"
+msgstr "Automatische Antworten senden"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
