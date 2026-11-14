@@ -88,6 +88,8 @@ pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
 #[cfg(test)]
+mod navigation_bar_tests;
+#[cfg(test)]
 mod newer_account_tests;
 pub mod notes;
 pub mod offline;

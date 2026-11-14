@@ -301,6 +301,12 @@ pub struct ViewState {
     pub scope: Scope,
     pub reading_pane: Pane,
     pub folder_pane: bool,
+    /// The switch between Mail, Calendar, People and Tasks at the foot of the pane on the left,
+    /// in place of the bar of icons down the window's edge (#1174; `view.navigationBar`), so the
+    /// bar's column is the window's. Where the module in view has no pane for it (Mail or the
+    /// calendar with theirs hidden) the bar stays, so the switch is never out of reach. Off: the
+    /// bar.
+    pub nav_foot: bool,
     pub calendar: CalView,
     /// The day the calendar shows (its week or month, depending on the view).
     pub date: Date,
@@ -342,6 +348,7 @@ impl Default for ViewState {
             scope: Scope::Folder,
             reading_pane: Pane::Right,
             folder_pane: true,
+            nav_foot: false,
             calendar: CalView::Week,
             date: Date::default(),
             days: 0,
