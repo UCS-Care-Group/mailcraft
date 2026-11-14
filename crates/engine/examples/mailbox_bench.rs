@@ -5,6 +5,13 @@
 //! `cargo run --release -p mailcraft-engine --example mailbox_bench [-- --messages 5000 --attachments 300 --keep DIR --split-only]`
 //! `cargo run --release -p mailcraft-engine --example mailbox_bench -- --open DIR`
 //! `cargo run --release -p mailcraft-engine --example mailbox_bench -- --open COPY --keep-offline 1m`
+//! `cargo run --release -p mailcraft-engine --example mailbox_bench -- --messages 50000 --exchange-headers --split-only --keep DIR`
+//!
+//! `--exchange-headers`: every message carries about 6 KB of header lines of the kind Exchange
+//! writes on all its mail (the trace, the spam filters' reports, signatures, its own stamps),
+//! invented here (`example.org` hosts, random base64): what makes a real Microsoft account's
+//! mailbox file several times the size of its messages' own fields (HS). With `--open`, the size
+//! of the mailbox file is said with the memory opening it takes.
 //!
 //! `--keep-offline 1m` (with `--open`): the mailbox's account made a Microsoft account's, its
 //! mail to keep offline set to a month (or another step) as of its newest message, and the disk
@@ -180,7 +187,111 @@ fn person(rng: &mut Rng) -> Address {
 }
 
 /// The invented mailbox, and how many bytes of content it carries.
-fn build(messages: usize, attachments: usize) -> Result<(Mailbox, u64), String> {
+/// Random base64 of `len` characters.
+fn base64(rng: &mut Rng, len: usize) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    (0..len).map(|_| char::from(ALPHABET.get(rng.below(64)).copied().unwrap_or(b'A'))).collect()
+}
+
+/// An invented host name of a mail server, under `example.org`.
+fn host(rng: &mut Rng) -> String {
+    format!(
+        "{}{:04}MB{:04}.eurprd{:02}.prod.example.org",
+        rng.pick(&["AM0PR", "DB9PR", "PAXPR", "VI1PR"]),
+        rng.below(10_000),
+        rng.below(10_000),
+        rng.below(100)
+    )
+}
+
+/// About 6 KB of the kind of header lines Exchange writes on a message it delivers, invented: the
+/// hops it went through, the verdicts and reports of the spam filters, the signatures, its stamps.
+fn exchange_headers(rng: &mut Rng, i: usize) -> Vec<(String, String)> {
+    let date = "Mon, 1 Sep 2025 09:00:00 +0000";
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut add = |name: &str, value: String| out.push((name.to_string(), value));
+    for _ in 0..4 {
+        let (a, b) = (host(rng), host(rng));
+        let ids = (rng.below(65_536), rng.below(65_536), rng.below(9_999), rng.below(99));
+        add(
+            "Received",
+            format!(
+                "from {a} (2603:10a6:20b:{:x}::1) by {b} (2603:10a6:20b:{:x}::2) with Microsoft SMTP Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.{}.{}; {date}",
+                ids.0, ids.1, ids.2, ids.3
+            ),
+        );
+    }
+    add("ARC-Seal", format!("i=1; a=rsa-sha256; s=arcselector10001; d=example.org; cv=none; b={}", base64(rng, 340)));
+    let (bh, b) = (base64(rng, 44), base64(rng, 340));
+    add(
+        "ARC-Message-Signature",
+        format!(
+            "i=1; a=rsa-sha256; c=relaxed/relaxed; d=example.org; s=arcselector10001; h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0; bh={bh}; b={b}"
+        ),
+    );
+    add("ARC-Authentication-Results", "i=1; mx.example.org 1; spf=pass smtp.mailfrom=example.org; dmarc=pass action=none header.from=example.org; dkim=pass header.d=example.org; arc=none".into());
+    let (bh, b) = (base64(rng, 44), base64(rng, 340));
+    add(
+        "DKIM-Signature",
+        format!(
+            "v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.org; s=selector2; h=From:Date:Subject:Message-ID:Content-Type:MIME-Version; bh={bh}; b={b}"
+        ),
+    );
+    add("Authentication-Results", "dkim=none (message not signed) header.d=none;dmarc=none action=none header.from=example.org;".into());
+    let edge = (rng.below(250), rng.below(10_000), rng.below(250));
+    add(
+        "Received",
+        format!(
+            "from mail.example.org (192.0.2.{}) by AM4PEPF0000{:04}.mail.protection.outlook.com (10.167.16.{}) with Microsoft SMTP Server; {date}",
+            edge.0, edge.1, edge.2
+        ),
+    );
+    add("Thread-Topic", "Synthetic thread".into());
+    let index = base64(rng, 44);
+    add("Thread-Index", index);
+    add("X-MS-Has-Attach", String::new());
+    add("X-MS-TNEF-Correlator", String::new());
+    add("X-MS-PublicTrafficType", "Email".into());
+    let (a, b) = (host(rng), host(rng));
+    add("X-MS-TrafficTypeDiagnostic", format!("{a}:EE_|{b}:EE_"));
+    let id = (rng.next() as u32, rng.below(65_536), rng.below(65_536), rng.next() >> 16);
+    add("X-MS-Office365-Filtering-Correlation-Id", format!("{:08x}-{:04x}-{:04x}-{:04x}-{:012x}", id.0, i % 65_536, id.1, id.2, id.3));
+    add("X-Microsoft-Antispam", "BCL:0;ARA:13230040|1800799024|366016|376014|38070700018;".into());
+    let info = base64(rng, 1_800);
+    add("X-Microsoft-Antispam-Message-Info", info);
+    let h = host(rng);
+    add(
+        "X-Forefront-Antispam-Report",
+        format!(
+            "CIP:255.255.255.255;CTRY:;LANG:en;SCL:1;SRV:;IPV:NLI;SFV:NSPM;H:{h};PTR:;CAT:NONE;SFS:(13230040)(1800799024)(366016)(376014)(38070700018);DIR:OUT;SFP:1101;"
+        ),
+    );
+    add("X-MS-Exchange-AntiSpam-MessageData-ChunkCount", "1".into());
+    let data = base64(rng, 1_400);
+    add("X-MS-Exchange-AntiSpam-MessageData-0", data);
+    let (a, b) = (rng.next(), rng.next());
+    add("X-MS-Exchange-CrossTenant-Network-Message-Id", format!("{a:016x}{b:016x}"));
+    add("X-MS-Exchange-CrossTenant-AuthAs", "Internal".into());
+    add("X-MS-Exchange-CrossTenant-OriginalArrivalTime", date.into());
+    add("X-MS-Exchange-CrossTenant-FromEntityHeader", "Hosted".into());
+    let (a, b) = (rng.next(), rng.next());
+    add("X-MS-Exchange-CrossTenant-Id", format!("{a:016x}{b:016x}"));
+    add("X-MS-Exchange-CrossTenant-MailboxType", "HOSTED".into());
+    let h = host(rng);
+    add("X-MS-Exchange-Transport-CrossTenantHeadersStamped", h);
+    add("X-MS-Exchange-Organization-AuthAs", "Anonymous".into());
+    add("X-MS-Exchange-Organization-MessageDirectionality", "Incoming".into());
+    add("X-MS-Exchange-Organization-SCL", "1".into());
+    let n = rng.below(1_000_000);
+    add(
+        "X-Microsoft-Antispam-Mailbox-Delivery",
+        format!("ucf:0;jmr:0;auth:0;dest:I;ENG:(910001)(944506478)(944626604)(920097)(930097)({n});RF:JunkEmail;"),
+    );
+    add("Return-Path", "bounce@example.org".into());
+    out
+}
+
+fn build(messages: usize, attachments: usize, exchange: bool) -> Result<(Mailbox, u64), String> {
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
     let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@example.org");
     let folder = |mb: &Mailbox, kind: FolderKind| mb.folders.iter().find(|f| f.kind == kind).map(|f| f.id);
@@ -222,6 +333,11 @@ fn build(messages: usize, attachments: usize) -> Result<(Mailbox, u64), String> 
             headers: vec![("X-Mailer".into(), "Example Mailer 4.2".into()), ("Thread-Index".into(), format!("{:032x}", rng.next()))],
             ..Default::default()
         };
+        if exchange {
+            m.headers = exchange_headers(&mut rng, i);
+            // (As a message read from its server has them: what nothing reads by name apart.)
+            m.split_headers();
+        }
         m.body.text = text(&mut rng, body_len);
         if rng.below(10) < 6 {
             // 4 KB to 80 KB, mostly towards the small end.
@@ -497,7 +613,8 @@ fn open_only(dir: &Path) -> Result<(), String> {
     let opened = opened?;
     let after = memory();
     let bodies: u64 = opened.mailbox.messages.values().map(|m| (m.body.text.len() + m.body.html.as_ref().map_or(0, String::len)) as u64).sum();
-    println!("{}: {} messages", path.display(), opened.mailbox.messages.len());
+    let size = std::fs::metadata(&path).map_or(0, |m| m.len());
+    println!("{}: {} messages, the mailbox file {}", path.display(), opened.mailbox.messages.len(), mb(size));
     println!("  open                       {}", ms(took));
     println!(
         "  {} parts in memory ({} of bodies), {} left on disk, {} unavailable (body budget {})",
@@ -675,7 +792,8 @@ fn run() -> Result<(), String> {
         Some(free) => println!("about {} of content; the peak should be near {} of the {} free", mb(content), mb(needed), mb(free)),
         None => {}
     }
-    let (made, built) = timed(|| build(messages, attachments));
+    let exchange = args.iter().any(|a| a == "--exchange-headers");
+    let (made, built) = timed(|| build(messages, attachments, exchange));
     let (mailbox, size) = made?;
     println!("{messages} messages, {attachments} attachments, {} of content (built in {}; peak memory {})", mb(size), ms(built).trim(), peak());
     let (copy, clone) = timed(|| mailbox.clone());

@@ -9,11 +9,20 @@
 //! There is no plain EXPUNGE and no CLOSE here, on purpose: both remove every message marked
 //! `\Deleted` in the mailbox, also those another program marked.
 
+mod idle;
+#[cfg(test)]
+mod idle_tests;
 mod parse;
 mod password;
 #[cfg(test)]
 mod password_tests;
+mod status;
+#[cfg(test)]
+mod status_tests;
 mod utf7;
+
+pub use idle::IdleEvent;
+pub use status::{FolderStatus, MAX_STATUS_BATCH};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{Read, Write};
@@ -89,6 +98,8 @@ pub struct Imap<S> {
     /// current command alone (a Gmail search, #911); `skipped` says one was.
     skip_long: bool,
     skipped: bool,
+    /// The tag of the IDLE command the server is waiting in, if it is ([`Imap::idle_begin`]).
+    idle_tag: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -100,6 +111,14 @@ pub struct Mailbox {
     pub delimiter: Option<char>,
     /// Flags as written, e.g. `\\Noselect`, `\\Sent`, `\\HasChildren`.
     pub flags: Vec<String>,
+}
+
+/// The personal IMAP namespace (RFC 2342): `prefix` (as the server spells it, e.g. `"INBOX."`) and
+/// hierarchy `delimiter` (`'.'`, `'/'`), if any.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Namespace {
+    pub prefix: String,
+    pub delimiter: Option<char>,
 }
 
 impl Mailbox {
@@ -309,6 +328,26 @@ fn mailbox_from(values: Vec<Value>) -> Option<Mailbox> {
         return None;
     }
     Some(Mailbox { name: decode_utf7(&raw), raw, delimiter, flags: short_flags(flags) })
+}
+
+/// From `NAMESPACE ((prefix delimiter) ...) other shared` (RFC 2342): the first personal namespace.
+fn namespace_from(values: Vec<Value>) -> Option<Namespace> {
+    let mut values = values.into_iter();
+    if !values.next()?.atom()?.eq_ignore_ascii_case("NAMESPACE") {
+        return None;
+    }
+    let Value::List(personal) = values.next()? else { return None };
+    let Value::List(desc) = personal.into_iter().next()? else { return None };
+    let mut desc = desc.into_iter();
+    let prefix = desc.next()?.into_text()?;
+    if prefix.len() > MAX_MAILBOX_NAME {
+        return None;
+    }
+    let delimiter = match desc.next()? {
+        Value::Str(d) => String::from_utf8_lossy(&d).chars().next(),
+        _ => None,
+    };
+    Some(Namespace { prefix, delimiter })
 }
 
 /// The flags of a list, as many as are kept and each cut at a character boundary.
@@ -585,6 +624,7 @@ impl<S: Read + Write> Imap<S> {
             response_cap: MAX_RESPONSES,
             skip_long: false,
             skipped: false,
+            idle_tag: None,
         }
     }
 
@@ -722,6 +762,21 @@ impl<S: Read + Write> Imap<S> {
             }
         })?;
         Ok((out, dropped))
+    }
+
+    /// NAMESPACE (RFC 2342): the server's first personal namespace, or `None` when the server
+    /// offers no `NAMESPACE` capability or names no personal namespace.
+    pub fn namespace(&mut self) -> Result<Option<Namespace>, ProtoError> {
+        if !self.offers("NAMESPACE") {
+            return Ok(None);
+        }
+        let mut found = None;
+        self.run(Command::new("NAMESPACE"), &mut |values| {
+            if found.is_none() {
+                found = namespace_from(values);
+            }
+        })?;
+        Ok(found)
     }
 
     /// EXAMINE (read-only) or SELECT.

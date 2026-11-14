@@ -164,8 +164,8 @@ fn fingerprint(m: &Message, account: Option<&Account>) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     (m.id, m.account, m.folder, &m.from.name, &m.from.email, m.uid == 0 && m.server.is_none()).hash(&mut hasher);
     account.map(|a| (a.kind, a.incoming.as_ref().map(|server| &server.host))).hash(&mut hasher);
-    let results = m.headers.iter().take(2_000).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"));
-    results.map(|(_, v)| v.as_bytes().get(..MAX_RESULTS_HASHED).unwrap_or(v.as_bytes())).hash(&mut hasher);
+    let results = m.header("Authentication-Results");
+    results.map(|v| v.as_bytes().get(..MAX_RESULTS_HASHED).unwrap_or(v.as_bytes())).hash(&mut hasher);
     (m.body.html.as_ref().map(String::len), m.body_is_kept()).hash(&mut hasher);
     hasher.finish()
 }

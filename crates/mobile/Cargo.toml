@@ -1,0 +1,38 @@
+[package]
+name = "mailcraft-mobile"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MailCraft's binding for the phone apps: the Rust core as one object with typed queries and an event stream, exported to Kotlin and Swift through UniFFI"
+
+[lints]
+workspace = true
+
+[lib]
+# `cdylib` for Android's `.so`, `staticlib` for iOS's XCFramework, `lib` for the tests and the
+# other crates of the workspace.
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+mailcraft-engine = { workspace = true }
+mailcraft-model = { workspace = true }
+mailcraft-html = { workspace = true }
+mailcraft-host = { workspace = true }
+mailcraft-i18n = { workspace = true }
+mailcraft-time = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+# The binding generator's scaffolding, pinned exactly: the Kotlin and Swift the apps are built
+# with must come from the same version as this crate.
+uniffi = { version = "=0.32.2", default-features = false }
+
+# Android's TLS verifier asks the JVM, so it is set up through one JNI entry (`android_jni.rs`).
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22.4"
+rustls-platform-verifier = { workspace = true }
+
+[dev-dependencies]
+mailcraft-engine = { workspace = true, features = ["test-support"] }
+

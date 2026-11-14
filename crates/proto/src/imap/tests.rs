@@ -1043,3 +1043,23 @@ proptest! {
         prop_assert_eq!(&list[0].raw, &name);
     }
 }
+
+#[test]
+fn namespace_reads_personal_prefix_and_delimiter() {
+    let mut s = Script::new("* NAMESPACE ((\"INBOX.\" \".\")) NIL NIL\r\nA0001 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespace().unwrap(), Some(Namespace { prefix: "INBOX.".into(), delimiter: Some('.') }));
+    assert_eq!(s.sent(), "A0001 NAMESPACE\r\n");
+
+    let mut s = Script::new("* NAMESPACE ((\"\" \"/\")) NIL NIL\r\nA0001 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespace().unwrap(), Some(Namespace { prefix: String::new(), delimiter: Some('/') }));
+
+    let mut s = Script::new("");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into()]);
+    assert_eq!(imap.namespace().unwrap(), None);
+    assert_eq!(s.sent(), "");
+}

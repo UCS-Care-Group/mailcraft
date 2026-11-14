@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".MailCraftApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
+        tools:targetApi="33"
+        android:theme="@style/Theme.MailCraft">
+        <!-- Keeps the per-app language across restarts on Android 12 and before; Android 13 and
+             later keep it themselves. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
+             scheme is the reverse of a domain the project owns; the path is checked in the app
+             and again by the Rust side, to the letter. Nothing else is registered for it. -->
+        <activity
+            android:name=".RedirectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="work.mailcraft.android" />
+            </intent-filter>
+        </activity>
+
+        <!-- Attachments are opened by other programs through one-off read-only grants on files
+             in the cache's attachments folder, and the provider is not exported. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>
