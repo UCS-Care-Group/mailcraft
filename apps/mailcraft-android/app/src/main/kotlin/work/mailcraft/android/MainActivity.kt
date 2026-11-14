@@ -99,6 +99,8 @@ private fun CoreShell(
     var picked by rememberSaveable { mutableStateOf<Long?>(null) }
     val folder = chosenFolder(outlined?.outline, picked)
     val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folder) {
+        // The last folder's messages must not stay under the new folder's name while it loads.
+        value = InboxState.Loading
         value = loadMail(core, outlined, folder)
     }
     val accounts = outlined?.outline?.accounts.orEmpty()

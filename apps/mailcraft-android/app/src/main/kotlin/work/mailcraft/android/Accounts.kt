@@ -297,6 +297,8 @@ internal data class AccountsUi(
     val question: QuestionState? = null,
     /** The account the owner is asked to confirm removing. */
     val removing: AccountItem? = null,
+    /** The last try at removing it failed: the account is still there. */
+    val removeFailed: Boolean = false,
 )
 
 /** What the account screens ask of the app: one entry for each thing the owner can do there. */

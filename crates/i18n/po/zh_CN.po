@@ -13583,6 +13583,11 @@ msgstr "整个系列"
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
 msgstr "自打开设置以来，该账户已发生变化。切换登录方式前，请重新打开账户设置。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "The account could not be removed. It and its sign-in are still here. Try again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy

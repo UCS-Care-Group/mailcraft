@@ -163,7 +163,7 @@ private fun ShellScreen(
             onMenu = onMenu,
         ) { modifier ->
             when (nav.tab) {
-                Tab.Mail -> if (data.accounts.isEmpty()) {
+                Tab.Mail -> if (data.accounts.isEmpty() && data.mail !is InboxState.Failed) {
                     NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
                 } else {
                     InboxScreen(texts, data.mail, modifier)
@@ -181,7 +181,7 @@ private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountAction
         val account = data.accounts.firstOrNull { it.id == question.ask.account }
         PermissionQuestionDialog(texts, question, account?.email.orEmpty(), actions)
     }
-    data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions) }
+    data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions, data.accountsUi.removeFailed) }
 }
 
 @Composable

@@ -22,7 +22,10 @@ internal class MailboxFile(private val dir: File) {
         try {
             core.execute("file.open", """{"path":${JSONObject.quote(file.path)}}""")
         } catch (_: CoreException) {
-            // Nothing to restore: the mailbox stays as it is.
+            // Nothing to restore, and the next save must not write over what could not be read (a newer
+            // build or a repair may still): it is put aside under a name of its own, and the mailbox
+            // starts empty.
+            file.renameTo(File(dir, "$NAME.unreadable-${System.currentTimeMillis()}"))
         }
     }
 

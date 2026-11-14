@@ -5,11 +5,14 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,13 +68,14 @@ internal fun PermissionQuestionCard(texts: Texts, state: QuestionState, account:
 @Composable
 internal fun PermissionQuestionDialog(texts: Texts, state: QuestionState, account: String, actions: AccountActions) {
     Dialog(onDismissRequest = { if (state !is QuestionState.Waiting) actions.onNotNow() }) {
-        PermissionQuestionCard(texts, state, account, actions)
+        // (Scrolls: with large text or a short window the buttons stay reachable.)
+        Box(modifier = Modifier.verticalScroll(rememberScrollState())) { PermissionQuestionCard(texts, state, account, actions) }
     }
 }
 
 /** Asked before an account is removed: what goes and what stays. */
 @Composable
-internal fun RemoveAccountCard(texts: Texts, account: AccountItem, actions: AccountActions) {
+internal fun RemoveAccountCard(texts: Texts, account: AccountItem, actions: AccountActions, failed: Boolean = false) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(modifier = Modifier.padding(Gutter), verticalArrangement = Arrangement.spacedBy(Gap)) {
             Text(texts.t("Remove this account?"), style = MaterialTheme.typography.titleMedium)
@@ -80,6 +84,13 @@ internal fun RemoveAccountCard(texts: Texts, account: AccountItem, actions: Acco
                 texts.t("Its mail on this phone and its sign-in are removed. Nothing is deleted from Microsoft's servers, and you can add the account again later."),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (failed) {
+                Text(
+                    texts.t("The account could not be removed. It and its sign-in are still here. Try again."),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = actions.onRemoveCancel) { Text(texts.t("Keep account")) }
                 TextButton(onClick = actions.onRemove) { Text(texts.t("Remove")) }
@@ -89,6 +100,8 @@ internal fun RemoveAccountCard(texts: Texts, account: AccountItem, actions: Acco
 }
 
 @Composable
-internal fun RemoveAccountDialog(texts: Texts, account: AccountItem, actions: AccountActions) {
-    Dialog(onDismissRequest = actions.onRemoveCancel) { RemoveAccountCard(texts, account, actions) }
+internal fun RemoveAccountDialog(texts: Texts, account: AccountItem, actions: AccountActions, failed: Boolean = false) {
+    Dialog(onDismissRequest = actions.onRemoveCancel) {
+        Box(modifier = Modifier.verticalScroll(rememberScrollState())) { RemoveAccountCard(texts, account, actions, failed) }
+    }
 }

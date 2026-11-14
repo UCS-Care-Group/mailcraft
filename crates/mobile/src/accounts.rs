@@ -169,11 +169,12 @@ impl Core {
     /// (five minutes at most), and give what it came to. The page and the waiting are the host's
     /// (`mailcraft_host::signin`); this only lends it a thread and an answer to wait for.
     async fn page(&self, endpoints: Endpoints, hint: String, why: Why, cancel: Arc<AtomicBool>) -> Page {
-        let landed = self.signins.host.arm();
+        let armer = self.signins.host.armer();
+        let landed = armer.arm();
         let reply = Queue::<Page>::new();
         let platform = self.native.clone();
         let job_reply = reply.clone();
-        let job = move || signin::page(platform.as_ref(), landed, &endpoints, &hint, why, &cancel);
+        let job = move || signin::page(platform.as_ref(), landed, &armer, &endpoints, &hint, why, &cancel);
         // (A panic in the job is an answer, not a wait that never ends.)
         let spawned = std::thread::Builder::new().name("mailcraft-sign-in".to_string()).spawn(move || {
             let page = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job)).unwrap_or(Page::Unable("the sign-in stopped unexpectedly"));
@@ -255,6 +256,9 @@ impl Core {
         // Who signed in is who Microsoft says (the owner picks the account on its page), never
         // what was typed: the typed address is only a hint for the page.
         let Some(address) = signin::signed_in_address(&tokens) else { return Ok(failed("Microsoft didn't say which account signed in")) };
+        // (Asked before anything is kept: a core that is shutting down stores nothing, and whether the
+        // account was there decides whether a failure takes its sign-in back.)
+        let existed = self.has_microsoft_account(&address).await?;
         if let Err(why) = signin::keep_refresh(self.native.as_ref(), &address, &tokens.refresh) {
             return Ok(failed(why));
         }
@@ -282,9 +286,10 @@ impl Core {
         match added {
             Ok(account) => Ok(SignInOutcome::SignedIn { account, email: address, name }),
             Err(error) => {
-                // (Nothing is kept of a sign-in that made no account, unless the account was there.)
-                if !matches!(error, CoreError::Cancelled) {
-                    self.forget_unless_account(&address).await;
+                // (Nothing is kept of a sign-in that made no account, unless the account was there;
+                // not through the session, which may be gone.)
+                if !existed {
+                    signin::forget(self.native.as_ref(), &address);
                 }
                 match error {
                     CoreError::Cancelled => Err(CoreError::Cancelled),
@@ -317,9 +322,19 @@ impl Core {
         if tokens.someone_else(&email, "") {
             return Ok(not_granted("that sign-in was for another account"));
         }
-        match signin::keep_refresh(self.native.as_ref(), &email, &tokens.refresh) {
-            Ok(()) => Ok(PermissionOutcome::Granted),
-            Err(why) => Ok(not_granted(why)),
+        // Kept on the session's thread, after a look that the account is still there: removing it
+        // is on that thread too, so a sign-in finishing after a removal never restores its credential.
+        let (platform, tokens_refresh, for_email) = (self.native.clone(), tokens.refresh.clone(), email.clone());
+        let kept = self
+            .call(move |s| {
+                let there = s.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft);
+                Ok(if there { Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)) } else { None })
+            })
+            .await?;
+        match kept {
+            Some(Ok(())) => Ok(PermissionOutcome::Granted),
+            Some(Err(why)) => Ok(not_granted(why)),
+            None => Ok(not_granted("there is no such account")),
         }
     }
 
@@ -333,6 +348,7 @@ impl Core {
         let reply = Queue::<Standing>::new();
         let job_reply = reply.clone();
         let platform = self.native.clone();
+        let renewed_for = email.clone();
         let job = move || signin::permission_standing(platform.as_ref(), &email, permission.into(), &mail, &graph);
         let spawned = std::thread::Builder::new().name("mailcraft-permission".to_string()).spawn(move || {
             let state = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job)).unwrap_or(Standing::Unknown);
@@ -341,7 +357,12 @@ impl Core {
         if spawned.is_err() {
             return Ok(PermissionState::Unknown);
         }
-        Ok(PermissionState::from(reply.next().await.unwrap_or(Standing::Unknown)))
+        let standing = reply.next().await.unwrap_or(Standing::Unknown);
+        // The answer may have renewed the stored sign-in of an account removed meanwhile: it goes again.
+        if matches!(self.call(move |s| Ok(s.mailbox.accounts.iter().any(|a| a.id == account))).await, Ok(false)) {
+            signin::forget(self.native.as_ref(), &renewed_for);
+        }
+        Ok(PermissionState::from(standing))
     }
 
     /// The address of Microsoft's page where an administrator approves MailCraft for an
@@ -360,35 +381,28 @@ impl Core {
     /// sign-in is removed only once the account is.
     pub async fn remove_account(&self, account: u64) -> Result<(), CoreError> {
         let email = self.email_of(account).await?;
-        self.call(move |s| s.run("account.remove", &json!({"id": account})).map(|_| ()).map_err(CoreError::from)).await?;
-        // (Nothing else of the account's is held under its address: a mailbox with another account
-        // of the same address keeps it.)
-        let still = self
-            .call({
-                let email = email.clone();
-                move |s| Ok(s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email)))
-            })
-            .await?;
-        if !still {
-            signin::forget(self.native.as_ref(), &email);
-        }
+        // One job: the account goes and, when no other account has its address, so does its sign-in,
+        // whatever becomes of the caller (a shutdown between two calls would leave the credential).
+        let platform = self.native.clone();
+        self.call(move |s| {
+            s.run("account.remove", &json!({"id": account})).map_err(CoreError::from)?;
+            // (Nothing else of the account's is held under its address: a mailbox with another account
+            // of the same address keeps it.)
+            let still = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
+            if !still {
+                signin::forget(platform.as_ref(), &email);
+            }
+            Ok(())
+        })
+        .await?;
         Ok(())
     }
 }
 
 impl Core {
-    /// Take back what [`Core::sign_in_microsoft`] kept when no account came of it, unless an
-    /// account of that address exists (its sign-in was just renewed, and stays).
-    async fn forget_unless_account(&self, email: &str) {
-        let email_for_call = email.to_string();
-        let exists = self
-            .call(move |s| {
-                Ok(s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email_for_call)))
-            })
-            .await
-            .unwrap_or(false);
-        if !exists {
-            signin::forget(self.native.as_ref(), email);
-        }
+    /// Whether the mailbox has a Microsoft account at `email`.
+    async fn has_microsoft_account(&self, email: &str) -> Result<bool, CoreError> {
+        let email = email.to_string();
+        self.call(move |s| Ok(s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email)))).await
     }
 }

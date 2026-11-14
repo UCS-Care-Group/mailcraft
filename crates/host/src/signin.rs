@@ -84,7 +84,7 @@ pub fn tenant_of(email: &str) -> String {
 /// strategy).
 #[derive(Default)]
 pub struct SignIns {
-    slot: Mutex<Option<Sender<String>>>,
+    slot: Arc<Mutex<Option<Sender<String>>>>,
     /// The cancel flag of the sign-in that is open; one at a time.
     open: Mutex<Option<Arc<AtomicBool>>>,
 }
@@ -111,6 +111,21 @@ impl Drop for Place<'_> {
     }
 }
 
+/// Arms the redirect's slot of a [`SignIns`]; see [`SignIns::armer`].
+#[derive(Clone)]
+pub struct Armer {
+    slot: Arc<Mutex<Option<Sender<String>>>>,
+}
+
+impl Armer {
+    /// Open the slot again: the receiver gets the next address delivered.
+    pub fn arm(&self) -> Receiver<String> {
+        let (tx, rx) = mpsc::channel();
+        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
+        rx
+    }
+}
+
 impl SignIns {
     /// Take the place of the one sign-in; none when one is open.
     pub fn begin(&self) -> Option<Place<'_>> {
@@ -132,9 +147,13 @@ impl SignIns {
 
     /// Arm the redirect's slot: the receiver gets the first address delivered.
     pub fn arm(&self) -> Receiver<String> {
-        let (tx, rx) = mpsc::channel();
-        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
-        rx
+        self.armer().arm()
+    }
+
+    /// A handle that arms the slot again from the sign-in's own thread: a sign-in that tries again
+    /// (without the optional consent Microsoft refused) is sent back by a second redirect.
+    pub fn armer(&self) -> Armer {
+        Armer { slot: self.slot.clone() }
     }
 
     /// Whether the address was taken by a sign-in that waits for it.
@@ -196,7 +215,7 @@ pub fn redirect_scheme(platform: &dyn Platform) -> Option<String> {
 
 /// Run a sign-in on the page, waiting for the address on `landed` (taken: the wait holds it) as long as the owner takes
 /// (five minutes at most) and not past `cancel`. Blocks.
-pub fn page(platform: &dyn Platform, landed: Receiver<String>, endpoints: &Endpoints, hint: &str, why: Why, cancel: &AtomicBool) -> Page {
+pub fn page(platform: &dyn Platform, landed: Receiver<String>, armer: &Armer, endpoints: &Endpoints, hint: &str, why: Why, cancel: &AtomicBool) -> Page {
     let Some(oauth) = client_oauth() else { return Page::Unable("this build of MailCraft has no Microsoft sign-in set up") };
     let Some(scheme) = redirect_scheme(platform) else { return Page::Unable("this phone can't take a sign-in back through the app's own address") };
     let no_browser = AtomicBool::new(false);
@@ -207,7 +226,16 @@ pub fn page(platform: &dyn Platform, landed: Receiver<String>, endpoints: &Endpo
             cancel.store(true, Ordering::Release);
         }
     };
-    let handback = move |flag: &AtomicBool, patience: Duration| wait_for(&landed, flag, patience);
+    // (An address that came is answered by the next wait's own receiver, armed at once: a sign-in
+    // that tries again is sent back to the app a second time.)
+    let landed = Mutex::new(landed);
+    let armer = armer.clone();
+    let handback = move |flag: &AtomicBool, patience: Duration| {
+        let mut landed = landed.lock().unwrap_or_else(PoisonError::into_inner);
+        let address = wait_for(&landed, flag, patience)?;
+        *landed = armer.arm();
+        Ok(address)
+    };
     let handback: &Handback = &handback;
     let via = match CustomScheme::with_host_only(&scheme, DEFAULT_REDIRECT_HOST, handback) {
         Ok(custom) => RedirectStrategy::CustomScheme(custom),

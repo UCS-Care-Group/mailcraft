@@ -105,6 +105,8 @@ internal class AccountsController(
     /** The core says an account's sign-in is over. */
     fun signInNeeded(account: ULong) = ui.update { state ->
         val over = PermissionKind.entries.associate { StatusKey(account, it) to PermissionStatus.SignInNeeded }
+        // (An answer still on its way is older than this and must not replace it.)
+        over.keys.forEach { generations[it] = (generations[it] ?: 0) + 1 }
         state.copy(statuses = state.statuses + over)
     }
 
@@ -125,15 +127,19 @@ internal class AccountsController(
         if (state.question is QuestionState.Waiting) state else state.copy(question = null)
     }
 
-    private fun removeAsk(account: AccountItem) = ui.update { it.copy(removing = account) }
+    private fun removeAsk(account: AccountItem) = ui.update { it.copy(removing = account, removeFailed = false) }
 
-    private fun removeCancel() = ui.update { it.copy(removing = null) }
+    private fun removeCancel() = ui.update { it.copy(removing = null, removeFailed = false) }
 
     private fun remove() {
         val account = ui.value.removing ?: return
-        ui.update { it.copy(removing = null) }
         scope.launch {
-            api.remove(account.id)
+            // (Only a removal that happened cleans up; a failed one says so and can be tried again.)
+            if (!api.remove(account.id)) {
+                ui.update { it.copy(removing = account, removeFailed = true) }
+                return@launch
+            }
+            ui.update { it.copy(removing = null, removeFailed = false) }
             ui.update { state -> state.copy(statuses = state.statuses.filterKeys { it.account != account.id }) }
             changed()
         }
@@ -153,15 +159,21 @@ internal class AccountsController(
 
     private fun setStatus(account: ULong, permission: PermissionKind) {
         val key = StatusKey(account, permission)
+        val generation = (generations[key] ?: 0) + 1
+        generations[key] = generation
         ui.update { it.copy(statuses = it.statuses + (key to PermissionStatus.Checking)) }
         scope.launch {
             val status = api.status(account, permission)
-            // (An account removed meanwhile has no row to keep.)
+            // (An account removed meanwhile has no row to keep, and a newer word about it stands.)
             ui.update { state ->
-                if (key in state.statuses) state.copy(statuses = state.statuses + (key to status)) else state
+                val current = key in state.statuses && generations[key] == generation
+                if (current) state.copy(statuses = state.statuses + (key to status)) else state
             }
         }
     }
+
+    /** How many times each status was asked or overridden: a late answer to an older ask is dropped. */
+    private val generations = HashMap<StatusKey, Int>()
 
     private companion object {
         const val MAX_EMAIL = 254

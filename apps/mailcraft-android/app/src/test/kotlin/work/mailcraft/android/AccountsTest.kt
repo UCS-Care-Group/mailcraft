@@ -25,6 +25,7 @@ private class FakeApi : AccountsApi {
     val removed = mutableListOf<ULong>()
     var cancelled = 0
     var gate: CompletableDeferred<Unit>? = null
+    var statusGate: CompletableDeferred<Unit>? = null
 
     override suspend fun signIn(email: String): SignInResult {
         signIns.add(email)
@@ -38,7 +39,10 @@ private class FakeApi : AccountsApi {
         return granted
     }
 
-    override suspend fun status(account: ULong, permission: PermissionKind) = states[permission] ?: PermissionStatus.NotAllowed
+    override suspend fun status(account: ULong, permission: PermissionKind): PermissionStatus {
+        statusGate?.await()
+        return states[permission] ?: PermissionStatus.NotAllowed
+    }
 
     override suspend fun remove(account: ULong): Boolean {
         removed.add(account)
@@ -284,6 +288,32 @@ class AccountsTest {
         assertNull(rig.ui.removing)
         assertTrue(rig.ui.statuses.isEmpty())
         assertEquals(1, rig.changes)
+    }
+
+    @Test
+    fun aRemovalThatFailsSaysSoKeepsTheAskAndDoesNotCleanUp() {
+        val api = FakeApi().apply { removable = false }
+        val rig = Rig(api)
+        rig.actions.onShown(listOf(ada))
+        rig.actions.onRemoveAsk(ada)
+        rig.actions.onRemove()
+        assertEquals(ada, rig.ui.removing)
+        assertTrue(rig.ui.removeFailed)
+        assertEquals(0, rig.changes)
+        api.removable = true
+        rig.actions.onRemove()
+        assertNull(rig.ui.removing)
+        assertEquals(1, rig.changes)
+    }
+
+    @Test
+    fun anOlderStatusAnswerDoesNotReplaceASignInThatIsOver() {
+        val api = FakeApi().apply { statusGate = CompletableDeferred() }
+        val rig = Rig(api)
+        rig.actions.onShown(listOf(ada))
+        rig.controller.signInNeeded(7u)
+        api.statusGate?.complete(Unit)
+        assertTrue(rig.ui.statuses.values.all { it == PermissionStatus.SignInNeeded })
     }
 
     @Test

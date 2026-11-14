@@ -96,3 +96,17 @@ fn nothing_is_kept_without_a_token_or_a_store() {
     assert!(keep_refresh(&phone, "ada@lumen.example", "").is_err());
     assert!(keep_refresh(&Phone(None), "ada@lumen.example", "r1").is_err());
 }
+
+#[test]
+fn a_sign_in_that_tries_again_is_armed_for_a_second_redirect() {
+    let signins = SignIns::default();
+    let armer = signins.armer();
+    let first = armer.arm();
+    assert!(signins.deliver("x:/first".to_string()));
+    assert_eq!(first.try_recv().unwrap(), "x:/first");
+    // The first address took the slot: nothing more is taken until the sign-in arms it again.
+    assert!(!signins.deliver("x:/early".to_string()));
+    let second = armer.arm();
+    assert!(signins.deliver("x:/second".to_string()));
+    assert_eq!(second.try_recv().unwrap(), "x:/second");
+}
