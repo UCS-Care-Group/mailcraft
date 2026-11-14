@@ -179,7 +179,7 @@ fn junk_is_refused_and_the_limits_hold() {
     assert!(s.run("view.collapseGroup", &json!({})).is_err());
 
     let folder = s.view.folder;
-    let many: BTreeSet<String> = (0..500).map(|i| format!("G{i}")).chain(["y".repeat(400)]).collect();
+    let many: BTreeSet<String> = (0..Prefs::COLLAPSED_GROUPS + 100).map(|i| format!("G{i}")).chain(["y".repeat(400)]).collect();
     s.prefs.collapsed_groups.insert(folder, many);
     assert_eq!(s.prefs.collapsed_in(folder).count(), Prefs::COLLAPSED_GROUPS);
     assert!(s.prefs.collapsed_in(folder).all(|g| g.chars().count() <= Prefs::GROUP_CHARS));
@@ -365,10 +365,83 @@ fn the_commands_for_all_groups_and_the_limit() {
     s.prefs.collapsed_groups.insert(folder, full.clone());
     assert!(s.enabled("view.expandAllGroups"));
     assert!(s.run("view.collapseGroup", &json!({"group": group})).is_err());
-    assert!(s.run("view.collapseAllGroups", &json!({})).is_err());
+    // Collapse All keeps what fits, and with the folder full nothing does: it says so instead of
+    // refusing, so that the command is never a no-op the owner can't explain (#1318).
+    let answer = run(&mut s, "view.collapseAllGroups", json!({}));
+    assert!(answer["left"].as_u64().is_some_and(|left| left >= 1), "what stayed open is counted: {answer}");
     assert_eq!(s.prefs.collapsed_groups[&folder], full, "nothing more is kept");
     // One already kept is no new one.
     assert!(s.run("view.collapseGroup", &json!({"group": "G0"})).is_ok());
+}
+
+/// Collapse All in a folder with more groups than may be kept collapses the ones nearest the top
+/// of the list and says how many stayed open (#1318). Arranged by sender an ordinary Inbox has
+/// more senders than a few hundred, and a command that refused the lot would do nothing at all.
+#[test]
+fn collapse_all_keeps_what_fits_and_says_what_is_left() {
+    let (mut s, _) = inbox();
+    let folder = s.view.folder;
+    let all: Vec<String> = groups(&s.rows()).into_iter().map(|(g, _)| g).collect();
+    assert!(all.len() >= 2, "the sample's Inbox has groups: {all:?}");
+    // One place left of what a folder may keep.
+    let fill: BTreeSet<String> = (0..Prefs::COLLAPSED_GROUPS - 1).map(|i| format!("G{i}")).collect();
+    s.prefs.collapsed_groups.insert(folder, fill);
+    let answer = run(&mut s, "view.collapseAllGroups", json!({}));
+    assert_eq!(answer["left"], json!(all.len() - 1), "{answer}");
+    let kept = &s.prefs.collapsed_groups[&folder];
+    assert_eq!(kept.len(), Prefs::COLLAPSED_GROUPS, "the folder is full and no fuller");
+    assert!(kept.contains(&all[0]), "the group on top of the list is the one that collapsed: {:?}", all[0]);
+    assert!(all[1..].iter().all(|g| !kept.contains(g)), "the rest stayed open: {:?}", &all[1..]);
+}
+
+/// The caps multiply in the settings file, so what bounds it is the budget over all the folders
+/// (#1318): with that used up, no group collapses anywhere, however empty the folder in view is.
+#[test]
+fn the_budget_over_all_folders_holds() {
+    let (mut s, group) = inbox();
+    let here = s.view.folder;
+    let account = s.mailbox.folder(here).unwrap().account;
+    let other = s.mailbox.add_folder(account, None, "Budget").unwrap();
+    s.mailbox_changed();
+    let full: BTreeSet<String> = (0..Prefs::COLLAPSED_TOTAL).map(|i| format!("G{i}")).collect();
+    s.prefs.collapsed_groups.insert(other, full);
+    let e = s.run("view.collapseGroup", &json!({"group": group})).expect_err("no place left").to_string();
+    assert!(e.contains("too many groups"), "{e}");
+    let answer = run(&mut s, "view.collapseAllGroups", json!({}));
+    assert!(answer["left"].as_u64().is_some_and(|left| left >= 1), "{answer}");
+    assert!(!s.prefs.collapsed_groups.contains_key(&here), "nothing collapsed in the folder in view");
+}
+
+/// What a settings file holds is cut to the caps as it comes in (#1318): written by hand, or by a
+/// MailCraft whose caps are higher, it would otherwise be carried in memory and written back
+/// whole, and the folder's groups would be answered from more than the window can show.
+#[test]
+fn what_a_settings_file_holds_is_cut_to_the_caps() {
+    let mut prefs = Prefs::default();
+    let over: BTreeSet<String> = (0..Prefs::COLLAPSED_GROUPS + 50).map(|i| format!("G{i}")).collect();
+    prefs.collapsed_groups.insert(1, over);
+    prefs.collapsed_groups.insert(2, BTreeSet::from(["T".repeat(Prefs::GROUP_CHARS + 1)]));
+    prefs.collapsed_groups.insert(3, BTreeSet::from(["Today".to_string()]));
+    prefs.cap_collapsed();
+    assert_eq!(prefs.collapsed_groups[&1].len(), Prefs::COLLAPSED_GROUPS, "the folder's own cap");
+    assert!(!prefs.collapsed_groups.contains_key(&2), "a heading too long takes no place at all");
+    assert_eq!(prefs.collapsed_groups[&3], BTreeSet::from(["Today".to_string()]), "and the rest is untouched");
+    assert!(prefs.collapsed_count() <= Prefs::COLLAPSED_TOTAL);
+}
+
+/// A selection brought into the list from outside it (an import, Undo, a new-mail alert) brings
+/// its group into sight (#1318). It would otherwise be let go of as a selection out of sight, and
+/// the message the owner was sent to would be nowhere.
+#[test]
+fn a_selection_from_outside_the_list_expands_its_group() {
+    let (mut s, _) = inbox();
+    let (group, inside) = a_group_and_a_message_in_it(&mut s);
+    run(&mut s, "view.collapseGroup", json!({"group": group.clone()}));
+    assert!(s.prefs.is_collapsed(s.view.folder, &group));
+    s.sel.messages = vec![inside];
+    s.show_selected();
+    assert!(!s.prefs.is_collapsed(s.view.folder, &group), "the group opened: {:?}", s.prefs.collapsed_groups);
+    assert_eq!(s.sel.messages, vec![inside], "and the message stayed selected");
 }
 
 /// `mail.list` names a collapsed group's messages as the group's, not as a conversation.
@@ -670,6 +743,15 @@ fn no_command_acts_on_a_collapsed_groups_row() {
         let e = s.run(id, &params).expect_err(id).to_string();
         assert!(e.contains("select a message"), "{id}: {e}");
     }
+    // And they are off while that row is what is selected, not only refused once they run
+    // (#1318): the row stands for no message, so it leaves them as grey as nothing selected does.
+    // (Those that are on with nothing selected take a target of their own and are on here too.)
+    let on_the_row: Vec<&str> = commands.iter().copied().filter(|id| s.enabled(id)).collect();
+    let was = std::mem::take(&mut s.sel.messages);
+    s.sel.clear_messages();
+    let on_nothing: Vec<&str> = commands.iter().copied().filter(|id| s.enabled(id)).collect();
+    assert_eq!(on_the_row, on_nothing, "a collapsed group's row is no better than nothing selected");
+    s.sel.messages = was;
     assert!(!s.mailbox.message(head.id).unwrap().read, "the row's message is still unread");
     assert!(s.compose.is_none(), "and nothing is being written");
     assert!(theirs.iter().all(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == inbox_id)), "every message of the group is where it was");
@@ -848,6 +930,14 @@ fn the_groups_of_a_folder_that_is_gone_are_let_go_of() {
     // Another file gives those ids to folders of its own.
     run(&mut s, "file.open", json!({"path": theirs}));
     assert!(s.prefs.collapsed_groups.is_empty(), "another file carries none of them: {:?}", s.prefs.collapsed_groups);
+
+    // And File › New is a mailbox of its own as well, though it comes from no file at all: kept,
+    // its folders would open with groups collapsed by the headings of the mailbox before it.
+    let group = groups(&s.rows()).into_iter().find(|(_, n)| *n >= 2).map(|(g, _)| g).expect("a group of two messages or more");
+    run(&mut s, "view.collapseGroup", json!({"group": group}));
+    assert!(!s.prefs.collapsed_groups.is_empty(), "something is kept to lose");
+    run(&mut s, "file.new", json!({}));
+    assert!(s.prefs.collapsed_groups.is_empty(), "File › New carries none of them: {:?}", s.prefs.collapsed_groups);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

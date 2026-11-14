@@ -1713,7 +1713,7 @@ fn a_picture_that_can_t_be_read_is_asked_for_once_not_every_frame() {
     assert!(!s.needs_load_for_display(id));
     // Opened anew (the file back where it belongs), it is asked for again and comes.
     fs::write(blob_file(&path, &picture.data), picture.data.as_slice()).unwrap();
-    s.replace_mailbox(open(&path).unwrap().mailbox);
+    s.replace_mailbox(open(&path).unwrap().mailbox, None);
     assert!(s.needs_load_for_display(id) && s.load_for_display(id) == Ok(true));
     assert_eq!(s.mailbox.message(id).unwrap().attachments[0].data, picture.data);
 }

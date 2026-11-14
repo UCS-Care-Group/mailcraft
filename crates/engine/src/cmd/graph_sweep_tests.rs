@@ -54,7 +54,7 @@ fn the_first_run_after_opening_is_a_full_sweep_then_one_an_hour() {
     take(&mut s, account, ended(0));
     assert!(!full(&s, account));
     let mailbox = s.mailbox.clone();
-    s.replace_mailbox(mailbox);
+    s.replace_mailbox(mailbox, None);
     assert!(full(&s, account));
 }
 

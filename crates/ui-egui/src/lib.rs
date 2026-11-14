@@ -1994,6 +1994,8 @@ impl MailApp {
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);
         self.ui.collapsed_calendar_groups.truncate(200);
+        // What a settings file holds of collapsed groups is cut to what this MailCraft keeps (#929).
+        self.ui.options.cap_collapsed();
         updates::sanitize(&mut self.ui);
         self.session.prefs = self.ui.options.clone();
         // Layout choices carry over; the folder, the day and the search start fresh.

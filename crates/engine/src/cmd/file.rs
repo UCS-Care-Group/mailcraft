@@ -68,8 +68,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     settle(s)?;
     let mailbox =
         if p::bool(v, "sample") == Some(true) { crate::sample::mailbox(s.now(), s.offset_at(s.now())) } else { Mailbox::with_local_account("", "") };
-    s.replace_mailbox(mailbox);
-    s.path = None;
+    s.replace_mailbox(mailbox, None);
     Ok(json!({"sample": p::bool(v, "sample") == Some(true)}))
 }
 
@@ -178,15 +177,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     let (mailbox, left) = read(v)?;
     // Only a real file is a place to save back to.
     let path: Option<std::path::PathBuf> = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
-    // The groups kept for each folder are kept by the folder's id, and another file gives those
-    // ids to folders of its own (#929): a heading of the file being left would collapse a group
-    // of a folder it was never meant for. The same file read again is not another file, and
-    // opening it is what Save does before it reads back, so its groups stay as they were.
-    if path.is_none() || path != s.path {
-        s.prefs.collapsed_groups.clear();
-    }
-    s.replace_mailbox(mailbox);
-    s.path = path;
+    s.replace_mailbox(mailbox, path);
     let after = after_opening(s);
     let (favorites_now_graph, fetched_again) = (after.favorites_now_graph, after.fetched_again());
     Ok(json!({

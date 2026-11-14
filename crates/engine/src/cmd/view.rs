@@ -330,8 +330,12 @@ fn collapsed_now(s: &Session) -> CmdResult {
     Ok(json!({"folder": folder, "collapsed": s.prefs.collapsed_in(folder).collect::<Vec<_>>()}))
 }
 
-/// Keeps `groups` collapsed in the folder in view, as many as may be kept (#929).
-fn collapse(s: &mut Session, groups: Vec<String>) -> CmdResult {
+/// Keeps `groups` collapsed in the folder in view, as many as may be kept (#929). `trim` says
+/// what becomes of the rest where they don't all fit: Collapse All keeps the ones nearest the top
+/// of the list and answers with how many stayed open, so that a folder with more groups than may
+/// be kept gets something out of the command; a list of headings named through the control channel
+/// is all or nothing, so that nothing is half done behind an agent's back.
+fn collapse(s: &mut Session, groups: Vec<String>, trim: bool) -> CmdResult {
     // Every state the menu refuses in, refused here too: naming the `group` makes the command run
     // while it is disabled (a command that takes a target isn't held back by the selection), so
     // an agent or the control channel would otherwise collapse a group while a search shows every
@@ -351,32 +355,51 @@ fn collapse(s: &mut Session, groups: Vec<String>) -> CmdResult {
     if let Some(long) = groups.iter().find(|g| g.chars().count() > crate::Prefs::GROUP_CHARS) {
         return Err(failed!("the heading \"{group}\" is longer than 254 characters", group = long.chars().take(40).collect::<String>()));
     }
-    // All or nothing: a group that can't be kept is said so, and none is collapsed.
-    let new: std::collections::BTreeSet<&String> = groups.iter().filter(|g| kept.is_none_or(|k| !k.contains(*g))).collect();
-    if kept.map_or(0, std::collections::BTreeSet::len).saturating_add(new.len()) > crate::Prefs::COLLAPSED_GROUPS {
-        return Err(bad("at most 200 groups of a folder stay collapsed: expand some of them first"));
+    // What is collapsed already takes no new place, and the order they came in is the list's: of
+    // more groups than fit, the ones nearest the top are the ones that collapse.
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut new: Vec<String> = Vec::new();
+    for group in &groups {
+        if seen.insert(group.as_str()) && kept.is_none_or(|k| !k.contains(group)) {
+            new.push(group.clone());
+        }
     }
-    let new: std::collections::BTreeSet<String> = new.into_iter().cloned().collect();
-    if new.is_empty() {
-        return collapsed_now(s);
+    let here = kept.map_or(0, std::collections::BTreeSet::len);
+    let room = crate::Prefs::COLLAPSED_GROUPS.saturating_sub(here).min(crate::Prefs::COLLAPSED_TOTAL.saturating_sub(prefs.collapsed_count()));
+    let left = new.len().saturating_sub(room);
+    if left > 0 {
+        if !trim {
+            return Err(bad("too many groups would stay collapsed: expand some of them first"));
+        }
+        new.truncate(room);
     }
-    s.prefs.collapsed_groups.entry(folder).or_default().extend(groups);
+    if !new.is_empty() {
+        s.prefs.collapsed_groups.entry(folder).or_default().extend(new);
+        // The list is due again, and built, so that what reads the rows without building them
+        // answers about this list and not the one before (`Session::groups_changed`).
+        s.groups_changed();
+    }
     // (What the groups now hide leaves the selection in `Session::drop_folded_selection`, which
     // `normalize` runs after this command as it does after every other, #929. Running it here as
     // well would walk the list twice for every collapse.)
-    collapsed_now(s)
+    let mut answer = collapsed_now(s)?;
+    if let Some(o) = answer.as_object_mut() {
+        o.insert("left".into(), Value::from(left));
+    }
+    Ok(answer)
 }
 
 /// `view.collapseGroup`: the group shows as its heading alone, with how many messages it has (#929).
 fn collapse_group(s: &mut Session, v: &Value) -> CmdResult {
     let group = named_group(s, v)?;
-    collapse(s, vec![group])
+    collapse(s, vec![group], false)
 }
 
-/// `view.collapseAllGroups`: every group of the list in view (#929).
+/// `view.collapseAllGroups`: every group of the list in view, as many as may be kept (#929). What
+/// doesn't fit stays open and is counted in `left`.
 fn collapse_all_groups(s: &mut Session, _: &Value) -> CmdResult {
     let groups = s.rows().iter().filter_map(|r| r.group.clone()).collect();
-    collapse(s, groups)
+    collapse(s, groups, true)
 }
 
 /// `view.expandGroup`: the group's messages show again (#929).
@@ -388,6 +411,7 @@ fn expand_group(s: &mut Session, v: &Value) -> CmdResult {
         if kept.is_empty() {
             s.prefs.collapsed_groups.remove(&folder);
         }
+        s.groups_changed();
     }
     collapsed_now(s)
 }
@@ -395,7 +419,9 @@ fn expand_group(s: &mut Session, v: &Value) -> CmdResult {
 /// `view.expandAllGroups`: every group of the folder in view shows whole again (#929).
 fn expand_all_groups(s: &mut Session, _: &Value) -> CmdResult {
     let folder = s.view.folder;
-    s.prefs.collapsed_groups.remove(&folder);
+    if s.prefs.collapsed_groups.remove(&folder).is_some() {
+        s.groups_changed();
+    }
     collapsed_now(s)
 }
 

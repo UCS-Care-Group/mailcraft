@@ -287,7 +287,7 @@ fn row(kind: JobKind, way: Way) {
     }
     assert!(app.job_running(kind), "{kind:?}: the job is under way");
     // B takes A's place.
-    app.session.replace_mailbox(twin);
+    app.session.replace_mailbox(twin, None);
     let before = bytes(&app);
     let writes = store.writes();
     if way == Way::Frame {
@@ -573,12 +573,12 @@ fn send_row(protocol: Sends, lost: Lost) {
     let (mut app, hosts) = match lost {
         Lost::Replaced => {
             // Another mailbox is opened; the run's answer ("sent") comes, and is let go of.
-            app.session.replace_mailbox(Mailbox::with_local_account("", ""));
+            app.session.replace_mailbox(Mailbox::with_local_account("", ""), None);
             app.drop_secrets_if_replaced();
             answer(message);
             poll_run(&mut app);
             // The old file is opened again, and its servers confirmed.
-            app.session.replace_mailbox(on_disk);
+            app.session.replace_mailbox(on_disk, None);
             app.drop_secrets_if_replaced();
             let _ = app.confirm_servers();
             (app, hosts)

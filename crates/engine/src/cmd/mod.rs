@@ -236,9 +236,11 @@ pub(crate) fn done() -> CmdResult {
     Ok(json!({}))
 }
 
-/// Enabled only with a message selected.
+/// Enabled only with a message selected. A collapsed group's row is not one (#929): it is the
+/// switch that expands the group and stands for no message, and the commands that act on a
+/// message would act on nothing, so they are as grey as they are with nothing selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
-    if s.sel.messages.is_empty() { Some("select a message first") } else { None }
+    if s.sel.messages.is_empty() || s.on_collapsed_group() { Some("select a message first") } else { None }
 }
 
 /// Enabled only while a message is being written.

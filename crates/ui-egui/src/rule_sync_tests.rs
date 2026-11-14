@@ -299,7 +299,7 @@ fn an_answer_for_a_mailbox_closed_since_is_let_go_of() {
     answers.lock().unwrap().push_back(read_whole(owner, vec![server_rule("S1", "From the shop", 1)]));
     assert!(app.rules_tick_at(0.0));
     assert_eq!(*jobs.lock().unwrap(), [(owner, 0)]);
-    app.session.replace_mailbox(other);
+    app.session.replace_mailbox(other, None);
     app.poll_rules();
     assert!(app.session.mailbox.rules.is_empty(), "the other mailbox's server is not this one's");
     assert!(!app.rules.busy());

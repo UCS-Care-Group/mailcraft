@@ -310,7 +310,7 @@ fn the_choice_stays_with_its_mailbox() {
     run(&mut s, "view.taskAccount", json!({"value": work}));
     let mut other = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
     assert_eq!(add(&mut other, "someone.else@example.org"), work, "the same id, another account");
-    s.replace_mailbox(other.mailbox.clone());
+    s.replace_mailbox(other.mailbox.clone(), s.path.clone());
     assert_eq!((shown_account(&s), new_task_place(&s)), (AccountChoice::All, None));
 }
 

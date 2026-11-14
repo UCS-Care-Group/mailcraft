@@ -964,10 +964,16 @@ impl Prefs {
     /// The most searches the list of recent ones keeps, and the most characters of each.
     pub const RECENT_SEARCHES: usize = 10;
     pub const RECENT_SEARCH_CHARS: usize = 200;
-    /// The most folders whose collapsed groups are kept, the most groups of one folder, and the
-    /// most characters of a group's heading (#929).
+    /// The most folders whose collapsed groups are kept, the most groups of one folder, the most
+    /// over all of them, and the most characters of a group's heading (#929).
+    ///
+    /// The first three multiply in the settings file, so the budget over all folders is what
+    /// bounds it: 20,000 headings of 254 characters are about 5 MB, whatever the other two allow.
+    /// A folder may keep 2,000, because arranged by sender an ordinary Inbox has more groups than
+    /// a few hundred, and Collapse All is to collapse what the owner sees.
     pub const COLLAPSED_FOLDERS: usize = 1_000;
-    pub const COLLAPSED_GROUPS: usize = 200;
+    pub const COLLAPSED_GROUPS: usize = 2_000;
+    pub const COLLAPSED_TOTAL: usize = 20_000;
     pub const GROUP_CHARS: usize = 254;
 
     /// The groups collapsed in `folder` (#929), as many as are kept.
@@ -981,9 +987,43 @@ impl Prefs {
             .map(String::as_str)
     }
 
-    /// Whether the group headed `group` is collapsed in `folder` (#929).
+    /// Whether the group headed `group` is collapsed in `folder` (#929). Asked of every heading of
+    /// the list, so it is the set's own lookup and not a walk: what is kept was cut to the caps
+    /// when it came in ([`Prefs::cap_collapsed`]), which is what makes the two the same answer.
     pub fn is_collapsed(&self, folder: Id, group: &str) -> bool {
-        self.collapsed_in(folder).any(|g| g == group)
+        if group.chars().count() > Self::GROUP_CHARS {
+            return false;
+        }
+        self.collapsed_groups.get(&folder).is_some_and(|groups| groups.contains(group))
+    }
+
+    /// How many headings all the folders keep collapsed (#929).
+    pub(crate) fn collapsed_count(&self) -> usize {
+        self.collapsed_groups.values().map(BTreeSet::len).sum()
+    }
+
+    /// Cuts what came from the settings file to what this MailCraft would keep (#929): the
+    /// headings too long to be kept, then each folder's to [`Prefs::COLLAPSED_GROUPS`] and all of
+    /// them together to [`Prefs::COLLAPSED_TOTAL`], then the folders with nothing left. A file
+    /// written by hand, or by a MailCraft whose caps are higher, would otherwise be carried in
+    /// memory and written back whole, and [`Prefs::is_collapsed`] would answer from more than the
+    /// window can ever show.
+    pub fn cap_collapsed(&mut self) {
+        let keep: std::collections::HashSet<Id> = self.collapsed_groups.keys().copied().take(Self::COLLAPSED_FOLDERS).collect();
+        self.collapsed_groups.retain(|folder, _| keep.contains(folder));
+        let mut total = 0usize;
+        for groups in self.collapsed_groups.values_mut() {
+            groups.retain(|g| g.chars().count() <= Self::GROUP_CHARS);
+            let room = Self::COLLAPSED_GROUPS.min(Self::COLLAPSED_TOTAL.saturating_sub(total));
+            if groups.len() > room {
+                let over: Vec<String> = groups.iter().skip(room).cloned().collect();
+                for g in over {
+                    groups.remove(&g);
+                }
+            }
+            total += groups.len();
+        }
+        self.collapsed_groups.retain(|_, groups| !groups.is_empty());
     }
 
     /// The zoom of the message being read, in percent, in range (a settings file may say anything).
@@ -1698,6 +1738,10 @@ impl Session {
         // All of it is listed: what `keep_clicked` would ask again (a Shift+click over thousands
         // of rows asked it of each of them twice).
         self.sel.stays = Some(Arc::new(Stays::of(shown, &selection, &self.list_of())));
+        // And in sight: a message brought here from outside the list (an import, Undo, an alert)
+        // would otherwise be selected under a collapsed group and leave the selection again
+        // (#929). A group's own row is not that, so it stays the switch that expands it.
+        self.expand_for_selected(false);
     }
 
     /// Another list is in view: of what was selected, only what it shows stays selected (#485),
@@ -3126,14 +3170,55 @@ impl Session {
         self.prefs.show_groups && self.view.sort != crate::SortBy::Categories && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
     }
 
+    /// The groups kept collapsed have changed, so the list is due again (#929) and built at once.
+    ///
+    /// Built, and not only marked due, because what reads the rows without building them
+    /// ([`Session::focus_on_collapsed_group`], and [`Session::reading`] through it) answers "a
+    /// collapsed group's row" while they can't be read. A command that collapses or expands and
+    /// then asks would get that answer about a list that no longer exists, and the message it
+    /// just brought into sight would count as hidden. Every way to the kept groups ends here, so
+    /// the rule holds itself instead of asking each caller to remember it.
+    pub(crate) fn groups_changed(&mut self) {
+        self.rev += 1;
+        let _ = self.rows();
+    }
+
+    /// A selected message that sits inside a collapsed group brings that group into sight again
+    /// (#929): opened from an alert, a task, an import, Undo, a search that ended or the reading
+    /// pane's conversation list, it is the message that was asked for, and no collapsed group
+    /// hides what is selected. Picked in the list itself, a group's own row is the switch that
+    /// expands it, so it expands nothing; asked for from `elsewhere`, that row's message is a
+    /// message like any other.
+    pub(crate) fn expand_for_selected(&mut self, elsewhere: bool) {
+        let folder = self.view.folder;
+        if self.prefs.collapsed_in(folder).next().is_none() {
+            return;
+        }
+        let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        let groups: Vec<String> = self
+            .rows()
+            .iter()
+            .filter(|r| r.under.is_none() && r.folded.is_some() && r.members.iter().any(|m| (elsewhere || *m != r.id) && selected.contains(m)))
+            .filter_map(|r| r.group.clone())
+            .collect();
+        if groups.is_empty() {
+            return;
+        }
+        if let Some(kept) = self.prefs.collapsed_groups.get_mut(&folder) {
+            kept.retain(|g| !groups.contains(g));
+            if kept.is_empty() {
+                self.prefs.collapsed_groups.remove(&folder);
+            }
+        }
+        self.groups_changed();
+    }
+
     /// Whether the selection ends on a collapsed group's row of the message list (#929). Such a
     /// row is the switch that expands the group again and stands for no message, its own
     /// included: no command acts on it ([`Session::acting_on`]), and the reading pane shows none.
     /// Where the rows the list was built from can't be read, the answer is yes, because the one
-    /// that refuses a command is safer than the one that hands it a message out of sight. So a
-    /// command that changes which groups are kept and then asks this, or anything built on it,
-    /// has to build the list again in between, as `expand_for_selected` does: the rows from
-    /// before belong to a list that no longer exists.
+    /// that refuses a command is safer than the one that hands it a message out of sight
+    /// ([`Session::groups_changed`] is what keeps them current).
     pub(crate) fn focus_on_collapsed_group(&self) -> bool {
         let Some(id) = self.sel.focus() else { return false };
         if !self.folds_now() {
@@ -3348,8 +3433,21 @@ impl Session {
         self.path.is_some() && !self.dirty
     }
 
-    /// Replace the mailbox (File › New, File › Open): history and selection start over.
-    pub fn replace_mailbox(&mut self, mailbox: Mailbox) {
+    /// Replace the mailbox (File › New, File › Open): history and selection start over. `from` is
+    /// the file it comes from, and becomes [`Session::path`].
+    ///
+    /// The groups kept collapsed are kept by the folder's id, and another mailbox file gives those
+    /// ids to folders of its own (#929): kept, a heading of the one being left would collapse a
+    /// group of a folder it was never meant for. So they go with the mailbox they belong to, and
+    /// this is the one place that decides it, because every way to a new mailbox comes through
+    /// here. Reading the same file back is not another mailbox, which is what Save does after it
+    /// writes; a mailbox with no file of its own is one each time (File › New, a mailbox handed
+    /// over as `data`).
+    pub fn replace_mailbox(&mut self, mailbox: Mailbox, from: Option<std::path::PathBuf>) {
+        if from.is_none() || from != self.path {
+            self.prefs.collapsed_groups.clear();
+        }
+        self.path = from;
         self.mailbox = mailbox;
         self.resident.clear();
         self.resident_bytes = 0;

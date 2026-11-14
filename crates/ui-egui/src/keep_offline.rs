@@ -202,7 +202,7 @@ mod tests {
         app.offline_tick();
         assert_eq!(whole(&app), [true, false, true], "kept until the next start");
         let mailbox = app.session.mailbox.clone();
-        app.session.replace_mailbox(mailbox);
+        app.session.replace_mailbox(mailbox, None);
         app.offline_tick();
         assert_eq!(whole(&app), [true, false, false]);
 

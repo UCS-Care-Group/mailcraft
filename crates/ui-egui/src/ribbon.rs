@@ -1317,7 +1317,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {
-            if app.session.sel.messages.is_empty() {
+            // A collapsed group's row stands for no message, so it is as good as none (#929).
+            if app.session.sel.messages.is_empty() || app.session.on_collapsed_group() {
                 ui.label(tl!("Select a message first"));
                 return;
             }
@@ -1339,7 +1340,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             });
         }
         Menu::Rules => {
-            if !app.session.sel.messages.is_empty() {
+            // (Not for a collapsed group's row, which stands for no message, #929.)
+            if !app.session.sel.messages.is_empty() && !app.session.on_collapsed_group() {
                 // A shared mailbox's rules are its own, which this version doesn't make: one for
                 // the owner's account would move the owner's own mail into the shared mailbox.
                 let mb = &app.session.mailbox;

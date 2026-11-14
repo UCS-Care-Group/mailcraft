@@ -62,7 +62,7 @@ fn nothing_taken_in(a: &MailApp, store: &Store) -> bool {
 #[test]
 fn a_sign_in_answer_after_the_mailbox_was_replaced_is_thrown_away() {
     let (mut a, store, tx, _) = signing_in();
-    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0));
+    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0), None);
     tx.send(Ok(tokens())).unwrap();
     a.poll_sign_in();
     assert!(nothing_taken_in(&a, &store));
@@ -71,7 +71,7 @@ fn a_sign_in_answer_after_the_mailbox_was_replaced_is_thrown_away() {
 #[test]
 fn replacing_the_mailbox_calls_off_the_sign_in() {
     let (mut a, store, tx, _) = signing_in();
-    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0));
+    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0), None);
     a.drop_secrets_if_replaced();
     assert!(!a.signing_in());
     tx.send(Ok(tokens())).ok();
@@ -134,7 +134,7 @@ fn a_command_waiting_for_a_download_stays_with_its_mailbox() {
     assert_eq!(pending["pending"], "download");
 
     // Another mailbox takes its place, with a message of that id, whole; then the answer comes.
-    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0));
+    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0), None);
     assert!(a.session.mailbox.message(id).is_some_and(|m| !m.unfetched));
     tx.send(mailcraft_model::sync::GraphFetchResult { offline: true, ..Default::default() }).unwrap();
     a.drive_fetch();

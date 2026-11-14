@@ -96,7 +96,7 @@ fn from_file(accounts: Vec<Account>) -> Mailbox {
 }
 
 fn open(a: &mut MailApp, mailbox: Mailbox) {
-    a.session.replace_mailbox(mailbox);
+    a.session.replace_mailbox(mailbox, None);
     a.drop_secrets_if_replaced();
 }
 

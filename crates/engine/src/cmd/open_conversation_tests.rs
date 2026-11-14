@@ -754,7 +754,7 @@ fn another_mailbox_starts_with_every_conversation_closed() {
     run(&mut s, "mail.expandConversation", json!({"id": newer}));
     let folder = s.view.folder;
     // File › Open of a mailbox with the same folder and the same conversation.
-    s.replace_mailbox(s.mailbox.clone());
+    s.replace_mailbox(s.mailbox.clone(), s.path.clone());
     run(&mut s, "folder.select", json!({"id": folder}));
     assert!(s.rows().iter().all(|r| !r.open && r.under.is_none()));
 }

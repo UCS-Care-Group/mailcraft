@@ -323,7 +323,7 @@ fn a_download_that_comes_back_after_the_mailbox_was_replaced_is_thrown_away() {
     assert_eq!(asked.iter().map(|(job, _)| job.request.background).collect::<Vec<_>>(), [false, true]);
     // The mailbox is replaced under the window by one with the same account and messages, and the
     // answers come before the window has looked.
-    app.session.replace_mailbox(before);
+    app.session.replace_mailbox(before, None);
     for (job, tx) in &asked {
         tx.send(whole(job)).unwrap();
     }

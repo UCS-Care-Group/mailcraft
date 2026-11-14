@@ -230,43 +230,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
     // tab and with no search, when the list doesn't show it there.
     s.show_selected();
-    expand_for_selected(s, p::bool(v, "elsewhere") == Some(true));
+    s.expand_for_selected(p::bool(v, "elsewhere") == Some(true));
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
-}
-
-/// A selected message that sits inside a collapsed group brings that group into sight again
-/// (#929): opened from an alert, a task, a search that ended or the reading pane's conversation
-/// list, it is the message that was asked for, and no collapsed group hides what is selected.
-/// Picked in the list itself, a group's own row is the switch that expands it, so it expands
-/// nothing; asked for from `elsewhere`, that row's message is a message like any other.
-fn expand_for_selected(s: &mut Session, elsewhere: bool) {
-    let folder = s.view.folder;
-    if s.prefs.collapsed_in(folder).next().is_none() {
-        return;
-    }
-    let selected: HashSet<Id> = s.sel.messages.iter().copied().collect();
-    let groups: Vec<String> = s
-        .rows()
-        .iter()
-        .filter(|r| r.under.is_none() && r.folded.is_some() && r.members.iter().any(|m| (elsewhere || *m != r.id) && selected.contains(m)))
-        .filter_map(|r| r.group.clone())
-        .collect();
-    if groups.is_empty() {
-        return;
-    }
-    if let Some(kept) = s.prefs.collapsed_groups.get_mut(&folder) {
-        kept.retain(|g| !groups.contains(g));
-        if kept.is_empty() {
-            s.prefs.collapsed_groups.remove(&folder);
-        }
-    }
-    // The groups that are kept are part of what the list was built for, so the rows held from
-    // before this belong to a list that no longer exists. Built again here, because what reads
-    // them without building (`Session::reading`, and `mark_opened` through it) answers "a
-    // collapsed group's row" while they can't be read, and the message just asked for would go
-    // unread.
-    let _ = s.rows();
 }
 
 /// Reading a message marks it read (File › Options). Not an undo step: it follows the selection.
