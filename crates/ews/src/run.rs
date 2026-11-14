@@ -20,8 +20,8 @@
 //! when the run ends well, matching by item id.
 //!
 //! **What a server lacks is left out** (E7): a server that doesn't know the preview or the flag
-//! (`ErrorInvalidPropertyRequest`, or a schema fault from Exchange 2007 and 2010, whose schema
-//! hasn't them) is asked again without them, for the rest of the run; folders that are not mail
+//! (`ErrorInvalidPropertyRequest`, or a schema fault from a server answering in a version older
+//! than Exchange 2013's, whose schema hasn't them) is asked again without them, for the rest of the run; folders that are not mail
 //! folders are passed over. These are logged as counts, once per run.
 //!
 //! **An older server** (#1349): a server that answers in a version older than Exchange 2013's
@@ -663,12 +663,18 @@ impl<E: HttpExchange> Run<'_, E> {
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
                     continue;
                 }
-                Err(Asked::Code(ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)) if self.shape == Shape::Full => {
+                // (A schema fault is read as a missing property only from a server older than Exchange
+                // 2013: a newer one's has another cause, and isn't hidden by asking for less.)
+                Err(Asked::Code(code @ (ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)))
+                    if self.shape == Shape::Full && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                {
                     self.shape = Shape::Lean;
                     log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
                     continue;
                 }
-                Err(Asked::Code(ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation)) if self.shape != Shape::Bare => {
+                Err(Asked::Code(code @ (ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation)))
+                    if self.shape != Shape::Bare && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                {
                     self.shape = Shape::Bare;
                     log::info!("ews mail: the server won't list the recipients with the changes; they are asked message by message");
                     continue;

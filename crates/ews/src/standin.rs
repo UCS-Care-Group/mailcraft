@@ -217,6 +217,9 @@ pub struct State {
     /// With [`State::exchange2010`]: the server takes any version a request names, so that what it
     /// does with the properties and the change keys is seen apart from the version.
     pub takes_any_version: bool,
+    /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
+    /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
+    pub lists_no_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
 }
@@ -290,6 +293,7 @@ impl Default for State {
             refuse_names: None,
             exchange2010: false,
             takes_any_version: false,
+            lists_no_recipients: false,
             versions: Vec::new(),
         }
     }

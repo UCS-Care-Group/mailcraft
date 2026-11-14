@@ -319,11 +319,13 @@ impl<E: HttpExchange> Run<'_, E> {
             }
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(_) => return Ok(Some(outcome)),
-                // (Exchange 2007 and 2010's schema has no `item:Flag`: a schema fault, #1349.)
+                // (Exchange 2007 and 2010's schema has no `item:Flag`: a schema fault, #1349; read so only from
+                // a server answering in an older version, as a newer one's fault has another cause.)
                 Err(Asked::Code(code))
                     if flag.is_some()
                         && !self.flag_lacking
-                        && (code == ResponseCode::SchemaValidation || LACKS_PROPERTY.contains(&code.to_string().as_str())) =>
+                        && ((code == ResponseCode::SchemaValidation && !self.client.version().has_preview())
+                            || LACKS_PROPERTY.contains(&code.to_string().as_str())) =>
                 {
                     self.flag_lacking = true;
                     log::info!("ews up: the server has no follow-up flag; flags stay here");

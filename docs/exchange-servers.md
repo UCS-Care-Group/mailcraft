@@ -83,8 +83,8 @@ stand-in that refuses what the tester saw refused.
 
 | What the server does | What MailCraft does now |
 |---|---|
-| Knows no schema version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`) | Asks for Exchange 2013's version first; on that refusal, asks once more for `Exchange2010_SP2`, and keeps to it for the rest of the run (one step down, no more) |
-| Has neither the preview nor the follow-up flag (a schema fault) | A server answering in a version older than Exchange 2013's isn't asked for them; any server that faults on them is asked again without them |
+| Knows no schema version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`) | Asks for Exchange 2013's version first; on that refusal, asks once more for `Exchange2010_SP2`, and keeps to it for the rest of the run (one step down, no more). The version learnt isn't kept with the account, so each Send/Receive (and each download of whole messages) starts with one request the server refuses |
+| Has neither the preview nor the follow-up flag (a schema fault) | A server answering in a version older than Exchange 2013's isn't asked for them, and a schema fault from such a server is read as their lack. A schema fault from a server answering in a newer version is left as the error it is |
 | Won't give the recipients in the list of a folder's changes (`ErrorInvalidPropertyForOperation`) | They are asked with `GetItem`, a hundred messages to a request |
 | Changes a message only when it is named with its change key, even when told to write over what is there | The change is refused once without it; MailCraft then asks for the item's key and sends the change again with it, and asks for the key first for every change after that in the run. A draft known without a key is handled the same way |
 

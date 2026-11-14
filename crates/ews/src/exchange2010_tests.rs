@@ -9,7 +9,7 @@ use std::future::Future;
 use std::sync::atomic::AtomicBool;
 
 use mailcraft_model::FlagStatus;
-use mailcraft_model::sync::{DraftUp, EwsMailRequest, EwsMailResult, FlagUp, MessageChange, MessageOutcome};
+use mailcraft_model::sync::{DraftUp, EwsMailRequest, EwsMailResult, FlagUp, MessageChange, MessageOutcome, SendOutcome, SendUp};
 
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::*;
@@ -128,20 +128,37 @@ fn mail_from_exchange_2010_comes_down_with_its_recipients_and_categories() {
 
 #[test]
 fn a_server_refusing_the_preview_and_then_the_recipients_steps_down_to_what_it_takes() {
-    // A server that takes the newer version but has Exchange 2010's schema: the schema fault and the
-    // refusal of the recipients each step the listing down, for the rest of the run.
-    let standin = exchange2010();
-    standin.state().takes_any_version = true;
-    standin.state().deliver("inbox", "Kickoff", false);
-    standin.state().deliver("sentitems", "Sent one", true);
+    // A server that takes the newer version but lacks the preview and won't list the recipients:
+    // each refusal steps the listing down, for the rest of the run.
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        (s.lacks_preview, s.lists_no_recipients) = (true, true);
+        s.deliver("inbox", "Kickoff", false);
+        s.deliver("sentitems", "Sent one", true);
+    }
     let result = run(&standin, &request());
     assert!(result.whole, "{:?}", result.errors);
     let messages: Vec<_> = result.pages.iter().flat_map(|p| &p.messages).collect();
     assert_eq!(messages.len(), 2);
     assert!(messages.iter().all(|m| m.to.len() == 1 && m.preview.is_empty()));
     let codes = codes(&standin, "SyncFolderItems");
-    assert_eq!(codes.get(..2), Some(&["ErrorSchemaValidation".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]));
+    assert_eq!(codes.get(..2), Some(&["ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]));
     assert!(codes.len() > 3 && codes[2..].iter().all(|c| c == "NoError"), "every folder after is read in the shape it takes: {codes:?}");
+}
+
+#[test]
+fn a_newer_servers_schema_fault_on_the_listing_is_not_read_as_a_missing_property() {
+    // A server answering in Exchange 2013's version whose schema fault has another cause: the
+    // listing isn't stepped down (which would hide the preview and the flag for nothing).
+    let standin = exchange2010();
+    standin.state().takes_any_version = true;
+    standin.state().deliver("inbox", "Kickoff", false);
+    let result = run(&standin, &request());
+    assert!(!result.whole);
+    let state = standin.state();
+    let syncs: Vec<_> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems").collect();
+    assert!(!syncs.is_empty() && syncs.iter().all(|r| r.code == "ErrorSchemaValidation" && r.body.contains("item:Preview")));
 }
 
 #[test]
@@ -198,13 +215,79 @@ fn a_flag_stays_here_and_the_read_mark_goes_up_on_exchange_2010() {
     assert!(matches!(result.messages[0].outcome, MessageOutcome::Done { .. }), "{:?}", result.messages[0].outcome);
     assert!(standin.state().item(&id).unwrap().read);
     assert!(standin.state().requests.iter().filter(|r| r.operation == "UpdateItem").all(|r| !r.body.contains("item:Flag")));
-    // A server that takes the newer version but faults on the flag: the flag is dropped and the rest goes.
+    // A server answering in the newer version whose schema fault has another cause: the flag isn't
+    // dropped for it (nor for the changes after), and the change is refused as it was.
     let standin = exchange2010();
     standin.state().takes_any_version = true;
-    let id = standin.state().deliver("inbox", "Kickoff", false);
-    let change = MessageChange::Update { message: 1, id: id.clone(), read: Some(true), flag: flagged(), categories: None, importance: None };
-    let result = run(&standin, &EwsMailRequest { messages: vec![change], ..request() });
-    assert!(matches!(result.messages[0].outcome, MessageOutcome::Done { .. }), "{:?}", result.messages[0].outcome);
-    assert!(standin.state().item(&id).unwrap().read);
-    assert_eq!(codes(&standin, "UpdateItem"), ["ErrorChangeKeyRequiredForWriteOperations", "ErrorSchemaValidation", "NoError"]);
+    let one = standin.state().deliver("inbox", "Kickoff", false);
+    let two = standin.state().deliver("inbox", "Budget", false);
+    let change = |message, id: &str| MessageChange::Update {
+        message,
+        id: id.to_owned(),
+        read: Some(true),
+        flag: flagged(),
+        categories: None,
+        importance: None,
+    };
+    let result = run(&standin, &EwsMailRequest { messages: vec![change(1, &one), change(2, &two)], ..request() });
+    for at in 0..2 {
+        assert!(matches!(result.messages[at].outcome, MessageOutcome::Refused { .. }), "{:?}", result.messages[at].outcome);
+    }
+    assert!(!standin.state().item(&one).unwrap().read);
+    assert_eq!(codes(&standin, "UpdateItem"), ["ErrorChangeKeyRequiredForWriteOperations", "ErrorSchemaValidation", "ErrorSchemaValidation"]);
+    let state = standin.state();
+    assert!(state.requests.iter().filter(|r| r.operation == "UpdateItem").skip(1).all(|r| r.body.contains("item:Flag")));
+}
+
+#[test]
+fn a_send_after_the_version_steps_down_makes_one_message() {
+    // The send is the run's first request: refused for its version, made again once, and the server
+    // holds one message, with one copy in Sent Items.
+    let standin = exchange2010();
+    let message = Box::new(mailcraft_model::Message {
+        subject: "Quarterly".into(),
+        from: mailcraft_model::Address::new("Ada", "ada@example.org"),
+        to: vec![mailcraft_model::Address::new("Zoe", "zoe@example.org")],
+        date: 1_791_993_600,
+        message_id: "m1@example.org".into(),
+        body: mailcraft_model::Body { text: "Numbers attached.".into(), ..Default::default() },
+        ..Default::default()
+    });
+    let send = SendUp { message: 3, draft: None, mime: Some(message) };
+    let result = run(&standin, &EwsMailRequest { sends: vec![send], list_folders: false, ..request() });
+    assert_eq!(result.sent[0].outcome, SendOutcome::Sent);
+    let state = standin.state();
+    assert_eq!(state.outgoing.len(), 1, "sent once");
+    let sent = state.folder_id("sentitems").unwrap();
+    assert_eq!(state.items.iter().filter(|i| i.folder == sent).count(), 1, "one copy");
+    let creates: Vec<_> = state.requests.iter().filter(|r| r.body.contains("<m:CreateItem")).map(|r| r.code.as_str()).collect();
+    assert_eq!(creates, ["ErrorInvalidServerVersion", "NoError"]);
+}
+
+/// Answers every request with a 200 `GetFolder` answer whose one message says
+/// `ErrorInvalidServerVersion`: a word about that item, not a refusal of the request.
+struct VersionInMessage {
+    asked: Cell<u32>,
+}
+
+impl HttpExchange for VersionInMessage {
+    fn exchange(&self, _: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
+        self.asked.set(self.asked.get() + 1);
+        let body = format!(
+            "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"{}\"><s:Body><m:GetFolderResponse xmlns:m=\"{m}\"><m:ResponseMessages>\
+             <m:GetFolderResponseMessage ResponseClass=\"Error\"><m:ResponseCode>ErrorInvalidServerVersion</m:ResponseCode></m:GetFolderResponseMessage>\
+             </m:ResponseMessages></m:GetFolderResponse></s:Body></s:Envelope>",
+            soap::SOAP,
+            m = soap::MESSAGES
+        );
+        std::future::ready(Ok(HttpResponse::new(200, body.into_bytes())))
+    }
+}
+
+#[test]
+fn a_version_word_inside_an_answer_is_not_a_reason_to_ask_again() {
+    let server = VersionInMessage { asked: Cell::new(0) };
+    let client = client();
+    assert_eq!(block_on(client.check(&server)).unwrap(), Err(Error::Server(ResponseCode::InvalidServerVersion)));
+    assert_eq!((server.asked.get(), client.version()), (1, Version::Exchange2013));
 }
