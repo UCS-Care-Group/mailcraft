@@ -547,6 +547,10 @@ fn saving_the_search_puts_it_above_the_favorite_folders() {
     w.get_by_label(tl!("Save")).click();
     w.run_steps(3);
     assert!(w.state().dialog.is_none());
+    assert!(!is_open(&w), "a save closes the panel");
+    assert!(w.state().advanced_search_held.is_none(), "a save does not keep the panel to bring back");
+    assert_eq!(search(&w), "from:ada");
+    assert_eq!(w.state().session.view.scope, Scope::Everywhere);
     let id = w.state().session.mailbox.search_favorites[0].id;
     let fav = w.state().hit.rect("searchFavorite", id).expect("the saved search");
     let folder = mailcraft_engine::cmd::folder::favorites(&w.state().session)[0];

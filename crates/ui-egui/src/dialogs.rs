@@ -1440,6 +1440,22 @@ pub(crate) fn button_row(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 26.0), egui::Layout::right_to_left(egui::Align::Center), add);
 }
 
+/// The name line New Folder, Rename Folder and Save as a favorite share: the field, a refusal
+/// under it, and OK and Cancel. Returns `(ok, cancel)`.
+fn name_box(ui: &mut Ui, name: &mut String, error: &str, hint: &str, ok_label: &str, enter: bool) -> (bool, bool) {
+    let t = Tokens::get(ui.ctx());
+    let resp = ui.add(egui::TextEdit::singleline(name).hint_text(hint).desired_width(f32::INFINITY));
+    let resp = crate::text_menu::field(resp);
+    if error.is_empty() {
+        crate::text_menu::hold(&resp);
+    } else {
+        ui.label(egui::RichText::new(error).color(t.red));
+    }
+    let ready = !name.trim().is_empty();
+    let (ok, cancel) = buttons(ui, ok_label, ready);
+    (ok || (enter && ready), cancel)
+}
+
 /// OK and Cancel, right-aligned. Returns `(ok, cancel)`.
 pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, bool) {
     let mut result = (false, false);
@@ -1549,16 +1565,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     let place = parent.map(|p| crate::nav::folder_path(&app.session.mailbox, p)).unwrap_or_else(|| tl!("the top level").to_string());
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("In {place}"), &[("place", &place)])).color(t.text_dim));
                 }
-                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
-                let resp = crate::text_menu::field(resp);
-                if error.is_empty() {
-                    crate::text_menu::hold(&resp);
-                }
-                if !error.is_empty() {
-                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
-                }
-                let (ok, cancel) = buttons(ui, tl!("OK"), !name.trim().is_empty());
-                submit = ok || (enter && !name.trim().is_empty());
+                let (ok, cancel) = name_box(ui, name, error, tl!("Folder name"), tl!("OK"), enter);
+                submit = ok;
                 close |= cancel;
             });
             close |= !open;
@@ -1576,16 +1584,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::SearchFavorite { name, query, scope, error } => {
             let mut submit = false;
             let open = window(ctx, tl!("Save as a favorite"), 380.0, |ui| {
-                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
-                let resp = crate::text_menu::field(resp);
-                if error.is_empty() {
-                    crate::text_menu::hold(&resp);
-                }
-                if !error.is_empty() {
-                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
-                }
-                let (ok, cancel) = buttons(ui, tl!("Save"), !name.trim().is_empty());
-                submit = ok || (enter && !name.trim().is_empty());
+                let (ok, cancel) = name_box(ui, name, error, tl!("Name"), tl!("Save"), enter);
+                submit = ok;
                 close |= cancel;
             });
             close |= !open;
@@ -1593,7 +1593,16 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 match app.execute("search.favorite", json!({"name": name, "query": query, "scope": scope})) {
                     Ok(_) => {
                         close = true;
+                        // The filters were held to come back if the name was cancelled. A save
+                        // drops them and runs the search, so the list shows what was kept.
                         app.advanced_search_held = None;
+                        app.search_text = query.clone();
+                        if let Err(e) = app.run("view.search", json!({"query": query, "scope": scope})) {
+                            app.say_refused("view.search", &e);
+                        }
+                        if let Some(ctx) = app.ctx.as_ref() {
+                            crate::chrome::caret_at_end(ctx, &app.search_text);
+                        }
                     }
                     Err(e) => *error = app.words_of(&e),
                 }
