@@ -7,6 +7,9 @@ package work.mailcraft.android
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import java.time.ZoneOffset
+import java.util.Locale
 
 /** Invented people and mail (example.org), so that screenshots never hold anything real. */
 internal object ShellShots {
@@ -45,9 +48,12 @@ internal object ShellShots {
 
     @Composable
     fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed) {
-        MailCraftTheme {
-            Surface {
-                AppShell(EnglishTexts, data, actions, initialNav = nav, initialDrawer = drawer)
+        // Dates are drawn in one zone and language, whatever machine records or checks the shot.
+        CompositionLocalProvider(LocalMessageZone provides ZoneOffset.UTC, LocalMessageLocale provides Locale.US) {
+            MailCraftTheme {
+                Surface {
+                    AppShell(EnglishTexts, data, actions, initialNav = nav, initialDrawer = drawer)
+                }
             }
         }
     }

@@ -1632,9 +1632,8 @@ msgstr "Zur Startzeit"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "At the Foot of the Pane"
-msgstr "Am Fuß des Bereichs"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1902,9 +1901,8 @@ msgstr "Zurück zu den Kontoeinstellungen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bar on the Left"
-msgstr "Leiste am linken Rand"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -7700,19 +7698,15 @@ msgstr "Navigation"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
-"Navigations-\n"
-"leiste"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Navigation Bar"
-msgstr "Navigationsleiste"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -16792,7 +16786,7 @@ msgstr "Gesendete Elemente"
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "folder {id} is not that account's"
-msgstr "Ordner {id} gehört nicht zum angegebenen Konto"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs

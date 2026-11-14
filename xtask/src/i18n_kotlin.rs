@@ -68,11 +68,30 @@ fn call_at(chars: &[char], i: usize) -> Option<(usize, bool)> {
     if word(chars.get(i + len)) {
         return None;
     }
-    let mut open = i + len;
-    while chars.get(open).is_some_and(|c| c.is_whitespace()) {
-        open += 1;
-    }
+    let open = skip_trivia(chars, i + len);
     (chars.get(open) == Some(&'(')).then_some((open, tn))
+}
+
+/// The index of the first character at or after `i` that is neither white space nor inside a comment.
+fn skip_trivia(chars: &[char], mut i: usize) -> usize {
+    loop {
+        match (chars.get(i), chars.get(i + 1)) {
+            (Some(c), _) if c.is_whitespace() => i += 1,
+            (Some('/'), Some('/')) => {
+                while chars.get(i).is_some_and(|c| *c != '\n') {
+                    i += 1;
+                }
+            }
+            (Some('/'), Some('*')) => {
+                i += 2;
+                while i < chars.len() && !(chars.get(i) == Some(&'*') && chars.get(i + 1) == Some(&'/')) {
+                    i += 1;
+                }
+                i = (i + 2).min(chars.len());
+            }
+            _ => return i,
+        }
+    }
 }
 
 /// The literals of the call whose `(` is just before `at`: one for `t`, the last two literal arguments
@@ -88,7 +107,7 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
             '"' => {
                 let (s, end) = literal(chars, i);
                 if depth == 0 && piece_start {
-                    let alone = chars[end..].iter().find(|c| !c.is_whitespace()).is_some_and(|c| *c == ',' || *c == ')');
+                    let alone = chars.get(skip_trivia(chars, end)).is_some_and(|c| *c == ',' || *c == ')');
                     texts.push(if alone { s } else { None });
                     piece_start = false;
                 }
@@ -108,6 +127,11 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
                     break;
                 }
                 depth -= 1;
+            }
+            '/' if matches!(chars.get(i + 1), Some('/' | '*')) => {
+                // A comment holds no argument and does not end one.
+                i = skip_trivia(chars, i);
+                continue;
             }
             ',' if depth == 0 => {
                 piece_start = true;

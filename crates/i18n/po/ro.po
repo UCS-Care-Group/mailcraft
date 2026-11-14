@@ -1710,9 +1710,8 @@ msgstr "La ora de început"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "At the Foot of the Pane"
-msgstr "La baza panoului"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -2016,9 +2015,8 @@ msgstr "Înapoi la setările contului"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bar on the Left"
-msgstr "Bară în stânga"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -8169,19 +8167,15 @@ msgstr "Navigare"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
-"Bară de\n"
-"navigare"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Navigation Bar"
-msgstr "Bară de navigare"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -17906,7 +17900,7 @@ msgstr "Elemente trimise"
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "folder {id} is not that account's"
-msgstr "dosarul {id} nu aparține acelui cont"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
