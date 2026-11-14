@@ -53,8 +53,8 @@ impl MailApp {
             graph: self.graph_rx.is_some(),
             mail_run: self.sync_rx.is_some(),
             signing_in: self.signing_in.is_some(),
-            queued: !self.sync_queue.is_empty(),
-            inbox_queued: !self.inbox_queue.is_empty(),
+            queued: !self.session.driver.round.queue.is_empty(),
+            inbox_queued: !self.session.driver.round.inbox_queue.is_empty(),
             approving: self.approving(),
             switching: self.graph_switch_copy.is_some(),
         }
@@ -128,9 +128,9 @@ impl MailApp {
         (self.sync_password, self.sync_refused, self.graph_pieces_taken) = (None, false, 0);
         self.sync_totals = Default::default();
         self.graph_problems.clear();
-        self.sync_queue.clear();
-        self.inbox_queue.clear();
-        self.push_only_next.clear();
+        self.session.driver.round.queue.clear();
+        self.session.driver.round.inbox_queue.clear();
+        self.session.driver.round.push_only_next.clear();
         self.shared_checking.clear();
         self.session.sync_progress = Default::default();
         self.session.sync_status.clear();
