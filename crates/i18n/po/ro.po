@@ -2513,6 +2513,11 @@ msgid "Check Now"
 msgstr "Verificare acum"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
@@ -7910,6 +7915,11 @@ msgstr "Se mută în celălalt calendar: serverul contului îl creează acolo, a
 #, fuzzy
 msgid "Moving them puts them into your account's calendar, where Outlook and your other devices have them too."
 msgstr "Mutarea le pune în calendarul contului, unde le au și Outlook, și celelalte dispozitive ale dvs."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14295,6 +14305,16 @@ msgstr "Numele serverului"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -16312,6 +16332,11 @@ msgstr "Ce ați scris a fost șters din această fereastră."
 #, fuzzy
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "Ce ați scris este prea lung pentru un link spre GitHub: scurtați și adăugați restul pe GitHub"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -19895,6 +19920,21 @@ msgstr "{host} este în domeniul adresei dvs., dar nu este serverul Autodiscover
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta parola oricui din rețea; alegeți TLS sau STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
