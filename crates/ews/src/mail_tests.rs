@@ -401,6 +401,27 @@ fn a_server_without_the_preview_is_asked_without_it() {
 }
 
 #[test]
+fn an_exchange_2010_server_has_its_mail_read_without_the_preview_and_the_flag() {
+    // Exchange 2010 knows no version after Exchange2010_SP2, and its schema has neither the
+    // preview nor the flag: a request that asks for them fails the schema's check.
+    let standin = StandIn::new();
+    standin.state().deliver("inbox", "Kickoff", false);
+    standin.state().newest = Some(Version::Exchange2010Sp2);
+    let (pieces, _) = run(&standin, &request());
+    let message = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).next().unwrap();
+    assert_eq!((message.subject.as_str(), message.preview.as_str()), ("Kickoff", ""));
+    // Its folder changes don't give the recipients either: they come through GetItem.
+    let expected = standin.state().items.iter().find(|item| item.subject == "Kickoff").map(|item| item.to.len()).unwrap();
+    assert!(expected > 0);
+    assert_eq!(message.to.len(), expected, "the recipients are asked with GetItem");
+    assert!(last(&pieces).whole, "what a server lacks is not trouble");
+    let codes: Vec<String> = standin.state().requests.iter().map(|asked| asked.code.clone()).collect();
+    assert!(codes.iter().any(|code| code == "ErrorSchemaValidation"));
+    assert!(codes.iter().any(|code| code == "ErrorInvalidPropertyForOperation"));
+    assert!(standin.state().requests.iter().any(|asked| asked.operation == "GetItem" && asked.body.contains("message:ToRecipients")));
+}
+
+#[test]
 fn a_refused_sign_in_ends_the_run_and_says_so() {
     let standin = StandIn::new();
     let wrong = Client::new(URL, Secret::basic("ada", "not-the-password").unwrap()).unwrap();

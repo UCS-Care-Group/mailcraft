@@ -245,6 +245,12 @@ impl UpdateItem {
         Self { id: id.to_owned(), change_key: None, updates, overwrite: true }
     }
 
+    /// [`UpdateItem::marks`] that names the item's change key too, for a server that takes no change
+    /// without one (Exchange 2010: `ErrorChangeKeyRequiredForWriteOperations`); it still overwrites.
+    pub fn marks_at(id: &str, change_key: &str, updates: ItemUpdate) -> Self {
+        Self { id: id.to_owned(), change_key: Some(change_key.to_owned()), updates, overwrite: true }
+    }
+
     /// Sets `updates` on the draft `id` as it was at `change_key`: if it was changed since, the
     /// server says `ErrorIrresolvableConflict` and nothing is written.
     pub fn draft(id: &str, change_key: &str, updates: ItemUpdate) -> Self {

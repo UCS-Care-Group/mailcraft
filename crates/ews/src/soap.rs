@@ -48,6 +48,39 @@ pub enum Version {
 }
 
 impl Version {
+    /// Every version, oldest first.
+    pub const ALL: [Self; 9] = [
+        Self::Exchange2007,
+        Self::Exchange2007Sp1,
+        Self::Exchange2010,
+        Self::Exchange2010Sp1,
+        Self::Exchange2010Sp2,
+        Self::Exchange2013,
+        Self::Exchange2013Sp1,
+        Self::Exchange2015,
+        Self::Exchange2016,
+    ];
+
+    /// Its place in [`Version::ALL`].
+    pub fn position(self) -> usize {
+        match self {
+            Self::Exchange2007 => 0,
+            Self::Exchange2007Sp1 => 1,
+            Self::Exchange2010 => 2,
+            Self::Exchange2010Sp1 => 3,
+            Self::Exchange2010Sp2 => 4,
+            Self::Exchange2013 => 5,
+            Self::Exchange2013Sp1 => 6,
+            Self::Exchange2015 => 7,
+            Self::Exchange2016 => 8,
+        }
+    }
+
+    /// The version just before it; none before Exchange 2007.
+    pub fn older(self) -> Option<Self> {
+        self.position().checked_sub(1).and_then(|place| Self::ALL.get(place).copied())
+    }
+
     /// Every name the schema has for a version.
     pub const NAMES: [&'static str; 9] = [
         "Exchange2007",

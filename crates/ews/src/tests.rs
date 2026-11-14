@@ -213,6 +213,78 @@ fn hostile_answers_are_errors_never_panics() {
     }
 }
 
+// ---- a server that knows only older versions ----
+
+/// The version each request asked for, in order.
+fn versions_asked(standin: &StandIn) -> Vec<String> {
+    standin
+        .state()
+        .requests
+        .iter()
+        .map(|asked| {
+            let tree = xml::parse(asked.body.as_bytes()).unwrap();
+            let header = tree.child_in(soap::SOAP, "Header").unwrap();
+            header.child_in(soap::TYPES, "RequestServerVersion").unwrap().attribute("Version").unwrap().to_owned()
+        })
+        .collect()
+}
+
+#[test]
+fn an_exchange_2010_server_is_asked_again_with_the_version_it_knows() {
+    // Exchange 2010 knows no version after Exchange2010_SP2 and answers a later one with
+    // ErrorInvalidServerVersion, before it looks at the operation.
+    let standin = StandIn::new();
+    standin.state().newest = Some(Version::Exchange2010Sp2);
+    let client = client();
+    assert_eq!(block_on(client.check(&standin)).unwrap().unwrap().display_name, "Inbox");
+    assert_eq!(versions_asked(&standin), ["Exchange2013", "Exchange2010_SP2"]);
+    assert_eq!(standin.state().requests[0].code, "ErrorInvalidServerVersion");
+    // The version it took is kept: the next request asks for it at once, from a clone too.
+    assert_eq!(client.version(), Version::Exchange2010Sp2);
+    block_on(client.clone().check(&standin)).unwrap().unwrap();
+    assert_eq!(versions_asked(&standin), ["Exchange2013", "Exchange2010_SP2", "Exchange2010_SP2"]);
+}
+
+#[test]
+fn the_versions_are_tried_one_by_one_down_to_the_one_the_server_knows() {
+    let standin = StandIn::new();
+    standin.state().newest = Some(Version::Exchange2007Sp1);
+    let client = client();
+    block_on(client.check(&standin)).unwrap().unwrap();
+    assert_eq!(versions_asked(&standin), ["Exchange2013", "Exchange2010_SP2", "Exchange2010_SP1", "Exchange2010", "Exchange2007_SP1"]);
+    assert_eq!(client.version(), Version::Exchange2007Sp1);
+}
+
+#[test]
+fn a_request_that_is_never_sent_twice_goes_again_with_the_older_version() {
+    // The fault comes from the header, so nothing was done: asking again is another request.
+    let standin = StandIn::new();
+    standin.state().newest = Some(Version::Exchange2010Sp2);
+    let get = GetFolder::new(&[DistinguishedFolder::Inbox]);
+    let reply = block_on(client().call_once(&standin, &get.element())).unwrap();
+    assert!(reply.is_ok());
+    assert_eq!(versions_asked(&standin), ["Exchange2013", "Exchange2010_SP2"]);
+}
+
+#[test]
+fn a_server_that_knows_every_version_is_asked_once() {
+    let standin = StandIn::new();
+    let client = client();
+    block_on(client.check(&standin)).unwrap().unwrap();
+    assert_eq!(versions_asked(&standin), ["Exchange2013"]);
+    assert_eq!(client.version(), Version::Exchange2013);
+}
+
+#[test]
+fn the_versions_go_down_in_the_order_of_their_names() {
+    for (place, version) in Version::ALL.into_iter().enumerate() {
+        assert_eq!(version.position(), place);
+        assert_eq!(version.as_str(), Version::NAMES[place]);
+        assert_eq!(version.older(), place.checked_sub(1).map(|before| Version::ALL[before]));
+    }
+    assert_eq!(Version::Exchange2007.older(), None);
+}
+
 // ---- the request ----
 
 #[test]

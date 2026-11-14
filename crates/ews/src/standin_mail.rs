@@ -12,7 +12,7 @@
 //! `Delete` and `ReadFlagChange`.
 
 use crate::basic::base64;
-use crate::soap::{MESSAGES, TYPES};
+use crate::soap::{MESSAGES, TYPES, Version};
 use crate::standin::{Check, Folder, Hostile, Refusal, State, error_message, invalid, response};
 use crate::xml::{Node, escape};
 
@@ -535,6 +535,20 @@ impl State {
             if !["NormalItems", "NormalAndAssociatedItems"].contains(&scope.text.trim()) {
                 return Err(invalid("SyncScope is NormalItems or NormalAndAssociatedItems"));
             }
+        }
+        // A server whose newest schema is older than Exchange 2013's has neither the preview nor the
+        // flag: asking for them fails the request's check of the schema, as Exchange 2010 does.
+        let old_schema = self.newest.is_some_and(|newest| newest.position() < Version::Exchange2013.position());
+        if old_schema && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag") {
+            return Err(invalid("item:Preview and item:Flag are not in this server's schema"));
+        }
+        // Nor does its SyncFolderItems give the recipient lists: only GetItem does.
+        if old_schema && extra.iter().any(|e| e == "message:ToRecipients" || e == "message:CcRecipients") {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
+            ));
         }
         if (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag"))
             || (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))

@@ -155,6 +155,41 @@ fn a_server_without_a_flag_leaves_it_here_and_the_rest_goes_up() {
 }
 
 #[test]
+fn an_exchange_2010_server_leaves_the_flag_here_and_the_rest_goes_up() {
+    // Exchange 2010's schema has no flag: setting one fails the whole request's check.
+    let standin = StandIn::new();
+    standin.state().newest = Some(Version::Exchange2010Sp2);
+    let id = mail(&standin, "One");
+    let flag = FlagUp { status: FlagStatus::Flagged, start: Some(1), due: Some(2), completed: None };
+    let change = MessageChange::Update { message: 1, id: id.clone(), read: Some(true), flag: Some(flag), categories: None, importance: None };
+    let result = run(&standin, &EwsMailRequest { messages: vec![change], ..base() });
+    assert!(matches!(done(&result, 0), MessageOutcome::Done { flag: Some(_), .. }));
+    let state = standin.state();
+    assert!(state.item(&id).unwrap().read && !state.item(&id).unwrap().flagged);
+    assert!(state.requests.iter().any(|r| r.operation == "UpdateItem" && r.code == "ErrorSchemaValidation"));
+}
+
+#[test]
+fn an_exchange_2010_server_has_the_change_key_read_before_a_change() {
+    // Exchange 2010 takes no change without the item's change key: the first is asked again with
+    // it, and the next ones have it read first.
+    let standin = StandIn::new();
+    standin.state().newest = Some(Version::Exchange2010Sp2);
+    let (a, b) = (mail(&standin, "One"), mail(&standin, "Two"));
+    let changes = vec![
+        MessageChange::Update { message: 1, id: a.clone(), read: Some(true), flag: None, categories: None, importance: None },
+        MessageChange::Update { message: 2, id: b.clone(), read: Some(true), flag: None, categories: None, importance: None },
+    ];
+    let result = run(&standin, &EwsMailRequest { messages: changes, ..base() });
+    assert!(matches!(done(&result, 0), MessageOutcome::Done { .. }));
+    assert!(matches!(done(&result, 1), MessageOutcome::Done { .. }));
+    let state = standin.state();
+    assert!(state.item(&a).unwrap().read && state.item(&b).unwrap().read);
+    let refused = state.requests.iter().filter(|r| r.code == "ErrorChangeKeyRequiredForWriteOperations").count();
+    assert_eq!(refused, 1, "only the first change goes without the key");
+}
+
+#[test]
 fn a_move_gives_the_message_its_new_id_and_a_copy_makes_one() {
     let standin = StandIn::new();
     let id = mail(&standin, "Budget");

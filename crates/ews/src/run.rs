@@ -20,7 +20,10 @@
 //! when the run ends well, matching by item id.
 //!
 //! **What a server lacks is left out** (E7): a server that doesn't know the preview or the flag
-//! (`ErrorInvalidPropertyRequest`) is asked again without them, for the rest of the run; folders
+//! (`ErrorInvalidPropertyRequest`, or a schema fault from Exchange 2010, whose schema has neither) is
+//! asked again without them, for the rest of the run; one whose folder changes don't give the
+//! recipients (`ErrorInvalidPropertyForOperation`, Exchange 2010) is asked without them too, and
+//! they are asked of the items with `GetItem`, as the service's documentation says to; folders
 //! that are not mail folders are passed over. These are logged as counts, once per run.
 //!
 //! **The lines of trouble** name no folder, no address and nothing a server said.
@@ -31,7 +34,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
     EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -39,7 +42,7 @@ use crate::error::{Error, ResponseCode};
 use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
-use crate::items::{GetItemConversations, GetItemMime, MAX_CONVERSATIONS, Shape, SyncFolderItems};
+use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
 
@@ -128,6 +131,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) shape: Shape,
     /// The server has no follow-up flag: flags stay here (E7), said once.
     pub(crate) flag_lacking: bool,
+    /// The server takes no change of an item without its change key (Exchange 2010): it is read
+    /// before each change, said once.
+    pub(crate) key_needed: bool,
     /// A read-state change that said no state was passed over: said once a run, with no id.
     pub(crate) read_unsaid: bool,
     /// The ids of the server's other own folders ([`OWN`]) it has, as far as it said (#779): a
@@ -442,6 +448,7 @@ pub async fn sync_mail<E: HttpExchange>(
         wait,
         shape: Shape::Full,
         flag_lacking: false,
+        key_needed: false,
         read_unsaid: false,
         own: HashSet::new(),
         reread_folders: false,
@@ -479,6 +486,38 @@ pub async fn sync_mail<E: HttpExchange>(
         threads,
         ..base(request)
     });
+}
+
+/// Codes a server gives for a property it doesn't give in a folder's changes.
+fn lacks_property(code: &ResponseCode) -> bool {
+    matches!(code, ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)
+        || matches!(code, ResponseCode::Other(name) if name == "ErrorInvalidPropertyForOperation")
+}
+
+impl<E: HttpExchange> Run<'_, E> {
+    /// The recipients of `messages` read without them ([`Shape::Bare`]), asked with
+    /// [`GetItemRecipients`], a hundred to a request. What the server doesn't answer stays without
+    /// them: the message itself is there all the same, and its MIME has them when it is read.
+    async fn recipients(&mut self, messages: &mut [GraphMessage]) {
+        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
+        for some in ids.chunks(MAX_CONVERSATIONS) {
+            let op = GetItemRecipients::new(some);
+            match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(said) => {
+                    for one in said {
+                        if let Some(message) = messages.iter_mut().find(|m| m.server.id == one.id) {
+                            message.to = one.to;
+                            message.cc = one.cc;
+                        }
+                    }
+                }
+                Err(_) => {
+                    log::info!("ews mail: the recipients of some messages not asked for now; their MIME has them");
+                    break;
+                }
+            }
+        }
+    }
 }
 
 impl<E: HttpExchange> Run<'_, E> {
@@ -634,15 +673,24 @@ impl<E: HttpExchange> Run<'_, E> {
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
                     continue;
                 }
-                Err(Asked::Code(ResponseCode::InvalidPropertyRequest)) if self.shape == Shape::Full => {
-                    self.shape = Shape::Lean;
-                    log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
+                // A property the server doesn't give here: one shape fewer, each at most once. Exchange
+                // 2010 says it with a schema fault for the preview and the flag (they came with the
+                // schema of Exchange 2013) and with `ErrorInvalidPropertyForOperation` for the
+                // recipients, which only `GetItem` gives; the last shape refused is the server's answer.
+                Err(Asked::Code(code)) if lacks_property(&code) && self.shape.fewer().is_some() => {
+                    if let Some(fewer) = self.shape.fewer() {
+                        self.shape = fewer;
+                    }
+                    log::info!("ews mail: the server doesn't give some properties of mail here; asking with fewer ({:?})", self.shape);
                     continue;
                 }
                 Err(other) => return Err(other),
             };
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
+            if self.shape == Shape::Bare {
+                self.recipients(&mut messages).await;
+            }
             messages.iter_mut().for_each(|m| m.server.folder = folder.to_owned());
             let last = page.last;
             // (The page carries the state it was read from and the one that goes on from it, so that
@@ -696,6 +744,7 @@ pub async fn fetch_messages<E: HttpExchange>(
         wait,
         shape: Shape::Full,
         flag_lacking: false,
+        key_needed: false,
         read_unsaid: false,
         own: HashSet::new(),
         reread_folders: false,

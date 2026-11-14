@@ -44,8 +44,10 @@ use crate::error::ResponseCode;
 use crate::http::HttpExchange;
 use crate::run::{Asked, Run, base};
 
-/// Codes a server gives when it doesn't have a property (the flag, here).
-const LACKS_PROPERTY: [&str; 3] = ["ErrorInvalidPropertyRequest", "ErrorInvalidPropertyForOperation", "ErrorInvalidPropertySet"];
+/// Codes a server gives when it doesn't have a property (the flag, here). Exchange 2010 says it with
+/// a schema fault: `item:Flag` came with the schema of Exchange 2013.
+const LACKS_PROPERTY: [&str; 4] =
+    ["ErrorInvalidPropertyRequest", "ErrorInvalidPropertyForOperation", "ErrorInvalidPropertySet", "ErrorSchemaValidation"];
 
 fn refused_status(code: &ResponseCode) -> u16 {
     if *code == ResponseCode::AccessDenied { 403 } else { 400 }
@@ -282,14 +284,27 @@ impl<E: HttpExchange> Run<'_, E> {
     ) -> Result<Option<MessageOutcome>, Asked> {
         // The categories as the server has them now, with what was added and taken away here applied.
         let mut merged = None;
+        // The item's change key now, when it was read: sent with the change, which still overwrites.
+        let mut key: Option<String> = None;
         if let Some((synced, here)) = categories {
             let op = GetItemNow::new(id);
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
-                Ok(now) => merged = Some(merge_categories(synced, here, &now.categories)),
+                Ok(now) => {
+                    merged = Some(merge_categories(synced, here, &now.categories));
+                    key = Some(now.change_key);
+                }
                 Err(error) => return settle(error),
             }
         }
         loop {
+            // A server that wants a change key with every change (Exchange 2010) has it read first.
+            if self.key_needed && key.as_deref().is_none_or(str::is_empty) {
+                let op = GetItemNow::new(id);
+                match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+                    Ok(now) => key = Some(now.change_key),
+                    Err(error) => return settle(error),
+                }
+            }
             let update = ItemUpdate {
                 read,
                 flag: flag.filter(|_| !self.flag_lacking).cloned(),
@@ -297,7 +312,10 @@ impl<E: HttpExchange> Run<'_, E> {
                 importance,
                 ..ItemUpdate::default()
             };
-            let op = UpdateItem::marks(id, update);
+            let op = match key.as_deref() {
+                Some(at) if !at.is_empty() => UpdateItem::marks_at(id, at, update),
+                _ => UpdateItem::marks(id, update),
+            };
             let outcome = MessageOutcome::Done { categories: merged.clone(), flag: flag.cloned(), folder: String::new(), id: String::new() };
             if op.is_empty() {
                 // (Only a flag the server doesn't have: it stays here.)
@@ -308,6 +326,12 @@ impl<E: HttpExchange> Run<'_, E> {
                 Err(Asked::Code(code)) if flag.is_some() && !self.flag_lacking && LACKS_PROPERTY.contains(&code.to_string().as_str()) => {
                     self.flag_lacking = true;
                     log::info!("ews up: the server has no follow-up flag; flags stay here");
+                }
+                // Exchange 2010 takes no change without the item's change key, even one that
+                // overwrites: it is read and the change asked again, once; and so for the rest of the run.
+                Err(Asked::Code(code)) if !self.key_needed && is_code_name(&code, "ErrorChangeKeyRequiredForWriteOperations") => {
+                    self.key_needed = true;
+                    log::info!("ews up: the server wants the change key with every change; it is read first");
                 }
                 Err(error) => return settle(error),
             }

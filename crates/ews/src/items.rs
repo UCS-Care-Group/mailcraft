@@ -43,8 +43,24 @@ pub enum Shape {
     /// itself, [`GetItemConversations`].)
     Full,
     /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, say), which are then left out.
+    /// flag (it answers `ErrorInvalidPropertyRequest`, say, or Exchange 2010 a schema fault), which
+    /// are then left out.
     Lean,
+    /// The categories alone: for a server whose `SyncFolderItems` doesn't give the recipients
+    /// (Exchange 2010 answers `ErrorInvalidPropertyForOperation`: the recipient lists are among the
+    /// properties only `GetItem` gives). They are asked with [`GetItemRecipients`] instead.
+    Bare,
+}
+
+impl Shape {
+    /// The shape to ask with when the server refuses this one's properties; none after the last.
+    pub fn fewer(self) -> Option<Self> {
+        match self {
+            Self::Full => Some(Self::Lean),
+            Self::Lean => Some(Self::Bare),
+            Self::Bare => None,
+        }
+    }
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -103,10 +119,11 @@ impl SyncFolderItems {
     /// `MaxChangesReturned`, `SyncScope`.
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
-        let mut extra = Element::new("t:AdditionalProperties")
-            .child(uri("message:ToRecipients"))
-            .child(uri("message:CcRecipients"))
-            .child(uri("item:Categories"));
+        let mut extra = Element::new("t:AdditionalProperties");
+        if self.shape != Shape::Bare {
+            extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        }
+        extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
@@ -322,6 +339,66 @@ impl GetItemConversations {
                 Err(Error::Server(_)) => ThreadOf::refused(id),
                 Err(_) => continue,
             });
+        }
+        Ok(out)
+    }
+}
+
+/// The recipients of one item, as [`GetItemRecipients`] gives them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RecipientsOf {
+    /// The item (its server id).
+    pub id: String,
+    /// `ToRecipients`.
+    pub to: Vec<Address>,
+    /// `CcRecipients`.
+    pub cc: Vec<Address>,
+}
+
+/// The request `GetItem` for the recipients of several items (`ToRecipients`, `CcRecipients`):
+/// asked of mail once it is listed when the folders' changes can't give them ([`Shape::Bare`]).
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemRecipients {
+    ids: Vec<String>,
+}
+
+impl std::fmt::Debug for GetItemRecipients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemRecipients").field("ids", &self.ids.len()).finish()
+    }
+}
+
+impl GetItemRecipients {
+    /// Asks for the items with these ids (server ids from a sync), the first
+    /// [`MAX_CONVERSATIONS`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_CONVERSATIONS).cloned().collect() }
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and the two recipient lists), `ItemIds`.
+    pub fn element(&self) -> Element {
+        let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
+        let extra = Element::new("t:AdditionalProperties").child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+        Element::new("m:GetItem").child(shape).child(ids)
+    }
+
+    /// The recipients of each item the server answered for, in the order asked; an item it refused
+    /// or no longer has is left out. A busy server is [`Error::Busy`] for the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Vec<RecipientsOf>, Error> {
+        let messages = reply.messages("GetItem")?;
+        let mut out = Vec::with_capacity(self.ids.len());
+        for (id, message) in self.ids.iter().zip(&messages) {
+            match message.ok() {
+                Ok(node) => {
+                    if let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) {
+                        out.push(RecipientsOf { id: id.clone(), to: people(item, "ToRecipients"), cc: people(item, "CcRecipients") });
+                    }
+                }
+                Err(busy @ Error::Busy { .. }) => return Err(busy),
+                Err(_) => {}
+            }
         }
         Ok(out)
     }

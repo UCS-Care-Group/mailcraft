@@ -9,7 +9,7 @@
 //! Item ids change when an item is moved, as the service's do; folder ids don't. A change that
 //! is made is one more revision, so that a later read tells of it.
 
-use crate::soap::{MESSAGES, TYPES};
+use crate::soap::{MESSAGES, TYPES, Version};
 use crate::standin::{Check, Folder, Refusal, State, error_message, invalid, response};
 use crate::standin_mail::{Item, ItemChange, ItemLog};
 use crate::xml::{Node, escape};
@@ -131,6 +131,14 @@ impl State {
                 }
                 continue;
             };
+            // Exchange 2010 takes no change of an item without its change key, even one that overwrites.
+            if self.newest.is_some_and(|newest| newest.position() < Version::Exchange2013.position()) && id.attribute("ChangeKey").is_none() {
+                messages.push_str(&error_message("UpdateItem", "ErrorChangeKeyRequiredForWriteOperations"));
+                if first.is_empty() {
+                    first = "ErrorChangeKeyRequiredForWriteOperations".into();
+                }
+                continue;
+            }
             if resolution == "NeverOverwrite"
                 && let Some(key) = id.attribute("ChangeKey")
                 && self.items.get(at).is_some_and(|i| i.change_key != key)
@@ -180,6 +188,11 @@ impl State {
                         item.importance = v;
                     }
                     "item:Flag" => {
+                        // A server whose newest schema is older than Exchange 2013's has no flag:
+                        // the whole request fails the schema's check, as Exchange 2010's does.
+                        if self.newest.is_some_and(|newest| newest.position() < Version::Exchange2013.position()) {
+                            return Err(invalid("item:Flag is not in this server's schema"));
+                        }
                         if self.lacks_flag {
                             messages.push_str(&error_message("UpdateItem", "ErrorInvalidPropertyForOperation"));
                             if first.is_empty() {

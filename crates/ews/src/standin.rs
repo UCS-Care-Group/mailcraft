@@ -206,6 +206,10 @@ pub struct State {
     /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
     /// a client does when only that request is refused.
     pub refuse_names: Option<(Vec<String>, u16)>,
+    /// The newest version of the schema this server knows (`Exchange2010_SP2` for Exchange
+    /// 2010): a request that asks for a later one is `ErrorInvalidServerVersion`, as from a
+    /// server that has never heard of it. None knows them all.
+    pub newest: Option<Version>,
 }
 
 impl Default for State {
@@ -275,6 +279,7 @@ impl Default for State {
             class_only_when_asked: false,
             unknown_names: Vec::new(),
             refuse_names: None,
+            newest: None,
         }
     }
 }
@@ -418,7 +423,10 @@ impl State {
         let version = header.child("RequestServerVersion").ok_or_else(|| invalid("a RequestServerVersion is needed"))?;
         Check::is(version, TYPES, "RequestServerVersion", &["Version"])?;
         Check::empty(version)?;
-        if !Version::NAMES.contains(&Check::attribute(version, "Version")?) {
+        let asked_for = Check::attribute(version, "Version")?;
+        let place = Version::NAMES.iter().position(|name| *name == asked_for);
+        let known = place.is_some_and(|place| self.newest.is_none_or(|newest| place <= newest.position()));
+        if !known {
             return Err(Refusal { code: "ErrorInvalidServerVersion", why: "no such version of the schema".into() });
         }
         let body = Check::required(&root, parts.get(1).copied().flatten(), "Body")?;
