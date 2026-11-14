@@ -338,15 +338,18 @@ fn series_day(series: &Event, at: &Stamp, offset_at: OffsetAt) -> Date {
     match (series.zone(), at.when) {
         (Some(zone), When::Utc(_)) if !series.all_day => {
             let instant = at.when.timestamp(offset_at);
-            at.zone
+            let day = at
+                .zone
                 .filter(|written_in| *written_in == zone)
                 .and_then(|_| day_written(series, zone, at.written, instant, offset_at))
-                .unwrap_or_else(|| series.occurrence_day(instant, offset_at))
+                .unwrap_or_else(|| series.occurrence_day(instant, offset_at));
+            rule_day(series, day, instant, offset_at)
         }
         // Written as a day, or as a time without a zone: in the reckoning of the series itself.
         (Some(zone), When::Local(written)) if !series.all_day => {
             let instant = zone.instant(written);
-            day_written(series, zone, written, instant, offset_at).unwrap_or_else(|| series.occurrence_day(instant, offset_at))
+            let day = day_written(series, zone, written, instant, offset_at).unwrap_or_else(|| series.occurrence_day(instant, offset_at));
+            rule_day(series, day, instant, offset_at)
         }
         (Some(zone), When::Date(day)) if !series.all_day => {
             let first = zone.wall(series.instants(offset_at).0);
@@ -361,7 +364,8 @@ fn series_day(series: &Event, at: &Stamp, offset_at: OffsetAt) -> Date {
 /// clock (RFC 5545 §3.8.5.3), also on a day the clocks skip the series' time: Pacific/Apia
 /// skipped 30 December 2011, and a series at midnight there names that day although its
 /// occurrence is at a time the clock shows as midnight on the 31st. `None` when `written` is
-/// not a time the rule names.
+/// not at the series' time of day, or the day it names has no occurrence at `instant`. (Whether
+/// the rule names that day is for [`rule_day`].)
 fn day_written(series: &Event, zone: Zone, written: DateTime, instant: Timestamp, offset_at: OffsetAt) -> Option<Date> {
     let first = zone.wall(series.instants(offset_at).0);
     if written.seconds_of_day() != first.seconds_of_day() {
@@ -369,6 +373,21 @@ fn day_written(series: &Event, zone: Zone, written: DateTime, instant: Timestamp
     }
     let day = series.start.date.add_days(first.date.days_until(written.date));
     (series.occurrence_instant(day, offset_at) == instant).then_some(day)
+}
+
+/// `day`, when the rule names it; else the day beside it that the rule names and whose
+/// occurrence is at `instant`; else `day`. A program that writes a skipped occurrence as the
+/// time the clock shows at it (`20111231T000000` in Pacific/Apia for the series' midnight of the
+/// skipped 30th) names a day after the one the rule names, at the same instant.
+fn rule_day(series: &Event, day: Date, instant: Timestamp, offset_at: OffsetAt) -> Date {
+    let named = series.series_days(day.add_days(-1), day.add_days(1), offset_at);
+    if named.contains(&day) {
+        return day;
+    }
+    [day.add_days(-1), day.add_days(1)]
+        .into_iter()
+        .find(|near| named.contains(near) && series.occurrence_instant(*near, offset_at) == instant)
+        .unwrap_or(day)
 }
 
 /// A text property that may be given once: the first one counts.

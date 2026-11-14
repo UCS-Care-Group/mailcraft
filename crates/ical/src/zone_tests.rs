@@ -441,12 +441,32 @@ fn a_skipped_occurrence_on_a_day_the_zone_skipped_is_that_occurrence() {
     let back = read_in(&text, here);
     assert!(back.notes.is_empty(), "{:?}", back.notes);
     assert_eq!(back.events, vec![event.clone()], "{text}");
-    // Another program that writes the time the clock shows names the same instant; it is
-    // read as a day of the series that is at that instant.
+    // Another program (and MailCraft before) writes the time the clock shows: the same instant,
+    // and the day the rule names at it is the one skipped.
     let shown = text.replace("EXDATE;TZID=Pacific/Apia:20111230T000000", "EXDATE;TZID=Pacific/Apia:20111231T000000");
-    let other = read_in(&shown, here).events.remove(0);
-    let day = other.exceptions.first().copied().unwrap();
-    assert_eq!(other.occurrence_instant(day, &offset_at), event.occurrence_instant(d(2011, 12, 29), &offset_at));
+    assert_eq!(read_in(&shown, here).events, vec![event.clone()], "{shown}");
+    // A daily series names both the 30th and the 31st there, at the same instant: the time the
+    // clock shows is the 31st's occurrence, which is the 30th here.
+    let daily = Event { recurrence: Some(Recurrence::every(Freq::Daily)), ..event.clone() };
+    let shown = write_in(&[&daily], &[], &options(), Some(here))
+        .replace("EXDATE;TZID=Pacific/Apia:20111230T000000", "EXDATE;TZID=Pacific/Apia:20111231T000000");
+    assert_eq!(read_in(&shown, here).events[0].exceptions, [d(2011, 12, 30)], "{shown}");
+    // America/Nuuk springs from 23:00 to midnight on the last Saturday of March: a weekly series
+    // at 23:30 on Saturdays names 23:30 on 27 March 2027, which the clock shows as 0:30 on the
+    // 28th. Either way it is the 27th that is skipped.
+    let nuuk = zone("America/Nuuk");
+    let at_nuuk = |instant: Timestamp| nuuk.offset_at(instant);
+    let start = at(2027, 3, 6, 23, 30);
+    let rule = Recurrence { by_day: vec![Weekday::Sat], ..Recurrence::every(Freq::Weekly) };
+    let mut weekly =
+        Event { uid: "u@example.org".into(), start, end: start, recurrence: Some(rule), exceptions: vec![d(2027, 3, 27)], ..Default::default() };
+    let instants = (nuuk.instant(start), nuuk.instant(start));
+    (weekly.start_zone, weekly.end_zone) = mailcraft_model::zoned::own_zones(Some(nuuk), None, instants, true, &at_nuuk);
+    let text = write_in(&[&weekly], &[], &options(), Some(nuuk));
+    assert!(text.contains("EXDATE;TZID=America/Nuuk:20270327T233000\r\n"), "{text}");
+    assert_eq!(read_in(&text, nuuk).events, vec![weekly.clone()], "{text}");
+    let shown = text.replace("EXDATE;TZID=America/Nuuk:20270327T233000", "EXDATE;TZID=America/Nuuk:20270328T003000");
+    assert_eq!(read_in(&shown, nuuk).events, vec![weekly], "{shown}");
 }
 
 /// The same for the zones that skipped a day when they moved across the date line, and for
