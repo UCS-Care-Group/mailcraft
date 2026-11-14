@@ -52,7 +52,11 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
-        if key.contains("index") && self.fail_index.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok() {
+        // `fetch_update` is `try_update` from Rust 1.99 on, and this workspace builds from 1.95
+        // (the CI pins 1.98.1), so the old name stays until that floor moves.
+        #[allow(deprecated)]
+        let refuse = key.contains("index") && self.fail_index.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok();
+        if refuse {
             return Err(HostError::Unsupported);
         }
         let mut kept = self.kept.lock().unwrap();
