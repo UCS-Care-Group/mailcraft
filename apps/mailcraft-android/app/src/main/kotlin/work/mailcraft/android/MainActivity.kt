@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -9,6 +13,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -16,7 +22,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
+import java.time.ZoneId
+import java.util.Locale
+import java.util.TimeZone
 import uniffi.mailcraft_mobile.Core
 
 /**
@@ -38,11 +50,13 @@ class MainActivity : AppCompatActivity() {
         val version = getString(R.string.app_version)
         setContent {
             MailCraftTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    var chosen by remember { mutableStateOf(LanguageChoice.current()) }
-                    Root(started, version, chosen) {
-                        chosen = it
-                        LanguageChoice.choose(it)
+                DeviceDateSettings {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        var chosen by remember { mutableStateOf(LanguageChoice.current()) }
+                        Root(started, version, chosen) {
+                            chosen = it
+                            LanguageChoice.choose(it)
+                        }
                     }
                 }
             }
@@ -92,4 +106,33 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
         data = data,
         actions = ShellActions(onFolder = { _, selected -> picked = selected.id.toLong() }, onLanguage = onLanguage),
     )
+}
+
+/**
+ * Gives message dates the device's current language and time zone. The language comes from the
+ * configuration, so a change of it rebuilds the dates; a time-zone change is no configuration change,
+ * so a broadcast for it refreshes the zone.
+ */
+@Composable
+internal fun DeviceDateSettings(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
+    var zone by remember { mutableStateOf(ZoneId.systemDefault()) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                // The JVM caches its default zone; the platform's change is what the receiver heard.
+                TimeZone.setDefault(null)
+                zone = ZoneId.systemDefault()
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(Intent.ACTION_TIMEZONE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+    CompositionLocalProvider(LocalMessageZone provides zone, LocalMessageLocale provides locale, content = content)
 }

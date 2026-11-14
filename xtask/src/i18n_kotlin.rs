@@ -83,11 +83,23 @@ fn skip_trivia(chars: &[char], mut i: usize) -> usize {
                 }
             }
             (Some('/'), Some('*')) => {
+                // Kotlin block comments nest: the outer one ends at the `*/` that matches its `/*`.
                 i += 2;
-                while i < chars.len() && !(chars.get(i) == Some(&'*') && chars.get(i + 1) == Some(&'/')) {
-                    i += 1;
+                let mut depth = 1usize;
+                while i < chars.len() && depth > 0 {
+                    match (chars.get(i), chars.get(i + 1)) {
+                        (Some('/'), Some('*')) => {
+                            depth += 1;
+                            i += 2;
+                        }
+                        (Some('*'), Some('/')) => {
+                            depth -= 1;
+                            i += 2;
+                        }
+                        _ => i += 1,
+                    }
                 }
-                i = (i + 2).min(chars.len());
+                i = i.min(chars.len());
             }
             _ => return i,
         }
