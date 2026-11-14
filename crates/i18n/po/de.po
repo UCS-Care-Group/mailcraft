@@ -507,7 +507,7 @@ msgstr "Die Regeln eines freigegebenen Postfachs sind seine eigenen: Diese Versi
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "A sign-in is already open."
-msgstr ""
+msgstr "Eine Anmeldung ist bereits geöffnet."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1131,7 +1131,7 @@ msgstr "Ein X.509-Zertifikat (.cer, .pem) oder ein öffentlicher OpenPGP-Schlüs
 #. what a command says
 #: crates/mobile/src/sync.rs
 msgid "An account couldn't be sent and received."
-msgstr ""
+msgstr "Bei einem Konto konnten keine E-Mails gesendet und empfangen werden."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -8208,7 +8208,7 @@ msgstr "Von der Genehmigungsseite von Microsoft kam nichts zurück: Sie wurde ge
 #. what a command says
 #: crates/mobile/src/sign_in.rs
 msgid "Nothing came back from the sign-in page in time."
-msgstr ""
+msgstr "Von der Anmeldeseite kam nicht rechtzeitig eine Rückmeldung."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -8481,7 +8481,7 @@ msgstr "Onlinebesprechung"
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "Only a Microsoft account signs in on the phone for now."
-msgstr ""
+msgstr "Vorerst kann auf dem Smartphone nur ein Microsoft-Konto angemeldet werden."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -11670,7 +11670,7 @@ msgstr "Anmeldung abgebrochen"
 #. what a command says
 #: crates/mobile/src/sign_in.rs
 msgid "Sign-in isn't set up on this phone."
-msgstr ""
+msgstr "Die Anmeldung ist auf diesem Smartphone nicht eingerichtet."
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
@@ -11726,7 +11726,7 @@ msgstr "Die Anmeldung hat nichts zurückgegeben"
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "Signing in isn't available on this phone."
-msgstr ""
+msgstr "Die Anmeldung ist auf diesem Smartphone nicht verfügbar."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -12385,7 +12385,7 @@ msgstr "Danke, Donnerstag um zehn passt mir. Ich bringe die Zeichnungen mit."
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "That account is gone."
-msgstr ""
+msgstr "Dieses Konto ist nicht mehr vorhanden."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -12472,7 +12472,7 @@ msgstr "Dieser Schlüssel befindet sich bereits auf der Karte"
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
-msgstr ""
+msgstr "Diese Anmeldung gehört zum Postfach einer anderen Person, nicht zu dem dieses Kontos. Es wurde nichts gespeichert."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -12514,7 +12514,7 @@ msgstr "Die ganze Serie"
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "The account can't be signed in now."
-msgstr ""
+msgstr "Das Konto kann derzeit nicht angemeldet werden."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13476,12 +13476,12 @@ msgstr "Die E-Mail-Adresse des freigegebenen Postfachs"
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "The sign-in couldn't be started."
-msgstr ""
+msgstr "Die Anmeldung konnte nicht gestartet werden."
 
 #. what a command says
 #: crates/mobile/src/sign_in.rs
 msgid "The sign-in didn't work. Try again."
-msgstr ""
+msgstr "Die Anmeldung hat nicht funktioniert. Versuchen Sie es erneut."
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
@@ -13492,7 +13492,7 @@ msgstr "Die Anmeldung des Kontos, über das dieses freigegebene Postfach geöffn
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "The sign-in page couldn't be opened."
-msgstr ""
+msgstr "Die Anmeldeseite konnte nicht geöffnet werden."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -13502,7 +13502,7 @@ msgstr "Die in Ihrem Browser laufende Anmeldung für {address} wurde abgebrochen
 #. what a command says
 #: crates/mobile/src/sign_in.rs
 msgid "The sign-in was declined."
-msgstr ""
+msgstr "Die Anmeldung wurde abgelehnt."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -13952,7 +13952,7 @@ msgstr "Dieser Build sucht nicht nach neuen Versionen."
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "This build has no application id to sign in with."
-msgstr ""
+msgstr "Dieser Build hat keine Anwendungs-ID für die Anmeldung."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14196,7 +14196,7 @@ msgstr "Dieser Schlüssel signiert mit einem Algorithmus, den MailCraft nicht ve
 #. what a command says
 #: crates/mobile/src/sync.rs
 msgid "This kind of account can't be sent and received on the phone yet."
-msgstr ""
+msgstr "Dieser Kontotyp kann auf dem Smartphone noch keine E-Mails senden und empfangen."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15772,7 +15772,7 @@ msgstr "Ihr Schlüsselbund speichert das Zertifikat und seinen privaten Schlüss
 #. what a command says
 #: crates/mobile/src/sync.rs
 msgid "Your mail couldn't be saved first, so nothing was sent."
-msgstr ""
+msgstr "Ihre E-Mail konnte vorher nicht gespeichert werden, daher wurde nichts gesendet."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15874,7 +15874,7 @@ msgstr "Ihre Organisation hat MailCraft genehmigt. Melden Sie sich jetzt mit Ihr
 #. what a command says
 #: crates/mobile/src/sign_in.rs
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
-msgstr ""
+msgstr "Ihre Organisation muss MailCraft genehmigen, bevor Sie sich anmelden können. Wenden Sie sich an einen Administrator."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
