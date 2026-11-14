@@ -17,6 +17,9 @@ pub mod platform;
 pub mod secrets;
 #[cfg(test)]
 mod secrets_tests;
+pub mod sync;
+#[cfg(test)]
+mod sync_tests;
 pub mod tasks;
 #[cfg(test)]
 mod tasks_tests;

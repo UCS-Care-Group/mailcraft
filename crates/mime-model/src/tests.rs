@@ -59,7 +59,8 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
         importance: m.importance,
         categories: m.categories.clone(),
         answered: m.answered,
-        headers: m.headers.clone(),
+        headers: mailcraft_model::headers::split(m.all_headers()).0,
+        header_block: mailcraft_model::headers::split(m.all_headers()).1,
         ..Message::default()
     }
 }
@@ -330,7 +331,7 @@ fn a_foreign_message_survives_reading_writing_and_reading() {
     assert_eq!(first.body.text, "La réunion est à 10h.");
     assert_eq!(first.body.html.as_deref(), Some("<p>La réunion est à <b>10h</b>.</p>"));
     assert_eq!(first.attachments[0].name, "ordre du jour été.pdf");
-    assert_eq!((first.importance, first.read, first.categories.len(), first.headers.len()), (Importance::High, true, 2, 1));
+    assert_eq!((first.importance, first.read, first.categories.len(), first.all_headers().len()), (Importance::High, true, 2, 1));
     let opts = WriteOptions { include_bcc: true, offset_minutes: 120 };
     let second = parse(&write(&first, &opts));
     assert_eq!(unread(second), unread(first));
@@ -528,6 +529,7 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
+            header_block: Default::default(),
             read_header: "X-Priority: 9 (not carried)\n".into(),
             fresh_stamps: false,
             id: 7,
@@ -546,6 +548,7 @@ fn message() -> impl Strategy<Value = Message> {
             gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
             gmail_refusals: 0,
             gmail_id: 42,
+            gmail_labels: vec!["Not/Carried".into()],
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
             refetch: false,
@@ -561,6 +564,7 @@ fn message() -> impl Strategy<Value = Message> {
             server_draft: None,
             held: String::new(),
             sending: false,
+            sent_here: false,
             answers: None,
             kept: None,
             rule_alert: false,
@@ -905,4 +909,29 @@ fn a_header_exception_on_the_to_line_as_it_came_leaves_the_message_alone() {
         ..Default::default()
     };
     assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
+}
+
+/// A header rule reads the lines of a message's header block (the lines nothing reads by name)
+/// while they are in memory, and can't tell of a message whose block is kept outside it: it
+/// doesn't act on it, and an exception on such a line leaves it alone (#566). An automatic
+/// reply's mark stays on the message itself, for the rule that reads it.
+#[test]
+fn a_header_rule_reads_the_header_block_and_cant_tell_while_it_is_kept_outside() {
+    use mailcraft_model::{Action, Condition, ContentRef, HeaderBlock, Rule};
+    let raw = b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: away\r\nAuto-Submitted: auto-replied\r\nX-Spam-Flag: YES\r\n\r\nbody\r\n";
+    let m = parse(raw);
+    assert!(m.header_block.is_loaded() && m.header_block.lines().iter().any(|l| l.name == "X-Spam-Flag"), "{:?}", m.header_block);
+    assert!(m.headers.iter().any(|(name, _)| name == "Auto-Submitted"), "{:?}", m.headers);
+    let header = |word: &str| Condition::HeaderContains(vec![word.into()]);
+    assert!(header("x-spam-flag: yes").matches(&m) && !header("x-spam-flag: yes").unread_in(&m));
+    assert!(Condition::AutomaticReply.matches(&m) && !Condition::AutomaticReply.unread_in(&m));
+
+    // Its block kept beside the mailbox file, as a saved message's is.
+    let kept = HeaderBlock { data: Default::default(), kept: Some(ContentRef { sha256: [7; 32], len: 2_000 }) };
+    let m = mailcraft_model::Message { header_block: kept, ..m };
+    assert!(header("x-spam-flag: yes").unread_in(&m) && !header("x-spam-flag: yes").holds_in(&m, &Default::default()));
+    assert!(Condition::AutomaticReply.matches(&m), "read from the message itself");
+    let rule = |conditions, exceptions| Rule { enabled: true, conditions, exceptions, actions: vec![Action::Delete], ..Default::default() };
+    assert!(!rule(vec![header("x-spam-flag: yes")], vec![]).matches(&m));
+    assert!(!rule(vec![Condition::SubjectContains(vec!["away".into()])], vec![header("x-spam-flag")]).matches(&m), "the exception may hold");
 }

@@ -84,7 +84,8 @@ pub fn keep_before_newer_format(path: &Path, writing: u32, version: &str) -> io:
     }
     if fs::hard_link(path, &kept).is_err() {
         let part = named(path, BEFORE, &format!("{version}.part")).ok_or_else(|| io::Error::other("no name"))?;
-        let copied = fs::copy(path, &part).and_then(|_| fs::File::open(&part)?.sync_all()).and_then(|()| fs::rename(&part, &kept));
+        let copied =
+            fs::copy(path, &part).and_then(|_| fs::OpenOptions::new().write(true).open(&part)?.sync_all()).and_then(|()| fs::rename(&part, &kept));
         if let Err(e) = copied {
             let _ = fs::remove_file(&part);
             return Err(e);
@@ -101,15 +102,17 @@ pub fn keep_before_newer_format(path: &Path, writing: u32, version: &str) -> io:
 /// The files beside the mailbox file `path` whose names go on from its own with `what`.
 fn kept_beside(path: &Path, what: &str) -> Vec<PathBuf> {
     let (Some(parent), Some(stem)) = (path.parent(), path.file_name().and_then(|n| n.to_str())) else { return Vec::new() };
-    let parent = if parent.as_os_str().is_empty() { Path::new(".") } else { parent };
+    let listed = if parent.as_os_str().is_empty() { Path::new(".") } else { parent };
     let prefix = format!("{stem}.{what}");
-    fs::read_dir(parent)
+    // Named the way `path` names its file (`a.before-x`, not `./a.before-x`), so that one kept
+    // just now compares equal to its name and stays.
+    fs::read_dir(listed)
         .into_iter()
         .flatten()
         .flatten()
         .take(10_000)
         .filter(|e| e.file_name().to_str().is_some_and(|n| n.starts_with(&prefix)))
-        .map(|e| e.path())
+        .map(|e| parent.join(e.file_name()))
         .collect()
 }
 

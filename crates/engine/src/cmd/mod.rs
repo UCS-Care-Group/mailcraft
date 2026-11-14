@@ -41,6 +41,8 @@ pub mod folder;
 #[cfg(test)]
 mod folder_empty_tests;
 #[cfg(test)]
+mod folder_kind_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -87,6 +89,8 @@ mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
+#[cfg(test)]
+mod navigation_bar_tests;
 #[cfg(test)]
 mod newer_account_tests;
 pub mod notes;
@@ -361,6 +365,9 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
 /// A message as agents see it in lists. For a message of a Gmail account's Inbox, its
 /// `gmailCategory` too (#911): one of five words this program wrote, not message text, so it isn't
 /// framed as such.
+/// For a message of a Gmail account, its `gmailLabels` (#1153) when it has any: names the server
+/// gave, Gmail's own with their backslash (`\Inbox`); text from outside, which MCP frames as
+/// message data, never instructions.
 pub fn message_summary(s: &Session, m: &Message) -> Value {
     let mut v = json!({
         "id": m.id,
@@ -379,6 +386,9 @@ pub fn message_summary(s: &Session, m: &Message) -> Value {
     });
     if let (Some(category), Some(o)) = (m.gmail_category, v.as_object_mut()) {
         o.insert("gmailCategory".into(), json!(category.code()));
+    }
+    if let (false, Some(o)) = (m.gmail_labels.is_empty(), v.as_object_mut()) {
+        o.insert("gmailLabels".into(), json!(m.gmail_labels));
     }
     v
 }

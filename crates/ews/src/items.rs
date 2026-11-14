@@ -43,8 +43,12 @@ pub enum Shape {
     /// itself, [`GetItemConversations`].)
     Full,
     /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, say), which are then left out.
+    /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
+    /// The categories alone: for a server that won't give the recipients in `SyncFolderItems`
+    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
+    /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
+    Bare,
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -105,12 +109,13 @@ impl SyncFolderItems {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
         // (The Message-ID by name too: mail moved back into a folder on another device comes with
         // a new item id, and is known by it, #566. Microsoft's list of the Default shape doesn't
-        // promise it.)
-        let mut extra = Element::new("t:AdditionalProperties")
-            .child(uri("message:InternetMessageId"))
-            .child(uri("message:ToRecipients"))
-            .child(uri("message:CcRecipients"))
-            .child(uri("item:Categories"));
+        // promise it. Not in the least a server is asked for, [`Shape::Bare`]: what an Exchange
+        // 2007 or 2010 server takes there stays as it is.)
+        let mut extra = Element::new("t:AdditionalProperties");
+        if self.shape != Shape::Bare {
+            extra = extra.child(uri("message:InternetMessageId")).child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        }
+        extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
@@ -283,6 +288,81 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         cut,
         categories_cut,
     })
+}
+
+/// Most items one `GetItem` asks the recipients of.
+pub const MAX_RECIPIENTS_ASKED: usize = 100;
+
+/// The people a message was sent to, as [`GetItemRecipients`] reads them.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct Recipients {
+    /// The item's id.
+    pub id: String,
+    /// `ToRecipients`.
+    pub to: Vec<Address>,
+    /// `CcRecipients`.
+    pub cc: Vec<Address>,
+}
+
+impl std::fmt::Debug for Recipients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).finish()
+    }
+}
+
+/// The request `GetItem` for the recipients of several items: for a server whose `SyncFolderItems`
+/// won't give them ([`Shape::Bare`], #1349).
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemRecipients {
+    ids: Vec<String>,
+}
+
+impl std::fmt::Debug for GetItemRecipients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemRecipients").field("ids", &self.ids.len()).finish()
+    }
+}
+
+impl GetItemRecipients {
+    /// Asks for the items with these ids, the first [`MAX_RECIPIENTS_ASKED`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_RECIPIENTS_ASKED).cloned().collect() }
+    }
+
+    /// Whether there is nothing to ask.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and the two lists), `ItemIds`.
+    pub fn element(&self) -> Element {
+        let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
+        let extra = Element::new("t:AdditionalProperties").child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+        Element::new("m:GetItem").child(shape).child(ids)
+    }
+
+    /// The recipients of each item the server answered for, in the order asked; an item it answered
+    /// with an error of its own (gone since, say) is left out. A busy server is [`Error::Busy`] for
+    /// the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Vec<Recipients>, Error> {
+        let messages = reply.messages("GetItem")?;
+        let mut out = Vec::with_capacity(self.ids.len());
+        for (id, message) in self.ids.iter().zip(&messages) {
+            match message.ok() {
+                Ok(node) => {
+                    let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) else {
+                        continue;
+                    };
+                    out.push(Recipients { id: id.clone(), to: people(item, "ToRecipients"), cc: people(item, "CcRecipients") });
+                }
+                Err(busy @ Error::Busy { .. }) => return Err(busy),
+                Err(_) => {}
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Most items one `GetItem` asks the conversation of.

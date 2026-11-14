@@ -88,7 +88,8 @@ struct Expected {
 fn opens_at_its_place_and_is_remembered(points: bool, x: Expected) {
     let (ctx, seen) = backend();
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app.windows.points = Some(points);
     // The last message window was on the 4K monitor, 900 × 700 points.
     app.ui.window_places.set(Kind::Message, x.saved);

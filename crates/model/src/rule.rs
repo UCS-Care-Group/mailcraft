@@ -321,8 +321,9 @@ impl Condition {
             Condition::SizeBetween { .. } => !m.size_known(),
             // Nor what the headers said past what was kept of them ([`Message::headers_cut`]), nor
             // the header of a message whose lines MailCraft reads into it weren't kept as they came
-            // ([`Message::read_header`]: one read before they were, or made here).
-            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty(),
+            // ([`Message::read_header`]: one read before they were, or made here), nor lines kept
+            // outside memory ([`Message::header_block`]; Run Rules Now brings them in first).
+            Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty() || !m.header_block.is_loaded(),
             Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
             // Nor a person a server's list gives by name alone (an Exchange server's own kind of
             // address), whose address the message, once here, says.
@@ -785,6 +786,12 @@ impl Rule {
     /// Whether it reads the body of a message, which has to be in memory for it.
     pub fn reads_body(&self) -> bool {
         self.conditions.iter().chain(&self.exceptions).any(Condition::reads_body)
+    }
+
+    /// Whether it looks for words in the header of a message, whose block has to be in memory for
+    /// it ([`Message::header_block`]).
+    pub fn reads_header(&self) -> bool {
+        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::HeaderContains(_)))
     }
 
     /// Whether it is for the arriving mail of `account`.

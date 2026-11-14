@@ -107,10 +107,12 @@ impl DesktopPlatform {
             calls.send(call(answer)).map_err(|_| PlatformError::Failed("the window could not be asked"))?;
         }
         (self.wake)();
+        // wasm-clock: only the desktop app makes a `DesktopPlatform`; the browser build never does.
         match answered.recv_timeout(self.patience) {
             Ok(outcome) => outcome,
             Err(_) => match state {
                 Some(state) if state.compare_exchange(PENDING, CANCELLED, Ordering::SeqCst, Ordering::SeqCst).is_err() => {
+                    // wasm-clock: as above, never in the browser.
                     answered.recv_timeout(self.patience).map_err(|_| PlatformError::Failed("the window did not answer"))?
                 }
                 _ => Err(PlatformError::Failed("the window did not answer")),

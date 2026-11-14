@@ -9,8 +9,11 @@
 //! run: those of its server first, then those of this computer; Move Up and Move Down move a rule
 //! within its list.
 
+use std::sync::Arc;
+
 use mailcraft_model::{
-    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, RuleGone, Sensitivity, Words, clean_name,
+    Action, Condition, FollowUp, Id, Importance, Keep, MAX_NAME, MAX_WORD, MAX_WORDS_EACH, Mailbox, Message, Rule, RuleGone, Sensitivity, Words,
+    clean_name,
 };
 use serde_json::{Value, json};
 
@@ -581,19 +584,54 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     // A rule that reads the body reads it whole, and a calendar part: one kept on disk is brought
     // in first (one that can't be read says so in its place, and is matched as that). A calendar
     // part too large to be shown isn't brought in for a rule either.
-    let reads_bodies = s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.reads_body());
+    let running = |r: &&Rule| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id);
+    let reads_bodies = s.mailbox.rules.iter().filter(running).any(Rule::reads_body);
+    // So does one that looks for words in the header, its lines kept outside memory too: brought
+    // in for the rules, and let go of again once they have run.
+    let reads_headers = s.mailbox.rules.iter().filter(running).any(Rule::reads_header);
     let clock = s.rule_clock();
     ids.into_iter()
         .filter(|id| {
             if reads_bodies {
                 let _ = s.load_where(*id, crate::session::is_readable_calendar_part);
             }
-            match only {
+            let brought = if reads_headers { bring_in_header(s, *id) } else { None };
+            let ran = match only {
                 Some(rule) => s.mailbox.run_rule(*id, rule, &clock),
                 None => !s.mailbox.run_rules(*id, true, &clock).is_empty(),
+            };
+            if let Some(brought) = brought {
+                let_go_of_header(s, *id, brought);
             }
+            ran
         })
         .count()
+}
+
+/// Message `id` as it was and as it is with its header block brought in, put in its place in the
+/// mailbox for the rules to read; `None` when the block is in memory already, or can't be read
+/// (a rule that looks in it then can't tell of the message, `Condition::unread_in`).
+fn bring_in_header(s: &mut Session, id: Id) -> Option<(Arc<Message>, Arc<Message>)> {
+    let was = s.mailbox.messages.get(&id).filter(|m| !m.header_block.is_loaded())?.clone();
+    let whole = s.with_header_block(was.clone());
+    if !whole.header_block.is_loaded() {
+        return None;
+    }
+    s.mailbox.messages.insert(id, whole.clone());
+    Some((was, whole))
+}
+
+/// The header block [`bring_in_header`] brought in, let go of again: message `id` as it was when
+/// the rules left it alone, and else with its block kept outside as before.
+fn let_go_of_header(s: &mut Session, id: Id, (was, whole): (Arc<Message>, Arc<Message>)) {
+    let Some(now) = s.mailbox.messages.get(&id) else { return };
+    if Arc::ptr_eq(now, &whole) {
+        s.mailbox.messages.insert(id, was);
+    } else if now.header_block == whole.header_block
+        && let Ok(m) = s.mailbox.message_mut(id)
+    {
+        m.header_block = was.header_block.clone();
+    }
 }
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {

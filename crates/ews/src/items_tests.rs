@@ -102,13 +102,15 @@ fn an_item_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
 
 /// A listing names the Message-ID among the fields it asks for, whatever the Default shape holds:
 /// mail moved back into a folder on another device comes with a new item id and is known by its
-/// Message-ID (#566).
+/// Message-ID (#566). The least a server is asked for (#1349) stays as it was.
 #[test]
 fn a_listing_asks_for_the_message_id_by_name() {
     for shape in [Shape::Full, Shape::Lean] {
         let request = SyncFolderItems::new("FOLDER", "", 10, shape).element().write();
         assert!(request.contains("FieldURI=\"message:InternetMessageId\""), "{request}");
     }
+    let bare = SyncFolderItems::new("FOLDER", "", 10, Shape::Bare).element().write();
+    assert!(!bare.contains("InternetMessageId") && bare.contains("FieldURI=\"item:Categories\""), "{bare}");
 }
 
 /// A recipient the reader can't keep and a subject longer than it keeps make the item cut as well

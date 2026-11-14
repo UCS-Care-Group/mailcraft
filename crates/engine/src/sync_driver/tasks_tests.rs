@@ -20,7 +20,7 @@ fn session() -> (Session, Id) {
 }
 
 fn facts() -> TasksFacts {
-    TasksFacts { enabled: true, running: false, busy: Busy::default() }
+    TasksFacts { reachable: true, running: false, busy: Busy::default() }
 }
 
 fn tokens(_: Id) -> Option<String> {
@@ -36,7 +36,7 @@ fn answered(s: &mut Session, account: Id, came: &TasksCame<'_>) {
 fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
     let (mut s, a) = session();
     assert_eq!(s.tasks_due(&facts(), tokens, 1e6), vec![a]);
-    assert!(s.tasks_due(&TasksFacts { enabled: false, ..facts() }, tokens, 1e6).is_empty());
+    assert!(s.tasks_due(&TasksFacts { reachable: false, ..facts() }, tokens, 1e6).is_empty());
     assert!(s.tasks_due(&TasksFacts { running: true, ..facts() }, tokens, 1e6).is_empty());
     let busy = Busy { signing_in: true, ..Default::default() };
     assert!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6).is_empty());
@@ -148,4 +148,16 @@ fn a_late_answer_for_a_removed_account_asks_nothing() {
     s.tasks_answered(a, 1_000.0, fingerprint("refresh"), &ran_for, Lang::English, &came);
     assert!(!s.driver.tasks.perm.contains_key(&a));
     assert_eq!(s.driver.tasks.to_ask(), Some(other));
+}
+
+#[test]
+fn the_host_switch_and_working_offline_stop_the_jobs_that_start_by_themselves() {
+    let (mut s, a) = session();
+    s.driver.set_auto_sync(false);
+    assert!(s.tasks_due(&facts(), tokens, 1e6).is_empty());
+    s.driver.set_auto_sync(true);
+    s.prefs.offline = true;
+    assert!(s.tasks_due(&facts(), tokens, 1e6).is_empty());
+    s.prefs.offline = false;
+    assert_eq!(s.tasks_due(&facts(), tokens, 1e6), vec![a]);
 }

@@ -423,6 +423,29 @@ fn active(ctx: &egui::Context) -> usize {
     ctx.fonts(|f| f.definitions().families.keys().filter(|k| matches!(k, FontFamily::Name(n) if n.starts_with(PREFIX))).count())
 }
 
+/// Let go of the faces read for messages (the window is out of sight, [`crate::out_of_sight`]):
+/// egui's fonts go back to the window's own, and a face is read again, and counted against the
+/// caps again, when a message is next drawn in it. What is installed stays known (or is still
+/// being found). Faces being read are not waited for: what they bring is not kept.
+pub fn let_go(ctx: &egui::Context) {
+    let store = Store::of(ctx);
+    let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+    if store.files.is_empty() && store.faces.is_empty() && store.queue.is_empty() {
+        return;
+    }
+    let index = std::mem::replace(&mut store.index, IndexState::NotAsked);
+    let inline = store.inline;
+    *store = Store { index, inline, ..Store::default() };
+    drop(store);
+    let mut defs: FontDefinitions = ctx.fonts(|f| f.definitions().clone());
+    let before = defs.families.len();
+    defs.families.retain(|family, _| !matches!(family, FontFamily::Name(n) if n.starts_with(PREFIX)));
+    defs.font_data.retain(|name, _| !name.starts_with(PREFIX));
+    if defs.families.len() != before {
+        ctx.set_fonts(defs);
+    }
+}
+
 /// Once a frame where messages are shown: take in what the threads brought and give egui the
 /// faces that are ready.
 pub fn tick(ctx: &egui::Context) {

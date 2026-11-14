@@ -26,7 +26,7 @@ fn app() -> (MailApp, Vec<Id>, Pipe) {
     let mut a =
         MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("Noor Haddad", "noor@example.org"), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     let pipe: Pipe = Default::default();
     let to = pipe.clone();
     a.services.sync = Some(Box::new(move |_: SyncRequest| {
@@ -146,7 +146,7 @@ fn a_round_of_accounts_waits_runs_and_ends_row_by_row() {
     a.passwords.remove(&ids[2]);
     a.execute("ui.sync", json!({"account": ids[0]})).unwrap();
     a.session.sync_progress.begin(&[ids[0], ids[2]]);
-    a.sync_queue.push_back((ids[2], true));
+    a.session.driver.round.queue.push_back((ids[2], true));
     send(&pipe, mail(&a, ids[0], &[4], false));
     a.poll_sync();
     a.auto_sync();
@@ -442,7 +442,7 @@ fn skip_leaves_a_waiting_account_out_of_the_run() {
     a.auto_sync();
     // The skipped one was never started: the run is over without it.
     assert_eq!(lines(&a), ["Done: 1 new", "Done: 1 new", "Skipped"]);
-    assert!(!a.session.sync_progress.running() && !a.syncing() && a.sync_queue.is_empty());
+    assert!(!a.session.sync_progress.running() && !a.syncing() && a.session.driver.round.queue.is_empty());
     let said = a.execute("sync.progress", json!({})).unwrap();
     assert_eq!(said["accounts"][2]["state"], json!("skipped"));
 }
@@ -584,9 +584,9 @@ fn full_messages_pause_with_stop_and_go_on_with_the_next_run() {
     a.auto_sync();
 
     // A Send/Receive that starts by itself does too.
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     a.session.prefs.sync_minutes = 5;
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     a.auto_sync();
     a.auto_sync();
     assert!(a.syncing(), "a round started by itself");

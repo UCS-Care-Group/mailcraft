@@ -88,6 +88,8 @@ pub fn to_model(m: mime::Message) -> Message {
         fresh_stamps,
         original,
     } = m;
+    // What is read by name stays on the message; every other line goes to its block, in place.
+    let (headers, header_block) = mailcraft_model::headers::split(headers);
     Message {
         message_id,
         in_reply_to,
@@ -122,6 +124,7 @@ pub fn to_model(m: mime::Message) -> Message {
         answered,
         draft,
         headers,
+        header_block,
         read_header,
         headers_cut,
         fresh_stamps,
@@ -175,7 +178,7 @@ pub fn from_model(m: &Message) -> mime::Message {
         categories: m.categories.clone(),
         answered: m.answered,
         draft: m.draft,
-        headers: m.headers.clone(),
+        headers: m.all_headers(),
         read_header: m.read_header.clone(),
         headers_cut: m.headers_cut,
         fresh_stamps: m.fresh_stamps,

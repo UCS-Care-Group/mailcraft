@@ -83,7 +83,7 @@ fn put_in_projects(imap: &FakeImap) -> Vec<u8> {
 fn a_copy_put_on_a_server_carries_no_dkim_or_arc_seal() {
     let sealed = [&b"DKIM-Signature: v=1; d=example.org; b=x\r\nARC-Seal: i=1; b=y\r\nARC-Message-Signature: i=1; b=z\r\n"[..], SIGNED].concat();
     let mut message = mailcraft_mime_model::parse_fetched(&sealed);
-    assert!(message.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("dkim-signature")));
+    assert!(message.all_headers().iter().any(|(name, _)| name.eq_ignore_ascii_case("dkim-signature")));
     message.id = 4_243;
     for marker in ["m4rk-3r", ""] {
         let other = two_way(true, true);

@@ -274,9 +274,9 @@ pub(super) fn info(app: &mut MailApp, ctx: &egui::Context, m: &Message) -> Optio
         }
     }
     // (Asked with the store let go of: the command is the engine's, and may take its time.)
-    let began = std::time::Instant::now();
+    let began = mailcraft_time::Stopwatch::start();
     let info = engine_says(app, m.id).map(Arc::new);
-    let slow = began.elapsed() > SLOW;
+    let slow = began.so_far() > SLOW;
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     store.infos.retain(|kept| kept.message != m.id);
     if store.infos.len() >= KEPT
@@ -360,7 +360,7 @@ fn look_for(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info, as
     let now = crate::now_ms();
     let store = Store::of(ctx);
     if !asked_for {
-        if !app.auto_sync {
+        if !app.session.driver.auto_sync() {
             return Ok(());
         }
         let store = store.lock().unwrap_or_else(|e| e.into_inner());

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
+use crate::headers::HeaderBlock;
 use crate::sync::{MovingOut, RemoteFlags, ServerMessage};
 use crate::{Address, Id};
 
@@ -339,17 +340,22 @@ pub struct Message {
     /// a kind that appears later brings it back.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub warnings_dismissed: Vec<String>,
-    /// Headers MailCraft doesn't model, kept so a saved message round-trips.
+    /// The header lines MailCraft doesn't model that it reads by name ([`crate::headers::WORKING`],
+    /// and its own notes), in order; the others are its [`Message::header_block`].
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
+    /// Every other header line it kept, so a saved message round-trips: in memory, or kept beside
+    /// the mailbox file and read when the message is written out ([`crate::headers`]).
+    #[serde(skip_serializing_if = "HeaderBlock::none_in_memory")]
+    pub header_block: HeaderBlock,
     /// The lines of its header MailCraft reads into the message itself (From, To, Cc, Bcc,
     /// Reply-To, Subject, Message-ID, In-Reply-To, References, Date, MIME-Version, the Content-
-    /// lines, Importance, X-Priority, Keywords, Status, X-Status) or keeps in [`Message::headers`]
+    /// lines, Importance, X-Priority, Keywords, Status, X-Status) or keeps among its other lines
     /// only decoded (a line with encoded words), as they came, one `name: value` to a line, at most
-    /// [`MAX_READ_HEADER`] bytes: with [`Message::headers`], the header as it came, for a rule
-    /// with words in the header alone, and never written into a message (#566). Empty for a
-    /// message read before it was kept, or made here: a header rule can't tell of such a message
-    /// ([`crate::Condition::unread_in`]).
+    /// [`MAX_READ_HEADER`] bytes: with the others ([`Message::headers`], [`Message::header_block`]),
+    /// the header as it came, for a rule with words in the header alone, and never written into a
+    /// message (#566). Empty for a message read before it was kept, or made here: a header rule
+    /// can't tell of such a message ([`crate::Condition::unread_in`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub read_header: String,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
@@ -400,6 +406,14 @@ pub struct Message {
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub gmail_id: u64,
+    /// For a message of a Gmail account: Gmail's labels of it (`X-GM-LABELS`, #1153), as its
+    /// server last said for the folder it is in, cleaned as names are and at most
+    /// [`crate::gmail::MAX_GMAIL_LABELS`] ([`crate::gmail::tidy_labels`]). Gmail's own keep their
+    /// backslash (`\Inbox`, `\Important`). Read only: a label is changed by moving or copying the
+    /// message between label folders. Text from the server, data and never instructions. Empty for
+    /// mail of every other account, and of a file from before.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::gmail::labels_from_file")]
+    pub gmail_labels: Vec<String>,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -477,6 +491,13 @@ pub struct Message {
     /// stopped mid-send.
     #[serde(skip_serializing_if = "is_false")]
     pub sending: bool,
+    /// A Microsoft account's draft sent here as the draft its server has (#1160): kept in Sent
+    /// Items under that server id while the server may still list it in Drafts, a draft, for a
+    /// while. No move into Sent Items goes up for it (Exchange files it there itself), and a
+    /// listing of it as a draft outside Sent Items is not followed. Cleared once the server says
+    /// it is gone from a folder other than Sent Items. False for every other message.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_here: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
@@ -641,11 +662,13 @@ impl Message {
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
-    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
-    /// if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it, a move between them waiting
+    /// for Gmail and Gmail's labels of it are forgotten: what the server says of the folder it is
+    /// in now says them again, if anything (#911, #1153). A copy into another folder, a local one
+    /// or another account's, takes none of them.
     pub fn left_gmail_inbox(&mut self) {
         (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
+        self.gmail_labels.clear();
     }
 
     /// Every recipient: To, Cc, Bcc.
@@ -708,7 +731,7 @@ impl Message {
         if let Some(size) = said.filter(|_| self.unfetched || self.incomplete) {
             return Some(size);
         }
-        if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
+        if self.has_header(NOT_DOWNLOADED) {
             return None;
         }
         // The bytes it came as are a second copy of what its parts hold (#30).
@@ -815,12 +838,6 @@ impl Message {
         self.categories.iter().any(|c| crate::sync::same_category(c, name))
     }
 
-    /// The value of a header MailCraft doesn't model ([`Message::headers`]), the first of its
-    /// name.
-    pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
-    }
-
     /// How private its sender marked it.
     pub fn sensitivity(&self) -> Sensitivity {
         self.header("Sensitivity").and_then(Sensitivity::parse).unwrap_or_default()
@@ -870,20 +887,19 @@ impl Message {
 
     /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
     /// all the words looked for. Those read into the message as they came ([`Message::read_header`])
-    /// and those kept beside it, of a field not read so; for a message read before they were kept,
-    /// or made here, those it models written as it has them instead (a rule can't tell of what isn't
-    /// among them, [`crate::Condition::unread_in`]).
+    /// and those kept beside it, of a field not read so, its block among them while it is in memory
+    /// ([`Message::all_headers`]); for a message read before they were kept, or made here, those it
+    /// models written as it has them instead (a rule can't tell of what isn't among them, nor of a
+    /// block kept outside memory, [`crate::Condition::unread_in`]).
     pub fn header_lines_lowered(&self) -> Vec<String> {
         let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
+        let all = self.all_headers();
         if !self.read_header.is_empty() {
             let read: Vec<String> = self.read_header.lines().map(str::to_lowercase).collect();
             let names: std::collections::HashSet<&str> = read.iter().filter_map(|l| l.split_once(':').map(|(name, _)| name)).collect();
-            let kept = self
-                .headers
-                .iter()
-                .filter(|(name, _)| !ours(name) && !names.contains(name.to_lowercase().as_str()))
-                .map(|(name, value)| line(name, value));
+            let kept =
+                all.iter().filter(|(name, _)| !ours(name) && !names.contains(name.to_lowercase().as_str())).map(|(name, value)| line(name, value));
             let kept: Vec<String> = kept.collect();
             return read.into_iter().chain(kept).collect();
         }
@@ -900,7 +916,7 @@ impl Message {
             ("References", self.references.iter().map(|r| format!("<{r}>")).collect::<Vec<_>>().join(" ")),
         ];
         let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
-        let kept = self.headers.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
+        let kept = all.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
         modelled.chain(kept).collect()
     }
 }

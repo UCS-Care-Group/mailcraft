@@ -9,7 +9,7 @@ use super::*;
 use crate::Session;
 
 fn facts(busy: Busy) -> CalendarFacts {
-    CalendarFacts { focused: true, backstage: false, enabled: true, busy }
+    CalendarFacts { focused: true, backstage: false, reachable: true, busy }
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn a_session_with_no_account_to_ask_has_nothing_due_and_the_wish_to_ask_ends_wit
 #[test]
 fn a_look_that_is_not_enabled_or_that_waits_for_another_job_asks_for_nothing_and_does_not_ask_the_owner() {
     let mut s = Session::new(Mailbox::with_local_account("", ""));
-    let off = CalendarFacts { enabled: false, ..facts(Busy::default()) };
+    let off = CalendarFacts { reachable: false, ..facts(Busy::default()) };
     assert!(!s.calendar_due(&off, 0.0).may_ask);
     let busy = Busy { mail_run: true, ..Busy::default() };
     assert!(!s.calendar_due(&facts(busy), 0.0).may_ask);
@@ -77,7 +77,7 @@ fn a_look_held_off_leaves_the_wish_to_ask_for_when_it_can_be_asked() {
     let look = s.calendar_due(&facts(busy), 0.0);
     s.calendar_none_started(&look);
     assert!(s.driver.calendar.due, "another job is at work");
-    let off = CalendarFacts { enabled: false, ..facts(Busy::default()) };
+    let off = CalendarFacts { reachable: false, ..facts(Busy::default()) };
     let look = s.calendar_due(&off, 0.0);
     s.calendar_none_started(&look);
     assert!(s.driver.calendar.due, "automatic checking is off");
@@ -155,4 +155,13 @@ fn a_shared_mailboxs_calendar_permission_follows_what_its_jobs_say() {
     s.driver.calendar.shared_perm.clear();
     said(&mut s, CalendarCame::default());
     assert_eq!(s.driver.calendar.shared_perm.get(&shared), Some(&SharedPermission::Given));
+}
+
+#[test]
+fn the_host_switch_stops_the_calendar_jobs_that_start_by_themselves() {
+    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    s.driver.set_auto_sync(false);
+    s.driver.calendar.due = true;
+    let look = s.calendar_due(&facts(Busy::default()), 0.0);
+    assert!(look.plans.is_empty() && !look.may_ask);
 }
