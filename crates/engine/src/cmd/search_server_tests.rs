@@ -354,7 +354,7 @@ fn an_imap_uid_is_only_unique_in_its_folder_and_opening_reuses_what_arrived() {
     let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
     let archive = s.mailbox.folders.iter().find(|f| f.remote == "Archive").unwrap().id;
     s.view.folder = inbox;
-    search(&mut s, "budget", "everywhere");
+    search(&mut s, "already", "everywhere");
     let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
     let hit = |folder: &str| GraphMessage {
         server: ServerMessage { id: "imap:7".into(), folder: folder.into(), read: true, ..Default::default() },
@@ -424,7 +424,7 @@ fn an_imap_hit_that_arrived_meanwhile_is_not_added_again() {
     .unwrap();
     let archive = s.mailbox.folders.iter().find(|f| f.remote == "Archive").unwrap().id;
     s.view.folder = archive;
-    search(&mut s, "budget", "folder");
+    search(&mut s, "came", "folder");
     let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
     let hit = GraphMessage {
         server: ServerMessage { id: "imap:7".into(), folder: "Archive".into(), ..Default::default() },
@@ -439,4 +439,57 @@ fn an_imap_hit_that_arrived_meanwhile_is_not_added_again() {
     // Nothing was listed, so there is no row to open. Applying did not add a copy.
     assert_eq!(s.mailbox.messages.len(), before);
     assert_eq!(s.mailbox.messages.values().filter(|m| m.folder == archive && m.uid == 7).count(), 1);
+}
+
+/// A word that sits only in a message that was not downloaded is not in the local list, so the
+/// server's copy of that UID stays. Once the message here matches the search, it is shown once.
+/// A hit from another UIDVALIDITY is a different message and stays too.
+#[test]
+fn an_unfetched_message_stays_when_only_its_body_matches() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{Address, Message};
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let mail = Message { uid: 7, subject: "Hello".into(), from: Address::new("Bo", "bo@example.org"), date: 100, ..Default::default() };
+    s.run(
+        "sync.apply",
+        &json!({"result": SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                remote: "INBOX".into(),
+                kind: FolderKind::Inbox,
+                uid_validity: 11,
+                uid_seen: 8,
+                new: vec![mail],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }}),
+    )
+    .unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    assert_eq!(s.mailbox.folder(inbox).unwrap().uid_validity, 11);
+    let id = s.mailbox.messages.values().find(|m| m.uid == 7).unwrap().id;
+    s.mailbox.message_mut(id).unwrap().unfetched = true;
+    s.view.folder = inbox;
+    search(&mut s, "budget", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    let hit = |server_id: &str| GraphMessage {
+        server: ServerMessage { id: server_id.into(), folder: "INBOX".into(), read: true, ..Default::default() },
+        subject: "Hello".into(),
+        preview: "the budget is in the body".into(),
+        received: NOW,
+        sent: NOW,
+        ..Default::default()
+    };
+    answer(&mut s, &request, vec![hit("imap:11:7")], "");
+    assert_eq!(subjects(&s), ["Hello"], "the local copy does not match, so the server's does");
+
+    s.mailbox.message_mut(id).unwrap().body.text = "the budget is in the body".into();
+    s.mailbox.message_mut(id).unwrap().unfetched = false;
+    search(&mut s, "body", "folder");
+    let request = asked(&mut s).into_iter().find(|r| r.account == a).unwrap();
+    answer(&mut s, &request, vec![hit("imap:11:7"), hit("imap:99:7")], "");
+    assert_eq!(subjects(&s), ["Hello"], "the same epoch is already listed; another UIDVALIDITY is another message");
+    assert_eq!(s.server_search.results[0].found.server.id, "imap:99:7");
 }

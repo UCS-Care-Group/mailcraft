@@ -503,7 +503,7 @@ fn server_opened(app: &MailApp) -> HashSet<Id> {
 
 /// The filtered list kept while the source rows and the opened set don't change.
 pub(crate) struct OpenedRows {
-    source: usize,
+    source: Arc<Vec<Row>>,
     stamp: u64,
     rows: Arc<Vec<Row>>,
 }
@@ -517,7 +517,6 @@ fn rows_for(app: &mut MailApp, opened: &HashSet<Id>) -> Arc<Vec<Row>> {
         app.opened_rows = None;
         return source;
     }
-    let ptr = Arc::as_ptr(&source) as usize;
     let mut ids: Vec<Id> = opened.iter().copied().collect();
     ids.sort_unstable();
     let mut stamp = ids.len() as u64;
@@ -525,13 +524,13 @@ fn rows_for(app: &mut MailApp, opened: &HashSet<Id>) -> Arc<Vec<Row>> {
         stamp = stamp.wrapping_mul(31).wrapping_add(id);
     }
     if let Some(kept) = &app.opened_rows
-        && kept.source == ptr
+        && Arc::ptr_eq(&kept.source, &source)
         && kept.stamp == stamp
     {
         return Arc::clone(&kept.rows);
     }
     let rows = without_opened(&source, opened);
-    app.opened_rows = Some(OpenedRows { source: ptr, stamp, rows: Arc::clone(&rows) });
+    app.opened_rows = Some(OpenedRows { source, stamp, rows: Arc::clone(&rows) });
     rows
 }
 
@@ -576,7 +575,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     search_bar(app, ui, mailcraft_engine::list::listed(&rows) + on_server, still);
     // A search the server is also answering says nothing about what is only half downloaded:
     // that mail is in the same list when the server finds it.
-    let telling = app.server_link() == crate::server_search::Link::None && !still;
+    let telling = crate::server_search::warn_about_local(app.server_link(), still, on_server);
     if telling && !app.session.view.search.trim().is_empty() {
         // (Counted as the list was built, not at every frame.)
         let partly = app.session.unfetched_in_view();

@@ -151,7 +151,12 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
 fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
-    let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
+    // Opened: the message as it is now (a flag or a read mark may have changed). Otherwise the
+    // hit, which is all there is until it is fetched.
+    let m = match r.opened.and_then(|id| app.session.mailbox.message(id).cloned()) {
+        Some(stored) => stored,
+        None => mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found),
+    };
     let resp = ui.interact(rect, ui.scope_id().with(("server_result", index)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
     app.hit.add("serverResult", index as u64, rect);
     let p = ui.painter();
@@ -192,12 +197,22 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let left = rect.min.x + TEXT_LEFT + if pictured { 2.0 * super::AVATAR_RADIUS + super::AVATAR_GAP } else { 0.0 };
     let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);
     // The marks at the right of the sender's line: the flag in its column, the rest before it.
-    let mut x = time_end;
+    // In one line the date sits there first, and the marks stay to its left.
     let flag = Rect::from_center_size(pos2(rect.max.x - 14.0, line1), vec2(12.0, 12.0));
+    let sender_line_end = if m.flag == FlagStatus::None { time_end } else { flag.min.x - 2.0 };
+    let mut x = sender_line_end;
     match m.flag {
         FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
         FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
         FlagStatus::None => {}
+    }
+    let date =
+        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+    let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
+    let mut one_date_w = 0.0;
+    if one {
+        one_date_w = p.text(pos2(sender_line_end, line1), Align2::RIGHT_CENTER, &date, font.clone(), color).width();
+        x = sender_line_end - one_date_w - 10.0;
     }
     let mut marker = |icon: &str, color| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
@@ -222,10 +237,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     // same left edge would draw the sender on top of the subject.
     let who_end = if one { (left + super::one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
     paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), &who, who_font, t.text);
-    let date =
-        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-    let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
-    let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width();
+    let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width() };
     // In a search of every mailbox the folder it is in, under the time (or before it, with no
     // preview), then its categories; its preview before them.
     let lines = app.session.prefs.preview_lines;

@@ -962,6 +962,13 @@ impl<S: Read + Write> Imap<S> {
     /// (`CHARSET UTF-8`), which a server that requires a charset otherwise refuses. The words
     /// stay out of the log.
     pub fn uid_search_clauses(&mut self, clauses: &[(&str, Option<&str>, &str)]) -> Result<Vec<u32>, ProtoError> {
+        self.uid_search_clauses_newest(clauses).map(|(uids, _)| uids)
+    }
+
+    /// Like [`uid_search_clauses`](Self::uid_search_clauses), keeping the highest UIDs when the
+    /// answer names more than [`MAX_FOUND`]: a later UID is the newer message, and the caller
+    /// hears that the answer was cut (`true`).
+    pub fn uid_search_clauses_newest(&mut self, clauses: &[(&str, Option<&str>, &str)]) -> Result<(Vec<u32>, bool), ProtoError> {
         if clauses.is_empty() || clauses.len() > 8 {
             return Err(ProtoError::Protocol(said!("the text can't be looked for on the server")));
         }
@@ -982,7 +989,7 @@ impl<S: Read + Write> Imap<S> {
                 _ => return Err(ProtoError::Protocol(said!("the text can't be looked for on the server"))),
             }
         }
-        self.take_search(command.shown_as("UID SEARCH"))
+        self.take_newest(command.shown_as("UID SEARCH"))
     }
 
     /// The UIDs a `UID SEARCH` answer names, at most [`MAX_FOUND`], in UID order.
@@ -1000,6 +1007,32 @@ impl<S: Read + Write> Imap<S> {
             }
         })?;
         Ok(found.into_iter().collect())
+    }
+
+    /// The highest UIDs a `UID SEARCH` answer names, at most [`MAX_FOUND`]. `true` when the answer
+    /// named more than that, so a newer UID was not dropped for an older one.
+    fn take_newest(&mut self, command: Command<'_>) -> Result<(Vec<u32>, bool), ProtoError> {
+        let mut found = BTreeSet::new();
+        let mut truncated = false;
+        self.run(command, &mut |values| {
+            if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
+                let uids = values.iter().skip(1).filter_map(Value::atom).filter_map(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0);
+                for uid in uids {
+                    if found.len() >= MAX_FOUND {
+                        truncated = true;
+                        if let Some(&smallest) = found.iter().next()
+                            && uid > smallest
+                        {
+                            found.remove(&smallest);
+                            found.insert(uid);
+                        }
+                    } else {
+                        found.insert(uid);
+                    }
+                }
+            }
+        })?;
+        Ok((found.into_iter().collect(), truncated))
     }
 
     /// UID SEARCH UID <set> UNDELETED X-GM-RAW "<query>": the messages of the open mailbox, among

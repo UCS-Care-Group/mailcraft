@@ -33,7 +33,12 @@ fn imap_folders(session: &mailcraft_engine::Session, account: Id, folder: &str) 
         .folders
         .iter()
         .filter(|f| f.account == account && !f.remote.is_empty())
-        .filter(|f| !matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk | mailcraft_model::FolderKind::Outbox))
+        // Deleted Items, Junk and Outbox stay out of a search of the whole mailbox. A search of
+        // one folder and what is under it keeps them when that folder is one of them.
+        .filter(|f| {
+            under.is_some()
+                || !matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk | mailcraft_model::FolderKind::Outbox)
+        })
         .filter(|f| under.as_ref().is_none_or(|ids| ids.contains(&f.id)))
         .map(|f| f.remote.clone())
         .collect()
@@ -116,6 +121,8 @@ pub struct ImapFetchJob {
     pub secret: String,
     pub folder: String,
     pub uid: u32,
+    /// The folder's UIDVALIDITY when the hit was found. 0: not known, so the fetch does not check it.
+    pub validity: u32,
 }
 
 impl std::fmt::Debug for ImapFetchJob {
@@ -133,6 +140,15 @@ impl std::fmt::Debug for ImapSearchJob {
             .field("gmail_all", &self.gmail_all)
             .finish()
     }
+}
+
+/// The list says what it could not search here. It stays quiet while a server search is running,
+/// and after one that brought matches back: that mail is in the same list.
+pub(crate) fn warn_about_local(link: Link, still: bool, hits: usize) -> bool {
+    if still || matches!(link, Link::Searching) {
+        return false;
+    }
+    !(matches!(link, Link::End) && hits > 0)
 }
 
 /// What the link below the local results is.
@@ -309,12 +325,13 @@ impl MailApp {
         let Some(found) = self.session.server_search.results.get(index).cloned() else { return };
         let Some(id) = found.opened else { return };
         let Some(uid) = search_server::imap_uid(&found.found.server.id) else { return };
-        self.start_imap_open(id, found.account, found.folder, uid);
+        let validity = search_server::imap_validity(&found.found.server.id).unwrap_or(0);
+        self.start_imap_open(id, found.account, found.folder, uid, validity);
     }
 
     /// Fetch the opened IMAP message whole. A Microsoft message is fetched the way any unfetched
     /// message of its account is, once it is selected.
-    fn start_imap_open(&mut self, id: Id, account_id: Id, folder: Id, uid: u32) {
+    fn start_imap_open(&mut self, id: Id, account_id: Id, folder: Id, uid: u32, validity: u32) {
         let generation = self.session.openings();
         let Some(account) = self.session.mailbox.account(account_id).filter(|a| a.kind == mailcraft_model::AccountKind::Imap).cloned() else {
             return;
@@ -325,7 +342,7 @@ impl MailApp {
         let secret = self.imap_secret(account.id);
         let Some(fetch) = self.services.imap_fetch.as_ref().filter(|_| !self.offline()) else { return };
         let Some(secret) = secret else { return };
-        let rx = fetch(ImapFetchJob { account, secret, folder: remote, uid });
+        let rx = fetch(ImapFetchJob { account, secret, folder: remote, uid, validity });
         self.server_searching.opening = Some(Opening { id, account: account_id, folder, uid, generation, rx });
     }
 
@@ -569,5 +586,43 @@ mod tests {
         // A search that involves no Microsoft mailbox has no link at all.
         app.run("view.search", json!({"query": "is:unread", "scope": "everywhere"})).unwrap();
         assert_eq!(app.server_link(), Link::None);
+    }
+
+    #[test]
+    fn the_local_warning_stays_when_the_server_was_not_asked_or_found_nothing() {
+        assert!(warn_about_local(Link::None, false, 0));
+        assert!(warn_about_local(Link::Ask, false, 0));
+        assert!(warn_about_local(Link::NotConnected { retry: true }, false, 0));
+        assert!(warn_about_local(Link::End, false, 0));
+        assert!(!warn_about_local(Link::Searching, false, 0));
+        assert!(!warn_about_local(Link::End, true, 3));
+        assert!(!warn_about_local(Link::End, false, 3));
+    }
+
+    #[test]
+    fn a_search_under_junk_asks_junk() {
+        use mailcraft_model::sync::{FolderDelta, SyncResult};
+        let mut app = MailApp::new(Session::empty(), Services::default());
+        let account = app.execute("account.add", json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+        let folder = |remote: &str, kind| FolderDelta { remote: remote.into(), kind, uid_validity: 1, ..Default::default() };
+        app.execute(
+            "sync.apply",
+            json!({"result": SyncResult {
+                account,
+                folders: vec![folder("INBOX", FolderKind::Inbox), folder("Junk", FolderKind::Junk)],
+                ..Default::default()
+            }}),
+        )
+        .unwrap();
+        let junk = app.session.mailbox.folders.iter().find(|f| f.kind == FolderKind::Junk).unwrap().id;
+        app.session.view.folder = junk;
+        app.session.view.scope = mailcraft_engine::Scope::Subfolders;
+        assert_eq!(imap_folders(&app.session, account, ""), ["Junk"]);
+        app.session.view.scope = mailcraft_engine::Scope::Everywhere;
+        let wide = imap_folders(&app.session, account, "");
+        assert!(wide.iter().any(|name| name == "INBOX"));
+        assert!(!wide.iter().any(|name| name == "Junk"));
     }
 }

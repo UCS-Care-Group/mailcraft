@@ -1203,7 +1203,7 @@ fn services(
             let (tx, rx) = std::sync::mpsc::channel();
             let wake = search_ctx.clone();
             let spawned = std::thread::Builder::new().name("imap fetch".into()).spawn(move || {
-                let result = mailcraft_net::imap_search::fetch_message(&job.account, &job.secret, &job.folder, job.uid);
+                let result = mailcraft_net::imap_search::fetch_message(&job.account, &job.secret, &job.folder, job.uid, job.validity);
                 let _ = tx.send(result);
                 wake.request_repaint();
             });

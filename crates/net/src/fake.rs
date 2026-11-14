@@ -609,7 +609,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     // The open mailbox was opened to be looked at only (EXAMINE).
     let mut read_only = true;
     while let Some(line) = read_line(&mut reader) {
-        let Some(line) = finish_literals(&mut reader, line) else { return };
+        // APPEND reads its own literal after it has answered `+`. Folding that literal in here
+        // would eat the body, and both sides would then wait for the other.
+        let (_, rest) = line.split_once(' ').unwrap_or((&line, ""));
+        let (verb, _) = rest.split_once(' ').unwrap_or((rest, ""));
+        let Some(line) = (if verb.eq_ignore_ascii_case("APPEND") { Some(line) } else { finish_literals(&mut reader, line) }) else {
+            return;
+        };
         let mut world = shared.lock().unwrap();
         world.log.push(line.clone());
         let (tag, rest) = line.split_once(' ').unwrap_or((&line, ""));

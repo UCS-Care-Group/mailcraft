@@ -294,7 +294,8 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
     let here: HashSet<&str> =
         mb.messages.values().filter(|m| m.account == account).filter_map(|m| m.server.as_ref().map(|s| s.id.as_str())).collect();
     let held: HashSet<&str> = s.server_search.results.iter().filter(|r| r.account == account).map(|r| r.found.server.id.as_str()).collect();
-    let local = s.search_query().for_server().local;
+    let query = s.search_query();
+    let local = query.for_server().local;
     let mut taken: Vec<ServerResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let room = MAX_RESULTS.saturating_sub(s.server_search.results.len());
@@ -315,9 +316,25 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         let uid = imap_uid(&found.server.id);
         let already = match uid {
             Some(uid) => {
-                mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid)
-                    || s.server_search.results.iter().any(|r| r.account == account && r.folder == folder && imap_uid(&r.found.server.id) == Some(uid))
-                    || !seen.insert(format!("{folder}:{uid}"))
+                // A local copy hides the hit only when it is the same message (the folder's
+                // UIDVALIDITY still matches) and the search already shows it. An unfetched
+                // message whose body is the only place the word sits is not in the local list,
+                // so the server's copy of it stays.
+                let validity = imap_validity(&found.server.id);
+                let epoch = validity.is_none_or(|v| mb.folder(folder).is_none_or(|f| f.uid_validity == 0 || f.uid_validity == v));
+                let shows = |m: &Message| query.is_empty() || query.matches_in(m, |at| s.offset_at(at));
+                let here = epoch && mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid && shows(m));
+                let held = s.server_search.results.iter().any(|r| {
+                    r.account == account
+                        && r.folder == folder
+                        && imap_uid(&r.found.server.id) == Some(uid)
+                        && imap_validity(&r.found.server.id) == validity
+                });
+                let key = match validity {
+                    Some(v) => format!("{folder}:{v}:{uid}"),
+                    None => format!("{folder}:{uid}"),
+                };
+                here || held || !seen.insert(key)
             }
             None => here.contains(id) || held.contains(id) || !seen.insert(id.to_string()),
         };
@@ -371,9 +388,24 @@ pub fn as_message(account: Id, folder: Id, found: &GraphMessage) -> Message {
     message
 }
 
-/// The UID an IMAP search result carries in its server id (`imap:7`). A Microsoft id has none.
+/// The UID an IMAP search result carries in its server id (`imap:7`, or `imap:11:7` with the
+/// folder's UIDVALIDITY). A Microsoft id has none.
 pub fn imap_uid(id: &str) -> Option<u32> {
-    id.strip_prefix("imap:").and_then(|n| n.parse().ok()).filter(|uid| *uid != 0)
+    let rest = id.strip_prefix("imap:")?;
+    rest.rsplit(':').next().and_then(|n| n.parse().ok()).filter(|uid| *uid != 0)
+}
+
+/// The UIDVALIDITY an IMAP search result carries (`imap:11:7`). None for `imap:7` and for a
+/// Microsoft id: the folder's own validity is then the only one there is.
+pub fn imap_validity(id: &str) -> Option<u32> {
+    let rest = id.strip_prefix("imap:")?;
+    let (validity, uid) = rest.split_once(':')?;
+    if uid.contains(':') {
+        return None;
+    }
+    let validity = validity.parse().ok().filter(|v: &u32| *v != 0)?;
+    uid.parse::<u32>().ok().filter(|uid| *uid != 0)?;
+    Some(validity)
 }
 
 /// Open the server result at `index`: into its folder, as a message not fetched yet, and
@@ -394,7 +426,15 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
             // Brought here meanwhile (a run, or opened before): that one. An IMAP uid only
             // together with its folder.
             let there = match imap_uid(&server_id) {
-                Some(uid) => s.mailbox.messages.values().find(|m| m.account == account && m.folder == result.folder && m.uid == uid).map(|m| m.id),
+                Some(uid) => {
+                    let validity = imap_validity(&server_id);
+                    let epoch = validity.is_none_or(|v| s.mailbox.folder(result.folder).is_none_or(|f| f.uid_validity == 0 || f.uid_validity == v));
+                    epoch
+                        .then(|| {
+                            s.mailbox.messages.values().find(|m| m.account == account && m.folder == result.folder && m.uid == uid).map(|m| m.id)
+                        })
+                        .flatten()
+                }
                 None => {
                     s.mailbox.messages.values().find(|m| m.account == account && m.server.as_ref().is_some_and(|sv| sv.id == server_id)).map(|m| m.id)
                 }
