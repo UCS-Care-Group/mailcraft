@@ -13,11 +13,14 @@
 //!   each Microsoft account and each IMAP account once.
 //! - **What goes** is the part of the query Graph's search understands
 //!   ([`mailcraft_model::search::Query::for_server`]); the rest is checked here against what
-//!   comes back ([`ServerSearch::checked_here`]). An IMAP account is asked for the words.
+//!   comes back ([`ServerSearch::checked_here`]). An IMAP account is asked with the field the
+//!   owner named (`from:`, `subject:` and the rest).
 //! - **Server results are held in the session, never in the mailbox**: 50 to a page, newest
 //!   first. A Microsoft mailbox's next page is asked for by itself, a few pages and no more.
 //!   One that is on this computer already (the same server id in the same mailbox) is not among
-//!   them: it shows once, in the local results. A new search, or clearing it, forgets them.
+//!   them: it shows once, in the local results. An IMAP message is the same one only with its
+//!   folder: the same UID in another folder is another message. A new search, or clearing it,
+//!   forgets them.
 //! - **Opening one** ([`open`], `search.openServerResult`) puts it into its folder as a message
 //!   not fetched yet, as a run would have brought it, and selects it: the window then fetches it
 //!   whole, and it stays as any synced message.
@@ -99,6 +102,8 @@ pub struct ServerSearch {
     pub checked_here: bool,
     /// The last try couldn't reach the server.
     pub offline: bool,
+    /// A server stopped at its hit limit. The list says there may be more.
+    pub capped: bool,
 }
 
 impl ServerSearch {
@@ -295,7 +300,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
     let room = MAX_RESULTS.saturating_sub(s.server_search.results.len());
     for found in result.messages.iter().take(1_000) {
         let id = found.server.id.as_str();
-        if id.is_empty() || here.contains(id) || held.contains(id) || !seen.insert(id.to_string()) || taken.len() >= room {
+        if id.is_empty() || taken.len() >= room {
             continue;
         }
         // In a folder this mailbox has (a hidden folder's, or one not listed yet, is passed over).
@@ -305,10 +310,18 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         if hidden.contains(&folder) {
             continue;
         }
-        // Already on this computer under its IMAP uid: shown once, among the local results.
-        if let Some(uid) = found.server.id.strip_prefix("imap:").and_then(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0)
-            && mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid)
-        {
+        // An IMAP uid is only unique inside its folder. The same number in Archive is another
+        // message than INBOX's. A Microsoft id is the server's own, unique in the mailbox.
+        let uid = imap_uid(&found.server.id);
+        let already = match uid {
+            Some(uid) => {
+                mb.messages.values().any(|m| m.account == account && m.folder == folder && m.uid == uid)
+                    || s.server_search.results.iter().any(|r| r.account == account && r.folder == folder && imap_uid(&r.found.server.id) == Some(uid))
+                    || !seen.insert(format!("{folder}:{uid}"))
+            }
+            None => here.contains(id) || held.contains(id) || !seen.insert(id.to_string()),
+        };
+        if already {
             continue;
         }
         let shown = as_message(account, folder, found);
@@ -327,6 +340,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         }
     }
     search.offline |= result.offline;
+    search.capped |= result.capped;
     if let Some(m) = search.mailboxes.get_mut(at) {
         m.asked = true;
         // A mailbox searched folder by folder is still at it: what arrived is shown, and it
@@ -351,10 +365,15 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
 /// of the search checked here looks at.
 pub fn as_message(account: Id, folder: Id, found: &GraphMessage) -> Message {
     let mut message = Message { account, ..graph_down::new_message(folder, &found.server.folder, found) };
-    if let Some(uid) = found.server.id.strip_prefix("imap:").and_then(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0) {
+    if let Some(uid) = imap_uid(&found.server.id) {
         message.uid = uid;
     }
     message
+}
+
+/// The UID an IMAP search result carries in its server id (`imap:7`). A Microsoft id has none.
+pub fn imap_uid(id: &str) -> Option<u32> {
+    id.strip_prefix("imap:").and_then(|n| n.parse().ok()).filter(|uid| *uid != 0)
 }
 
 /// Open the server result at `index`: into its folder, as a message not fetched yet, and
@@ -364,13 +383,22 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
     current(s);
     let result = s.server_search.results.get(index).cloned().ok_or_else(|| bad(format!("there is no result {index} from the server")))?;
     let account = result.account;
+    // Opened, then deleted: clicking the row must not bring it back.
+    if result.opened.is_some_and(|id| s.mailbox.message(id).is_none()) {
+        return Err(fail("this message was deleted"));
+    }
     let id = match result.opened.filter(|id| s.mailbox.message(*id).is_some()) {
         Some(id) => id,
         None => {
             let server_id = result.found.server.id.clone();
-            // Brought here meanwhile (a run, or opened before): that one.
-            let there =
-                s.mailbox.messages.values().find(|m| m.account == account && m.server.as_ref().is_some_and(|sv| sv.id == server_id)).map(|m| m.id);
+            // Brought here meanwhile (a run, or opened before): that one. An IMAP uid only
+            // together with its folder.
+            let there = match imap_uid(&server_id) {
+                Some(uid) => s.mailbox.messages.values().find(|m| m.account == account && m.folder == result.folder && m.uid == uid).map(|m| m.id),
+                None => {
+                    s.mailbox.messages.values().find(|m| m.account == account && m.server.as_ref().is_some_and(|sv| sv.id == server_id)).map(|m| m.id)
+                }
+            };
             match there {
                 Some(id) => id,
                 None => {
@@ -386,6 +414,10 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
                         && m.uid != 0
                     {
                         m.refetch = true;
+                        // The flags as the server had them, so a flag or a read mark made here
+                        // is pushed at the next run instead of being overwritten.
+                        let uid = m.uid;
+                        m.synced = Some(mailcraft_model::sync::RemoteFlags::of(m, uid));
                     }
                     s.mailbox_changed();
                     id

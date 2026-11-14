@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A search asks the mailboxes' own servers (R6.2), so mail that was never downloaded is found.
-//! Every Microsoft and IMAP mailbox the search covers is asked at once, a short moment after the
-//! owner stops typing, and what a mailbox finds joins the same list while the others are still
-//! being searched. A Microsoft account needs a Graph token of this session that is still good;
-//! an IMAP account the password or access token this session has. Without one, or when the last
-//! try couldn't reach the server, nothing is asked and the list is what is already here. Opening
-//! a result fetches it into its folder and keeps it in that row.
+//! More results on the server (R6.2): mail that was never downloaded is found when the owner
+//! clicks the link. Every Microsoft and IMAP mailbox the search covers is asked at once, and
+//! what a mailbox finds joins the same list while the others are still being searched. Nothing
+//! is asked before that click. A Microsoft account needs a Graph token of this session that is
+//! still good; an IMAP account the password or access token this session has. Without one, or
+//! when the last try couldn't reach the server, nothing is asked and the list is what is already
+//! here. Opening a result fetches it into its folder and keeps it in that row.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::search_server;
@@ -24,14 +25,17 @@ fn imap_folders(session: &mailcraft_engine::Session, account: Id, folder: &str) 
     if !folder.is_empty() {
         return vec![folder.to_string()];
     }
+    // A search of one folder and what is under it asks those folders, not the account's Inbox
+    // first: the hit limit would otherwise stop before the folder in view was reached.
+    let under = (session.view.scope == mailcraft_engine::Scope::Subfolders).then(|| session.mailbox.subtree(session.view.folder));
     session
         .mailbox
         .folders
         .iter()
         .filter(|f| f.account == account && !f.remote.is_empty())
         .filter(|f| !matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk | mailcraft_model::FolderKind::Outbox))
+        .filter(|f| under.as_ref().is_none_or(|ids| ids.contains(&f.id)))
         .map(|f| f.remote.clone())
-        .take(24)
         .collect()
 }
 
@@ -56,28 +60,38 @@ struct Pending {
 }
 
 /// The pages being asked for, in the window: whose, and the answer to come. Several mailboxes
-/// at once. `wait_query` is the text the server search is waiting out, so a keystroke doesn't
-/// ask the servers until the owner pauses.
+/// at once. Nothing is asked until the owner clicks More results on the server.
 #[derive(Default)]
 pub struct ServerSearching {
     pending: Vec<Pending>,
-    pub(crate) wait_query: String,
-    pub(crate) wait_at: Option<std::time::Instant>,
-    /// Further pages of a Microsoft mailbox asked on their own after the first.
+    /// Further pages of a Microsoft mailbox asked on their own after the first click.
     auto_pages: u8,
     /// The message a search row opened, being fetched whole.
     pub(crate) opening: Option<Opening>,
 }
 
-/// One IMAP message asked for because its search row was opened.
+/// One IMAP message asked for because its search row was opened. The account, folder and uid
+/// are what the row named, and `generation` is the mailbox that was open: an answer for another
+/// mailbox, or for a message that moved, is dropped.
 pub(crate) struct Opening {
     id: Id,
+    account: Id,
+    folder: Id,
+    uid: u32,
+    generation: u64,
     rx: Receiver<Result<mailcraft_model::Message, String>>,
 }
 
 impl ServerSearching {
     pub fn busy(&self) -> bool {
         !self.pending.is_empty()
+    }
+
+    /// The mailbox went away: drop what was asked of it, so an answer cannot land on the next one.
+    pub(crate) fn clear(&mut self) {
+        self.pending.clear();
+        self.auto_pages = 0;
+        self.opening = None;
     }
 }
 
@@ -89,7 +103,10 @@ pub struct ImapSearchJob {
     pub ticket: u64,
     pub folders: Vec<String>,
     pub query: String,
-    /// Gmail, and the search is the whole mailbox: All Mail is asked once.
+    /// UIDs already on this computer, by the folder's name on the server. They are not counted
+    /// toward the hit limit, so a synced Inbox does not use the limit up.
+    pub known: HashMap<String, HashSet<u32>>,
+    /// Gmail, and the search is the whole mailbox: All Mail is asked once when that folder is here.
     pub gmail_all: bool,
 }
 
@@ -112,6 +129,7 @@ impl std::fmt::Debug for ImapSearchJob {
         f.debug_struct("ImapSearchJob")
             .field("account", &self.account.id)
             .field("folders", &self.folders.len())
+            .field("known", &self.known.len())
             .field("gmail_all", &self.gmail_all)
             .finish()
     }
@@ -173,6 +191,10 @@ impl MailApp {
     /// accounts to their own server, all of them at once. One without a sign-in of this session
     /// is answered here as not reached.
     pub(crate) fn more_on_server(&mut self) {
+        // A new search, not the next page of the one already asked.
+        if !search_server::is_current(&self.session) || !self.session.server_search.asked() {
+            self.server_searching.auto_pages = 0;
+        }
         let requests = match search_server::requests(&mut self.session) {
             Ok(requests) => requests,
             Err(e) => return self.status(e.to_string()),
@@ -210,8 +232,9 @@ impl MailApp {
             return;
         };
         let folders = imap_folders(&self.session, request.account, &request.folder);
+        let known = known_uids(&self.session, request.account, &folders);
         let gmail_all = request.folder.is_empty() && is_gmail(&account);
-        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, gmail_all });
+        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known, gmail_all });
         self.server_searching.pending.push(Pending { unreached, rx, settled: false });
     }
 
@@ -263,41 +286,6 @@ impl MailApp {
         }
     }
 
-    /// A search the owner typed, asked of the servers once they pause. Every mailbox at once.
-    pub(crate) fn auto_server_search(&mut self, ctx: &egui::Context) {
-        if self.offline() || self.unconfirmed {
-            return;
-        }
-        let query = self.session.view.search.trim().to_string();
-        if query.is_empty() {
-            self.server_searching.wait_query.clear();
-            self.server_searching.wait_at = None;
-            self.server_searching.auto_pages = 0;
-            return;
-        }
-        if self.server_searching.wait_query != query {
-            self.server_searching.wait_query = query;
-            self.server_searching.wait_at = Some(std::time::Instant::now());
-            self.server_searching.auto_pages = 0;
-            crate::software::repaint_after(ctx, std::time::Duration::from_millis(450));
-            return;
-        }
-        let Some(at) = self.server_searching.wait_at else { return };
-        let wait = std::time::Duration::from_millis(450);
-        if at.elapsed() < wait {
-            crate::software::repaint_after(ctx, wait.saturating_sub(at.elapsed()));
-            return;
-        }
-        self.server_searching.wait_at = None;
-        if search_server::offered_reason(&self.session).is_some() || self.server_searching.busy() {
-            return;
-        }
-        if search_server::is_current(&self.session) && self.session.server_search.asked() {
-            return;
-        }
-        self.more_on_server();
-    }
-
     /// The password, or a still-good access token, this session has for an IMAP account.
     fn imap_secret(&mut self, account: Id) -> Option<String> {
         if let Some(pw) = self.passwords.get(&account).cloned() {
@@ -320,14 +308,15 @@ impl MailApp {
         self.reveal_selection = false;
         let Some(found) = self.session.server_search.results.get(index).cloned() else { return };
         let Some(id) = found.opened else { return };
-        let Some(uid) = found.found.server.id.strip_prefix("imap:").and_then(|n| n.parse().ok()).filter(|uid: &u32| *uid != 0) else { return };
+        let Some(uid) = search_server::imap_uid(&found.found.server.id) else { return };
         self.start_imap_open(id, found.account, found.folder, uid);
     }
 
     /// Fetch the opened IMAP message whole. A Microsoft message is fetched the way any unfetched
     /// message of its account is, once it is selected.
-    fn start_imap_open(&mut self, id: Id, account: Id, folder: Id, uid: u32) {
-        let Some(account) = self.session.mailbox.account(account).filter(|a| a.kind == mailcraft_model::AccountKind::Imap).cloned() else {
+    fn start_imap_open(&mut self, id: Id, account_id: Id, folder: Id, uid: u32) {
+        let generation = self.session.openings();
+        let Some(account) = self.session.mailbox.account(account_id).filter(|a| a.kind == mailcraft_model::AccountKind::Imap).cloned() else {
             return;
         };
         let Some(remote) = self.session.mailbox.folder(folder).map(|f| f.remote.clone()).filter(|name| !name.is_empty()) else {
@@ -337,20 +326,28 @@ impl MailApp {
         let Some(fetch) = self.services.imap_fetch.as_ref().filter(|_| !self.offline()) else { return };
         let Some(secret) = secret else { return };
         let rx = fetch(ImapFetchJob { account, secret, folder: remote, uid });
-        self.server_searching.opening = Some(Opening { id, rx });
+        self.server_searching.opening = Some(Opening { id, account: account_id, folder, uid, generation, rx });
     }
 
     fn take_opened(&mut self) {
-        let came = self.server_searching.opening.as_mut().map(|opening| (opening.id, opening.rx.try_recv()));
-        let Some((id, came)) = came else { return };
+        let came = self
+            .server_searching
+            .opening
+            .as_ref()
+            .map(|opening| (opening.generation, opening.id, opening.account, opening.folder, opening.uid, opening.rx.try_recv()));
+        let Some((generation, id, account, folder, uid, came)) = came else { return };
+        if generation != self.session.openings() {
+            self.server_searching.opening = None;
+            return;
+        }
         match came {
             Ok(Ok(read)) => {
                 self.server_searching.opening = None;
-                if read.body.text.is_empty() && read.body.html.is_none() {
-                    return;
+                let still = self.session.mailbox.message(id).is_some_and(|m| m.account == account && m.folder == folder && m.uid == uid);
+                if still {
+                    mailcraft_engine::cmd::imap_again::take_again(&mut self.session.mailbox, id, read);
+                    self.session.mailbox_changed();
                 }
-                mailcraft_engine::cmd::imap_again::take_again(&mut self.session.mailbox, id, read);
-                self.session.mailbox_changed();
             }
             Ok(Err(text)) => {
                 self.server_searching.opening = None;
@@ -360,6 +357,19 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => self.server_searching.opening = None,
         }
     }
+}
+
+/// UIDs already on this computer in the folders the search asks, so they are not counted as hits.
+fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[String]) -> HashMap<String, HashSet<u32>> {
+    let wanted: HashSet<&str> = folders.iter().map(String::as_str).collect();
+    let mut known: HashMap<String, HashSet<u32>> = HashMap::new();
+    for message in session.mailbox.messages.values().filter(|m| m.account == account && m.uid != 0) {
+        let Some(name) = session.mailbox.folder(message.folder).map(|f| f.remote.as_str()).filter(|name| wanted.contains(name)) else {
+            continue;
+        };
+        known.entry(name.to_string()).or_default().insert(message.uid);
+    }
+    known
 }
 
 #[cfg(test)]
@@ -481,7 +491,7 @@ mod tests {
         assert!(app.session.server_search.results.is_empty() && app.server_link() == Link::Ask);
     }
 
-    /// The section On the server, with its rows' folders under the time and one row selected, in
+    /// Server results in the same list, a row's folder under the time and one row selected, in
     /// light and dark at 100 % and 200 %, as PNG files to look at:
     /// `MAILCRAFT_SHOTS_DIR=<dir> cargo test -p mailcraft-ui-egui shots_of_server_results -- --ignored`
     #[test]

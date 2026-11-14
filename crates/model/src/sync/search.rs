@@ -84,6 +84,10 @@ pub struct GraphSearchResult {
     /// false.
     #[serde(skip_serializing_if = "is_false")]
     pub partial: bool,
+    /// The search stopped at its limit while the server still had matches. The messages so far
+    /// are what is shown, and the list says there may be more.
+    #[serde(skip_serializing_if = "is_false")]
+    pub capped: bool,
 }
 
 /// What came stays out of debug output: counts only.
@@ -99,6 +103,7 @@ impl std::fmt::Debug for GraphSearchResult {
             .field("busy_for", &self.busy_for)
             .field("refused", &self.refused)
             .field("partial", &self.partial)
+            .field("capped", &self.capped)
             .finish()
     }
 }

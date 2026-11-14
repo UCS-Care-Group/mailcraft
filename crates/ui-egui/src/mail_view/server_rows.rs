@@ -23,6 +23,10 @@ const MAX_SAID: usize = 3;
 
 /// One line of what is drawn below the local results.
 enum Line {
+    /// More results on the server, or Not connected, or still searching.
+    Ask,
+    /// The search stopped at its limit.
+    Note(String),
     Problem(String),
     /// The server result at this index of the session's.
     Result(usize),
@@ -31,7 +35,7 @@ enum Line {
 impl Line {
     fn height(&self, row_h: f32) -> f32 {
         match self {
-            Line::Problem(_) => NOTE_H,
+            Line::Ask | Line::Note(_) | Line::Problem(_) => NOTE_H,
             Line::Result(_) => row_h,
         }
     }
@@ -40,18 +44,31 @@ impl Line {
 /// The messages the servers found, as ordinary rows of the list. `local` is what the list above
 /// already shows, so a message is not drawn twice. Nothing here says where a message was found.
 fn lines(app: &MailApp, local: &HashSet<Id>) -> Vec<Line> {
-    if app.server_link() == Link::None {
-        return Vec::new();
-    }
-    let search = &app.session.server_search;
-    if !mailcraft_engine::cmd::search_server::is_current(&app.session) || !search.asked() {
+    let link = app.server_link();
+    if link == Link::None {
         return Vec::new();
     }
     let mut out = Vec::new();
+    if matches!(link, Link::Ask | Link::NotConnected { .. } | Link::Searching) {
+        out.push(Line::Ask);
+    }
+    let search = &app.session.server_search;
+    if !mailcraft_engine::cmd::search_server::is_current(&app.session) || !search.asked() {
+        return out;
+    }
+    if search.capped {
+        out.push(Line::Note(tl!("The server search stopped after 40 messages. There may be more.").to_string()));
+    }
     out.extend(search.errors.iter().take(MAX_SAID).map(|e| Line::Problem(e.clone())));
     for (i, r) in search.results.iter().enumerate() {
+        // Opened and then deleted: the row must not bring it back. Downloaded since by a
+        // Send/Receive: it is in the local list, and a second copy must not be added.
+        let deleted = r.opened.is_some_and(|id| app.session.mailbox.message(id).is_none());
+        let downloaded = r.opened.is_none()
+            && mailcraft_engine::cmd::search_server::imap_uid(&r.found.server.id)
+                .is_some_and(|uid| app.session.mailbox.messages.values().any(|m| m.account == r.account && m.folder == r.folder && m.uid == uid));
         let already = r.opened.is_some_and(|id| local.contains(&id));
-        if !already {
+        if !deleted && !downloaded && !already {
             out.push(Line::Result(i));
         }
     }
@@ -76,6 +93,11 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
             continue;
         }
         match line {
+            Line::Ask => link_line(app, ui, rect),
+            Line::Note(text) => {
+                paint_clipped(ui.painter(), pos2(rect.min.x + 10.0, rect.center().y), rect.width() - 20.0, &text, regular(11.5), t.text_dim);
+                app.hit.add("serverNote", 0, rect);
+            }
             Line::Problem(text) => {
                 let r = Rect::from_center_size(pos2(rect.min.x + 16.0, rect.center().y), vec2(12.0, 12.0));
                 icons::paint(ui.painter(), r, "highImportance", t.orange, t.accent);
@@ -87,6 +109,41 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
             }
             Line::Result(i) => result_row(app, ui, i, rect),
         }
+    }
+}
+
+/// More results on the server, as a link; greyed with why when it can't be asked now.
+fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
+    let t = Tokens::get(ui.ctx());
+    let link = app.server_link();
+    let (text, live) = match link {
+        Link::Ask => (tl!("More results on the server").to_string(), true),
+        Link::NotConnected { retry } => (format!("{} · {}", tl!("More results on the server"), tl!("Not connected")), retry),
+        Link::Searching => (tl!("Searching the server…").to_string(), false),
+        Link::End | Link::None => return,
+    };
+    let font = regular(12.5);
+    let galley = ui.painter().layout_no_wrap(text.clone(), font.clone(), t.accent_text);
+    let at = Rect::from_min_size(pos2(rect.min.x + TEXT_LEFT - 18.0, rect.center().y - galley.size().y / 2.0), galley.size());
+    let resp = ui.interact(at.expand(4.0), ui.scope_id().with("more_on_server"), if live { Sense::click() } else { Sense::hover() });
+    let resp = if live { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
+    let resp = match link {
+        Link::NotConnected { retry: true } => resp.on_hover_text(tl!("The server couldn't be reached. Click to try again.")),
+        Link::NotConnected { retry: false } => resp.on_hover_text(tl!("Send/Receive signs in; then the server can be searched.")),
+        _ => resp,
+    };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, live, &text));
+    app.hit.add("moreOnServer", 0, at);
+    let color = match link {
+        Link::Ask => t.accent_text,
+        _ => t.text_disabled,
+    };
+    ui.painter().text(at.left_center(), Align2::LEFT_CENTER, &text, font, color);
+    if live && resp.hovered() {
+        ui.painter().line_segment([pos2(at.min.x, at.max.y + 1.0), pos2(at.max.x, at.max.y + 1.0)], Stroke::new(1.0, color));
+    }
+    if resp.clicked() {
+        let _ = app.run("ui.moreResultsOnServer", serde_json::json!({}));
     }
 }
 
@@ -161,7 +218,10 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         m.from.display().to_string()
     };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    paint_clipped(p, pos2(left, line1), (text_end.min(x - 4.0) - left).max(0.0), &who, who_font, t.text);
+    // A single line puts the sender in the same column a local row uses. The same y and the
+    // same left edge would draw the sender on top of the subject.
+    let who_end = if one { (left + super::one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
+    paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), &who, who_font, t.text);
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
@@ -183,7 +243,8 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     }
     let subject_end = if lines > 0 { text_end.min(time_end - date_w - 8.0) } else { text_end.min(sx - 6.0) };
     let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-    paint_clipped(p, pos2(left, line2), (subject_end - left).max(0.0), subject, font, color);
+    let subject_x = if one { who_end + 10.0 } else { left };
+    paint_clipped(p, pos2(subject_x, line2), (subject_end - subject_x).max(0.0), subject, font, color);
     if lines > 0 {
         let end = text_end.min(sx - 6.0);
         let preview: String = m.body.text.split_whitespace().collect::<Vec<_>>().join(" ");

@@ -130,8 +130,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
-    // Wide enough for "Aktueller Ordner" and "Alle Postfächer", which 104px cuts off.
-    let scope_w = if mail_search { 148.0 } else { 0.0 };
+    let scope_w = if mail_search { 104.0 } else { 0.0 };
     // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
     let in_mail = app.session.view.module == Module::Mail;
     let advanced_w = if in_mail { 28.0 } else { 0.0 };

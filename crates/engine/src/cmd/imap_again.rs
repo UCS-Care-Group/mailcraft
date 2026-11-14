@@ -118,6 +118,13 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
         }
         return;
     }
+    // A search hit was only its headers. What came is the message, including its files,
+    // headers and the thread it belongs to. Its id, folder, uid and flags stay.
+    if m.unfetched {
+        fill_unfetched(m, read);
+        return;
+    }
+    // A draft the owner wrote keeps its text.
     if m.draft {
         return;
     }
@@ -138,8 +145,6 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     names(&mut m.cc, read.cc);
     names(&mut m.reply_to, read.reply_to);
     m.body = read.body;
-    // A search result was only its headers until this download. What came is the message.
-    m.unfetched = false;
     m.hidden_text = read.hidden_text;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
@@ -148,6 +153,43 @@ pub fn take_again(mb: &mut Mailbox, id: Id, mut read: Message) {
     if read.original.is_some() && !m.parts_removed {
         m.original = read.original;
     }
+}
+
+/// A message that was only its headers takes the message that was downloaded: its text, files,
+/// headers and the thread it belongs to. Where it is, its uid and the flags it has now stay,
+/// including a flag the owner set while the download was on its way.
+fn fill_unfetched(m: &mut Message, read: Message) {
+    m.message_id = read.message_id;
+    m.in_reply_to = read.in_reply_to;
+    m.references = read.references;
+    m.from = read.from;
+    m.reply_to = read.reply_to;
+    m.to = read.to;
+    m.cc = read.cc;
+    m.bcc = read.bcc;
+    if !read.subject.is_empty() {
+        m.subject = read.subject;
+    }
+    if read.date != 0 {
+        m.date = read.date;
+    }
+    if read.received != 0 {
+        m.received = read.received;
+    }
+    m.body = read.body;
+    m.hidden_text = read.hidden_text;
+    m.importance = read.importance;
+    m.not_downloaded = read.not_downloaded;
+    // Ones the owner removed stay removed.
+    if !m.parts_removed {
+        m.attachments = read.attachments;
+        m.headers = read.headers;
+        if read.original.is_some() {
+            m.original = read.original;
+        }
+    }
+    m.unfetched = false;
+    m.kept = None;
 }
 
 /// The messages moved out of `account` whose original is asked for from the copy they came from

@@ -5,13 +5,16 @@
 //! One connection per account. The account's folders are read one after another on that
 //! connection, and each folder's hits are handed back as soon as they arrive (`partial`), so a
 //! window can show them while another account, on its own connection, is still being searched.
-//! Gmail's whole mailbox is one search of All Mail (`X-GM-RAW`), which sees mail that was never
-//! downloaded. Nothing of the query or of a password is written to a log line.
+//! Gmail is asked folder by folder like any other account: All Mail is not a folder kept here, so
+//! a search of it cannot be placed. Nothing of the query or of a password is written to a log line.
+
+use std::collections::{HashMap, HashSet};
 
 use crate::NetError;
-use crate::sync::{internal_date, open_imap};
+use crate::sync::{MAX_MESSAGE, internal_date, message_from, open_imap, too_large};
 use mailcraft_i18n::said;
-use mailcraft_model::search::{Query, ServerTerm};
+use mailcraft_model::Importance;
+use mailcraft_model::search::{Query, ServerField, ServerTerm};
 use mailcraft_model::sync::{GraphMessage, GraphSearchResult, ServerMessage};
 use mailcraft_model::{Account, FlagStatus, Message};
 
@@ -21,8 +24,9 @@ const MAX_HITS: usize = 40;
 /// Most words of the query sent. The rest is checked here against what comes back.
 const MAX_WORDS: usize = 6;
 
-/// Search `folders` of `account` (names as the server knows them) for `query`. `gmail_all`: the
-/// account is Gmail and the search is the whole mailbox, so All Mail is asked once. Each call of
+/// Search `folders` of `account` (names as the server knows them) for `query`. `known` is the
+/// UIDs already on this computer, by folder name: they are not counted toward the hit limit.
+/// `gmail_all`: when the folder list holds All Mail, that folder is asked once. Each call of
 /// `on_page` is one folder's hits, or the failure; the last call has `partial` false.
 pub fn search(
     account: &Account,
@@ -30,13 +34,14 @@ pub fn search(
     ticket: u64,
     folders: &[String],
     query: &str,
+    known: &HashMap<String, HashSet<u32>>,
     gmail_all: bool,
     mut on_page: impl FnMut(GraphSearchResult),
 ) {
     let mut base = GraphSearchResult { account: account.id, email: account.email.clone(), ticket, ..Default::default() };
-    let words = needles(query);
-    if words.is_empty() {
-        base.errors.push("Nothing of this search can be asked of the server.".into());
+    let asked = clauses(query);
+    // Nothing the server can be asked: not an error. The list stays what is already here.
+    if asked.is_empty() {
         on_page(base);
         return;
     }
@@ -79,13 +84,14 @@ pub fn search(
                 continue;
             }
         }
+        let clause_refs: Vec<(&str, Option<&str>, &str)> = asked.iter().map(|c| (c.key, c.header, c.text.as_str())).collect();
         let uids = if gmail_all && is_all_mail(folder) {
-            match gmail_query(&words) {
+            match gmail_query(&asked) {
                 Some(query) => imap.uid_search_gmail("1:*", &query),
-                None => imap.uid_search_words(&words.iter().map(String::as_str).collect::<Vec<_>>()),
+                None => imap.uid_search_clauses(&clause_refs),
             }
         } else {
-            imap.uid_search_words(&words.iter().map(String::as_str).collect::<Vec<_>>())
+            imap.uid_search_clauses(&clause_refs)
         };
         let uids = match uids {
             Ok(uids) => uids,
@@ -99,8 +105,17 @@ pub fn search(
                 return;
             }
         };
+        let mut uids = uids;
+        // A higher UID is the newer message. The limit then keeps the newest, not the oldest.
+        uids.sort_unstable_by(|a, b| b.cmp(a));
+        let held = known.get(folder.as_str());
+        let mut stopped = false;
         for uid in uids {
+            if held.is_some_and(|uids| uids.contains(&uid)) {
+                continue;
+            }
             if hits >= MAX_HITS {
+                stopped = true;
                 break;
             }
             let fetched = match imap.uid_fetch_header(uid) {
@@ -124,8 +139,9 @@ pub fn search(
                 hits += 1;
             }
         }
-        let more_folders = at != last && hits < MAX_HITS;
+        let more_folders = at != last && hits < MAX_HITS && !stopped;
         page.partial = more_folders;
+        page.capped = stopped || (hits >= MAX_HITS && at != last);
         on_page(page);
         if !more_folders {
             let _ = imap.logout();
@@ -138,23 +154,48 @@ pub fn search(
     let _ = imap.logout();
 }
 
-/// The words the server is asked for: what of the query a server's search understands, bare.
-fn needles(query: &str) -> Vec<String> {
-    let mut words = Vec::new();
+/// One restriction sent to the server: an IMAP search key and, for `HEADER`, the field name.
+struct Clause {
+    key: &'static str,
+    header: Option<&'static str>,
+    text: String,
+}
+
+/// What of the query the server is asked, with each word kept in the part the owner named.
+fn clauses(query: &str) -> Vec<Clause> {
+    let mut out = Vec::new();
     for term in Query::parse(query).for_server().terms {
-        let ServerTerm::Words { words: raw, .. } = term else { continue };
-        for word in raw {
-            let word: String = word.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(80).collect();
-            if word.is_empty() {
-                continue;
+        match term {
+            ServerTerm::Words { field, words } => {
+                let (key, header) = match field {
+                    Some(ServerField::From) => ("FROM", None),
+                    Some(ServerField::To) => ("TO", None),
+                    Some(ServerField::Cc) => ("CC", None),
+                    Some(ServerField::Subject) => ("SUBJECT", None),
+                    Some(ServerField::Body) => ("BODY", None),
+                    Some(ServerField::Attachment) | None => ("TEXT", None),
+                };
+                for word in words {
+                    let word: String = word.chars().filter(|c| !matches!(c, '\r' | '\n' | '\0')).take(80).collect();
+                    if word.is_empty() {
+                        continue;
+                    }
+                    out.push(Clause { key, header, text: word });
+                    if out.len() >= MAX_WORDS {
+                        return out;
+                    }
+                }
             }
-            words.push(word);
-            if words.len() >= MAX_WORDS {
-                return words;
-            }
+            ServerTerm::HasAttachment => out.push(Clause { key: "HEADER", header: Some("Content-Disposition"), text: "attachment".into() }),
+            ServerTerm::Importance(Importance::High) => out.push(Clause { key: "HEADER", header: Some("Importance"), text: "high".into() }),
+            ServerTerm::Importance(Importance::Low) => out.push(Clause { key: "HEADER", header: Some("Importance"), text: "low".into() }),
+            ServerTerm::Importance(_) => {}
+        }
+        if out.len() >= MAX_WORDS {
+            break;
         }
     }
-    words
+    out
 }
 
 /// All Mail first when the whole Gmail mailbox is searched; otherwise Inbox first, and at most
@@ -173,8 +214,22 @@ fn is_all_mail(remote: &str) -> bool {
     name.eq_ignore_ascii_case("All Mail") || name.eq_ignore_ascii_case("Alle Nachrichten")
 }
 
-fn gmail_query(words: &[String]) -> Option<String> {
-    let query = words.join(" ");
+fn gmail_query(clauses: &[Clause]) -> Option<String> {
+    let mut parts = Vec::new();
+    for clause in clauses {
+        let piece = match (clause.key, clause.header) {
+            ("FROM", _) => format!("from:{}", clause.text),
+            ("TO", _) => format!("to:{}", clause.text),
+            ("CC", _) => format!("cc:{}", clause.text),
+            ("SUBJECT", _) => format!("subject:{}", clause.text),
+            ("HEADER", Some("Content-Disposition")) => "has:attachment".to_string(),
+            ("HEADER", Some("Importance")) if clause.text == "high" => "is:important".to_string(),
+            ("BODY", _) | ("TEXT", _) => clause.text.clone(),
+            _ => clause.text.clone(),
+        };
+        parts.push(piece);
+    }
+    let query = parts.join(" ");
     mailcraft_proto::imap::searchable(&query).then_some(query)
 }
 
@@ -224,7 +279,16 @@ fn fetch_message_at(account: &Account, secret: &str, folder: &str, uid: u32) -> 
         let _ = imap.logout();
         return Err(NetError::from(e));
     }
-    let fetched = match imap.uid_fetch_message(uid) {
+    let size = match imap.uid_fetch_sizes(&uid.to_string()) {
+        Ok(sizes) => sizes.into_iter().find(|(found, _)| *found == uid).map(|(_, size)| size).unwrap_or(0),
+        Err(e) => {
+            let _ = imap.logout();
+            return Err(NetError::from(e));
+        }
+    };
+    // The same limit a synchronisation uses: a larger message keeps its header, not its body.
+    let large = size > MAX_MESSAGE;
+    let fetched = match if large { imap.uid_fetch_header(uid) } else { imap.uid_fetch_message(uid) } {
         Ok(fetched) => fetched,
         Err(e) => {
             let _ = imap.logout();
@@ -235,22 +299,10 @@ fn fetch_message_at(account: &Account, secret: &str, folder: &str, uid: u32) -> 
     let Some(fetched) = fetched else {
         return Err(NetError::Config(said!("the message is no longer on the server")));
     };
-    if fetched.body.as_ref().is_none_or(Vec::is_empty) {
+    if !large && fetched.body.as_ref().is_none_or(Vec::is_empty) {
         return Err(NetError::Config(said!("the message is no longer on the server")));
     }
-    Ok(read_fetched(fetched))
-}
-
-fn read_fetched(fetched: mailcraft_proto::imap::Fetched) -> Message {
-    let mut message = mailcraft_mime_model::parse_fetched(fetched.body.as_deref().unwrap_or_default());
-    message.uid = fetched.uid;
-    message.read = fetched.flags.iter().any(|f| f.eq_ignore_ascii_case("\\Seen"));
-    message.flag = if fetched.flags.iter().any(|f| f.eq_ignore_ascii_case("\\Flagged")) { FlagStatus::Flagged } else { FlagStatus::None };
-    message.answered = fetched.flags.iter().any(|f| f.eq_ignore_ascii_case("\\Answered"));
-    message.draft = fetched.flags.iter().any(|f| f.eq_ignore_ascii_case("\\Draft"));
-    message.forwarded |= fetched.flags.iter().any(|f| f.eq_ignore_ascii_case("$Forwarded"));
-    message.received = fetched.internal_date.as_deref().and_then(internal_date).unwrap_or(message.date);
-    message
+    Ok(if large { too_large(fetched, size, MAX_MESSAGE) } else { message_from(fetched) })
 }
 
 #[cfg(test)]

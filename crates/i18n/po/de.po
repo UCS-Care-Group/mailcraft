@@ -7256,6 +7256,12 @@ msgstr "Mehr dazu"
 msgid "More commands"
 msgstr "Weitere Befehle"
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+#, fuzzy
+msgid "More results on the server"
+msgstr "Weitere Ergebnisse auf dem Server"
+
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
@@ -8166,7 +8172,7 @@ msgid "Not available: {reason}"
 msgstr "Nicht verfügbar: {reason}"
 
 #. interface
-#: crates/ui-egui/src/server_search.rs
+#: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
 #, fuzzy
 msgid "Not connected"
 msgstr "Nicht verbunden"
@@ -10699,6 +10705,12 @@ msgid "Search time zones"
 msgstr "Zeitzonen suchen"
 
 #. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+#, fuzzy
+msgid "Searching the server…"
+msgstr "Server wird durchsucht…"
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Searching…"
 msgstr "Suche läuft…"
@@ -11012,6 +11024,11 @@ msgstr "Senden/Empfangen läuft bereits"
 #, fuzzy
 msgid "Send/Receive problems"
 msgstr "Probleme bei Senden/Empfangen"
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "Send/Receive signs in; then the server can be searched."
+msgstr "Senden/Empfangen meldet Sie an; danach kann der Server durchsucht werden."
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -13247,6 +13264,11 @@ msgid "The server answered, but not as an Exchange server does. Check its addres
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr "Der Server war nicht erreichbar. Klicken Sie, um es erneut zu versuchen."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr ""
@@ -13300,6 +13322,11 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
+msgstr "Die Suche auf dem Server hat nach 40 Nachrichten aufgehört. Es kann mehr geben."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18181,6 +18208,11 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
@@ -19764,20 +19796,12 @@ msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die N
 #~ msgstr "Der Microsoft-Server war nicht erreichbar. Klicken Sie, um es erneut zu versuchen."
 
 #, fuzzy
-#~ msgid "More results on the server"
-#~ msgstr "Weitere Ergebnisse auf dem Server"
-
-#, fuzzy
 #~ msgid "Nothing more was found on the server"
 #~ msgstr "Auf dem Server wurde nichts weiter gefunden"
 
 #, fuzzy
 #~ msgid "On the server · Searching…"
 #~ msgstr "Auf dem Server · Suche läuft…"
-
-#, fuzzy
-#~ msgid "Searching the server…"
-#~ msgstr "Server wird durchsucht…"
 
 #, fuzzy
 #~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."

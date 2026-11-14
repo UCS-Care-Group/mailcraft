@@ -315,8 +315,8 @@ pub struct Services {
     /// Desktop: fetch messages of a Microsoft account whole on a background thread (R3.2).
     pub graph_fetch: Option<Box<dyn Fn(graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
-    /// (R6.2: More results on the server). Started when the owner searches, together with every
-    /// other mailbox the search covers.
+    /// (R6.2: More results on the server). Started when the owner clicks that link, together
+    /// with every other mailbox the search covers. Nothing is asked before the click.
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Desktop: search an IMAP account on its own server. One connection per account, run at the
     /// same time as the others; each folder's hits arrive as their own answer (`partial` until
@@ -1527,6 +1527,9 @@ pub struct MailApp {
     pub(crate) fetching: graph_fetch::Fetching,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
+    /// The message list with opened server hits taken out, kept while that list and that set
+    /// don't change, so a frame doesn't copy the rows again (#503).
+    pub(crate) opened_rows: Option<mail_view::OpenedRows>,
     /// When each account's calendar and contacts were last brought down (milliseconds).
     graph_checked: std::collections::HashMap<Id, f64>,
     /// Accounts whose owner hasn't allowed Graph yet ("Connect calendar and contacts").
@@ -1840,6 +1843,7 @@ impl MailApp {
             graph_after_sign_in: None,
             fetching: Default::default(),
             server_searching: Default::default(),
+            opened_rows: None,
             graph_checked: Default::default(),
             graph_consent_needed: Default::default(),
             calendar: Default::default(),
@@ -4688,7 +4692,6 @@ impl MailApp {
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
-        self.auto_server_search(ctx);
         self.drive_server_search();
         if self.server_searching.busy() || self.server_searching.opening.is_some() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));

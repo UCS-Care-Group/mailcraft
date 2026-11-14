@@ -538,12 +538,43 @@ fn server_opened(app: &MailApp) -> HashSet<Id> {
     app.session.server_search.results.iter().filter_map(|r| r.opened).collect()
 }
 
+/// The filtered list kept while the source rows and the opened set don't change.
+pub(crate) struct OpenedRows {
+    source: usize,
+    stamp: u64,
+    rows: Arc<Vec<Row>>,
+}
+
+/// `rows` without the messages [`server_opened`] names, the same `Arc` when nothing was opened
+/// and a cached copy while an opened hit stays open. A group heading moves to the next row that
+/// is still there.
+fn rows_for(app: &mut MailApp, opened: &HashSet<Id>) -> Arc<Vec<Row>> {
+    let source = app.session.rows();
+    if opened.is_empty() {
+        app.opened_rows = None;
+        return source;
+    }
+    let ptr = Arc::as_ptr(&source) as usize;
+    let mut ids: Vec<Id> = opened.iter().copied().collect();
+    ids.sort_unstable();
+    let mut stamp = ids.len() as u64;
+    for id in ids {
+        stamp = stamp.wrapping_mul(31).wrapping_add(id);
+    }
+    if let Some(kept) = &app.opened_rows
+        && kept.source == ptr
+        && kept.stamp == stamp
+    {
+        return Arc::clone(&kept.rows);
+    }
+    let rows = without_opened(&source, opened);
+    app.opened_rows = Some(OpenedRows { source: ptr, stamp, rows: Arc::clone(&rows) });
+    rows
+}
+
 /// `rows` without the messages [`server_opened`] names. A group heading moves to the next row
 /// that is still there.
-fn without_opened(rows: &[Row], opened: &HashSet<Id>) -> Vec<Row> {
-    if opened.is_empty() {
-        return rows.to_vec();
-    }
+fn without_opened(rows: &[Row], opened: &HashSet<Id>) -> Arc<Vec<Row>> {
     let mut out = Vec::new();
     let mut carry: Option<(String, bool)> = None;
     for row in rows {
@@ -566,7 +597,7 @@ fn without_opened(rows: &[Row], opened: &HashSet<Id>) -> Vec<Row> {
         }
         out.push(row);
     }
-    out
+    Arc::new(out)
 }
 
 fn list(app: &mut MailApp, ui: &mut Ui) {
@@ -576,7 +607,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // Gmail's categories, when they are tabs above a Gmail Inbox's list (#911).
     crate::gmail_tabs::row(app, ui);
     let opened = server_opened(app);
-    let rows = Arc::new(without_opened(app.session.rows().as_ref(), &opened));
+    let rows = rows_for(app, &opened);
     let on_server = if mailcraft_engine::cmd::search_server::is_current(&app.session) { app.session.server_search.results.len() } else { 0 };
     let still = app.server_searching.busy();
     search_bar(app, ui, mailcraft_engine::list::listed(&rows) + on_server, still);

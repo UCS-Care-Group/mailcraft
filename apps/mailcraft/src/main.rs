@@ -1136,10 +1136,19 @@ fn services(
                 let (tx, rx) = std::sync::mpsc::channel();
                 let wake = search_ctx.clone();
                 let spawned = std::thread::Builder::new().name("imap search".into()).spawn(move || {
-                    mailcraft_net::imap_search::search(&job.account, &job.secret, job.ticket, &job.folders, &job.query, job.gmail_all, |page| {
-                        let _ = tx.send(page);
-                        wake.request_repaint();
-                    });
+                    mailcraft_net::imap_search::search(
+                        &job.account,
+                        &job.secret,
+                        job.ticket,
+                        &job.folders,
+                        &job.query,
+                        &job.known,
+                        job.gmail_all,
+                        |page| {
+                            let _ = tx.send(page);
+                            wake.request_repaint();
+                        },
+                    );
                 });
                 if let Err(e) = spawned {
                     log::error!("couldn't start imap search: {e}");

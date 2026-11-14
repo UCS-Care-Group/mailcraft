@@ -79,6 +79,9 @@ impl MailApp {
     /// Another mailbox took the place of the open one ([`MailApp::drop_secrets_if_replaced`]):
     /// every job is called off, and what was known of its run goes with it.
     pub(crate) fn clear_jobs_on_replace(&mut self) {
+        // A search or a fetch started for the mailbox that just went away. An answer applied
+        // here would land on whatever now has those ids.
+        self.server_searching.clear();
         for kind in JobKind::ALL {
             match kind {
                 // (One Send/Receive at a time, whichever way: called off together.)

@@ -41,7 +41,7 @@ const MAX_RUN_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RUN_MESSAGES: usize = 100_000;
 /// The largest message that is downloaded whole. Of a larger one only the header is, and a note
 /// takes the place of its text ([`too_large`]).
-const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
+pub(crate) const MAX_MESSAGE: u64 = 25 * 1024 * 1024;
 /// Most messages of a Gmail account's Inbox whose Gmail category is read in one run, the newest
 /// (#911); older ones keep what they had.
 const MAX_GMAIL_SORTED: usize = 200_000;
@@ -894,7 +894,7 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 }
 
 /// The message a server handed over, with what the server knows about it.
-fn message_from(fetched: Fetched) -> Message {
+pub(crate) fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
     let mut message = mailcraft_mime_model::parse_fetched(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
@@ -913,7 +913,7 @@ fn message_from(fetched: Fetched) -> Message {
 /// shows, and the header [`NOT_DOWNLOADED`] for other programs). It has its UID like any other
 /// message, so it is not asked for again; flags, moves and deletions reach the whole message on
 /// the server.
-fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
+pub(crate) fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     let mut message = message_from(header);
     message.attachments.clear();
     // (Its header alone is no original of it, #30.)

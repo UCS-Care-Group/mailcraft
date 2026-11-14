@@ -6397,6 +6397,11 @@ msgstr ""
 msgid "More commands"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "More results on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 msgid "More results on the server aren't offered: {why}"
@@ -7171,7 +7176,7 @@ msgid "Not available: {reason}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/server_search.rs
+#: crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/server_search.rs
 msgid "Not connected"
 msgstr ""
 
@@ -9399,6 +9404,11 @@ msgid "Search time zones"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "Searching the server…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Searching…"
 msgstr ""
@@ -9672,6 +9682,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Send/Receive problems"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "Send/Receive signs in; then the server can be searched."
 msgstr ""
 
 #. interface
@@ -11688,6 +11703,11 @@ msgid "The server answered, but not as an Exchange server does. Check its addres
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr ""
@@ -11735,6 +11755,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
 msgstr ""
 
 #. interface
@@ -16061,6 +16086,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
 msgstr ""
 
 #. what a command says
