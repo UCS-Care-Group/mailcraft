@@ -436,6 +436,47 @@ class AccountsTest {
     }
 
     @Test
+    fun aQueuedSignInLeftForANewerOneNeverOpensItsPage() {
+        val first = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            signInGates.addAll(listOf(first, CompletableDeferred<Unit>().apply { complete(Unit) }))
+            signInResults.addAll(listOf(SignInResult.Cancelled, SignInResult.SignedIn(7u, "c@example.org", "C")))
+        }
+        val rig = Rig(api)
+        for (email in listOf("a@example.org", "b@example.org", "c@example.org")) {
+            rig.actions.onLeaveAdd()
+            rig.actions.onEmail(email)
+            rig.actions.onSignIn()
+        }
+        assertEquals(listOf("a@example.org"), api.signIns)
+        first.complete(Unit)
+        // B was left while it waited: only A and C ever reached the core, and C's answer is shown.
+        assertEquals(listOf("a@example.org", "c@example.org"), api.signIns)
+        assertEquals(AddAccountState.Done(7u), rig.ui.add)
+    }
+
+    @Test
+    fun cancellingASignInThatIsStillQueuedMeansItNeverBegins() {
+        val first = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            signInGates.add(first)
+            signInResults.add(SignInResult.Cancelled)
+        }
+        val rig = Rig(api)
+        rig.actions.onEmail("a@example.org")
+        rig.actions.onSignIn()
+        rig.actions.onLeaveAdd()
+        rig.actions.onEmail("b@example.org")
+        rig.actions.onSignIn()
+        // Cancel on B's waiting screen, while A is still being called off.
+        rig.actions.onCancelSignIn()
+        assertEquals(AddAccountState.Form("b@example.org", Notice.Cancelled), rig.ui.add)
+        first.complete(Unit)
+        assertEquals(listOf("a@example.org"), api.signIns)
+        assertEquals(AddAccountState.Form("b@example.org", Notice.Cancelled), rig.ui.add)
+    }
+
+    @Test
     fun aRemovalThatEndsLateNeverTouchesAnotherAccountsConfirmation() {
         val bob = AccountItem(8u, "Bob Example", "bob@example.org", emptyList())
         val api = FakeApi().apply {

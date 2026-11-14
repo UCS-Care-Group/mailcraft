@@ -32,7 +32,7 @@ internal class AccountsController(
     fun actions(): AccountActions = AccountActions(
         onEmail = ::typed,
         onSignIn = ::signIn,
-        onCancelSignIn = api::cancel,
+        onCancelSignIn = ::cancelSignIn,
         onCopyMessage = ::copyMessage,
         onLeaveAdd = ::leaveAdd,
         onSignInAgain = ::signInAgain,
@@ -96,6 +96,26 @@ internal class AccountsController(
     /** The last sign-in started: the next waits for it to be over. */
     private var signInJob: Job? = null
 
+    /** The sign-in that is waiting for an earlier one to be over, and hasn't opened its page; 0 when none is. */
+    private var queued = 0L
+
+    /** Cancel on the waiting screen: the sign-in under way is called off, and one still queued never begins. */
+    private fun cancelSignIn() {
+        api.cancel()
+        if (queued != 0L && queued == signInOperation) {
+            queued = 0L
+            signInOperation++
+            ui.update { state ->
+                val add = state.add
+                if (add is AddAccountState.Waiting) {
+                    state.copy(add = AddAccountState.Form(add.email, Notice.Cancelled))
+                } else {
+                    state
+                }
+            }
+        }
+    }
+
     /** Opens Microsoft's page and waits for the owner. Only from the form or the approval help. */
     fun signIn() {
         val email = emailOf(ui.value.add) ?: return
@@ -106,9 +126,13 @@ internal class AccountsController(
             // A sign-in the owner left (leaving the screen calls it off) is over before this one begins:
             // one at a time, so that its end can't call off, or disarm, the new one.
             if (previous?.isActive == true) {
+                queued = operation
                 api.cancel()
                 previous.join()
+                if (queued == operation) queued = 0L
             }
+            // (Called off, or left for a newer one, while it waited: it never opens its page.)
+            if (operation != signInOperation) return@launch
             val result = api.signIn(email)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
             if (result is SignInResult.SignedIn) {
