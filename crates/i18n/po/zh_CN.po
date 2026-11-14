@@ -923,8 +923,9 @@ msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收�
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Added to Contacts"
-msgstr ""
+msgstr "已添加至联系人"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
@@ -934,25 +935,29 @@ msgstr "地址"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Address\n"
 "Book"
-msgstr ""
+msgstr "通讯簿"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Address Book"
-msgstr ""
+msgstr "通讯簿"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Address list"
-msgstr ""
+msgstr "地址列表"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Address list · {account}"
-msgstr ""
+msgstr "地址列表 · {account}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1034,8 +1039,9 @@ msgstr "全天"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "All names are checked"
-msgstr ""
+msgstr "所有姓名均已检查"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -3018,8 +3024,9 @@ msgstr "联系人名片"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Contacts"
-msgstr ""
+msgstr "联系人"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3883,8 +3890,9 @@ msgstr "显示名称"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Distribution list"
-msgstr ""
+msgstr "通讯组列表"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4087,8 +4095,9 @@ msgstr "正在下载图片…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Downloading the address book stopped unexpectedly"
-msgstr ""
+msgstr "通讯簿下载意外中止"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -4104,8 +4113,9 @@ msgstr "正在先下载邮件…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Downloading the organisation's address book…"
-msgstr ""
+msgstr "正在下载组织的通讯簿…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5154,13 +5164,15 @@ msgstr "来自组织外部。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
-msgstr ""
+msgstr "来自 {account} 所在组织的通讯簿，仅在 MailCraft 运行期间保存在内存中，从不存储：“添加至联系人”会在这台计算机上保留一份副本。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr ""
+msgstr "来自 {account} 所在组织的地址列表。仅在查看时显示，不会保留：“添加至联系人”会在这台计算机上保留一份副本。"
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -5545,8 +5557,9 @@ msgstr "程序会向 Gravatar 请求发件人的头像，并向其提供发件�
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Group"
-msgstr ""
+msgstr "组"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6118,8 +6131,9 @@ msgstr "在此日历中："
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "In your contacts"
-msgstr ""
+msgstr "已在联系人中"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -6962,13 +6976,15 @@ msgstr "正在查找您的 Exchange 服务器…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up in the organisation's address list…"
-msgstr ""
+msgstr "正在组织的地址列表中查找姓名…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr ""
+msgstr "姓名查找意外中止"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -7859,8 +7875,9 @@ msgstr "目前无法在服务器上请求更多结果"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "More than one person matches \"{name}\". Choose one:"
-msgstr ""
+msgstr "有多人与“{name}”匹配。请选择一人："
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -8704,13 +8721,15 @@ msgstr "尚无人提出其他时间。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address book matches"
-msgstr ""
+msgstr "通讯簿中没有匹配的人"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
-msgstr ""
+msgstr "地址列表中没有匹配的人"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -8732,8 +8751,9 @@ msgstr "没有匹配搜索条件的联系人"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Nobody matches: {names}"
-msgstr ""
+msgstr "没有匹配的人：{names}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -8843,8 +8863,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
-msgstr ""
+msgstr "不用于邮件，或属于证书颁发机构：“添加至联系人”不会包含它。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9260,8 +9281,9 @@ msgstr "此处只有邮件的开头，其余内容将在下一次发送/接收�
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr ""
+msgstr "仅显示前 {n} 个：请输入更多姓名内容以查找其他人。"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -9323,8 +9345,9 @@ msgstr "打开附件"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Open Contact"
-msgstr ""
+msgstr "打开联系人"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -9676,8 +9699,9 @@ msgstr "组织外部（开启）"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Outside the organisation"
-msgstr ""
+msgstr "组织外部"
 
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -10197,8 +10221,9 @@ msgstr "公钥"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Public folder"
-msgstr ""
+msgstr "公用文件夹"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11556,8 +11581,9 @@ msgstr "搜索联系人"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "Search the address list"
-msgstr ""
+msgstr "搜索地址列表"
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -11567,8 +11593,9 @@ msgstr "搜索时区"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr ""
+msgstr "地址列表搜索意外中止"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -11578,8 +11605,9 @@ msgstr "正在搜索服务器…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching…"
-msgstr ""
+msgstr "正在搜索…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11673,8 +11701,9 @@ msgstr "请先选择文本"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Select somebody to see the details"
-msgstr ""
+msgstr "选择一个人以查看详细信息"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -13553,8 +13582,9 @@ msgstr "用于打开 {address} 的账户已不存在。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr ""
+msgstr "需要先提供该帐户的密码：请点击“发送/接收”并输入密码"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -13600,8 +13630,9 @@ msgstr "发送会议时，账户服务器会创建会议，并返回加入链接
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr ""
+msgstr "地址列表中该姓名的人比显示的更多：请输入更多内容以查找未列出的人。"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -14197,8 +14228,9 @@ msgstr "此版本附带的设置"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "The organisation's address book is empty"
-msgstr ""
+msgstr "组织的通讯簿为空"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -14441,8 +14473,9 @@ msgstr "服务器或组织未提供其设置。请向管理员询问服务器地
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "The server sent no address book"
-msgstr ""
+msgstr "服务器未发送通讯簿"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15624,8 +15657,9 @@ msgstr "MailCraft 在此系统上找不到可存放带私钥的 S/MIME 证书的
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "This version of MailCraft can't search an address list"
-msgstr ""
+msgstr "此版本的 MailCraft 无法搜索地址列表"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -16051,8 +16085,9 @@ msgstr "类型"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Type a name in the search box to search the organisation's address list"
-msgstr ""
+msgstr "在搜索框中输入姓名以搜索组织的地址列表"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16781,8 +16816,9 @@ msgstr "离线工作：您发送的邮件会在发件箱中等待"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Workplace"
-msgstr ""
+msgstr "工作地点"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -17530,8 +17566,9 @@ msgstr "任务必须有标题"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "add an Exchange server account first: its organisation's address list is searched"
-msgstr ""
+msgstr "请先添加 Exchange 服务器帐户：将搜索其所在组织的地址列表"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -20660,9 +20697,10 @@ msgstr[0] "{n} 个文件夹"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} found in the address list"
 msgid_plural "{n} found in the address list"
-msgstr[0] ""
+msgstr[0] "在地址列表中找到 {n} 个"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
