@@ -50,3 +50,30 @@ fn junk_never_panics() {
         let _ = scan(src);
     }
 }
+
+#[test]
+fn white_space_may_stand_before_the_parenthesis() {
+    assert_eq!(ids("core.t (\"Inbox\"); core.t\n(\"Sent\")"), vec!["Inbox", "Sent"]);
+    let s = scan("tn (n, \"{n} row\", \"{n} rows\")");
+    assert_eq!(s.len(), 1);
+    assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
+    assert!(ids("t \"x\"; tx (\"y\")").is_empty());
+}
+
+#[test]
+fn a_parenthesized_count_keeps_its_slot() {
+    let s = scan("tn((n), \"{n} row\", \"{n} rows\"); tn([n], \"{n} a\", \"{n} b\")");
+    assert_eq!(s.len(), 2);
+    assert_eq!(s[0].id, "{n} row");
+    assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
+    assert_eq!(s[1].id, "{n} a");
+}
+
+#[test]
+fn triple_quoted_strings_are_read() {
+    assert_eq!(ids("t(\"\"\"Inbox\"\"\")"), vec!["Inbox"]);
+    assert_eq!(ids("t(\"\"\"say \"hi\" \\n\"\"\")"), vec!["say \"hi\" \\n"]);
+    assert!(ids("t(\"\"\"Hello $name\"\"\")").is_empty());
+    assert_eq!(ids("val s = \"\"\"t(\"no\")\"\"\"; t(\"yes\")"), vec!["yes"]);
+    assert_eq!(ids("t(\"\")"), vec![""]);
+}

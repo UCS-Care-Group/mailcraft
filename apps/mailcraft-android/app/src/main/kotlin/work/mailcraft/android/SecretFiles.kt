@@ -33,8 +33,15 @@ internal class SecretFiles(private val dir: File, private val sealer: Sealer) : 
         val file = fileFor(key)
         if (!file.isFile) return@guarded null
         if (file.length() > MAX_FILE) throw HostException.Failed()
+        val sealed = try {
+            file.readBytes()
+        } catch (e: IOException) {
+            // A file that is there and cannot be read is a store in trouble, not a missing credential.
+            trouble = TroubleKind.UNAVAILABLE
+            throw e
+        }
         try {
-            String(sealer.open(aadOf(key), file.readBytes()), StandardCharsets.UTF_8)
+            String(sealer.open(aadOf(key), sealed), StandardCharsets.UTF_8)
         } catch (_: GeneralSecurityException) {
             trouble = TroubleKind.UNAVAILABLE
             throw HostException.Failed()
