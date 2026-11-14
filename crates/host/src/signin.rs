@@ -309,8 +309,12 @@ pub enum Standing {
 /// A refresh token Microsoft rotated the stored one to in the answer to a check, the account's
 /// own. It is not kept by the check: the caller keeps it ([`Renewed::keep`]) where it can first
 /// make sure the account is still there, so that an answer arriving after the account was removed
-/// never puts its sign-in back. Its `Debug` says nothing of the token.
-pub struct Renewed(String);
+/// never puts its sign-in back. Its `Debug` says nothing of either token.
+pub struct Renewed {
+    token: String,
+    /// The stored token the check began with: the new one replaces that one only.
+    from: String,
+}
 
 impl std::fmt::Debug for Renewed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -319,11 +323,15 @@ impl std::fmt::Debug for Renewed {
 }
 
 impl Renewed {
-    /// Keep it as the sign-in of the account at `email`, in place of the old one. A store that
-    /// refuses leaves the old token, which is good until Microsoft says otherwise.
+    /// Keep it as the sign-in of the account at `email`, in place of the one the check began
+    /// with, and only while that one is still the one kept: a sign-in forgotten meanwhile, or
+    /// replaced by a newer sign-in, is never written over by an older answer. A store that refuses
+    /// leaves the old token, which is good until Microsoft says otherwise.
     pub fn keep(&self, platform: &dyn Platform, email: &str) {
-        if let Some(store) = platform.secrets() {
-            let _ = store.set(&microsoft_secret_key("refresh", email), &self.0);
+        let Some(store) = platform.secrets() else { return };
+        let key = microsoft_secret_key("refresh", email);
+        if store.get(&key).as_deref() == Some(self.from.as_str()) {
+            let _ = store.set(&key, &self.token);
         }
     }
 }
@@ -337,8 +345,8 @@ pub struct Checked {
 }
 
 /// The refresh token of an answer, when it is the account's own.
-pub(crate) fn renewed(email: &str, tokens: &Tokens) -> Option<Renewed> {
-    (!tokens.refresh.is_empty() && !tokens.someone_else(email, "")).then(|| Renewed(tokens.refresh.clone()))
+pub(crate) fn renewed(email: &str, tokens: &Tokens, from: &str) -> Option<Renewed> {
+    (!tokens.refresh.is_empty() && !tokens.someone_else(email, "")).then(|| Renewed { token: tokens.refresh.clone(), from: from.to_string() })
 }
 
 /// Whether the sign-in kept for `email` covers `permission`, asked of Microsoft with the stored
@@ -356,11 +364,11 @@ pub fn permission_standing(platform: &dyn Platform, email: &str, permission: Per
         Permission::SharedSend => refresh_graph_shared_send_at(mail, &oauth, &refresh).map(|g| g.tokens),
     };
     match asked {
-        Ok(tokens) => Checked { standing: Standing::Allowed, renewed: renewed(email, &tokens) },
+        Ok(tokens) => Checked { standing: Standing::Allowed, renewed: renewed(email, &tokens, &refresh) },
         Err(e) if e.is_consent_needed() => only(Standing::NotAllowed),
         // "No longer good": for this permission only, or for the whole sign-in?
         Err(e) if e.is_refused_sign_in() => match refresh_for_at(mail, &oauth, &refresh, Resource::GraphMail) {
-            Ok(tokens) => Checked { standing: Standing::NotAllowed, renewed: renewed(email, &tokens) },
+            Ok(tokens) => Checked { standing: Standing::NotAllowed, renewed: renewed(email, &tokens, &refresh) },
             Err(e) if e.is_refused_sign_in() => only(Standing::SignInNeeded),
             Err(_) => only(Standing::Unknown),
         },

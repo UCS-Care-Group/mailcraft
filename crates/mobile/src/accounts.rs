@@ -358,9 +358,6 @@ impl Core {
     /// token (nothing is opened and the owner is not asked). Nothing is stored of the answer.
     pub async fn permission_state(&self, account: u64, permission: Permission) -> Result<PermissionState, CoreError> {
         let email = self.email_of(account).await?;
-        // (Read after the look at the account, on the session's thread: a `forget_sign_ins` after it
-        // moves it on.)
-        let forgotten = self.sync.forgotten();
         let Some(o) = signin::client_oauth() else { return Ok(PermissionState::Unknown) };
         let mail = self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail));
         let graph = self.signins.at(Endpoints::for_resource(&o, Resource::Graph));
@@ -387,14 +384,15 @@ impl Core {
             let _ = self
                 .call(move |s| {
                     // The very account that was checked (one removed and added again is another, with
-                    // its own sign-in), with the sign-ins not forgotten since, and only when the owner
-                    // lets sign-ins be remembered.
+                    // its own sign-in), only when the owner lets sign-ins be remembered, and (`keep`)
+                    // only in place of the stored sign-in the check began with: one forgotten, or
+                    // replaced by a newer sign-in, meanwhile is never written over.
                     let there = s
                         .mailbox
                         .accounts
                         .iter()
                         .any(|a| a.id == account && a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
-                    if there && sync.forgotten() == forgotten && sync.remembers() {
+                    if there && sync.remembers() {
                         renewed.keep(platform.as_ref(), &email);
                     }
                     Ok(())

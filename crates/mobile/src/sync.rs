@@ -16,7 +16,7 @@
 //! index entry of that same store, so that "remove all my data" can find every one.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -223,9 +223,6 @@ pub(crate) struct SyncHost {
     /// A round is under way (read by the driver thread to choose how long to wait).
     busy: AtomicBool,
     remember: AtomicBool,
-    /// How many times the sign-ins were forgotten (`forget_sign_ins`), on the session's thread: a
-    /// renewal that began before one is not kept after it.
-    forgotten: AtomicU64,
     notify_mail: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
@@ -246,7 +243,6 @@ impl SyncHost {
             inner: Mutex::new(Inner { sr, ..Default::default() }),
             busy: AtomicBool::new(false),
             remember: AtomicBool::new(true),
-            forgotten: AtomicU64::new(0),
             notify_mail: AtomicBool::new(true),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
@@ -269,11 +265,6 @@ impl SyncHost {
     /// Whether sign-ins are kept in the credential store (the owner's choice).
     pub(crate) fn remembers(&self) -> bool {
         self.remember.load(Ordering::Relaxed)
-    }
-
-    /// The count of `forget_sign_ins` so far; read on the session's thread.
-    pub(crate) fn forgotten(&self) -> u64 {
-        self.forgotten.load(Ordering::Acquire)
     }
 
     pub(crate) fn set_notify_mail(&self, on: bool) {
@@ -382,8 +373,6 @@ impl SyncHost {
     /// instead (kept as it is when it can't be), and the answer says that sign-ins only it
     /// named may still be in the store.
     pub(crate) fn forget_sign_ins(&self, session: &Session) -> Result<Forgotten, String> {
-        // (Whatever comes of it: a sign-in renewed before this is not kept after it.)
-        self.forgotten.fetch_add(1, Ordering::AcqRel);
         let mut inner = self.lock();
         let store = self.platform.secrets();
         let secrets = self.host.platform().secrets();

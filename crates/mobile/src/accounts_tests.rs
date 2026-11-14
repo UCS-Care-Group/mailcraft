@@ -802,9 +802,9 @@ fn a_check_held_across_forgetting_the_sign_ins_never_puts_one_back() {
     });
     let rig = Rig::new(&server);
     let account = signed_in(&rig);
+    let asked = server.asked();
     let core = rig.core.clone();
     let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
-    let asked = server.asked();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while server.asked() == asked {
         assert!(std::time::Instant::now() < deadline);
@@ -816,4 +816,37 @@ fn a_check_held_across_forgetting_the_sign_ins_never_puts_one_back() {
     assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
     assert_eq!(rig.accounts().len(), 1);
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None, "a forgotten sign-in came back");
+}
+
+#[test]
+fn an_older_checks_renewal_never_replaces_a_newer_sign_in() {
+    let point = |rig: &Rig, s: &TokenServer| {
+        *rig.core.signins.server.lock().unwrap() =
+            Some((format!("http://127.0.0.1:{0}/authorize", s.port), format!("http://127.0.0.1:{0}/token", s.port)));
+    };
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    // The check's Microsoft, which holds its answer until the test lets it go.
+    let holding = TokenServer::start(move |_| {
+        let _ = wait.lock().unwrap().recv();
+        (200, tokens_for(ADA, "Ada", "rotated-from-the-old-one"))
+    });
+    let rig = Rig::new(&TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "first-sign-in"))));
+    let account = signed_in(&rig);
+    point(&rig, &holding);
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while holding.asked() == 0 {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner signs the account in again while the check's answer is on its way.
+    let newer = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "newer-sign-in")));
+    point(&rig, &newer);
+    assert_eq!(signed_in(&rig), account);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("newer-sign-in"));
+    answer.send(()).unwrap();
+    check.join().unwrap().unwrap();
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("newer-sign-in"), "an older answer replaced a newer sign-in");
 }

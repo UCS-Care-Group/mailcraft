@@ -231,19 +231,29 @@ fn a_called_off_sign_in_does_not_arm_the_slot_again() {
 }
 
 #[test]
-fn a_check_writes_nothing_and_a_renewed_sign_in_is_kept_only_when_the_caller_keeps_it() {
+fn a_check_writes_nothing_and_a_renewed_sign_in_replaces_only_the_one_it_began_with() {
     let kept = Arc::new(Kept::default());
     let phone = Phone(Some(kept.clone()));
+    let key = "refresh:ada@lumen.example|graph";
     let tokens = |email: &str, refresh: &str| Tokens { email: email.to_string(), refresh: refresh.to_string(), ..Default::default() };
     // Somebody else's, or none: nothing to keep.
-    assert!(renewed("ada@lumen.example", &tokens("bob@lumen.example", "theirs")).is_none());
-    assert!(renewed("ada@lumen.example", &tokens("ada@lumen.example", "")).is_none());
+    assert!(renewed("ada@lumen.example", &tokens("bob@lumen.example", "theirs"), "old").is_none());
+    assert!(renewed("ada@lumen.example", &tokens("ada@lumen.example", ""), "old").is_none());
     // The account's own is given back, not written: the caller keeps it once it knows the account is there.
-    let fresh = renewed("ada@lumen.example", &tokens("ada@lumen.example", "rotated-secret")).unwrap();
+    let fresh = renewed("ada@lumen.example", &tokens("ada@lumen.example", "rotated-secret"), "old-secret").unwrap();
     assert!(kept.0.lock().unwrap().is_empty());
-    assert!(!format!("{fresh:?}").contains("rotated-secret"));
+    assert!(!format!("{fresh:?}").contains("secret"));
+    // Forgotten meanwhile: nothing is put back.
+    fresh.keep(&phone, "ada@lumen.example");
+    assert_eq!(kept.get(key), None);
+    // Replaced by a newer sign-in meanwhile: the newer one stays.
+    kept.set(key, "newer-secret").unwrap();
+    fresh.keep(&phone, "ada@lumen.example");
+    assert_eq!(kept.get(key).as_deref(), Some("newer-secret"));
+    // Still the one it began with: replaced.
+    kept.set(key, "old-secret").unwrap();
     fresh.keep(&phone, "Ada@Lumen.Example");
-    assert_eq!(kept.get("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-secret"));
+    assert_eq!(kept.get(key).as_deref(), Some("rotated-secret"));
     // No store: nothing, and no panic.
     fresh.keep(&Phone(None), "ada@lumen.example");
 }
