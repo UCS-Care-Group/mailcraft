@@ -2096,6 +2096,11 @@ msgid "Bring in"
 msgstr "Preluare"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse This PC…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -8572,6 +8577,11 @@ msgid "No preview helper is available for this attachment."
 msgstr "Pentru acest atașament nu există un ajutor de previzualizare."
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "No recent searches"
@@ -10312,6 +10322,11 @@ msgstr ""
 #, fuzzy
 msgid "Recent Searches"
 msgstr "Căutări recente"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs

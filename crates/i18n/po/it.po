@@ -1982,6 +1982,11 @@ msgid "Bring in"
 msgstr "Importa"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse This PC…"
+msgstr "Sfoglia questo PC…"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -8128,6 +8133,11 @@ msgid "No preview helper is available for this attachment."
 msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr "Nessun file recente"
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 msgid "No recent searches"
 msgstr ""
@@ -9766,6 +9776,11 @@ msgstr ""
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Recent Searches"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr "File recenti"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
