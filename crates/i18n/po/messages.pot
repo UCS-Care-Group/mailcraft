@@ -468,6 +468,16 @@ msgstr ""
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "A sign-in is already open."
@@ -2021,6 +2031,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/widgets.rs
 msgid "Change the colour"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
 msgstr ""
 
 #. interface
@@ -10257,6 +10272,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
 msgstr ""
 
 #. interface
