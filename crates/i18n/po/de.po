@@ -251,7 +251,7 @@ msgstr "3 Monate"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "3D Models"
-msgstr "3D Modelle"
+msgstr "3D-Modelle"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -2764,7 +2764,7 @@ msgid ""
 "Contact\n"
 "Card"
 msgstr ""
-"Kontakt\n"
+"Kontakt-\n"
 "Karte"
 
 #. command label, ribbon
@@ -4862,13 +4862,13 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
-"Gmail\n"
+"Gmail-\n"
 "Kategorien"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Gmail Categories"
-msgstr "Gmail Kategorien"
+msgstr "Gmail-Kategorien"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4879,7 +4879,7 @@ msgstr "Gmail und Google Workspace"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Gmail categories"
-msgstr "Gmail Kategorien"
+msgstr "Gmail-Kategorien"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
