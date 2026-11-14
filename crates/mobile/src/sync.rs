@@ -243,7 +243,6 @@ impl SyncHost {
         }
         let secrets = self.host.platform().secrets();
         let keys = self.keys_of(inner, secrets.as_deref());
-        let before = keys.len();
         for key in written {
             if keys.len() < MOST_KEYS {
                 keys.insert(key);
@@ -251,9 +250,8 @@ impl SyncHost {
                 log::warn!("send/receive: too many credential-store entries to index");
             }
         }
-        if keys.len() != before
-            && let Some(store) = secrets.as_deref()
-        {
+        // Every batch that named a credential writes the index, so a write that failed is retried.
+        if let Some(store) = secrets.as_deref() {
             let list: Vec<&String> = keys.iter().collect();
             if let Ok(json) = serde_json::to_string(&list)
                 && store.set(INDEX_KEY, &json).is_err()
@@ -320,12 +318,10 @@ impl SyncHost {
         }
         let mut supported = Vec::new();
         for id in accounts {
-            match session.mailbox.account(id) {
-                Some(a) if a.kind == AccountKind::Microsoft && !a.is_shared() => supported.push(id),
-                Some(a) => {
-                    inner.unsupported.insert(id, a.kind);
-                }
-                None => {}
+            if inner.sr.eligible(session, id) {
+                supported.push(id);
+            } else if let Some(a) = session.mailbox.account(id) {
+                inner.unsupported.insert(id, a.kind);
             }
         }
         if supported.is_empty() {
@@ -374,6 +370,14 @@ impl SyncHost {
         let platform_offline = matches!(self.host.platform().network(), NetworkState::Offline);
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
+        // What the phone can't run is told of as `ask` does, whoever starts the round.
+        for id in server_accounts(session) {
+            if !inner.sr.eligible(session, id)
+                && let Some(a) = session.mailbox.account(id)
+            {
+                inner.unsupported.insert(id, a.kind);
+            }
+        }
         if !inner.sr.busy() && inner.run_mark.is_none() {
             inner.idle_mark = Some(arrivals::mark(&session.mailbox));
         }

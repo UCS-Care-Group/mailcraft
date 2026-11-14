@@ -388,3 +388,92 @@ fn junk_budgets_and_calls_never_panic() {
     core.shutdown();
     assert!(matches!(block_on(core.sync_now()), Err(CoreError::Cancelled)));
 }
+
+/// A session with a Microsoft account and an IMAP one, rounds by the clock.
+fn mixed_session() -> Session {
+    let mut s = session();
+    s.run("account.add", &json!({"email": "ada@example.org", "auth": "password", "incoming": {"host": "imap.example.org"}})).unwrap();
+    s.prefs.sync_minutes = 5;
+    s
+}
+
+#[test]
+fn a_round_by_the_clock_queues_only_what_the_phone_can_run() {
+    let seen = Arc::new(Mutex::new(Vec::<u64>::new()));
+    let counted = seen.clone();
+    let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
+        counted.lock().unwrap().push(req.account.id);
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let platform = FakePlatform::new();
+    let core = core_with(platform.clone(), mixed_session, runner);
+    let (ms, key) = account_of(&core);
+    platform.secrets.kept.lock().unwrap().push((key, "stored-refresh".to_string()));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while seen.lock().unwrap().is_empty() {
+        assert!(Instant::now() < deadline, "no round began by itself");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let status = block_on(core.sync_status()).unwrap();
+    let queued = block_on(core.call(|s| Ok(s.driver.round.queue.iter().map(|(a, _)| *a).collect::<Vec<_>>()))).unwrap();
+    assert!(queued.iter().all(|a| *a == ms), "{queued:?}");
+    assert_eq!(status.unsupported.len(), 1, "{status:?}");
+    assert!(status.unsupported[0].account != ms);
+    assert!(seen.lock().unwrap().iter().all(|a| *a == ms));
+}
+
+#[test]
+fn the_index_of_names_is_written_again_after_a_failed_write() {
+    let (runner, _) = stand_in();
+    let platform = FakePlatform::new();
+    let core = core_with(platform.clone(), session, runner);
+    let (id, key) = account_of(&core);
+    let tokens = || Tokens { access: "a".into(), refresh: "r".into(), expires_at: i64::MAX, email: EMAIL.into(), ..Default::default() };
+    platform.secrets.fail_index.store(1, Ordering::Relaxed);
+    block_on(core.adopt_tokens(id, tokens())).unwrap();
+    let index = |p: &FakePlatform| p.secrets.kept.lock().unwrap().iter().find(|(k, _)| k.contains("index")).map(|(_, v)| v.clone());
+    assert_eq!(index(&platform), None, "the first write failed");
+    // The same credential again: the set doesn't grow, the index is written all the same.
+    block_on(core.adopt_tokens(id, tokens())).unwrap();
+    assert!(index(&platform).is_some_and(|i| i.contains(&key)));
+}
+
+#[test]
+fn a_tick_queued_before_shutdown_starts_no_round() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = calls.clone();
+    let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
+        counted.fetch_add(1, Ordering::Relaxed);
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let platform = FakePlatform::new();
+    let core = core_with(
+        platform.clone(),
+        || {
+            let mut s = session();
+            s.prefs.sync_minutes = 5;
+            s
+        },
+        runner,
+    );
+    let (_, key) = account_of(&core);
+    platform.secrets.kept.lock().unwrap().push((key, "stored-refresh".to_string()));
+    let (started_tx, started) = std::sync::mpsc::channel::<()>();
+    let (release_tx, release) = std::sync::mpsc::channel::<()>();
+    let holder = core.clone();
+    let blocker = std::thread::spawn(move || {
+        let _ = block_on(holder.call(move |_| {
+            let _ = started_tx.send(());
+            let _ = release.recv();
+            Ok(())
+        }));
+    });
+    started.recv().unwrap();
+    // The session thread is busy: the tick waits behind it, and shutdown comes first.
+    core.enqueue_tick();
+    core.shutdown();
+    release_tx.send(()).unwrap();
+    blocker.join().unwrap();
+    std::thread::sleep(Duration::from_millis(400));
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+}

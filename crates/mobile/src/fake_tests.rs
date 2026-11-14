@@ -42,6 +42,8 @@ pub(crate) fn block_on<F: Future>(f: F) -> F::Output {
 #[derive(Default)]
 pub(crate) struct FakeSecrets {
     pub(crate) kept: Mutex<Vec<(String, String)>>,
+    /// How many of the next writes of the index of names fail.
+    pub(crate) fail_index: std::sync::atomic::AtomicUsize,
 }
 
 impl SecretStore for FakeSecrets {
@@ -50,6 +52,9 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
+        if key.contains("index") && self.fail_index.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok() {
+            return Err(HostError::Unsupported);
+        }
         let mut kept = self.kept.lock().unwrap();
         kept.retain(|(k, _)| *k != key);
         kept.push((key, secret));

@@ -160,12 +160,12 @@ impl Core {
         let zone_platform = platform.clone();
         let make = move || {
             let mut session = make();
+            // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
+            // left at that default follows the zone, one it chose stays. Asked before either change.
+            let default_date = session.view.date == session.today();
             // The phone's zone by its name, when it gives one this program knows: a mailbox
             // stamped with a named zone is then rebased correctly.
             follow_time_zone(&mut session, zone_platform.as_ref());
-            // `with_clock` set the calendar's date before the phone's offset stood in: a date
-            // `make` left at that default follows it, one it chose stays.
-            let default_date = session.view.date == session.today();
             session.fallback_offset = Some(Arc::new(move |at| zone_host.utc_offset_minutes(at).unwrap_or(0)));
             if default_date {
                 session.view.date = session.today();
@@ -175,7 +175,8 @@ impl Core {
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
         let sink = EventSink { queue: events.clone() };
         let memory_budget = host.memory_budget();
-        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive));
+        // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for a asked one.
+        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only()));
         // The session is built before `start` returns, so a `make` that panics is an error here and
         // not a core whose every call would wait for a reply that never comes.
         let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
@@ -235,8 +236,13 @@ impl Core {
             return;
         }
         let sync = self.sync.clone();
+        let closing = self.closing.clone();
         let job: Job = Box::new(move |session: &mut Session| {
             sync.tick_queued.store(false, Ordering::Release);
+            // A tick queued before `shutdown` is drained after it: it starts no round.
+            if closing.load(Ordering::Acquire) {
+                return;
+            }
             // (A panic is caught by the caller; this one leaves the mailbox as it was.)
             let _ = catch_unwind(AssertUnwindSafe(|| sync.tick(session)));
         });

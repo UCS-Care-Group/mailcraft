@@ -108,3 +108,17 @@ fn a_mailbox_stamped_with_another_zone_is_rebased_to_the_phones_named_zone() {
     let stamped = block_on(core.call(|s| Ok(s.mailbox.zone.clone()))).unwrap();
     assert_eq!(stamped, "America/New_York");
 }
+
+#[test]
+fn a_zone_name_that_moves_the_day_moves_the_calendars_default_date() {
+    let platform = FakePlatform::new();
+    *platform.zone.lock().unwrap() = Some("Asia/Tokyo".to_string());
+    let core = Core::start(platform, || {
+        let clock = Clock { now: Some(late()), offset: None, zone: Some(Zone::LOCAL) };
+        Session::with_clock(sample::mailbox(late(), 0), clock)
+    })
+    .unwrap();
+    let (today, shown) = block_on(core.call(|s| Ok((s.today(), s.view.date)))).unwrap();
+    // 23:30 UTC is already the 15th at +09:00, and the calendar opens on it.
+    assert_eq!((today, shown), (Date::new(2026, 10, 15).unwrap(), Date::new(2026, 10, 15).unwrap()));
+}
