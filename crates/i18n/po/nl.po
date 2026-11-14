@@ -2042,6 +2042,11 @@ msgstr "Afzender blokkeren"
 msgid "Blue"
 msgstr "Blauw"
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3387,6 +3392,16 @@ msgstr "DOMAIN\\user of naam@example.org; leeg voor uw adres"
 #, fuzzy
 msgid "Dark"
 msgstr "Donker"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -7989,6 +8004,11 @@ msgstr "Controleren op nieuwe versies is nodig."
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "Heeft aanmelding bij Google nodig"
+
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -13756,6 +13776,11 @@ msgstr "Het doorsturen van meerdere berichten dat wachtte, is geannuleerd: een a
 #, fuzzy
 msgid "The full report is in:"
 msgstr "Het volledige rapport staat in:"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs

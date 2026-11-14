@@ -1947,6 +1947,11 @@ msgstr "Blocca mittente"
 msgid "Blue"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Blue grey"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Body"
@@ -3238,6 +3243,16 @@ msgstr "DOMINIO\\utente oppure tu@example.org; vuoto per usare il tuo indirizzo"
 #, fuzzy
 msgid "Dark"
 msgstr "Scuro"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Dark Theme Style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Dark theme"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -7649,6 +7664,11 @@ msgstr "Richiede Verifica nuove versioni."
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
 msgid "Needs Google sign-in"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/theme/blue.rs
+msgid "Neutral grey"
 msgstr ""
 
 #. command label, interface
@@ -13146,6 +13166,11 @@ msgstr "L'inoltro di più messaggi in attesa è stato annullato: un altro downlo
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "The full report is in:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."
 msgstr ""
 
 #. interface
