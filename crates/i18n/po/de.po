@@ -15203,7 +15203,7 @@ msgstr "Ob sie online stattfindet, entscheidet der Organisator."
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
-msgstr "Welche Schlüssel Ihr GnuPG vollständig vertraut, zuletzt ausgelesen: {when}. Die Informationen werden erneut ausgelesen, wenn MailCraft wieder in den Vordergrund kommt und wenn Sie auf „Aktualisieren“ klicken."
+msgstr "Welchen Schlüssel Ihr GnuPG vollständig vertraut, zuletzt ausgelesen: {when}. Die Informationen werden erneut ausgelesen, wenn MailCraft wieder in den Vordergrund kommt und wenn Sie auf „Aktualisieren“ klicken."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
