@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Sender images: a picture in place of a sender's initials, in the message list and over the
-//! message being read.
+//! Sender images: a picture in place of a sender's initials, in the message list, over the
+//! message being read, and in place of a contact's in People.
 //!
 //! Off unless the owner turns it on in File › Options. Asking for a picture tells whoever keeps
 //! it whose picture is looked at, so it is asked for only
 //!
-//! - for a sender the owner knows: one of the contacts, or somebody mail in Sent Items went to;
+//! - for a sender the owner knows: one of the contacts, or somebody mail in Sent Items went to
+//!   (in People, the contacts alone, whose addresses are the owner's own word: the rules below
+//!   that are about a message don't apply there);
 //! - or for mail whose pictures the owner lets come anyway: all mail (Download pictures in mail
 //!   automatically), its sender's or its sender's domain's, or that message's
 //!   ([`crate::reading::remote::access`]). Anybody can write to anybody, and a stranger's
@@ -56,6 +58,9 @@ const MAX_SIDE: u32 = 1024;
 /// How long the host is waited on for one address, in milliseconds: it may try three places,
 /// each for up to 30 s (`mailcraft_net::pictures::PATIENCE`).
 const PATIENCE_MS: f64 = 100_000.0;
+/// Longest address looked up, as the host's: a longer one (a contact's from a file can be a
+/// megabyte) is neither lowered nor kept.
+const MAX_ADDRESS: usize = 320;
 
 /// What is known of one address's picture.
 enum Look {
@@ -172,9 +177,9 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
         return None;
     }
     tick(app, ctx);
-    let address = who.email.trim().to_lowercase();
+    let address = key(who)?;
     // The say-so for a message's pictures is its sender's: whoever it goes to must be known.
-    let sender = address == m.from.email.trim().to_lowercase();
+    let sender = key(&m.from).is_some_and(|from| from == address);
     // Who it went to is the owner's word (it is theirs); who sent it, only the server's.
     if sender && !crate::reading::remote::vouched(app.session.mailbox.account(m.account), m) {
         return None;
@@ -182,6 +187,32 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
     if !is_known(app, &address) && !(sender && crate::reading::remote::access(app, m) == crate::reading::Access::Allowed) {
         return None;
     }
+    look(app, ctx, address)
+}
+
+/// The picture to show for one of the contacts in People, in place of their initials. Their
+/// address is the owner's own word, as whoever the owner's mail went to is: no server's is needed.
+pub fn contact_picture(app: &mut MailApp, ctx: &egui::Context, who: &Address) -> Option<egui::TextureHandle> {
+    if !app.ui.sender_images || app.services.sender_images.is_none() {
+        return None;
+    }
+    tick(app, ctx);
+    let address = key(who)?;
+    if !is_known(app, &address) {
+        return None;
+    }
+    look(app, ctx, address)
+}
+
+/// `who`'s address in lower case, as pictures are kept by; none for one too long to be anybody's.
+fn key(who: &Address) -> Option<String> {
+    let email = who.email.trim();
+    (email.len() <= MAX_ADDRESS).then(|| email.to_lowercase())
+}
+
+/// The picture of `address` (in lower case), once its look-up has brought one; one that is still
+/// to be looked up is noted, and asked for at the next frame.
+fn look(app: &mut MailApp, ctx: &egui::Context, address: String) -> Option<egui::TextureHandle> {
     let frame = images::frame(ctx);
     let state = &mut app.sender_images;
     let Some((look, used)) = state.looks.get_mut(&address) else {
@@ -214,7 +245,18 @@ pub fn picture(app: &mut MailApp, ctx: &egui::Context, m: &Message, who: &Addres
 
 /// `who`'s round avatar on the mail `m`: their picture when there is one, else their initials.
 pub fn avatar(app: &mut MailApp, ui: &Ui, center: egui::Pos2, radius: f32, m: &Message, who: &Address) {
-    let Some(texture) = picture(app, ui.ctx(), m, who) else {
+    let texture = picture(app, ui.ctx(), m, who);
+    paint(ui, center, radius, texture, who);
+}
+
+/// A contact's round avatar in People: their picture when there is one, else their initials.
+pub fn contact_avatar(app: &mut MailApp, ui: &Ui, center: egui::Pos2, radius: f32, who: &Address) {
+    let texture = contact_picture(app, ui.ctx(), who);
+    paint(ui, center, radius, texture, who);
+}
+
+fn paint(ui: &Ui, center: egui::Pos2, radius: f32, texture: Option<egui::TextureHandle>, who: &Address) {
+    let Some(texture) = texture else {
         crate::widgets::avatar(ui, center, radius, who);
         return;
     };
