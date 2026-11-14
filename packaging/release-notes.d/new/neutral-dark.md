@@ -1,1 +1,0 @@
-- **A neutral dark theme.** The dark theme is now neutral greys, as in the other Craft programs, instead of blue-tinted ones; only the accent colour you chose, and what it marks, is coloured. High contrast in the dark changed the same way.

@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-11 · **Change:** minor
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -74,6 +74,22 @@ this code base.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | Gap 5: a JMAP account sends as its own address only, and keeps no record of Bcc recipients after sending |
+| 2026-11-14 | patch | #1401: gap 2: mail imported into an account's folder is kept on this computer, in Imported |
+| 2026-11-14 | minor | #911, #1153: Gmail's inbox categories are read for every Gmail account and moving between them waits for Google's review; a message's Gmail labels show read only, `label:` searches them |
+| 2026-11-13 | minor | Gap 8: the header lines nothing reads by name are kept beside the mailbox file (HS), with the bench numbers |
+| 2026-11-13 | minor | #276: gap 2 no longer lists a missing IDLE: new mail on the Inbox of an IMAP account whose server offers IDLE arrives within moments |
+| 2026-11-13 | minor | #276: an IMAP account reads its Inbox before listing its folders, unless something waits to be sent or pushed |
+| 2026-11-13 | minor | #276: IMAP folders whose STATUS is unchanged are passed over by Send/Receive; a full reading of every folder is due hourly |
+| 2026-11-13 | patch | Gap 8: the Undo and Redo steps let go of what the memory budget lets go of |
+| 2026-11-13 | patch | #1235: rich text is `mailcraft_mime_model::rich` |
+| 2026-11-13 | minor | Gap 11: the main window can close to the tray while the program continues running; alerts after actually quitting and unread-count badges remain absent |
+| 2026-11-12 | patch | Gap 17: the parity count is in-scope features only; 17 catalog rows are out of scope |
+| 2026-11-12 | minor | Gap 14: Romanian as a preview language; Automatic follows `ro-RO`; a Romanian reply keeps `RE:` and `FW:`, which already thread |
+| 2026-11-12 | patch | #1121: gap 16: on Linux without a mail bundle (Debian, Ubuntu, Linux Mint) and on FreeBSD, the authorities for mail are the roots Mozilla trusts for mail in NSS's own list, only where no bundle for mail is there at all; an authority deselected on Debian is still trusted through it |
+| 2026-11-12 | minor | Gap 14: Simplified Chinese as a preview language; the initial catalogue was reviewed by its contributor |
+| 2026-11-11 | minor | #1074 part 2: gap 5: a JMAP account sends its mail |
+| 2026-11-11 | minor | #1074 part 1: gap 5: a JMAP account's marks, moves and deletions go up; nothing is sent yet |
 | 2026-11-11 | minor | #815 part 5: gap 12: a `.pst` file's notes and journal entries import, HTML kept in rich text comes in as HTML, and the import is no longer a preview |
 | 2026-11-11 | minor | #815 part 4: gap 12: a `.pst` file's calendar items and tasks import; notes and journal left for a later part |
 | 2026-11-11 | patch | #956 part 3: rough edges: Send report is in the desktop app only, carries no screenshot or file, and answers come only on GitHub |
