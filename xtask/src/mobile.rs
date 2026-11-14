@@ -72,7 +72,7 @@ pub fn check_report(report: &str, list: &Allowlist) -> Vec<String> {
         let mut parts = coords.splitn(3, ':');
         let (group, name) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
         let artifact = format!("{group}:{name}");
-        if BANNED_GROUPS.iter().any(|b| group == *b || group.starts_with(&format!("{b}."))) {
+        if banned_group(group) {
             problems.push(format!("{coords}: Google Play Services and Firebase may not ship"));
             continue;
         }
@@ -88,18 +88,21 @@ pub fn check_report(report: &str, list: &Allowlist) -> Vec<String> {
     problems
 }
 
-/// The banned groups named anywhere in the text of `gradlew :app:dependencies` (every
-/// configuration, the build's own tooling included).
+/// Whether a group is banned: exactly, or as a subgroup (`com.google.firebase.tools`).
+fn banned_group(group: &str) -> bool {
+    BANNED_GROUPS.iter().any(|b| group == *b || group.starts_with(&format!("{b}.")))
+}
+
+/// The banned groups (or their subgroups) named anywhere in the text of `gradlew :app:dependencies`
+/// (every configuration, the build's own tooling included).
 pub fn banned_in_tree(tree: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for line in tree.lines() {
-        for group in BANNED_GROUPS {
-            let needle = format!("{group}:");
-            if let Some(at) = line.find(&needle) {
-                let coord: String = line[at..].chars().take_while(|c| !c.is_whitespace()).collect();
-                if !found.contains(&coord) {
-                    found.push(coord);
-                }
+        for token in line.split_whitespace() {
+            let coord = token.trim_start_matches(|c: char| !c.is_alphanumeric());
+            let Some((group, _)) = coord.split_once(':') else { continue };
+            if banned_group(group) && !found.iter().any(|f| f == coord) {
+                found.push(coord.to_string());
             }
         }
     }
