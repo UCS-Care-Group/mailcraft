@@ -7,11 +7,12 @@ use std::sync::atomic::AtomicBool;
 
 use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::{Account, Message, Security};
+use mailcraft_proto::ProtoError;
 use mailcraft_proto::smtp::Smtp;
 
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, not_signed_in};
-use mailcraft_i18n::said;
+use mailcraft_i18n::{Arg, said};
 
 /// What the client calls itself in EHLO: an address literal that says nothing about this machine.
 const CLIENT_NAME: &str = "[127.0.0.1]";
@@ -120,6 +121,26 @@ pub(crate) fn dated(message: &Message) -> Cow<'_, Message> {
     if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) }
 }
 
+/// Whether the server's words are a 530 that asks for a sign-in (and not for STARTTLS, which a 530 says too).
+fn wants_sign_in(said: &str) -> bool {
+    said.starts_with("530") && !said.to_ascii_lowercase().contains("starttls")
+}
+
+/// What a relay that was told "no sign-in" says when it turns out to want one (530, "authentication
+/// required"): what the server said, with a hint to untick the choice (#836). Anything else is
+/// left as it is.
+pub(crate) fn relay_hint(account: &Account, e: NetError) -> NetError {
+    match e {
+        NetError::Proto(ProtoError::Rejected(why)) if account.outgoing_without_sign_in && wants_sign_in(&why.to_string()) => {
+            NetError::Proto(ProtoError::Rejected(said!(
+                "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)",
+                server = Arg::said(why)
+            )))
+        }
+        other => other,
+    }
+}
+
 /// Hand one message to an open session.
 pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message: &Message) -> Result<(), NetError> {
     let message = dated(message);
@@ -139,7 +160,7 @@ pub fn send(account: &Account, secret: &str, message: &Message) -> Result<(), Ne
     // A message that can't be sent is found out before any connection is made.
     let envelope = Envelope::of(account, message)?;
     let mut smtp = open_smtp(account, secret).map_err(|e| e.without(secret))?;
-    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| e.without(secret));
+    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| relay_hint(account, e).without(secret));
     let _ = smtp.quit();
     sent
 }

@@ -7140,11 +7140,6 @@ msgid "No due date"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "No end date"
 msgstr ""
@@ -7367,16 +7362,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Not connected: the rest of this message is on the server"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: only a server on this computer can be reached this way."
 msgstr ""
 
 #. interface
@@ -16885,7 +16870,7 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
-msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr ""
 
 #. interface
@@ -17904,6 +17889,11 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] ""
 msgstr[1] ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

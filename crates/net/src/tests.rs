@@ -772,10 +772,12 @@ fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
     relay.outgoing_without_sign_in = false;
     assert_eq!(send(&relay, PASSWORD, &message), Ok(()));
     assert_eq!(smtp.world().sign_ins, 1);
-    // A relay that turns out to want one says so; the password still isn't sent.
+    // A relay that turns out to want one says so, with a hint to untick the choice; the password still isn't sent.
     smtp.world().auth_optional = false;
     relay.outgoing_without_sign_in = true;
-    assert!(matches!(send(&relay, PASSWORD, &message), Err(NetError::Proto(_))));
+    let Err(NetError::Proto(ProtoError::Rejected(why))) = send(&relay, PASSWORD, &message) else { panic!("sent without a sign-in") };
+    let why = why.to_string();
+    assert!(why.contains("530") && why.contains("untick \"My outgoing server needs no sign-in\""), "{why}");
     assert_eq!(smtp.world().sign_ins, 1);
     // An account that signs in on the provider's page always shows its token.
     let (_, tokens) = token_servers();
@@ -783,30 +785,6 @@ fn a_relay_that_needs_no_sign_in_is_never_shown_the_password() {
     oauth.outgoing_without_sign_in = true;
     assert_eq!(send(&oauth, TOKEN, &message), Ok(()));
     assert_eq!(tokens.world().sign_ins, 1);
-}
-
-#[test]
-fn a_bridge_on_this_computer_is_reached_without_encryption_by_its_name() {
-    // #836: a mail bridge listens on this computer, unencrypted.
-    let imap = Fake::imap(imap_world());
-    let smtp = Fake::smtp(smtp_world());
-    let mut bridge = account(Some(&imap), Some(&smtp));
-    for server in [bridge.incoming.as_mut().unwrap(), bridge.outgoing.as_mut().unwrap()] {
-        server.host = "localhost".into();
-    }
-    assert_eq!(test_account(&bridge, PASSWORD), Ok(()));
-    assert!(imap.world().log.iter().any(|line| line.contains("LOGIN")));
-    assert_eq!(smtp.world().sign_ins, 1);
-    // The same settings for a server on the network are refused before anything is sent, a
-    // relay that needs no sign-in too: it would still show the mail.
-    bridge.incoming = None;
-    bridge.outgoing.as_mut().unwrap().host = "relay.example.org".into();
-    bridge.outgoing_without_sign_in = true;
-    let message = Message { to: vec![Address::new("Bob", "bob@example.org")], ..Default::default() };
-    let Err(NetError::Config(why)) = send(&bridge, PASSWORD, &message) else { panic!("sent in the clear") };
-    let why = why.to_string();
-    assert!(why.contains("relay.example.org") && why.contains("mail and password"), "{why}");
-    assert_eq!(smtp.world().connections, 1);
 }
 
 #[test]

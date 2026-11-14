@@ -8561,11 +8561,6 @@ msgid "No due date"
 msgstr "无截止日期"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8833,16 +8828,6 @@ msgstr "未连接"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "未连接：此邮件的其余部分在服务器上"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: only a server on this computer can be reached this way."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -20221,8 +20206,9 @@ msgstr "{host} 位于您地址所在的域中，但它不是该域指定的自�
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
-msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
-msgstr ""
+#, fuzzy
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} 未启用加密，网络上的任何人都可能看到密码；请选择 TLS 或 STARTTLS"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21313,6 +21299,11 @@ msgid "{sent} message sent"
 msgid_plural "{sent} messages sent"
 msgstr[0] "已发送 {sent} 封邮件"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -21419,10 +21410,6 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
-
-#, fuzzy
-#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-#~ msgstr "{host} 未启用加密，网络上的任何人都可能看到密码；请选择 TLS 或 STARTTLS"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

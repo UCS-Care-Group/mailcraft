@@ -8162,12 +8162,6 @@ msgid "No due date"
 msgstr "Nessuna scadenza"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
-msgstr "Nessuna crittografia è possibile solo per un server su questo computer, come un bridge di posta. MailCraft non invia mai la posta né la password in chiaro sulla rete: scegli TLS o STARTTLS."
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8423,18 +8417,6 @@ msgstr "Non connesso"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Non connesso: il resto di questo messaggio è sul server"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
-msgstr "Non crittografato: solo per un server su questo computer, come un bridge di posta."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Not encrypted: only a server on this computer can be reached this way."
-msgstr "Non crittografato: in questo modo si può raggiungere solo un server su questo computer."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -19188,8 +19170,8 @@ msgstr "{host} appartiene al dominio del tuo indirizzo, ma non è il server Auto
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
-msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
-msgstr "{host} è impostato senza crittografia, il che mostrerebbe la posta e la password a chiunque sulla rete; scegliere TLS o STARTTLS"
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} è impostato senza crittografia, il che mostrerebbe la password a chiunque sulla rete; scegliere TLS o STARTTLS"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20310,6 +20292,12 @@ msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} messaggio inviato"
 msgstr[1] "{sent} messaggi inviati"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Questo server richiede l'accesso: deseleziona \"Il mio server in uscita non richiede l'accesso\" nelle impostazioni dell'account.)"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -20414,10 +20402,6 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
-
-#, fuzzy
-#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-#~ msgstr "{host} è impostato senza crittografia, il che mostrerebbe la password a chiunque sulla rete; scegliere TLS o STARTTLS"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

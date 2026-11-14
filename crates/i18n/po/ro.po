@@ -8599,11 +8599,6 @@ msgid "No due date"
 msgstr "Fără dată scadentă"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8871,16 +8866,6 @@ msgstr "Neconectat"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Neconectat: restul acestui mesaj este pe server"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-msgid "Not encrypted: only a server on this computer can be reached this way."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -20297,8 +20282,8 @@ msgstr "{host} este în domeniul adresei dvs., dar nu este serverul Autodiscover
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
-msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
-msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta e-mailul și parola oricui din rețea; alegeți TLS sau STARTTLS"
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta parola oricui din rețea; alegeți TLS sau STARTTLS"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21561,6 +21546,11 @@ msgstr[0] "{sent} mesaj trimis"
 msgstr[1] "{sent} mesaje trimise"
 msgstr[2] "{sent} de mesaje trimise"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -21667,10 +21657,6 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
-
-#, fuzzy
-#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-#~ msgstr "{host} este setat să nu folosească criptare, ceea ce ar arăta parola oricui din rețea; alegeți TLS sau STARTTLS"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

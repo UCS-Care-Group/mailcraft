@@ -8121,12 +8121,6 @@ msgid "No due date"
 msgstr "Sin fecha de vencimiento"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "No encryption is only for a server on this computer, such as a mail bridge. MailCraft never sends your mail or password unencrypted over the network: choose TLS or STARTTLS."
-msgstr "Sin cifrado solo es posible para un servidor en este equipo, como un puente de correo. MailCraft nunca envía su correo ni su contraseña sin cifrar por la red: elija TLS o STARTTLS."
-
-#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No end date"
@@ -8380,18 +8374,6 @@ msgstr "Sin conexión"
 #, fuzzy
 msgid "Not connected: the rest of this message is on the server"
 msgstr "Sin conexión: el resto de este mensaje está en el servidor"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Not encrypted: for a server on this computer only, such as a mail bridge."
-msgstr "Sin cifrar: solo para un servidor en este equipo, como un puente de correo."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Not encrypted: only a server on this computer can be reached this way."
-msgstr "Sin cifrar: de esta forma solo se puede llegar a un servidor en este equipo."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -19084,8 +19066,8 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
-msgid "{host} is set to use no encryption, which would show your mail and password to anyone on the network; choose TLS or STARTTLS"
-msgstr "{host} está configurado sin cifrado, lo que mostraría su correo y su contraseña a cualquiera en la red; elija TLS o STARTTLS"
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} está configurado sin cifrado, lo que mostraría la contraseña a cualquiera en la red; elija TLS o STARTTLS"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20206,6 +20188,12 @@ msgid_plural "{sent} messages sent"
 msgstr[0] "{sent} mensaje enviado"
 msgstr[1] "{sent} mensajes enviados"
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Este servidor pide iniciar sesión: desmarque \"Mi servidor de salida no necesita inicio de sesión\" en los ajustes de la cuenta.)"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -20310,10 +20298,6 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
-
-#, fuzzy
-#~ msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
-#~ msgstr "{host} está configurado sin cifrado, lo que mostraría la contraseña a cualquiera en la red; elija TLS o STARTTLS"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
