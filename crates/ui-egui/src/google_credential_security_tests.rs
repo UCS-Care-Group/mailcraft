@@ -31,7 +31,8 @@ impl SecretStore for Store {
 
 fn app(store: &Store) -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app.services.secrets = Some(Arc::new(store.clone()));
     app
 }

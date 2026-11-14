@@ -759,7 +759,7 @@ fn main() {
     // Every frame may be a shot: a password shown with its eye is drawn as dots (#438).
     app.headless_shots = true;
     // (With a host that answers, nothing is to happen by itself: what a shot shows, its script asked for.)
-    app.auto_sync = !stood_in;
+    app.session.driver.set_auto_sync(!stood_in);
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
     }
