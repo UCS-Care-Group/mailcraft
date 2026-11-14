@@ -799,6 +799,12 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             continue;
         }
         if let Some(id) = resolve(app, &k).and_then(|id| window_command(app, id)) {
+            // With a message being written in the reading pane, the list's keys (Up, Page Down,
+            // Ctrl+A…) neither move a selection it hides nor take the message away (#727): a
+            // click on a row does that.
+            if (MOVES_IN_LIST.contains(&id) || id == "mail.selectAll") && crate::windows::compose_window::pane_compose(app).is_some() {
+                continue;
+            }
             let params = key_params(app, id, modifiers);
             let _ = app.run(id, params);
         }
