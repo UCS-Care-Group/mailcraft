@@ -95,3 +95,45 @@ fn a_password_the_server_turns_down_is_said_and_nothing_is_put_in() {
     assert!(said.contains("turned the password down"), "{said}");
     assert!(!said.contains(&server.url) && !said.contains(USER));
 }
+
+/// People's Address Book: what is typed in the search box is looked up in the address list, and who
+/// is found is shown with how they are reached; the home number the server also holds is not kept.
+#[test]
+fn the_address_book_searches_the_address_list_for_what_is_typed() {
+    let server = serve();
+    server.standin.state().directory = vec![
+        Person {
+            title: "Controller".into(),
+            phone: "+1 555 0100".into(),
+            mobile: "+1 555 0199".into(),
+            office: "Building 2".into(),
+            home: "+1 555 0123".into(),
+            ..Person::new("Grace Hopper", "grace@example.org")
+        },
+        Person { kind: "PublicDL".into(), ..Person::new("Graceful Team", "team@example.org") },
+    ];
+    let (mut app, account) = window(&server.url, "");
+    signed_in(&mut app, account, &server.standin);
+    app.run("people.addressBook", json!({"account": account})).unwrap();
+    app.type_people_search("grace");
+    let ctx = egui::Context::default();
+    for _ in 0..5_000 {
+        app.poll_address_book(&ctx);
+        if !app.address_book_found().is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let found = app.address_book_found().to_vec();
+    let names: Vec<&str> = found.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["Grace Hopper", "Graceful Team"]);
+    assert_eq!((found[0].phone.as_str(), found[0].mobile.as_str(), found[0].office.as_str()), ("+1 555 0100", "+1 555 0199", "Building 2"));
+    assert!(!format!("{:?}", serde_json::to_value(&found).unwrap()).contains("0123"));
+    // One look-up for what was typed, nothing that writes, and nothing kept in the mailbox.
+    let state = server.standin.state();
+    let asked: Vec<&str> = state.requests.iter().filter(|r| r.operation == "ResolveNames").map(|r| r.body.as_str()).collect();
+    assert_eq!(asked.len(), 1);
+    assert!(asked[0].contains("<m:UnresolvedEntry>grace</m:UnresolvedEntry>"));
+    assert!(state.writes.is_empty());
+    assert!(app.session.mailbox.contacts.is_empty());
+}

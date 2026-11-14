@@ -276,6 +276,9 @@ const SAFE: &[&str] = &[
     "view.taskFilter",
     "view.taskAccount",
     "view.peopleAccount",
+    // (People shows the address list; nothing is looked up for an agent: only what the owner types
+    // in the window's search box is, #1262.)
+    "people.addressBook",
     "view.reset",
     "view.inspect",
     "view.days",

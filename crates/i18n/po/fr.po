@@ -857,8 +857,8 @@ msgstr ""
 "Ajouter aux\n"
 "favoris"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Add to Contacts"
 msgstr "Ajouter aux contacts"
@@ -887,14 +887,36 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "Ajouté par une version plus récente de MailCraft : envoyez et recevez avec celle-ci"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Added to Contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adresse"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Address\n"
+"Book"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Address Book"
+msgstr ""
+
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Address list"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Address list · {account}"
 msgstr ""
 
 #. interface
@@ -961,7 +983,7 @@ msgid "All Mailboxes"
 msgstr "Toutes les boîtes aux lettres"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "Tous les comptes"
@@ -2807,7 +2829,7 @@ msgid "Connecting to the mail server"
 msgstr "Connexion au serveur de messagerie"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Contact"
 msgstr "Contact"
@@ -2830,7 +2852,7 @@ msgid "Contact Card"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Contacts"
 msgstr ""
 
@@ -3665,7 +3687,7 @@ msgid "Display name"
 msgstr "Nom d'affichage"
 
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Distribution list"
 msgstr ""
 
@@ -4067,7 +4089,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "Les deux boutons écrivent à {name} : votre réponse et l'horaire que vous proposez."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "E-mail"
@@ -4866,6 +4888,11 @@ msgid "From outside your organisation."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "From {name}"
@@ -5207,7 +5234,7 @@ msgid "Gravatar is asked for the sender's picture and told a hash of their addre
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Group"
 msgstr ""
 
@@ -7312,7 +7339,7 @@ msgid "Minimize"
 msgstr "Placer dans le Dock"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
 msgstr "Mobile"
@@ -8202,6 +8229,11 @@ msgid "Nobody has proposed another time."
 msgstr "Personne n'a proposé d'autre horaire."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address list matches"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Nobody is invited to this appointment."
 msgstr ""
@@ -8723,6 +8755,11 @@ msgid "Only the beginning of this message is here. The rest downloads with the n
 msgstr "Seul le début de ce message est ici. Le reste sera téléchargé au prochain Envoyer/Recevoir."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Only the first {n} are shown: type more of the name to find somebody else."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Only the meeting's organizer can change its time."
@@ -9102,7 +9139,7 @@ msgid "Outside My Organization (On)"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Outside the organisation"
 msgstr ""
 
@@ -9588,7 +9625,7 @@ msgid "Public Keys"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Public folder"
 msgstr ""
 
@@ -10870,16 +10907,31 @@ msgid "Search people"
 msgstr "Rechercher des contacts"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Search the address list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/zones.rs
 #, fuzzy
 msgid "Search time zones"
 msgstr "Rechercher un fuseau horaire"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Searching the address list stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Searching the server…"
 msgstr "Recherche sur le serveur…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Searching…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10969,6 +11021,11 @@ msgstr "Sélectionnez un élément à lire"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Sélectionnez d'abord du texte"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Select somebody to see the details"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -12728,6 +12785,11 @@ msgstr "Le compte connecté sur la page de Microsoft n'est pas administrateur de
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "The account {address} is opened through is gone."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The account's password is needed first: press Send/Receive and type it"
 msgstr ""
 
 #. interface
@@ -14626,6 +14688,11 @@ msgstr "Le compte de cette boîte aux lettres partagée n'existe plus : suppri
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "This version of MailCraft can't search an address list"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -15010,6 +15077,11 @@ msgstr ""
 #, fuzzy
 msgid "Type"
 msgstr "Saisir"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Type a name in the search box to search the organisation's address list"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15617,7 +15689,7 @@ msgid "Words, from:, to:, category:, on:…"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Work"
 msgstr "Professionnel"
@@ -15690,13 +15762,18 @@ msgstr "Heures de travail"
 msgid "Working offline: mail you send waits in the Outbox"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Workplace"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Write to the organizer without answering"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Write to {address}"
 msgstr "Écrire à {address}"
@@ -16386,6 +16463,11 @@ msgstr "les images d'une signature sont au format PNG, JPEG ou GIF (de nombreux 
 #, fuzzy
 msgid "a task needs a title"
 msgstr "une tâche doit avoir un titre"
+
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "add an Exchange server account first: its organisation's address list is searched"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -19376,6 +19458,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} folder"
 msgid_plural "{n} folders"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "{n} found in the address list"
+msgid_plural "{n} found in the address list"
 msgstr[0] ""
 msgstr[1] ""
 

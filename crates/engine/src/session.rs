@@ -330,6 +330,9 @@ pub struct ViewState {
     pub task_account: AccountChoice,
     /// Whose contacts People shows.
     pub people_account: AccountChoice,
+    /// The Exchange server account whose organisation's address list People shows in place of
+    /// the contacts (`people.addressBook`, #1262); none: the contacts.
+    pub people_book: Option<Id>,
 }
 
 impl Default for ViewState {
@@ -361,6 +364,7 @@ impl Default for ViewState {
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
             people_account: AccountChoice::All,
+            people_book: None,
         }
     }
 }

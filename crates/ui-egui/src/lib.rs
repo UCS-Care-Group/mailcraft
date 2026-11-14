@@ -37,6 +37,7 @@ macro_rules! tln {
 }
 
 mod account_setup;
+pub mod address_book;
 mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
@@ -1751,6 +1752,11 @@ pub struct MailApp {
     pub(crate) free_busy: scheduling::Store,
     /// Names of the message being written looked up in an address list ([`check_names`]).
     pub(crate) resolving: Option<check_names::Resolving>,
+    /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
+    pub(crate) address_book: Option<address_book::AddressBook>,
+    /// What the owner typed in People's search box: only that is looked up in an address list,
+    /// never what a script or an agent put there (#1262).
+    pub(crate) people_typed: String,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -1923,6 +1929,8 @@ impl MailApp {
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
             resolving: None,
+            address_book: None,
+            people_typed: String::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -4668,6 +4676,7 @@ impl MailApp {
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_resolving();
+        self.poll_address_book(ctx);
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
         // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,
@@ -5158,7 +5167,10 @@ impl MailApp {
         }
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
-        dialogs::show(self, &ctx);
+        // (Unless a window of the system has drawn it over itself.)
+        if !std::mem::take(&mut self.windows.dialog_shown) {
+            dialogs::show(self, &ctx);
+        }
         close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.

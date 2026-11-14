@@ -636,7 +636,17 @@ fn directory_person(c: Candidate) -> DirectoryPerson {
         RecipientKind::PublicFolder => DirectoryKind::PublicFolder,
         _ => DirectoryKind::Other,
     };
-    DirectoryPerson { name: c.name, email: c.email, kind, company: c.company, department: c.department, title: c.title }
+    DirectoryPerson {
+        name: c.name,
+        email: c.email,
+        kind,
+        company: c.company,
+        department: c.department,
+        title: c.title,
+        phone: c.phone,
+        mobile: c.mobile,
+        office: c.office,
+    }
 }
 
 /// Why a look-up stopped, in words for the owner.

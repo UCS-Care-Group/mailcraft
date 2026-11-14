@@ -26,6 +26,9 @@ fn organisation() -> StandIn {
             department: "Accounts".into(),
             title: "Controller".into(),
             phone: "+1 555 0100".into(),
+            mobile: "+1 555 0199".into(),
+            office: "Building 2, Room 14".into(),
+            home: "+1 555 0123".into(),
             ..Person::new("Ada Lovelace", "ada.lovelace@example.org")
         },
         Person { department: "Engines".into(), ..Person::new("Ada Byron", "ada.byron@example.org") },
@@ -52,8 +55,10 @@ fn one_person_found_is_read_with_what_tells_them_apart_and_nothing_more() {
         (ada.name.as_str(), ada.email.as_str(), ada.kind, ada.company.as_str(), ada.department.as_str(), ada.title.as_str()),
         ("Ada Lovelace", "ada.lovelace@example.org", RecipientKind::Mailbox, "Example Ltd", "Accounts", "Controller")
     );
-    // The phone number the answer held is kept nowhere.
-    assert!(![&ada.name, &ada.email, &ada.company, &ada.department, &ada.title].iter().any(|field| field.contains("555")));
+    // How she is reached, for the Address Book; the home number the answer held is kept nowhere.
+    assert_eq!((ada.phone.as_str(), ada.mobile.as_str(), ada.office.as_str()), ("+1 555 0100", "+1 555 0199", "Building 2, Room 14"));
+    let fields = [&ada.name, &ada.email, &ada.company, &ada.department, &ada.title, &ada.phone, &ada.mobile, &ada.office];
+    assert!(!fields.iter().any(|field| field.contains("0123")));
     // Only the directory is asked, with the whole contact data, and the text as typed.
     let body = standin.state().requests[0].body.clone();
     assert!(body.contains("SearchScope=\"ActiveDirectory\"") && body.contains("ReturnFullContactData=\"true\""), "{body}");
@@ -174,4 +179,33 @@ fn several_found_without_the_warning_are_read_the_same() {
     let read: Vec<(&str, &str, &str)> = found.candidates.iter().map(|c| (c.name.as_str(), c.company.as_str(), c.title.as_str())).collect();
     assert_eq!(read, [("Chris Example", "Example", ""), ("Christa Example", "Example", "")]);
     assert!(!found.more);
+}
+
+/// A phone number is kept only when it is written as one: not a link, a script, a line of words
+/// or a number of great length; the office is one line of bounded length.
+#[test]
+fn only_a_phone_number_that_is_one_is_kept() {
+    let with = |phone: &str, office: &str| {
+        let body = format!(
+            "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><s:Body>\
+             <m:ResolveNamesResponse><m:ResponseMessages><m:ResolveNamesResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>\
+             <m:ResolutionSet TotalItemsInView=\"1\" IncludesLastItemInRange=\"true\"><t:Resolution><t:Mailbox><t:Name>Ada</t:Name><t:EmailAddress>ada@example.org</t:EmailAddress>\
+             <t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox><t:Contact><t:PhoneNumbers><t:Entry Key=\"BusinessPhone\">{phone}</t:Entry>\
+             <t:Entry Key=\"MobilePhone\">{phone}</t:Entry></t:PhoneNumbers><t:OfficeLocation>{office}</t:OfficeLocation></t:Contact></t:Resolution></m:ResolutionSet>\
+             </m:ResolveNamesResponseMessage></m:ResponseMessages></m:ResolveNamesResponse></s:Body></s:Envelope>"
+        );
+        let reply = Reply::judge(&HttpResponse::new(200, body.into_bytes()), 1 << 20).unwrap();
+        let found = ResolveNames::new("ada").unwrap().answer(&reply).unwrap();
+        let ada = found.candidates[0].clone();
+        assert_eq!(ada.phone, ada.mobile);
+        (ada.phone, ada.office)
+    };
+    for kept in ["+49 (0) 69 1234-56", "555 0100 x12", "+1.555.0100", "030/123 456"] {
+        assert_eq!(with(kept, "").0, kept);
+    }
+    for dropped in ["https://attacker.example/", "javascript:alert(1)", "call me", "12", "+1 555 0100&#10;Bcc: x@attacker.example", &"1".repeat(41)] {
+        assert_eq!(with(dropped, "").0, "", "{dropped}");
+    }
+    let (_, office) = with("", &format!("Floor 3&#13;&#10;Room {}", "9".repeat(500)));
+    assert!(office.starts_with("Floor 3 Room 9") && office.chars().count() == 128, "{office}");
 }

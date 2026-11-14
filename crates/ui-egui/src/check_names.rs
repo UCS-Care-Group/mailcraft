@@ -143,6 +143,10 @@ impl MailApp {
         if nobody.is_empty() {
             if unresolved.is_empty() {
                 self.status(tl!("All names are checked"));
+            } else {
+                // Every name left has people to choose from: the dialog says so, and "Looking the
+                // names up…" no longer stands.
+                self.status_msg = None;
             }
         } else {
             // (As typed, so one line and not too long, as the meeting form says them.)
@@ -158,6 +162,11 @@ impl MailApp {
 }
 
 impl NameChoice {
+    /// The message being written it is for.
+    pub(crate) fn compose(&self) -> u64 {
+        self.compose
+    }
+
     /// Draws it; true once every name is chosen for, or it is cancelled.
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         // The message it was for has gone, or isn't the one being written.

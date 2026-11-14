@@ -6,8 +6,10 @@
 //! The engine builds an [`EwsResolveRequest`] for the names Check Names couldn't match among the
 //! owner's contacts, a host asks the account's server for each (`ResolveNames`, the organisation's
 //! address list only) and hands back an [`EwsResolveResult`], which is given to
-//! `compose.checkNames` as its `found`. Nothing of it is kept in the mailbox or written anywhere:
-//! who was found lives in the window while the owner chooses, and as the addresses chosen.
+//! `compose.checkNames` as its `found`. People's Address Book asks the same for what the owner
+//! searches for, and shows who was found. Nothing of it is kept in the mailbox or written
+//! anywhere: who was found lives in the window while the owner chooses or looks, and as the
+//! addresses chosen (or a contact the owner makes of somebody, on their say-so).
 
 use serde::{Deserialize, Serialize};
 
@@ -19,8 +21,10 @@ pub const MAX_RESOLVE_TEXTS: usize = 10;
 pub const MAX_RESOLVE_PEOPLE: usize = 100;
 /// The longest text looked up, in characters.
 pub const MAX_RESOLVE_TEXT: usize = 256;
-/// The longest name, company, department or job title kept, in characters.
+/// The longest name, company, department, job title or office kept, in characters.
 const MAX_FIELD: usize = 256;
+/// The longest phone number kept, in characters.
+const MAX_PHONE: usize = 40;
 
 /// What kind of recipient somebody in the address list is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -54,6 +58,15 @@ pub struct DirectoryPerson {
     pub department: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub title: String,
+    /// The business phone number.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub phone: String,
+    /// The mobile phone number.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub mobile: String,
+    /// Where their office is.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub office: String,
 }
 
 impl DirectoryPerson {
@@ -73,6 +86,9 @@ impl DirectoryPerson {
             company: one_line(&self.company, MAX_FIELD),
             department: one_line(&self.department, MAX_FIELD),
             title: one_line(&self.title, MAX_FIELD),
+            phone: phone_number(&self.phone),
+            mobile: phone_number(&self.mobile),
+            office: one_line(&self.office, MAX_FIELD),
         })
     }
 
@@ -170,4 +186,13 @@ impl std::fmt::Debug for EwsResolveResult {
 pub fn one_line(text: &str, most: usize) -> String {
     let words: Vec<&str> = text.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
     words.join(" ").chars().take(most).collect::<String>().trim_end().to_owned()
+}
+
+/// `text` when it is written as a phone number is (digits, at least three, with spaces, `+`, `-`,
+/// `.`, `/`, brackets and an extension's `x`, at most [`MAX_PHONE`] characters); else nothing.
+pub fn phone_number(text: &str) -> String {
+    let number = one_line(text, MAX_PHONE.saturating_add(1));
+    let digits = number.chars().filter(char::is_ascii_digit).count();
+    let shaped = number.chars().all(|c| c.is_ascii_digit() || matches!(c, ' ' | '+' | '-' | '.' | '/' | '(' | ')' | 'x' | 'X'));
+    if shaped && digits >= 3 && number.chars().count() <= MAX_PHONE { number } else { String::new() }
 }

@@ -229,6 +229,15 @@ impl Question {
 }
 
 impl Dialog {
+    /// The message being written that the dialog is about, when it comes up over that message's
+    /// own window and not over the main one behind it: Check Names' choice.
+    pub(crate) fn compose(&self) -> Option<u64> {
+        match self {
+            Dialog::NameChoice(choice) => Some(choice.compose()),
+            _ => None,
+        }
+    }
+
     /// The name `ui.dialog` opens it by (and `ui.inspect` reports).
     pub fn name(&self) -> &'static str {
         match self {

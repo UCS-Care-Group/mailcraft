@@ -20,8 +20,13 @@ pub struct Person {
     pub company: String,
     pub department: String,
     pub title: String,
-    /// Written into its `Contact` as a phone number, which a client is not to keep.
+    /// Its business phone number.
     pub phone: String,
+    /// Its mobile phone number.
+    pub mobile: String,
+    pub office: String,
+    /// Written into its `Contact` as a home phone number, which a client is not to keep.
+    pub home: String,
 }
 
 impl Person {
@@ -85,19 +90,26 @@ fn resolution(p: &Person, full: bool) -> String {
     let contact = if full {
         let field = |name: &str, value: &str| if value.is_empty() { String::new() } else { format!("<t:{name}>{}</t:{name}>", escape(value)) };
         format!(
-            "<t:Contact>{}{}{}{}{}</t:Contact>",
+            "<t:Contact>{}{}{}{}{}{}</t:Contact>",
             field("DisplayName", &p.name),
             field("CompanyName", &p.company),
-            if p.phone.is_empty() {
-                String::new()
-            } else {
-                format!("<t:PhoneNumbers><t:Entry Key=\"BusinessPhone\">{}</t:Entry></t:PhoneNumbers>", escape(&p.phone))
-            },
+            phones(p),
             field("Department", &p.department),
             field("JobTitle", &p.title),
+            field("OfficeLocation", &p.office),
         )
     } else {
         String::new()
     };
     format!("<t:Resolution>{mailbox}{contact}</t:Resolution>")
+}
+
+/// Its `PhoneNumbers`, in the schema's form; none when it has no number.
+fn phones(p: &Person) -> String {
+    let entries: String = [("BusinessPhone", &p.phone), ("HomePhone", &p.home), ("MobilePhone", &p.mobile)]
+        .iter()
+        .filter(|(_, number)| !number.is_empty())
+        .map(|(key, number)| format!("<t:Entry Key=\"{key}\">{}</t:Entry>", escape(number)))
+        .collect();
+    if entries.is_empty() { String::new() } else { format!("<t:PhoneNumbers>{entries}</t:PhoneNumbers>") }
 }

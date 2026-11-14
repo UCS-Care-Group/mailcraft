@@ -567,14 +567,22 @@ fn home_calendar(app: &MailApp) -> Tab {
 
 fn home_people(app: &MailApp) -> Tab {
     let favorite = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.favorite);
-    Tab::of(vec![
-        g(
-            "New",
-            vec![
-                Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
-            ],
-        ),
+    let new = g(
+        "New",
+        vec![
+            Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
+            Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
+        ],
+    );
+    // An organisation's address list, beside the contacts (#1262): where there is one.
+    let find = (!mailcraft_engine::cmd::people::address_lists(&app.session.mailbox).is_empty())
+        .then(|| g("Find", vec![Item::big("people", "Address\nBook", "people.addressBook", no()).at(5, 4)]));
+    // In the address list, what acts on a contact has nothing to act on: its card has its own.
+    if app.address_book_shown().is_some() {
+        return Tab::of(std::iter::once(new).chain(find).collect());
+    }
+    let mut groups = vec![
+        new,
         g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
         g(
             "Communicate",
@@ -599,7 +607,9 @@ fn home_people(app: &MailApp) -> Tab {
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
         ),
-    ])
+    ];
+    groups.extend(find);
+    Tab::of(groups)
 }
 
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when

@@ -14,6 +14,8 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 #[cfg(test)]
 mod account_tests;
 #[cfg(test)]
+mod address_book_tests;
+#[cfg(test)]
 mod share_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -47,6 +49,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"id"?: number (default: the selected contact), "discard"?: true} — starts a new message with the contact attached as a vCard (.vcf), for the owner to address and send; nothing is sent (a message being written stays open beside it, #286; `discard` changes nothing)"#)
             .selection(needs_contact),
+        CommandSpec::new("people.addressBook", "Address Book", "Home › Find", address_book)
+            .reads()
+            .params(r#"{"account"?: number} (an Exchange server account; default: the first) — People shows that account's organisation's address list in place of the contacts, searched for what is typed in its search box: the window looks it up on the account's server, and who is found is shown there and kept nowhere (a script or an agent is shown nothing of it and has nothing looked up). view.peopleAccount goes back to the contacts"#)
+            .when(needs_address_list),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one) — a new contact is kept on this computer; the list moves to show the contact"#)
             .selection(needs_message),
@@ -63,6 +69,35 @@ fn needs_contact(s: &Session) -> Option<&'static str> {
 /// Whether the account's contacts are read from its server.
 pub fn keeps_contacts(mailbox: &Mailbox, account: Id) -> bool {
     mailbox.account(account).is_some_and(|a| a.keeps_contacts())
+}
+
+/// The Exchange server accounts whose organisation's address list can be searched (#1262).
+pub fn address_lists(mailbox: &Mailbox) -> Vec<Id> {
+    mailbox.accounts.iter().map(|a| a.id).filter(|id| super::ews_mail::has_address_list(mailbox, *id)).collect()
+}
+
+/// The account whose address list People shows in place of the contacts, while it has one.
+pub fn shown_book(s: &Session) -> Option<Id> {
+    s.view.people_book.filter(|account| super::ews_mail::has_address_list(&s.mailbox, *account))
+}
+
+fn needs_address_list(s: &Session) -> Option<&'static str> {
+    if address_lists(&s.mailbox).is_empty() {
+        Some("add an Exchange server account first: its organisation's address list is searched")
+    } else {
+        None
+    }
+}
+
+fn address_book(s: &mut Session, v: &Value) -> CmdResult {
+    let lists = address_lists(&s.mailbox);
+    let account = match v.get("account").filter(|a| !a.is_null()) {
+        Some(_) => p::id(v, "account").filter(|a| lists.contains(a)).ok_or_else(|| bad("`account` is an Exchange server account's id"))?,
+        None => *lists.first().ok_or_else(|| fail("add an Exchange server account first: its organisation's address list is searched"))?,
+    };
+    s.view.module = Module::People;
+    s.view.people_book = Some(account);
+    Ok(json!({"account": account}))
 }
 
 /// The accounts whose contacts are read from their servers.

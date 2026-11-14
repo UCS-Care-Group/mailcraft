@@ -100,6 +100,8 @@ fn the_owner_chooses_one_of_several_in_the_dialog() {
     );
     h.run_steps(3);
     assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("checkNames"));
+    // The look-up is over: the status line doesn't say it is still under way.
+    assert_eq!(status(h.state()), "");
     // The second, chosen and taken with OK.
     if let Some(Dialog::NameChoice(choice)) = &mut h.state_mut().dialog {
         choice.selected = 1;
@@ -146,4 +148,26 @@ fn without_the_password_or_a_host_only_the_contacts_are_matched() {
     app.run("compose.checkNames", json!({})).unwrap();
     assert!(app.resolving.is_none());
     assert_eq!(to_line(&app), "grace");
+}
+
+/// Ctrl+K pressed while typing in the To line is Check Names.
+#[test]
+fn ctrl_k_in_the_to_line_checks_names() {
+    let (app, _, asked) = writing("");
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(6);
+    h.event(egui::Event::Text("grace".into()));
+    h.run_steps(3);
+    assert_eq!(to_line(h.state()), "grace", "typed into To");
+    let ctrl = egui::Modifiers { ctrl: !cfg!(target_os = "macos"), mac_cmd: cfg!(target_os = "macos"), command: true, ..Default::default() };
+    h.key_press_modifiers(ctrl, egui::Key::K);
+    h.run_steps(4);
+    assert_eq!(asked.lock().unwrap().len(), 1, "looked up; status {:?}", status(h.state()));
 }

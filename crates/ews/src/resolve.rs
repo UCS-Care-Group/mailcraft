@@ -6,9 +6,11 @@
 //!
 //! What is sent is the text the owner typed and nothing else. What comes back is read as hostile
 //! as everything else a server says: at most [`MAX_CANDIDATES`] people, each a name, an SMTP
-//! address, what kind of recipient it is and three short lines that tell two people of one name
-//! apart (company, department, job title). Nothing else the server wrote is kept: no phone
-//! numbers, postal addresses or notes, though the answer may hold them.
+//! address, what kind of recipient it is, three short lines that tell two people of one name
+//! apart (company, department, job title), and for the Address Book in People how they are
+//! reached (the business and mobile phone numbers, the office). Nothing else the server wrote is
+//! kept: no postal addresses, notes or other numbers, though the answer may hold them; and what is
+//! read lives in the window, never in the mailbox.
 
 use crate::error::{Error, ResponseClass, ResponseCode};
 use crate::reply::Reply;
@@ -23,8 +25,10 @@ pub const MAX_LOOKUP: usize = 256;
 const MAX_NAME: usize = 256;
 /// The longest address kept (RFC 5321's path, less the brackets).
 const MAX_ADDRESS: usize = 254;
-/// The longest company, department or job title kept.
+/// The longest company, department, job title or office kept.
 const MAX_DETAIL: usize = 128;
+/// The longest phone number kept, in characters.
+const MAX_PHONE: usize = 40;
 
 /// What kind of recipient a candidate is ([MS-OXWSCDATA] `MailboxTypeType`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -72,6 +76,12 @@ pub struct Candidate {
     pub department: String,
     /// The job title.
     pub title: String,
+    /// The business phone number, as the directory writes it.
+    pub phone: String,
+    /// The mobile phone number.
+    pub mobile: String,
+    /// Where their office is.
+    pub office: String,
 }
 
 impl std::fmt::Debug for Candidate {
@@ -186,7 +196,25 @@ fn candidate(resolution: &Node) -> Option<Candidate> {
         company: of_contact("CompanyName", MAX_DETAIL),
         department: of_contact("Department", MAX_DETAIL),
         title: of_contact("JobTitle", MAX_DETAIL),
+        phone: phone_of(contact, "BusinessPhone"),
+        mobile: phone_of(contact, "MobilePhone"),
+        office: of_contact("OfficeLocation", MAX_DETAIL),
     })
+}
+
+/// The contact's phone number of `key` (`BusinessPhone`, `MobilePhone`): kept only when it is
+/// written as a phone number is (digits, at least three, with spaces, `+`, `-`, `.`, `/`,
+/// brackets, and an extension's `x`), so that what is shown and dialled is a number and nothing
+/// else.
+fn phone_of(contact: Option<&Node>, key: &str) -> String {
+    let Some(numbers) = contact.and_then(|c| c.child_in(TYPES, "PhoneNumbers")) else { return String::new() };
+    let Some(entry) = numbers.children.iter().find(|e| e.is(TYPES, "Entry") && e.attribute("Key").map(str::trim) == Some(key)) else {
+        return String::new();
+    };
+    let number = one_line(&entry.text, MAX_PHONE.saturating_add(1));
+    let digits = number.chars().filter(char::is_ascii_digit).count();
+    let shaped = number.chars().all(|c| c.is_ascii_digit() || matches!(c, ' ' | '+' | '-' | '.' | '/' | '(' | ')' | 'x' | 'X'));
+    if shaped && digits >= 3 && number.chars().count() <= MAX_PHONE { number } else { String::new() }
 }
 
 /// Whether `text` is an address mail can go to: one `@` with something on both sides, no
