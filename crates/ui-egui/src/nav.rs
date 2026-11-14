@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Getting around: the module bar (Mail, Calendar, People, Tasks) down the left edge, and the
+//! Getting around: the switch between the modules (Mail, Calendar, People, Tasks), as a bar of
+//! icons down the left edge or as a row at the foot of the pane on the left (#1174), and the
 //! folder pane beside it in Mail.
 
 use std::collections::{HashMap, HashSet};
@@ -26,7 +27,7 @@ const NAME_SIZE: f32 = 12.0;
 const HEADING_SIZE: f32 = 14.667;
 /// Where a top-level name starts, and how much further in each level under it starts. This and
 /// the distances below are from the pane's edges, the line down its left edge included.
-const NAME_LEFT: f32 = 22.0;
+const NAME_LEFT: f32 = 26.0;
 const INDENT: f32 = 9.0;
 /// The deepest level that still moves further in (deeper folders line up with it).
 const MAX_INDENT_DEPTH: usize = 16;
@@ -40,9 +41,10 @@ const COUNT_RIGHT: f32 = 16.0;
 /// The highlight of a row (selected, or under the pointer) stops this short of the pane's edges.
 const HIGHLIGHT_LEFT: f32 = 6.0;
 const HIGHLIGHT_RIGHT: f32 = 4.0;
+/// Inset each row's background so adjacent highlights have a gap without shrinking the hit area.
+const ROW_HIGHLIGHT_INSET: f32 = 1.0;
 /// A line of text is centred by its line box; the eye centres it by its lower-case letters, which
 /// sit this much below the middle of the box.
-const TEXT_RISE: f32 = 1.5;
 /// How round the pane's corner is where it meets the module bar and the ribbon.
 const SHEET_CORNER: u8 = 8;
 /// How wide the strip is that stays when the pane is hidden.
@@ -59,16 +61,14 @@ const ACCOUNT_DOT_ROOM: f32 = 16.0;
 /// The module bar. It runs from under the title bar down to the status bar, beside the tabs and
 /// the ribbon as well as the panes, so the window lays it out before the ribbon.
 pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
+    // At the foot of the pane on the left instead, where older mail programs had it (#1174).
+    if foot_in_use(&app.session) {
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     egui::Panel::left("modules").exact_size(RAIL_W).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        for m in Module::ALL {
-            let (icon, id) = match m {
-                Module::Mail => ("mail", "view.mail"),
-                Module::Calendar => ("calendar", "view.calendar"),
-                Module::People => ("people", "view.people"),
-                Module::Tasks => ("tasks", "view.tasks"),
-            };
+        for (m, icon, id) in module_buttons() {
             let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
             let active = app.session.view.module == m;
             if active {
@@ -94,6 +94,99 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
             resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
         }
     });
+}
+
+/// How tall the row of modules is at the foot of the pane on the left (#1174), and how large a
+/// module's name is written there.
+const FOOT_H: f32 = 34.0;
+const FOOT_NAME: f32 = 12.0;
+/// What a name needs beside its icon in the row: the icon, the gap to it, and a little air.
+const FOOT_NAME_ROOM: f32 = 22.0;
+
+/// The icon and command id of each module, in the order both the bar and the foot show them.
+fn module_buttons() -> [(Module, &'static str, &'static str); 4] {
+    [
+        (Module::Mail, "mail", "view.mail"),
+        (Module::Calendar, "calendar", "view.calendar"),
+        (Module::People, "people", "view.people"),
+        (Module::Tasks, "tasks", "view.tasks"),
+    ]
+}
+
+/// Whether the row of modules sits at the foot of the pane on the left (#1174): the owner asked
+/// for it, and the module in view has a pane for it. Mail's folder pane and the calendar's side
+/// pane can be hidden, and what is left of Mail's is a strip too narrow for four modules; People
+/// and Tasks always have theirs. Without a pane the bar down the window's edge stays, so the
+/// switch is never out of reach.
+pub fn foot_in_use(s: &mailcraft_engine::Session) -> bool {
+    s.view.nav_foot && (s.view.folder_pane || matches!(s.view.module, Module::People | Module::Tasks))
+}
+
+/// Whether a module's name is written beside its icon in the row (#1174): all four or none, so
+/// that the row doesn't read half named, and only where the pane is wide enough for the longest
+/// of them. A narrow pane leaves the icons alone, which is still the whole switch: what the row
+/// is for is the column the bar took down the window, not the names.
+pub(crate) fn names_fit(each: f32, widest: f32) -> bool {
+    each >= widest + FOOT_NAME_ROOM
+}
+
+/// The switch between the modules at the foot of the pane on the left (#1174), where older mail
+/// programs had it: an icon for each, side by side, with their names where the pane is wide
+/// enough ([`names_fit`]), and the module in view in the accent with a line under it. Nothing
+/// while the bar down the window's edge is the one in use, so every pane may call it.
+pub fn module_foot(app: &mut MailApp, ui: &mut Ui) {
+    if !foot_in_use(&app.session) {
+        return;
+    }
+    let t = Tokens::get(ui.ctx());
+    egui::Panel::bottom("modules_foot").exact_size(FOOT_H).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(
+        ui,
+        |ui| {
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            let room = ui.max_rect();
+            let each = (room.width() / 4.0).max(1.0);
+            // The names show for all four or for none, so the row doesn't read half named as the
+            // pane narrows: the longest of them is what has to fit.
+            let widest = module_buttons()
+                .into_iter()
+                .map(|(m, _, _)| crate::theme::text_width(ui.painter(), tl!(m.label()), &regular(FOOT_NAME), 0.0, t.text))
+                .fold(0.0f32, f32::max);
+            let named = names_fit(each, widest);
+            for (i, (m, icon, id)) in module_buttons().into_iter().enumerate() {
+                let r = Rect::from_min_size(pos2(room.min.x + each * i as f32, room.min.y), vec2(each, room.height()));
+                let resp = ui.interact(r, ui.scope_id().with(("module_foot", icon)), Sense::click());
+                let active = app.session.view.module == m;
+                if active {
+                    let line = Rect::from_min_size(pos2(r.min.x + 4.0, r.max.y - 2.0), vec2((r.width() - 8.0).max(0.0), 2.0));
+                    ui.painter().rect_filled(line, 1.0, t.accent);
+                } else if resp.hovered() {
+                    ui.painter().rect_filled(r.shrink(3.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+                }
+                // Reached with Tab or the arrow keys (Enter or Space switches): where the keyboard is.
+                if resp.has_focus() {
+                    ui.painter().rect_stroke(r.shrink(3.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+                }
+                let ink = if active { t.accent_text } else { t.icon };
+                let name = tl!(m.label());
+                let text_w = crate::theme::text_width(ui.painter(), name, &regular(FOOT_NAME), 0.0, ink);
+                let icon_x = if named { r.center().x - (text_w + 20.0) / 2.0 + 9.0 } else { r.center().x };
+                icons::paint(ui.painter(), Rect::from_center_size(pos2(icon_x, r.center().y), vec2(18.0, 18.0)), icon, ink, ink);
+                if named {
+                    let at = pos2(icon_x + 11.0, r.center().y);
+                    ui.painter().text(at, Align2::LEFT_CENTER, name, regular(FOOT_NAME), if active { t.accent_text } else { t.text });
+                }
+                app.hit.add("moduleFoot", i as u64, r);
+                // For a screen reader: a button, and which module is in view. The module is
+                // chosen (AccessKit's `selected`), not switched on, as the Gmail tabs are.
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
+                ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(active));
+                let sc = crate::widgets::shortcut_text(app, id);
+                if resp.on_hover_text(format!("{name} ({sc})")).clicked() {
+                    let _ = app.run(id, json!({}));
+                }
+            }
+        },
+    );
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
@@ -224,7 +317,7 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     }
     let open = !app.ui.collapsed_folders.contains(&id);
     let y = r.min.y + text_y;
-    chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y + 2.0), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
+    chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
     // An account's colour (#893): a dot after its name, which leaves room for it.
     let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES);
     let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
@@ -408,7 +501,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with((key, f.id)), Sense::click());
     app.hit.add("folder", f.id, r);
-    let row = highlight(r);
+    let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
     if selected {
         ui.painter().rect_filled(row, 6.0, t.accent_soft);
         ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
@@ -427,7 +520,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             let _ = app.execute("ui.toggleFolder", json!({"id": f.id}));
         }
     }
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
     // (Drafts, Junk) in a quiet grey one.
     let mut name_end = r.max.x - COUNT_RIGHT;
@@ -539,7 +632,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with(("gmail", inbox, category.code())), Sense::click());
     app.hit.add(gmail_hit(category), inbox, r);
-    let row = highlight(r);
+    let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
     if selected {
         ui.painter().rect_filled(row, 6.0, t.accent_soft);
         ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
@@ -551,7 +644,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
         ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     }
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     let mut name_end = r.max.x - COUNT_RIGHT;
     if unread > 0 {
         let fill = if selected { t.surface } else { t.accent_soft };
@@ -608,7 +701,7 @@ fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorite
         ui.painter().rect_filled(highlight(r), 0.0, t.hover_nav);
     }
     let width = (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0);
-    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y - TEXT_RISE), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
+    paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, r.center().y), width, tl!(step.label()), regular(NAME_SIZE), t.accent_text);
     if resp.on_hover_text(tl!(step.about())).clicked() {
         crate::favorites_sync::step_taken(app, account, step);
     }
@@ -634,7 +727,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
         return;
     }
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let y = r.center().y - TEXT_RISE;
+    let y = r.center().y;
     let left = r.min.x + NAME_LEFT;
     let width = (r.max.x - COUNT_RIGHT - left).max(0.0);
     let font = regular(NAME_SIZE);
@@ -758,7 +851,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
         .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.canvas));
     let shown = panel.show(ui, |ui| {
+        // (After the sheet: the pane's background would paint over the row.)
         sheet(ui.painter(), ui.max_rect(), &t);
+        module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         pane_top(app, ui, &t);
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {

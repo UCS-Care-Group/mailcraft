@@ -7,9 +7,11 @@
 mod assets;
 mod docs_log;
 mod i18n;
+mod i18n_kotlin;
 mod ico;
 mod icon;
 mod layers;
+mod mobile;
 mod parity;
 mod release_key;
 mod release_notes;
@@ -17,6 +19,7 @@ mod spdx;
 mod stats;
 mod test_files;
 mod version;
+mod wasm_clock;
 mod workflows;
 
 use std::path::{Path, PathBuf};
@@ -32,10 +35,12 @@ commands:
   layers          enforce the crate dependency layering (docs/architecture.md)
   workflows       no job of .github/workflows that holds signing material builds or runs what was built;
                   no `permissions: read-all`; curl only with `--proto =https` (docs/releasing.md)
+  mobile          build, lint and test the Android app (needs the Android SDK, NDK, cargo-ndk); not part of `ci`
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
+  wasm-clock      no std clock or sleep (they panic there) in code the browser build runs (#1337)
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, deny, i18n --check,
-                  release-notes and docs-log (the fragments join)
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, workflows, layers, wasm, wasm-clock, deny,
+                  i18n --check, release-notes and docs-log (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -66,7 +71,9 @@ fn main() -> ExitCode {
         Some("test-files") => test_files::run(&root()),
         Some("layers") => cmd_layers(),
         Some("workflows") => workflows::run(&root()),
+        Some("mobile") => mobile::run(&root()),
         Some("wasm") => cmd_wasm(),
+        Some("wasm-clock") => metadata().and_then(|m| wasm_clock::run(&root(), &m)),
         Some("deny") => cmd_deny(),
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
@@ -250,6 +257,7 @@ fn cmd_ci() -> Result<(), String> {
         ("workflows", Box::new(|| workflows::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        ("wasm-clock", Box::new(|| metadata().and_then(|m| wasm_clock::run(&root(), &m)))),
         ("deny", Box::new(cmd_deny)),
         ("i18n", Box::new(|| i18n::run(&root(), true))),
         ("release-notes", Box::new(|| release_notes::check(&root()))),

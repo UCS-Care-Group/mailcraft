@@ -33,6 +33,15 @@ use mailcraft_engine::sync_driver::Busy;
 pub(crate) use mailcraft_engine::sync_driver::JobKind;
 
 impl MailApp {
+    /// What the window says of itself when the engine is asked which question to the owner is next.
+    pub(crate) fn ask_window(&self) -> mailcraft_engine::sync_driver::AskWindow {
+        mailcraft_engine::sync_driver::AskWindow {
+            dialog_open: self.dialog.is_some(),
+            backstage: self.ui.backstage,
+            signing_in: self.signing_in.is_some(),
+        }
+    }
+
     /// What is at work now, as the engine's rules of precedence ([`Busy::blocks`]) ask for it.
     pub(crate) fn job_busy(&self) -> Busy {
         Busy {
@@ -44,8 +53,8 @@ impl MailApp {
             graph: self.graph_rx.is_some(),
             mail_run: self.sync_rx.is_some(),
             signing_in: self.signing_in.is_some(),
-            queued: !self.sync_queue.is_empty(),
-            inbox_queued: !self.inbox_queue.is_empty(),
+            queued: !self.session.driver.round.queue.is_empty(),
+            inbox_queued: !self.session.driver.round.inbox_queue.is_empty(),
             approving: self.approving(),
             switching: self.graph_switch_copy.is_some(),
         }
@@ -114,13 +123,14 @@ impl MailApp {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);
+        self.session.driver.sending.forget_gate();
         (self.sync_run, self.inbox_run, self.graph_after_sign_in, self.shared_check_next) = (None, None, None, None);
         (self.sync_password, self.sync_refused, self.graph_pieces_taken) = (None, false, 0);
         self.sync_totals = Default::default();
         self.graph_problems.clear();
-        self.sync_queue.clear();
-        self.inbox_queue.clear();
-        self.push_only_next.clear();
+        self.session.driver.round.queue.clear();
+        self.session.driver.round.inbox_queue.clear();
+        self.session.driver.round.push_only_next.clear();
         self.shared_checking.clear();
         self.session.sync_progress = Default::default();
         self.session.sync_status.clear();

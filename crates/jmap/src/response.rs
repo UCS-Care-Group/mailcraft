@@ -234,7 +234,14 @@ impl fmt::Display for CallFailure {
 
 impl std::error::Error for CallFailure {}
 
-type CallResult = Result<Vec<MethodResponse>, MethodError>;
+/// What a response holds for one call id: its responses in order, and the error that ended it, if one did.
+/// A call may answer and then fail in something it does besides (RFC 8620 §3.2: an implicit call answers
+/// under the same call id), so what it answered before the error is kept.
+#[derive(Clone, Default, PartialEq)]
+struct CallResult {
+    responses: Vec<MethodResponse>,
+    error: Option<MethodError>,
+}
 
 /// A parsed API response.
 #[derive(Clone, PartialEq)]
@@ -292,11 +299,11 @@ impl ApiResponse {
             if call_id.len() > MAX_CALL_ID_LEN {
                 return Err(shape("a method response has an overlong call id"));
             }
-            let entry = calls.entry(call_id).or_insert_with(|| Ok(Vec::new()));
-            let Ok(list) = entry else {
+            let entry = calls.entry(call_id).or_default();
+            if entry.error.is_some() {
                 // RFC 8620 §3.6.2: after an error, nothing more happens within that call.
                 continue;
-            };
+            }
             if name == "error" {
                 let mut kind = MethodErrorKind::from_type(arguments.get("type").and_then(Value::as_str));
                 if let MethodErrorKind::Other(name) = &kind
@@ -305,9 +312,9 @@ impl ApiResponse {
                     kind = MethodErrorKind::Other(String::new());
                 }
                 let description = arguments.get("description").and_then(Value::as_str).map(|text| redactor.excerpt(text));
-                *entry = Err(MethodError { kind, description, arguments });
+                entry.error = Some(MethodError { kind, description, arguments });
             } else {
-                list.push(MethodResponse { name, arguments });
+                entry.responses.push(MethodResponse { name, arguments });
             }
         }
         Ok(Self { session_state, created_ids, calls })
@@ -326,15 +333,42 @@ impl ApiResponse {
     /// Takes every response of a call; a method-level error makes the call fail.
     pub fn take(&mut self, call: &CallId) -> Result<Vec<MethodResponse>, CallFailure> {
         match self.calls.remove(call.as_str()) {
-            Some(Ok(responses)) if !responses.is_empty() => Ok(responses),
-            Some(Ok(_)) | None => Err(CallFailure::Missing),
-            Some(Err(error)) => Err(CallFailure::Method(error)),
+            Some(CallResult { error: Some(error), .. }) => Err(CallFailure::Method(error)),
+            Some(CallResult { responses, error: None }) if !responses.is_empty() => Ok(responses),
+            Some(_) | None => Err(CallFailure::Missing),
         }
     }
 
     /// Takes the arguments of the call's response named `name` (for a plain call, the method's own name).
     pub fn take_named(&mut self, call: &CallId, name: &str) -> Result<Map<String, Value>, CallFailure> {
         self.take(call)?.into_iter().find(|response| response.name == name).map(MethodResponse::into_arguments).ok_or(CallFailure::UnexpectedResponse)
+    }
+
+    /// Takes the arguments of the call's response named `name`, as [`ApiResponse::take_named`] does, but for a
+    /// call that answered and failed afterwards: what it answered stands, and the error that came after it
+    /// is handed back beside it. That is a method whose own work was done and whose implicit call then failed
+    /// (RFC 8621 §7.5: the `Email/set` of `onSuccessUpdateEmail` is answered after the `EmailSubmission/set`,
+    /// under the same call id). An error with no response named `name` before it is the failure of the call.
+    /// What else the call answered is handed back between the two, in the order it came: the implicit call
+    /// may answer as a response of its own, which says what it did and what it would not do.
+    pub fn take_named_before_error(
+        &mut self,
+        call: &CallId,
+        name: &str,
+    ) -> (Result<Map<String, Value>, CallFailure>, Vec<MethodResponse>, Option<MethodError>) {
+        let Some(CallResult { mut responses, error }) = self.calls.remove(call.as_str()) else {
+            return (Err(CallFailure::Missing), Vec::new(), None);
+        };
+        let nothing = responses.is_empty();
+        match (responses.iter().position(|response| response.name == name), error) {
+            (Some(at), after) => {
+                let response = responses.remove(at);
+                (Ok(response.into_arguments()), responses, after)
+            }
+            (None, Some(error)) => (Err(CallFailure::Method(error)), Vec::new(), None),
+            (None, None) if nothing => (Err(CallFailure::Missing), Vec::new(), None),
+            (None, None) => (Err(CallFailure::UnexpectedResponse), Vec::new(), None),
+        }
     }
 
     /// The call ids present in the response, untaken.

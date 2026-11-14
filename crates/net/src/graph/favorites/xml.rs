@@ -20,8 +20,9 @@
 //! mailbox calls it.
 
 use quick_xml::Reader;
-use quick_xml::escape::resolve_xml_entity;
 use quick_xml::events::{BytesRef, Event};
+
+use crate::xml_text;
 
 /// The key of the pair that holds the list, and of the setting that names a favourite's folder.
 const FAVORITES_KEY: &str = "OWA.OutlookFavorites";
@@ -200,31 +201,13 @@ impl Walk {
 
     /// Text of the element that is innermost now.
     fn text(&mut self, text: &str) {
-        let depth = self.stack.len();
-        if let Some((field, _)) = self.field.as_mut().filter(|(_, at)| *at == depth) {
-            if field.len().saturating_add(text.len()) > MAX_FIELD {
-                self.spoiled = true;
-            } else {
-                field.push_str(text);
-            }
-        }
+        xml_text::push(&mut self.field, &mut self.spoiled, self.stack.len(), text, MAX_FIELD);
     }
 
     /// A reference in the text: a character by its number, or one of XML's own five. Any other
     /// is not looked up anywhere, and the field it stands in is not taken.
     fn reference(&mut self, reference: &BytesRef<'_>) {
-        if self.field.is_none() {
-            return;
-        }
-        let mut one = [0u8; 4];
-        match reference.resolve_char_ref() {
-            Ok(Some(c)) => self.text(c.encode_utf8(&mut one)),
-            Ok(None) => match resolve_xml_entity(reference) {
-                Some(text) => self.text(text),
-                None => self.spoiled = true,
-            },
-            Err(_) => self.spoiled = true,
-        }
+        xml_text::push_reference(&mut self.field, &mut self.spoiled, self.stack.len(), reference, MAX_FIELD);
     }
 }
 

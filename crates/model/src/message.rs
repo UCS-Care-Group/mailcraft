@@ -7,6 +7,7 @@ use std::sync::Arc;
 use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
+use crate::headers::HeaderBlock;
 use crate::sync::{MovingOut, RemoteFlags, ServerMessage};
 use crate::{Address, Id};
 
@@ -293,9 +294,14 @@ pub struct Message {
     /// a kind that appears later brings it back.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub warnings_dismissed: Vec<String>,
-    /// Headers MailCraft doesn't model, kept so a saved message round-trips.
+    /// The header lines MailCraft doesn't model that it reads by name ([`crate::headers::WORKING`],
+    /// and its own notes), in order; the others are its [`Message::header_block`].
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
+    /// Every other header line it kept, so a saved message round-trips: in memory, or kept beside
+    /// the mailbox file and read when the message is written out ([`crate::headers`]).
+    #[serde(skip_serializing_if = "HeaderBlock::none_in_memory")]
+    pub header_block: HeaderBlock,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
     /// that leaves them behind when mail goes to another account (#781). Only then are they
     /// believed: one saved before may be a sender's own, carried in from another account.
@@ -406,6 +412,13 @@ pub struct Message {
     /// stopped mid-send.
     #[serde(skip_serializing_if = "is_false")]
     pub sending: bool,
+    /// A Microsoft account's draft sent here as the draft its server has (#1160): kept in Sent
+    /// Items under that server id while the server may still list it in Drafts, a draft, for a
+    /// while. No move into Sent Items goes up for it (Exchange files it there itself), and a
+    /// listing of it as a draft outside Sent Items is not followed. Cleared once the server says
+    /// it is gone from a folder other than Sent Items. False for every other message.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_here: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
@@ -632,7 +645,7 @@ impl Message {
         if let Some(size) = said.filter(|_| self.unfetched || self.incomplete) {
             return Some(size);
         }
-        if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
+        if self.has_header(NOT_DOWNLOADED) {
             return None;
         }
         // The bytes it came as are a second copy of what its parts hold (#30).

@@ -699,6 +699,10 @@ fn a_brands_name_on_another_domain_is_a_warning() {
     assert!(kinds(&from("Apple", "id@verify-now.example")).contains(&"brandName"));
     assert!(kinds(&from("Apple Support", "id@verify-now.example")).contains(&"brandName"));
     assert!(kinds(&from("Tesla", "orders@delivery-desk.example")).contains(&"brandName"));
+    // Followed by a run of service words.
+    for name in ["Amazon Customer Service", "Apple ID Support Team", "Adobe Account Security Alert"] {
+        assert!(kinds(&from(name, "help@delivery-desk.example")).contains(&"brandName"), "{name}");
+    }
 }
 
 #[test]
@@ -770,9 +774,6 @@ fn words_that_are_not_a_brands_name_give_no_warning() {
 #[test]
 fn honest_mail_that_names_a_brand_gives_no_warning() {
     for (name, sender) in [
-        // Bounces from a public mail provider, where only it has these addresses.
-        ("Microsoft Outlook", "postmaster@outlook.com"),
-        ("Mail Delivery Subsystem", "mailer-daemon@gmail.com"),
         // A known address, at a public mail provider too (`facts` knows Sam's).
         ("Sam Friend (Microsoft MVP)", "friend@gmail.com"),
         // People and places whose name is a brand's word.
@@ -788,6 +789,17 @@ fn honest_mail_that_names_a_brand_gives_no_warning() {
         let found = kinds(&from(name, sender));
         assert!(!found.contains(&"brandName"), "{name} <{sender}>: {found:?}");
     }
+    // Bounces from a public mail provider, where only it has these addresses, when the server
+    // vouches for them; a forged one (no verdict, or a failed one) keeps its warning.
+    for (name, sender, provider) in
+        [("Microsoft Outlook", "postmaster@outlook.com", "outlook.com"), ("Mail Delivery Subsystem", "mailer-daemon@gmail.com", "gmail.com")]
+    {
+        let vouched = with_results(from(name, sender), &format!("mx.lumen.example; dmarc=pass header.from={provider}"));
+        assert!(!kinds(&vouched).contains(&"brandName"), "{sender}");
+    }
+    assert!(kinds(&from("Microsoft Outlook", "postmaster@outlook.com")).contains(&"brandName"));
+    let failed = with_results(from("Microsoft Outlook", "postmaster@outlook.com"), "mx.lumen.example; dmarc=fail header.from=outlook.com");
+    assert!(kinds(&failed).contains(&"brandName"));
     // A bounce address at a domain of anybody's own is still looked at.
     assert!(kinds(&from("Microsoft Outlook", "postmaster@account-alerts.example")).contains(&"brandName"));
     // So is a Microsoft 365 tenant's: anybody can make one and name its postmaster.
@@ -877,6 +889,10 @@ fn a_name_that_is_another_organisations_domain_is_a_caution() {
     let found = warnings(&from("LumenShop.com", "news@mailer.example"));
     assert!(found.contains(&Warning::DomainInName { shown: "LumenShop.com".into(), domain: "mailer.example".into() }));
     assert!(kinds(&from("https://lumenshop.fr", "news@mailer.example")).contains(&"domainInName"));
+    // A capitalised generic top level is a domain, not a surname; and only a sending name
+    // (`<name>mail`) counts as the shown name's own.
+    assert!(kinds(&from("Mybank.Com", "help@mailer.example")).contains(&"domainInName"));
+    assert!(kinds(&from("Chase.com", "alerts@chaseonline-verify.example")).contains(&"domainInName"));
 }
 
 #[test]

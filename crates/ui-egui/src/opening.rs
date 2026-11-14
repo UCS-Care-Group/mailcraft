@@ -143,7 +143,7 @@ impl MailApp {
         }
         // Nothing of the window waiting is ever written.
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.opening = Some(opening);
         app
     }

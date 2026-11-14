@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
+use crate::auth_results::{self, Failed};
 use crate::brands;
 use crate::confusables::{as_seen, hides, skeleton};
 use crate::{Account, FolderKind, Message, provider};
@@ -427,21 +427,25 @@ fn name_parts(seen: &str) -> Vec<(usize, &str)> {
 /// name's parts ([`name_parts`]), alone and up to [`MAX_PARTS_JOINED`] together ("Pay Pal"), are
 /// compared with [`brands::BRANDS`]; a brand whose name is also an ordinary word, or is read
 /// from several words ("Pay Pal", not "Micro Soft Toys"), only when it opens the name and is all
-/// of it, or is followed by one of [`brands::SERVICE_WORDS`] alone ("Apple Support", not "Apple
+/// of it, or is followed by [`brands::SERVICE_WORDS`] only ("Apple Support", "Amazon Customer
+/// Service", not "Apple
 /// Valley" or "Tesla Jones"). Not for a list's "<member> via
 /// <list>" (a list's, by its `List-Id` or `List-Post`: a name alone may say "via"), nor for the
-/// bounces of a public mail provider (`postmaster@outlook.com`, sent as "Microsoft Outlook"):
+/// bounces of a public mail provider that the account's server vouches for ([`auth_results::vouched`]:
+/// a forged one is not), such as `postmaster@outlook.com` sent as "Microsoft Outlook":
 /// nobody but the provider has those addresses there, and a red banner on every bounce would
 /// teach the owner to ignore red banners. Outlook.com and `onmicrosoft.com` stay out of
 /// Microsoft's own domains, and a Microsoft 365 tenant's bounces
 /// (`postmaster@<tenant>.onmicrosoft.com`) keep their warning: anybody can make a tenant and
 /// name its `postmaster` "Microsoft Outlook" or "PayPal", and what would mark a real bounce (its
 /// content type, `Auto-Submitted`) is written by the sender too.
-fn brand_name(facts: &Facts, m: &Message, domain: &str) -> Option<Warning> {
+fn brand_name(facts: &Facts, m: &Message, account: Option<&Account>, domain: &str) -> Option<Warning> {
     let seen = as_seen(&m.from.name, MAX_NAME_CHARS);
     let mine = registrable(domain);
     let address = m.from.email.trim().to_lowercase();
-    let bounce = address.rsplit_once('@').is_some_and(|(local, _)| BOUNCE_SENDERS.contains(&local)) && provider::is_mail_provider(mine);
+    let bounce = address.rsplit_once('@').is_some_and(|(local, _)| BOUNCE_SENDERS.contains(&local))
+        && provider::is_mail_provider(mine)
+        && auth_results::vouched(account, m);
     if via_list(&seen) && from_list(m)
         || facts.domains.contains(mine) && !provider::is_mail_provider(mine)
         || facts.addresses.contains(&address)
@@ -452,10 +456,9 @@ fn brand_name(facts: &Facts, m: &Message, domain: &str) -> Option<Warning> {
     let parts = name_parts(&seen);
     let fits = |b: &brands::Brand, start: usize, len: usize| {
         let one_word = parts.get(start).map(|p| p.0) == parts.get(start + len - 1).map(|p| p.0);
+        // "Amazon Customer Service": every part after the brand is a service word.
         !b.common_word && one_word
-            || start == 0
-                && (len == parts.len()
-                    || len + 1 == parts.len() && parts.last().is_some_and(|(_, w)| brands::SERVICE_WORDS.iter().any(|s| w.eq_ignore_ascii_case(s))))
+            || start == 0 && parts.iter().skip(len).all(|(_, w)| brands::SERVICE_WORDS.iter().any(|s| w.eq_ignore_ascii_case(s)))
     };
     let brand = (0..parts.len()).find_map(|start| {
         let mut joined = String::new();
@@ -508,20 +511,28 @@ fn domain_in_name(m: &Message, domain: &str) -> Option<Warning> {
     let common = top_level.chars().count() == 2 || GENERIC_TOP_LEVELS.contains(&top_level);
     let mine = registrable(domain);
     // A brand's mail often comes from `<brand>mail.com` ("Expedia.com" from `expediamail.com`).
-    let other = !mine.split('.').next().is_some_and(|ours| ours.starts_with(name));
+    let other = !mine.split('.').next().is_some_and(|ours| ours.strip_prefix(name).is_some_and(|rest| SENDING_SUFFIXES.contains(&rest)));
     (common && name.chars().count() >= 3 && other).then(|| Warning::DomainInName { shown: detail(shown), domain: wire(mine) })
 }
 
 /// Whether a name is written as somebody's first and last names joined by a dot (`Wei.Li`,
-/// `Tom.Ng`): two parts, each a capital and then small letters only. A domain's top-level part
-/// is written in small letters (`MyShop.example`) or all in capitals (`AMAZON.COM`).
+/// `Tom.Ng`): two parts, each a capital and then small letters only, the last not a generic
+/// top-level domain (`Mybank.Com` is a domain). A domain's top-level part is otherwise written
+/// in small letters (`MyShop.example`) or all in capitals (`AMAZON.COM`).
 fn person_like(shown: &str) -> bool {
     let capitalised = |part: &str| {
         let mut chars = part.chars();
         chars.next().is_some_and(char::is_uppercase) && part.chars().count() >= 2 && chars.all(char::is_lowercase)
     };
-    shown.split_once('.').is_some_and(|(first, last)| capitalised(first) && capitalised(last))
+    shown
+        .split_once('.')
+        .is_some_and(|(first, last)| capitalised(first) && capitalised(last) && !GENERIC_TOP_LEVELS.iter().any(|top| last.eq_ignore_ascii_case(top)))
 }
+
+/// What a brand's own sending domain adds to its name (`expediamail.com`): a sender domain that
+/// is the shown name and one of these is the same organisation. Anything else after it
+/// (`chaseonline-verify`) is not.
+const SENDING_SUFFIXES: [&str; 6] = ["", "mail", "email", "mailer", "news", "-mail"];
 
 /// The generic top-level domains a shop or a service names itself by.
 const GENERIC_TOP_LEVELS: [&str; 12] = ["com", "net", "org", "info", "biz", "shop", "store", "online", "site", "app", "io", "co"];
@@ -641,7 +652,7 @@ fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
 
 /// Whether `m` came through a mailing list: it has a `List-Id` or `List-Post` header.
 fn from_list(m: &Message) -> bool {
-    m.headers.iter().take(MAX_HEADERS_READ).any(|(h, _)| h.eq_ignore_ascii_case("List-Id") || h.eq_ignore_ascii_case("List-Post"))
+    m.has_header("List-Id") || m.has_header("List-Post")
 }
 
 /// Whether `name` (as it reads) is a list's for one of its members: "<anything> via <list>".
@@ -868,7 +879,7 @@ pub fn check<'a>(
     out.extend(name_hides(facts, m));
     let domain = sender_domain(&m.from.email);
     if let Some(domain) = &domain {
-        out.extend(brand_name(facts, m, domain));
+        out.extend(brand_name(facts, m, account, domain));
         if let Some(like) = lookalike(facts, domain) {
             out.push(Warning::LookalikeSender { domain: wire(registrable(domain)), like: wire(&like) });
         }
