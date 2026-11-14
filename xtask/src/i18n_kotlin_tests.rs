@@ -58,12 +58,50 @@ fn a_raw_string_is_skipped_whole() {
 }
 
 #[test]
-fn a_raw_string_as_an_argument_is_not_a_text() {
+fn a_raw_string_as_an_argument_is_a_text() {
     let src = "t(\"\"\"raw\"\"\"); t(\"Next\")";
-    assert_eq!(ids(src), vec!["Next"]);
+    assert_eq!(ids(src), vec!["raw", "Next"]);
 }
 
 #[test]
 fn an_unclosed_raw_string_ends_the_scan() {
     assert!(ids("val q = \"\"\"t(\"x\")").is_empty());
+}
+
+#[test]
+fn white_space_may_stand_before_the_parenthesis() {
+    assert_eq!(ids("core.t (\"Inbox\"); core.t\n(\"Sent\")"), vec!["Inbox", "Sent"]);
+    let s = scan("tn (n, \"{n} row\", \"{n} rows\")");
+    assert_eq!(s.len(), 1);
+    assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
+    assert!(ids("t \"x\"; tx (\"y\")").is_empty());
+}
+
+#[test]
+fn a_parenthesized_count_keeps_its_slot() {
+    let s = scan("tn((n), \"{n} row\", \"{n} rows\"); tn([n], \"{n} a\", \"{n} b\")");
+    assert_eq!(s.len(), 2);
+    assert_eq!(s[0].id, "{n} row");
+    assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
+    assert_eq!(s[1].id, "{n} a");
+}
+
+#[test]
+fn triple_quoted_strings_are_read() {
+    assert_eq!(ids("t(\"\"\"Inbox\"\"\")"), vec!["Inbox"]);
+    assert_eq!(ids("t(\"\"\"say \"hi\" \\n\"\"\")"), vec!["say \"hi\" \\n"]);
+    assert!(ids("t(\"\"\"Hello $name\"\"\")").is_empty());
+    assert_eq!(ids("val s = \"\"\"t(\"no\")\"\"\"; t(\"yes\")"), vec!["yes"]);
+    assert_eq!(ids("t(\"\")"), vec![""]);
+}
+
+#[test]
+fn comments_inside_a_call_are_skipped() {
+    assert_eq!(ids("t(\"Menu\" /* navigation label */)"), vec!["Menu"]);
+    assert_eq!(ids("t(/* navigation label */ \"Menu\")"), vec!["Menu"]);
+    assert_eq!(ids("t(\"Menu\" // the menu\n)"), vec!["Menu"]);
+    let s = scan("tn(n /* count */, /* one */ \"{n} row\", \"{n} rows\" /* other */)");
+    assert_eq!(s.len(), 1);
+    assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
+    assert!(ids("t(\"a\" /* unclosed").is_empty());
 }

@@ -11,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -148,6 +149,22 @@ class SecretFilesTest {
         val broken = SecretFiles(File(tmp.root, "y"), AesGcmSealer { throw IllegalStateException("provider") })
         assertThrows(HostException.Failed::class.java) { broken.set("k", "v") }
         assertEquals(TroubleKind.UNAVAILABLE, broken.takeTrouble())
+    }
+
+    @Test
+    fun aFileThatCannotBeReadIsStoreTroubleNotAMissingSecret() {
+        val dir = File(tmp.root, "secrets")
+        val s = store(dir = dir)
+        s.set("k", "v")
+        val file = dir.listFiles { f -> f.name.endsWith(".sec") }!!.single()
+        file.setReadable(false, false)
+        try {
+            assumeFalse("running as a user that ignores file modes", file.canRead())
+            assertThrows(HostException::class.java) { s.get("k") }
+            assertEquals(TroubleKind.UNAVAILABLE, s.takeTrouble())
+        } finally {
+            file.setReadable(true, false)
+        }
     }
 
     private companion object {

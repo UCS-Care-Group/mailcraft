@@ -40,8 +40,8 @@ class MailCraftApplication : Application() {
 
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
-        // Copies of attachments written for other programs to open are not kept past a restart.
-        runCatching { OpenedFiles(this).clear() }
+        // Copies of attachments written for other programs to open are kept a day, not for good.
+        runCatching { OpenedFiles(this).clearOld() }
     }
 
     // Setting up the system's certificate check and opening the core can each fail without

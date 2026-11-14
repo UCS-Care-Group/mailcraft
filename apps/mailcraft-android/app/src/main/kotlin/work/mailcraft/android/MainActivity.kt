@@ -70,8 +70,11 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     val folderId = picked?.toULong() ?: outline?.inboxId
     val folder = outline?.accounts?.flatMap { it.folders }?.firstOrNull { it.id == folderId }
     val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folderId) {
+        // The last folder's messages must not stay under the new folder's name while it loads.
+        value = InboxState.Loading
         value = when {
             outlined == null -> InboxState.Loading
+            outline == null -> InboxState.Failed(core.t("The mailbox could not be read."))
             folder == null || folderId == null -> InboxState.Failed(core.t("The sample mailbox has no Inbox."))
             else -> loadFolder(core, folderId, folder.name)
         }
