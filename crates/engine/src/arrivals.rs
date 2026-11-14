@@ -57,6 +57,16 @@ pub struct Arrival {
 /// How many arrivals one run reports at most: the window shows a few, and only counts the rest.
 pub const MOST: usize = 1_000;
 
+/// Move `before`'s cutoff to the newest message now, and keep the Inboxes it was watching.
+///
+/// A look at the window while a run is going uses this rather than a fresh [`mark`]: a first
+/// download can set `uid_seen` before its last piece arrives, and a new mark would then count
+/// the rest of that download as new mail.
+pub fn advance(before: &InboxMark, mailbox: &Mailbox) -> InboxMark {
+    let now = mailbox.messages.keys().next_back().copied().unwrap_or(0);
+    InboxMark { last_id: before.last_id.max(now), inboxes: before.inboxes.clone() }
+}
+
 /// Mark the mailbox before a run.
 pub fn mark(mailbox: &Mailbox) -> InboxMark {
     let last_id = mailbox.messages.keys().next_back().copied().unwrap_or(0);

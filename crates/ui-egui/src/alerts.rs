@@ -284,7 +284,13 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
         app.alerts.pending = 0;
     }
     if in_front {
-        app.alerts.taskbar = Some(arrivals::mark(&app.session.mailbox));
+        // Keep the Inboxes the mark started with. A fresh mark would start watching an Inbox
+        // whose first download has set `uid_seen` before the last piece arrived.
+        let mailbox = &app.session.mailbox;
+        app.alerts.taskbar = Some(match app.alerts.taskbar.as_ref() {
+            Some(mark) => arrivals::advance(mark, mailbox),
+            None => arrivals::mark(mailbox),
+        });
     }
     let path = app.session.path.clone();
     if busy(app) {

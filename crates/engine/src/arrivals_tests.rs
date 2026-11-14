@@ -56,6 +56,18 @@ fn new_mail_in_an_inbox_read_before_arrives_with_its_sender_and_subject() {
 }
 
 #[test]
+fn advancing_a_mark_does_not_start_watching_a_first_download() {
+    let (mut s, account, inbox) = session();
+    let before = mark(&s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(5, "A", "Old")])]);
+    let refreshed = mark(&s.mailbox);
+    let moved = advance(&before, &s.mailbox);
+    apply(&mut s, account, vec![inbox_delta(inbox, vec![message(6, "B", "Older")])]);
+    assert_eq!(new_inbox_count(&s.mailbox, &moved), 0);
+    assert_eq!(new_inbox_count(&s.mailbox, &refreshed), 1);
+}
+
+#[test]
 fn an_accounts_first_download_is_not_new_mail() {
     let (mut s, account, inbox) = session();
     let before = mark(&s.mailbox);
