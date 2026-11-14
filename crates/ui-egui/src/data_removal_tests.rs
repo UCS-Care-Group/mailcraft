@@ -22,7 +22,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
         Ok(())
     }
@@ -161,8 +161,8 @@ impl SecretStore for Locked {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, _: &str, _: &str) -> Result<(), String> {
-        Err("locked".into())
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
+        Err(mailcraft_host::SecretError::Other("locked"))
     }
     fn delete(&self, _: &str) {}
     fn take_trouble(&self) -> Option<crate::StoreTrouble> {
@@ -260,7 +260,7 @@ fn sign_ins_go_after_the_files_and_not_before() {
         fn get(&self, _: &str) -> Option<String> {
             None
         }
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
             Ok(())
         }
         fn delete(&self, _: &str) {
@@ -299,7 +299,7 @@ fn nothing_starts_sending_or_receiving_once_the_data_is_removed() {
         seen.fetch_add(1, Ordering::SeqCst);
         std::sync::mpsc::channel().1
     }));
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     a.sync_queue.push_back((1, true));
     a.execute("ui.removeAllData", json!({})).unwrap();
     assert!(a.sync_queue.is_empty(), "a run was still waiting its turn");
@@ -352,7 +352,7 @@ impl SecretStore for Stuck {
     fn get(&self, key: &str) -> Option<String> {
         self.0.get(key)
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.set(key, secret)
     }
     fn delete(&self, _: &str) {}
@@ -428,7 +428,7 @@ fn a_store_that_cannot_be_used_keeps_every_name() {
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert_eq!(a.ui.remembered_keys, names);
     assert_eq!(a.secrets_trouble, Some(crate::StoreTrouble::Locked));
-    assert_eq!(a.status_msg.as_ref().map(|(text, _)| text.clone()), Some(crate::StoreTrouble::Locked.notice()));
+    assert_eq!(a.status_msg.as_ref().map(|(text, _)| text.clone()), Some(crate::store_trouble_notice(crate::StoreTrouble::Locked)));
 }
 
 /// Open MailCraft's data folder (#460): a host that opens nothing and notes which folder it was

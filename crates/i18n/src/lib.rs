@@ -35,6 +35,8 @@ macro_rules! said {
 }
 
 #[cfg(test)]
+mod chinese_tests;
+#[cfg(test)]
 mod said_tests;
 
 use std::collections::HashMap;
@@ -62,6 +64,8 @@ pub enum Lang {
     Spanish,
     Italian,
     Dutch,
+    Romanian,
+    ChineseSimplified,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -69,7 +73,8 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 7] = [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Pseudo];
+    pub const ALL: [Lang; 9] =
+        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::ChineseSimplified, Lang::Pseudo];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -80,6 +85,8 @@ impl Lang {
             Lang::Spanish => "es",
             Lang::Italian => "it",
             Lang::Dutch => "nl",
+            Lang::Romanian => "ro",
+            Lang::ChineseSimplified => "zh_CN",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -91,6 +98,23 @@ impl Lang {
         if code.eq_ignore_ascii_case("pseudo") {
             return Some(Lang::Pseudo);
         }
+        // A Chinese locale may name a script or a region. Do not silently present simplified
+        // characters to a locale that explicitly asks for traditional Chinese.
+        let tag = code.split(['.', '@']).next().unwrap_or("");
+        let mut parts = tag.split(['-', '_']);
+        if parts.next().is_some_and(|part| part.eq_ignore_ascii_case("zh")) {
+            let subtags: Vec<&str> = parts.collect();
+            if subtags.iter().any(|part| part.eq_ignore_ascii_case("Hant")) {
+                return None;
+            }
+            if subtags.iter().any(|part| part.eq_ignore_ascii_case("Hans")) {
+                return Some(Lang::ChineseSimplified);
+            }
+            if subtags.iter().any(|part| ["TW", "HK", "MO"].iter().any(|region| part.eq_ignore_ascii_case(region))) {
+                return None;
+            }
+            return Some(Lang::ChineseSimplified);
+        }
         let primary = code.split(['-', '_', '.', '@']).next().unwrap_or("");
         match primary.to_ascii_lowercase().as_str() {
             "en" => Some(Lang::English),
@@ -99,6 +123,7 @@ impl Lang {
             "es" => Some(Lang::Spanish),
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
+            "ro" => Some(Lang::Romanian),
             _ => None,
         }
     }
@@ -112,13 +137,15 @@ impl Lang {
             Lang::Spanish => "Español",
             Lang::Italian => "Italiano",
             Lang::Dutch => "Nederlands",
+            Lang::Romanian => "Română",
+            Lang::ChineseSimplified => "简体中文",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch)
+        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::ChineseSimplified)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -135,16 +162,26 @@ impl Lang {
         }
     }
 
-    /// The languages offered to the owner: English, and each other one with a catalogue.
+    /// A catalogue can be used for the interface when its glyphs are available on the target.
+    /// The browser has no system CJK fallback font yet.
+    fn supported_on(self, browser: bool) -> bool {
+        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+    }
+
+    fn supported(self) -> bool {
+        self.supported_on(cfg!(target_arch = "wasm32"))
+    }
+
+    /// The languages offered to the owner: English, and each other one supported on this target.
     pub fn available() -> Vec<Lang> {
-        Lang::ALL.into_iter().filter(|l| *l != Lang::Pseudo && l.has_catalogue()).collect()
+        Lang::ALL.into_iter().filter(|l| *l != Lang::Pseudo && l.supported()).collect()
     }
 
     /// The language a system locale (`fr-FR`) asks for: English when there is no catalogue for it.
     pub fn from_locale(locale: Option<&str>) -> Lang {
         match locale.and_then(Lang::from_code) {
             Some(Lang::Pseudo) | None => Lang::English,
-            Some(lang) if lang.has_catalogue() => lang,
+            Some(lang) if lang.supported() => lang,
             Some(_) => Lang::English,
         }
     }
@@ -157,7 +194,7 @@ impl Lang {
             return Lang::from_locale(system);
         }
         match Lang::from_code(pref) {
-            Some(lang) if lang.has_catalogue() => lang,
+            Some(lang) if lang.supported() => lang,
             _ => Lang::English,
         }
     }
@@ -393,16 +430,27 @@ mod tests {
     #[test]
     fn the_picker_names_each_language_in_its_own_words() {
         let names: Vec<String> = Lang::available().into_iter().map(Lang::picker_name).collect();
-        assert_eq!(
-            names,
-            ["English", "Français (aperçu)", "Deutsch (Vorschau)", "Español (versión preliminar)", "Italiano (anteprima)", "Nederlands (voorbeeld)",]
-        );
+        let mut expected = vec![
+            "English",
+            "Français (aperçu)",
+            "Deutsch (Vorschau)",
+            "Español (versión preliminar)",
+            "Italiano (anteprima)",
+            "Nederlands (voorbeeld)",
+            "Română (previzualizare)",
+        ];
+        if !cfg!(target_arch = "wasm32") {
+            expected.push("简体中文（预览）");
+        }
+        assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
         assert_eq!(Lang::from_pref("auto", Some("it-CH")), Lang::Italian);
         assert_eq!(Lang::from_pref("auto", Some("fr-CA")), Lang::French);
         assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
+        assert_eq!(Lang::from_pref("auto", Some("ro_RO.UTF-8")), Lang::Romanian);
+        assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
     }
 
     #[test]

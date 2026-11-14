@@ -52,3 +52,10 @@ display_name = "Setsua Dammaggher"
 real_name = "Michael Proff"
 display_name = "Michael Proff"
 sync_github_name = false
+
+[people.mmazzieri]
+real_name = "Mauro Mazzieri"
+display_name = "Mauro Mazzieri"
+
+[people.HarleyInfinite]
+display_name = "Harley"

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::{Address, Attachment, Body, Message, Original};
+use crate::{Address, Attachment, Body, Message};
 use proptest::prelude::*;
 
 use crate::{LayoutError, SignatureKind, SignedKind, WriteOptions, multipart_signed, signable, signed_parts, write};
@@ -38,7 +38,7 @@ fn signed(message: &Message, kind: SignatureKind) -> (Vec<u8>, Message) {
         SignatureKind::OpenPgp => ("pgp-sha256", ARMOURED.as_bytes().to_vec()),
     };
     let body = multipart_signed(&entity, kind, micalg, &signature).unwrap_or_else(|e| panic!("{e}"));
-    let going = Message { original: Original::new(body), ..message.clone() };
+    let going = Message { original: Some(Arc::new(body)), ..message.clone() };
     (entity, going)
 }
 

@@ -34,7 +34,7 @@ fn stand_in(m: &mut Message) -> Result<(), String> {
     if m.id != 1 {
         return Err("the smartcard Kit needs its PIN".into());
     }
-    let entity = mailcraft_mime::signable(m);
+    let entity = mailcraft_mime_model::signable(m);
     finish(m, &entity, mailcraft_mime::SignatureKind::Smime, "sha-256", &[0x30, 0x03, 0x02, 0x01, 0x01])
 }
 
@@ -46,10 +46,10 @@ fn what_cant_be_signed_is_taken_out_and_said() {
     assert_eq!(unsigned.len(), 1);
     assert_eq!(unsigned[0].message, 2);
     assert!(unsigned[0].why.contains("PIN"));
-    assert!(!mailcraft_mime::signature_missing(&outbox[0]), "signed");
-    let wire = mailcraft_mime::write(&outbox[0], &Default::default());
+    assert!(!mailcraft_mime_model::signature_missing(&outbox[0]), "signed");
+    let wire = mailcraft_mime_model::write(&outbox[0], &Default::default());
     let parts = mailcraft_mime::signed_parts(&wire).unwrap();
-    assert_eq!(parts.content, mailcraft_mime::signable(&message(1, true)));
+    assert_eq!(parts.content, mailcraft_mime_model::signable(&message(1, true)));
 }
 
 #[test]

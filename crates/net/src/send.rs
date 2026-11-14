@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::sync::atomic::AtomicBool;
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::{Account, Message, Security};
 use mailcraft_proto::smtp::Smtp;
 
@@ -29,7 +29,7 @@ impl Envelope {
     /// The account's address, and To + Cc + Bcc, each address once.
     pub(crate) fn of(account: &Account, message: &Message) -> Result<Envelope, NetError> {
         // A message to be Digitally signed that isn't goes nowhere (#30 R19).
-        if mailcraft_mime::signature_missing(message) {
+        if mailcraft_mime_model::signature_missing(message) {
             return Err(NetError::Config(said!("it was to be Digitally signed and wasn't, so it wasn't sent")));
         }
         let from = account.email.trim();
@@ -127,7 +127,7 @@ pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message:
     let message = dated(message);
     // Bcc recipients are in the envelope only.
     let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-    let bytes = mailcraft_mime::write(&message, &options);
+    let bytes = mailcraft_mime_model::write(&message, &options);
     let recipients: Vec<&str> = envelope.recipients.iter().map(String::as_str).collect();
     smtp.send(&envelope.from, &recipients, &bytes)?;
     Ok(())

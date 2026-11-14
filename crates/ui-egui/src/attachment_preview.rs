@@ -228,7 +228,7 @@ pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index:
         attachment,
         at: ctx.input(|i| i.time) + delay,
     });
-    ctx.request_repaint_after(Duration::from_secs_f64(delay + 0.001));
+    crate::software::repaint_after(ctx, Duration::from_secs_f64(delay + 0.001));
 }
 
 /// Discard the queued single-click action without starting a helper.
@@ -243,7 +243,7 @@ pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
     };
     let remaining = click.at - ctx.input(|i| i.time);
     if remaining >= 0.0 {
-        ctx.request_repaint_after(Duration::from_secs_f64(remaining + 0.001));
+        crate::software::repaint_after(ctx, Duration::from_secs_f64(remaining + 0.001));
         return;
     }
     let Some(click) = app.pending_attachment_preview.take() else { return };
@@ -462,7 +462,15 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
         let room = ui.available_size().max(egui::vec2(1.0, 1.0));
         let display = size * (room.x / size.x).min(room.y / size.y).min(1.0) * preview.zoom;
         egui::Frame::NONE.fill(tokens.canvas).show(ui, |ui| {
-            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("attachment-preview", id, preview.index)).show(ui, |ui| {
+            // One scroll state for the preview, at the top again for another attachment: not one
+            // in egui's memory for every attachment ever previewed.
+            let mut area = egui::ScrollArea::both().auto_shrink([false, false]).id_salt("attachment-preview");
+            let shown = egui::Id::unique(("mailcraft-attachment-preview-shown", ui.ctx().viewport_id()));
+            if ui.ctx().data(|d| d.get_temp::<(Id, usize)>(shown)) != Some((id, preview.index)) {
+                ui.ctx().data_mut(|d| d.insert_temp(shown, (id, preview.index)));
+                area = area.scroll_offset(egui::Vec2::ZERO);
+            }
+            area.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(((room.x - display.x) / 2.0).max(0.0));
                     let image = ui.add(egui::Image::new((texture.id(), display)));
@@ -476,7 +484,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
                 ui.colored_label(tokens.red, error.text());
             } else {
                 ui.horizontal(|ui| {
-                    ui.spinner();
+                    crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                     ui.label(tl!("Preparing attachment preview…"));
                 });
             }

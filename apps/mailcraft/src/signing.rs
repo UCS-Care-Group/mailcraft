@@ -6,7 +6,7 @@
 //! A message the owner sent with Sign on carries the key it is to be signed with
 //! ([`Message::sign_with`]). Before a run sends anything (IMAP and SMTP, Microsoft Graph, an
 //! Exchange server), on the run's own thread, each such message is signed here: its signed part
-//! is written once ([`mailcraft_mime::signable`]), signed, and the `multipart/signed` body that
+//! is written once ([`mailcraft_mime_model::signable`]), signed, and the `multipart/signed` body that
 //! results is kept as the bytes the message goes as ([`Message::original`]), so SMTP, the copy in
 //! Sent Items, Graph's `sendMail` and EWS's `MimeContent` all carry the same signed bytes. One
 //! that can't be signed is taken out of the run and held in the Outbox with why: it is never
@@ -202,7 +202,7 @@ pub(crate) fn sign_by(m: &mut Message, signer: &Signer<'_>) -> Result<(), String
     let Some(key) = m.sign_with.clone() else { return Ok(()) };
     m.original = None;
     let key = key.checked().ok_or_else(|| "the key it was to be signed with can't be named".to_string())?;
-    let entity = mailcraft_mime::signable(m);
+    let entity = mailcraft_mime_model::signable(m);
     let (kind, micalg, signature) = signer(&key, &entity)?;
     finish(m, &entity, kind, micalg, &signature)
 }
@@ -211,7 +211,7 @@ pub(crate) fn sign_by(m: &mut Message, signer: &Signer<'_>) -> Result<(), String
 pub(crate) fn finish(m: &mut Message, entity: &[u8], kind: mailcraft_mime::SignatureKind, micalg: &str, signature: &[u8]) -> Result<(), String> {
     let body = mailcraft_mime::multipart_signed(entity, kind, micalg, signature).map_err(|e| e.to_string())?;
     m.original = Original::new(body);
-    if mailcraft_mime::signature_missing(m) {
+    if mailcraft_mime_model::signature_missing(m) {
         m.original = None;
         return Err("the signed message is too large".into());
     }

@@ -23,12 +23,12 @@ fn folder(id: &str, name: &str, kind: FolderKind) -> GraphFolder {
     GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() }
 }
 
-fn piece(account: Id) -> mailcraft_model::sync::EwsMailResult {
+pub(crate) fn piece(account: Id) -> mailcraft_model::sync::EwsMailResult {
     mailcraft_model::sync::EwsMailResult { account, email: ME.into(), url: URL.into(), ..Default::default() }
 }
 
 /// An Exchange server account with its folders listed and two messages in its Inbox.
-fn setup() -> (Session, Id, Id, Id) {
+pub(crate) fn setup() -> (Session, Id, Id, Id) {
     let mut s = Session::empty();
     let account = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": URL}})).unwrap()["id"].as_u64().unwrap();
     let list = vec![
@@ -71,7 +71,7 @@ fn changes(s: &Session, account: Id) -> Vec<MessageChange> {
     ews_mail_request(s, account, false).unwrap().messages
 }
 
-fn took(s: &mut Session, account: Id, result: mailcraft_model::sync::EwsMailResult) -> Value {
+pub(crate) fn took(s: &mut Session, account: Id, result: mailcraft_model::sync::EwsMailResult) -> Value {
     apply_ews_mail(s, mailcraft_model::sync::EwsMailResult { account, ..result }).unwrap()
 }
 
@@ -202,7 +202,7 @@ fn mail_moved_into_the_archive_makes_it_on_the_server_once_and_the_move_follows(
     assert!(ews_mail_request(&s, account, false).unwrap().changes.is_empty());
 }
 
-fn folder_at(id: &str, name: &str) -> GraphFolder {
+pub(crate) fn folder_at(id: &str, name: &str) -> GraphFolder {
     folder(id, name, FolderKind::Custom)
 }
 

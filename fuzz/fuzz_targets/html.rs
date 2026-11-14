@@ -32,7 +32,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let blocks = mailcraft_html::parse(&html);
     let held = held(&blocks, 0);
     assert!(held <= 8 * html.len() + 64 * 1024, "{held} bytes held from {} of input", html.len());
-    let _ = mailcraft_mime::rich::from_html(&html);
+    let _ = mailcraft_mime_model::rich::from_html(&html);
     let quoted = mailcraft_html::quotable(&html).to_ascii_lowercase();
     for tag in ["<script", "<style", "<iframe", "<object", "<embed"] {
         assert!(!quoted.contains(tag), "{tag} carried");

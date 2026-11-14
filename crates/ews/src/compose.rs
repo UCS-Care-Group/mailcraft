@@ -9,7 +9,7 @@
 //! `MailCraftMarker`), which no mail program shows. **Nothing here is sent twice**: the host marks
 //! these requests as ones that are never repeated ([`crate::Client::call_once`]).
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::AttachmentUp;
 use mailcraft_model::{Address, Importance, Message};
 
@@ -45,7 +45,7 @@ impl std::fmt::Display for Unsendable {
             Self::NoRecipients => "the message has no recipients",
             Self::BadAddress => "a recipient's address isn't one mail can be sent to",
             Self::TooLarge => "the message is too large to send",
-            Self::NotSigned => mailcraft_mime::NOT_SIGNED,
+            Self::NotSigned => mailcraft_mime_model::NOT_SIGNED,
         })
     }
 }
@@ -357,7 +357,7 @@ impl SendMessage {
     /// Writes `message` as it goes. Not a message that can go (no recipient, an address that isn't
     /// one, too large) is said so, and nothing is sent.
     pub fn new(message: &Message) -> Result<Self, Unsendable> {
-        if mailcraft_mime::signature_missing(message) {
+        if mailcraft_mime_model::signature_missing(message) {
             return Err(Unsendable::NotSigned);
         }
         let mut anyone = false;
@@ -379,7 +379,7 @@ impl SendMessage {
         let date = if message.date == 0 { mailcraft_time::now() } else { message.date };
         let dated = Message { date, ..message.clone() };
         let offset_minutes = mailcraft_time::local_offset_minutes(date);
-        let mime = mailcraft_mime::write(&dated, &WriteOptions { include_bcc: true, offset_minutes });
+        let mime = mailcraft_mime_model::write(&dated, &WriteOptions { include_bcc: true, offset_minutes });
         if mime.len() > MAX_MIME {
             return Err(Unsendable::TooLarge);
         }

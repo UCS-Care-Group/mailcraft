@@ -48,7 +48,7 @@ fn message(signed: bool) -> (Message, Vec<u8>) {
         sign_with: Some(key()),
         ..Message::default()
     };
-    let entity = mailcraft_mime::signable(&m);
+    let entity = mailcraft_mime_model::signable(&m);
     if !signed {
         return (m, entity);
     }

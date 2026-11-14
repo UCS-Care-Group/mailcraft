@@ -46,7 +46,8 @@ impl SigningHost for OneKey {
 /// The window with Digital Signatures open for an IMAP account of owner@example.org; its id.
 fn opened() -> (Harness<'static, MailApp>, u64) {
     let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app.services.signing = Some(Arc::new(OneKey));
     let server = json!({"email": "owner@example.org", "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}});
     let id = app.execute("account.add", server).unwrap()["id"].as_u64().unwrap();

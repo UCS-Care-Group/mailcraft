@@ -7,10 +7,10 @@
 //! (`mailcraft-smime`, `mailcraft-openpgp`): this is only the MIME around it.
 //!
 //! What comes out is the content fields of the message (`MIME-Version`, `Content-Type`) and its
-//! body, which a message keeps as the bytes it goes as ([`mailcraft_model::Message::original`]):
-//! every path that sends it, and the copy kept in Sent Items, write those bytes.
+//! body, which a message keeps as the bytes it goes as ([`Message::original`]): every path that
+//! sends it, and the copy kept in Sent Items, write those bytes.
 
-use mailcraft_model::Message;
+use crate::Message;
 
 use crate::transfer;
 
@@ -18,12 +18,11 @@ use crate::transfer;
 /// anything goes (#30 R19): it is never sent unsigned.
 pub const NOT_SIGNED: &str = "it was to be Digitally signed and wasn't, so it wasn't sent";
 
-/// Whether `message` was to be Digitally signed at Send ([`Message::sign_with`]) and what it would
-/// be written as isn't a signed message: no signed body kept, or one that isn't `multipart/signed`.
-/// Every path that sends mail refuses such a message.
-pub fn signature_missing(message: &Message) -> bool {
-    message.sign_with.is_some()
-        && !(crate::writes_original(message) && message.original_bytes().and_then(crate::signed_parts).is_some_and(|p| p.whole))
+/// Whether what `message` would be written as is a whole signed message: a signed body kept as
+/// its original, `multipart/signed` throughout. A message that was to be Digitally signed at Send
+/// and isn't this is refused by every path that sends mail (`mailcraft_mime_model::signature_missing`).
+pub fn is_signed(message: &Message) -> bool {
+    crate::writes_original(message) && message.original_bytes().and_then(crate::signed_parts).is_some_and(|p| p.whole)
 }
 
 /// Which kind of Digital signature the second part is.

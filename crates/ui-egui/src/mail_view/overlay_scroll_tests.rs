@@ -18,7 +18,7 @@ type Window = egui_kittest::Harness<'static, MailApp>;
 fn app(overlay: bool) -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.overlay_scroll_bars = overlay;
     let inbox = app.session.view.folder;
     for i in 0..60u32 {

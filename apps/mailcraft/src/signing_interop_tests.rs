@@ -167,7 +167,7 @@ fn body_of(part: &[u8]) -> &[u8] {
 /// What goes over SMTP (and in base64 to Graph's `sendMail`, and in EWS's `MimeContent`), and
 /// what Graph's stand-in was handed.
 fn what_goes(m: &Message) -> Vec<Vec<u8>> {
-    let smtp = mailcraft_mime::write(m, &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: 0 });
+    let smtp = mailcraft_mime_model::write(m, &mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: 0 });
     let server = mailcraft_net::graph::standin::StandIn::start().unwrap();
     let _route = mailcraft_net::graph::standin::route(&server.url());
     mailcraft_net::graph::send(mailcraft_net::graph::standin::TOKEN, m, &mailcraft_net::graph::SendOptions { offset_minutes: Some(0) }).unwrap();
