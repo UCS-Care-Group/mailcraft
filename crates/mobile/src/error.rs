@@ -13,24 +13,24 @@ use uniffi::UnexpectedUniFFICallbackError;
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Error)]
 pub enum CoreError {
     /// The platform can't be used: it says it can spare no memory, or its set-up failed.
-    Init { message: String },
+    Init { reason: String },
     /// A command's parameters, or a query's, make no sense, or the command isn't known.
-    BadRequest { message: String },
-    /// The command or the query is not available now, or failed; `message` is for the owner.
-    Failed { message: String },
+    BadRequest { reason: String },
+    /// The command or the query is not available now, or failed; `reason` is for the owner.
+    Failed { reason: String },
     /// The call was cancelled before it ran, or the core was shut down.
     Cancelled,
     /// Something went wrong inside the core that it recovered from: nothing was changed.
     Internal,
     /// The native side failed in a way it didn't describe.
-    Native { message: String },
+    Native { reason: String },
 }
 
 impl std::fmt::Display for CoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CoreError::Init { message } | CoreError::BadRequest { message } | CoreError::Failed { message } | CoreError::Native { message } => {
-                f.write_str(message)
+            CoreError::Init { reason } | CoreError::BadRequest { reason } | CoreError::Failed { reason } | CoreError::Native { reason } => {
+                f.write_str(reason)
             }
             CoreError::Cancelled => f.write_str("cancelled"),
             CoreError::Internal => f.write_str("something went wrong; nothing was changed"),
@@ -42,21 +42,21 @@ impl std::error::Error for CoreError {}
 
 impl From<UnexpectedUniFFICallbackError> for CoreError {
     fn from(_: UnexpectedUniFFICallbackError) -> Self {
-        CoreError::Native { message: "the app's own code failed".to_string() }
+        CoreError::Native { reason: "the app's own code failed".to_string() }
     }
 }
 
 impl From<InitError> for CoreError {
     fn from(e: InitError) -> Self {
-        CoreError::Init { message: e.to_string() }
+        CoreError::Init { reason: e.to_string() }
     }
 }
 
 impl From<CmdError> for CoreError {
     fn from(e: CmdError) -> Self {
         match e {
-            CmdError::Unknown(_) | CmdError::Params(_) => CoreError::BadRequest { message: e.to_string() },
-            CmdError::Disabled(_) | CmdError::Failed(_) | CmdError::Said(_) => CoreError::Failed { message: e.to_string() },
+            CmdError::Unknown(_) | CmdError::Params(_) => CoreError::BadRequest { reason: e.to_string() },
+            CmdError::Disabled(_) | CmdError::Failed(_) | CmdError::Said(_) => CoreError::Failed { reason: e.to_string() },
         }
     }
 }

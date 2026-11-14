@@ -158,6 +158,9 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod out_of_sight;
+#[cfg(test)]
+mod out_of_sight_tests;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
@@ -1613,6 +1616,9 @@ pub struct MailApp {
     /// The window title last sent; a viewport command schedules a repaint, so only send changes.
     sent_title: String,
     pub quit_requested: bool,
+    /// The host hid the main window (put away in the tray, say): it is out of sight as a
+    /// minimised one is ([`out_of_sight::window_out_of_sight`]).
+    pub window_hidden: bool,
     /// MailCraft's data was removed from this computer ([`data_removal`]): nothing is written
     /// or remembered from here on, and the window goes when its report is read.
     pub data_removed: bool,
@@ -1734,6 +1740,8 @@ pub struct MailApp {
     pub(crate) remote_pictures: reading::RemotePictures,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
+    /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
+    pub(crate) out_of_sight: out_of_sight::OutOfSight,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -1868,6 +1876,7 @@ impl MailApp {
             sent_title: String::new(),
             shown_zone: None,
             quit_requested: false,
+            window_hidden: false,
             data_removed: false,
             autosave: true,
             offer_setup: false,
@@ -1913,6 +1922,7 @@ impl MailApp {
             windows: Default::default(),
             remote_pictures: Default::default(),
             sender_images: Default::default(),
+            out_of_sight: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
@@ -4665,6 +4675,8 @@ impl MailApp {
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);
+        // What is kept to show things again quickly goes once the window has been out of sight a while.
+        out_of_sight::tick(self, ctx);
         control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog

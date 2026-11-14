@@ -3361,6 +3361,7 @@ dependencies = [
 name = "mailcraft-mobile"
 version = "0.12.0"
 dependencies = [
+ "jni",
  "log",
  "mailcraft-engine",
  "mailcraft-host",
@@ -3368,6 +3369,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-model",
  "mailcraft-time",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "uniffi",

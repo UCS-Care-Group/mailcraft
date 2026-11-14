@@ -221,6 +221,17 @@ impl Windows {
         self.open.iter().find(|w| matches!(w.what, What::Message { message: m, .. } if m == message)).map(|w| w.id)
     }
 
+    /// The messages of the mailbox open in windows of their own.
+    pub(crate) fn messages(&self) -> Vec<Id> {
+        self.open
+            .iter()
+            .filter_map(|w| match w.what {
+                What::Message { message, .. } => Some(message),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)

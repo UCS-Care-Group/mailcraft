@@ -27,7 +27,7 @@ use crate::{Core, CoreError};
 const MAX_LIST_ID: usize = 1024;
 
 fn bad(message: &str) -> CoreError {
-    CoreError::BadRequest { message: message.to_string() }
+    CoreError::BadRequest { reason: message.to_string() }
 }
 
 fn rgb(c: mailcraft_model::Rgb) -> u32 {
