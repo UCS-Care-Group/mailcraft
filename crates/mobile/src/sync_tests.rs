@@ -477,3 +477,33 @@ fn a_tick_queued_before_shutdown_starts_no_round() {
     std::thread::sleep(Duration::from_millis(400));
     assert_eq!(calls.load(Ordering::Relaxed), 0);
 }
+
+#[test]
+fn an_account_that_went_is_no_longer_said_to_be_unsupported() {
+    let (runner, _) = stand_in();
+    let platform = FakePlatform::new();
+    let core = core_with(
+        platform,
+        || {
+            let mut s = mixed_session();
+            s.prefs.sync_minutes = 0;
+            s
+        },
+        runner,
+    );
+    let unsupported = |core: &Core| block_on(core.sync_status()).unwrap().unsupported;
+    let deadline = Instant::now() + Duration::from_secs(10);
+    core.enqueue_tick();
+    while unsupported(&core).len() != 1 {
+        assert!(Instant::now() < deadline, "the IMAP account was never told of");
+        std::thread::sleep(Duration::from_millis(20));
+        core.enqueue_tick();
+    }
+    let imap = unsupported(&core)[0].account;
+    block_on(core.execute("account.remove".into(), json!({"id": imap}).to_string())).unwrap();
+    while !unsupported(&core).is_empty() {
+        assert!(Instant::now() < deadline, "a removed account is still told of");
+        std::thread::sleep(Duration::from_millis(20));
+        core.enqueue_tick();
+    }
+}

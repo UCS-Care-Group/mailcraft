@@ -370,14 +370,13 @@ impl SyncHost {
         let platform_offline = matches!(self.host.platform().network(), NetworkState::Offline);
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
-        // What the phone can't run is told of as `ask` does, whoever starts the round.
-        for id in server_accounts(session) {
-            if !inner.sr.eligible(session, id)
-                && let Some(a) = session.mailbox.account(id)
-            {
-                inner.unsupported.insert(id, a.kind);
-            }
-        }
+        // What the phone can't run is told of as `ask` does, whoever starts the round; an account
+        // that went, or that the phone can now run, is no longer told of.
+        inner.unsupported = server_accounts(session)
+            .into_iter()
+            .filter(|id| !inner.sr.eligible(session, *id))
+            .filter_map(|id| session.mailbox.account(id).map(|a| (id, a.kind)))
+            .collect();
         if !inner.sr.busy() && inner.run_mark.is_none() {
             inner.idle_mark = Some(arrivals::mark(&session.mailbox));
         }
