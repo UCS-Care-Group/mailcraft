@@ -286,3 +286,51 @@ fn a_file_of_format_3_that_names_a_block_that_isnt_there_still_saves() {
         assert_eq!(back.message(*id).unwrap().header("List-Id"), Some("<news.example.org>"));
     }
 }
+
+#[test]
+fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_file() {
+    let mb = with_exchange_headers(3);
+    let tmp = Temp::new("headers-writers");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 3);
+    let id = *mb.messages.keys().next().unwrap();
+    let was = mb.message(id).unwrap();
+    assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded(), "kept beside the file");
+    let opts = mailcraft_mime_model::WriteOptions::default();
+    let expected = mailcraft_mime_model::write(was, &opts);
+    // Byte for byte what the message wrote before its block went outside: what a copy put on
+    // another server, the Outbox and a forward as attachment are made of.
+    assert_eq!(mailcraft_mime_model::write(&s.loaded_message(id).unwrap(), &opts), expected);
+    let outbox = s.loaded_outbox(vec![Message::clone(s.mailbox.message(id).unwrap())]);
+    assert_eq!(mailcraft_mime_model::write(&outbox[0], &opts), expected);
+    // Save Message As (.eml) and Export Folder (.mbox): every line, in its place.
+    let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
+    let eml = crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap();
+    let lines = |m: &Message| m.all_headers().iter().map(|(n, v)| format!("{n}: {v}")).collect::<Vec<_>>();
+    assert_eq!(lines(&mailcraft_mime_model::parse(&eml)), lines(&mailcraft_mime_model::parse(&expected)));
+    let mbox = s.run("file.exportFolder", &json!({"id": was.folder})).unwrap();
+    let all = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+    assert!(all.iter().any(|m| m.message_id == was.message_id && lines(m) == lines(&mailcraft_mime_model::parse(&expected))));
+    // Save As (one file): every line, in the shape every MailCraft reads.
+    let whole = s.loaded_mailbox().unwrap();
+    assert_eq!(whole.message(id).unwrap().all_headers(), was.all_headers());
+    let single = crate::io::write_mailbox(&whole).unwrap();
+    assert!(String::from_utf8_lossy(&single).contains("X-MS-Exchange-AntiSpam-MessageData-0"));
+    // View Source: every line, in its place.
+    let source = s.run("mail.viewSource", &json!({"id": id})).unwrap();
+    let source = source["source"].as_str().unwrap();
+    let mut at = 0;
+    for (name, value) in was.all_headers() {
+        let line = format!("{name}: {value}\n");
+        let found = source.get(at..).and_then(|rest| rest.find(&line)).unwrap_or_else(|| panic!("{line} in {source}"));
+        at += found + line.len();
+    }
+    // Its block gone from the disk: what reads it says so in the log, and writes the rest.
+    fs::remove_file(blob_file(&path, &was.header_block.data)).unwrap();
+    clear_cache();
+    let without = s.loaded_message(id).unwrap();
+    assert_eq!(without.all_headers(), was.headers);
+    assert!(s.run("mail.viewSource", &json!({"id": id})).unwrap()["source"].as_str().unwrap().contains("List-Id: <news.example.org>"));
+}
