@@ -625,11 +625,14 @@ fn a_check_for_a_removed_account_leaves_a_sign_in_another_account_with_its_addre
     }))
     .unwrap();
     assert_ne!(other, account);
+    let before = rig.secret("refresh:ada@lumen.example|graph");
+    assert!(before.is_some());
     *slot.lock().unwrap() = Some((rig.core.clone(), account));
     // (The check's own server is the one the rig was started with.)
     block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
     assert_eq!(rig.accounts().iter().map(|(id, _)| *id).collect::<Vec<_>>(), vec![other]);
-    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"), "the other account's sign-in was deleted");
+    // (Its sign-in is left as it was: the check was the removed account's, and renews nothing for another.)
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), before, "the other account's sign-in was deleted");
 }
 
 #[test]
@@ -770,4 +773,47 @@ fn no_sign_in_begins_once_the_core_is_shut_down() {
     rig.core.shutdown();
     assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new())), Err(CoreError::Cancelled)));
     assert!(rig.phone.pages.lock().unwrap().is_empty());
+}
+
+#[test]
+fn with_sign_ins_not_remembered_add_account_keeps_nothing_in_the_store() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    assert_eq!(rig.secrets_kept(), 0);
+    // A permission given then writes nothing either.
+    rig.page_comes_back_with(CODE_BACK);
+    assert_eq!(block_on(rig.core.grant_permission(account, Permission::Tasks)).unwrap(), PermissionOutcome::Granted);
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn a_check_held_across_forgetting_the_sign_ins_never_puts_one_back() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let asked = server.asked();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner removes every sign-in while Microsoft's answer is on its way; the account stays.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    answer.send(()).unwrap();
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    assert_eq!(rig.accounts().len(), 1);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None, "a forgotten sign-in came back");
 }

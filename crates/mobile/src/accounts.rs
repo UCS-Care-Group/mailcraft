@@ -243,8 +243,9 @@ impl Core {
     /// Add a Microsoft account: the provider's page opens in the system browser through the
     /// platform, and what comes back is checked here. `email` is only a hint for the page and
     /// may be empty. On success the account is in the mailbox, its sign-in is in the platform's
-    /// credential store and Send/Receive has it for the session; nothing is kept if the store
-    /// refuses, nor if the call is dropped before the account is in.
+    /// credential store (when the owner lets sign-ins be remembered) and Send/Receive has it for
+    /// the session; nothing is kept if the store refuses, nor if the call is dropped before the
+    /// account is in.
     pub async fn sign_in_microsoft(&self, email: String) -> Result<SignInOutcome, CoreError> {
         let (address, tokens) = match self.account_sign_in(signin::hint_of(&email)).await? {
             Ok(signed) => signed,
@@ -265,10 +266,18 @@ impl Core {
         let (platform, sync, for_call) = (self.native.clone(), self.sync.clone(), address.clone());
         let added = self
             .call(move |s| {
-                let known = s.mailbox.accounts.iter().find(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&for_call));
-                // (An account the owner has signs in again: its settings stay as they are.)
+                // (An account the owner has signs in again: its settings stay as they are. A shared
+                // mailbox is read with another account's sign-in and never signs in itself.)
+                let known = s
+                    .mailbox
+                    .accounts
+                    .iter()
+                    .find(|a| a.kind == AccountKind::Microsoft && !a.is_shared() && a.email.trim().eq_ignore_ascii_case(&for_call));
                 let known = known.map(|a| a.id);
-                if let Err(why) = signin::keep_refresh(platform.as_ref(), &for_call, &tokens.refresh) {
+                // Kept in the credential store only when the owner lets sign-ins be remembered; else
+                // Send/Receive holds it for the session alone.
+                let remember = sync.remembers();
+                if remember && let Err(why) = signin::keep_refresh(platform.as_ref(), &for_call, &tokens.refresh) {
                     return Ok(Err(why));
                 }
                 let account = match known {
@@ -279,7 +288,9 @@ impl Core {
                             Ok(id) => id,
                             Err(error) => {
                                 // (Nothing is kept of a sign-in that made no account.)
-                                signin::forget(platform.as_ref(), &for_call);
+                                if remember {
+                                    signin::forget(platform.as_ref(), &for_call);
+                                }
                                 return Err(error);
                             }
                         }
@@ -324,11 +335,16 @@ impl Core {
         }
         // Kept on the session's thread, after a look that the account is still there: removing it
         // is on that thread too, so a sign-in finishing after a removal never restores its credential.
-        let (platform, tokens_refresh, for_email) = (self.native.clone(), tokens.refresh.clone(), email.clone());
+        // (With sign-ins not remembered nothing is written: the permission is Microsoft's to keep.)
+        let (platform, tokens_refresh, for_email, sync) = (self.native.clone(), tokens.refresh.clone(), email.clone(), self.sync.clone());
         let kept = self
             .call(move |s| {
                 let there = s.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft);
-                Ok(if there { Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)) } else { None })
+                Ok(match (there, sync.remembers()) {
+                    (false, _) => None,
+                    (true, true) => Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)),
+                    (true, false) => Some(Ok(())),
+                })
             })
             .await?;
         match kept {
@@ -342,6 +358,9 @@ impl Core {
     /// token (nothing is opened and the owner is not asked). Nothing is stored of the answer.
     pub async fn permission_state(&self, account: u64, permission: Permission) -> Result<PermissionState, CoreError> {
         let email = self.email_of(account).await?;
+        // (Read after the look at the account, on the session's thread: a `forget_sign_ins` after it
+        // moves it on.)
+        let forgotten = self.sync.forgotten();
         let Some(o) = signin::client_oauth() else { return Ok(PermissionState::Unknown) };
         let mail = self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail));
         let graph = self.signins.at(Endpoints::for_resource(&o, Resource::Graph));
@@ -360,17 +379,22 @@ impl Core {
         }
         let Some(Checked { standing, renewed }) = reply.next().await else { return Ok(PermissionState::Unknown) };
         // The check writes nothing itself. A sign-in Microsoft renewed in its answer is kept here, on
-        // the session's thread, and only while an account of its address is still there: removing it is on that
+        // the session's thread, and only while its account is still there: removing it is on that
         // thread too, so an answer that comes after a removal never puts its sign-in back, and a
         // call dropped meanwhile (or a core shutting down) keeps nothing either.
         if let Some(renewed) = renewed {
-            let platform = self.native.clone();
+            let (platform, sync) = (self.native.clone(), self.sync.clone());
             let _ = self
                 .call(move |s| {
-                    // (Another account of the same address, a second one or the same one added again
-                    // under a new id, has the same sign-in: it is renewed for that one.)
-                    let there = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
-                    if there {
+                    // The very account that was checked (one removed and added again is another, with
+                    // its own sign-in), with the sign-ins not forgotten since, and only when the owner
+                    // lets sign-ins be remembered.
+                    let there = s
+                        .mailbox
+                        .accounts
+                        .iter()
+                        .any(|a| a.id == account && a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
+                    if there && sync.forgotten() == forgotten && sync.remembers() {
                         renewed.keep(platform.as_ref(), &email);
                     }
                     Ok(())
