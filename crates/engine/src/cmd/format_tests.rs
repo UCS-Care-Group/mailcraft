@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Writing in rich text through commands: the selection, typing, formatting, links, lists and
-//! undo inside the message, and messages written before rich text.
+//! Writing in rich text through commands: the selection, typing, formatting, links, lists,
+//! alignment and undo inside the message, and messages written before rich text.
 
-use mailcraft_model::rich::{ListKind, Selection};
+use mailcraft_model::rich::{Align, ListKind, Selection};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -337,6 +337,193 @@ fn list_items_indent_and_the_selection_is_copied_as_html_and_text() {
     run(&mut s, "compose.formatPlain", json!({}));
     assert!(run(&mut s, "edit.copy", json!({"from": 0, "to": 2}))["html"].is_null());
     assert!(s.run("format.indent", &json!({})).is_err());
+}
+
+/// How each paragraph of the message being written is aligned.
+fn aligns(s: &Session) -> Vec<Align> {
+    compose(s).body.text().paragraphs().iter().map(|p| p.align).collect()
+}
+
+#[test]
+fn align_text_takes_the_paragraphs_of_the_selection_or_of_from_and_to_and_answers_the_value() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Avery\nLumen\nStudio"}));
+    run(&mut s, "compose.select", json!({"from": 2, "to": 8}));
+    assert_eq!(run(&mut s, "format.align", json!({"value": "center"}))["value"], "center");
+    assert_eq!(aligns(&s), [Align::Center, Align::Center, Align::Left]);
+    assert_eq!(run(&mut s, "format.align", json!({"value": "right", "from": 13}))["value"], "right");
+    assert_eq!(aligns(&s), [Align::Center, Align::Center, Align::Right]);
+    assert!(compose(&s).dirty);
+    // As a menu writes it, too.
+    assert_eq!(run(&mut s, "format.align", json!({"value": "Left", "from": 0, "to": 18}))["value"], "left");
+    assert_eq!(aligns(&s), [Align::Left; 3]);
+}
+
+#[test]
+fn align_text_leaves_a_list_item_left_and_says_so() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Agenda\nfirst"}));
+    run(&mut s, "format.bullets", json!({"from": 7}));
+    assert_eq!(run(&mut s, "format.align", json!({"value": "center", "from": 0, "to": 12}))["value"], "center");
+    assert_eq!(aligns(&s), [Align::Center, Align::Left]);
+    // The item alone: it stays left, and the answer says so.
+    assert_eq!(run(&mut s, "format.align", json!({"value": "right", "from": 9}))["value"], "left");
+    assert_eq!(aligns(&s), [Align::Center, Align::Left]);
+}
+
+#[test]
+fn a_centred_paragraph_pasted_at_the_start_of_a_list_item_leaves_it_left() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "first"}));
+    run(&mut s, "format.bullets", json!({"from": 0}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "edit.paste", json!({"html": "<div style=\"text-align:center\">X</div>"}));
+    assert_eq!(compose(&s).body.plain(), "Xfirst");
+    assert_eq!((compose(&s).body.text().list_at(0), aligns(&s)), (ListKind::Bullet, vec![Align::Left]));
+    assert_eq!(run(&mut s, "format.align", json!({"value": "left", "from": 0}))["value"], "left");
+}
+
+#[test]
+fn bullets_on_a_line_and_its_break_leave_the_centred_line_after_it_as_it_was() {
+    for (from, to) in [(0, 6), (6, 0)] {
+        let mut s = session();
+        run(&mut s, "mail.new", json!({}));
+        run(&mut s, "compose.set", json!({"body": "Avery\nLumen"}));
+        run(&mut s, "format.align", json!({"value": "center", "from": 6}));
+        run(&mut s, "format.bullets", json!({"from": from, "to": to}));
+        let text = compose(&s).body.text();
+        assert_eq!(
+            (text.list_at(0), text.list_at(6), aligns(&s)),
+            (ListKind::Bullet, ListKind::None, vec![Align::Left, Align::Center]),
+            "{from} {to}"
+        );
+        // Again, Avery alone is a bullet, so it stops being one.
+        run(&mut s, "format.bullets", json!({"from": from, "to": to}));
+        let text = compose(&s).body.text();
+        assert_eq!((text.list_at(0), text.list_at(6), aligns(&s)), (ListKind::None, ListKind::None, vec![Align::Left, Align::Center]), "{from} {to}");
+    }
+}
+
+#[test]
+fn align_text_refuses_junk_values_and_a_plain_text_message_and_changes_nothing() {
+    let mut s = session();
+    assert!(!s.enabled("format.align"));
+    run(&mut s, "mail.new", json!({"body": "Hello"}));
+    let before = compose(&s).clone();
+    for params in [json!({}), json!({"value": "justify"}), json!({"value": 5}), json!({"value": null}), json!({"value": "center", "from": 99})] {
+        assert!(s.run("format.align", &params).is_err(), "{params}");
+        assert_eq!(compose(&s), &before, "{params}");
+    }
+    let e = s.run("format.align", &json!({"value": "middle"})).unwrap_err();
+    assert!(e.to_string().contains("left, center or right"), "{e}");
+    run(&mut s, "compose.formatPlain", json!({}));
+    let before = compose(&s).clone();
+    assert!(!s.enabled("format.align"));
+    assert!(s.run("format.align", &json!({"value": "center"})).is_err());
+    assert_eq!(compose(&s), &before);
+}
+
+#[test]
+fn a_message_switched_to_plain_text_is_sent_left_and_gets_its_alignment_back_as_html() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+    // Plain text has no alignment to show, but the paragraph keeps it for when it is HTML again.
+    run(&mut s, "compose.formatPlain", json!({}));
+    assert_eq!(compose(&s).body.text().align_at(0), Align::Center);
+    run(&mut s, "compose.formatHtml", json!({}));
+    assert_eq!(compose(&s).body.text().align_at(0), Align::Center);
+    // Sent as plain text: words alone.
+    run(&mut s, "compose.formatPlain", json!({}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.body.html.is_none() && m.body.text.starts_with("Hello\n"), "{:?}", m.body);
+}
+
+#[test]
+fn an_aligned_message_goes_out_with_text_align_inline() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Plan", "body": "Agenda\nfirst"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+    run(&mut s, "format.bullets", json!({"from": 7}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let m = s.mailbox.message(id).unwrap().clone();
+    let html = m.body.html.clone().unwrap();
+    assert!(
+        html.contains("<div style=\"text-align:center\">Agenda</div>") && html.contains("<li>first</li>") && !html.contains("<li style"),
+        "{html}"
+    );
+    // On the wire, and read back.
+    let back = mailcraft_mime_model::parse(&mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default()));
+    assert_eq!(mailcraft_mime_model::rich::from_html(back.body.html.as_deref().unwrap()).align_at(0), Align::Center);
+}
+
+#[test]
+fn an_aligned_draft_reopens_aligned() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "body": "\n\nCentred\nRight"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    run(&mut s, "format.align", json!({"value": "center", "from": 2}));
+    run(&mut s, "format.align", json!({"value": "right", "from": 10}));
+    let d = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    let written = compose(&s).body.text().clone();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": d}));
+    assert_eq!(compose(&s).body.text(), &unmarked(&written));
+    assert_eq!(aligns(&s)[..4], [Align::Left, Align::Left, Align::Center, Align::Right]);
+}
+
+#[test]
+fn pasted_html_keeps_its_alignment() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan"}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    let html = "<div style=\"text-align:center\">Lumen</div><p align=\"right\">Studio</p>";
+    run(&mut s, "edit.paste", json!({"html": html}));
+    assert_eq!(compose(&s).body.plain(), "Lumen\n\nStudioPlan");
+    assert_eq!(aligns(&s), [Align::Center, Align::Left, Align::Right]);
+    // Into a plain-text message, words alone.
+    run(&mut s, "compose.discard", json!({}));
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan"}));
+    run(&mut s, "compose.formatPlain", json!({}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "edit.paste", json!({"html": html}));
+    assert_eq!(aligns(&s), [Align::Left; 3]);
+}
+
+#[test]
+fn lines_pasted_into_a_centred_paragraph_stay_centred_as_typed_ones_do() {
+    for (from, body) in [(6, "Hello a\nbworld"), (11, "Hello worlda\nb")] {
+        let mut s = session();
+        run(&mut s, "mail.new", json!({}));
+        run(&mut s, "compose.set", json!({"body": "Hello world"}));
+        run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+        run(&mut s, "compose.select", json!({"from": from}));
+        run(&mut s, "edit.paste", json!({"text": "a\nb"}));
+        assert_eq!((compose(&s).body.plain(), aligns(&s)), (body.to_string(), vec![Align::Center; 2]), "at {from}");
+    }
+}
+
+#[test]
+fn alignment_is_undone_inside_the_message_not_the_mailbox() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"body": "Avery\nLumen"}));
+    run(&mut s, "compose.formatHtml", json!({}));
+    let mailbox_undo = s.can_undo();
+    run(&mut s, "format.align", json!({"value": "right", "from": 0, "to": 11}));
+    assert_eq!(aligns(&s)[..2], [Align::Right, Align::Right]);
+    assert_eq!(s.can_undo(), mailbox_undo);
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(aligns(&s)[..2], [Align::Left, Align::Left]);
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(aligns(&s)[..2], [Align::Right, Align::Right]);
 }
 
 /// The text without its signature marked: a draft reopened from its HTML doesn't know which

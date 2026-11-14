@@ -959,6 +959,21 @@ msgstr "După"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "După ce acceptați, acceptați provizoriu sau refuzați o invitație la întâlnire din e-mail ori scoateți din calendar o întâlnire anulată, mesajul ajunge în Elemente șterse. Cu opțiunea oprită, rămâne unde este și arată ce ați răspuns."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2329,6 +2344,11 @@ msgstr "Cc:"
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "Cc: {names}"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs

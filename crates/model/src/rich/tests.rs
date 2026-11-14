@@ -13,11 +13,12 @@ fn link(url: &str) -> Style {
 }
 
 /// The invariants every document keeps.
-fn check(t: &RichText) {
+pub(super) fn check(t: &RichText) {
     assert!(!t.paragraphs().is_empty());
     assert_eq!(t.len(), t.text().chars().count());
     for p in t.paragraphs() {
         assert!(p.level <= MAX_LEVEL && (p.list != ListKind::None || p.level == 0), "{t:?}");
+        assert!(p.list == ListKind::None || p.align == Align::Left, "a list item is left: {t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
             assert!(r.text.chars().all(|c| c == '\t' || !c.is_control()), "{t:?}");
@@ -543,7 +544,7 @@ fn inserting_at_keeps_the_selection_where_it_was() {
 enum Op {
     Select(usize, usize),
     Type(String),
-    Paste(String),
+    Paste(String, u8, u8),
     Backspace,
     Delete,
     Bold,
@@ -554,6 +555,7 @@ enum Op {
     Unlink,
     List(u8),
     Indent(bool),
+    Align(u8),
     Clear,
     Plain(String),
     Undo,
@@ -565,7 +567,7 @@ fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         (0usize..40, 0usize..40).prop_map(|(a, b)| Op::Select(a, b)),
         text().prop_map(Op::Type),
-        text().prop_map(Op::Paste),
+        (text(), 0u8..3, 0u8..3).prop_map(|(s, k, a)| Op::Paste(s, k, a)),
         Just(Op::Backspace),
         Just(Op::Delete),
         Just(Op::Bold),
@@ -576,6 +578,7 @@ fn op() -> impl Strategy<Value = Op> {
         Just(Op::Unlink),
         (0u8..3).prop_map(Op::List),
         any::<bool>().prop_map(Op::Indent),
+        (0u8..3).prop_map(Op::Align),
         Just(Op::Clear),
         text().prop_map(Op::Plain),
         Just(Op::Undo),
@@ -618,7 +621,12 @@ proptest! {
             let _ = match op {
                 Op::Select(a, h) => b.select(a, h),
                 Op::Type(s) => b.type_text(&s),
-                Op::Paste(s) => b.paste(&RichText::from_plain(&s)),
+                Op::Paste(s, k, a) => {
+                    let kind = [ListKind::None, ListKind::Bullet, ListKind::Numbered][k as usize];
+                    let align = [Align::Left, Align::Center, Align::Right][a as usize];
+                    let pasted = RichText::from_plain(&s).paragraphs().iter().map(|p| Paragraph { list: kind, align, ..p.clone() }).collect();
+                    b.paste(&RichText::from_paragraphs(pasted))
+                }
                 Op::Backspace => b.backspace(),
                 Op::Delete => b.delete_forward(),
                 Op::Bold => b.toggle_bold().map(|_| ()),
@@ -629,6 +637,7 @@ proptest! {
                 Op::Unlink => b.set_link(None),
                 Op::List(k) => b.toggle_list([ListKind::None, ListKind::Bullet, ListKind::Numbered][k as usize]).map(|_| ()),
                 Op::Indent(deeper) => b.indent(if deeper { 1 } else { -1 }).map(|_| ()),
+                Op::Align(a) => b.set_align([Align::Left, Align::Center, Align::Right][a as usize]),
                 Op::Clear => b.clear_formatting(),
                 Op::Plain(s) => b.set_plain(&s),
                 Op::Undo => { b.undo(); Ok(()) }
@@ -643,11 +652,12 @@ proptest! {
 
     /// Any documents, cleaned, survive being stored.
     #[test]
-    fn documents_survive_storing(texts in proptest::collection::vec(("\\PC{0,8}", any::<bool>(), any::<u8>(), 0u8..3, any::<u8>()), 1..8)) {
-        let paragraphs = texts.into_iter().map(|(text, b, size, list, level)| Paragraph {
+    fn documents_survive_storing(texts in proptest::collection::vec(("\\PC{0,8}", any::<bool>(), any::<u8>(), 0u8..3, any::<u8>(), 0u8..3), 1..8)) {
+        let paragraphs = texts.into_iter().map(|(text, b, size, list, level, align)| Paragraph {
             runs: vec![Run::new(text, Style { bold: b, size: Some(size), ..Style::default() })],
             list: [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize],
             level,
+            align: [Align::Left, Align::Center, Align::Right][align as usize],
             signature: b,
         }).collect();
         let t = RichText::from_paragraphs(paragraphs);
