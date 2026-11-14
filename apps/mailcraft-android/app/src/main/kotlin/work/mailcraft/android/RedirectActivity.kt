@@ -15,6 +15,8 @@ class RedirectActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val application = application as? MailCraftApplication
+        // (A new process has not started the core: starting it wires what is told of a lost sign-in.)
+        application?.started
         application?.handback?.deliver(intent?.dataString)
         startActivity(
             Intent(this, MainActivity::class.java)

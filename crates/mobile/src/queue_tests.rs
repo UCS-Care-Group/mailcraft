@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::fake_tests::block_on;
 use crate::queue::{MOST_QUEUED, Queue};
-use crate::{Event, NotificationRecord, NotificationTopic};
+use crate::{Event, NotificationRecord, NotificationTopic, Permission};
 
 fn notice(key: u64) -> Event {
     Event::Notification { notification: NotificationRecord { key, topic: NotificationTopic::Mail, title: "t".into(), body: "b".into() } }
@@ -16,7 +16,7 @@ fn drain(queue: &std::sync::Arc<Queue<Event>>) -> Vec<Event> {
 fn a_flood_of_notifications_keeps_the_sign_in_and_the_question() {
     let queue = Queue::<Event>::new();
     queue.push(Event::SignInNeeded { account: 3 });
-    queue.push(Event::PermissionQuestion { account: 3, question: "To Do".into() });
+    queue.push(Event::PermissionQuestion { account: 3, permission: Permission::Tasks });
     for key in 0..(MOST_QUEUED as u64 * 3) {
         queue.push(notice(key));
         queue.push(Event::ReminderScheduleChanged);
@@ -24,7 +24,7 @@ fn a_flood_of_notifications_keeps_the_sign_in_and_the_question() {
     assert_eq!(queue.len(), MOST_QUEUED);
     let events = drain(&queue);
     assert!(events.contains(&Event::SignInNeeded { account: 3 }));
-    assert!(events.contains(&Event::PermissionQuestion { account: 3, question: "To Do".into() }));
+    assert!(events.contains(&Event::PermissionQuestion { account: 3, permission: Permission::Tasks }));
 }
 
 #[test]

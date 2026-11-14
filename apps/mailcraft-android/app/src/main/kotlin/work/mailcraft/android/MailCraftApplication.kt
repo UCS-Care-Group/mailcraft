@@ -15,7 +15,7 @@ import uniffi.mailcraft_mobile.CoreException
 
 /** What starting the Rust core came to: the core, or why there is none. */
 internal sealed interface Started {
-    class Ready(val core: Core) : Started
+    class Ready(val core: Core, val hub: AccountsHub) : Started
 
     data object Failed : Started
 }
@@ -23,11 +23,14 @@ internal sealed interface Started {
 /** Holds the one [Core] for the life of the process. */
 class MailCraftApplication : Application() {
     /** Where the sign-in's redirect lands ([RedirectActivity]). */
-    internal val handback = SignInHandback()
+    internal val handback by lazy { SignInHandback(PendingSignIn(File(noBackupFilesDir, "pending-signin"))) }
     private val foreground = ForegroundActivity()
 
-    /** Outlives every window (the save in `onStop` runs here; the core's own calls are asynchronous). */
+    /** Outlives every window: the sign-in, the account work and the save in `onStop` run here. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** The one reader of the core's events (a window never reads them itself). */
+    private val events = EventDispatcher()
 
     internal val started: Started by lazy { start() }
 
@@ -71,13 +74,26 @@ class MailCraftApplication : Application() {
     private fun start(): Started =
         try {
             Bridge.initVerifier(applicationContext)
-            Started.Ready(Core.open(
-                AndroidPlatform(applicationContext, handback, foreground::get),
-                // Private and left out of every backup (the manifest's rules), as the mail is private.
-                File(noBackupFilesDir, "mailbox").path,
-            ).also {
-                createChannels(applicationContext, channelSpecs(it::t))
-            })
+            val core = Core(AndroidPlatform(applicationContext, handback, foreground::get))
+            createChannels(applicationContext, channelSpecs(core::t))
+            // The address the sign-in's page comes back to goes to the core as it is.
+            handback.sink = core::handBackRedirect
+            val store = MailboxFile(File(noBackupFilesDir, "mailbox"), scope = scope)
+            val hub = AccountsHub(
+                api = CoreAccounts(core, handback),
+                texts = CoreTexts(core),
+                scope = scope,
+                restore = { store.restore(core) },
+                keep = { store.keep(core) },
+                copy = { text -> copyToClipboard(applicationContext, text) },
+                savingOff = store.savingOff,
+                saveFailed = store.saveFailed,
+                retrySave = { store.keepAgain() },
+            )
+            handback.interrupted = hub.controller::signInInterrupted
+            events.register(hub::handle)
+            events.launchIn(scope) { nextEvent(core) }
+            Started.Ready(core, hub)
         } catch (_: CoreException) {
             Started.Failed
         } catch (_: LinkageError) {
@@ -86,3 +102,11 @@ class MailCraftApplication : Application() {
             Started.Failed
         }
 }
+
+/** The next event of the core's stream; null when the stream is over or the core can't say. */
+internal suspend fun nextEvent(core: Core): uniffi.mailcraft_mobile.Event? =
+    try {
+        core.nextEvent()
+    } catch (_: CoreException) {
+        null
+    }

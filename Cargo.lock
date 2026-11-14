@@ -3363,6 +3363,7 @@ version = "0.12.0"
 dependencies = [
  "jni",
  "log",
+ "mailcraft-charset",
  "mailcraft-engine",
  "mailcraft-host",
  "mailcraft-html",

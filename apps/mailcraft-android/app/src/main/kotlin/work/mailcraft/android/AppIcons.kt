@@ -142,6 +142,14 @@ internal object AppIcons {
         }
     }
 
+    /** A plus, for adding. */
+    val Add: ImageVector by lazy {
+        icon("Add") {
+            line(12f, 5f, 12f, 19f)
+            line(5f, 12f, 19f, 12f)
+        }
+    }
+
     /** A tick, for the choice that is on. */
     val Check: ImageVector by lazy {
         icon("Check") {

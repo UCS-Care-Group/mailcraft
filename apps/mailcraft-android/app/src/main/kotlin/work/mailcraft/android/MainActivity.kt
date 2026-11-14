@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
@@ -13,6 +15,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -67,45 +71,83 @@ class MainActivity : AppCompatActivity() {
 @Composable
 internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, version, chosenLanguage, onLanguage)
+        is Started.Ready -> CoreShell(started.core, started.hub, version, chosenLanguage, onLanguage)
         Started.Failed -> Centered(stringResource(R.string.start_failed))
     }
 }
 
-/** What reading the sample mailbox's outline came to; [outline] is null when it could not be read. */
+/** What reading the mailbox's outline came to; [outline] is null when it could not be read. */
 private class Outlined(val outline: MailboxOutline?)
 
+/** The folder the Mail tab shows: the one the owner picked if it is still there, else the first Inbox. */
+private fun chosenFolder(outline: MailboxOutline?, picked: Long?): FolderItem? {
+    val all = outline?.accounts?.flatMap { it.folders }.orEmpty()
+    val wanted = picked?.toULong()?.takeIf { id -> all.any { it.id == id } } ?: outline?.inboxId
+    return all.firstOrNull { it.id == wanted }
+}
+
+/** The messages of [folder] for the Mail tab, or why there are none yet. */
+private suspend fun loadMail(core: Core, outlined: Outlined?, folder: FolderItem?): InboxState = when {
+    outlined == null -> InboxState.Loading
+    outlined.outline == null -> InboxState.Failed(core.t("The mailbox could not be read."))
+    folder == null -> InboxState.Loading
+    else -> loadFolder(core, folder.id, folder.name)
+}
+
 @Composable
-private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
+private fun CoreShell(
+    core: Core,
+    hub: AccountsHub,
+    version: String,
+    chosenLanguage: String,
+    onLanguage: (String) -> Unit,
+) {
     val texts = remember(core) { CoreTexts(core) }
-    val outlined by produceState<Outlined?>(null, core) { value = Outlined(loadOutline(core)) }
+    // The mailbox is opened once, when the application starts (`AccountsHub`), and not by a window.
+    val restored by hub.restored.collectAsState()
+    val reload by hub.reloads.collectAsState()
+    val outlined by produceState<Outlined?>(null, core, restored, reload) {
+        value = if (restored) Outlined(loadOutline(core)) else null
+    }
     var picked by rememberSaveable { mutableStateOf<Long?>(null) }
-    val outline = outlined?.outline
-    val folderId = picked?.toULong() ?: outline?.inboxId
-    val folder = outline?.accounts?.flatMap { it.folders }?.firstOrNull { it.id == folderId }
-    val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folderId) {
+    val folder = chosenFolder(outlined?.outline, picked)
+    val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folder) {
         // The last folder's messages must not stay under the new folder's name while it loads.
         value = InboxState.Loading
-        value = when {
-            outlined == null -> InboxState.Loading
-            outline == null -> InboxState.Failed(core.t("The mailbox could not be read."))
-            folder == null || folderId == null -> InboxState.Failed(core.t("The sample mailbox has no Inbox."))
-            else -> loadFolder(core, folderId, folder.name)
-        }
+        value = loadMail(core, outlined, folder)
     }
-    val data = ShellData(
-        accounts = outline?.accounts.orEmpty(),
-        folderName = folder?.name ?: texts.t("Mail"),
-        folderId = folderId,
-        mail = mail,
-        version = version,
-        chosenLanguage = chosenLanguage,
-    )
+    val accounts = outlined?.outline?.accounts.orEmpty()
+    SideEffect { hub.showing(accounts) }
+    val controller = hub.controller
+    val accountsUi by controller.ui.collectAsState()
     AppShell(
         texts = texts,
-        data = data,
-        actions = ShellActions(onFolder = { _, selected -> picked = selected.id.toLong() }, onLanguage = onLanguage),
+        data = ShellData(
+            accounts = accounts,
+            folderName = folder?.name ?: texts.t("Mail"),
+            folderId = folder?.id,
+            mail = mail,
+            version = version,
+            chosenLanguage = chosenLanguage,
+            accountsUi = accountsUi,
+            outline = when {
+                outlined == null -> OutlineStatus.Loading
+                outlined?.outline == null -> OutlineStatus.Failed
+                else -> OutlineStatus.Ready
+            },
+        ),
+        actions = ShellActions(
+            onFolder = { _, selected -> picked = selected.id.toLong() },
+            onLanguage = onLanguage,
+            accounts = controller.actions(),
+        ),
     )
+}
+
+/** Puts a plain text on the clipboard; what can't be is left. */
+internal fun copyToClipboard(context: Context, text: String) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText("", text))
 }
 
 /**

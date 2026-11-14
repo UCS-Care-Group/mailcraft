@@ -2,78 +2,132 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import java.time.Duration
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class SignInHandbackTest {
-    private val good = "work.mailcraft.android:/oauth2redirect?code=c&state=s"
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private val good = "work.mailcraft.android://oauth2redirect?code=c&state=s"
 
     @Test
     fun onlyTheRegisteredAddressIsAccepted() {
         assertEquals(good, Redirect.accepted(good))
-        val bare = "work.mailcraft.android:/oauth2redirect"
+        val bare = "work.mailcraft.android://oauth2redirect"
         assertEquals(bare, Redirect.accepted(bare))
         assertEquals("$bare#x", Redirect.accepted("$bare#x"))
         assertNull(Redirect.accepted(null))
         assertNull(Redirect.accepted(""))
-        assertNull(Redirect.accepted("work.mailcraft.android:/oauth2redirectx?code=c"))
-        assertNull(Redirect.accepted("work.mailcraft.android:/other?code=c"))
-        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect?code=c"))
-        assertNull(Redirect.accepted("WORK.mailcraft.android:/oauth2redirect"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirectx?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://other?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android:/oauth2redirect?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect/x?code=c"))
+        assertNull(Redirect.accepted("work.mailcraft.android://oauth2redirect//?code=c"))
+        assertEquals(
+            "work.mailcraft.android://oauth2redirect/?code=c",
+            Redirect.accepted("work.mailcraft.android://oauth2redirect/?code=c"),
+        )
+        assertNull(Redirect.accepted("work.mailcraft.android://OAUTH2REDIRECT?code=c"))
+        assertNull(Redirect.accepted("WORK.mailcraft.android://oauth2redirect"))
         assertNull(Redirect.accepted("https://example.org/oauth2redirect"))
         assertNull(Redirect.accepted(good + "x".repeat(Redirect.MAX_ADDRESS)))
     }
 
     @Test
     fun anAddressWithNoSignInWaitingIsDropped() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
         assertFalse(h.deliver(good))
         h.arm()
         assertTrue(h.deliver(good))
         assertFalse("only the first is taken", h.deliver(good))
+        assertEquals(listOf(good), got)
     }
 
     @Test
-    fun theWaitGetsTheAddress() {
+    fun theAddressGoesToTheCoreWholeAndUnreadWhatItSays() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
+        // The state, the code and the rest are the core's to judge:
+        // any address with the registered scheme and path goes.
+        val odd = "work.mailcraft.android://oauth2redirect?state=not-ours&code=%00&evil=1#frag"
         h.arm()
-        thread { h.deliver(good) }
-        val got = h.await(AtomicBoolean(false), Duration.ofSeconds(5))
-        assertEquals(good, (got as Handed.Address).address)
+        assertTrue(h.deliver(odd))
+        assertEquals(listOf(odd), got)
     }
 
     @Test
-    fun aStaleAddressIsForgottenWhenAnotherSignInStarts() {
+    fun aStrangersAddressIsNotPassedOnAndLeavesTheSignInWaiting() {
+        val got = mutableListOf<String>()
         val h = SignInHandback()
+        h.sink = { got.add(it) }
+        h.arm()
+        assertFalse(h.deliver("https://example.org/oauth2redirect?code=c&state=s"))
+        assertFalse(h.deliver("work.mailcraft.android:/other?code=c"))
+        assertFalse(h.deliver(null))
+        assertTrue(got.isEmpty())
+        assertTrue("the real one still gets through", h.deliver(good))
+        assertEquals(listOf(good), got)
+    }
+
+    @Test
+    fun whatTheCoreSaysOfAnAddressIsWhatDeliverSays() {
+        val h = SignInHandback()
+        h.sink = { false }
+        h.arm()
+        assertFalse(h.deliver(good))
+        // (The address was offered once; nothing waits for a second.)
+        h.sink = { true }
+        assertFalse(h.deliver(good))
+    }
+
+    @Test
+    fun aSignInThatEndedTakesNothing() {
+        val got = mutableListOf<String>()
+        val h = SignInHandback()
+        h.sink = { got.add(it) }
+        h.arm()
+        h.disarm()
+        assertFalse(h.deliver(good))
+        assertTrue(got.isEmpty())
+    }
+
+    @Test
+    fun anotherSignInArmsItAfresh() {
+        val got = mutableListOf<String>()
+        val h = SignInHandback()
+        h.sink = { got.add(it) }
         h.arm()
         h.deliver(good)
         h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofMillis(150)))
+        assertTrue(h.deliver(good))
+        assertEquals(2, got.size)
     }
 
     @Test
-    fun theWaitEndsWhenCancelledOrTimedOut() {
+    fun onlyOneOfTwoAddressesAtTheSameTimeIsPassedOn() {
+        val count = java.util.concurrent.atomic.AtomicInteger()
         val h = SignInHandback()
-        h.arm()
-        assertEquals(Handed.Cancelled, h.await(AtomicBoolean(true), Duration.ofSeconds(5)))
-        h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofMillis(50)))
-        h.arm()
-        assertEquals(Handed.TimedOut, h.await(AtomicBoolean(false), Duration.ofSeconds(-3)))
-    }
-
-    @Test
-    fun afterTheWaitNothingIsTaken() {
-        val h = SignInHandback()
-        h.arm()
-        h.await(AtomicBoolean(false), Duration.ofMillis(10))
-        assertFalse(h.deliver(good))
+        h.sink = {
+            count.incrementAndGet()
+            true
+        }
+        repeat(200) {
+            count.set(0)
+            h.arm()
+            val workers = List(4) { thread { h.deliver(good) } }
+            workers.forEach { it.join() }
+            assertEquals(1, count.get())
+        }
     }
 
     @Test
@@ -90,5 +144,62 @@ class SignInHandbackTest {
         assertFalse(isSignInUrl("https://exa mple.org/"))
         assertFalse(isSignInUrl(""))
         assertFalse(isSignInUrl("https://login.example.org/" + "a".repeat(Redirect.MAX_ADDRESS)))
+    }
+
+    @Test
+    fun aRedirectAfterTheSystemClosedTheAppIsToldOnceAndNeverPassedOn() {
+        val record = java.io.File(tmp.newFolder("p"), "pending")
+        // The sign-in began in the process that is gone.
+        PendingSignIn(record).save("ada@example.org")
+        val passed = mutableListOf<String>()
+        val told = mutableListOf<String>()
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.sink = { passed.add(it) }
+        handback.interrupted = { told.add(it) }
+        assertFalse(handback.deliver(good))
+        assertEquals(listOf("ada@example.org"), told)
+        assertTrue(passed.isEmpty())
+        // Only once.
+        assertFalse(handback.deliver(good))
+        assertEquals(1, told.size)
+    }
+
+    @Test
+    fun aStrangersAddressWithNoSignInUnderWayTellsNothing() {
+        val handback = SignInHandback(PendingSignIn(java.io.File(tmp.newFolder("q"), "pending")))
+        val told = mutableListOf<String>()
+        handback.interrupted = { told.add(it) }
+        assertFalse(handback.deliver(good))
+        assertTrue(told.isEmpty())
+    }
+
+    @Test
+    fun aSignInThatEndedLeavesNoRecordAndAnOldRecordIsNotBelieved() {
+        val dir = tmp.newFolder("r")
+        val record = java.io.File(dir, "pending")
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.remember("ada@example.org")
+        assertTrue(record.exists())
+        handback.disarm()
+        assertFalse(record.exists())
+        PendingSignIn(record).save("ada@example.org")
+        val later = PendingSignIn(record, now = { record.lastModified() + 11 * 60 * 1000L })
+        assertNull(later.take())
+        assertFalse(record.exists())
+    }
+
+    @Test
+    fun aSecondRedirectDuringALiveSignInKeepsItsRecord() {
+        val record = java.io.File(tmp.newFolder("s"), "pending")
+        val handback = SignInHandback(PendingSignIn(record))
+        val told = mutableListOf<String>()
+        handback.sink = { true }
+        handback.interrupted = { told.add(it) }
+        handback.remember("ada@example.org")
+        handback.arm()
+        assertTrue(handback.deliver(good))
+        assertFalse(handback.deliver(good))
+        assertTrue(told.isEmpty())
+        assertTrue("still there for a later process death", record.exists())
     }
 }

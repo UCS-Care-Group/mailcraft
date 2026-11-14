@@ -20,6 +20,7 @@
 
 uniffi::setup_scaffolding!();
 
+mod accounts;
 pub mod android;
 #[cfg(target_os = "android")]
 mod android_jni;
@@ -38,6 +39,8 @@ mod sync;
 mod sync_api;
 pub mod text;
 
+#[cfg(test)]
+mod accounts_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
@@ -61,6 +64,7 @@ mod tests;
 #[cfg(test)]
 mod zone_tests;
 
+pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome};
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};

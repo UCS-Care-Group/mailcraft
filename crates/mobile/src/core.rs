@@ -14,6 +14,7 @@ use mailcraft_host::sync::SendReceive;
 use mailcraft_i18n::Lang;
 use serde_json::Value;
 
+use crate::accounts::SignIns;
 use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
@@ -123,6 +124,10 @@ pub struct Core {
     budget_id: Option<u64>,
     events: Arc<Queue<Event>>,
     pub(crate) platform: Arc<dyn Platform>,
+    /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
+    pub(crate) native: Arc<Native>,
+    /// The sign-in that is open, and where its redirect lands (`accounts.rs`).
+    pub(crate) signins: SignIns,
     memory_budget: u64,
     language: AtomicU8,
     /// The latest language asked for, until the session thread has applied it (before its next job):
@@ -174,7 +179,8 @@ impl Core {
         dir: Option<String>,
     ) -> Result<Arc<Core>, CoreError> {
         android::check()?;
-        let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
+        let native = Arc::new(Native { inner: platform.clone() });
+        let host = mailcraft_host::init(native.clone())?;
         // What the device can spare caps what the session keeps of mail content: the lowest of the
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
         let budget_id = enter_budget(host.platform().memory_budget());
@@ -246,6 +252,8 @@ impl Core {
             budget_id,
             events,
             platform,
+            native,
+            signins: SignIns::default(),
             memory_budget,
             language: AtomicU8::new(0),
             pending_language: Arc::default(),
