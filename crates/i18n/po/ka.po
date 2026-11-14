@@ -79,7 +79,7 @@ msgstr "„{name}“ ინახება ანგარიშის {who} ს
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
-msgstr "„{name}“ სერიის ნაწილია. მხოლოდ ამ დღის ({day}) შემთხვევას გულისხმობთ თუ მთელ სერიას?"
+msgstr "„{name}“ სერიის ნაწილია. მხოლოდ ამ დღეს ({day}) გულისხმობთ თუ მთელ სერიას?"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1277,7 +1277,7 @@ msgstr "მიმდინარეობს იმპორტი"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
-msgstr "განმეორებადი ჩანაწერი სხვა კალენდარში ასე ვერ გადავა. ამ შემთხვევის იქ დასაკოპირებლად დააჭირეთ Ctrl-ს, მთელი სერიისთვის კი მის მენიუში გამოიყენეთ კალენდარში გადატანა."
+msgstr "განმეორებადი ჩანაწერი სხვა კალენდარში ასე ვერ გადავა. მხოლოდ ამ დღის იქ დასაკოპირებლად დააჭირეთ Ctrl-ს, მთელი სერიისთვის კი მის მენიუში გამოიყენეთ კალენდარში გადატანა."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1495,7 +1495,7 @@ msgstr "ჩანაწერი"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Appointment Recurrence"
-msgstr "ჩანაწერის განმეორება"
+msgstr "ჩანაწერის გამეორება"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3675,7 +3675,7 @@ msgstr "ტექსტის წაშლა"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
-msgstr "ამ შემთხვევის წაშლა"
+msgstr "მხოლოდ ამ დღის წაშლა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5089,7 +5089,7 @@ msgstr "კონტაქტის გადაგზავნა"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Forward This Occurrence…"
-msgstr "ამ შემთხვევის გადაგზავნა…"
+msgstr "მხოლოდ ამ დღის გადაგზავნა…"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -9181,7 +9181,7 @@ msgstr "როგორც კი იმუშავებს, თქვენ�
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
-msgstr "სერიის ერთი შემთხვევა სერიის დანარჩენი ნაწილისგან განსხვავებულ კალენდარში ვერ იქნება."
+msgstr "სერიის ერთი დღე სერიის დანარჩენი ნაწილისგან განსხვავებულ კალენდარში ვერ იქნება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -15327,13 +15327,13 @@ msgstr "ეს სატესტო ანაწყობია: ის მხ�
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "This is about one occurrence of a series."
-msgstr "ეს სერიის ერთ შემთხვევას ეხება."
+msgstr "ეს სერიის მხოლოდ ერთ დღეს ეხება."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "This is about the occurrence on {day} only."
-msgstr "ეს მხოლოდ ამ დღის ({day}) შემთხვევას ეხება."
+msgstr "ეს მხოლოდ ამ დღეს ეხება: {day}."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
