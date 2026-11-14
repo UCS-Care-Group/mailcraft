@@ -1343,6 +1343,8 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
                     | "calendar.select"
                     | "people.select"
                     | "tasks.select"
+                    // Without data it only reads; View › Message Preview › Columns turns them on.
+                    | "view.columns"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
                 // Not even greyed while it waits for Google's review (#911).

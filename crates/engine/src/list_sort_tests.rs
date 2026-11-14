@@ -3,24 +3,32 @@
 //! The list's sorts, which take what they compare from each message once, put the messages in
 //! the order comparing the messages themselves does, for every arrangement both ways round.
 
-use mailcraft_model::{FlagStatus, Importance, Message};
+use mailcraft_model::{FlagStatus, Importance, Mailbox, Message};
 use serde_json::json;
 
+use crate::columns::{person_key, sorts_with_files};
 use crate::list::when;
 use crate::{Session, SortBy};
 
 const NOW: i64 = 1_791_993_600;
 
 /// The order as comparing two messages at a time gives it, as the list sorted before.
-fn reference(shown: &mut [&Message], sort: SortBy, desc: bool) {
+fn reference(mb: &Mailbox, shown: &mut [&Message], sort: SortBy, desc: bool) {
+    let flag = |m: &Message| match m.flag {
+        FlagStatus::None => 0,
+        FlagStatus::Complete => 1,
+        FlagStatus::Flagged => 2,
+    };
     shown.sort_by(|a, b| {
         let key = match sort {
             SortBy::Date => when(a).cmp(&when(b)),
-            SortBy::From => a.from.display().to_lowercase().cmp(&b.from.display().to_lowercase()).then(when(b).cmp(&when(a))),
+            SortBy::From => person_key(mb, a).cmp(&person_key(mb, b)).then(when(b).cmp(&when(a))),
             SortBy::Subject => a.topic().to_lowercase().cmp(&b.topic().to_lowercase()).then(when(b).cmp(&when(a))),
             SortBy::Size => a.list_size().cmp(&b.list_size()),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             SortBy::Categories => when(b).cmp(&when(a)),
+            SortBy::Attachments => sorts_with_files(a).cmp(&sorts_with_files(b)).then(when(a).cmp(&when(b))),
+            SortBy::Flag => flag(a).cmp(&flag(b)).then(when(a).cmp(&when(b))),
         };
         let key = if desc && sort != SortBy::Categories { key.reverse() } else { key };
         b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
@@ -45,14 +53,14 @@ fn every_arrangement_lists_in_the_order_comparing_messages_gives() {
         }
         m.pinned = i == 3;
         m.importance = if i % 3 == 0 { Importance::High } else { Importance::Normal };
-        m.flag = FlagStatus::None;
+        m.flag = [FlagStatus::None, FlagStatus::Flagged, FlagStatus::Complete][i % 3];
     }
-    for sort in ["date", "from", "subject", "size", "importance"] {
+    for sort in ["date", "from", "subject", "size", "importance", "attachments", "flag"] {
         for descending in [false, true] {
             s.run("view.sort", &json!({"by": sort, "descending": descending})).unwrap();
             let listed: Vec<_> = s.rows().iter().map(|r| r.id).collect();
             let mut shown: Vec<&Message> = s.mailbox.messages_in(inbox).map(|m| m.as_ref()).collect();
-            reference(&mut shown, s.view.sort, descending);
+            reference(&s.mailbox, &mut shown, s.view.sort, descending);
             let expected: Vec<_> = shown.iter().map(|m| m.id).collect();
             assert_eq!(listed, expected, "arranged by {sort}, descending {descending}");
         }
