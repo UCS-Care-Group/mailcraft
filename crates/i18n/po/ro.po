@@ -8446,6 +8446,11 @@ msgid "No certificate or OpenPGP key that can sign was found on this computer: a
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "No certificate or key"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "No certificate or key to sign with is chosen"
 msgstr ""

@@ -169,9 +169,15 @@ fn held_refused(status: u16, code: &str, shared: bool) -> SendOutcome {
 }
 
 /// Take away the server's draft of a message that went another way: whether it is gone (or never
-/// was there). Graph's delete keeps it recoverable for the retention period.
+/// was there), or nothing more can be done about it. Graph's delete keeps it recoverable for the
+/// retention period.
 fn discard(graph: &Graph<'_>, id: &str) -> Result<bool, NetError> {
-    let Some(id) = id_of(id).map(|id| http::encode(&id)) else { return Ok(true) };
+    let Some(id) = id_of(id).map(|id| http::encode(&id)) else {
+        // No request can name it, now or at a later run: said, and not tried again (a delete
+        // queued for it could never go either).
+        log::warn!("graph sending: the draft of a signed message sent has an id that can't be used in a request, so it is left on the server");
+        return Ok(true);
+    };
     let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
     let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE)?;
     super::refusing(graph, &reply)?;
