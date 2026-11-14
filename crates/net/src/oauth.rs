@@ -269,23 +269,37 @@ impl Endpoints {
     /// one is refused by [`sign_in`] and [`refresh`]; here it reads as `common` too, so that
     /// nothing unchecked ends up in an address.)
     pub fn for_resource(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, true)
+    }
+
+    /// [`Endpoints::for_resource`] for a host that keeps none of the to-dos, the rules, the
+    /// automatic replies and the categories in step (the phone apps, for now): its page doesn't
+    /// ask for what that takes (`Tasks.ReadWrite`, `MailboxSettings.ReadWrite`, #661).
+    pub fn for_resource_without_sync(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, false)
+    }
+
+    fn asking(oauth: &OAuth, resource: Resource, sync: bool) -> Endpoints {
         match oauth.provider {
             OAuthProvider::Microsoft => {
                 let tenant = tenant(oauth).unwrap_or("common");
                 // The optional extras are only ever put to the owner on the page, beside what the
                 // tokens are for: a provider that won't have them there is asked again without
                 // them ([`sign_in`]), so that asking for more never costs what was to be had.
-                let (scope, lesser) = match resource {
+                let (scope, plain) = match resource {
                     Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS}")),
                     Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                     Resource::GraphMail => (format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                 };
                 // Keeping the to-dos, the rules, the automatic replies and the categories in step
-                // with the server (#661): a page that won't have them is asked again for what
-                // was asked before them, and then for the tokens alone.
-                let consent = format!("{lesser} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE}");
+                // with the server (#661), for a host that keeps them: a page that won't have them
+                // is asked again for what was asked before them, and then for the tokens alone.
+                let consent = if sync { format!("{plain} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE}") } else { plain.clone() };
                 // (With the Favorites' permissions on the same page, were that wanted.)
                 let consent = if FAVORITES_AT_SIGN_IN { format!("{consent} {MICROSOFT_GRAPH_FAVORITES}") } else { consent };
+                // What a refused page falls back to: what was asked before the extras, when there
+                // are any.
+                let lesser = if consent == plain { String::new() } else { plain };
                 Endpoints {
                     authorize: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/authorize"),
                     token: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/token"),

@@ -125,7 +125,9 @@ pub(crate) fn run(
         return Err(Ended::Said(words("Sign-in isn't set up on this phone.")));
     };
     let via = RedirectStrategy::CustomScheme(custom);
-    let own = Endpoints::for_resource(oauth, Resource::GraphMail);
+    // (The phone keeps none of the to-dos, rules, automatic replies and categories in step yet:
+    // its page doesn't ask for what that takes, #661.)
+    let own = Endpoints::for_resource_without_sync(oauth, Resource::GraphMail);
     let endpoints = endpoints.unwrap_or(&own);
     mailcraft_net::oauth::sign_in_explained_via(endpoints, oauth, address, open, cancel, &via).map_err(|end| match end {
         SignInEnd::Approval => Ended::Said(words("Your organisation has to approve MailCraft before you can sign in. Ask an administrator.")),

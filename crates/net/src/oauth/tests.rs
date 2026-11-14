@@ -146,6 +146,20 @@ fn graph_is_asked_for_a_calendar_it_may_write_to() {
 }
 
 #[test]
+fn a_host_that_keeps_nothing_in_step_beyond_mail_asks_for_none_of_what_that_takes() {
+    // (#661: the phone apps sign in for mail and keep no to-dos, rules, automatic replies or
+    // categories in step: their page asks for what it asked before, and nothing to fall back to.)
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        let full = Endpoints::for_resource(&oauth(), resource);
+        let plain = Endpoints::for_resource_without_sync(&oauth(), resource);
+        assert!(full.consent.contains(MICROSOFT_GRAPH_TASKS) && full.consent.contains(MICROSOFT_GRAPH_SETTINGS_WRITE), "{}", full.consent);
+        assert!(!plain.consent.contains(MICROSOFT_GRAPH_TASKS) && !plain.consent.contains(MICROSOFT_GRAPH_SETTINGS_WRITE), "{}", plain.consent);
+        assert_eq!((plain.scope.as_str(), plain.consent.as_str(), plain.lesser.as_str()), (full.scope.as_str(), full.lesser.as_str(), ""));
+        assert_eq!((plain.authorize, plain.token), (full.authorize, full.token));
+    }
+}
+
+#[test]
 fn a_sign_in_from_before_the_calendar_was_written_to_needs_the_owners_consent_again() {
     // The owner agreed to reading the calendar, once. The refresh token of that sign-in is asked
     // for a token that may write to it, which nobody agreed to: the provider says so, mail is

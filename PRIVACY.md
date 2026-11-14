@@ -224,7 +224,9 @@ not in a release yet are marked "when the app is released".
   of its own for your password and never sees it. The page sends you back through a link on a
   scheme only MailCraft registers (`work.mailcraft.android` on Android), and the app checks that
   link, to the letter, before it believes it. What is asked of your account, and why, is
-  [Permissions asked of a Microsoft account](#permissions-asked-of-a-microsoft-account). The phone
+  [Permissions asked of a Microsoft account](#permissions-asked-of-a-microsoft-account), except that
+  the phone's page doesn't ask to change your To Do lists or your mailbox settings: the phone apps
+  don't keep your tasks, rules, automatic replies or categories in step. The phone
   apps do not use your phone's own calendar or contacts and ask for no permission to them.
 - **Secrets.** A sign-in token is sealed with a key held in the Android Keystore (on iPhone,
   when that app is released, the Keychain), which the system keeps outside the app's own files, and the

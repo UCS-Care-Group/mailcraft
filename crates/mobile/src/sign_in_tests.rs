@@ -85,6 +85,21 @@ fn the_page_is_opened_for_the_providers_sign_in_and_comes_back_to_the_apps_schem
 }
 
 #[test]
+fn the_phones_page_asks_for_nothing_of_the_to_dos_rules_and_categories() {
+    // (#661: those are kept in step on the computer only; the phone's page asks for mail, the
+    // calendar and the mailbox's settings to read, as it did.)
+    let platform = FakePlatform::new();
+    let core = core(platform.clone());
+    let id = account(&core);
+    let handle = sign_in_on_thread(&core, id);
+    let url = opened_page(&platform);
+    assert!(url.contains("MailboxSettings.Read") && url.contains("Mail.Send"), "{url}");
+    assert!(!url.contains("Tasks.ReadWrite") && !url.contains("MailboxSettings.ReadWrite"), "{url}");
+    core.shutdown();
+    assert!(handle.join().unwrap().is_err());
+}
+
+#[test]
 fn only_one_sign_in_is_open_at_a_time_and_dropping_it_calls_it_off() {
     let platform = FakePlatform::new();
     let core = core(platform.clone());

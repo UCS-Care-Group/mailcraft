@@ -55,8 +55,9 @@ pub struct AutoRepliesDriver {
     pub held: HashMap<Id, AutoReplies>,
     /// What the owner is to be told of an account's replies when they can't be had.
     pub trouble: HashMap<Id, Trouble>,
-    /// Where the permission to change them stands, per account (`MailboxSettings.ReadWrite`: asked
-    /// for by itself, the first time the owner changes them, never with a sign-in).
+    /// Where the permission to change them stands, per account (`MailboxSettings.ReadWrite`: on a
+    /// new sign-in's page beside the rest; for an account that signed in before, asked the first
+    /// time the owner changes them, with the to-dos', the rules' and the categories', #661).
     pub perm: HashMap<Id, Permission>,
 }
 
