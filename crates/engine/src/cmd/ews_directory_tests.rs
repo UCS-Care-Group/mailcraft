@@ -22,10 +22,79 @@ fn session() -> (Session, Id) {
 #[test]
 fn a_request_names_the_calendar_window_and_what_waits_to_go() {
     let (s, account) = session();
-    let request = ews_directory_request(&s, account, Some(1_000), Some(2_000), false).unwrap();
+    let request = ews_directory_request(&s, account, Some(1_000), Some(2_000), Part::Whole, false).unwrap();
     assert_eq!((request.from, request.to), (1_000, 2_000));
     assert!(request.calendars && request.contacts && request.tasks);
     assert!(request.changes.is_none());
+}
+
+const NOW: i64 = 1_791_993_600;
+const DAY: i64 = 86_400;
+
+/// An Exchange server account with an appointment made here (waiting to go), a contact book
+/// opened by address and a calendar opened by address, at [`NOW`].
+fn busy_session() -> (Session, Id) {
+    let mut s = Session::at(mailcraft_model::Mailbox::default(), NOW, 0);
+    let added = s.run("account.add", &json!({"email": ME, "kind": "exchange", "ews": {"url": URL}})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let a = s.mailbox.account_mut(account).unwrap();
+    a.opened_calendars.push(mailcraft_model::OpenedCalendar { address: "bo@example.org".into(), ..Default::default() });
+    a.opened_address_books.push(mailcraft_model::OpenedAddressBook { address: "cy@example.org".into(), ..Default::default() });
+    let main = RemoteCalendar { id: "cal-main".into(), main: true, rights: Rights::Edit, ..Default::default() };
+    crate::cmd::remote::apply_calendars(
+        &mut s,
+        &CalendarsDownload { account, email: ME.into(), complete: true, calendars: vec![main], ..Default::default() },
+    )
+    .unwrap();
+    s.run("calendar.new", &json!({"title": "Planning", "start": "2026-10-20T10:00"})).unwrap();
+    (s, account)
+}
+
+/// The calendar alone, for the days on screen (#1274): nothing goes up with it, and no address
+/// book or to-do list is read.
+#[test]
+fn a_calendar_read_reads_the_calendars_alone_and_sends_nothing() {
+    let (mut s, account) = busy_session();
+    let whole = ews_directory_request(&s, account, None, None, Part::Whole, false).unwrap();
+    assert!(whole.changes.is_some(), "the appointment made here waits to go with a Send/Receive");
+    assert_eq!(whole.shared.len(), 2);
+    let calendar = ews_directory_request(&s, account, None, None, Part::Calendar, true).unwrap();
+    assert!(calendar.calendars && !calendar.contacts && !calendar.tasks);
+    assert!(calendar.changes.is_none() && calendar.contact_changes.is_none() && calendar.task_changes.is_none());
+    assert_eq!(calendar.shared.len(), 1, "the calendar opened by address, not the address book");
+    assert!(calendar.shared[0].calendar && !calendar.shared[0].contacts);
+    assert!(calendar.background);
+    // The days on screen and a margin either side, as a Send/Receive used to read.
+    assert_eq!((calendar.from, calendar.to), (whole.from, whole.to));
+    assert!(calendar.from < NOW && calendar.to > NOW);
+    assert!(calendar.to - calendar.from < 60 * DAY);
+    // The command says the same.
+    let v = s.run("sync.ewsDirectoryRequest", &json!({"account": account, "calendarOnly": true})).unwrap();
+    assert_eq!(v["contacts"], json!(null));
+    assert_eq!(v["calendars"], json!(true));
+}
+
+/// A Send/Receive reads a month back and a year ahead (#1274), with the days on screen when they
+/// are not too far off, and never more than two years at once.
+#[test]
+fn a_send_receive_reads_a_month_back_and_a_year_ahead() {
+    let (mut s, account) = busy_session();
+    let (from, to) = send_receive_stretch(&s);
+    assert!(from <= NOW - 31 * DAY && from > NOW - 60 * DAY, "{}", (NOW - from) / DAY);
+    assert!((NOW + 366 * DAY..NOW + 400 * DAY).contains(&to), "{}", (to - NOW) / DAY);
+    let request = crate::cmd::ews_mail::ews_mail_request(&s, account, false).unwrap();
+    let directory = request.directory.expect("a full run reads the directory");
+    assert_eq!((directory.from, directory.to), (from, to));
+    // The owner looks at the days a year and a half ahead: they come with it.
+    s.run("view.goToDate", &json!({"date": "2028-04-10"})).unwrap();
+    let (_, later) = send_receive_stretch(&s);
+    assert!(later > NOW + 540 * DAY, "{}", (later - NOW) / DAY);
+    // Ten years ahead: the wide stretch alone, and the days on screen are read when they are shown.
+    s.run("view.goToDate", &json!({"date": "2036-04-10"})).unwrap();
+    assert_eq!(send_receive_stretch(&s), (from, to));
+    // A stretch asked for is never longer than two years.
+    let far = ews_directory_request(&s, account, Some(NOW), Some(NOW + 3_000 * DAY), Part::Calendar, true).unwrap();
+    assert_eq!(far.to - far.from, 730 * DAY);
 }
 
 #[test]
