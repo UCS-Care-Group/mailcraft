@@ -74,6 +74,20 @@ fn until_over(sr: &mut SendReceive, s: &mut Session, c: &Context) -> Taken {
     panic!("the run never ended");
 }
 
+/// Waits (a bounded time) for the run's first piece; fails at once if the run ends first.
+fn first_piece(sr: &mut SendReceive, s: &mut Session, c: &Context<'_>) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        match sr.take_result(s, c) {
+            Taken::Piece => return,
+            Taken::Pending => {}
+            other => panic!("the run ended before its first piece: done={}", matches!(other, Taken::Done { .. })),
+        }
+        assert!(std::time::Instant::now() < deadline, "no piece came within the time");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 #[test]
 fn a_round_that_is_due_runs_the_account_with_the_stored_sign_in_and_keeps_the_newest_one() {
     let (mut s, id) = session(AccountKind::Microsoft);
@@ -356,8 +370,8 @@ fn something_made_here_during_a_long_run_calls_it_off_and_it_goes_first_again() 
     let flag2 = flag.clone();
     let mut sr = SendReceive::with_runner(move |req: GraphRequest| {
         let pieces = req.mail_pieces.clone().unwrap();
-        let _ = pieces.send(GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() });
         *flag2.lock().unwrap() = Some(req.cancel.clone());
+        let _ = pieces.send(GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() });
         let _ = gate.lock().unwrap().recv_timeout(Duration::from_secs(5));
         GraphResult { account: req.account.id, ..Default::default() }
     });
@@ -365,9 +379,7 @@ fn something_made_here_during_a_long_run_calls_it_off_and_it_goes_first_again() 
     // (A look is due: the clock is far past the last one.)
     let c = ctx(&store, 100_000.0);
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. }));
-    while !matches!(sr.take_result(&mut s, &c), Taken::Piece) {
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    first_piece(&mut sr, &mut s, &c);
     let called_off = || flag.lock().unwrap().as_ref().is_some_and(|f| f.load(Ordering::Relaxed));
     assert!(!called_off(), "nothing new was made here");
     let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
@@ -396,16 +408,7 @@ fn an_explicit_stop_after_a_call_off_never_puts_the_run_back() {
     let h = host();
     let c = ctx(&store, 100_000.0);
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. }));
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    loop {
-        match sr.take_result(&mut s, &c) {
-            Taken::Piece => break,
-            Taken::Pending => {}
-            other => panic!("the run ended before its first piece: {}", matches!(other, Taken::Done { .. })),
-        }
-        assert!(std::time::Instant::now() < deadline, "no piece came within the time");
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    first_piece(&mut sr, &mut s, &c);
     let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
     let m = Message { account: id, folder: outbox, subject: "Later".into(), to: vec![Address::new("", "kit@example.net")], ..Default::default() };
     s.mailbox.add_message(m).unwrap();
