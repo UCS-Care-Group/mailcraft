@@ -318,6 +318,12 @@ msgstr "Se importă un fișier .pst: încercați din nou după ce se termină"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A brand's name on another address."
+msgstr "Numele unei mărci pe o altă adresă."
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -407,6 +413,12 @@ msgstr "Un link cu textul {named} duce la {host}."
 #, fuzzy
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "Un link al cărui text e format în mare parte din caractere invizibile duce la {host}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A made-up domain."
+msgstr "Un domeniu inventat."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1196,6 +1208,12 @@ msgstr "Un certificat X.509 (.cer, .pem) sau o cheie publică OpenPGP (.asc)"
 #, fuzzy
 msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"
 msgstr "Un certificat X.509 (.cer, .pem) sau o cheie publică OpenPGP (.asc) a acestei persoane de contact"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "O adresă fără domeniu."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -6916,6 +6934,12 @@ msgstr "Se caută serverul Exchange…"
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "Se caută… {folders}, {files}, {messages} până acum"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Looks like a brand."
+msgstr "Seamănă cu o marcă."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -14074,6 +14098,12 @@ msgstr "Numele ascunde caractere."
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The name is another domain."
+msgstr "Numele este un alt domeniu."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name of someone you know."
 msgstr "Numele cuiva pe care îl cunoașteți."
 
@@ -14241,14 +14271,38 @@ msgstr "Expeditorul folosește numele dvs., dar acest mesaj a venit de la {real}
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "Adresa expeditorului este la {domain}, o adresă de internet fără nume de domeniu: organizațiile reale trimit rar de la una ca aceasta."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}."
 msgstr "Adresa expeditorului este la {domain}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "Domeniul expeditorului, {domain}, seamănă cu un domeniu {brand}, dar nu este unul dintre domeniile {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
 msgstr "Domeniul expeditorului, {domain}, seamănă cu {like}, cu care corespondați, dar nu este același."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "Domeniul expeditorului, {domain}, pare generat de o mașină sau nu poate exista: organizațiile reale trimit rar de pe un astfel de domeniu."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "Numele expeditorului spune {brand}, dar acest mesaj a venit de la {real}, iar {domain} nu este unul dintre domeniile {brand}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
