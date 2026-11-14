@@ -475,9 +475,20 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": true}));
                 }
             }
-            // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
-            // server doesn't vouch for, so it is not offered there.
-            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
+            // Remembering a sender does nothing for what is in Junk E-mail, so it is not offered
+            // there. Where the server doesn't vouch for the address the option is shown greyed out
+            // with the reason, and the domain's is left out (#1347).
+            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m)) else { return };
+            if !vouched(app.session.mailbox.account(m.account), m) {
+                let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
+                let why = crate::i18n::fmt(
+                    tl!("Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."),
+                    &[("sender", &short(&from, 60))],
+                );
+                // Not registered with `app.hit`: there is nothing to click.
+                ui.add_enabled(false, egui::Link::new(egui::RichText::new(label).font(semibold(11.5)))).on_disabled_hover_text(why);
+                return;
+            }
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
             let always = action(ui, label, tl!("Remembered in the settings; File › Options lists the senders and takes them off again."));
             if place == Place::Pane {

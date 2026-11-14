@@ -16569,6 +16569,11 @@ msgid "Your mail server checked where this message came from, and the check fail
 msgstr "Uw e-mailserver heeft gecontroleerd waar dit bericht vandaan kwam, en de controle is mislukt: het adres van de afzender kan vervalst zijn."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Your mail stays yours"
