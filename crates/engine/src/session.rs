@@ -343,6 +343,9 @@ pub struct ViewState {
     /// The Exchange server account whose organisation's address list People shows in place of
     /// the contacts (`people.addressBook`, #1262); none: the contacts.
     pub people_book: Option<Id>,
+    /// Of the account People shows, the one address book it shows alone: its id, as
+    /// `people.contactBooks` lists it (#1275). Empty: all of them.
+    pub people_contact_book: String,
 }
 
 /// [`ViewState::unified`] from saved settings: a kind of folder, or none for anything else, so a
@@ -383,6 +386,7 @@ impl Default for ViewState {
             task_account: AccountChoice::All,
             people_account: AccountChoice::All,
             people_book: None,
+            people_contact_book: String::new(),
         }
     }
 }
@@ -3512,6 +3516,7 @@ impl Session {
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
         self.view.people_account = AccountChoice::All;
+        self.view.people_contact_book.clear();
         self.dirty = false;
         self.rev += 1;
         self.normalize();
