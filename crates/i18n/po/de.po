@@ -1101,7 +1101,7 @@ msgstr "Ein geheimer OpenPGP-Schlüssel, der durch eine Passphrase geschützt is
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "An S/MIME certificate is trusted through its certification authority and isn't marked Verified"
-msgstr "Ein S/MIME-Zertifikat gilt aufgrund seiner Zertifizierungsstelle als vertrauenswürdig und wird nicht als „Verifiziert“ gekennzeichnet"
+msgstr "Ein S/MIME-Zertifikat gilt aufgrund seiner Zertifizierungsstelle als vertrauenswürdig und wird nicht als verifiziert gekennzeichnet"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -16075,7 +16075,7 @@ msgstr "Eine HTML-Signatur zeigt Bilder über ihre Webadressen an: Stellen Sie d
 #. what a command says
 #: crates/engine/src/digital_signature.rs
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
-msgstr "ein S/MIME-Zertifikat gilt aufgrund seiner Zertifizierungsstelle als vertrauenswürdig und wird nicht als „Verifiziert“ gekennzeichnet"
+msgstr "ein S/MIME-Zertifikat gilt aufgrund seiner Zertifizierungsstelle als vertrauenswürdig und wird nicht als verifiziert gekennzeichnet"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
