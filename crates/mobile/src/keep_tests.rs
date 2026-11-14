@@ -487,6 +487,42 @@ fn an_index_that_does_not_parse_is_set_aside_and_never_taken_for_an_empty_one() 
     assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All);
 }
 
+/// A store whose index is garbage and that still holds the sign-in of an account the mailbox no
+/// longer has, under a core with a mailbox of its own.
+fn with_damaged_index(dir: &Dir) -> (Arc<Core>, Arc<FakePlatform>) {
+    let platform = FakePlatform::new();
+    let gone = "refresh:gone@example.org|graph".to_string();
+    platform.secrets.kept.lock().unwrap().push((gone, "old-refresh".to_string()));
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    fill(&core);
+    (core, platform)
+}
+
+#[test]
+fn a_lost_answer_about_a_damaged_index_is_given_again_until_it_was_shown() {
+    // The first answer sets the damaged index aside; if it is lost on its way to the window,
+    // the retry finds a sound index but must still say that older sign-ins may remain.
+    let dir = Dir::new();
+    let (core, platform) = with_damaged_index(&dir);
+    let first = block_on(core.forget_sign_ins()).unwrap();
+    assert!(first.may_remain.is_some(), "{first:?}");
+    assert!(platform.secrets.kept.lock().unwrap().iter().any(|(k, _)| k.starts_with("mailcraft:index.unreadable-")), "set aside on the first call");
+    let retry = block_on(core.forget_sign_ins()).unwrap();
+    assert!(retry.may_remain.is_some(), "the retry still says it: {retry:?}");
+    block_on(core.sign_ins_notice_shown()).unwrap();
+    let after = block_on(core.forget_sign_ins()).unwrap();
+    assert_eq!(after.may_remain, None, "{after:?}");
+
+    // The same through "remove my data".
+    let dir = Dir::new();
+    let (core, _platform) = with_damaged_index(&dir);
+    assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }), "the retry still says it");
+    block_on(core.sign_ins_notice_shown()).unwrap();
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All);
+}
+
 #[test]
 fn an_index_that_does_not_parse_starts_a_fresh_one_with_the_names_known_now() {
     let dir = Dir::new();
