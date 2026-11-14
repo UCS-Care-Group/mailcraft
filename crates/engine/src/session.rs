@@ -1009,6 +1009,9 @@ impl Prefs {
     /// memory and written back whole, and [`Prefs::is_collapsed`] would answer from more than the
     /// window can ever show.
     pub fn cap_collapsed(&mut self) {
+        // A folder that keeps nothing takes no place among the folders: left in, a settings file
+        // full of empty lists would crowd out the folders that keep something.
+        self.collapsed_groups.retain(|_, groups| !groups.is_empty());
         let keep: std::collections::HashSet<Id> = self.collapsed_groups.keys().copied().take(Self::COLLAPSED_FOLDERS).collect();
         self.collapsed_groups.retain(|folder, _| keep.contains(folder));
         let mut total = 0usize;
@@ -1716,7 +1719,12 @@ impl Session {
     /// being read, its folder is shown, in the All tab and with no search; when it doesn't show
     /// the rest, the whole of that folder, which has what of it is there; what is in another
     /// folder is let go of. And it stays in the list while it is selected (#428).
-    pub(crate) fn show_selected(&mut self) {
+    ///
+    /// `elsewhere` says the message was asked for from outside the list (an import, Undo, a
+    /// new-mail alert): a collapsed group then opens for it, its own row's message included,
+    /// because it is the message that was asked for (#929). Picked in the list itself, that row is
+    /// the switch that expands the group, so it opens nothing.
+    pub(crate) fn show_selected(&mut self, elsewhere: bool) {
         if let Some((id, folder)) = self.focused_message().map(|m| (m.id, m.folder))
             && !self.in_list(&[id]).contains(&id)
         {
@@ -1733,15 +1741,18 @@ impl Session {
             self.show_whole_folder();
             self.select_in_view();
             self.keep_clicked();
+            // On this way out too: a message selected under a collapsed group would otherwise
+            // leave the selection again (#929), and this is the way out that a selection the list
+            // only partly shows takes.
+            self.expand_for_selected(elsewhere);
             return;
         }
         // All of it is listed: what `keep_clicked` would ask again (a Shift+click over thousands
         // of rows asked it of each of them twice).
         self.sel.stays = Some(Arc::new(Stays::of(shown, &selection, &self.list_of())));
-        // And in sight: a message brought here from outside the list (an import, Undo, an alert)
-        // would otherwise be selected under a collapsed group and leave the selection again
-        // (#929). A group's own row is not that, so it stays the switch that expands it.
-        self.expand_for_selected(false);
+        // And in sight: a message selected under a collapsed group would otherwise leave the
+        // selection again (#929).
+        self.expand_for_selected(elsewhere);
     }
 
     /// Another list is in view: of what was selected, only what it shows stays selected (#485),
@@ -3170,16 +3181,21 @@ impl Session {
         self.prefs.show_groups && self.view.sort != crate::SortBy::Categories && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
     }
 
-    /// The groups kept collapsed have changed, so the list is due again (#929) and built at once.
+    /// The groups kept collapsed have changed, so the list is built again at once (#929).
     ///
-    /// Built, and not only marked due, because what reads the rows without building them
+    /// The list is keyed on the groups collapsed in the folder in view ([`Session::list_state`]),
+    /// so the rows from before are answered as another list's by themselves. Built here, and not
+    /// left to whoever asks next, because what reads the rows without building them
     /// ([`Session::focus_on_collapsed_group`], and [`Session::reading`] through it) answers "a
-    /// collapsed group's row" while they can't be read. A command that collapses or expands and
-    /// then asks would get that answer about a list that no longer exists, and the message it
-    /// just brought into sight would count as hidden. Every way to the kept groups ends here, so
-    /// the rule holds itself instead of asking each caller to remember it.
+    /// collapsed group's row" while they can't be read: a command that collapses or expands and
+    /// then asks would get that answer about a list that no longer exists, and the message it just
+    /// brought into sight would count as hidden. Every way to the kept groups ends here, so the
+    /// rule holds itself instead of asking each caller to remember it.
+    ///
+    /// The mailbox's own revision is left alone. Nothing of the mailbox changed, and the work kept
+    /// by it (the folders' counts, the thread index, the senders' warnings) would be thrown away
+    /// for a fold.
     pub(crate) fn groups_changed(&mut self) {
-        self.rev += 1;
         let _ = self.rows();
     }
 
@@ -3191,14 +3207,19 @@ impl Session {
     /// message like any other.
     pub(crate) fn expand_for_selected(&mut self, elsewhere: bool) {
         let folder = self.view.folder;
-        if self.prefs.collapsed_in(folder).next().is_none() {
+        // (Asked on every way into the list, so it costs nothing where there is nothing to do.)
+        if self.sel.messages.is_empty() || self.prefs.collapsed_in(folder).next().is_none() {
             return;
         }
         let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
         let groups: Vec<String> = self
             .rows()
             .iter()
-            .filter(|r| r.under.is_none() && r.folded.is_some() && r.members.iter().any(|m| (elsewhere || *m != r.id) && selected.contains(m)))
+            .filter(|r| {
+                r.under.is_none()
+                    && r.folded.is_some()
+                    && r.members.iter().chain(r.others.iter()).any(|m| (elsewhere || *m != r.id) && selected.contains(m))
+            })
             .filter_map(|r| r.group.clone())
             .collect();
         if groups.is_empty() {
@@ -3671,8 +3692,9 @@ impl Session {
         self.dirty = true;
         if mail {
             self.view.folder = u.folder;
-            // What it selects again is in the list (#485), in its folder when that isn't the one in view.
-            self.show_selected();
+            // What it selects again is in the list (#485), in its folder when that isn't the one in
+            // view, and in sight: a step taken back is asked for from outside the list (#929).
+            self.show_selected(true);
         } else {
             // A step that changed no mail (a task, an appointment) leaves the message list as it
             // is, and what is selected in it (#485).

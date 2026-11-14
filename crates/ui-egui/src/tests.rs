@@ -475,7 +475,7 @@ fn a_large_mailbox_lays_out() {
             a.session.mailbox.add_task(mailcraft_model::Task { title: format!("Task {i}"), ..Default::default() });
         }
     }
-    a.session.replace_mailbox(a.session.mailbox.clone(), None);
+    a.session.replace_mailbox(a.session.mailbox.clone(), a.session.path.clone());
     let t0 = std::time::Instant::now();
     let a = frames(a, (1280.0, 800.0), 5);
     for id in ["view.people", "view.tasks", "view.calendar"] {

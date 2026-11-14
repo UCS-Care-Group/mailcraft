@@ -347,7 +347,9 @@ fn collapse(s: &mut Session, groups: Vec<String>, trim: bool) -> CmdResult {
     let folder = s.view.folder;
     let prefs = &mut s.prefs;
     let kept = prefs.collapsed_groups.get(&folder);
-    if kept.is_none() && prefs.collapsed_groups.len() >= crate::Prefs::COLLAPSED_FOLDERS {
+    // A folder that keeps nothing yet needs a place of its own among the folders.
+    let folders_full = kept.is_none() && prefs.collapsed_groups.len() >= crate::Prefs::COLLAPSED_FOLDERS;
+    if folders_full && !trim {
         return Err(bad("too many folders have collapsed groups: expand the groups of another folder first"));
     }
     // A heading too long to be kept would be stored and then skipped, and would take one of the
@@ -365,11 +367,17 @@ fn collapse(s: &mut Session, groups: Vec<String>, trim: bool) -> CmdResult {
         }
     }
     let here = kept.map_or(0, std::collections::BTreeSet::len);
-    let room = crate::Prefs::COLLAPSED_GROUPS.saturating_sub(here).min(crate::Prefs::COLLAPSED_TOTAL.saturating_sub(prefs.collapsed_count()));
+    let folder_room = crate::Prefs::COLLAPSED_GROUPS.saturating_sub(here);
+    let room = if folders_full { 0 } else { folder_room.min(crate::Prefs::COLLAPSED_TOTAL.saturating_sub(prefs.collapsed_count())) };
     let left = new.len().saturating_sub(room);
     if left > 0 {
         if !trim {
-            return Err(bad("too many groups would stay collapsed: expand some of them first"));
+            // Which cap was met: an agent that is told only "too many" can't tell what to expand.
+            return Err(bad(if new.len() > folder_room {
+                "at most 2000 groups of a folder stay collapsed: expand some of them first"
+            } else {
+                "at most 20000 groups over all the folders stay collapsed: expand some of them first"
+            }));
         }
         new.truncate(room);
     }
@@ -407,11 +415,13 @@ fn expand_group(s: &mut Session, v: &Value) -> CmdResult {
     let folder = s.view.folder;
     let group = named_group(s, v)?;
     if let Some(kept) = s.prefs.collapsed_groups.get_mut(&folder) {
-        kept.remove(&group);
+        let was = kept.remove(&group);
         if kept.is_empty() {
             s.prefs.collapsed_groups.remove(&folder);
         }
-        s.groups_changed();
+        if was {
+            s.groups_changed();
+        }
     }
     collapsed_now(s)
 }

@@ -578,7 +578,7 @@ fn send_row(protocol: Sends, lost: Lost) {
             answer(message);
             poll_run(&mut app);
             // The old file is opened again, and its servers confirmed.
-            app.session.replace_mailbox(on_disk, None);
+            app.session.replace_mailbox(on_disk, app.session.path.clone());
             app.drop_secrets_if_replaced();
             let _ = app.confirm_servers();
             (app, hosts)

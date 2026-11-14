@@ -229,8 +229,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     // What is selected is in the list (#485), and stays in it while it is selected (#428): opened
     // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
     // tab and with no search, when the list doesn't show it there.
-    s.show_selected();
-    s.expand_for_selected(p::bool(v, "elsewhere") == Some(true));
+    s.show_selected(p::bool(v, "elsewhere") == Some(true));
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }

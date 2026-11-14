@@ -406,7 +406,7 @@ fn the_budget_over_all_folders_holds() {
     let full: BTreeSet<String> = (0..Prefs::COLLAPSED_TOTAL).map(|i| format!("G{i}")).collect();
     s.prefs.collapsed_groups.insert(other, full);
     let e = s.run("view.collapseGroup", &json!({"group": group})).expect_err("no place left").to_string();
-    assert!(e.contains("too many groups"), "{e}");
+    assert!(e.contains("over all the folders"), "the refusal names the cap it met: {e}");
     let answer = run(&mut s, "view.collapseAllGroups", json!({}));
     assert!(answer["left"].as_u64().is_some_and(|left| left >= 1), "{answer}");
     assert!(!s.prefs.collapsed_groups.contains_key(&here), "nothing collapsed in the folder in view");
@@ -439,9 +439,30 @@ fn a_selection_from_outside_the_list_expands_its_group() {
     run(&mut s, "view.collapseGroup", json!({"group": group.clone()}));
     assert!(s.prefs.is_collapsed(s.view.folder, &group));
     s.sel.messages = vec![inside];
-    s.show_selected();
+    s.show_selected(false);
     assert!(!s.prefs.is_collapsed(s.view.folder, &group), "the group opened: {:?}", s.prefs.collapsed_groups);
     assert_eq!(s.sel.messages, vec![inside], "and the message stayed selected");
+
+    // The row's own message heads the group, so picking it in the list expands nothing: that row
+    // is the switch. Asked for from outside the list (Undo, an import, an alert), it is a message
+    // like any other and its group opens, or the step taken back would land out of sight.
+    run(&mut s, "view.collapseGroup", json!({"group": group.clone()}));
+    let head = s.rows().iter().find(|r| r.folded.is_some()).cloned().expect("the collapsed row");
+    s.sel.messages = vec![head.id];
+    s.show_selected(false);
+    assert!(s.prefs.is_collapsed(s.view.folder, &group), "its own row is the switch, not a message to bring into sight");
+    s.show_selected(true);
+    assert!(!s.prefs.is_collapsed(s.view.folder, &group), "asked for from elsewhere, the group opens: {:?}", s.prefs.collapsed_groups);
+    assert_eq!(s.reading(), Some(head.id), "and it can be read");
+
+    // And on the way out that a selection the list only partly shows takes: one of another folder
+    // beside one the fold hides is the selection that leaves through it.
+    run(&mut s, "view.collapseGroup", json!({"group": group.clone()}));
+    let here = s.view.folder;
+    let other = s.mailbox.messages.values().find(|m| m.folder != here).map(|m| m.id).expect("a message of another folder");
+    s.sel.messages = vec![other, inside];
+    s.show_selected(false);
+    assert!(!s.prefs.is_collapsed(here, &group), "the group opened on that way out as well: {:?}", s.prefs.collapsed_groups);
 }
 
 /// `mail.list` names a collapsed group's messages as the group's, not as a conversation.
