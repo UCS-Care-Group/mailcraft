@@ -63,6 +63,9 @@ pub struct DigitalSignatures {
     chosen: Option<SigningKey>,
     always: bool,
     error: String,
+    /// The mailbox it was opened in ([`mailcraft_engine::Session::openings`]): in another, the
+    /// account's id may be somebody else's account, and the dialog closes.
+    opening: u64,
 }
 
 impl DigitalSignatures {
@@ -74,11 +77,23 @@ impl DigitalSignatures {
         }
         let waiting = app.services.signing.as_ref().map(|host| host.keys());
         let keys = if waiting.is_some() { None } else { Some(Err(tl!("Digital signatures are made by the desktop program.").to_string())) };
-        Some(DigitalSignatures { account, keys, waiting, chosen: a.signing.key.clone(), always: a.signing.always, error: String::new() })
+        Some(DigitalSignatures {
+            account,
+            keys,
+            waiting,
+            chosen: a.signing.key.clone(),
+            always: a.signing.always,
+            error: String::new(),
+            opening: app.session.openings(),
+        })
     }
 
     /// Draw it; whether it is done.
     pub(crate) fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
+        // Another mailbox took the place of the one it was opened in: nothing of it is set there.
+        if app.session.openings() != self.opening || app.session.mailbox.account(self.account).is_none() {
+            return true;
+        }
         let t = Tokens::get(ui.ctx());
         if let Some(rx) = &self.waiting {
             match rx.try_recv() {
@@ -185,6 +200,15 @@ impl DigitalSignatures {
             let name = if chosen.label.is_empty() { chosen.fingerprint.chars().take(16).collect() } else { chosen.label.clone() };
             ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Chosen now: {key}"), &[("key", &name)])).color(t.text_dim).size(11.0));
         }
+        // None: the account signs nothing (and Always, which needs a key, goes off). Offered whatever
+        // was found, so that a key no longer on this computer can be let go of.
+        if (self.chosen.is_some() || matches!(&self.keys, Some(Ok(keys)) if !keys.is_empty()))
+            && ui.radio(self.chosen.is_none(), tl!("No certificate or key")).clicked()
+            && !app.driven
+        {
+            self.chosen = None;
+            self.always = false;
+        }
         if !self.error.is_empty() {
             ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
         }
@@ -221,15 +245,23 @@ impl SigningPin {
     pub(crate) fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         ui.label(crate::i18n::fmt(tl!("The smartcard {token} needs its PIN to add a Digital signature."), &[("token", &self.token)]));
+        // A PIN is the owner's alone to type and give: what the control channel injected
+        // (`MailApp::driven`) changes nothing in it and presses nothing.
+        let was = app.driven.then(|| zeroize::Zeroizing::new((*self.pin).clone()));
         let resp = crate::text_menu::secret(ui.add(egui::TextEdit::singleline(&mut *self.pin).password(true).desired_width(f32::INFINITY)));
         crate::text_menu::hold(&resp);
+        if let Some(was) = was
+            && *was != *self.pin
+        {
+            self.pin = was;
+        }
         ui.label(
             egui::RichText::new(tl!("It is held in memory until MailCraft closes, and never saved. Send Again sends the message that waits for it."))
                 .color(t.text_dim)
                 .size(11.0),
         );
         let (ok, cancel) = crate::dialogs::buttons(ui, tl!("OK"), !self.pin.is_empty());
-        if (ok || enter) && !self.pin.is_empty() {
+        if (ok || enter) && !self.pin.is_empty() && !app.driven {
             if let Some(host) = &app.services.signing {
                 // Moved, not copied: the host keeps it wiped on drop.
                 host.give_pin(std::mem::take(&mut *self.pin));

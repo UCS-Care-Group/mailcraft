@@ -120,3 +120,99 @@ fn input_the_control_channel_injected_changes_nothing_and_the_owners_clicks_do()
     assert_eq!(signing(&h, id), (Some("9C".repeat(20)), false));
     assert!(!open(&h));
 }
+
+/// A host whose smartcard wants its PIN once, keeping what the window gives it.
+#[derive(Default)]
+struct PinHost {
+    asked: std::sync::Mutex<bool>,
+    given: std::sync::Mutex<Vec<String>>,
+}
+
+impl SigningHost for PinHost {
+    fn keys(&self) -> Receiver<Result<Vec<SigningChoice>, String>> {
+        std::sync::mpsc::channel().1
+    }
+    fn pin_wanted(&self) -> Option<String> {
+        let mut asked = self.asked.lock().unwrap();
+        (!std::mem::replace(&mut *asked, true)).then(|| "Card 7".to_string())
+    }
+    fn give_pin(&self, pin: String) {
+        self.given.lock().unwrap().push(pin);
+    }
+    fn no_pin(&self) {}
+}
+
+fn pin_open(h: &Harness<'static, MailApp>) -> bool {
+    matches!(h.state().dialog, Some(crate::dialogs::Dialog::SigningPin(_)))
+}
+
+/// Security review of #1036: the smartcard PIN question takes no input the control channel
+/// injected: neither what it types nor its OK or Enter; the owner's own typing and OK give the PIN.
+#[test]
+fn the_pin_question_ignores_input_the_control_channel_injected() {
+    let host = Arc::new(PinHost::default());
+    let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
+    app.services.signing = Some(host.clone());
+    app.ask_for_signing_pin();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(4);
+    assert!(pin_open(&h), "the question is asked");
+    let typed = |h: &Harness<'static, MailApp>| match &h.state().dialog {
+        Some(crate::dialogs::Dialog::SigningPin(d)) => d.pin.to_string(),
+        _ => String::new(),
+    };
+
+    // Injected typing changes nothing.
+    h.state_mut().driven = true;
+    h.get_by_role(Role::PasswordInput).click();
+    h.run_steps(2);
+    h.get_by_role(Role::PasswordInput).type_text("9999");
+    h.run_steps(4);
+    assert_eq!(typed(&h), "", "injected typing is dropped");
+
+    // The owner types; an injected OK and Enter give nothing, and the question stays.
+    h.state_mut().driven = false;
+    h.get_by_role(Role::PasswordInput).click();
+    h.run_steps(2);
+    h.get_by_role(Role::PasswordInput).type_text("1234");
+    h.run_steps(4);
+    assert_eq!(typed(&h), "1234");
+    h.state_mut().driven = true;
+    h.get_by_role_and_label(Role::Button, "OK").click();
+    h.run_steps(4);
+    h.key_press(egui::Key::Enter);
+    h.run_steps(4);
+    assert!(host.given.lock().unwrap().is_empty(), "an injected OK or Enter gives no PIN");
+    assert!(pin_open(&h));
+
+    // The owner's own OK gives it.
+    h.state_mut().driven = false;
+    h.get_by_role_and_label(Role::Button, "OK").click();
+    h.run_steps(4);
+    assert_eq!(*host.given.lock().unwrap(), vec!["1234".to_string()]);
+    assert!(!pin_open(&h));
+}
+
+/// Security review of #1036: Digital Signatures closes when another mailbox takes the place of
+/// the one it was opened in, and offers no key at all as a choice.
+#[test]
+fn digital_signatures_closes_with_its_mailbox_and_offers_no_key() {
+    let (mut h, id) = opened();
+    click(&mut h, KEY);
+    assert_eq!(chosen(&h).0, Some("9C".repeat(20)));
+    click(&mut h, "No certificate or key");
+    assert_eq!(chosen(&h), (None, false), "no key, and so no Always");
+    h.state_mut().session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    h.run_steps(4);
+    assert!(!open(&h), "closed with its mailbox");
+    let _ = id;
+}
