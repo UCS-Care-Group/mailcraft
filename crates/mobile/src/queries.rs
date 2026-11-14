@@ -88,7 +88,14 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-fn row(m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {
+/// The preview of the message of `r`: from a copy with its body read back when the mailbox kept it
+/// on disk (outside what the session holds in memory), without changing the mailbox. A body that
+/// can't be read leaves the preview empty and the row as it is.
+fn preview_of(s: &Session, m: &Message) -> String {
+    s.loaded_message_where(m.id, |_| false).map(|loaded| mailcraft_engine::list::preview(&loaded, MAX_PREVIEW)).unwrap_or_default()
+}
+
+fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -96,7 +103,7 @@ fn row(m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {
         from_name: text::clip(&m.from.name, MAX_NAME),
         from_address: text::clip(&m.from.email, MAX_ADDRESS),
         subject: text::clip(&m.subject, MAX_SUBJECT),
-        preview: mailcraft_engine::list::preview(m, MAX_PREVIEW),
+        preview: preview_of(s, m),
         when: mailcraft_engine::list::when(m),
         unread: r.unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
@@ -186,7 +193,7 @@ impl Core {
             s.view = saved;
             s.sel.stays = stays;
             let start = usize::try_from(offset).unwrap_or(usize::MAX);
-            let window = rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r))).collect();
+            let window = rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(s, m, r))).collect();
             Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
         })
         .await
