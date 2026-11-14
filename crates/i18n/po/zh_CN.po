@@ -2834,11 +2834,21 @@ msgstr "关闭页面了吗？这将重新打开提供商的登录页面。"
 msgid "Closes this window. Nothing is kept."
 msgstr "关闭此窗口，不会保留任何内容。"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Collapse All Groups"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Collapse Conversation"
 msgstr "折叠对话"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Collapse This Group"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4501,11 +4511,21 @@ msgstr "Exchange 服务器 {host}"
 msgid "Exchange server · no usable server address"
 msgstr "Exchange 服务器 · 没有可用的服务器地址"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Expand All Groups"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Expand Conversation"
 msgstr "展开对话"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Expand This Group"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8950,6 +8970,11 @@ msgstr "10月"
 #, fuzzy
 msgid "Older"
 msgstr "较早"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Older Mail by Month and Year"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18094,6 +18119,11 @@ msgstr "没有 ID 为 {id} 的文件夹"
 msgid "no free name for the folder {name}"
 msgstr "文件夹 {name} 没有可用名称"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "no group of this folder is collapsed"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -18411,6 +18441,11 @@ msgstr "先保存或关闭正在编辑的签名"
 msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
 msgstr "请先将邮箱保存为文件：切换时会在该文件旁保留一份邮箱副本"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "select a collapsed group first"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -18428,6 +18463,11 @@ msgstr "首先在对话视图中选择一个对话"
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "select a message in a list arranged in groups first"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -18811,6 +18851,26 @@ msgstr "正在导入 .pst 文件的目标文件夹已移至“已删除邮件”
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "此邮件所在的文件夹已不在此计算机上"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the group is collapsed"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the group is open"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the groups of a list arranged by category don't collapse"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "the heading \"{group}\" is longer than 254 characters"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
@@ -18840,6 +18900,11 @@ msgstr "该密钥超过联系人名片能保存的单个密钥大小限制"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "最后一个日历无法删除"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the list isn't shown in groups"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -19757,6 +19822,11 @@ msgstr "邮件由该版本发送：请在那里回复邀请，或在此处处理
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "邮件由该版本发送：请使用另一个账户发送此邮件，或将其保存为草稿，再通过该版本发送"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "while something is searched for, every group shows whole"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -20177,6 +20247,12 @@ msgstr "{m} 分 {s} 秒"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names}，另有 {n} 项"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "{name} ({n} message)"
+msgid_plural "{name} ({n} messages)"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -21224,6 +21300,10 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
 
 #, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
+
+#, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
 #~ msgstr "{not_sending_yet}，此处也没有其他配置了邮件服务器的账户可用于发送。"
 
@@ -21234,10 +21314,6 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 #, fuzzy
 #~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 #~ msgstr "{not_sending_yet}：请使用其他账户发送此邮件，或将其保存为草稿"
-
-#, fuzzy
-#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
