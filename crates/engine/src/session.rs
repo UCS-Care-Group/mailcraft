@@ -3234,6 +3234,34 @@ impl Session {
         self.groups_changed();
     }
 
+    /// What the collapsed groups of `rows` hide of the selection, with the row that hides each
+    /// (#929): the groups' own rows among them, which stand for no message either.
+    ///
+    /// Only what is selected, never a group's whole membership: a group holds every message of its
+    /// days, and collecting them all would be a set the size of the folder for the answer
+    /// "nothing", which is the usual one.
+    ///
+    /// Asked by the readers of the selection and not only by [`Session::drop_folded_selection`],
+    /// which `normalize` runs after every command, because a fold comes over a selection with no
+    /// command running at all: at midnight Today becomes Yesterday, the list is built again for
+    /// the new day, and what was selected in Today is inside a collapsed Yesterday. The next
+    /// command would act on it before `normalize` ever looked.
+    pub(crate) fn hidden_of_selection(&self, rows: &[Row]) -> HashMap<Id, Id> {
+        if self.sel.messages.is_empty() {
+            return HashMap::new();
+        }
+        let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        rows.iter()
+            .filter(|r| r.under.is_none() && r.folded.is_some())
+            .flat_map(|r| r.members.iter().chain(r.others.iter()).filter(|m| selected.contains(m)).map(|m| (*m, r.id)))
+            .collect()
+    }
+
+    /// [`Session::hidden_of_selection`], as the set of what is hidden.
+    pub(crate) fn hidden_in(&self, rows: &[Row]) -> HashSet<Id> {
+        self.hidden_of_selection(rows).into_keys().collect()
+    }
+
     /// Whether the selection ends on a collapsed group's row of the message list (#929). Such a
     /// row is the switch that expands the group again and stands for no message, its own
     /// included: no command acts on it ([`Session::acting_on`]), and the reading pane shows none.
@@ -3246,7 +3274,13 @@ impl Session {
             return false;
         }
         match self.rows_in_view() {
-            Some(rows) => rows.iter().any(|r| r.id == id && r.under.is_none() && r.folded.is_some()),
+            // On a row of the list: a collapsed group's row stands for no message, any other row
+            // stands for its own. On no row at all: a fold may have come over the focus with no
+            // command running (midnight), so the folded rows are asked whether they hold it. That
+            // walk is the slow one, and this is the only way to it: a message the list shows is
+            // one of its rows.
+            Some(rows) if rows.iter().any(|r| r.id == id) => rows.iter().any(|r| r.id == id && r.under.is_none() && r.folded.is_some()),
+            Some(rows) => rows.iter().any(|r| r.under.is_none() && r.folded.is_some() && (r.members.contains(&id) || r.others.contains(&id))),
             // The rows the list was built from can't be read here (the day rolled over, the word
             // index finished, a zone changed), and a group is collapsed: whether the focus is on
             // its row is unknown. The answer that refuses a command is the one to give, because
@@ -3280,6 +3314,7 @@ impl Session {
     /// [`Session::acting_on`], with the list's `rows`.
     pub fn acting_on_in(&self, rows: &[Row]) -> Vec<Id> {
         let whole: HashSet<Id> = self.sel.whole.iter().copied().collect();
+        let hidden = self.hidden_in(rows);
         // The row each selected message is on top of, and the row of a message it was picked as
         // the conversation by, which another may be on top of now (looked for only then).
         let tops = rows.iter().filter(|r| r.under.is_none());
@@ -3296,8 +3331,9 @@ impl Session {
         let mut out = Vec::new();
         for id in &self.sel.messages {
             // A collapsed group's row (#929) is the switch that expands the group, and stands for
-            // no message, its own included: nothing of it is acted on while the group is collapsed.
-            if rows_of.get(id).is_some_and(|r| r.folded.is_some()) {
+            // no message, its own included: nothing of it is acted on while the group is
+            // collapsed, and nothing the group hides either.
+            if hidden.contains(id) || rows_of.get(id).is_some_and(|r| r.folded.is_some()) {
                 continue;
             }
             let members = rows_of.get(id).filter(|r| r.conversation() && (whole.contains(id) || (!r.open && r.id == *id)));
@@ -3369,8 +3405,8 @@ impl Session {
             return self.sel.messages.clone();
         }
         let rows = self.rows();
-        let folded: HashSet<Id> = rows.iter().filter(|r| r.under.is_none() && r.folded.is_some()).map(|r| r.id).collect();
-        self.sel.messages.iter().copied().filter(|id| !folded.contains(id)).collect()
+        let hidden = self.hidden_in(&rows);
+        self.sel.messages.iter().copied().filter(|id| !hidden.contains(id)).collect()
     }
 
     /// No selected message is hidden by a collapsed group (#929). A collapsed group is one row,
@@ -3391,16 +3427,11 @@ impl Session {
         if self.sel.messages.is_empty() || !self.folds_now() {
             return;
         }
-        let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
         let rows = self.rows();
-        // What the collapsed groups hide of the selection, each with the row that hides it. Only
-        // those: a group holds every message of its days, and collecting them all would be a set
-        // the size of the folder for the answer "nothing", which is the usual one.
-        let hidden: HashMap<Id, Id> = rows
-            .iter()
-            .filter(|r| r.under.is_none() && r.folded.is_some())
-            .flat_map(|r| r.members.iter().chain(r.others.iter()).filter(|m| **m != r.id && selected.contains(m)).map(|m| (*m, r.id)))
-            .collect();
+        let mut hidden = self.hidden_of_selection(&rows);
+        // The groups' own rows stay selected: such a row is the switch that expands the group, and
+        // the focus lands on it for the keyboard to carry on from there.
+        hidden.retain(|m, head| m != head);
         if hidden.is_empty() {
             return;
         }

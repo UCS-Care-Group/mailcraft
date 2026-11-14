@@ -353,23 +353,31 @@ fn collapse(s: &mut Session, groups: Vec<String>, trim: bool) -> CmdResult {
         return Err(bad("too many folders have collapsed groups: expand the groups of another folder first"));
     }
     // A heading too long to be kept would be stored and then skipped, and would take one of the
-    // places all the same: it is refused here, wherever the headings came from (#929).
-    if let Some(long) = groups.iter().find(|g| g.chars().count() > crate::Prefs::GROUP_CHARS) {
-        return Err(failed!("the heading \"{group}\" is longer than 254 characters", group = long.chars().take(40).collect::<String>()));
+    // places all the same (#929). Named, it is refused, so that nobody is told a group collapsed
+    // that didn't; from Collapse All it stays open and is counted with the rest that didn't fit,
+    // because one sender's name of 255 characters would otherwise refuse the whole list (#1318).
+    let long = |g: &String| g.chars().count() > crate::Prefs::GROUP_CHARS;
+    if !trim && let Some(name) = groups.iter().find(|g| long(g)) {
+        return Err(failed!("the heading \"{group}\" is longer than 254 characters", group = name.chars().take(40).collect::<String>()));
     }
     // What is collapsed already takes no new place, and the order they came in is the list's: of
     // more groups than fit, the ones nearest the top are the ones that collapse.
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut new: Vec<String> = Vec::new();
+    let mut unstorable = 0;
     for group in &groups {
         if seen.insert(group.as_str()) && kept.is_none_or(|k| !k.contains(group)) {
-            new.push(group.clone());
+            if long(group) {
+                unstorable += 1;
+            } else {
+                new.push(group.clone());
+            }
         }
     }
     let here = kept.map_or(0, std::collections::BTreeSet::len);
     let folder_room = crate::Prefs::COLLAPSED_GROUPS.saturating_sub(here);
     let room = if folders_full { 0 } else { folder_room.min(crate::Prefs::COLLAPSED_TOTAL.saturating_sub(prefs.collapsed_count())) };
-    let left = new.len().saturating_sub(room);
+    let left = new.len().saturating_sub(room) + unstorable;
     if left > 0 {
         if !trim {
             // Which cap was met: an agent that is told only "too many" can't tell what to expand.

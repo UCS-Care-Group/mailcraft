@@ -796,11 +796,12 @@ fn a_message_after_pinned_is_in_no_group() {
     assert!(s.rows().iter().all(|r| r.folded.is_none()), "and nothing is collapsed: {:?}", s.prefs.collapsed_groups);
 }
 
-/// A heading too long to be kept is refused wherever it came from (#929): stored, it would be
-/// skipped when the groups are read back and the group would stay open, while still taking one
-/// of the places the folder has.
+/// A heading too long to be kept is refused when it is named (#929): stored, it would be skipped
+/// when the groups are read back and the group would stay open, while still taking one of the
+/// places the folder has. From Collapse All it stays open and is counted with the rest that didn't
+/// fit, because one sender's name of 255 characters would otherwise refuse the whole list (#1318).
 #[test]
-fn a_heading_too_long_is_refused_from_collapse_all_too() {
+fn a_heading_too_long_stays_open_and_is_counted() {
     let (mut s, _) = inbox();
     let long = "N".repeat(crate::Prefs::GROUP_CHARS + 1);
     let folder = s.view.folder;
@@ -812,9 +813,35 @@ fn a_heading_too_long_is_refused_from_collapse_all_too() {
     run(&mut s, "view.sort", json!({"by": "from"}));
     assert!(s.rows().iter().any(|r| r.group.as_deref() == Some(long.as_str())), "the long name is a heading of the list");
 
-    assert!(s.run("view.collapseAllGroups", &json!({})).is_err(), "Collapse All is refused rather than storing it");
-    assert!(s.prefs.collapsed_groups.is_empty(), "and nothing is kept: {:?}", s.prefs.collapsed_groups);
-    assert!(s.run("view.collapseGroup", &json!({"group": long})).is_err(), "and so is naming it");
+    let answer = run(&mut s, "view.collapseAllGroups", json!({}));
+    assert_eq!(answer["left"], json!(1), "the heading too long is what stayed open: {answer}");
+    let kept = &s.prefs.collapsed_groups[&folder];
+    assert!(!kept.contains(&long), "it is not kept: {kept:?}");
+    assert!(kept.iter().all(|g| g.chars().count() <= Prefs::GROUP_CHARS), "and nothing like it: {kept:?}");
+    assert!(!kept.is_empty(), "while the other groups of the list did collapse");
+    assert!(s.rows().iter().any(|r| r.group.as_deref() == Some(long.as_str()) && r.folded.is_none()), "its group shows whole");
+    assert!(s.run("view.collapseGroup", &json!({"group": long})).is_err(), "and naming it is still refused");
+}
+
+/// A fold comes over a selection with no command running (#1318): at midnight Today becomes
+/// Yesterday, the list is built again for the new day, and what was selected in Today is inside a
+/// collapsed group. `normalize` takes it out of the selection after a command, so the command
+/// itself is the one that would act on it first, and Delete would take mail out of sight.
+#[test]
+fn nothing_acts_on_what_a_fold_hid_before_the_next_command() {
+    let (mut s, _) = inbox();
+    let (group, inside) = a_group_and_a_message_in_it(&mut s);
+    run(&mut s, "view.collapseGroup", json!({"group": group}));
+    // The selection as the day's end leaves it: of before the fold, and no command since.
+    s.sel.messages = vec![inside];
+    assert!(!s.rows().iter().any(|r| r.id == inside), "the list of the new day doesn't show it");
+
+    assert!(s.selected_alone().is_empty(), "the commands that take the selection take nothing");
+    assert!(s.acting_on().is_empty(), "Delete and Move take nothing");
+    assert!(s.reading().is_none(), "and the reading pane shows no message");
+    let was = s.mailbox.message(inside).unwrap().folder;
+    let _ = s.run("mail.delete", &json!({}));
+    assert_eq!(s.mailbox.message(inside).unwrap().folder, was, "the message stayed where it was");
 }
 
 /// A list arranged by categories never folds, whatever is kept for the folder (#929): a message

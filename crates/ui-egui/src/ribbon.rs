@@ -1340,8 +1340,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             });
         }
         Menu::Rules => {
-            // (Not for a collapsed group's row, which stands for no message, #929.)
-            if !app.session.sel.messages.is_empty() && !app.session.on_collapsed_group() {
+            // The sender is the one of the message being read, which a collapsed group's row is
+            // not (#929): the item would open the dialog with nothing to build a rule from.
+            if app.session.reading().is_some() {
                 // A shared mailbox's rules are its own, which this version doesn't make: one for
                 // the owner's account would move the owner's own mail into the shared mailbox.
                 let mb = &app.session.mailbox;
