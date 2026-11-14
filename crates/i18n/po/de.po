@@ -6988,7 +6988,7 @@ msgstr "Nachrichten im Ordner selbst"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
-msgstr "Nachrichten behalten die Farben, die Ihre Absender gewählt haben, auf einer weißen Seite, während der Rest des Fensters dunkel bleibt."
+msgstr "Nachrichten behalten die Farben, die ihre Absender gewählt haben, auf einer weißen Seite, während der Rest des Fensters dunkel bleibt."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -10425,7 +10425,7 @@ msgstr "Geben Sie an, welches Konto ausgelassen werden soll"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Say which group of calendars (`group`: its heading)"
-msgstr "Geben Sie die Kalendergruppe an (`group`: Ihre Überschrift)"
+msgstr "Geben Sie die Kalendergruppe an (`group`: ihre Überschrift)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11754,7 +11754,7 @@ msgstr "Jemand anderes"
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "Somebody else organizes this meeting: it stays in the calendar its invitation came to."
-msgstr "Diese Besprechung organisiert jemand anderes: Sie bleibt in dem Kalender, in den Ihre Einladung kam."
+msgstr "Diese Besprechung organisiert jemand anderes: Sie bleibt in dem Kalender, in den ihre Einladung kam."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -13818,8 +13818,8 @@ msgstr "Diese Kopie von MailCraft aktualisiert sich nicht selbst."
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
 msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
-msgstr[0] "Damit wird die Unterhaltung aus {folder} gelöscht: Ihre {n} Nachricht dort kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit wird die Unterhaltung aus {folder} gelöscht: Ihre {n} Nachrichten dort kommen in „Gelöschte Elemente“."
+msgstr[0] "Damit wird die Unterhaltung aus {folder} gelöscht: Die {n} Nachricht dort kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit wird die Unterhaltung aus {folder} gelöscht: Die {n} Nachrichten dort kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14085,7 +14085,7 @@ msgstr "Diese Besprechung ist hier noch nicht in Ihrem Kalender. Sie kann beantw
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "This meeting was called off by its organizer."
-msgstr "Diese Besprechung wurde von Ihrem Organisator abgesagt."
+msgstr "Diese Besprechung wurde von ihrem Organisator abgesagt."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -18391,7 +18391,7 @@ msgstr "{counted} · Angehalten bis zum nächsten Senden/Empfangen"
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{count} messages weren't searched in full: only their beginning is here until they download."
-msgstr "{count} Nachrichten wurden nicht vollständig durchsucht: Bis sie heruntergeladen sind, ist nur Ihr Anfang hier."
+msgstr "{count} Nachrichten wurden nicht vollständig durchsucht: Bis sie heruntergeladen sind, ist nur ihr Anfang hier."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
