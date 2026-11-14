@@ -73,8 +73,21 @@ const LABEL_OVERHEAD: usize = std::mem::size_of::<String>();
 /// Text a listing of flags may take for each message the mailbox may report, beyond
 /// [`MAX_COMMAND_TEXT`]: a big folder's listing (Gmail's, with labels, runs to a few hundred
 /// bytes a message) is never cut short for being big (#1153), and what a hostile server can send
-/// stays bounded by the mailbox's size. Only a count: what is kept is bounded on its own.
+/// stays bounded by the mailbox's size, and by [`MAX_FETCH_TEXT`] whatever size it claims. Only
+/// a count: what is kept is bounded on its own ([`MAX_FLAG_BYTES`], [`MAX_GMAIL_LABEL_BYTES`]).
 const FETCH_TEXT_PER_MESSAGE: usize = 2 << 10;
+/// Most text a listing of flags may take, however many messages the mailbox claims.
+const MAX_FETCH_TEXT: usize = 256 << 20;
+/// Most bytes of flags one fetch keeps, all its messages together, each message counted with
+/// [`ENTRY_OVERHEAD`] and each flag with [`FLAG_OVERHEAD`]: past it the listing fails, so that a
+/// server claiming a huge mailbox can't fill memory and no message is taken to have lost its flags.
+/// Room for over a million messages with a few flags each.
+const MAX_FLAG_BYTES: usize = 256 << 20;
+/// What a flag kept costs beyond its bytes (its `String`).
+const FLAG_OVERHEAD: usize = std::mem::size_of::<String>();
+/// What a message kept in a listing costs beyond its flags and labels: its entry in the map, with
+/// room for the map's own nodes.
+const ENTRY_OVERHEAD: usize = 2 * std::mem::size_of::<(u32, (Vec<String>, Option<u64>, Option<Vec<String>>))>();
 const MAX_CAPABILITIES: usize = 256;
 /// Longest string sent in quotes; a longer one goes as a literal.
 const MAX_QUOTED: usize = 1_000;
@@ -865,8 +878,9 @@ impl<S: Read + Write> Imap<S> {
 
     fn fetch_flags(&mut self, set: &str, ids: bool, labels_wanted: bool) -> Result<Vec<Fetched>, ProtoError> {
         let mut found: BTreeMap<u32, (Vec<String>, Option<u64>, Option<Vec<String>>)> = BTreeMap::new();
-        // The bytes of labels kept so far, all messages together.
+        // The bytes of labels and of flags kept so far, all messages together.
         let mut label_bytes = 0usize;
+        let mut flag_bytes = 0usize;
         let items = match (ids, labels_wanted) {
             (true, true) => "(UID FLAGS X-GM-MSGID X-GM-LABELS)",
             (true, false) => "(UID FLAGS X-GM-MSGID)",
@@ -876,13 +890,23 @@ impl<S: Read + Write> Imap<S> {
         let command = Self::fetch(set, items)?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         self.response_cap = wanted.responses();
-        self.text_cap = MAX_COMMAND_TEXT.max(wanted.cap.saturating_mul(FETCH_TEXT_PER_MESSAGE));
+        let claimed = usize::try_from(self.selected.exists).unwrap_or(usize::MAX);
+        self.text_cap = claimed.saturating_mul(FETCH_TEXT_PER_MESSAGE).clamp(MAX_COMMAND_TEXT, MAX_FETCH_TEXT);
         let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
-            if let Some(item) = Item::from(values)
+            if flag_bytes <= MAX_FLAG_BYTES
+                && let Some(item) = Item::from(values)
                 && wanted.wants(item.uid)
                 && (found.contains_key(&item.uid) || wanted.room(found.len()))
             {
+                // Each word counted as it comes, a repeat included: past the budget nothing more
+                // is kept and the listing fails below.
+                let size = item.flags.iter().flatten().map(|flag| flag.len().saturating_add(FLAG_OVERHEAD)).sum::<usize>();
+                let entry = if found.contains_key(&item.uid) { 0 } else { ENTRY_OVERHEAD };
+                flag_bytes = flag_bytes.saturating_add(size).saturating_add(entry);
+                if flag_bytes > MAX_FLAG_BYTES {
+                    return;
+                }
                 let (flags, id, labels) = found.entry(item.uid).or_default();
                 // When the server speaks of a message twice, its later word counts.
                 if let Some(later) = item.flags {
@@ -903,6 +927,9 @@ impl<S: Read + Write> Imap<S> {
         self.response_cap = MAX_RESPONSES;
         self.text_cap = MAX_COMMAND_TEXT;
         answered?;
+        if flag_bytes > MAX_FLAG_BYTES {
+            return Err(ProtoError::Protocol(said!("more flags than one listing keeps")));
+        }
         wanted.check()?;
         Ok(found
             .into_iter()
