@@ -29,15 +29,15 @@ pub enum Event {
 }
 
 impl Shed for Event {
-    /// What a full queue keeps: questions, sign-ins, notifications and the reminders' change are
-    /// acted on and go last; a revision is replaced by a newer one; progress by the next.
+    /// What a full queue keeps: questions and sign-ins go last; notifications and the reminders'
+    /// change before them (the schedule is asked for again, a notification is a moment's);
+    /// a revision is replaced by a newer one; progress by the next.
     fn weight(&self) -> Weight {
         match self {
             Event::SyncProgress { .. } => Weight::Progress,
             Event::RevChanged { .. } => Weight::Replaced,
-            Event::SignInNeeded { .. } | Event::PermissionQuestion { .. } | Event::Notification { .. } | Event::ReminderScheduleChanged => {
-                Weight::Actionable
-            }
+            Event::Notification { .. } | Event::ReminderScheduleChanged => Weight::Notice,
+            Event::SignInNeeded { .. } | Event::PermissionQuestion { .. } => Weight::Actionable,
         }
     }
 }

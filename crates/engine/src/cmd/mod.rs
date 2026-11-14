@@ -6,6 +6,8 @@ pub mod account;
 #[cfg(test)]
 mod account_color_tests;
 #[cfg(test)]
+mod account_name_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -39,6 +41,8 @@ pub mod folder;
 #[cfg(test)]
 mod folder_empty_tests;
 #[cfg(test)]
+mod folder_kind_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -71,6 +75,7 @@ mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+pub mod jmap_up;
 pub mod junk;
 #[cfg(test)]
 mod junk_tests;
@@ -84,6 +89,8 @@ mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
+#[cfg(test)]
+mod navigation_bar_tests;
 #[cfg(test)]
 mod newer_account_tests;
 pub mod notes;
@@ -230,15 +237,6 @@ pub(crate) fn done() -> CmdResult {
 /// Enabled only with a message selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
-}
-
-/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
-/// which stays where it is until moves and deletions go up (M6).
-/// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon and menus.
-pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| {
-        (s.mailbox.has_jmap_account() && s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id))).then_some(mailcraft_model::NOT_MOVING_YET)
-    })
 }
 
 /// Enabled only while a message is being written.

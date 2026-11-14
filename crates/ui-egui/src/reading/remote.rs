@@ -146,6 +146,18 @@ pub struct RemotePictures {
 }
 
 impl RemotePictures {
+    /// Let go of the pictures from the web kept in memory (the window is out of sight,
+    /// [`crate::out_of_sight`]), and of what was counted of them for each message: they are asked
+    /// for again (from the host's own cache first) when their message is next shown. What is on
+    /// its way is not waited for, and not kept, as when the owner clears the pictures. What the
+    /// owner allowed stays allowed.
+    pub(crate) fn let_go(&mut self, ctx: &egui::Context) {
+        self.flying.clear();
+        self.waiting.clear();
+        self.spent.clear();
+        Pictures::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).let_go();
+    }
+
     fn spent(&self, message: Id) -> Spent {
         self.spent.iter().find(|(id, _)| *id == message).map(|(_, spent)| *spent).unwrap_or_default()
     }
@@ -463,9 +475,24 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": true}));
                 }
             }
-            // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
-            // server doesn't vouch for, so it is not offered there.
-            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
+            // Remembering a sender does nothing for what is in Junk E-mail, so it is not offered
+            // there. Where the server doesn't vouch for the address the option is shown greyed out
+            // with the reason, and the domain's is left out (#1347).
+            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m)) else { return };
+            if !vouched(app.session.mailbox.account(m.account), m) {
+                // The bar already says a remembered sender is asked first: nothing more to say.
+                if sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email) {
+                    return;
+                }
+                let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
+                let why = crate::i18n::fmt(
+                    tl!("Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."),
+                    &[("sender", &short(&from, 60))],
+                );
+                // Not registered with `app.hit`: there is nothing to click.
+                ui.add(egui::Label::new(egui::RichText::new(label).font(semibold(11.5)).color(t.text_dim)).sense(Sense::hover())).on_hover_text(why);
+                return;
+            }
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
             let always = action(ui, label, tl!("Remembered in the settings; File › Options lists the senders and takes them off again."));
             if place == Place::Pane {

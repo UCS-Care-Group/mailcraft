@@ -182,7 +182,7 @@ fn a_protected_message_keeps_its_bytes_and_others_keep_none() {
         let m = parse_fetched(bytes);
         assert_eq!(m.original_bytes(), Some(bytes), "{}", String::from_utf8_lossy(bytes));
         // Everything else is read as `parse` reads it.
-        assert_eq!(mailcraft_model::Message { original: None, ..m }, parse(bytes));
+        assert_eq!(crate::Message { original: None, ..m }, parse(bytes));
     }
     let plain = b"From: ada@example.org\r\nSubject: plain\r\n\r\nHello.\r\n";
     assert_eq!(parse_fetched(plain).original, None);
@@ -231,7 +231,7 @@ fn written_its_body_is_the_original_and_its_header_the_message() {
     assert!(!String::from_utf8_lossy(kept).contains(PLACE_HEADER));
     assert_eq!(body(kept), body(SMIME_SIGNED));
     // A draft is the owner's own: it is built from its parts.
-    let draft = mailcraft_model::Message { draft: true, ..m };
+    let draft = crate::Message { draft: true, ..m };
     assert_ne!(body(&write(&draft, &WriteOptions::default())), body(SMIME_SIGNED));
 }
 
@@ -239,8 +239,8 @@ fn written_its_body_is_the_original_and_its_header_the_message() {
 fn the_owners_marks_travel_and_forged_or_bent_fields_dont_get_in() {
     let mut m = parse_fetched(SMIME_SIGNED);
     m.categories = vec!["Taxes".into()];
-    m.flag = mailcraft_model::FlagStatus::Flagged;
-    m.importance = mailcraft_model::Importance::High;
+    m.flag = crate::FlagStatus::Flagged;
+    m.importance = crate::Importance::High;
     m.subject = "Signed\r\nBcc: evil@example.org".into();
     let out = write(&m, &WriteOptions::default());
     let head = head(&out);
@@ -339,7 +339,7 @@ fn long_content_fields_are_folded_or_left_out() {
     let smime = String::from_utf8_lossy(SMIME_SIGNED).into_owned();
     let long = smime.replace("micalg=sha-256;", &format!("micalg=sha-256; x-a=\"{}\";", "a ".repeat(700)));
     let m = parse_fetched(long.as_bytes());
-    assert!(m.has_original());
+    assert!(m.original_bytes().is_some());
     let out = write(&m, &WriteOptions::default());
     assert!(String::from_utf8_lossy(&out).split("\r\n").all(|line| line.len() <= 998));
     assert_eq!(body(&out), body(SMIME_SIGNED));
@@ -485,4 +485,19 @@ proptest! {
         let _ = protection(text.as_bytes());
         let _ = parse_fetched(text.as_bytes());
     }
+}
+
+#[test]
+fn a_block_of_armour_is_begin_and_end() {
+    use crate::protected::has_armour_block;
+    assert!(has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n-----END PGP MESSAGE-----\n"));
+    assert!(has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\r\nHi\r\n-----BEGIN PGP SIGNATURE-----\r\nx\r\n-----END PGP SIGNATURE-----"));
+    assert!(!has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n"));
+    assert!(!has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\nHi\n-----END PGP SIGNATURE-----\n"));
+    assert!(!has_armour_block(b"-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n"));
+    assert!(!has_armour_block(b"> -----BEGIN PGP MESSAGE-----\n> -----END PGP MESSAGE-----\n"));
+    assert!(!has_armour_block(b""));
+    // Past the scan, an END isn't looked for.
+    let late = [&b"-----BEGIN PGP MESSAGE-----\n"[..], &vec![b'a'; crate::protected::MAX_ARMOUR_SCAN], b"\n-----END PGP MESSAGE-----\n"].concat();
+    assert!(!has_armour_block(&late));
 }

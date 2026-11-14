@@ -43,6 +43,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
+# The Graph run's seams, which the flow tests go through with a renewal of their own.
+mailcraft-host = { workspace = true, features = ["test-support"] }
 # The tests run the whole way of a calendar change, and of reading Outlook's Favorites, against
 # a stand-in for Microsoft Graph that takes only what the documented service takes
 # (`mailcraft_net::graph::standin`).
@@ -103,6 +105,8 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 ] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+# Native tray/menu-bar icon, using the existing MailCraft artwork; no GTK dependency on Unix.
+tray-icon = { version = "0.26", default-features = false }
 # A password or sign-in the owner asks to be remembered goes to the operating system's credential
 # store (Windows Credential Manager, the macOS keychain), never to a file of ours. keyring-core is
 # the keyring crate's API: keyring 4 is only a wrapper over it and the stores named here, and its
@@ -125,6 +129,8 @@ windows = { version = "0.62", features = [
     "Foundation_Collections",
     "Data_Xml_Dom",
     "UI_Notifications",
+    # Whether the system plays animations (`system_motion.rs`, #1183).
+    "UI_ViewManagement",
     "Security_Cryptography",
     "Security_Cryptography_Certificates",
     "Security_Cryptography_Core",
@@ -134,6 +140,9 @@ windows = { version = "0.62", features = [
 base64 = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+# Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
+# Already part of winit's X11 backend; the pure Rust connector performs authentication too.
+x11rb = { version = "0.13", default-features = false }
 # S/MIME keys on PKCS#11 tokens (`key_holders/pkcs11.rs`, #30): smartcards through OpenSC and what
 # p11-kit's proxy gathers. Apache-2.0 (the Parsec project's); loading the module and calling it
 # are its unsafe, behind a safe API. Under it: cryptoki-sys (Apache-2.0), libloading (ISC) and
@@ -165,6 +174,8 @@ arboard = { version = "3.7", default-features = false, features = ["wayland-data
 winit = { version = "0.30", default-features = false, features = ["wayland", "x11", "wayland-csd-adwaita-notitle"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))'.dependencies]
+# StatusNotifierItem and its menu over D-Bus, without GTK or a second GUI event loop.
+ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
 # "Use system setting" follows the desktop's light or dark preference, which winit doesn't report
 # on these systems: read from the XDG desktop portal's settings over the session's D-Bus, and
 # followed as it changes (`desktop_theme.rs`, #73). Already in the tree (accesskit's, the Secret

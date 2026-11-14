@@ -58,7 +58,7 @@ const FIELD_MARGIN: Margin = Margin::symmetric(8, 6);
 pub enum Page {
     /// Type the address.
     Address,
-    /// The host is asking the DNS who takes the domain's mail.
+    /// The host is asking the DNS who takes the domain's mail, and where its Autodiscover is.
     Detecting,
     /// Pick the kind of account by hand.
     Choose,
@@ -83,6 +83,9 @@ pub enum Page {
     Done,
     /// The settings of an account that exists already.
     Settings,
+    /// The domain's DNS names a host for Autodiscover that isn't Microsoft's: an Exchange
+    /// server's, or a hoster's that hands IMAP settings out that way too. The owner says which.
+    ExchangeOrImap,
     /// An Exchange server account (#252): the password, and Server settings.
     Exchange,
     /// The host is searching for the Exchange server and trying the account.
@@ -115,8 +118,8 @@ impl Kind {
     /// The kinds that have servers, in the order of their tiles.
     const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
 
-    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (an explicit
-    /// choice: nothing detects it).
+    /// The tiles of the Choose page: the kinds with servers, and the Exchange server (found from
+    /// the domain's Autodiscover records when it publishes them, and chosen here otherwise).
     fn tiles() -> Vec<Kind> {
         let mut tiles = Kind::HOSTED.to_vec();
         tiles.push(Kind::Exchange);
@@ -209,6 +212,10 @@ pub enum Action {
     UseSignedIn,
     /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
     KeepAlias,
+    /// Not an Exchange server after all: on to IMAP servers, guessed from the domain.
+    Imap,
+    /// Ask the domain's DNS again where its Autodiscover is (Search again).
+    LookAgain,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -371,6 +378,8 @@ pub struct Preset {
     found: Option<Via>,
     /// Which of the two servers are such a guess, the incoming first.
     guessed: (bool, bool),
+    /// Where each of the two servers came from, the incoming first; `None` for a guess.
+    sources: (Option<Via>, Option<Via>),
 }
 
 impl Preset {
@@ -382,6 +391,7 @@ impl Preset {
         let via = |k: &str| v.get(k).and_then(|server| server.get("via")).and_then(Value::as_str).unwrap_or_default();
         let known = v.get("known").and_then(Value::as_bool).unwrap_or(false);
         let found = if known { None } else { v.get("via").and_then(Value::as_str).and_then(Via::parse) };
+        let sources = if found.is_some() { (Via::parse(via("incoming")), Via::parse(via("outgoing"))) } else { (None, None) };
         Preset {
             known,
             service: text("service", 60),
@@ -391,17 +401,17 @@ impl Preset {
             outgoing: ServerFields::read(v.get("outgoing")),
             note: text("note", 300),
             found,
-            guessed: if found.is_some() { (Via::parse(via("incoming")).is_none(), Via::parse(via("outgoing")).is_none()) } else { (false, false) },
+            guessed: if found.is_some() { (sources.0.is_none(), sources.1.is_none()) } else { (false, false) },
+            sources,
         }
     }
 
-    /// The hosts that were found rather than guessed, in lower case.
-    fn found_hosts(&self) -> Vec<String> {
-        [(&self.incoming, self.guessed.0), (&self.outgoing, self.guessed.1)]
+    /// The hosts that were found rather than guessed, in lower case, each with where it was found.
+    fn found_hosts(&self) -> Vec<(String, Via)> {
+        [(&self.incoming, self.sources.0), (&self.outgoing, self.sources.1)]
             .into_iter()
-            .filter(|(_, guessed)| !guessed)
-            .map(|(server, _)| server.host.trim().to_ascii_lowercase())
-            .filter(|host| !host.is_empty())
+            .filter_map(|(server, source)| source.map(|via| (server.host.trim().to_ascii_lowercase(), via)))
+            .filter(|(host, _)| !host.is_empty())
             .collect()
     }
 }
@@ -440,6 +450,9 @@ pub struct AccountSetup {
     email: String,
     /// The owner's name, as recipients see it.
     name: String,
+    /// For the settings of an account: the name the folder pane calls it by, empty while that is
+    /// its address (#1017).
+    account_name: String,
     /// Advanced options are shown.
     advanced: bool,
     /// Skip detection and ask for the kind of account.
@@ -461,9 +474,10 @@ pub struct AccountSetup {
     guessed: bool,
     /// The servers (or one of them) were found in the domain's own records or a database
     /// (#1063): where, so the page says so; which hosts, so that one outside the owner's
-    /// domain is asked about before the password goes there; and the hosts the owner agreed to.
+    /// domain is asked about before the password goes there, each with the source that named
+    /// it, so that the question says who did; and the hosts the owner agreed to.
     found: Option<Via>,
-    found_hosts: Vec<String>,
+    found_hosts: Vec<(String, Via)>,
     agreed_hosts: Vec<String>,
     password: Secret,
     /// The application (client) ID Microsoft's sign-in goes by.
@@ -476,6 +490,12 @@ pub struct AccountSetup {
     focus: bool,
     /// What the host found out about the domain (its mail exchangers, its own records), once it has it.
     lookup: Option<Receiver<Result<Discovered, String>>>,
+    /// The hosts the domain names for Autodiscover, once the host has them: asked beside the
+    /// exchangers, and looked at when those name nobody this program knows.
+    autodiscover: Option<Receiver<Result<Vec<String>, String>>>,
+    /// What the lookup found when it named no provider this program knows: kept while the
+    /// Autodiscover answer is awaited, and for IMAP when the owner says it isn't Exchange.
+    discovered: Option<Discovered>,
     /// Whether the servers took the password, once the host knows.
     check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
     /// The owner is in the browser, signing in for this wizard.
@@ -587,6 +607,7 @@ impl AccountSetup {
             page,
             email: String::new(),
             name: String::new(),
+            account_name: String::new(),
             advanced: false,
             manual: false,
             picked: false,
@@ -610,6 +631,8 @@ impl AccountSetup {
             error: String::new(),
             focus: true,
             lookup: None,
+            autodiscover: None,
+            discovered: None,
             check: None,
             waiting: false,
             reconnecting_google: false,
@@ -679,6 +702,9 @@ impl AccountSetup {
         let mut w = AccountSetup::blank(Page::Settings);
         w.email = line(&a.email, LINE);
         w.name = line(&a.display_name, LINE);
+        if !a.named_by_address() {
+            w.account_name = line(&a.name, LINE);
+        }
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
@@ -743,6 +769,7 @@ impl AccountSetup {
                 records.insert("outgoing".into(), server(outgoing));
             }
             if !records.is_empty() {
+                records.insert("username".into(), json!(line(&found.username, LINE)));
                 m.insert("found".into(), Value::Object(records));
             }
         }
@@ -840,6 +867,7 @@ impl AccountSetup {
     /// The fields Account Settings can change, as `account.edit` takes them.
     fn fields(&self) -> Map<String, Value> {
         let mut m = object(json!({
+            "name": self.account_name.trim(),
             "displayName": self.name.trim(),
             "username": self.username.trim(),
             "incoming": self.incoming.value(),
@@ -893,6 +921,11 @@ impl AccountSetup {
     // ---- moving between pages ----
 
     fn go(&mut self, page: Page) {
+        // A Search again still out is the Exchange page's: leaving the page drops it, so that its
+        // answer never lands on another address, nor keeps frames coming.
+        if self.page == Page::Exchange && page != Page::Exchange {
+            self.autodiscover = None;
+        }
         self.page = page;
         // A password shown on one page is dots on the next.
         self.reveal = false;
@@ -925,12 +958,33 @@ impl AccountSetup {
     /// The hosts among the servers that the domain's records named (#1063) and that lie outside
     /// the owner's domain, which the owner hasn't agreed to yet: the password goes to none of
     /// them before the owner has been asked, naming them. A host the owner typed is their own.
+    /// Where the servers that were found came from, each source once, the incoming server's
+    /// first; none for a guess or a provider this program knows.
+    fn sources(&self) -> Vec<Via> {
+        let mut sources: Vec<Via> = Vec::new();
+        for via in self.found_hosts.iter().map(|(_, via)| *via).chain(self.found) {
+            if !sources.contains(&via) {
+                sources.push(via);
+            }
+        }
+        if self.found.is_some() { sources } else { Vec::new() }
+    }
+
+    /// The source that named `host` (in lower case); the servers' own when nothing says.
+    fn source_of(&self, host: &str) -> Via {
+        self.found_hosts.iter().find(|(found, _)| found == host).map(|(_, via)| *via).or(self.found).unwrap_or(Via::Srv)
+    }
+
     fn hosts_to_ask(&self) -> Vec<String> {
         let Some((_, domain)) = address(&self.email) else { return Vec::new() };
         let domain = domain.to_ascii_lowercase();
         let mut hosts: Vec<String> = Vec::new();
         for host in [&self.incoming.host, &self.outgoing.host].map(|host| host.trim().to_ascii_lowercase()) {
-            if self.found_hosts.contains(&host) && !is_within(&host, &domain) && !self.agreed_hosts.contains(&host) && !hosts.contains(&host) {
+            if self.found_hosts.iter().any(|(found, _)| *found == host)
+                && !is_within(&host, &domain)
+                && !self.agreed_hosts.contains(&host)
+                && !hosts.contains(&host)
+            {
                 hosts.push(host);
             }
         }
@@ -950,7 +1004,7 @@ impl AccountSetup {
         match (self.page, action) {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
-                self.lookup = None;
+                (self.lookup, self.autodiscover) = (None, None);
                 self.go(Page::Address);
             }
             (Page::Choose, Action::Pick(kind)) => self.pick(app, kind),
@@ -1145,21 +1199,31 @@ impl AccountSetup {
         };
         let known = preset.known;
         self.take(preset);
+        self.discovered = None;
         if known {
             self.proceed(app);
             return;
         }
         // A domain nobody here has heard of: the servers are a guess for the owner to check,
-        // unless the domain's mail exchangers say whose it is.
+        // unless the domain's mail exchangers say whose it is, or its Autodiscover records name
+        // a host: Microsoft 365's, or one the owner is asked about (an Exchange server or IMAP).
+        // Only the domain is asked about.
         (self.guessed, self.settings_open) = (true, true);
-        let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase());
+        let Some(domain) = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()) else {
+            self.go(Page::Password);
+            return;
+        };
         // (Working offline, nobody is asked: the servers are a guess to check.)
-        match (app.services.discover.as_ref().filter(|_| !app.offline()), domain) {
-            (Some(lookup), Some(domain)) => {
-                self.lookup = Some(lookup(domain));
-                self.go(Page::Detecting);
-            }
-            _ => self.go(Page::Password),
+        if app.offline() {
+            self.go(Page::Password);
+            return;
+        }
+        self.lookup = app.services.discover.as_ref().map(|lookup| lookup(domain.clone()));
+        self.autodiscover = app.services.lookup_autodiscover.as_ref().map(|lookup| lookup(domain));
+        if self.lookup.is_some() || self.autodiscover.is_some() {
+            self.go(Page::Detecting);
+        } else {
+            self.go(Page::Password);
         }
     }
 
@@ -1608,38 +1672,89 @@ impl AccountSetup {
             }
             Page::Checking => self.poll_check(app),
             Page::ExchangeChecking | Page::ExchangeConsent => self.poll_exchange(app),
+            Page::Exchange => self.poll_look_again(),
             _ => {}
         }
     }
 
+    /// The exchangers first: a provider they name is the answer. Else the Autodiscover records:
+    /// Microsoft 365, or an Exchange server the owner is asked about; else the servers the
+    /// domain's own records name (#1063), or the guess.
     fn poll_lookup(&mut self, app: &mut MailApp) {
-        let answer = match self.lookup.as_ref().map(Receiver::try_recv) {
-            Some(Err(TryRecvError::Empty)) => return,
-            Some(Ok(answer)) => answer,
-            // The host gave up, or nobody was asked.
-            Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
-        };
-        self.lookup = None;
-        let found = answer
-            .ok()
-            .and_then(|found| self.preset_command(Some(&found), None))
-            .and_then(|(command, params)| app.execute(command, params).ok())
-            .map(|v| Preset::read(&v));
-        match found {
-            Some(preset) if preset.known => {
+        if self.lookup.is_some() {
+            let answer = match self.lookup.as_ref().map(Receiver::try_recv) {
+                Some(Err(TryRecvError::Empty)) => return,
+                Some(Ok(answer)) => answer,
+                // The host gave up.
+                Some(Err(TryRecvError::Disconnected)) | None => Err(String::new()),
+            };
+            self.lookup = None;
+            let discovered = answer.ok();
+            let found = discovered
+                .as_ref()
+                .and_then(|found| self.preset_command(Some(found), None))
+                .and_then(|(command, params)| app.execute(command, params).ok())
+                .map(|v| Preset::read(&v))
+                .filter(|preset| preset.known);
+            if let Some(preset) = found {
+                self.autodiscover = None;
                 self.take(preset);
                 self.proceed(app);
+                return;
             }
-            // What the domain's own records name (#1063), with a guess for what they don't: for
-            // the owner to check, with where it came from said.
+            self.discovered = discovered;
+        }
+        let hosts = match self.autodiscover.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) => return,
+            Some(Ok(Ok(hosts))) => hosts,
+            // Not answered, the host gave up, or nobody was asked: nothing is known of it.
+            Some(Ok(Err(_)) | Err(TryRecvError::Disconnected)) | None => Vec::new(),
+        };
+        self.autodiscover = None;
+        match provider::by_autodiscover(&hosts) {
+            provider::Autodiscover::Microsoft => self.microsoft_by_autodiscover(app),
+            provider::Autodiscover::Exchange => self.exchange_or_imap(hosts),
+            // What the domain's own records name (#1063), else the guess made from the domain.
+            provider::Autodiscover::Nothing => self.imap_from_discovered(app),
+        }
+    }
+
+    /// IMAP at a domain whose exchangers name no provider this program knows: the servers its
+    /// own records name (#1063), with a guess for what they don't, for the owner to check, with
+    /// where they came from said; else the guess made from the domain.
+    pub(super) fn imap_from_discovered(&mut self, app: &mut MailApp) {
+        let preset = self
+            .preset_command(self.discovered.as_ref(), None)
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v));
+        match preset {
             Some(preset) if preset.found.is_some() => {
                 let (found, guessed, hosts) = (preset.found, preset.guessed.0 || preset.guessed.1, preset.found_hosts());
                 self.take(preset);
                 (self.found, self.found_hosts, self.guessed, self.settings_open) = (found, hosts, guessed, true);
-                self.go(Page::Password);
             }
-            // The guess made from the domain stays, for the owner to check.
-            _ => self.go(Page::Password),
+            Some(preset) => {
+                self.take(preset);
+                (self.guessed, self.settings_open) = (true, true);
+            }
+            None => {}
+        }
+        self.go(Page::Password);
+    }
+
+    /// The domain's Autodiscover is Microsoft's: the mail is in Microsoft 365, whoever takes it
+    /// in first (a filter in front of it is the mail exchanger then).
+    fn microsoft_by_autodiscover(&mut self, app: &mut MailApp) {
+        let preset = self
+            .preset_command(None, Kind::Microsoft365.service())
+            .and_then(|(command, params)| app.execute(command, params).ok())
+            .map(|v| Preset::read(&v));
+        match preset {
+            Some(preset) => {
+                self.take(preset);
+                self.proceed(app);
+            }
+            None => self.go(Page::Password),
         }
     }
 
@@ -1710,7 +1825,12 @@ impl AccountSetup {
 
     /// Whether the host owes an answer: frames keep coming until it is in.
     fn busy(&self) -> bool {
-        self.lookup.is_some() || self.check.is_some() || self.waiting || self.approval.approving || self.exchange.pending()
+        self.lookup.is_some()
+            || self.autodiscover.is_some()
+            || self.check.is_some()
+            || self.waiting
+            || self.approval.approving
+            || self.exchange.pending()
     }
 
     /// Whether the dialog is finished, by what one of its pages did outside a frame (a command
@@ -1791,6 +1911,7 @@ impl AccountSetup {
             }
             Page::Done => self.done_page(ui, &pass),
             Page::Settings => self.settings_page(app, ui, &mut pass),
+            Page::ExchangeOrImap => self.exchange_or_imap_page(ui, &pass),
             Page::Exchange => self.exchange_form(app, ui, &mut pass),
             Page::ExchangeChecking => self.exchange_checking(ui, &pass),
             Page::ExchangeConsent => self.exchange_consent(ui, &pass),
@@ -1805,14 +1926,33 @@ impl AccountSetup {
     fn server_consent_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         // Whole, however long: two hosts that end alike must not look alike here.
-        let hosts = self.hosts_to_ask().join(", ");
+        let asked = self.hosts_to_ask();
+        let hosts = asked.join(", ");
         let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
-        let why = match self.found.unwrap_or(Via::Srv) {
-            Via::Srv => tl!("The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."),
-        };
+        // Each host with the source that named it: one sentence a source, so that a host is
+        // never said to come from the domain's own records when a database named it.
+        let whys: Vec<String> = self
+            .sources()
+            .into_iter()
+            .filter_map(|via| {
+                let named: Vec<&str> = asked.iter().filter(|host| self.source_of(host) == via).map(String::as_str).collect();
+                let why = match via {
+                    Via::Srv => tl!("The DNS records of {domain} name {hosts} as its mail server, which isn't in your address's own domain."),
+                    Via::Autoconfig => {
+                        tl!("What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain.")
+                    }
+                    Via::Ispdb => {
+                        tl!("Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain.")
+                    }
+                };
+                (!named.is_empty()).then(|| fmt(why, &[("domain", &domain), ("hosts", &named.join(", "))]))
+            })
+            .collect();
         page(ui, &t, |ui| {
             heading(ui, tl!("Send your password to another server?"), &t);
-            ui.label(RichText::new(fmt(why, &[("domain", &domain), ("hosts", &hosts)])).font(medium(13.0)).color(t.text));
+            for why in &whys {
+                ui.label(RichText::new(why).font(medium(13.0)).color(t.text));
+            }
             note(
                 ui,
                 &fmt(
@@ -1952,10 +2092,32 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
-            if let Some(via) = self.found {
-                let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            let sources = self.sources();
+            let domain = address(&self.email).map(|(_, domain)| shown(domain, 120)).unwrap_or_default();
+            // Two sources: each server by its name, with the source that named it.
+            if sources.len() > 1 {
+                let mut said: Vec<&(String, Via)> = Vec::new();
+                for found in &self.found_hosts {
+                    if said.contains(&found) {
+                        continue;
+                    }
+                    said.push(found);
+                    let what = match found.1 {
+                        Via::Srv => tl!("{host} was found in the DNS records of {domain} (its SRV records)."),
+                        Via::Autoconfig => tl!("{host} is what {domain} publishes for mail programs (its autoconfig document)."),
+                        Via::Ispdb => tl!("{host} is what Mozilla's ISP database lists for {domain}."),
+                    };
+                    note(ui, &fmt(what, &[("host", &found.0), ("domain", &domain)]), t.text);
+                }
+                note(ui, tl!("Check both servers before you connect."), t.text);
+            }
+            for via in sources.into_iter().filter(|_| self.sources().len() == 1) {
                 let what = match via {
                     Via::Srv => tl!("The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."),
+                    Via::Autoconfig => tl!(
+                        "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+                    ),
+                    Via::Ispdb => tl!("The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."),
                 };
                 note(ui, &fmt(what, &[("domain", &domain)]), t.text);
             }
@@ -2235,6 +2397,9 @@ impl AccountSetup {
                     note(ui, tl!("MailCraft's Google Desktop registration is not yet configured for this build."), t.orange);
                 }
             }
+            let address = shown(self.email.trim(), 120);
+            field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
+            note(ui, tl!("Shown in the folder pane, such as Work or Home. Leave it empty to show the address."), t.text_dim);
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
             if asks {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
@@ -2501,7 +2666,7 @@ fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 
 fn google_testers_note() -> &'static str {
-    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk.")
+    tl!("Google sign-in is open only to invited testers while Google reviews MailCraft.")
 }
 
 /// Whether `host` is Google's mail server (Gmail, Google Workspace).
@@ -2611,6 +2776,10 @@ mod tests {
     use crate::{Services, SignInRequest};
     use egui::Key;
 
+    /// The account's name in the folder pane (#1017).
+    mod account_name;
+    /// An Exchange server found from the domain's Autodiscover records.
+    mod autodiscover;
     /// Servers found in the domain's own records, and the question before a password goes
     /// outside the domain (#1063).
     mod found_servers;
@@ -2647,7 +2816,8 @@ mod tests {
         let mailbox = if sample { mailcraft_engine::sample::mailbox(NOW, 0) } else { mailcraft_model::Mailbox::with_local_account("", "") };
         let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
         // Nothing happens by itself: what a test sees synchronised, it or the wizard asked for.
-        (app.autosave, app.auto_sync) = (false, false);
+        app.autosave = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2892,11 +3062,12 @@ mod tests {
                 via: Via::Srv,
             }),
             outgoing: None,
+            username: "%EMAILLOCALPART%".into(),
         };
         let (_, params) = w.preset_command(Some(&found), None).unwrap();
         assert_eq!(
             params,
-            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}}})
+            json!({"email": "noor@example.org", "mx": ["mx.example.org"], "found": {"incoming": {"host": "imap.example.org", "port": 993, "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}})
         );
         // A tile of the Choose page names the service; "This device only" adds a mailbox without servers.
         assert_eq!(
@@ -3041,11 +3212,13 @@ mod tests {
             exchangers: vec![long.clone(); 500],
             incoming: Some(provider::FoundServer { server: Server { host: long.clone(), port: 993, security: Security::Tls }, via: Via::Srv }),
             outgoing: None,
+            username: long.clone(),
         };
         let (_, params) = w.preset_command(Some(&hostile), None).unwrap();
         let passed = params["mx"].as_array().unwrap();
         assert!(passed.len() == 20 && passed.iter().all(|host| host.as_str().unwrap().chars().count() <= 255));
         assert!(params["found"]["incoming"]["host"].as_str().unwrap().chars().count() <= HOST);
+        assert!(params["found"]["username"].as_str().unwrap().chars().count() <= LINE);
         let answer = a.session.run("account.preset", &params).unwrap();
         assert_eq!((answer["via"].as_str(), answer["incoming"]["host"].as_str()), (Some("guess"), Some("imap.example.org")));
     }
@@ -3778,7 +3951,7 @@ mod tests {
                         // Servers the domain's records named, one of them outside the domain (#1063).
                         if matches!(page_in_view, Page::Password | Page::ServerConsent) {
                             (w.found, w.incoming.host, w.found_hosts) =
-                                (Some(Via::Srv), "imap.hosted.example".into(), vec!["imap.hosted.example".into()]);
+                                (Some(Via::Srv), "imap.hosted.example".into(), vec![("imap.hosted.example".into(), Via::Srv)]);
                         }
                     }
                     if hostile {

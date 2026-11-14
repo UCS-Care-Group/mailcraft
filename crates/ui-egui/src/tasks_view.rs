@@ -281,6 +281,7 @@ fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
     egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));

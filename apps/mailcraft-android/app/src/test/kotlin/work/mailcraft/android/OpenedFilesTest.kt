@@ -33,10 +33,24 @@ class OpenedFilesTest {
     @Test
     fun aLongNameKeepsItsExtension() {
         val name = safeFileName("x".repeat(500) + ".pdf")
-        assertEquals(100, name.length)
+        assertEquals(255, name.length)
         assertTrue(name.endsWith(".pdf"))
-        assertEquals(100, safeFileName("y".repeat(500)).length)
-        assertEquals(100, safeFileName("z".repeat(200) + "." + "e".repeat(50)).length)
+        assertEquals(255, safeFileName("y".repeat(500)).length)
+        assertEquals(255, safeFileName("z".repeat(300) + "." + "e".repeat(50)).length)
+    }
+
+    @Test
+    fun aLongNameIsBoundedByUtf8BytesAtACodePointBoundary() {
+        val name = safeFileName("界".repeat(96) + ".pdf")
+        assertTrue(name.toByteArray(Charsets.UTF_8).size <= 255)
+        assertTrue(name.endsWith(".pdf"))
+        assertTrue(name.startsWith("界"))
+        // Four-byte code points are never split into a lone surrogate.
+        val emoji = safeFileName("\uD83D\uDE00".repeat(100) + ".txt")
+        assertTrue(emoji.toByteArray(Charsets.UTF_8).size <= 255)
+        assertTrue(emoji.endsWith(".txt"))
+        assertEquals(emoji, String(emoji.toByteArray(Charsets.UTF_8), Charsets.UTF_8))
+        assertFalse(emoji.contains('\uFFFD'))
     }
 
     @Test
@@ -76,6 +90,7 @@ class OpenedFilesTest {
             override fun write(b: Int) = throw IOException("full")
         }
         assertFalse(SaveToFiles.write({ failing }, byteArrayOf(1)))
+        assertFalse(SaveToFiles.write({ throw SecurityException("revoked") }, byteArrayOf(1)))
     }
 
     @Suppress("ThrowsCount")

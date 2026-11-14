@@ -6,7 +6,9 @@
 //! an [`HttpExchange`] (the browser's `fetch`, an HTTP client where there are sockets, or, in the tests, the
 //! in-process server of `standin`, behind the `stand-in` feature). It has no I/O of its own, no thread and
 //! no clock, so it builds for wasm32 unchanged and its futures need not be `Send`. (A `Retry-After` date is
-//! therefore for the exchange to turn into seconds: see [`connection`].)
+//! therefore for the exchange to turn into seconds: see [`connection`]. The one thing that asks the time is
+//! the writing of a message that goes out: its `Date` field is in this computer's zone, and one that was
+//! never dated is dated then, through `mailcraft-time`, as for every other way of sending.)
 //!
 //! **The protocol core** builds the requests and judges what comes back, and does nothing else. It is
 //! written from the public specifications: RFC 3986 and the WHATWG URL Standard (addresses), RFC 6570
@@ -22,13 +24,15 @@
 //!   of method calls with result references, the results of each call, and ids.
 //! - [`redact`]: what a server says, made into short, clean excerpts with every known secret taken out.
 //!
-//! **The mail client** sits on it and reads, for the engine:
+//! **The mail client** sits on it, for the engine:
 //!
 //! - [`Connection::connect`] fetches the session through an [`HttpExchange`] and keeps the client and the
 //!   exchange together. Mail must be on offer, and every address the session names must be on the
 //!   session's own origin: the credentials go there and nowhere else.
-//! - [`sync_mail`] reads an account's mailboxes and the newest messages in them, as the request the
-//!   engine worked out says, and hands them over in pieces ([`mail`]).
+//! - [`sync_mail`] takes the changes of an account's messages up to its server (marks, moves, deletions:
+//!   `Email/set`), sends what waits in its Outbox (an upload, `Email/import` and `EmailSubmission/set`,
+//!   where the server offers [`CAPABILITY_SUBMISSION`]), and reads its mailboxes and the newest messages in
+//!   them, as the request the engine worked out says; and hands what came of each over in pieces ([`mail`]).
 //! - [`fetch`] brings messages whole: the raw octets an email's blob holds.
 //!
 //! Everything a server sends is hostile: sizes, counts, nesting and the length of every string are
@@ -121,7 +125,7 @@ pub use redact::{Excerpt, Redactor};
 pub use request::{ApiRequest, CallId, ResultReference};
 pub use response::{ApiResponse, CallFailure, MethodError, MethodErrorKind, MethodResponse};
 pub use retry::{HttpDate, MAX_RETRY_DELAY, RetryAfter, UnixTime};
-pub use session::{Account, CAPABILITY_CORE, CAPABILITY_MAIL, CoreLimits, Session};
+pub use session::{Account, CAPABILITY_CORE, CAPABILITY_MAIL, CAPABILITY_SUBMISSION, CoreLimits, Session};
 pub use template::{AddressTemplate, TemplateError};
 #[cfg(any(test, feature = "stand-in"))]
 pub use test_support::block_on;

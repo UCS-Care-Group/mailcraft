@@ -29,6 +29,7 @@ internal fun isSignInUrl(url: String): Boolean {
  * sees the password, and the owner's browser session and its compliance checks apply) and arms the
  * [handback] that waits for the redirect. No web view is involved.
  */
+@Suppress("ThrowsCount")
 internal class SignInPage(
     private val context: Context,
     private val handback: SignInHandback,
@@ -36,13 +37,13 @@ internal class SignInPage(
 ) {
     fun open(url: String) {
         if (!isSignInUrl(url)) throw HostException.Failed()
-        handback.arm()
         val intent = CustomTabsIntent.Builder()
             .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
             .setSendToExternalDefaultHandlerEnabled(false)
             .build()
             .intent
         intent.data = url.toUri()
+        handback.arm()
         val activity = foreground()
         try {
             if (activity != null) {
@@ -51,6 +52,10 @@ internal class SignInPage(
                 context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         } catch (_: ActivityNotFoundException) {
+            handback.disarm()
+            throw HostException.Failed()
+        } catch (_: RuntimeException) {
+            // A SecurityException or anything else: nobody will wait for a redirect now.
             handback.disarm()
             throw HostException.Failed()
         }

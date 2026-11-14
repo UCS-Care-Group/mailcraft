@@ -26,6 +26,10 @@ pub const AVAILABLE: bool = false;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod anchors;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss;
+#[cfg(not(target_arch = "wasm32"))]
+mod autoconfig;
 #[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
@@ -70,6 +74,8 @@ mod transport;
 pub mod update;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update_download;
+#[cfg(not(target_arch = "wasm32"))]
+mod xml_text;
 
 // (`cfg(test)` on its own line: that is how clippy knows test code, which may unwrap.)
 #[cfg(test)]
@@ -105,9 +111,12 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
-    pub use crate::discover::{discover, discover_at};
+    pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
-    pub use crate::dns_srv::{SrvTarget, lookup_autodiscover, lookup_autodiscover_at};
+    pub use crate::dns_srv::{
+        AutodiscoverTargets, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at,
+        lookup_autodiscover, lookup_autodiscover_at,
+    };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
     pub use crate::sync::{sync, sync_with, token_may_go_to};
@@ -298,6 +307,9 @@ mod tls_test_support;
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
 
+#[cfg(test)]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod anchors_nss_tests;
 #[cfg(test)]
 #[cfg(all(unix, not(target_os = "macos")))]
 mod anchors_tests;
