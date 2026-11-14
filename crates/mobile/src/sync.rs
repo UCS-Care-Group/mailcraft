@@ -43,6 +43,10 @@ pub(crate) const MS_CLIENT_ID: &str = match option_env!("MAILCRAFT_MS_CLIENT_ID"
 
 /// The credential-store entry that lists the names of the others the core wrote.
 const INDEX_KEY: &str = "mailcraft:index";
+/// The credential-store entry that says a removal found the index damaged and the owner hasn't
+/// been told yet that sign-ins it alone named may remain: kept there so that a restart between a
+/// removal that failed and its retry doesn't lose the notice. Removed once it has been given.
+const NOTICE_KEY: &str = "mailcraft:notice-sign-ins-may-remain";
 
 /// Whether `name` is gone from `store`: removed without a failure, and read back as absent. A
 /// read that fails counts as "still there".
@@ -195,6 +199,9 @@ struct Inner {
     /// An index that didn't parse was set aside (or kept) by a removal of the sign-ins, so some
     /// it named may still be in the store: removals say so until one that succeeds has.
     index_garbled: bool,
+    /// The store's word on a notice still to give (`NOTICE_KEY`) has been read, or written, in
+    /// this run: it isn't read again.
+    notice_checked: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
 }
@@ -358,6 +365,14 @@ impl SyncHost {
         let store = self.platform.secrets();
         let secrets = self.host.platform().secrets();
         let mut indexed = self.keys_of(&mut inner, secrets.as_deref()).map(|keys| keys.clone());
+        // A notice an earlier run couldn't give (its removal failed, then the app ended) is still due.
+        if !inner.notice_checked
+            && let Some(store) = secrets.as_deref()
+            && let Ok(found) = store.read(NOTICE_KEY)
+        {
+            inner.notice_checked = true;
+            inner.index_garbled |= found.is_some();
+        }
         // An index that is there but doesn't parse would make every removal refuse for ever: it is
         // set aside under a name of its own and a fresh one starts from the names known now. When
         // it can't be set aside it stays as it is, and nothing is written over it.
@@ -367,6 +382,10 @@ impl SyncHost {
             && let Some(set_aside) = set_aside_index(store, self.host.platform().now())
         {
             inner.index_garbled = true;
+            inner.notice_checked = true;
+            if store.set(NOTICE_KEY, "1").is_err() {
+                log::warn!("send/receive: the notice that sign-ins may remain couldn't be kept past a restart");
+            }
             if set_aside {
                 let mut fresh: BTreeSet<String> = std::mem::take(&mut inner.unindexed).into_iter().take(MOST_KEYS).collect();
                 for a in &session.mailbox.accounts {
@@ -442,7 +461,15 @@ impl SyncHost {
     /// The owner was told that sign-ins only a damaged index named may still be in the store:
     /// the next removal doesn't say it again.
     pub(crate) fn notice_given(&self) {
-        self.lock().index_garbled = false;
+        let mut inner = self.lock();
+        inner.index_garbled = false;
+        inner.notice_checked = true;
+        if let Some(store) = self.host.platform().secrets().as_deref()
+            && !removed(store, NOTICE_KEY)
+        {
+            // It is given again after a restart, never lost.
+            log::warn!("send/receive: the notice that sign-ins may remain couldn't be taken back from the store");
+        }
     }
 
     pub(crate) fn status(&self, session: &Session) -> SyncStatus {

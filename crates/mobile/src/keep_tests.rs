@@ -551,6 +551,34 @@ fn the_notice_of_a_damaged_index_waits_for_a_removal_that_succeeds() {
 
 #[cfg(unix)]
 #[test]
+fn the_notice_of_a_damaged_index_outlives_a_restart_before_the_retry() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    // The sign-ins go (the damaged index with them), but the mail's folder can't be emptied.
+    set_mode(&dir.0, 0o000);
+    if std::fs::read_dir(&dir.0).is_ok() {
+        restore_access(&dir.0);
+        return;
+    }
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    // The app ends before the owner tries again.
+    core.shutdown();
+    drop(core);
+    restore_access(&dir.0);
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    let answer = block_on(core.delete_local_data()).unwrap();
+    assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "the retry after the restart still says it: {answer:?}");
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    assert!(
+        kept.iter().all(|(k, _)| k.starts_with("mailcraft:index.unreadable-")),
+        "once said, nothing of it is left but the set-aside garbage: {kept:?}"
+    );
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
+}
+
+#[cfg(unix)]
+#[test]
 fn a_file_that_cannot_be_looked_at_is_never_written_over() {
     let dir = Dir::new();
     {
