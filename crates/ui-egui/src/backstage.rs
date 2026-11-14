@@ -557,6 +557,19 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Options"), t);
     section(ui, tl!("General"), t);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut on = app.ui.close_to_tray;
+        let switch = ui.checkbox(&mut on, tl!("Close to system tray")).on_hover_text(tl!(
+            "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+        ));
+        app.hit.add("optionCloseToTray", 0, switch.rect);
+        if switch.changed() {
+            let _ = app.run("ui.closeToTray", json!({"value": on}));
+        }
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
+    }
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {

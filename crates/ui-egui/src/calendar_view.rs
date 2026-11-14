@@ -985,6 +985,7 @@ fn side_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)));
     panel.show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         // As many months as the pane has room for over the list of calendars; one at the least.
         let groups = calendar_groups(app);

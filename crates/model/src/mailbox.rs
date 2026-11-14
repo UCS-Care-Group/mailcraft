@@ -340,11 +340,9 @@ impl AccountKind {
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
-    /// through Microsoft Graph, or through Exchange Web Services). Not yet for a JMAP account: its
-    /// sending comes after its reading, and until then no mail is put in its Outbox, where it
-    /// would wait for ever.
+    /// through Microsoft Graph, through Exchange Web Services, or over JMAP).
     pub fn sends_mail(self) -> bool {
-        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Exchange)
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap | AccountKind::Exchange)
     }
 
     /// Whether the account's folders and messages are known to its server by the ids the server
@@ -1301,17 +1299,12 @@ pub const BETWEEN_MAILBOXES: &str =
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
-/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft or an Exchange
-/// server account's (#704): only Send sends.
+/// Why a copy doesn't go into an Outbox that sends what lies in it, a Microsoft, an Exchange
+/// server or a JMAP account's (#704, #1074): only Send sends.
 pub const COPY_INTO_OUTBOX: &str = "A copy can't go into this Outbox: the next Send/Receive would send it";
 
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
-
-/// Why nothing is sent from a JMAP account ([`AccountKind::sends_mail`]): its sending comes after
-/// its reading. Until then nothing goes into its Outbox, where it would wait for ever, and nothing
-/// is filed as sent that wasn't.
-pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP account yet";
 
 /// Why mail a JMAP account's server has doesn't go into a folder that server hasn't got
 /// ([`Mailbox::stays_out_of`]): a move goes up as a move between two of the server's mailboxes, and
@@ -1324,17 +1317,21 @@ pub const ONLY_SERVER_FOLDERS: &str =
 /// next run would bring it back.
 pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back";
 
-/// What a message moved into an IMAP account's Outbox says of why it isn't sent
-/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
+/// What a message moved into an IMAP or a JMAP account's Outbox says of why it isn't sent
+/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
-/// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
+/// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
+/// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
 /// that leaves an Outbox is no longer held for having been put in it. Whatever the move or copy,
 /// the message (or the copy) is not one being sent from where it was any more (AU3-26): filed in
-/// Sent Items, moved away by the owner, or a copy made of it.
+/// Sent Items, moved away by the owner, or a copy made of it. Nor is it a draft just sent that its
+/// server is still to file in Sent Items (#1160): the owner has put it somewhere, and that move
+/// goes up as any other.
 fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sending = false;
+    m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
             m.held = MOVED_INTO_OUTBOX.to_string();
@@ -2330,7 +2327,7 @@ impl Mailbox {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
         }
-        let into_outbox = self.is_imap_outbox(folder);
+        let into_outbox = self.holds_what_is_moved_in(folder);
         if self.move_between_accounts(id, folder, account, &remote, fresh)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
@@ -2431,6 +2428,17 @@ impl Mailbox {
     /// there and sends only what was queued with Send (#607).
     pub fn is_imap_outbox(&self, folder: Id) -> bool {
         self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
+    }
+
+    /// Whether `folder` is an Outbox that holds a message moved into it ([`MOVED_INTO_OUTBOX`]) until
+    /// Send Again: an IMAP account's ([`Mailbox::is_imap_outbox`]), and a JMAP account's (#1074). What
+    /// can be moved into a JMAP account's Outbox is mail only this computer has (a draft saved in the
+    /// account, mail brought into it from elsewhere; the server's own mail and another mailbox's don't
+    /// go there, [`ONLY_SERVER_FOLDERS`], [`INTO_OUTBOX`]): nothing marks it as put there by Send, and
+    /// the next run would send it as it sends what Send queued.
+    pub fn holds_what_is_moved_in(&self, folder: Id) -> bool {
+        let jmap = |f: &Folder| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap);
+        self.is_imap_outbox(folder) || self.folder(folder).is_some_and(jmap)
     }
 
     /// Whether a draft saved in `account` is kept on its server, field by field, with MailCraft's
@@ -2777,8 +2785,10 @@ impl Mailbox {
             return Err(invalid(INTO_OUTBOX));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
-        // Send/Receive, and made on the server as well (#704): only Send sends.
-        if self.sends_from(folder) && self.keeps_changes_for_server(to_account) {
+        // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's
+        // too (#1074): the copy has no server's id, so it would go as mail queued with Send does.
+        let jmap = self.account(to_account).is_some_and(|a| a.kind == AccountKind::Jmap);
+        if self.sends_from(folder) && (jmap || self.keeps_changes_for_server(to_account)) {
             return Err(invalid(COPY_INTO_OUTBOX));
         }
         if self.placed_into(from_account, to_account) {

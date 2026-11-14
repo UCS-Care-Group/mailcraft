@@ -1072,9 +1072,9 @@ mod tests {
         // Not while a Send/Receive is asking Graph, or is about to; and not when nothing may
         // start by itself.
         let t3 = t2 + 200.0 * SECOND;
-        app.sync_queue.push_back((account, true));
+        app.session.driver.round.queue.push_back((account, true));
         assert!(!app.calendar_tick_at(true, t3));
-        app.sync_queue.clear();
+        app.session.driver.round.queue.clear();
         app.session.driver.set_auto_sync(false);
         assert!(!app.calendar_tick_at(true, t3));
         app.session.driver.set_auto_sync(true);

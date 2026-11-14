@@ -41,9 +41,9 @@ pub const MAX_AUTH_AS: usize = 16;
 /// them, and no receiving server stamps a copy MailCraft puts there itself, so the copy would be
 /// vouched for by them ([`internal`], [`vouched`]).
 pub fn forget_stamps(m: &mut Message) {
-    m.headers.retain(|(name, _)| {
-        !name.eq_ignore_ascii_case(AUTH_AS) && !name.eq_ignore_ascii_case(RESULTS) && !name.eq_ignore_ascii_case("ARC-Authentication-Results")
-    });
+    m.remove_header(AUTH_AS);
+    m.remove_header(RESULTS);
+    m.remove_header("ARC-Authentication-Results");
 }
 
 /// The header a receiving server writes its verdict in (RFC 8601).
@@ -137,6 +137,12 @@ fn received_by(value: &str) -> Option<String> {
     domain(words.next()?.trim_end_matches(';'))
 }
 
+/// Whether a `Received` header's value is the hop at which Exchange Online took the mail in from
+/// the internet ([`EXCHANGE_ONLINE_EDGE`]): such a hop stays on the message (`crate::headers`).
+pub(crate) fn is_exchange_online_edge(value: &str) -> bool {
+    received_by(value).is_some_and(|host| host.ends_with(EXCHANGE_ONLINE_EDGE))
+}
+
 /// The `Authentication-Results` headers Exchange Online wrote of `m` as it took it in from the
 /// internet, its own first and the ones below it after: the topmost header with its authserv-id
 /// ([`EXCHANGE_ONLINE_ID`]), or with none (it starts with a result), that lies above the topmost
@@ -159,9 +165,7 @@ fn exchange_online_results(m: &Message, for_failure: bool) -> Option<Vec<&str>> 
             return None;
         }
     }
-    let edge = headers.iter().position(|(name, value)| {
-        name.eq_ignore_ascii_case("Received") && received_by(value).is_some_and(|host| host.ends_with(EXCHANGE_ONLINE_EDGE))
-    })?;
+    let edge = headers.iter().position(|(name, value)| name.eq_ignore_ascii_case("Received") && is_exchange_online_edge(value))?;
     let own = headers.get(..edge)?.iter().position(|(name, value)| {
         name.eq_ignore_ascii_case(RESULTS) && (without_id(value) || authserv_id(value).is_some_and(|id| id == EXCHANGE_ONLINE_ID))
     })?;
@@ -208,7 +212,7 @@ fn internal(account: Option<&Account>, m: &Message) -> bool {
         return false;
     }
     let mut stamps = 0usize;
-    for (_, value) in m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case(AUTH_AS)) {
+    for value in m.header_values(AUTH_AS) {
         if !value.trim().eq_ignore_ascii_case("Internal") {
             return false;
         }
@@ -309,8 +313,7 @@ fn own_results<'a>(account: Option<&Account>, m: &'a Message, for_failure: bool)
     if on_exchange_online(account) {
         return exchange_online_results(m, for_failure);
     }
-    let results: Vec<&str> =
-        m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, v)| v.as_str()).collect();
+    let results: Vec<&str> = m.header_values(RESULTS).collect();
     from_own_server(account, results.first()?).then_some(results)
 }
 

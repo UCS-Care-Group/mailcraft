@@ -68,3 +68,23 @@ fn limits_per_kind() {
     assert_eq!(RequestKind::Download.max_response_bytes(), DOWNLOAD_RESPONSE_LIMIT);
     assert!(!RequestKind::Download.expects_json());
 }
+
+// RFC 8620 §6.1: an upload is a POST of the octets with their media type, answered with JSON.
+#[test]
+fn an_upload_carries_its_octets_and_a_media_type_that_cannot_end_the_field() {
+    let credentials = Credentials::basic("john@example.com", &made_secret("s3cret-pass")).unwrap();
+    let address = Address::parse("https://jmap.example.com/upload/A1/").unwrap();
+    let upload = |media_type: &str| {
+        HttpRequest::new(Method::Post, address.clone(), RequestKind::Upload, credentials.authorization())
+            .with_octets(media_type, b"From: a\r\n".to_vec())
+    };
+    let request = upload("message/rfc822");
+    let fields: Vec<_> = request.fields().collect();
+    assert!(fields.contains(&("Content-Type", "message/rfc822")) && fields.contains(&("Accept", "application/json")));
+    assert_eq!((request.body(), request.max_response_bytes()), (&b"From: a\r\n"[..], UPLOAD_RESPONSE_LIMIT));
+    assert!(RequestKind::Upload.expects_json());
+    for hostile in ["text/plain\r\nX-Evil: 1", "", "a b", "caf\u{e9}"] {
+        assert!(upload(hostile).fields().any(|field| field == ("Content-Type", "application/octet-stream")), "{hostile:?}");
+    }
+    assert!(!format!("{request:?}").contains("From: a"));
+}

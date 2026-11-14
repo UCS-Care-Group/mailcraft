@@ -1048,7 +1048,7 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
         ),
         html: None,
     };
-    message.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(NOT_DOWNLOADED));
+    message.remove_header(NOT_DOWNLOADED);
     message.headers.push((NOT_DOWNLOADED.into(), size.to_string()));
     message.not_downloaded = size;
     message
@@ -1708,7 +1708,7 @@ mod tests {
         let marks: Vec<&str> =
             m.headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)).map(|(_, size)| size.as_str()).collect();
         assert_eq!(marks, ["62914561"]);
-        assert!(m.headers.iter().any(|(name, value)| name == "X-Other" && value == "kept"));
+        assert!(m.all_headers().iter().any(|(name, value)| name == "X-Other" && value == "kept"));
         // A header that is none still makes a message that says what it is.
         let m = too_large(Fetched { uid: 8, body: Some(vec![0xFF, 0x00, b'x']), ..Default::default() }, u64::MAX, 0);
         assert!(m.uid == 8 && m.body.text.contains("too large to download") && m.body.text.contains("up to 0 MB"));

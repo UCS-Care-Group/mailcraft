@@ -431,13 +431,13 @@ impl MailApp {
             return;
         }
         self.finish_shared_check(shared, Ok(()));
-        if over || self.sync_queue.is_empty() {
+        if over || self.session.driver.round.queue.is_empty() {
             return;
         }
         let quiet = self.graph_rx.as_ref().is_some_and(|(_, quiet, ..)| *quiet);
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-        if !self.sync_queue.iter().any(|(a, _)| *a == shared) {
-            self.sync_queue.push_back((shared, quiet));
+        if !self.session.driver.round.queue.iter().any(|(a, _)| *a == shared) {
+            self.session.driver.round.queue.push_back((shared, quiet));
         }
     }
 
@@ -504,9 +504,9 @@ impl MailApp {
         };
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some((whose, quiet)) = whose
-            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+            && !self.session.driver.round.queue.iter().any(|(a, _)| *a == whose)
         {
-            self.sync_queue.push_front((whose, quiet));
+            self.session.driver.round.queue.push_front((whose, quiet));
         }
     }
 

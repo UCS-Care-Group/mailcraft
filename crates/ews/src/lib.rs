@@ -103,6 +103,8 @@ pub mod standin_write;
 #[cfg(test)]
 mod delete_check_tests;
 #[cfg(test)]
+mod exchange2010_tests;
+#[cfg(test)]
 mod hostile_tests;
 #[cfg(test)]
 mod items_tests;
@@ -127,7 +129,7 @@ pub use error::{Error, PolicyReason, ResponseClass, ResponseCode};
 pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder};
 pub use hierarchy::{HierarchyPage, SyncFolderHierarchy};
 pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, Secret, TransportError};
-pub use items::{GetItemMime, ItemsPage, Shape, SyncFolderItems};
+pub use items::{GetItemMime, GetItemRecipients, ItemsPage, Recipients, Shape, SyncFolderItems};
 pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
 pub use run::{failed_run, fetch_messages, sync_mail};
