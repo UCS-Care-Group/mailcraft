@@ -481,7 +481,7 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
-    let scope = if app.session.view.all_inboxes {
+    let scope = if app.session.view.all_inboxes && app.session.view.scope == mailcraft_engine::Scope::Folder {
         tl!("All Inboxes").to_string()
     } else {
         match app.session.view.scope {

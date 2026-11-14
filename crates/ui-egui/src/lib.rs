@@ -2448,6 +2448,9 @@ impl MailApp {
                 self.ui.all_inboxes = value;
                 if !value {
                     self.session.view.all_inboxes = false;
+                    // A message picked in another Inbox is no longer in the list. Drop it before
+                    // the next Delete or Move reads the selection.
+                    self.session.normalize();
                 }
                 Ok(json!({"value": value}))
             }

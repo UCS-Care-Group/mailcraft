@@ -978,8 +978,17 @@ fn one_account(r: &mailcraft_model::Rule) -> Option<Id> {
 /// folder named (the folder in view when none is).
 fn rules_run_folders(s: &Session, params: &Value) -> Option<Vec<Id>> {
     let all = p::opt_bool(params, "allInboxes").ok()?;
+    // Named on its own, before `folder`: `folder: 0` must not hide that the call is every Inbox.
+    if all == Some(true) {
+        return Some(s.mailbox.inboxes());
+    }
     let folder = p::id_strict(params, "folder").ok()?;
-    Some(if all == Some(true) { s.mailbox.inboxes() } else { vec![folder.unwrap_or(s.view.folder)] })
+    // The ribbon sends neither. While All Inboxes is the list on screen, that is those Inboxes,
+    // the same set `folders_asked` runs the rules on.
+    if folder.is_none() && all.is_none() && s.view.all_inboxes {
+        return Some(s.mailbox.inboxes());
+    }
+    Some(vec![folder.unwrap_or(s.view.folder)])
 }
 
 /// Whether the rules this command makes, switches on or runs put mail on another account's

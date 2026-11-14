@@ -444,7 +444,12 @@ fn all_inboxes_row(app: &mut MailApp, ui: &mut Ui, count: Count, selected: bool)
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with("all_inboxes"), Sense::click());
     app.hit.add("allInboxes", 0, r);
-    paint_highlight(ui.painter(), highlight(r), selected, resp.hovered(), &t);
+    let row = highlight(r);
+    paint_highlight(ui.painter(), row, selected, resp.hovered(), &t);
+    // Reached with Tab or the arrow keys: where the keyboard is, as a Gmail category's row.
+    if resp.has_focus() {
+        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
     let name_end = paint_count(ui.painter(), r, count, selected, &t);
     paint_clipped(
         ui.painter(),

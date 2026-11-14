@@ -204,3 +204,20 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
+
+#[test]
+fn running_rules_with_all_inboxes_on_asks_before_filing_onto_another_server() {
+    let mut s = sample();
+    let here = s.mailbox.default_account().unwrap().id;
+    let inbox = s.mailbox.folder_of_kind(here, FolderKind::Inbox).unwrap();
+    let other =
+        s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let there = s.mailbox.folder_of_kind(other, FolderKind::Archive).unwrap();
+    s.run("rules.add", &json!({"name": "File", "account": here, "conditions": [{"type": "fromContains", "value": "x"}], "actions": [{"type": "moveTo", "value": there}]})).unwrap();
+    s.view.folder = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    s.view.all_inboxes = true;
+    assert!(matches!(classify(&s, "rules.run", &json!({})), Access::Owner(Class::Send)));
+    assert!(matches!(classify(&s, "rules.run", &json!({"allInboxes": true, "folder": 0})), Access::Owner(Class::Send)));
+    assert!(!matches!(classify(&s, "rules.run", &json!({"folder": s.view.folder})), Access::Owner(Class::Send)));
+    assert_eq!(inbox, s.mailbox.folder_of_kind(here, FolderKind::Inbox).unwrap());
+}
