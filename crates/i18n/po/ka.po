@@ -2732,7 +2732,7 @@ msgid "Classic Ribbon"
 msgstr "კლასიკური ლენტი"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clean Up"
 msgstr "მოწესრიგება"
@@ -4860,7 +4860,7 @@ msgid "Fold the calendars of this group away"
 msgstr "ამ ჯგუფის კალენდრების აკეცვა"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "საქაღალდე"
@@ -5899,6 +5899,12 @@ msgstr "კალენდრის ფაილის იმპორტი"
 msgid "Import Contacts"
 msgstr "კონტაქტების იმპორტი"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Import Mail"
+msgstr "ფოსტის იმპორტი"
+
 #. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -5971,6 +5977,20 @@ msgstr "გსურთ ფაილში {name} არსებული ჩ�
 msgid "Import the contacts in {name} into Contacts?"
 msgstr "გსურთ ფაილში {name} არსებული კონტაქტების იმპორტი „კონტაქტებში“?"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Import the messages in {name} into {folder}?"
+msgstr "გსურთ ფაილში {name} არსებული წერილების იმპორტი საქაღალდეში {folder}?"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Import {n} message from {name} into {folder}?"
+msgid_plural "Import {n} messages from {name} into {folder}?"
+msgstr[0] "გსურთ {n} წერილის იმპორტი ფაილიდან {name} საქაღალდეში {folder}?"
+msgstr[1] "გსურთ {n} წერილის იმპორტი ფაილიდან {name} საქაღალდეში {folder}?"
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -5993,7 +6013,7 @@ msgstr "მნიშვნელობა:"
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Imported"
-msgstr "იმპორტირებულია"
+msgstr "იმპორტირებული"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -6030,6 +6050,18 @@ msgstr "{what} იმპორტირებულია „მონახა�
 #, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr "{what} იმპორტირებულია ლოკალურ საქაღალდეში: Microsoft-ის სერვერზე განსათავსებლად გადაიტანეთ ანგარიშში"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Imported {what} into the local folder Imported, on this computer"
+msgstr "{what} იმპორტირებულია ლოკალურ საქაღალდეში „იმპორტირებული“, ამ კომპიუტერზე"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Imported {what} into the local folder Imported: move it into the account to put it on its server"
+msgstr "{what} იმპორტირებულია ლოკალურ საქაღალდეში „იმპორტირებული“: სერვერზე განსათავსებლად გადაიტანეთ ანგარიშში"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7632,6 +7664,12 @@ msgid "Messages (.eml, .mbox), calendars (.ics) and contacts (.vcf)"
 msgstr "წერილები (.eml, .mbox), კალენდრები (.ics) და კონტაქტები (.vcf)"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Messages already in that folder are left out."
+msgstr "იმ საქაღალდეში უკვე არსებული წერილები გამოტოვდება."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
@@ -8562,6 +8600,12 @@ msgstr "ამ ასლში მონაწილეების სია �
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "No copies on this computer of mail its server has were found"
+msgstr "ამ კომპიუტერზე სერვერზე არსებული ფოსტის ასლები ვერ მოიძებნა"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"
 msgstr "ავტორიზაციის მონაცემების არცერთმა საცავმა არ უპასუხა (Linux-ზე მას GNOME Keyring ან KWallet უზრუნველყოფს)"
 
@@ -8978,6 +9022,12 @@ msgstr "შესაბამისი არაფერია."
 #, fuzzy
 msgid "Nothing more was found on the server"
 msgstr "სერვერზე მეტი არაფერი მოიძებნა"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Nothing new imported: {already}"
+msgstr "ახალი არაფერი იმპორტირებულა: {already}"
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -10545,6 +10595,12 @@ msgstr "დანართის წაშლა"
 msgid "Remove Everything"
 msgstr "ყველაფრის წაშლა"
 
+#. command label, interface
+#: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Imported Duplicates"
+msgstr "იმპორტირებული დუბლიკატების წაშლა"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11336,6 +11392,12 @@ msgid "Saved on this computer only: this item is not in your Outlook calendar"
 msgstr "შენახულია მხოლოდ ამ კომპიუტერზე: ეს ელემენტი თქვენს Outlook-ის კალენდარში არ არის"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Saved the message to {name}"
+msgstr "წერილი შენახულია ფაილში {name}"
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Saved to Drafts"
@@ -11354,6 +11416,14 @@ msgid "Saved {n} attachment"
 msgid_plural "Saved {n} attachments"
 msgstr[0] "შენახულია დანართი: {n}"
 msgstr[1] "შენახულია დანართი: {n}"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Saved {n} message to {name}"
+msgid_plural "Saved {n} messages to {name}"
+msgstr[0] "{n} წერილი შენახულია ფაილში {name}"
+msgstr[1] "{n} წერილი შენახულია ფაილში {name}"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -14554,6 +14624,12 @@ msgstr "სერვერის სერტიფიკატი სხვა 
 #, fuzzy
 msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
 msgstr "სერვერის სერტიფიკატი ჯერ არ მოქმედებს, ამიტომ MailCraft მას არ დაუკავშირდება. შეამოწმეთ ამ კომპიუტერის თარიღი და დრო ან მიმართეთ ადმინისტრატორს."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server's copies stay as they are, and nothing is sent to the server. Undo brings them back until the next Send/Receive."
+msgstr "სერვერზე არსებული ასლები უცვლელი რჩება და სერვერზე არაფერი იგზავნება. „დაბრუნება“ მათ აღადგენს მომდევნო „გაგზავნა/მიღებამდე“."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18282,7 +18358,7 @@ msgid "no folder \"{path}\""
 msgstr "საქაღალდე „{path}“ არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "საქაღალდე id-ით {id} არ არსებობს"
@@ -20741,6 +20817,30 @@ msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings t
 msgstr[0] "კონტაქტები ({n}) წაიშლება, როგორც კი დატოვებული შეინახება. „დაბრუნება“ მათ აღადგენს."
 msgstr[1] "კონტაქტები ({n}) წაიშლება, როგორც კი დატოვებული შეინახება. „დაბრუნება“ მათ აღადგენს."
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} copy on this computer of mail its server has removed"
+msgid_plural "{n} copies on this computer of mail its server has removed"
+msgstr[0] "ამ კომპიუტერიდან წაიშალა სერვერზე არსებული ფოსტის {n} ასლი"
+msgstr[1] "ამ კომპიუტერიდან წაიშალა სერვერზე არსებული ფოსტის {n} ასლი"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} copy on this computer of mail its server has would be removed"
+msgid_plural "{n} copies on this computer of mail its server has would be removed"
+msgstr[0] "ამ კომპიუტერიდან წაიშლებოდა სერვერზე არსებული ფოსტის {n} ასლი"
+msgstr[1] "ამ კომპიუტერიდან წაიშლებოდა სერვერზე არსებული ფოსტის {n} ასლი"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} copy you changed (its flag, categories, read mark or a to-do) is kept."
+msgid_plural "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
+msgstr[0] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულის ნიშანი ან დავალება), დარჩება."
+msgstr[1] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულის ნიშანი ან დავალება), დარჩება."
+
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -20886,6 +20986,14 @@ msgstr[0] "ჟურნალის ჩანაწერი: {n}"
 msgstr[1] "ჟურნალის ჩანაწერი: {n}"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} kept because it differs"
+msgid_plural "{n} kept because they differ"
+msgstr[0] "{n} დარჩა, რადგან განსხვავდება"
+msgstr[1] "{n} დარჩა, რადგან განსხვავდება"
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "{n} mailbox file"
@@ -20974,6 +21082,14 @@ msgstr[0] "უცნობი ზომის წერილი: {n}"
 msgstr[1] "უცნობი ზომის წერილი: {n}"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} message on this computer is a copy of mail its server has in the same folder, and will be removed."
+msgid_plural "{n} messages on this computer are copies of mail their server has in the same folder, and will be removed."
+msgstr[0] "ამ კომპიუტერზე {n} წერილი იმავე საქაღალდეში სერვერზე არსებული ფოსტის ასლია და წაიშლება."
+msgstr[1] "ამ კომპიუტერზე {n} წერილი იმავე საქაღალდეში სერვერზე არსებული ფოსტის ასლია და წაიშლება."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message removed"
@@ -20996,6 +21112,14 @@ msgid "{n} message that came back empty after a refused delete is being download
 msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
 msgstr[0] "წერილები ({n}), რომლებიც უარყოფილი წაშლის შემდეგ ცარიელი დაბრუნდა, ხელახლა ჩამოიტვირთება."
 msgstr[1] "წერილები ({n}), რომლებიც უარყოფილი წაშლის შემდეგ ცარიელი დაბრუნდა, ხელახლა ჩამოიტვირთება."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message was already here"
+msgid_plural "{n} messages were already here"
+msgstr[0] "{n} წერილი უკვე აქ იყო"
+msgstr[1] "{n} წერილი უკვე აქ იყო"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -21390,6 +21514,12 @@ msgstr "{rule}, დაწყება: {day}"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "{said}; {already}"
+msgstr "{said}; {already}"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "{said}; {left}{more}"
 msgstr "{said}; {left}{more}"
 
@@ -21472,6 +21602,12 @@ msgstr "{weekday}, {day} {month}"
 #, fuzzy
 msgid "{weekday}, {month} {day}, {year}"
 msgstr "{weekday}, {day} {month}, {year}"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{what} ({already})"
+msgstr "{what} ({already})"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
