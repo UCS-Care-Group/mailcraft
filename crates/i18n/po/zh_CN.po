@@ -18010,6 +18010,11 @@ msgstr "不匹配"
 msgid "month"
 msgstr "月"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy

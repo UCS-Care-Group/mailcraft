@@ -18077,6 +18077,11 @@ msgstr ""
 msgid "month"
 msgstr "lună"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy

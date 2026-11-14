@@ -16965,6 +16965,11 @@ msgstr ""
 msgid "month"
 msgstr "mes"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "more than {max} folders"
