@@ -124,7 +124,7 @@ fn the_redirect_slot_takes_the_first_address_only_while_armed() {
     let slot = Redirects::default();
     let cancel = AtomicBool::new(false);
     assert!(!slot.deliver("a"), "nobody waits");
-    slot.arm();
+    let attempt = slot.arm();
     assert!(slot.deliver("first"));
     assert!(!slot.deliver("second"), "only the first");
     assert_eq!(slot.wait(&cancel, Duration::from_secs(1)).unwrap(), "first");
@@ -132,8 +132,21 @@ fn the_redirect_slot_takes_the_first_address_only_while_armed() {
     assert!(matches!(slot.wait(&cancel, Duration::from_millis(30)), Err(NetError::SignInTimedOut)));
     cancel.store(true, Ordering::Release);
     assert!(matches!(slot.wait(&cancel, Duration::from_secs(5)), Err(NetError::SignInCancelled)));
-    slot.disarm();
+    slot.disarm(attempt);
     assert!(!slot.deliver("late"));
     // A patience that would overflow the clock is not a panic.
     assert!(matches!(slot.wait(&cancel, Duration::MAX), Err(NetError::SignInCancelled)));
+}
+
+#[test]
+fn an_earlier_attempt_cannot_disarm_a_later_one() {
+    let slot = Redirects::default();
+    let first = slot.arm();
+    let second = slot.arm();
+    assert_ne!(first, second);
+    // The first sign-in's worker ends late: the second one still listens.
+    slot.disarm(first);
+    assert!(slot.deliver("for-the-second"));
+    slot.disarm(second);
+    assert!(!slot.deliver("late"));
 }

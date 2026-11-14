@@ -436,3 +436,12 @@ fn a_sign_in_that_could_not_be_noted_for_removal_is_not_written() {
     assert_eq!(sr.take_written_keys().len(), 1000);
     let _ = &mut s;
 }
+
+#[test]
+fn a_store_that_says_nothing_more_reads_and_removes_as_it_gets_and_deletes() {
+    let store = Store::default();
+    store.set("refresh:a@example.org|graph", "r").unwrap();
+    assert_eq!(store.read("refresh:a@example.org|graph"), Ok(Some("r".to_string())));
+    assert_eq!(store.remove("refresh:a@example.org|graph"), Ok(()));
+    assert_eq!(store.read("refresh:a@example.org|graph"), Ok(None));
+}
