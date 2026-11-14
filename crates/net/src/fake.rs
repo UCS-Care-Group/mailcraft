@@ -450,6 +450,11 @@ impl<W: Send + 'static> Fake<W> {
         Fake { port, _stop: stop, world }
     }
 
+    /// The state itself, for a thread of the test's own to change.
+    pub(crate) fn world_handle(&self) -> Arc<Mutex<W>> {
+        self.world.clone()
+    }
+
     /// The server's state, to set up or to look at.
     pub(crate) fn world(&self) -> MutexGuard<'_, W> {
         self.world.lock().unwrap()

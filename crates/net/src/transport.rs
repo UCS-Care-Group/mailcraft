@@ -143,6 +143,16 @@ impl<'a> Stream<'a> {
         tcp.set_read_timeout(Some(poll.max(Duration::from_millis(1))))
     }
 
+    /// The waits of an ordinary command and its answer again, after [`Stream::wait_for_news`].
+    pub(crate) fn answer_normally(&mut self) -> std::io::Result<()> {
+        self.patience = COMMAND_TIMEOUT;
+        let tcp = match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        };
+        tcp.set_read_timeout(Some(IO_TIMEOUT))
+    }
+
     /// The DER of the certificate the server showed first (its end-entity certificate), on an
     /// encrypted connection whose handshake is done: for channel binding.
     pub(crate) fn server_certificate(&self) -> Option<Vec<u8>> {

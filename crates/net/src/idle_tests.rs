@@ -56,6 +56,8 @@ fn quick() -> Timing {
         backoff_most: Duration::from_millis(60),
         attempts: 5,
         events: 100,
+        idles: 20,
+        shortest: Duration::from_millis(100),
     }
 }
 
@@ -140,6 +142,60 @@ fn an_idle_the_server_ended_itself_is_begun_again() {
     let watch = Running::start(request(&imap, PASSWORD), quick());
     wait_until("a second IDLE", || imap.world().idles >= 2);
     assert_eq!(imap.world().connections, 1);
+    watch.stop();
+}
+
+#[test]
+fn a_server_that_ends_every_idle_at_once_costs_attempts_and_is_given_up() {
+    let mut w = world();
+    w.idle_ends_after = Some(0);
+    let imap = Fake::imap(w);
+    // (The fake ends one IDLE each time it is set; a server that always does is the same.)
+    let watch = Running::start(request(&imap, PASSWORD), Timing { attempts: 3, shortest: Duration::from_secs(1), ..quick() });
+    let stop = watch.stop.clone();
+    let keep = std::thread::spawn({
+        let world = imap.world_handle();
+        move || {
+            while !stop.load(Ordering::Relaxed) {
+                world.lock().unwrap().idle_ends_after = Some(0);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    });
+    assert_eq!(watch.next(Duration::from_secs(10)), Some(IdleNote::Ended(IdleEnd::TooOften)));
+    let connections = imap.world().connections;
+    let idles = imap.world().idles;
+    assert!(connections <= 3 && idles <= 3, "{connections} {idles}");
+    watch.stop.store(true, Ordering::Relaxed);
+    keep.join().unwrap();
+    watch.stop();
+}
+
+#[test]
+fn the_line_allowance_is_for_the_connection_not_for_each_idle() {
+    let imap = Fake::imap(world());
+    let watch = Running::start(request(&imap, PASSWORD), Timing { attempts: 1, events: 50, period: Duration::from_millis(150), ..quick() });
+    wait_until("the client to idle", || imap.world().idling == 1);
+    // Forty lines in each of several IDLEs: no IDLE is over the limit, the connection is.
+    let mut left = false;
+    for _ in 0..10 {
+        let before = imap.world().idles;
+        imap.world().idle_events = (0..40).map(|n| format!("* OK still here {n}")).collect();
+        wait_until("the lines to be taken", || {
+            left |= watch.notes.try_recv().is_ok();
+            left || imap.world().idle_events.is_empty()
+        });
+        // The next IDLE: the lines said in it are the same connection's.
+        wait_until("IDLE to be begun again", || {
+            left |= watch.notes.try_recv().is_ok();
+            left || imap.world().idles > before
+        });
+        if left {
+            break;
+        }
+    }
+    assert!(left, "the connection was never left");
+    assert!(imap.world().connections == 1);
     watch.stop();
 }
 

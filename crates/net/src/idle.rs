@@ -47,8 +47,12 @@ pub struct Timing {
     pub backoff_most: Duration,
     /// Most connections made in an hour.
     pub attempts: usize,
-    /// Most lines the server may say in one IDLE.
+    /// Most lines the server may say in one connection.
     pub events: usize,
+    /// Most IDLEs begun on one connection.
+    pub idles: usize,
+    /// An IDLE the server ends sooner than this is a failure.
+    pub shortest: Duration,
 }
 
 impl Default for Timing {
@@ -61,6 +65,8 @@ impl Default for Timing {
             backoff_most: Duration::from_secs(5 * 60),
             attempts: 12,
             events: 5_000,
+            idles: 200,
+            shortest: Duration::from_secs(5),
         }
     }
 }
@@ -157,7 +163,7 @@ fn stop_idling(imap: &mut Imap<Stream<'_>>) {
 fn idle_on(imap: &mut Imap<Stream<'_>>, stop: &AtomicBool, timing: Timing, reconnected: bool, note: &mut dyn FnMut(IdleNote)) -> Over {
     // Asked again now that the server knows who we are: some say more after the sign-in.
     match imap.capabilities() {
-        Ok(caps) if caps.iter().any(|c| c == "IDLE") => {}
+        Ok(caps) if caps.iter().any(|c| c.eq_ignore_ascii_case("IDLE")) => {}
         Ok(_) => return Over::NoIdle,
         Err(_) => return Over::Dropped { idled: false },
     }
@@ -165,16 +171,26 @@ fn idle_on(imap: &mut Imap<Stream<'_>>, stop: &AtomicBool, timing: Timing, recon
         Ok(selected) => selected.exists,
         Err(_) => return Over::Dropped { idled: false },
     };
-    if imap.get_mut().wait_for_news(timing.poll, timing.period.saturating_add(Duration::from_secs(600))).is_err() {
-        return Over::Dropped { idled: false };
-    }
     // Mail may have come while the connection was down.
     let mut due: Option<Instant> = reconnected.then(Instant::now);
     let mut last_note: Option<Instant> = None;
     let mut idled = false;
+    // Lines heard and IDLEs begun over the whole connection, not each IDLE: ending IDLE
+    // early must not buy a server a new allowance.
+    let mut heard = 0usize;
+    let mut begun_count = 0usize;
     loop {
         if stop.load(Ordering::Relaxed) {
             return Over::Stopped;
+        }
+        begun_count += 1;
+        if begun_count > timing.idles {
+            log::warn!("idle: too many IDLEs on one connection; leaving it");
+            return Over::Dropped { idled };
+        }
+        // The server's go-ahead gets the time an answer does; only the wait that follows is a second a read.
+        if imap.get_mut().answer_normally().is_err() {
+            return Over::Dropped { idled };
         }
         match imap.idle_begin() {
             Ok(()) => {}
@@ -183,8 +199,10 @@ fn idle_on(imap: &mut Imap<Stream<'_>>, stop: &AtomicBool, timing: Timing, recon
             Err(_) => return Over::Dropped { idled },
         }
         idled = true;
+        if imap.get_mut().wait_for_news(timing.poll, timing.period.saturating_add(Duration::from_secs(600))).is_err() {
+            return Over::Dropped { idled };
+        }
         let begun = Instant::now();
-        let mut heard = 0usize;
         let mut ended_itself = false;
         loop {
             if stop.load(Ordering::Relaxed) {
@@ -202,6 +220,11 @@ fn idle_on(imap: &mut Imap<Stream<'_>>, stop: &AtomicBool, timing: Timing, recon
             }
             match imap.idle_poll() {
                 Ok(Some(IdleEvent::Ended)) => {
+                    // A server that ends IDLE at once is not waiting for anything: that is a
+                    // failure (a wait and an attempt of the hour), not a reason to ask again.
+                    if now.duration_since(begun) < timing.shortest {
+                        return Over::Dropped { idled: false };
+                    }
                     ended_itself = true;
                     break;
                 }
@@ -241,6 +264,12 @@ fn idle_on(imap: &mut Imap<Stream<'_>>, stop: &AtomicBool, timing: Timing, recon
         if !ended_itself {
             match imap.idle_end() {
                 Ok(events) => {
+                    // What it said on the way counts against the connection too.
+                    heard = heard.saturating_add(events.len());
+                    if heard > timing.events {
+                        log::warn!("idle: the server said too much while idle; leaving it");
+                        return Over::Dropped { idled };
+                    }
                     for event in events {
                         if let IdleEvent::Exists(n) = event {
                             if n > exists && due.is_none() {

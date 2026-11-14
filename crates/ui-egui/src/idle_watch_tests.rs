@@ -100,9 +100,75 @@ fn turning_send_receive_off_or_working_offline_stops_the_watch() {
     app.session.prefs.offline = false;
     app.idle_tick();
     let stop = host.lock().unwrap().say[2].1.clone();
-    app.execute("account.remove", json!({"id": account})).ok();
+    app.execute("account.remove", json!({"id": account})).unwrap();
+    assert!(app.session.mailbox.account(account).is_none());
     app.idle_tick();
-    assert!(stop.load(Ordering::Relaxed) || app.session.mailbox.account(account).is_some());
+    assert!(stop.load(Ordering::Relaxed) && !app.idle.watching(account));
+}
+
+#[test]
+fn the_drivers_switch_is_the_one_that_counts() {
+    let (mut app, account, host) = window();
+    app.session.prefs.sync_minutes = 5;
+    app.passwords.insert(account, "hunter2".into());
+    app.session.driver.set_auto_sync(false);
+    app.idle_tick();
+    assert!(host.lock().unwrap().asked.is_empty());
+    app.session.driver.set_auto_sync(true);
+    app.idle_tick();
+    assert_eq!(host.lock().unwrap().asked.len(), 1);
+}
+
+#[test]
+fn editing_the_account_or_losing_its_secret_ends_the_watch_and_a_new_one_has_the_new_server() {
+    let (mut app, account, host) = window();
+    app.session.prefs.sync_minutes = 5;
+    app.passwords.insert(account, "hunter2".into());
+    app.idle_tick();
+    let first = host.lock().unwrap().say[0].1.clone();
+    // The server is changed: the old watch stops, and the next one goes to the new host.
+    app.execute("account.edit", json!({"id": account, "incoming": {"host": "imap2.example.org", "port": 993, "security": "tls"}})).unwrap();
+    app.idle_tick();
+    assert!(first.load(Ordering::Relaxed) && !app.idle.watching(account));
+    // (The edit forgets the password; entered again, it is a new watch, at the new server.)
+    app.passwords.insert(account, "hunter2".into());
+    app.idle_tick();
+    let asked = host.lock().unwrap().asked.clone();
+    assert_eq!(asked.len(), 2);
+    assert_eq!(asked[1].account.incoming.as_ref().map(|s| s.host.as_str()), Some("imap2.example.org"));
+    // The secret leaves memory (signed out): the watch stops and none is started.
+    let second = host.lock().unwrap().say[1].1.clone();
+    app.passwords.remove(&account);
+    app.idle_tick();
+    assert!(second.load(Ordering::Relaxed) && !app.idle.watching(account));
+    assert_eq!(host.lock().unwrap().asked.len(), 2);
+    // A changed password alone is a new watch too, and so is a changed server with the secret kept.
+    app.passwords.insert(account, "hunter2".into());
+    app.idle_tick();
+    let third = host.lock().unwrap().say[2].1.clone();
+    app.session.mailbox.account_mut(account).unwrap().incoming.as_mut().unwrap().host = "imap3.example.org".into();
+    app.idle_tick();
+    assert!(third.load(Ordering::Relaxed));
+    assert_eq!(host.lock().unwrap().asked.len(), 4);
+    // A new password is a new watch.
+    app.passwords.insert(account, "other".into());
+    app.idle_tick();
+    assert_eq!(host.lock().unwrap().asked.len(), 5);
+}
+
+#[test]
+fn news_while_a_round_is_under_way_queues_the_account_without_wiping_the_rows() {
+    let (mut app, account, host) = window();
+    app.session.prefs.sync_minutes = 5;
+    app.passwords.insert(account, "hunter2".into());
+    app.session.sync_progress.begin(&[account, 999]);
+    assert!(app.session.sync_progress.running());
+    let before = app.session.sync_progress.accounts.len();
+    app.idle_tick();
+    host.lock().unwrap().say[0].0.send(IdleNote::Arrived).unwrap();
+    app.idle_tick();
+    assert_eq!(app.sync_queue.len(), 1);
+    assert_eq!(app.session.sync_progress.accounts.len(), before);
 }
 
 #[test]

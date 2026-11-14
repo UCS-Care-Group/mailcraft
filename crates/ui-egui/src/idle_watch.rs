@@ -37,6 +37,9 @@ pub struct IdleWatch {
 #[derive(Default)]
 pub(crate) struct IdleWatches {
     running: HashMap<Id, IdleWatch>,
+    /// What each running watch was started with ([`MailApp::idle_key`]): when it changes, the
+    /// watch is stopped and made anew.
+    keys: HashMap<Id, u64>,
     /// When (the session's clock, seconds) an account may be watched again.
     retry: HashMap<Id, i64>,
 }
@@ -47,6 +50,7 @@ impl IdleWatches {
         for (_, watch) in self.running.drain() {
             watch.stop.store(true, Ordering::Relaxed);
         }
+        self.keys.clear();
         self.retry.clear();
     }
 
@@ -85,11 +89,16 @@ impl MailApp {
         let wanted = self.idle_wanted();
         // Those no longer wanted stop: the timer was turned off, the account removed, the
         // mailbox changed.
-        let gone: Vec<Id> = self.idle.running.keys().copied().filter(|id| !wanted.contains(id)).collect();
+        // Nor does one whose account was edited (server, security, user name, sign-in) or whose
+        // secret has left memory (signed out, forgotten by the edit): it would go on signing in
+        // to what the owner changed.
+        let gone: Vec<Id> =
+            self.idle.running.keys().copied().filter(|id| !wanted.contains(id) || self.idle.keys.get(id) != self.idle_key(*id).as_ref()).collect();
         for id in gone {
             if let Some(watch) = self.idle.running.remove(&id) {
                 watch.stop.store(true, Ordering::Relaxed);
             }
+            self.idle.keys.remove(&id);
         }
         // What the running ones say.
         let mut arrived = Vec::new();
@@ -117,6 +126,7 @@ impl MailApp {
         }
         for (id, end) in ended {
             self.idle.running.remove(&id);
+            self.idle.keys.remove(&id);
             if let Some(wait) = end.map_or(Some(600), retry_after) {
                 self.idle.retry.insert(id, now.saturating_add(wait));
             }
@@ -126,19 +136,24 @@ impl MailApp {
             if self.sync_queue.iter().any(|(queued, _)| *queued == id) || !self.can_sync_quietly(id) {
                 continue;
             }
+            // A round that is under way keeps its rows: the account waits its turn in the queue.
+            let begin = !self.session.sync_progress.running();
             self.sync_queue.push_back((id, true));
-            let round: Vec<Id> = self.sync_queue.iter().map(|(account, _)| *account).collect();
-            self.session.sync_progress.begin(&round);
+            if begin {
+                let round: Vec<Id> = self.sync_queue.iter().map(|(account, _)| *account).collect();
+                self.session.sync_progress.begin(&round);
+            }
         }
         // Start the ones that should be running and aren't.
         for id in wanted {
             if self.idle.running.contains_key(&id) || self.idle.retry.get(&id).is_some_and(|at| now < *at) {
                 continue;
             }
-            let Some(request) = self.idle_request(id) else { continue };
+            let (Some(request), Some(key)) = (self.idle_request(id), self.idle_key(id)) else { continue };
             if let Some(start) = &self.services.idle {
                 let watch = start(request);
                 self.idle.running.insert(id, watch);
+                self.idle.keys.insert(id, key);
             }
         }
     }
@@ -146,15 +161,31 @@ impl MailApp {
     /// The accounts that are to be watched now.
     fn idle_wanted(&self) -> Vec<Id> {
         if self.services.idle.is_none()
-            || !self.auto_sync
+            || !self.session.driver.auto_sync()
             || self.session.prefs.sync_minutes == 0
             || self.offline()
-            || self.data_removed
             || self.unconfirmed
         {
             return Vec::new();
         }
         self.session.mailbox.accounts.iter().filter(|a| a.kind == AccountKind::Imap && a.incoming.is_some() && !a.is_shared()).map(|a| a.id).collect()
+    }
+
+    /// What a watch of `account` is for: the server, the user name, the way of signing in and the
+    /// secret that is in memory (a token's own text is left out: it is renewed every hour, and
+    /// the connection it opened goes on). `None` while there is nothing to sign in with.
+    fn idle_key(&self, account: Id) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+        let a = self.session.mailbox.account(account)?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let server = a.incoming.as_ref()?;
+        (&server.host, server.port, format!("{:?}", server.security), a.login(), a.oauth.is_some()).hash(&mut hasher);
+        if a.oauth.is_some() {
+            self.tokens.get(&account)?;
+        } else {
+            self.passwords.get(&account).filter(|p| !p.is_empty())?.hash(&mut hasher);
+        }
+        Some(hasher.finish())
     }
 
     /// What the watch of `account` signs in with: the password the owner entered, or a token
