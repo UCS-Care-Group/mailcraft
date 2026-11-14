@@ -32,7 +32,10 @@ internal class SecretFiles(private val dir: File, private val sealer: Sealer) : 
     override fun get(key: String): String? = guarded {
         val file = fileFor(key)
         if (!file.isFile) return@guarded null
-        if (file.length() > MAX_FILE) throw HostException.Failed()
+        if (file.length() > MAX_FILE) {
+            trouble = TroubleKind.UNAVAILABLE
+            throw HostException.Failed()
+        }
         val sealed = try {
             file.readBytes()
         } catch (e: IOException) {
