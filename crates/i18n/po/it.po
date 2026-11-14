@@ -3171,6 +3171,12 @@ msgstr "Impossibile inviare la posta: l'account non ha un server in uscita"
 msgid "Country"
 msgstr "Paese"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Create Message"

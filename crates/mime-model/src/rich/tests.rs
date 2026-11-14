@@ -222,7 +222,7 @@ fn arb_style() -> impl Strategy<Value = Style> {
             (
                 Just(s),
                 proptest::option::of(prop_oneof![Just("#1f6feb".to_string()), Just("red".to_string()), "\\PC{0,8}"]),
-                proptest::option::of(0usize..5),
+                proptest::option::of(0usize..Font::ALL.len()),
             )
                 .prop_map(|(s, color, font)| Style { color, font: font.and_then(|f| Font::ALL.get(f).copied()), ..s })
         })
@@ -469,4 +469,19 @@ fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
     let links = |t: &RichText| t.paragraphs().iter().flat_map(|p| p.runs.iter()).filter_map(|r| r.style.link.clone()).collect::<Vec<_>>();
     assert!(links(&super::from_html(html)).is_empty());
     assert_eq!(links(&super::from_html_with_pictures(html, &mut |_| None)), vec!["ms-settings:network-vpn".to_string()]);
+}
+
+#[test]
+fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
+    // #969: a signature drawn with spaces in Courier New comes back as it was written.
+    let courier = Style { font: Font::parse("Courier New"), ..Style::default() };
+    let t = RichText::from_paragraphs(vec![
+        Paragraph::new(vec![styled("+------+", courier.clone())], ListKind::None),
+        Paragraph::new(vec![styled("|  Hi  |", courier.clone())], ListKind::None),
+        Paragraph::new(vec![styled("+------+", courier)], ListKind::None),
+    ]);
+    let html = to_html(&t);
+    assert!(html.contains("<span style=\"font-family:'Courier New', Courier, monospace\">| &nbsp;Hi &nbsp;|</span>"), "{html}");
+    assert_in_set(&html);
+    assert_eq!(from_html(&html), t);
 }

@@ -656,3 +656,29 @@ proptest! {
         prop_assert_eq!(serde_json::from_str::<RichText>(&json).unwrap(), t);
     }
 }
+
+/// The fixed-width font of the composer (#969).
+fn courier_new() -> Font {
+    Font::parse("courier new").unwrap_or_else(|| panic!("Courier New is not one of the composer's fonts"))
+}
+
+#[test]
+fn courier_new_is_the_one_fixed_width_font() {
+    let courier = courier_new();
+    assert_eq!(courier.label(), "Courier New");
+    assert!(courier.is_fixed_width());
+    assert_eq!(Font::ALL.iter().filter(|f| f.is_fixed_width()).collect::<Vec<_>>(), vec![&courier]);
+    // Written with a fixed-width fallback, so a recipient without Courier New keeps the columns too.
+    assert_eq!(courier.css(), "'Courier New', Courier, monospace");
+}
+
+#[test]
+fn a_fixed_width_family_comes_back_as_courier_new() {
+    let courier = courier_new();
+    for font in Font::ALL {
+        assert_eq!(Font::from_css(font.css()), Some(font), "{font:?}");
+    }
+    for first in ["Courier New", "\"Courier New\"", "Courier", "Liberation Mono", "Cousine", "monospace", "ui-monospace"] {
+        assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier), "{first}");
+    }
+}

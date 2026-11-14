@@ -3165,6 +3165,12 @@ msgstr "No se pudo enviar el correo: la cuenta no tiene servidor de salida"
 msgid "Country"
 msgstr "País"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Create Message"

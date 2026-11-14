@@ -3333,6 +3333,12 @@ msgstr "无法发送邮件：该账户没有发送服务器"
 msgid "Country"
 msgstr "国家"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy

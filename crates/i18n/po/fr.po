@@ -3165,6 +3165,12 @@ msgstr "Impossible d'envoyer le courrier : le compte n'a pas de serveur sortant"
 msgid "Country"
 msgstr "Pays"
 
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Create Message"

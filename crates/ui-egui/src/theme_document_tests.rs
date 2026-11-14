@@ -60,3 +60,32 @@ fn an_installed_face_is_registered_with_the_windows_font_behind_it() {
     assert!(!fonts.families.contains_key(&document_family(Font::Arial, false)));
     assert!(!fonts.families.contains_key(&FontFamily::Name("font-system".into())));
 }
+
+#[test]
+fn courier_new_is_looked_for_as_the_vendors_face_then_the_open_ones() {
+    let courier = Font::parse("Courier New").unwrap();
+    assert_eq!(first_face(courier, false, |_: &str| true), Some("cour.ttf"));
+    assert_eq!(first_face(courier, true, |_: &str| true), Some("courbd.ttf"));
+    // macOS names the file in full.
+    assert_eq!(first_face(courier, true, |n: &str| n.starts_with("courier new")), Some("courier new bold.ttf"));
+    // Only the open metric-compatible faces: Liberation Mono before Cousine.
+    let open = |n: &str| n.starts_with("liberation") || n.starts_with("cousine");
+    assert_eq!(first_face(courier, false, open), Some("liberationmono-regular.ttf"));
+    assert_eq!(first_face(courier, true, |n: &str| n == "cousine-bold.ttf"), Some("cousine-bold.ttf"));
+}
+
+#[test]
+fn an_installed_fixed_width_face_has_the_bundled_fixed_width_font_behind_it() {
+    let dir = std::env::temp_dir().join(format!("mailcraft-doc-fonts-mono-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("cour.ttf"), A_FONT).unwrap();
+    let system = SystemFont::none().with_document_faces(std::slice::from_ref(&dir));
+    let _ = std::fs::remove_dir_all(&dir);
+    let courier = Font::parse("Courier New").unwrap();
+    assert_eq!(system.document_faces(), vec![(courier, false)]);
+    let fonts = font_definitions_with(&system);
+    let chain = fonts.families.get(&document_family(courier, false)).cloned().unwrap();
+    // A glyph the face lacks is drawn as wide as the others, in JetBrains Mono.
+    assert_eq!(chain.get(..2), Some(&["DocCourier New".to_string(), "Mono".to_string()][..]), "{chain:?}");
+}
