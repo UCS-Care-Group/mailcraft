@@ -93,7 +93,9 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" | "rules.run" => FolderContent,
-        "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        // (The clean-up of #1401 reaches every folder when it names none: its question counts
+        // what goes, and is described again on the yes.)
+        "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
