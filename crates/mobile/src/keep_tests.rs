@@ -342,11 +342,76 @@ fn removing_the_data_says_so_when_a_sign_in_stays_in_the_store_and_a_retry_remov
     platform.secrets.stuck.store(true, Ordering::Relaxed);
     assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
     assert!(platform.secrets.kept.lock().unwrap().iter().any(|(_, v)| v == "stored-refresh"), "the token is still there, and the owner was told");
-    assert!(!subjects(&core).is_empty(), "the mailbox is not reported removed");
+    assert!(subjects(&core).is_empty(), "the mail's files went, so the session let go of it too");
     platform.secrets.stuck.store(false, Ordering::Relaxed);
     block_on(core.delete_local_data()).unwrap();
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
     assert!(subjects(&core).is_empty());
+}
+
+/// Adds one message to the Inbox of the mailbox's first account.
+fn add_one(core: &Core, subject: &'static str) {
+    block_on(core.call(move |s| {
+        let account = s.mailbox.accounts.first().map(|a| a.id).unwrap();
+        let folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        let m = Message { account, folder, subject: subject.into(), message_id: "after@example.org".into(), ..Default::default() };
+        s.mailbox.add_message(m).unwrap();
+        s.mailbox_changed();
+        Ok(())
+    }))
+    .unwrap();
+}
+
+/// After a removal that failed, the old mail never comes back by itself, and a new change is kept
+/// without it.
+fn nothing_old_comes_back(core: &Core, dir: &Dir) {
+    assert!(subjects(core).is_empty(), "the session let go of the mail");
+    std::thread::sleep(Duration::from_millis(400));
+    assert!(!dir.file().exists(), "no save brought the mailbox back");
+    add_one(core, "After the removal");
+    until("the change is saved", || dir.file().exists());
+    block_on(core.save_now()).unwrap();
+    assert_eq!(on_disk(&dir.file()), vec![("After the removal".to_string(), false)]);
+}
+
+#[test]
+fn a_removal_whose_sign_ins_stay_lets_go_of_the_mail_it_deleted() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.stuck.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    assert_eq!(std::fs::read_dir(&dir.0).unwrap().count(), 0, "the mail's files went");
+    nothing_old_comes_back(&core, &dir);
+    // The retry still removes the sign-in it couldn't before.
+    platform.secrets.stuck.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_removal_where_both_fail_but_some_files_went_lets_go_of_the_mail() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.stuck.store(true, Ordering::Relaxed);
+    // The mailbox file can go, but not what the content folder holds.
+    let blobs = dir.0.join("mailbox.mailcraft.blobs");
+    assert!(blobs.exists());
+    set_mode(&blobs, 0o500);
+    let probe = blobs.join("probe");
+    if std::fs::write(&probe, b"x").is_ok() {
+        // (Run with rights that ignore the mode: nothing to see here.)
+        restore_access(&dir.0);
+        return;
+    }
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    assert!(!dir.file().exists() && blobs.exists(), "some went and some stayed");
+    nothing_old_comes_back(&core, &dir);
+    restore_access(&dir.0);
+    platform.secrets.stuck.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert_eq!(std::fs::read_dir(&dir.0).unwrap().count(), 0);
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -369,7 +434,7 @@ fn a_sign_in_that_cannot_be_read_back_is_not_taken_for_removed() {
     platform.secrets.unreadable.store(true, Ordering::Relaxed);
     assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
     assert!(platform.secrets.kept.lock().unwrap().iter().any(|(_, v)| v == "stored-refresh"));
-    assert!(!subjects(&core).is_empty(), "the mailbox is not reported removed");
+    assert!(subjects(&core).is_empty(), "the mail's files went, so the session let go of it too");
     platform.secrets.stuck.store(false, Ordering::Relaxed);
     platform.secrets.unreadable.store(false, Ordering::Relaxed);
     block_on(core.delete_local_data()).unwrap();

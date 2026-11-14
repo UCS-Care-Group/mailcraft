@@ -439,7 +439,8 @@ impl Core {
     /// Remove the mail kept on this phone (the mailbox file, its content folder and what was
     /// kept aside) and every sign-in the credential store holds, and start over with an empty
     /// mailbox, for Settings > Remove account and data. An error says that some of it is still
-    /// there; calling it again tries again. `DataRemoved::SignInsMayRemain` says that it was
+    /// there (the session starts over with an empty mailbox all the same, so that nothing removed
+    /// is written back); calling it again tries again. `DataRemoved::SignInsMayRemain` says that it was
     /// done but the list of the sign-ins kept was damaged, so older ones may still be in the
     /// phone's credential store: the app shows its message.
     pub async fn delete_local_data(&self) -> Result<DataRemoved, CoreError> {
@@ -452,6 +453,14 @@ impl Core {
                 Some(keep) => keep.delete_all(),
                 None => Ok(()),
             };
+            // Whatever came of it, the session lets go of the mail: some or all of its files may
+            // be gone, and a mailbox kept in memory would be written back by the next save. The
+            // fresh one counts as saved, so nothing is written until the owner changes something;
+            // the names of sign-ins still in the store are kept by `sync` for the retry.
+            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            if let Some(keep) = &keep {
+                keep.reset(session);
+            }
             let forgotten = match (signed_in, removed) {
                 (Ok(forgotten), Ok(())) => forgotten,
                 (Err(reason), _) | (_, Err(reason)) => return Err(CoreError::Failed { reason }),
@@ -461,10 +470,6 @@ impl Core {
             } else {
                 DataRemoved::All
             };
-            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
-            if let Some(keep) = &keep {
-                keep.reset(session);
-            }
             // Only now is the notice given: a removal that failed says it at its retry.
             if forgotten.some_may_remain {
                 sync.notice_given();
