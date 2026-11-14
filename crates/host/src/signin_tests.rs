@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use mailcraft_model::sync::Tokens;
 
-use crate::signin::{SignIns, forget, hint_of, keep_refresh, sensible_email, signed_in_address, tenant_of};
-use crate::{Platform, SecretError, SecretStore};
+use crate::signin::{Endpoints, Page, SignIns, Why, forget, hint_of, keep_refresh, page, sensible_email, signed_in_address, tenant_of};
+use crate::{Platform, PlatformError, Redirect, SecretError, SecretStore};
 
 #[derive(Default)]
 struct Kept(Mutex<HashMap<String, String>>);
@@ -109,4 +109,91 @@ fn a_sign_in_that_tries_again_is_armed_for_a_second_redirect() {
     let second = armer.arm();
     assert!(signins.deliver("x:/second".to_string()));
     assert_eq!(second.try_recv().unwrap(), "x:/second");
+}
+
+/// A phone whose browser sends the owner straight back: the first time with a refusal of the
+/// optional consent, the second with a code. Each address goes in through the same `SignIns`
+/// slot the app's link handler uses.
+struct Bouncing {
+    signins: Arc<SignIns>,
+    opened: Mutex<usize>,
+    gave_up: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Platform for Bouncing {
+    fn redirect(&self) -> Redirect {
+        Redirect::CustomScheme("work.mailcraft.android".to_string())
+    }
+
+    fn open_sign_in_page(&self, url: &str) -> Result<(), PlatformError> {
+        let state = url.split(['?', '&']).find_map(|f| f.strip_prefix("state=")).unwrap_or_default().to_string();
+        let n = {
+            let mut opened = self.opened.lock().unwrap_or_else(PoisonError::into_inner);
+            *opened += 1;
+            *opened
+        };
+        let tail = if n == 1 { "error=invalid_scope".to_string() } else { "code=second-code".to_string() };
+        let taken = self.signins.deliver(format!("work.mailcraft.android://oauth2redirect?{tail}&state={state}"));
+        if !taken {
+            // (Nobody waits for this address: the sign-in would sit out its five minutes.)
+            self.gave_up.store(true, std::sync::atomic::Ordering::Release);
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
+    use std::io::{Read, Write};
+    use std::sync::atomic::AtomicBool;
+
+    // A token endpoint that answers once.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut seen = vec![0u8; 8192];
+        let n = conn.read(&mut seen).unwrap_or(0);
+        let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"acc-ess.tok_en","refresh_token":"re-fresh.tok_en"}"#;
+        let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        conn.write_all(reply.as_bytes()).unwrap();
+        String::from_utf8_lossy(&seen[..n]).into_owned()
+    });
+    let signins = Arc::new(SignIns::default());
+    let gave_up = Arc::new(AtomicBool::new(false));
+    let phone = Bouncing { signins: signins.clone(), opened: Mutex::new(0), gave_up: gave_up.clone() };
+    let endpoints = Endpoints {
+        authorize: "http://127.0.0.1:9/authorize".into(),
+        token: format!("http://127.0.0.1:{port}/token"),
+        scope: "mail.read offline_access".into(),
+        consent: "graph.send".into(),
+        lesser: String::new(),
+    };
+    let place = signins.begin().unwrap();
+    let landed = signins.arm();
+    // (Called off by the phone if the second address finds nobody waiting, so a fault fails and doesn't hang.)
+    let cancel = Arc::new(AtomicBool::new(false));
+    let watcher = {
+        let (gave_up, cancel) = (gave_up.clone(), cancel.clone());
+        std::thread::spawn(move || {
+            for _ in 0..200 {
+                if gave_up.load(std::sync::atomic::Ordering::Acquire) {
+                    cancel.store(true, std::sync::atomic::Ordering::Release);
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            cancel.store(true, std::sync::atomic::Ordering::Release);
+        })
+    };
+    let result = page(&phone, landed, &signins.armer(), &endpoints, "", Why::Account, &cancel);
+    drop(place);
+    let _ = watcher;
+    match result {
+        Page::Tokens(tokens) => assert_eq!(tokens.refresh, "re-fresh.tok_en"),
+        _ => panic!("the second redirect did not complete the sign-in"),
+    }
+    assert!(!gave_up.load(std::sync::atomic::Ordering::Acquire));
+    assert_eq!(*phone.opened.lock().unwrap(), 2);
+    assert!(server.join().unwrap().contains("second-code"));
 }

@@ -299,6 +299,8 @@ internal data class AccountsUi(
     val removing: AccountItem? = null,
     /** The last try at removing it failed: the account is still there. */
     val removeFailed: Boolean = false,
+    /** The kept mailbox could be neither read nor put aside, so nothing is saved this session. */
+    val savingOff: Boolean = false,
 )
 
 /** What the account screens ask of the app: one entry for each thing the owner can do there. */

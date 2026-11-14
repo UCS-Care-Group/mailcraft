@@ -44,6 +44,9 @@ internal class AccountsController(
         onShown = ::refreshStatuses,
     )
 
+    /** The kept mailbox can't be written this session: the screens say so. */
+    fun setSavingOff(off: Boolean) = ui.update { it.copy(savingOff = off) }
+
     private fun typed(email: String) = ui.update { state ->
         val add = state.add
         if (add is AddAccountState.Form) {

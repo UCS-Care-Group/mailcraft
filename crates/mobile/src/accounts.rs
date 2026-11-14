@@ -358,10 +358,21 @@ impl Core {
             return Ok(PermissionState::Unknown);
         }
         let standing = reply.next().await.unwrap_or(Standing::Unknown);
-        // The answer may have renewed the stored sign-in of an account removed meanwhile: it goes again.
-        if matches!(self.call(move |s| Ok(s.mailbox.accounts.iter().any(|a| a.id == account))).await, Ok(false)) {
-            signin::forget(self.native.as_ref(), &renewed_for);
-        }
+        // The answer may have renewed the stored sign-in of an account removed meanwhile: it goes
+        // again, unless another account has the same address (a second one, or the same one added
+        // again under a new id), whose sign-in it is. One job, on the session's thread, so nothing
+        // is added or removed between the look and the deletion.
+        let platform = self.native.clone();
+        let _ = self
+            .call(move |s| {
+                let gone = !s.mailbox.accounts.iter().any(|a| a.id == account);
+                let shared = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&renewed_for));
+                if gone && !shared {
+                    signin::forget(platform.as_ref(), &renewed_for);
+                }
+                Ok(())
+            })
+            .await;
         Ok(PermissionState::from(standing))
     }
 
@@ -403,6 +414,7 @@ impl Core {
     /// Whether the mailbox has a Microsoft account at `email`.
     async fn has_microsoft_account(&self, email: &str) -> Result<bool, CoreError> {
         let email = email.to_string();
-        self.call(move |s| Ok(s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email)))).await
+        self.call(move |s| Ok(s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email))))
+            .await
     }
 }

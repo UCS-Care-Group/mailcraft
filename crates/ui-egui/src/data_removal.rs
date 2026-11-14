@@ -171,7 +171,7 @@ impl MailApp {
         // Nothing writes any more: no Send/Receive, no mailbox file, nothing remembered.
         self.data_removed = true;
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.sync_queue.clear();
+        self.session.driver.round.queue.clear();
         let mailbox = self.session.path.take();
         self.autosave = false;
         self.session.close_all_composing();

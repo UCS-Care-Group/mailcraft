@@ -105,3 +105,11 @@ fn comments_inside_a_call_are_skipped() {
     assert_eq!(s[0].plural.as_deref(), Some("{n} rows"));
     assert!(ids("t(\"a\" /* unclosed").is_empty());
 }
+
+#[test]
+fn nested_block_comments_end_at_the_outer_close() {
+    assert_eq!(ids("t(/* outer /* inner */ tail */ \"Menu\")"), vec!["Menu"]);
+    assert_eq!(ids("t(\"Menu\" /* outer /* inner */ tail */)"), vec!["Menu"]);
+    assert_eq!(ids("t(/* a /* b */ c */ \"Menu\" /* d /* e */ f */)"), vec!["Menu"]);
+    assert!(ids("t(\"a\" /* outer /* inner */ unclosed").is_empty());
+}

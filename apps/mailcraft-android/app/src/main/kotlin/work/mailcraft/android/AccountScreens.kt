@@ -6,6 +6,7 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -167,6 +168,11 @@ internal fun NoAccount(texts: Texts, onAdd: () -> Unit, modifier: Modifier = Mod
 @Composable
 internal fun AccountsPage(texts: Texts, accounts: List<AccountItem>, ui: AccountsUi, actions: AccountActions, onAdd: () -> Unit) {
     LaunchedEffect(accounts) { actions.onShown(accounts) }
+    if (ui.savingOff) {
+        Box(modifier = Modifier.padding(horizontal = Gutter, vertical = Gap)) {
+            NoticeCard(texts.t("MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."))
+        }
+    }
     accounts.forEach { account ->
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = Gap)) {
             Text(account.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

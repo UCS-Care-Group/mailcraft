@@ -5,6 +5,7 @@ package work.mailcraft.android
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Event
@@ -46,6 +47,7 @@ internal class EventDispatcher {
  *
  * [restore] opens what was kept and runs once, here; [keep] keeps the mailbox as it is now.
  */
+@Suppress("LongParameterList")
 internal class AccountsHub(
     api: AccountsApi,
     texts: Texts,
@@ -53,6 +55,8 @@ internal class AccountsHub(
     restore: suspend () -> Unit,
     private val keep: suspend () -> Unit,
     copy: (String) -> Unit,
+    /** True while changes can't be kept (the kept mailbox could not be read or put aside). */
+    savingOff: StateFlow<Boolean> = MutableStateFlow(false),
 ) {
     /** True once the kept mailbox was opened (or there was none). */
     val restored = MutableStateFlow(false)
@@ -80,6 +84,7 @@ internal class AccountsHub(
             restore()
             restored.value = true
         }
+        scope.launch { savingOff.collect { off -> controller.setSavingOff(off) } }
     }
 
     /** The accounts as the window has them now. */

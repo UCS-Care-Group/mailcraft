@@ -30,7 +30,7 @@ use mailcraft_net::oauth::{
 pub use mailcraft_net::NetError;
 pub use mailcraft_net::oauth::{Ending, Endpoints, FavoritesRefusal, Permission, Resource, admin_consent_url, permission_endpoints};
 
-use crate::keys::microsoft_secret_key;
+use crate::secrets::microsoft_secret_key;
 use crate::{Platform, Redirect, SecretStore};
 
 /// The application (client) id this build presents to Microsoft's page: the project's own
@@ -215,7 +215,15 @@ pub fn redirect_scheme(platform: &dyn Platform) -> Option<String> {
 
 /// Run a sign-in on the page, waiting for the address on `landed` (taken: the wait holds it) as long as the owner takes
 /// (five minutes at most) and not past `cancel`. Blocks.
-pub fn page(platform: &dyn Platform, landed: Receiver<String>, armer: &Armer, endpoints: &Endpoints, hint: &str, why: Why, cancel: &AtomicBool) -> Page {
+pub fn page(
+    platform: &dyn Platform,
+    landed: Receiver<String>,
+    armer: &Armer,
+    endpoints: &Endpoints,
+    hint: &str,
+    why: Why,
+    cancel: &AtomicBool,
+) -> Page {
     let Some(oauth) = client_oauth() else { return Page::Unable("this build of MailCraft has no Microsoft sign-in set up") };
     let Some(scheme) = redirect_scheme(platform) else { return Page::Unable("this phone can't take a sign-in back through the app's own address") };
     let no_browser = AtomicBool::new(false);

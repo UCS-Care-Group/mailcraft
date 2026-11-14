@@ -73,6 +73,7 @@ class MailCraftApplication : Application() {
                 restore = { store.restore(core) },
                 keep = { store.keep(core) },
                 copy = { text -> copyToClipboard(applicationContext, text) },
+                savingOff = store.savingOff,
             )
             events.register(hub::handle)
             events.launchIn(scope) { nextEvent(core) }

@@ -590,3 +590,49 @@ fn a_new_refresh_token_in_a_check_replaces_the_kept_one_only_when_it_is_the_acco
     assert_eq!(block_on(rig.core.permission_state(account, Permission::SharedMail)).unwrap(), PermissionState::Allowed);
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"));
 }
+
+/// A server whose token answer comes after `remove` ran on the mailbox: the account is removed while
+/// a check is on its way, and the answer renews the stored sign-in.
+fn server_removing(account: Arc<Mutex<Option<(Arc<Core>, u64)>>>) -> TokenServer {
+    TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token")
+            && let Some((core, id)) = account.lock().unwrap().take()
+        {
+            block_on(core.remove_account(id)).unwrap();
+        }
+        (200, tokens_for(ADA, "Ada", "rotated-refresh-token"))
+    })
+}
+
+#[test]
+fn a_check_for_a_removed_account_leaves_a_sign_in_another_account_with_its_address_still_owns() {
+    let slot = Arc::new(Mutex::new(None));
+    let rig = Rig::new(&server_removing(slot.clone()));
+    let account = signed_in(&rig);
+    // Another account of the same address (a mailbox from a file may have two).
+    let other = block_on(rig.core.call(|s| {
+        let mut twin = s.mailbox.accounts.iter().find(|a| a.kind == mailcraft_model::AccountKind::Microsoft).cloned().ok_or(CoreError::Internal)?;
+        twin.id = twin.id.saturating_add(1000);
+        let id = twin.id;
+        s.mailbox.accounts.push(twin);
+        Ok(id)
+    }))
+    .unwrap();
+    assert_ne!(other, account);
+    *slot.lock().unwrap() = Some((rig.core.clone(), account));
+    // (The check's own server is the one the rig was started with.)
+    block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
+    assert_eq!(rig.accounts().iter().map(|(id, _)| *id).collect::<Vec<_>>(), vec![other]);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"), "the other account's sign-in was deleted");
+}
+
+#[test]
+fn a_check_for_a_removed_account_takes_back_what_it_renewed_when_nobody_else_has_the_address() {
+    let slot = Arc::new(Mutex::new(None));
+    let rig = Rig::new(&server_removing(slot.clone()));
+    let account = signed_in(&rig);
+    *slot.lock().unwrap() = Some((rig.core.clone(), account));
+    block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+}
