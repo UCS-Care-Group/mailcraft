@@ -487,16 +487,16 @@ fn agent_hash(hash: mailcraft_openpgp::HashAlgorithm) -> mailcraft_assuan::HashA
     }
 }
 
-/// The keys that may sign for what `key` names: that key itself, else every key of the
-/// certificate whose primary key it is, newest first (a primary key kept offline with its
-/// signing subkey on a smartcard is the usual case).
+/// The keys that may sign for what `key` names, in the order they are tried: that key itself
+/// first, then every other key of the certificate whose primary key it is, newest first. A
+/// primary key kept offline with its signing subkey on a smartcard is the usual case, and the
+/// primary may be able to sign too: whichever of them gpg-agent holds signs.
 pub(crate) fn candidates<'a>(keys: &'a [mailcraft_openpgp::SigningKey], key: &SigningKey) -> Vec<&'a mailcraft_openpgp::SigningKey> {
     let named = |f: &mailcraft_openpgp::Fingerprint| f.to_hex().eq_ignore_ascii_case(&key.fingerprint);
     let mut out: Vec<_> = keys.iter().filter(|k| named(k.fingerprint())).collect();
-    if out.is_empty() {
-        out = keys.iter().filter(|k| named(k.primary())).collect();
-        out.sort_by_key(|k| std::cmp::Reverse(k.created()));
-    }
+    let mut others: Vec<_> = keys.iter().filter(|k| named(k.primary()) && !named(k.fingerprint())).collect();
+    others.sort_by_key(|k| std::cmp::Reverse(k.created()));
+    out.extend(others);
     out
 }
 

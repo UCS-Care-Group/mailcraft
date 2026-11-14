@@ -425,3 +425,31 @@ fn openssl_checks_an_smime_signature_made_at_send() {
         }
     }
 }
+
+/// Security review of #1036: an account that names an OpenPGP primary key that can sign also
+/// signs with that key's signing subkeys (the primary kept offline, the subkey on a smartcard):
+/// the named key is tried first, then its subkeys; a subkey named is that subkey alone.
+#[test]
+fn a_primary_key_that_can_sign_also_offers_its_signing_subkeys() {
+    let mut params = SecretKeyParamsBuilder::default();
+    params
+        .key_type(KeyType::Ed25519Legacy)
+        .can_certify(true)
+        .can_sign(true)
+        .primary_user_id("Owner <owner@example.org>".into())
+        .subkey(pgp::composed::SubkeyParamsBuilder::default().key_type(KeyType::Ed25519Legacy).can_sign(true).build().unwrap());
+    let secret = params.build().unwrap().generate(rand::rngs::StdRng::seed_from_u64(31)).unwrap();
+    let public = SignedPublicKey::from(secret);
+    let keys = mailcraft_openpgp::signing_keys(&public.to_bytes().unwrap(), 4_102_444_800);
+    assert_eq!(keys.len(), 2, "the primary and its signing subkey both sign");
+    let primary = keys.iter().find(|k| k.fingerprint() == k.primary()).unwrap();
+    let named = SigningKey::new(SignatureFormat::OpenPgp, &primary.primary().to_hex(), "Owner").unwrap();
+    let found = crate::signing::candidates(&keys, &named);
+    assert_eq!(found.len(), 2, "the subkey is tried too");
+    assert_eq!(found[0].fingerprint(), primary.fingerprint(), "the named key first");
+    assert_ne!(found[1].fingerprint(), primary.fingerprint());
+    let subkey = SigningKey::new(SignatureFormat::OpenPgp, &found[1].fingerprint().to_hex(), "Owner").unwrap();
+    let only = crate::signing::candidates(&keys, &subkey);
+    assert_eq!(only.len(), 1);
+    assert_eq!(only[0].fingerprint(), found[1].fingerprint());
+}
