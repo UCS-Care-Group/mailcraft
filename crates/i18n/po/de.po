@@ -18233,7 +18233,7 @@ msgstr "Jahr"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "you signed in as somebody else"
-msgstr "sie haben sich als jemand anderes angemeldet"
+msgstr "Sie haben sich als jemand anderes angemeldet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
