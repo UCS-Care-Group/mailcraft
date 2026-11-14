@@ -5293,7 +5293,7 @@ msgstr "Ich bin Administrator: für meine Organisation genehmigen"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Icons"
-msgstr "Symbole"
+msgstr "Piktogramme"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
