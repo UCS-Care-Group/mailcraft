@@ -14481,7 +14481,7 @@ msgid ""
 msgstr ""
 "Um aus {address} zu senden, benötigt MailCraft Ihre Erlaubnis, aus freigegebenen Postfächern zu senden. Die Microsoft-Seite öffnet sich dazu einmalig in Ihrem Browser.\n"
 "\n"
-"Ob Ihre E-Mail als {address} oder in deren Auftrag gesendet wird, entscheidet Ihre Organisation. Bis Sie es erlauben, wartet die E-Mail in Ihrem Postausgang, und nichts wird von Ihrer eigenen Adresse gesendet."
+"Ob Ihre E-Mail als {address} oder in deren Auftrag gesendet wird, entscheidet Ihre Organisation. Bis Sie es erlauben, verbleibt die E-Mail im Postausgang, und nichts wird von Ihrer eigenen Adresse gesendet."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
