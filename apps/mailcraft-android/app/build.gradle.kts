@@ -28,8 +28,10 @@ android {
         applicationId = "work.mailcraft.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.12.0"
+        // The release workflow passes both (-PversionCode, -PversionName) from the tag's version;
+        // a local build keeps these.
+        versionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "0.12.0"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 

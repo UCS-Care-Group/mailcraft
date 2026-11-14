@@ -1,0 +1,229 @@
+name: Android
+
+# Builds the Android app's release files (apps/mailcraft-android) and, for a pushed version tag with
+# the owner's upload key in the `release` environment, signs them. Called by release.yml; it
+# doesn't run on its own. The same shape as package.yml:
+#
+#   build  no secret. cargo-ndk, the Rust library, Gradle: an unsigned release APK and AAB, kept as
+#          the workflow artifact android-unsigned and handed on by digest (packaging/ci/handoff.sh).
+#   sign   the protected `release` environment, for a pushed version tag only. Checks the digest,
+#          decodes the upload keystore to the runner's temp folder, signs the APK (zipalign,
+#          apksigner) and the AAB (jarsigner) with the SDK's own tools, verifies both, deletes the
+#          keystore, and hands the signed APK on as release-android (release.yml adds it to the
+#          GitHub release and its checksums). It never runs cargo, Gradle or a built program, and
+#          Gradle holds no key: the signing configuration is not in the build at all.
+#          The signed AAB goes to Google Play's internal track (the upload key; Play re-signs with
+#          the app signing key it holds) when PLAY_SERVICE_ACCOUNT_JSON is there too.
+#
+# Without the upload key the build stays unsigned: the files are kept as workflow artifacts, a
+# notice says so, and nothing is signed or uploaded. This workflow can't fail the desktop release:
+# release.yml's publish job takes release-android only when this one succeeded.
+
+on:
+  workflow_call:
+    inputs:
+      sign:
+        description: "Sign the build, in the protected `release` environment (pushed version tags only)"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      ANDROID_UPLOAD_KEYSTORE_BASE64:
+        required: false
+      ANDROID_UPLOAD_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_UPLOAD_KEY_ALIAS:
+        required: false
+      ANDROID_UPLOAD_KEY_PASSWORD:
+        required: false
+      PLAY_SERVICE_ACCOUNT_JSON:
+        required: false
+    outputs:
+      digest:
+        description: "The digest of release-android's list of files (empty when nothing was signed)"
+        value: ${{ jobs.sign.outputs.digest }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (unsigned)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.seal.outputs.digest }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        name: Version and version code
+        run: |
+          . packaging/env.sh
+          # 1.2.3 (or 1.2.3-rc.1) -> 10203: Play wants a code that only ever rises.
+          core="${VERSION%%-*}"
+          IFS=. read -r major minor patch <<<"$core"
+          code=$((major * 10000 + minor * 100 + patch))
+          if [ "$minor" -gt 99 ] || [ "$patch" -gt 99 ]; then
+            echo "::error::version $VERSION doesn't fit the version code (minor and patch under 100)"
+            exit 1
+          fi
+          { echo "version=$VERSION"; echo "code=$code"; } >>"$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-linux-android,x86_64-linux-android
+      - name: Android SDK pieces the app is built with
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" > /dev/null
+      - name: cargo-ndk
+        run: cargo install cargo-ndk --locked --version 4.1.2
+      - name: Release APK and AAB, unsigned
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          CODE: ${{ steps.v.outputs.code }}
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          cd apps/mailcraft-android
+          ./gradlew --console=plain --no-daemon -PversionName="$VERSION" -PversionCode="$CODE" \
+            :app:assembleRelease :app:bundleRelease
+      - name: Hand the files on by digest
+        id: seal
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          out=apps/mailcraft-android/app/build/outputs
+          mkdir -p handoff
+          cp "$out/apk/release/app-release-unsigned.apk" "handoff/mailcraft-$VERSION-android-unsigned.apk"
+          cp "$out/bundle/release/app-release.aab" "handoff/mailcraft-$VERSION-android-unsigned.aab"
+          echo "digest=$(bash packaging/ci/handoff.sh seal handoff android-unsigned)" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-unsigned
+          path: handoff/
+          if-no-files-found: error
+
+  sign:
+    name: Sign (upload key)
+    needs: [build]
+    if: inputs.sign
+    runs-on: ubuntu-24.04
+    # The protected `release` environment holds the upload key and accepts version tags only.
+    environment: release
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.seal.outputs.digest }}
+    steps:
+      - name: Signing only for a pushed version tag
+        if: "!(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))"
+        run: |
+          echo "::error::signing was asked for on $GITHUB_REF ($GITHUB_EVENT_NAME); only a pushed version tag is signed"
+          exit 1
+      # The scripts come from the tagged commit, not from the build job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-unsigned
+          path: unsigned
+      - name: The files are the ones build made
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: bash packaging/ci/handoff.sh check unsigned "android-unsigned=$DIGEST"
+      - name: Upload key set up?
+        id: key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$ALIAS" ]; then
+            echo "configured=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::The Android upload key is not in the release environment (ANDROID_UPLOAD_KEYSTORE_BASE64, ANDROID_UPLOAD_KEYSTORE_PASSWORD, ANDROID_UPLOAD_KEY_ALIAS): the Android files stay unsigned, as the android-unsigned workflow artifact, and nothing goes to the release or to Google Play"
+          fi
+      - name: Sign the APK and the AAB
+        if: steps.key.outputs.configured == 'true'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          # Without its own password the key has the store's.
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD || secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          tools="$(ls -d "$ANDROID_HOME"/build-tools/36.* | sort -V | tail -n 1)"
+          ks="$RUNNER_TEMP/upload.keystore"
+          trap 'rm -f -- "$ks"' EXIT
+          printf '%s' "$KEYSTORE" | base64 --decode >"$ks"
+          mkdir -p apk aab
+          for f in unsigned/mailcraft-*-android-unsigned.apk; do
+            name="$(basename "$f" | sed 's/-unsigned\.apk$/.apk/')"
+            # 16 KB page alignment (zipalign -P 16), then the v2/v3 signature.
+            "$tools/zipalign" -f -P 16 4 "$f" "$RUNNER_TEMP/aligned.apk"
+            "$tools/apksigner" sign --ks "$ks" --ks-key-alias "$ALIAS" \
+              --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD \
+              --out "apk/$name" "$RUNNER_TEMP/aligned.apk"
+            "$tools/apksigner" verify --verbose "apk/$name" | head -n 8
+            rm -f -- "$RUNNER_TEMP/aligned.apk" "apk/$name.idsig"
+          done
+          for f in unsigned/mailcraft-*-android-unsigned.aab; do
+            name="$(basename "$f" | sed 's/-unsigned\.aab$/.aab/')"
+            cp -- "$f" "$RUNNER_TEMP/$name"
+            jarsigner -keystore "$ks" -storepass:env STORE_PASSWORD -keypass:env KEY_PASSWORD \
+              -digestalg SHA-256 "$RUNNER_TEMP/$name" "$ALIAS" >/dev/null
+            jarsigner -verify "$RUNNER_TEMP/$name" | head -n 2
+            mv -- "$RUNNER_TEMP/$name" "aab/$name"
+          done
+      - name: Delete the keystore
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/upload.keystore"
+      - name: Hand the signed APK on by digest
+        id: seal
+        if: steps.key.outputs.configured == 'true'
+        run: echo "digest=$(bash packaging/ci/handoff.sh seal apk release-android)" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.key.outputs.configured == 'true'
+        with:
+          name: release-android
+          path: apk/
+          if-no-files-found: error
+      # The AAB is for Google Play only: not a file of the GitHub release, so not a release-* artifact.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.key.outputs.configured == 'true'
+        with:
+          name: android-signed-aab
+          path: aab/
+          if-no-files-found: error
+      - name: Google Play set up?
+        id: play
+        if: steps.key.outputs.configured == 'true'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "configured=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::PLAY_SERVICE_ACCOUNT_JSON is not in the release environment: the signed AAB is kept as the android-signed-aab workflow artifact and not uploaded to Google Play"
+          fi
+      # The internal track, as a draft: the owner promotes it in Play Console. A Play failure (the
+      # app not made there yet, a code already used) is a warning here: the sealed APK is already
+      # on its way to the GitHub release and the desktop release is not held up by it.
+      - name: Upload the AAB to Google Play (internal track)
+        if: steps.play.outputs.configured == 'true'
+        continue-on-error: true
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: work.mailcraft.android
+          releaseFiles: aab/*.aab
+          track: internal
+          status: draft

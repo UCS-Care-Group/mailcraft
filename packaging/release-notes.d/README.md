@@ -7,6 +7,9 @@ the notes):
 - `fixes/<issue>.md` for a line under **Fixes**;
 - `new/<issue>.md` for a line under **What's new**.
 
+A line about a phone app only has a platform marker in the file's name, `<issue>.android.md` or
+`<issue>.ios.md`; the notes then show it as `- **Android:** …`.
+
 `<issue>` is the issue it resolves, or the pull request's own number, or a short name when it has
 neither. The file holds the line exactly as it reads under the heading, issue linked in full:
 

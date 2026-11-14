@@ -257,6 +257,51 @@ Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenan
 (which workflow run, at which commit, made each file), as a file, so it can be checked without
 GitHub's command line (`gh attestation verify <file> -R UCS-Care-Group/mailcraft` does the same
 online).
+## The Android release
+
+The same version tag builds the Android app (`.github/workflows/android.yml`, called from
+`release.yml` beside `package.yml`). It has the desktop's shape:
+
+1. **Build, no secrets.** cargo-ndk builds the Rust library, Gradle makes the unsigned release APK
+   and AAB (`versionName` is the tag's version; `versionCode` is `major*10000 + minor*100 + patch`,
+   so it only rises while minor and patch stay under 100), and the files are handed on by digest.
+2. **Sign, in the `release` environment, for a pushed version tag only.** The job checks the
+   digest, decodes the upload keystore into the runner's temp folder, signs the APK (`zipalign`
+   with 16 KB alignment, `apksigner`) and the AAB (`jarsigner`) with the Android SDK's own tools,
+   verifies both and deletes the keystore (also when a step fails). Passwords are read from the
+   environment by the tools and are never on a command line or in a log. No Gradle, cargo or built
+   program runs in this job, so the signing configuration is not in the Gradle build at all
+   (`cargo xtask workflows` checks the shape).
+3. **Release.** The signed APK is `mailcraft-<version>-android.apk` in the GitHub release, in
+   `SHA256SUMS.txt` and the provenance like every other file. `release.yml`'s `publish` takes it
+   only when the Android run succeeded: an Android failure never blocks the desktop release.
+4. **Google Play.** The signed AAB goes to the **internal** testing track as a draft with
+   `r0adkll/upload-google-play` (MIT, pinned by commit). The release is promoted by hand in Play
+   Console. A failed upload is a warning, not a failed release. The Gradle Play Publisher plugin
+   isn't used: it would add a build dependency (and a hash entry in
+   `gradle/verification-metadata.xml`) to the app's own tree for something only the release job does.
+
+**Secrets the owner adds** (in the `release` environment, none anywhere else):
+
+| Secret | What |
+|---|---|
+| `ANDROID_UPLOAD_KEYSTORE_BASE64` | the upload keystore, `base64 -w0 upload.keystore` |
+| `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | its password |
+| `ANDROID_UPLOAD_KEY_ALIAS` | the key's alias |
+| `ANDROID_UPLOAD_KEY_PASSWORD` | the key's password (optional: the store's is used when it is absent) |
+| `PLAY_SERVICE_ACCOUNT_JSON` | the Play service account's JSON (needs release rights on the app) |
+
+The upload key is not the app signing key: Play keeps the app signing key and re-signs what is
+uploaded. Without the first three secrets the Android files stay **unsigned**, a notice says so,
+and they are kept as the workflow artifact `android-unsigned` (nothing goes to the release or to
+Play). Without `PLAY_SERVICE_ACCOUNT_JSON` the signed AAB is kept as `android-signed-aab` and
+not uploaded. A run by hand (workflow_dispatch) builds unsigned and holds no secret.
+
+**Release-note lines for a phone app** are fragments named with a platform marker:
+`packaging/release-notes.d/new/<issue>.android.md` (or `.ios.md`, `fixes/` too). Joining puts
+`**Android:**` (or `**iOS:**`) after each line's dash; a fragment without a marker is the
+desktop's (or everyone's) and is joined as written. An unknown marker fails `cargo xtask ci`.
+
 ## ArtCraft Launcher
 
 The launcher installs a Craft app from its GitHub releases, finding the right file by name

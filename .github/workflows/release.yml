@@ -124,6 +124,17 @@ jobs:
       freebsd: ${{ inputs.freebsd == true }}
       sign: false
 
+  # A run by hand: the Android app, unsigned, no secrets; kept as the android-unsigned artifact.
+  android-dry-run:
+    name: Android (dry run, unsigned)
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/android.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
+    with:
+      sign: false
+
   # The dry run's checksums, made and "signed" as a release's are: no secret is given, so the
   # signing step says "unsigned" and the run goes on. Kept as a workflow artifact.
   dry-run-sums:
@@ -227,9 +238,29 @@ jobs:
       MAILCRAFT_GOOGLE_CLIENT_ID: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_ID }}
       MAILCRAFT_GOOGLE_CLIENT_SECRET: ${{ secrets.MAILCRAFT_GOOGLE_CLIENT_SECRET }}
 
+  # The Android app on the same tag: built without secrets, then signed with the upload key in the
+  # `release` environment, and the signed AAB sent to Google Play's internal track. Without the
+  # upload key it stays unsigned and says so. It is not needed by the desktop release: `publish`
+  # takes its signed APK only when this succeeded (docs/releasing.md).
+  android:
+    name: Android
+    needs: [version]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/android.yml # zizmor: ignore[self-repository]
+    permissions:
+      contents: read
+    with:
+      sign: true
+    secrets:
+      ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+      ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+      ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+      ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+
   publish:
     name: Make the draft release
-    needs: [version, package]
+    needs: [version, package, android]
     # Pushed tags only; a run by hand stops at the artifacts.
     if: "!cancelled() && needs.package.result == 'success' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
     runs-on: ubuntu-24.04
@@ -261,12 +292,14 @@ jobs:
           FLATPAK_AARCH64: ${{ needs.package.outputs.flatpak_aarch64 }}
           FREEBSD_X86_64: ${{ needs.package.outputs.freebsd_x86_64 }}
           WEB: ${{ needs.package.outputs.web }}
+          # Only a signed APK of a run that succeeded; otherwise none and no list.
+          ANDROID: ${{ needs.android.result == 'success' && needs.android.outputs.digest || '' }}
         run: |
           bash packaging/ci/handoff.sh check artifacts \
             "release-windows-x64=$WINDOWS_X64" "release-windows-x86=$WINDOWS_X86" "release-windows-arm64=$WINDOWS_ARM64" \
             "release-macos=$MACOS" "release-linux-x86_64=$LINUX_X86_64" "release-linux-aarch64=$LINUX_AARCH64" \
             "release-flatpak-x86_64=$FLATPAK_X86_64" "release-flatpak-aarch64=$FLATPAK_AARCH64" \
-            "release-freebsd-x86_64?=$FREEBSD_X86_64" "release-web=$WEB"
+            "release-freebsd-x86_64?=$FREEBSD_X86_64" "release-web=$WEB" "release-android?=$ANDROID"
       - name: Checksums
         working-directory: artifacts
         run: |
