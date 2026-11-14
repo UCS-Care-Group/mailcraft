@@ -152,7 +152,7 @@ msgid "(no recipients)"
 msgstr "（无收件人）"
 
 #. interface, what a command says, why a mail server couldn't be used
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "（无主题）"
@@ -551,6 +551,11 @@ msgstr "共享邮箱的自动回复由其管理员设置；MailCraft 只能设�
 #, fuzzy
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "共享邮箱有自己的规则：此版本不会创建这些规则"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "A sign-in is already open."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1194,6 +1199,11 @@ msgstr "X.509 证书（.cer、.pem）或 OpenPGP 公钥 (.asc)"
 #, fuzzy
 msgid "An X.509 certificate (.cer, .pem) or an OpenPGP Public key (.asc) of this contact's"
 msgstr "此联系人的 X.509 证书（.cer、.pem）或 OpenPGP 公钥 (.asc)"
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "An account couldn't be sent and received."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -8194,8 +8204,8 @@ msgstr "新建类别"
 msgid "New items go to the calendar that is picked here"
 msgstr "新建项目将保存到此处选择的日历中"
 
-#. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#. android, interface, name, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "New mail"
 msgstr "新邮件"
@@ -8206,8 +8216,8 @@ msgstr "新邮件"
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
 msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒。"
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
+#. interface, what a command says
+#: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
 msgstr "新邮件"
@@ -8782,6 +8792,11 @@ msgstr "注释"
 msgid "Nothing came back from Microsoft's approval page: it was closed, or five minutes went by before the approval was given."
 msgstr "Microsoft 的批准页面没有返回结果：页面已关闭，或五分钟内未完成批准。"
 
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Nothing came back from the sign-in page in time."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -9068,6 +9083,11 @@ msgstr "在线"
 #, fuzzy
 msgid "Online meeting"
 msgstr "线上会议"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "Only a Microsoft account signs in on the phone for now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -12462,6 +12482,11 @@ msgstr "使用“发送/接收”登录，以查看其他人的忙闲状态。"
 msgid "Sign-in cancelled"
 msgstr "登录已取消"
 
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Sign-in isn't set up on this phone."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12515,6 +12540,11 @@ msgstr "已登录，但 Microsoft 仍不允许 MailCraft 读取 {account} 的邮
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "登录未返回结果"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "Signing in isn't available on this phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13218,6 +13248,11 @@ msgid "Thanks, Thursday at ten works for me. I'll bring the drawings."
 msgstr "谢谢，星期四十点我有空。我会带上图纸。"
 
 #. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "That account is gone."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "That calendar is kept by an account's server already."
@@ -13307,6 +13342,11 @@ msgstr "这不是该文件的密码。"
 msgid "That key is on the card already"
 msgstr "该密钥已在卡上"
 
+#. what a command says
+#: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
+msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
@@ -13347,6 +13387,11 @@ msgstr "数字签名已过期。"
 #, fuzzy
 msgid "The Entire Series"
 msgstr "整个系列"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The account can't be signed in now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -14404,17 +14449,37 @@ msgstr "共享邮箱的日历“{name}”仅显示所有者的忙闲状态；此
 msgid "The shared mailbox's e-mail address"
 msgstr "共享邮箱的电子邮件地址"
 
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The sign-in couldn't be started."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "The sign-in didn't work. Try again."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "用于打开此共享邮箱的账户登录被拒绝：请使用“发送/接收”重新登录"
 
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "The sign-in page couldn't be opened."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
 msgstr "为读取共享邮箱，已停止在浏览器中等待的 {address} 登录。使用“发送/接收”时会要求您重新登录。"
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "The sign-in was declined."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -14895,6 +14960,11 @@ msgstr "此版本无法登录此类账户。请使用桌面应用。"
 msgid "This build doesn't check for new versions."
 msgstr "此版本不检查新版本。"
 
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+msgid "This build has no application id to sign in with."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -15140,6 +15210,11 @@ msgstr "此密钥没有密码短语，因此 MailCraft 不会保存它。请在 
 #, fuzzy
 msgid "This key signs with an algorithm MailCraft doesn't use: only Ed25519 and ECDSA keys are imported here."
 msgstr "此密钥使用 MailCraft 不支持的签名算法；此处仅导入 Ed25519 和 ECDSA 密钥。"
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "This kind of account can't be sent and received on the phone yet."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -16802,6 +16877,11 @@ msgstr ""
 msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
 msgstr "您的钥匙串保存证书及其私钥，MailCraft 使用前 macOS 会征求您的同意。"
 
+#. what a command says
+#: crates/mobile/src/sync.rs
+msgid "Your mail couldn't be saved first, so nothing was sent."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -16908,6 +16988,11 @@ msgstr "您的组织已批准 MailCraft"
 #, fuzzy
 msgid "Your organisation has approved MailCraft. Now sign in with your own account."
 msgstr "您的组织已批准 MailCraft。现在请使用您自己的账户登录。"
+
+#. what a command says
+#: crates/mobile/src/sign_in.rs
+msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -20677,7 +20762,7 @@ msgid_plural "{n} more were left out: at most {most} files at a time"
 msgstr[0] "另有 {n} 项被跳过：每次最多 {most} 个文件"
 
 #. interface, what a command says
-#: crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
+#: crates/mobile/src/sync.rs crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "{n} new message"
 msgid_plural "{n} new messages"
