@@ -58,6 +58,18 @@ created for this mail client in your Google Account. Do not enter your normal Go
 a Google Cloud client ID, or a Google Cloud client secret in the account password field. A
 missing-registration build presents this fallback directly, with an explanation.
 
+Under the password field, **How do I make an app password?** opens the steps:
+
+1. Turn on 2-Step Verification for the Google account, if it isn't on yet: Google offers app
+   passwords only then.
+2. Open Google's App passwords page (the link is in the steps), sign in, type a name such as
+   MailCraft and press **Create**.
+3. Copy the 16-letter password Google shows, which it shows only once, and paste it into
+   MailCraft's password field.
+
+If Google's page says the setting isn't available, 2-Step Verification is off, or the account
+doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection).
+
 Google recommends browser sign-in and requires 2-Step Verification for app passwords. Your
 account or organisation may not offer them. Check Google's [app-password help][app-passwords]
 rather than weakening account protection or trying to bypass an administrator's policy.
