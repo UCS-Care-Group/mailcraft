@@ -1162,6 +1162,9 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
     pub junk_accounts: BTreeMap<Id, crate::JunkLists>,
     pub signatures: Vec<Signature>,
+    /// Reusable local message templates with fields (#952), kept on this computer.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
+    pub templates: BTreeMap<Id, crate::Template>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub pending: Vec<Pending>,
@@ -1267,6 +1270,7 @@ impl Default for Mailbox {
             junk: crate::JunkLists::default(),
             junk_accounts: BTreeMap::new(),
             signatures: Vec::new(),
+            templates: BTreeMap::new(),
             pending: Vec::new(),
             event_changes: Vec::new(),
             task_gone: Vec::new(),
@@ -2892,6 +2896,48 @@ impl Mailbox {
         self.conversation_in(&threads, id)
     }
 
+    // ---- templates ----
+
+    /// All local message templates in the mailbox.
+    pub fn templates(&self) -> &BTreeMap<Id, crate::Template> {
+        &self.templates
+    }
+
+    /// Look up a template by its unique id.
+    pub fn template(&self, id: Id) -> Option<&crate::Template> {
+        self.templates.get(&id)
+    }
+
+    /// Look up a template by its name (case-insensitive, trimmed).
+    pub fn template_by_name(&self, name: &str) -> Option<&crate::Template> {
+        let needle = name.trim();
+        if needle.is_empty() {
+            return None;
+        }
+        self.templates.values().find(|t| t.name.eq_ignore_ascii_case(needle))
+    }
+
+    /// All templates sorted by name (case-insensitive), then id.
+    pub fn templates_sorted(&self) -> Vec<crate::Template> {
+        let mut list: Vec<crate::Template> = self.templates.values().cloned().collect();
+        list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.id.cmp(&b.id)));
+        list
+    }
+
+    /// Add a template. Returns `true` if added, `false` if limit [`crate::MAX_TEMPLATES`] was reached.
+    pub fn add_template(&mut self, template: crate::Template) -> bool {
+        if self.templates.len() >= crate::MAX_TEMPLATES && !self.templates.contains_key(&template.id) {
+            return false;
+        }
+        self.templates.insert(template.id, template);
+        true
+    }
+
+    /// Remove a template by its unique id. Returns `true` if removed.
+    pub fn remove_template(&mut self, id: Id) -> bool {
+        self.templates.remove(&id).is_some()
+    }
+
     /// [`Mailbox::conversation`] of `id` by `threads`, built of (at least) the messages of its
     /// account, for a caller that keeps one rather than walk every message each time.
     pub fn conversation_in(&self, threads: &ThreadIndex, id: Id) -> Vec<Id> {
@@ -3820,6 +3866,23 @@ impl Mailbox {
         let called_off = self.repair_snoozes();
         if called_off > 0 {
             fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
+        }
+        // Templates: drop invalid ids or empty ones, sanitize strings, and cap at MAX_TEMPLATES.
+        let before_templates = self.templates.clone();
+        self.templates.retain(|id, t| sane(id) && t.id == *id);
+        for t in self.templates.values_mut() {
+            t.sanitize();
+        }
+        self.templates.retain(|_, t| !t.name.is_empty() || !t.subject.is_empty() || !t.body.is_empty());
+        while self.templates.len() > crate::MAX_TEMPLATES {
+            if let Some(first_key) = self.templates.keys().next().copied() {
+                self.templates.remove(&first_key);
+            } else {
+                break;
+            }
+        }
+        if self.templates != before_templates {
+            fixed.push("templates tidied".into());
         }
         self.next_id = self.next_id.max(1);
         fixed

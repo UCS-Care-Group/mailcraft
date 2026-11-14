@@ -44,6 +44,10 @@ pub(crate) const CONTENT: &[&str] = &[
     "notes.get",
     "journal.list",
     "journal.get",
+    // Reusable message templates and their expanded text (#952).
+    "template.create",
+    "template.list",
+    "template.insert",
     "view.reminders",
     "compose.suggest",
     // People's names and addresses, from mail.

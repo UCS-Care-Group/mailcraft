@@ -228,6 +228,8 @@ fn params(f: &Fixture, id: &str) -> Value {
         "notes.get" => json!({"id": f.note}),
         "journal.get" => json!({"id": f.entry}),
         "tasks.list" => json!({"account": "all", "filter": "all"}),
+        "template.create" => json!({"name": marked("templateName"), "subject": marked("templateSubject"), "body": marked("templateBody")}),
+        "template.list" => json!({}),
         "edit.copy" | "edit.cut" => json!({"from": 0, "to": marked("composed").chars().count()}),
         _ => json!({}),
     }
@@ -251,7 +253,23 @@ fn no_marker_in_any_content_answer_stands_outside_a_frame() {
         if *id == "mail.findRelated" {
             exec(&mut h, &pol, "mail.select", json!({"id": f.message})).unwrap();
         }
-        let p = params(&f, id);
+        let p = if *id == "template.insert" {
+            let tpl = exec(
+                &mut h,
+                &pol,
+                "template.create",
+                json!({
+                    "name": marked("templateInsertName"),
+                    "subject": marked("templateInsertSubject"),
+                    "body": format!("Hello {{recipient.name}}, {}", marked("templateInsertBody"))
+                }),
+            )
+            .unwrap();
+            exec(&mut h, &pol, "mail.new", json!({"to": "Hostile Contact <hostile-contact@example.org>"})).unwrap();
+            json!({"id": tpl["id"]})
+        } else {
+            params(&f, id)
+        };
         let answer = exec(&mut h, &pol, id, p.clone()).unwrap_or_else(|e| panic!("{id} {p}: {e}"));
         let text = answer.to_string();
         // Every command but Send/Receive's progress (no sync has run) answered with the
@@ -270,6 +288,9 @@ fn no_marker_in_any_content_answer_stands_outside_a_frame() {
             "calendar.join" => assert!(framed("url"), "{answer}"),
             "calendar.get" => assert!(answer["online"]["joinUrl"].as_str().is_some_and(|t| t.starts_with(UNTRUSTED_OPEN)), "{answer}"),
             _ => {}
+        }
+        if *id == "template.insert" {
+            h.session.run("compose.discard", &json!({})).unwrap();
         }
     }
     assert!(bare.is_empty(), "markers outside a frame:\n{}", bare.join("\n"));

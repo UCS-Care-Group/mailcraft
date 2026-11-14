@@ -4670,6 +4670,11 @@ msgstr "反馈意见"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "这些联系人中剩余的不足两人，无需合并。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Fields such as {fields} are filled in when the template is inserted."
+msgstr ""
+
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -6144,7 +6149,7 @@ msgid "Inbox"
 msgstr "收件箱"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Include"
 msgstr "包括"
@@ -6214,6 +6219,11 @@ msgstr "插入链接"
 #, fuzzy
 msgid "Insert Picture"
 msgstr "插入图片"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Insert Template"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6899,6 +6909,11 @@ msgstr "列出便笺"
 msgid "List Tasks"
 msgstr "列出任务"
 
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "List Templates"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/InboxScreen.kt
 msgid "Loading…"
@@ -7572,7 +7587,7 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8675,6 +8690,11 @@ msgstr "还没有签名"
 #, fuzzy
 msgid "No such account"
 msgstr "没有该账户"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No templates yet"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -10492,7 +10512,7 @@ msgid "Reminders Window"
 msgstr "提醒窗口"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "移除"
@@ -10579,6 +10599,11 @@ msgstr "移除共享日历"
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "移除共享邮箱"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Remove Template"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -11253,6 +11278,16 @@ msgstr "邮件文件另存为"
 #, fuzzy
 msgid "Save Signature"
 msgstr "保存签名"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as Template"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save as Template…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13295,6 +13330,28 @@ msgstr "Teams 会议"
 #, fuzzy
 msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
 msgstr "通过 GitHub 或电子邮件向 MailCraft 开发者反馈问题。由您检查并亲自发送报告。"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tem-\n"
+"plates"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template name"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Templates"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17815,6 +17872,11 @@ msgstr "文件夹嵌套层级过深"
 msgid "from {from} to {to}"
 msgstr "从 {from} 到 {to}"
 
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "give the template a name, subject or body"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -18246,7 +18308,7 @@ msgid "no message being written has the id {id}"
 msgstr "没有 ID 为 {id} 的正在撰写的邮件"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/template.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "没有正在撰写的邮件"
@@ -18340,6 +18402,16 @@ msgstr "没有此段落"
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "没有 ID 为 {id} 的任务"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template named \"{name}\""
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -19804,6 +19876,11 @@ msgstr "同一名称的文件过多"
 #, fuzzy
 msgid "too many flags for one command"
 msgstr "单条命令中的标志过多"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "too many templates"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs

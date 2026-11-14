@@ -4683,6 +4683,11 @@ msgstr "Feedback"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Mai puțin de două dintre aceste contacte mai sunt aici, deci nu e nimic de îmbinat."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Fields such as {fields} are filled in when the template is inserted."
+msgstr ""
+
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -6167,7 +6172,7 @@ msgid "Inbox"
 msgstr "Mesaje primite"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Include"
 msgstr "Includere"
@@ -6237,6 +6242,11 @@ msgstr "Inserare link"
 #, fuzzy
 msgid "Insert Picture"
 msgstr "Inserare imagine"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Insert Template"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6924,6 +6934,11 @@ msgstr "Listare note"
 msgid "List Tasks"
 msgstr "Listare sarcini"
 
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "List Templates"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/InboxScreen.kt
 msgid "Loading…"
@@ -7601,7 +7616,7 @@ msgstr[1] "Îmbinare {n} contacte…"
 msgstr[2] "Îmbinare {n} de contacte…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mesaj"
@@ -8713,6 +8728,11 @@ msgstr "Încă nicio semnătură"
 #, fuzzy
 msgid "No such account"
 msgstr "Contul nu există"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No templates yet"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -10532,7 +10552,7 @@ msgid "Reminders Window"
 msgstr "Fereastră mementouri"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Eliminare"
@@ -10619,6 +10639,11 @@ msgstr "Eliminare calendar partajat"
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Eliminare cutie poștală partajată"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "Remove Template"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -11293,6 +11318,16 @@ msgstr "Salvare fișier mesaj ca"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Salvare semnătură"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as Template"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save as Template…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13348,6 +13383,28 @@ msgstr "Întâlnire Teams"
 #, fuzzy
 msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
 msgstr "Spuneți-le autorilor MailCraft ce nu a mers, pe GitHub sau prin e-mail. Verificați raportul și îl trimiteți chiar dvs."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Tem-\n"
+"plates"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template name"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Templates"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -17887,6 +17944,11 @@ msgstr "dosarele sunt imbricate prea adânc"
 msgid "from {from} to {to}"
 msgstr "de la {from} la {to}"
 
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "give the template a name, subject or body"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -18317,7 +18379,7 @@ msgid "no message being written has the id {id}"
 msgstr "niciun mesaj în curs de scriere nu are ID-ul {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/template.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
@@ -18411,6 +18473,16 @@ msgstr "paragraful nu există"
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "nu există sarcină cu ID-ul {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template named \"{name}\""
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -19877,6 +19949,11 @@ msgstr "prea multe fișiere cu același nume"
 #, fuzzy
 msgid "too many flags for one command"
 msgstr "prea multe marcaje pentru o singură comandă"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "too many templates"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
