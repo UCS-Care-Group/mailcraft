@@ -373,7 +373,8 @@ impl<'de> Visitor<'de> for Collection<'_> {
             let start = build.gate.taken.get();
             match kind {
                 Kind::Messages => {
-                    let m: Message = map.next_value_seed(load_limit::Counted::default())?;
+                    let mut m: Message = map.next_value_seed(load_limit::Counted::default())?;
+                    m.split_headers();
                     match build.move_out(m) {
                         Ok((m, gone)) => {
                             build.keep::<A::Error>(build.taken_since(start).saturating_sub(gone))?;

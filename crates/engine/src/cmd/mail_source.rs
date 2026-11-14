@@ -55,7 +55,7 @@ fn header_lines(m: &Message, offset: i32) -> String {
     line("Message-ID", &angled(&m.message_id));
     line("In-Reply-To", &angled(&m.in_reply_to));
     line("References", &m.references.iter().map(|r| angled(r)).collect::<Vec<_>>().join(" "));
-    for (name, value) in &m.headers {
+    for (name, value) in &m.all_headers() {
         line(name, value);
     }
     out

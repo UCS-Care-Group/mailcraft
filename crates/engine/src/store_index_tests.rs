@@ -756,7 +756,7 @@ fn a_record_larger_than_a_piece_is_summed_in_pieces_and_the_file_is_still_known(
     let mut mb = mailbox(4);
     let first = *mb.messages.keys().next().unwrap();
     // A record of 3 MB: read past the buffer, straight into its own.
-    mb.message_mut(first).unwrap().headers.push(("X-Large".into(), "x".repeat(3 * HASH_PIECE)));
+    mb.message_mut(first).unwrap().headers.push(("X-MailCraft-Large".into(), "x".repeat(3 * HASH_PIECE)));
     save(&path, &mb).unwrap();
     *lock(&shared(&path).state) = State::default();
     SUMMED.set((0, 0));

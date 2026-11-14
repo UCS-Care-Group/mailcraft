@@ -108,8 +108,8 @@ pub const MAX_CONTENT: u64 = 256 << 20;
 /// What the bodies get when the machine's memory can't be read (128 MB).
 pub const FALLBACK_BUDGET: u64 = 128 << 20;
 
-/// Most bytes of fetched content kept in memory for the next time they are wanted (128 MB).
-pub const CACHE_MAX: u64 = 128 << 20;
+/// Most bytes of fetched content kept in memory for the next time they are wanted (64 MB).
+pub const CACHE_MAX: u64 = 64 << 20;
 
 /// A fetched piece larger than this is handed over but not kept.
 const CACHE_ITEM_MAX: u64 = 64 << 20;
@@ -1831,7 +1831,9 @@ fn parse_item(key: &Key, item: &index::Item, budget: &Arc<Budget>) -> Result<(Pa
     let fp = item.fp;
     let parsed = match key.0 {
         Coll::Message => {
-            let m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            let mut m: Message = load_limit::read_json(item.json(), budget).map_err(damaged)?;
+            // What nothing reads by name goes to the message's block (`mailcraft_model::headers`).
+            m.split_headers();
             let refs = item.refs();
             let wire = if refs.is_empty() { None } else { Some(load_limit::read_json::<WireParts>(refs, budget).map_err(damaged)?) };
             Parsed::Message(Arc::new(m), wire)
@@ -2091,10 +2093,30 @@ pub(crate) fn with_budget<T>(budget: u64, f: impl FnOnce() -> T) -> T {
     out
 }
 
-/// How many bytes of bodies a mailbox brings into memory when it opens: a sixteenth of the
-/// machine's memory, [`FALLBACK_BUDGET`] when that can't be read, and never more than
-/// [`MAX_CONTENT`]. The newest mail gets it; the rest is read when it is wanted.
+/// The most bytes of bodies a device lets this program keep in memory (0: no limit set), from
+/// [`set_device_budget`]. Nothing sets it on the desktop.
+static DEVICE_BUDGET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Tell the store the most bytes of bodies the device can spare (`None`: no limit beyond the
+/// engine's own). [`body_budget`] is then the lower of the two.
+pub fn set_device_budget(bytes: Option<u64>) {
+    DEVICE_BUDGET.store(bytes.unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// How many bytes of bodies a mailbox brings into memory when it opens: the engine's own budget
+/// ([`engine_body_budget`]), or what the device allows ([`set_device_budget`]) when that is lower.
 pub fn body_budget() -> u64 {
+    let engine = engine_body_budget();
+    match DEVICE_BUDGET.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => engine,
+        device => device.min(engine),
+    }
+}
+
+/// The engine's own budget, whatever the device says: a sixteenth of the machine's memory,
+/// [`FALLBACK_BUDGET`] when that can't be read, and never more than [`MAX_CONTENT`]. The newest
+/// mail gets it; the rest is read when it is wanted.
+pub fn engine_body_budget() -> u64 {
     #[cfg(test)]
     {
         let set = TEST_BUDGET.get();
@@ -3039,6 +3061,8 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
     } else if !m.has_original() {
         lean.original = None;
     }
+    // Every header line in `headers`, as the file has always had them.
+    lean.join_headers();
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
     let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;

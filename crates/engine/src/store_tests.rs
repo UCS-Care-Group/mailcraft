@@ -2096,6 +2096,9 @@ mod launch;
 #[path = "store_hidden_tests.rs"]
 mod hidden;
 
+#[path = "store_headers_tests.rs"]
+mod headers;
+
 #[path = "store_original_tests.rs"]
 mod original;
 
