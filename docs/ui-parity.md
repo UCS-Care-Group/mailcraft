@@ -93,6 +93,12 @@ icon brings the window back too. On Linux and FreeBSD, enabling the option takes
 a restart on Wayland: MailCraft chooses X11/XWayland only with the option on and a reachable X11
 server, because winit 0.30 cannot hide a native Wayland window. Otherwise the usual backend
 selection is kept; on native Wayland the close button exits normally.
+File › Options › General › Start MailCraft when you sign in (off by default) adds MailCraft to
+the system's own list of programs started at sign-in (the autostart folder on Linux and the BSDs,
+the user's Run key on Windows, a launch agent on macOS); such a start opens minimized, or in the
+tray when Close to system tray is on. The list is read at every start, so removing MailCraft with
+the system's own tools turns the switch off. Not offered in the Flatpak, whose sandbox can't write
+the host's list.
 Unread-count badges are still absent. Desktop alerts for
 reminders and for new mail go through the system's own notifications while MailCraft runs (R7.1):
 the desktop's notification service on Linux and the BSDs, toasts on Windows (for the copy the

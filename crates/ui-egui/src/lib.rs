@@ -224,6 +224,8 @@ mod signatures;
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
+#[cfg(test)]
+mod start_at_login_tests;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -410,6 +412,13 @@ pub struct Services {
     /// File › Options › Animations › Use system setting (#1183). `None` where the system says
     /// nothing MailCraft reads: animations then play unless the owner turns them off.
     pub animations_enabled: Option<Box<dyn Fn() -> bool>>,
+    /// Desktop: put MailCraft in the system's list of programs started when the owner signs in
+    /// (`true`) or take it out (`false`): an autostart entry of the desktop's on Linux and the
+    /// BSDs, the user's Run key on Windows, a launch agent on macOS. Nothing leaves the computer.
+    /// An error means the list is as it was. Absent in the browser, in a run that keeps no
+    /// settings and where the system has no such list for this copy (a Flatpak): File › Options
+    /// then has no such switch.
+    pub start_at_login: Option<Box<dyn Fn(bool) -> Result<(), String>>>,
     /// Keep the mailbox where the host stores it (the browser's storage); called a moment after
     /// each change. Desktop saves to the mailbox file instead (see `saver`).
     pub persist: Option<Box<dyn Fn(&[u8]) -> Result<(), String>>>,
@@ -822,6 +831,11 @@ pub struct UiState {
     /// The owner has seen where the window goes on its first close to the tray (#544).
     #[serde(deserialize_with = "theme::lenient_bool")]
     pub close_to_tray_notice_seen: bool,
+    /// Desktop: MailCraft starts when the owner signs in to the computer (File › Options ›
+    /// General). The system's own list of programs started at sign-in is what counts: the host
+    /// reads it at every start and this follows it ([`Services::start_at_login`]).
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub start_at_login: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -941,6 +955,7 @@ impl Default for UiState {
             animations: motion::Motion::default(),
             close_to_tray: false,
             close_to_tray_notice_seen: false,
+            start_at_login: false,
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1222,6 +1237,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
     ("ui.closeToTray", "Close to system tray", "File › Options › General", r#"{"value"?: bool (default: toggle)}"#),
+    ("ui.startAtLogin", "Start when you sign in", "File › Options › General", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.importPrivateKey",
         "Import Your Certificate or Key",
@@ -2555,6 +2571,21 @@ impl MailApp {
                     Some(_) => return Some(Err("value must be a boolean".into())),
                 };
                 self.ui.close_to_tray = value;
+                Ok(json!({"value": value}))
+            }
+            "ui.startAtLogin" => {
+                let value = match p.get("value") {
+                    None => !self.ui.start_at_login,
+                    Some(Value::Bool(value)) => *value,
+                    Some(_) => return Some(Err("value must be a boolean".into())),
+                };
+                let Some(set) = &self.services.start_at_login else {
+                    return Some(Err(tl!("MailCraft can't be started when you sign in from here").to_string()));
+                };
+                if let Err(e) = set(value) {
+                    return Some(Err(e));
+                }
+                self.ui.start_at_login = value;
                 Ok(json!({"value": value}))
             }
             "ui.rememberSignIn" => {
