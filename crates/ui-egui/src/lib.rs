@@ -65,6 +65,9 @@ pub mod chrome;
 mod clicks;
 #[cfg(test)]
 mod clicks_tests;
+pub mod close_to_tray;
+#[cfg(test)]
+mod close_to_tray_tests;
 pub mod compose;
 #[cfg(test)]
 mod confirm_ids_tests;
@@ -811,6 +814,12 @@ pub struct UiState {
     pub high_contrast: bool,
     /// File › Options › General › Animations (#1183): as the system says, on or off.
     pub animations: motion::Motion,
+    /// Desktop: the close button hides the window while mail and reminders keep running.
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray: bool,
+    /// The owner has seen where the window goes on its first close to the tray (#544).
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -928,6 +937,8 @@ impl Default for UiState {
             theme: theme::Appearance::default(),
             high_contrast: false,
             animations: motion::Motion::default(),
+            close_to_tray: false,
+            close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1208,6 +1219,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    ("ui.closeToTray", "Close to system tray", "File › Options › General", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.importPrivateKey",
         "Import Your Certificate or Key",
@@ -2546,6 +2558,15 @@ impl MailApp {
                 }
                 self.ui.google_client_id = id.to_string();
                 Ok(json!({"configured": !id.is_empty()}))
+            }
+            "ui.closeToTray" => {
+                let value = match p.get("value") {
+                    None => !self.ui.close_to_tray,
+                    Some(Value::Bool(value)) => *value,
+                    Some(_) => return Some(Err("value must be a boolean".into())),
+                };
+                self.ui.close_to_tray = value;
+                Ok(json!({"value": value}))
             }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
@@ -5182,6 +5203,7 @@ impl MailApp {
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
+        close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.
         text_menu::carry_out(self, &ctx);
