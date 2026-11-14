@@ -70,11 +70,27 @@ fn more_mail_queues_the_accounts_run_once_and_quietly() {
     tx.send(IdleNote::Arrived).unwrap();
     tx.send(IdleNote::Arrived).unwrap();
     app.idle_tick();
-    assert_eq!(app.sync_queue.iter().copied().collect::<Vec<_>>(), vec![(account, true)]);
+    assert_eq!(app.session.driver.round.queue.iter().copied().collect::<Vec<_>>(), vec![(account, true)]);
     // Said again while it waits: still one.
     tx.send(IdleNote::Arrived).unwrap();
     app.idle_tick();
-    assert_eq!(app.sync_queue.len(), 1);
+    assert_eq!(app.session.driver.round.queue.len(), 1);
+}
+
+#[test]
+fn more_mail_turns_a_waiting_push_only_run_into_a_whole_one() {
+    let (mut app, account, host) = window();
+    app.session.prefs.sync_minutes = 5;
+    app.passwords.insert(account, "hunter2".into());
+    app.idle_tick();
+    // The owner flagged a message: the account waits in line to send that change only.
+    app.session.driver.round.queue.push_back((account, true));
+    app.session.driver.round.push_only_next.insert(account);
+    let tx = host.lock().unwrap().say[0].0.clone();
+    tx.send(IdleNote::Arrived).unwrap();
+    app.idle_tick();
+    assert_eq!(app.session.driver.round.queue.len(), 1);
+    assert!(!app.session.driver.round.push_only_next.contains(&account));
 }
 
 #[test]
@@ -167,7 +183,7 @@ fn news_while_a_round_is_under_way_queues_the_account_without_wiping_the_rows() 
     app.idle_tick();
     host.lock().unwrap().say[0].0.send(IdleNote::Arrived).unwrap();
     app.idle_tick();
-    assert_eq!(app.sync_queue.len(), 1);
+    assert_eq!(app.session.driver.round.queue.len(), 1);
     assert_eq!(app.session.sync_progress.accounts.len(), before);
 }
 

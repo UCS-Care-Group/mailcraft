@@ -133,14 +133,16 @@ impl MailApp {
         }
         // New mail: the account's run is queued, once.
         for id in arrived {
-            if self.sync_queue.iter().any(|(queued, _)| *queued == id) || !self.can_sync_quietly(id) {
+            // A run already waiting for this account must fetch, not only send what changed here.
+            self.session.driver.round.push_only_next.remove(&id);
+            if self.session.driver.round.is_queued(id) || !self.can_sync_quietly(id) {
                 continue;
             }
             // A round that is under way keeps its rows: the account waits its turn in the queue.
             let begin = !self.session.sync_progress.running();
-            self.sync_queue.push_back((id, true));
+            self.session.driver.round.queue.push_back((id, true));
             if begin {
-                let round: Vec<Id> = self.sync_queue.iter().map(|(account, _)| *account).collect();
+                let round = self.session.driver.round.round();
                 self.session.sync_progress.begin(&round);
             }
         }
