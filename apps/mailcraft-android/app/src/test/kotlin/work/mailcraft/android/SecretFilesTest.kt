@@ -88,8 +88,11 @@ class SecretFilesTest {
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
         file.writeBytes(ByteArray(0))
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
+        s.takeTrouble()
         file.writeBytes(ByteArray(MAX_FILE_PLUS))
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
+        assertEquals(TroubleKind.UNAVAILABLE, s.takeTrouble())
+        assertNull(s.takeTrouble())
     }
 
     @Test
@@ -156,7 +159,7 @@ class SecretFilesTest {
         val dir = File(tmp.root, "secrets")
         val s = store(dir = dir)
         s.set("k", "v")
-        val file = dir.listFiles { f -> f.name.endsWith(".sec") }!!.single()
+        val file = dir.listFiles { f -> f.name.endsWith(".sec") }.orEmpty().single()
         file.setReadable(false, false)
         try {
             assumeFalse("running as a user that ignores file modes", file.canRead())
