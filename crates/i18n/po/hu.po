@@ -5000,6 +5000,11 @@ msgstr "Visszajelzés"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Fields such as {fields} are filled in when the template is inserted."
+msgstr ""
+
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -6539,7 +6544,7 @@ msgid "Inbox"
 msgstr "Beérkezett üzenetek"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/template.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Include"
 msgstr "Belefoglalás"
@@ -6587,7 +6592,7 @@ msgid "Info and File"
 msgstr "Információ és fájl"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/symbol.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/symbol.rs
 #, fuzzy
 msgid "Insert"
 msgstr "Beszúrás"
@@ -6609,6 +6614,11 @@ msgstr "Link beszúrása"
 #, fuzzy
 msgid "Insert Picture"
 msgstr "Kép beszúrása"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Insert Template"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -7343,6 +7353,11 @@ msgstr "Lista megjegyzések"
 #, fuzzy
 msgid "List Tasks"
 msgstr "Listafeladatok"
+
+#. command label
+#: crates/engine/src/cmd/template.rs
+msgid "List Templates"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
@@ -8099,7 +8114,7 @@ msgstr[0] "{n} névjegy egyesítése…"
 msgstr[1] "{n} névjegy egyesítése…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/template.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Üzenet"
@@ -9307,6 +9322,11 @@ msgstr "Még nincs aláírás."
 #, fuzzy
 msgid "No such account"
 msgstr "Nincs ilyen fiók"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "No templates yet"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -11279,7 +11299,7 @@ msgid "Reminders Window"
 msgstr "Emlékeztető ablak"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Eltávolítás"
@@ -11367,6 +11387,11 @@ msgstr "Megosztott naptár eltávolítása"
 #, fuzzy
 msgid "Remove Shared Mailbox"
 msgstr "Megosztott postafiók eltávolítása"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Remove Template"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -12077,6 +12102,16 @@ msgstr "Üzenetfájl mentése"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Aláírás mentése"
+
+#. command label, interface
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as Template"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save as Template…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14243,6 +14278,21 @@ msgstr "Teams-értekezlet"
 #, fuzzy
 msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
 msgstr "Mondd el MailCraft készítőinek, mi történt rosszul, GitHub-on vagy e-mailben."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template name"
+msgstr ""
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/template.rs crates/ui-egui/src/ribbon.rs
+msgid "Templates"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19164,6 +19214,11 @@ msgstr "A mappák túl mélyen vannak fészkelve."
 msgid "from {from} to {to}"
 msgstr "{from} – {to}"
 
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "give the template a name, subject or body"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -19597,7 +19652,7 @@ msgid "no message being written has the id {id}"
 msgstr "Nincs olyan üzenet, amiben megírnák az azonosító {id}-t."
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/template.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nincs megnyitva szerkesztésre üzenet"
@@ -19691,6 +19746,16 @@ msgstr "nincs ilyen bekezdés"
 #, fuzzy
 msgid "no task with id {id}"
 msgstr "nincs feladat az id {id}-val"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template named \"{name}\""
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "no template with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -21253,6 +21318,11 @@ msgstr "túl sok fájl egy névvel"
 #, fuzzy
 msgid "too many flags for one command"
 msgstr "Túl sok zászló egy parancshoz"
+
+#. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "too many templates"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs

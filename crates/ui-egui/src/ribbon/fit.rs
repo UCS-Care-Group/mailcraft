@@ -183,8 +183,8 @@ fn priorities(which: &str) -> &'static [(&'static str, u8)] {
         "Home tasks" => &[("New", 9), ("Delete", 8), ("Manage Task", 7), ("Follow Up", 6), ("Tags", 5), ("Current View", 3)],
         "Message" => &[
             ("Send", 9),
+            ("Include", 9),
             ("Basic Text", 8),
-            ("Include", 7),
             ("Clipboard", 7),
             ("Tags", 5),
             ("Format", 4),

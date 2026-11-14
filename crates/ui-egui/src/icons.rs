@@ -582,6 +582,14 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(7.5, 2.5), (12.5, 2.5), (12.0, 8.0), (14.5, 10.5), (5.5, 10.5), (8.0, 8.0)], true, 0.5, c);
             pen.line(&[(10.0, 10.5), (10.0, 17.5)]);
         }
+        // Reusable message template: a page with a folded corner and lines.
+        "templates" => {
+            pen.closed(&[(4.5, 2.5), (12.0, 2.5), (15.5, 6.0), (15.5, 17.5), (4.5, 17.5)], c);
+            pen.line(&[(12.0, 2.5), (12.0, 6.0), (15.5, 6.0)]);
+            pen.line_c(&[(7.0, 9.5), (13.0, 9.5)], a);
+            pen.line(&[(7.0, 12.5), (13.0, 12.5)]);
+            pen.line(&[(7.0, 15.0), (11.0, 15.0)]);
+        }
         // A message, and an arrow that takes it somewhere.
         "rules" | "createRule" => {
             pen.envelope(2.5, 2.5, 12.5, 9.5, c);
@@ -1321,6 +1329,7 @@ pub const NAMES: &[&str] = &[
     "category",
     "categories",
     "pin",
+    "templates",
     "rules",
     "createRule",
     "attach",

@@ -49,6 +49,17 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Save the message being written as a local template (#952); runs `template.create`.
+    SaveTemplate {
+        name: String,
+        error: String,
+    },
+    /// Pick a saved template to insert or remove (#952); runs `template.insert` or `template.remove`.
+    PickTemplate {
+        remove: bool,
+        selected: usize,
+        error: String,
+    },
     /// The address of a shared mailbox to open under a Microsoft account (#70): it only collects
     /// the address, then runs `account.addSharedMailbox`.
     SharedMailbox {
@@ -239,6 +250,14 @@ impl Dialog {
             Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SendLater(d) => d.name(),
+            Dialog::SaveTemplate { .. } => "saveTemplate",
+            Dialog::PickTemplate { remove, .. } => {
+                if *remove {
+                    "removeTemplate"
+                } else {
+                    "insertTemplate"
+                }
+            }
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
@@ -319,6 +338,16 @@ impl Dialog {
                 Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Change(queued))?)
             }
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
+            "saveTemplate" => {
+                let c = app.session.compose.as_ref()?;
+                let name = params.get("name").and_then(Value::as_str).filter(|s| *s != "saveTemplate").unwrap_or(c.subject.trim()).to_string();
+                Dialog::SaveTemplate { name, error: String::new() }
+            }
+            "insertTemplate" => {
+                app.session.compose.as_ref()?;
+                Dialog::PickTemplate { remove: false, selected: 0, error: String::new() }
+            }
+            "removeTemplate" => Dialog::PickTemplate { remove: true, selected: 0, error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
                 let can = |a: &&mailcraft_model::Account| crate::shared_mailboxes::can_open_shared(a);
@@ -1318,6 +1347,9 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "compose.delay" if !has("at") && !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("delay"),
         "compose.sendLater" if !has("at") => Some("sendLater"),
         "mail.setSendTime" if !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("sendTime"),
+        "template.create" if !has("name") && !has("body") => Some("saveTemplate"),
+        "template.insert" if !has("id") && !has("name") => Some("insertTemplate"),
+        "template.remove" if !has("id") => Some("removeTemplate"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
@@ -1410,7 +1442,9 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
                 tl!(c.label).to_string(),
                 crate::i18n::location(c.location),
                 crate::widgets::shortcut_text(app, c.id),
-                (c.enabled)(&app.session).is_none() && crate::windows::compose_window::acts_here(app, c.id),
+                (c.enabled)(&app.session).is_none()
+                    && crate::windows::compose_window::acts_here(app, c.id)
+                    && (c.id != "template.create" || app.session.compose.is_some()),
             )
         })
         .collect();
@@ -1670,6 +1704,127 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
                 }
+            }
+        }
+        Dialog::SaveTemplate { name, error } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Save as Template"), 420.0, |ui| {
+                ui.label(tl!("Template name"));
+                let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY)));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.label(
+                    egui::RichText::new(crate::i18n::fmt(
+                        tl!("Fields such as {fields} are filled in when the template is inserted."),
+                        &[("fields", "{recipient.name}, {recipient.company}, {date}")],
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let can_save = !name.trim().is_empty();
+                let (ok, cancel) = buttons(ui, tl!("Save"), can_save);
+                submit = can_save && (ok || enter);
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("template.create", json!({"name": name.trim()})) {
+                    Ok(_) => close = true,
+                    Err(e) => *error = tl!(&e).to_string(),
+                }
+            }
+        }
+        Dialog::PickTemplate { remove, selected, error } => {
+            let templates: Vec<(u64, String, String)> = app
+                .session
+                .mailbox
+                .templates_sorted()
+                .into_iter()
+                .map(|tpl| {
+                    let label = if tpl.name.is_empty() {
+                        crate::i18n::fmt(tl!("Template #{n}"), &[("n", &tpl.id.to_string())])
+                    } else {
+                        mailcraft_names::shown(&tpl.name, 36)
+                    };
+                    (tpl.id, label, tpl.subject.clone())
+                })
+                .collect();
+            *selected = if templates.is_empty() { 0 } else { (*selected).min(templates.len() - 1) };
+            let title = if *remove { tl!("Remove Template") } else { tl!("Insert Template") };
+            let action = if *remove { tl!("Remove") } else { tl!("Insert") };
+            let mut submit = false;
+            let open = window(ctx, title, 400.0, |ui| {
+                if templates.is_empty() {
+                    ui.label(egui::RichText::new(tl!("No templates yet")).color(t.text_dim));
+                } else {
+                    if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
+                        *selected = (*selected + 1).min(templates.len().saturating_sub(1));
+                    }
+                    if ui.input(|i| i.key_pressed(Key::ArrowUp)) {
+                        *selected = selected.saturating_sub(1);
+                    }
+                    egui::Frame::NONE.stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4.0).inner_margin(4.0).show(ui, |ui| {
+                        egui::ScrollArea::vertical().max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
+                            for (i, (tid, label, subject)) in templates.iter().enumerate() {
+                                let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
+                                app.hit.add("pickTemplate", *tid, r);
+                                if i == *selected {
+                                    ui.painter().rect_filled(r, 3.0, t.selection);
+                                } else if resp.hovered() {
+                                    ui.painter().rect_filled(r, 3.0, t.hover);
+                                }
+                                let w = crate::theme::paint_clipped(
+                                    ui.painter(),
+                                    egui::pos2(r.min.x + 8.0, r.center().y),
+                                    r.width() - 16.0,
+                                    label,
+                                    regular(13.0),
+                                    t.text,
+                                );
+                                if !subject.is_empty() && w + 24.0 < r.width() {
+                                    crate::theme::paint_clipped(
+                                        ui.painter(),
+                                        egui::pos2(r.min.x + 8.0 + w + 10.0, r.center().y),
+                                        (r.width() - 26.0 - w).max(0.0),
+                                        subject,
+                                        regular(11.0),
+                                        t.text_dim,
+                                    );
+                                }
+                                if resp.clicked() {
+                                    *selected = i;
+                                }
+                                if resp.double_clicked() {
+                                    *selected = i;
+                                    submit = true;
+                                }
+                            }
+                        });
+                    });
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let can_act = !templates.is_empty();
+                let (ok, cancel) = buttons(ui, action, can_act);
+                submit |= can_act && (ok || enter);
+                close |= cancel;
+            });
+            close |= !open;
+            if submit && let Some((tid, _, _)) = templates.get(*selected) {
+                let cmd = if *remove { "template.remove" } else { "template.insert" };
+                match app.execute(cmd, json!({"id": tid})) {
+                    Ok(_) => close = true,
+                    Err(e) => *error = tl!(&e).to_string(),
+                }
+            }
+            if close && !*remove {
+                app.want_body_focus();
             }
         }
         Dialog::SharedMailbox { account, address, error, checking } => {

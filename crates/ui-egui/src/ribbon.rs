@@ -133,6 +133,7 @@ pub(crate) enum Menu {
     CategorizeTask,
     FilterTasks,
     Signature,
+    Templates,
     MoveFolder,
     ReadingPane,
     GmailCategories,
@@ -755,6 +756,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::big("attach", "Attach\nFile", "ui.attach", no()).at(2, 2),
                 Item::big("insertLink", "Link", "compose.link", no()).checked(look.link && !look.plain).at(2, 3),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(2, 3),
+                Item::big_menu("templates", "templates", "Templates", "Templates", Menu::Templates).at(2, 1),
             ],
         ),
         g(
@@ -868,6 +870,7 @@ fn insert() -> Tab {
                 Item::big("people", "Contact\nCard", "insert.businessCard", no()).at(0, 4),
                 Item::small("calendar", "Calendar", "Insert Calendar", "insert.calendar", no()).at(0, 4),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
+                Item::big_menu("templates", "templates", "Templates", "Templates", Menu::Templates).at(0, 1),
             ],
         ),
         g("Tables", vec![Item::pending("insert.table", "Table", 1)]),
@@ -1471,6 +1474,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 let _ = app.run("ui.backstage", json!({"value": true, "page": "signatures"}));
             }
         }
+        Menu::Templates => templates_menu(ui, app),
         Menu::MoveFolder => {
             if ui.add(egui::Button::new(tl!("Top Level")).min_size(vec2(200.0, 0.0))).clicked() {
                 let _ = app.run("folder.move", json!({"parent": null}));
@@ -1546,6 +1550,51 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::FontColor => color_menu(ui, app),
         Menu::Highlight => highlight_menu(ui, app),
         Menu::FontSize => size_menu(ui, app),
+    }
+}
+
+/// The reusable message templates menu while composing (#952): save the message being written
+/// as a template, insert one with fields filled in, or remove one.
+pub(crate) fn templates_menu(ui: &mut Ui, app: &mut MailApp) {
+    let composing = app.session.compose.is_some();
+    if ui.add_enabled(composing, egui::Button::new(tl!("Save as Template…")).min_size(vec2(190.0, 0.0))).clicked() {
+        let _ = app.run("template.create", json!({}));
+        ui.close();
+    }
+    ui.separator();
+
+    let templates = app.session.mailbox.templates_sorted();
+    if templates.is_empty() {
+        ui.add_enabled(false, egui::Button::new(tl!("No templates yet")).min_size(vec2(190.0, 0.0)));
+        return;
+    }
+
+    let mut insert_id = None;
+    let mut remove_id = None;
+    for tpl in templates {
+        let label = if tpl.name.is_empty() {
+            crate::i18n::fmt(tl!("Template #{n}"), &[("n", &tpl.id.to_string())])
+        } else {
+            mailcraft_names::shown(&tpl.name, 28)
+        };
+        ui.horizontal(|ui| {
+            let btn = ui.add_enabled(composing, egui::Button::new(label).min_size(vec2(160.0, 0.0)));
+            let btn = if !tpl.subject.is_empty() { btn.on_hover_text(&tpl.subject) } else { btn };
+            if btn.clicked() {
+                insert_id = Some(tpl.id);
+            }
+            if widgets::icon_button(ui, "close", tl!("Remove"), 12.0, true).clicked() {
+                remove_id = Some(tpl.id);
+            }
+        });
+    }
+    if let Some(id) = insert_id {
+        let _ = app.run("template.insert", json!({"id": id}));
+        ui.close();
+    }
+    if let Some(id) = remove_id {
+        let _ = app.run("template.remove", json!({"id": id}));
+        ui.close();
     }
 }
 
