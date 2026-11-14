@@ -163,7 +163,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 6. Undo Send and Delay Delivery, with an Outbox that also holds mail written offline; Snooze
    (gap 17).
 7. Signed and encrypted mail with S/MIME and OpenPGP (gap 16, [#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
-8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2).
+8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2): done for the Inbox of accounts whose server offers IDLE (#276).
 9. Calendars and contacts beyond Microsoft (CalDAV, CardDAV, subscribed calendars) and Google
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when

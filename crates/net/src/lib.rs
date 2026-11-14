@@ -49,6 +49,10 @@ mod http;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod https;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod idle;
+#[cfg(test)]
+mod idle_tests;
+#[cfg(not(target_arch = "wasm32"))]
 mod kept;
 #[cfg(not(target_arch = "wasm32"))]
 mod kinds;

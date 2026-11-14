@@ -219,3 +219,25 @@ pub struct MessageView {
     /// download them counts.
     pub remote_pictures: u32,
 }
+
+/// What "remove account and data" came to (`Core::delete_local_data`).
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum DataRemoved {
+    /// The mail and every sign-in kept are gone.
+    All,
+    /// The mail and every sign-in that could be found are gone, but the list of the sign-ins
+    /// kept was damaged (it was set aside): older ones may still be in the phone's credential
+    /// store. `message`, in the owner's language, says so and how to remove them; once it has
+    /// been shown, `Core::sign_ins_notice_shown` keeps later removals from saying it again.
+    SignInsMayRemain { message: String },
+}
+
+/// What `Core::forget_sign_ins` came to.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SignInsForgotten {
+    /// How many entries were looked for.
+    pub looked_for: u64,
+    /// Set when the list of the sign-ins kept was damaged (it was set aside), so older ones may
+    /// still be in the phone's credential store: the words to show the owner.
+    pub may_remain: Option<String>,
+}
