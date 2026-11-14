@@ -465,6 +465,21 @@ fn a_selection_from_outside_the_list_expands_its_group() {
     assert!(!s.prefs.is_collapsed(here, &group), "the group opened on that way out as well: {:?}", s.prefs.collapsed_groups);
 }
 
+/// A session that has shown no list yet collapses the group the focus is in (#1318): the control
+/// channel, the CLI and an agent never draw a list, and the menu's question reads only the one the
+/// window last built. The command builds it and answers for itself.
+#[test]
+fn collapsing_the_focused_group_needs_no_list_request_first() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let folder = s.view.folder;
+    let id = s.mailbox.messages.values().find(|m| m.folder == folder).map(|m| m.id).expect("a message of the Inbox");
+    run(&mut s, "mail.select", json!({"id": id}));
+    assert!(s.rows_in_view().is_none(), "nothing has built the list yet");
+    let answer = run(&mut s, "view.collapseGroup", json!({}));
+    assert!(answer["collapsed"].as_array().is_some_and(|c| !c.is_empty()), "the group of the focus collapsed: {answer}");
+}
+
 /// `mail.list` names a collapsed group's messages as the group's, not as a conversation.
 #[test]
 fn mail_list_says_what_a_collapsed_group_holds() {

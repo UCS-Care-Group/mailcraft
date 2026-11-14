@@ -267,6 +267,19 @@ fn collapsible(s: &Session) -> bool {
     s.prefs.show_groups && s.view.sort != SortBy::Categories
 }
 
+/// Whether the list folds at all, which is the part of the question that needs no rows (#929):
+/// the groups on, not arranged by categories, and nothing searched for.
+fn folds_at_all(s: &Session) -> bool {
+    collapsible(s) && mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+}
+
+/// Whether the rows this reads are simply not there yet: a session that has drawn no list has none
+/// (the control channel, the CLI, an agent), and a question asked for a menu must not refuse a
+/// focus that may well be in a group. The command builds the rows and answers for itself (#1318).
+fn rows_not_built_yet(s: &Session) -> bool {
+    folds_at_all(s) && s.sel.focus().is_some() && s.rows_in_view().is_none()
+}
+
 /// Collapse All Groups: while the list shows groups that collapse, and nothing is searched for
 /// (a search shows every group whole, and isn't what is kept for the folder).
 fn can_collapse_all(s: &Session) -> Option<&'static str> {
@@ -292,6 +305,7 @@ fn can_collapse_group(s: &Session) -> Option<&'static str> {
     match grouped_focus(s) {
         Some((rows, at)) if rows.get(at).is_some_and(|r| r.folded.is_none()) && group_at(&rows, at).is_some() => None,
         Some(_) => Some("the group is collapsed"),
+        None if rows_not_built_yet(s) => None,
         None => Some("select a message in a list arranged in groups first"),
     }
 }
@@ -301,6 +315,7 @@ fn can_expand_group(s: &Session) -> Option<&'static str> {
     match grouped_focus(s) {
         Some((rows, at)) if rows.get(at).is_some_and(|r| r.folded.is_some()) => None,
         Some(_) => Some("the group is open"),
+        None if rows_not_built_yet(s) => None,
         None => Some("select a collapsed group first"),
     }
 }
