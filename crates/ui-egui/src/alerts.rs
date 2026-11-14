@@ -256,7 +256,7 @@ pub fn reminders_due(app: &mut MailApp, due: &[Reminder]) {
 
 /// Whether a Send/Receive is under way, or waiting its turn.
 fn busy(app: &MailApp) -> bool {
-    app.syncing() || app.graph_rx.is_some() || !app.sync_queue.is_empty()
+    app.syncing() || app.graph_rx.is_some() || !app.session.driver.round.queue.is_empty()
 }
 
 /// The owner is looking at the window: it has the keyboard and it is not minimized.

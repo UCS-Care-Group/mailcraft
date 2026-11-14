@@ -36,7 +36,7 @@ use crate::Session;
 /// whole, its body and files read in when they are kept on disk), and how many there are.
 pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, usize) {
     let mb = &s.mailbox;
-    let today = s.zone().instant(DateTime::at_midnight(s.today()));
+    let today = s.instant_of(DateTime::at_midnight(s.today()));
     let now = s.now();
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
     let (mut out, mut count, mut spent) = (Vec::new(), 0usize, 0u64);

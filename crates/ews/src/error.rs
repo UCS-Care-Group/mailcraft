@@ -65,7 +65,14 @@ pub enum ResponseCode {
     InvalidSyncState,
     /// `ErrorInvalidPropertyRequest`: the server doesn't know a property that was asked for.
     InvalidPropertyRequest,
-    /// `ErrorSchemaValidation`: the request did not fit the schema (a bug here).
+    /// `ErrorInvalidPropertyForOperation`: the server knows a property asked for, but not for this
+    /// operation (Exchange 2010's `SyncFolderItems` and the recipients, #1349).
+    InvalidPropertyForOperation,
+    /// `ErrorChangeKeyRequiredForWriteOperations`: the server changes an item only when it is
+    /// named with its change key (Exchange 2010, #1349).
+    ChangeKeyRequired,
+    /// `ErrorSchemaValidation`: the request did not fit the schema (a bug here, or a property an
+    /// older server's schema hasn't, #1349).
     SchemaValidation,
     /// `ErrorInvalidServerVersion`: the server does not know the version asked for.
     InvalidServerVersion,
@@ -95,6 +102,8 @@ impl ResponseCode {
             "ErrorNonExistentMailbox" => Self::NonExistentMailbox,
             "ErrorInvalidSyncStateData" => Self::InvalidSyncState,
             "ErrorInvalidPropertyRequest" => Self::InvalidPropertyRequest,
+            "ErrorInvalidPropertyForOperation" => Self::InvalidPropertyForOperation,
+            "ErrorChangeKeyRequiredForWriteOperations" => Self::ChangeKeyRequired,
             "ErrorSchemaValidation" => Self::SchemaValidation,
             "ErrorInvalidServerVersion" => Self::InvalidServerVersion,
             "ErrorInvalidRequest" => Self::InvalidRequest,
@@ -120,6 +129,8 @@ impl fmt::Display for ResponseCode {
             Self::NonExistentMailbox => f.write_str("ErrorNonExistentMailbox"),
             Self::InvalidSyncState => f.write_str("ErrorInvalidSyncStateData"),
             Self::InvalidPropertyRequest => f.write_str("ErrorInvalidPropertyRequest"),
+            Self::InvalidPropertyForOperation => f.write_str("ErrorInvalidPropertyForOperation"),
+            Self::ChangeKeyRequired => f.write_str("ErrorChangeKeyRequiredForWriteOperations"),
             Self::SchemaValidation => f.write_str("ErrorSchemaValidation"),
             Self::InvalidServerVersion => f.write_str("ErrorInvalidServerVersion"),
             Self::InvalidRequest => f.write_str("ErrorInvalidRequest"),
