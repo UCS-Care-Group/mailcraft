@@ -282,9 +282,17 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     .unwrap_or_default();
     b.apply_prefs(odd);
     assert!((150.0..=500.0).contains(&b.ui.folder_pane_width) && (240.0..=900.0).contains(&b.ui.list_width));
-    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, ..Default::default() };
+    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, list_height: f32::NAN, ..Default::default() };
     b.apply_prefs(nan);
-    assert_eq!((b.ui.folder_pane_width, b.ui.list_width), (230.0, 380.0));
+    assert_eq!((b.ui.folder_pane_width, b.ui.list_width, b.ui.list_height), (230.0, 380.0, 0.0));
+    // A negative height is the share of the window again, as a new install has it (#1372).
+    b.apply_prefs(UiState { list_height: -40.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 0.0);
+    b.apply_prefs(UiState { list_height: 1e30, ..Default::default() });
+    assert_eq!(b.ui.list_height, 4000.0);
+    // A height the owner dragged comes back as it was.
+    b.apply_prefs(UiState { list_height: 610.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 610.0);
 }
 
 #[test]
