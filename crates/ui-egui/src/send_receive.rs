@@ -90,7 +90,7 @@ fn went_offline(app: &mut MailApp) {
 /// Work Offline turned off: what waits in the Outbox goes with a Send/Receive at once.
 fn went_online(app: &mut MailApp) {
     app.status(tl!("Back online"));
-    if app.auto_sync && app.services.can_sync() && !app.server_accounts().is_empty() && !app.syncing() {
+    if app.session.driver.auto_sync() && app.services.can_sync() && !app.server_accounts().is_empty() && !app.syncing() {
         let _ = app.start_sync(&json!({"quiet": true}));
     }
 }

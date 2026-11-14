@@ -15,9 +15,8 @@ SMTP. It does not add Google Calendar or Contacts, nor Gmail access in the brows
 
 > **For now, testers only.** While Google reviews MailCraft, Google sign-in works only for the
 > addresses added to the project's test users; anyone else gets Google's "Access blocked" page.
-> To join, email systems@ucscaregroup.co.uk. Until then a new Gmail account starts on an
-> [app password](#app-password-alternative), with **Use Google sign-in instead** as the second
-> choice.
+> Until then a new Gmail account starts on an [app password](#app-password-alternative), with
+> **Use Google sign-in instead** as the second choice.
 
 1. Open **Send / Receive → Add Account**, enter your email address and continue. For a custom
    Workspace domain that is not recognised, select **Google — Gmail and Google Workspace** as

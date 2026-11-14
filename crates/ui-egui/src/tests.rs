@@ -150,6 +150,11 @@ fn window_commands_validate() {
     a.services.system_locale = Some("nl-NL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "nl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Dutch);
+    // Romanian too, and Automatic in Romania follows it.
+    assert_eq!(a.execute("ui.language", json!({"language": "ro"})).unwrap()["inForce"], "ro");
+    a.services.system_locale = Some("ro-RO".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ro");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Romanian);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
@@ -716,7 +721,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
         fn get(&self, key: &str) -> Option<String> {
             self.0.lock().unwrap().get(key).cloned()
         }
-        fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
             self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
             Ok(())
         }
@@ -837,7 +842,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
         fn get(&self, key: &str) -> Option<String> {
             self.0.lock().unwrap().get(key).cloned()
         }
-        fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
             self.0.lock().unwrap().insert(key.to_string(), secret.to_string());
             Ok(())
         }
@@ -849,7 +854,8 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     let who: Arc<Mutex<String>> = Arc::new(Mutex::new("admin@mail.example".into()));
     let synced: Arc<Mutex<Vec<String>>> = Default::default();
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (a.autosave, a.auto_sync) = (false, false);
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
     let log = synced.clone();
     a.services.sync = Some(Box::new(move |req: SyncRequest| {
         log.lock().unwrap().push(req.access_token.clone());
@@ -946,10 +952,10 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
             *self.0.lock().unwrap() = Some(StoreTrouble::Unavailable);
             None
         }
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
             self.1.fetch_add(1, Ordering::Relaxed);
             *self.0.lock().unwrap() = Some(StoreTrouble::Unavailable);
-            Err("the system's credential store refused: no Secret Service".into())
+            Err(mailcraft_host::SecretError::Other("the system's credential store refused: no Secret Service"))
         }
         fn delete(&self, _: &str) {}
         fn take_trouble(&self) -> Option<StoreTrouble> {
@@ -986,7 +992,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
     a.check_secret_store();
     assert_eq!(a.secrets_trouble, Some(StoreTrouble::Unavailable));
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, StoreTrouble::Unavailable.notice());
+    assert_eq!(said, crate::store_trouble_notice(StoreTrouble::Unavailable));
     assert!(said.contains("asks again each time it starts"), "{said}");
     assert!(!said.contains("pw-one"));
 
@@ -1008,8 +1014,8 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
     assert_eq!(b.secrets_trouble, Some(StoreTrouble::Unavailable));
 
     // A locked store is told as such.
-    assert_ne!(StoreTrouble::Locked.notice(), StoreTrouble::Unavailable.notice());
-    assert!(StoreTrouble::Locked.notice().contains("locked"));
+    assert_ne!(crate::store_trouble_notice(StoreTrouble::Locked), crate::store_trouble_notice(StoreTrouble::Unavailable));
+    assert!(crate::store_trouble_notice(StoreTrouble::Locked).contains("locked"));
 }
 
 /// Send/Receive starts by itself (when the app starts, then every few minutes) for the accounts
@@ -1087,7 +1093,7 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
     a.execute("file.options", json!({"syncMinutes": 0})).unwrap();
     settle(&mut a);
     a.execute("file.options", json!({"syncMinutes": 5})).unwrap();
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     settle(&mut a);
     assert!(synced.lock().unwrap().is_empty());
 }
@@ -1195,7 +1201,7 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let before = runs.lock().unwrap().len();
     look(&mut a);
     a.passwords.insert(id, "pw".into());
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), before);
     assert!(a.dialog.is_none());
@@ -1285,7 +1291,7 @@ fn shared_and_own() -> (MailApp, mailcraft_model::Id, mailcraft_model::Id) {
     let (mine, theirs) = (s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap());
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.execute("folder.select", json!({"id": theirs})).unwrap();
     (app, mine, theirs)
 }
@@ -1809,7 +1815,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     settle(&mut a);
     assert_eq!(asked.lock().unwrap().len(), 3);
     // A quarter of an hour on: the wide stretch again, with the token it has.
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.execute("ui.sync", json!({"account": id})).unwrap();
     settle(&mut a);
     assert!(calendar(&mut a, &mut clock));
@@ -1818,7 +1824,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
 
     // No permission for Graph: mail goes on by the mail server, and Graph isn't asked every run.
     consent.store(false, Ordering::Relaxed);
-    a.graph_checked.insert(id, 0.0);
+    a.session.driver.calendar.checked.insert(id, 0.0);
     a.graph_tokens.clear();
     a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "By SMTP", "account": id})).unwrap();
     a.execute("compose.send", json!({})).unwrap();
@@ -2050,14 +2056,12 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
-/// Discard on a draft a JMAP account's server has keeps it in Drafts (M6), and the status bar says
-/// why, in the words the Move menu greys with; a draft that went says nothing.
+/// Discard says nothing in the status bar, whether the draft went or was gone already: a draft a
+/// JMAP account's server has goes as any other, and there too with the next run (M6).
 #[test]
-fn discarding_a_draft_that_stays_says_why() {
-    let why = mailcraft_model::NOT_MOVING_YET;
-    let said = crate::feedback("compose.discard", &json!({"draftDeleted": false, "draft": 4, "stays": why})).unwrap();
-    assert!(said.starts_with("The draft stays in Drafts.") && said.ends_with(why), "{said}");
+fn discarding_a_draft_says_nothing() {
     assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": true})), None);
+    assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": false})), None);
 }
 
 #[test]
@@ -2330,6 +2334,12 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let kept = a.session.mailbox.add_message(kept).unwrap();
     let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
     assert_eq!(ask.text, "This message will be permanently deleted.");
+    // One its server has goes there too (M6), and the question says so.
+    let server = mailcraft_model::sync::ServerMessage { id: "E1".into(), folder: "M1".into(), ..Default::default() };
+    let theirs = mailcraft_model::Message { folder: inbox, subject: "Theirs".into(), server: Some(server), ..Default::default() };
+    let theirs = a.session.mailbox.add_message(theirs).unwrap();
+    let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [theirs]})).unwrap();
+    assert_eq!(ask.text, "This message will be permanently deleted. It is removed from the mail server too, and that can't be undone.");
 }
 
 /// A noisy PNG far over a signature picture's cap.

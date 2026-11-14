@@ -16,10 +16,10 @@ and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 
 | Number | Value | Kind |
 |---|---|---|
-| Ribbon/menu catalog coverage | **227 / 328 (69.2%)** | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Ribbon/menu catalog coverage | **246 / 314 in scope (78.3%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
-| Commands / crates | 295 commands · 19 crates, 3 apps, `xtask` | measured (source) |
+| Commands / crates | 338 commands · 19 crates, 3 apps, `xtask` | measured (source) |
 | Tests | 5,401 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
@@ -34,13 +34,18 @@ not yet run against any other server.
 
 ### Methodology
 
-- **Measured.** `crates/engine/src/catalog.rs` lists 328 ribbon and menu features of Outlook by
+- **Measured.** `crates/engine/src/catalog.rs` lists 331 ribbon and menu features of Outlook by
   name, each mapped to a command id; `cargo xtask parity` counts how many of those ids the command
-  registry has and writes [`docs/parity-checklist.md`](docs/parity-checklist.md). A command
-  existing means the behaviour is reachable by id (ribbon, shortcut, CLI, control channel, MCP);
-  it says nothing about how complete it is, which is what [`docs/gaps.md`](docs/gaps.md) and the
-  other parity checklists are for. Tests are counted by `cargo xtask stats`; the 200,000-message
-  figures come from `mailbox_bench`, and the progress log says how to repeat them.
+  registry has and writes [`docs/parity-checklist.md`](docs/parity-checklist.md). Parity is two
+  counts. **Has a command**: the behaviour is reachable by id (ribbon, shortcut, CLI, control
+  channel, MCP); it says nothing about how closely it behaves as Outlook's does. **Complete**: the
+  behaviour matches Outlook's as far as MailCraft's rules allow, a test shows it, and
+  [`docs/gaps.md`](docs/gaps.md) has no open row for it; a feature is marked Complete by the change
+  that closes its last gap, and none is marked yet. Features MailCraft will not build (Outlook's
+  drawing items in Insert, Recall, Reply with IM and a few that don't fit how MailCraft keeps
+  mail in step) are marked **Out of scope** with a reason, and left out of both percentages. Tests
+  are counted by `cargo xtask stats`; the 200,000-message figures come from `mailbox_bench`, and
+  the progress log says how to repeat them.
 - **Estimated.** "Ready for real work" weighs what a person does in a week (reading and filing
   mail, answering, scheduling, finding things) by how completely MailCraft does it, then discounts
   for what stops them getting started (connecting an account, an administrator's approval) and
@@ -48,6 +53,29 @@ not yet run against any other server.
   local viewer" weighs the same for mail exported to files (`.mbox`, `.eml`, `.ics`, `.vcf`). Both
   are the authors' judgement: no tester has reported figures yet. MailCraft is in public beta from 0.8.0; it
   leaves beta not by an estimate but by passing every item of [the beta checklist](#the-beta-checklist).
+
+## Parity themes
+
+The themes that close the gap to Outlook's own features, taken in this order, each finished
+against a pass/fail checklist, several at once. The shortfalls behind them are in
+[`docs/gaps.md`](docs/gaps.md).
+
+1. Printing
+2. Paragraph alignment
+3. Message list columns
+4. The To-Do Bar
+5. The calendar's List view
+6. Rules
+7. JMAP and DAV accounts
+8. Sending later and Undo Send
+9. Follow-up reminders
+10. Tables, horizontal lines and emoji in the composer
+11. Spelling
+12. Calendar overlay and the Schedule view
+13. Contact groups
+14. Search Folders
+15. `.msg` import
+16. Clean-up commands (Ignore, Clean Up Conversation, Recover Deleted)
 
 ## Where it stands, by area (2026-10-31)
 
@@ -144,8 +172,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian and
-    Dutch previews, more languages, right-to-left layout (gap 14). Partly done: the five ship as previews.
+15. Spell checking while writing (gap 7); further review of the French, German, Spanish, Italian, Dutch,
+    Romanian and Simplified Chinese previews, more languages, right-to-left layout (gap 14). Partly done: the seven ship as previews.
 16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
@@ -161,7 +189,7 @@ browser.
 It is to be a mail client of its own (decided 2026-10-19, with #226):
 
 1. Review it: run it in the main browsers, and list what works, what doesn't and what is missing.
-2. JMAP accounts: read (#226, done); then changes going up and sending.
+2. JMAP accounts: read (#226, done); changes going up (#1074 part 1, done); then sending.
 3. Microsoft accounts through Microsoft Graph, which runs over HTTPS as JMAP does.
 4. Gmail and Google Workspace accounts ([#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)),
    once Google sign-in on the desktop is in ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232)).
@@ -180,8 +208,8 @@ follows:
 | M3 | **Writes like mail** | Rich-text composing and replies, pictures, spell check | Rich text done (R4); pictures in the body and spell checking after beta (gap 7) |
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: five preview languages |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226), and the marks, moves and deletions made in them go up (#1074 part 1); sending next |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: seven preview languages |
 
 ## Progress log
 

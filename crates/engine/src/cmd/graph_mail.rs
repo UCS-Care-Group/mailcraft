@@ -344,6 +344,13 @@ pub(super) fn mark_own(mb: &mut Mailbox, account: Id, own: &[String]) {
 /// reached it yet. The undo history stays: undoing a change that reached the server is another
 /// change, which the next run sends (R3.5, [`crate::undo`]).
 pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
+    let mut taken = apply_graph_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let account = result.account;
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Microsoft {
@@ -677,6 +684,17 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
         }
         let Some(name) = clean_name(&there.name) else { continue };
         let parent_here = if there.parent.is_empty() { None } else { here.get(&there.parent).copied() };
+        // A folder in one this account doesn't have (a calendar, contacts or tasks folder; one that
+        // couldn't be read; the root when it couldn't be told) is at the top here, and is kept as
+        // at the top on the server too: kept with the parent the server said, the difference
+        // would go up as a move of the owner's folder to the top of the mailbox (#1108).
+        let unplaced;
+        let there = if !there.parent.is_empty() && parent_here.is_none() {
+            unplaced = GraphFolder { parent: String::new(), ..there.clone() };
+            &unplaced
+        } else {
+            there
+        };
         let found = here.get(&there.id).copied().or_else(|| adopt(mb, account, there, parent_here, &name));
         match found {
             Some(id) => {

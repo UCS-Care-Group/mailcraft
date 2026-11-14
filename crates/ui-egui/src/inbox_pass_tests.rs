@@ -73,7 +73,7 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
     let mut app = MailApp::new(Session::empty(), Services::default());
     app.autosave = false;
     // (No round of its own: the tests start them.)
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let owner = app.execute("account.add", json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     app.tokens.insert(owner, tokens());
     let shared = app.execute("account.addSharedMailbox", json!({"account": owner, "address": SHARED})).unwrap()["id"].as_u64().unwrap();
@@ -263,7 +263,7 @@ const T0: i64 = 1_800_000_000;
 /// minute.
 fn checked_window() -> (MailApp, Id, Id, Shared) {
     let (mut app, owner, shared, host) = window((true, true));
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.services.sign_in = Some(Box::new(|_| mpsc::channel().1));
     at(&mut app, T0);
     assert_eq!(app.inbox_check_tick(), None, "nothing at once: the window's first round reads the Inbox");
@@ -423,10 +423,10 @@ fn no_check_for_an_account_without_graph_or_when_send_receive_by_itself_is_off()
     app.session.prefs.sync_minutes = 0;
     assert!(tick(&mut app, T0 + 200).is_empty());
     app.session.prefs.sync_minutes = 5;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     assert!(tick(&mut app, T0 + 400).is_empty());
     // No account kept in step through Graph: nothing ever.
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.execute("account.remove", json!({"id": shared})).unwrap();
     app.execute("account.remove", json!({"id": owner})).unwrap();
     let before = jobs(&host).len();
@@ -438,7 +438,7 @@ fn no_check_for_an_account_without_graph_or_when_send_receive_by_itself_is_off()
 #[test]
 fn no_check_for_an_account_with_no_inbox_link_or_no_sign_in() {
     let (mut app, owner, shared, host) = window((false, true));
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
     app.services.sign_in = Some(Box::new(|_| mpsc::channel().1));
     at(&mut app, T0);
     assert_eq!(app.inbox_check_tick(), None);
@@ -464,7 +464,7 @@ impl crate::SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.into(), secret.into());
         Ok(())
     }

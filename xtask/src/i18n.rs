@@ -145,6 +145,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (_, toks) in &ui {
         constants(toks, &mut ui_consts);
     }
+    // (The Favorites' refusals are the sync driver's, below the window, and shown by it.)
+    for (_, toks) in &sources(root, "crates/engine/src/sync_driver")? {
+        constants(toks, &mut ui_consts);
+    }
     for name in SHOWN_CONSTS {
         if let Some(s) = ui_consts.get(*name) {
             add(&mut texts, s, None, "crates/ui-egui/src", "interface");
@@ -188,6 +192,10 @@ fn gather(root: &Path) -> Result<Texts, String> {
         for (file, toks) in &files {
             hosts_say(toks, file, &consts, &mut texts);
         }
+    }
+    // What the phone binding says to its owner (`s.interface_language.t("…")`).
+    for (file, toks) in sources(root, "crates/mobile/src")? {
+        engine_says(&toks, &file, &BTreeMap::new(), &BTreeMap::new(), &mut texts);
     }
     for (file, toks) in sources(root, "crates/time/src")? {
         names(&toks, &file, &mut texts);
