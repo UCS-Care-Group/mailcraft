@@ -173,10 +173,10 @@ fn the_split_form_round_trips() {
     let saved = save(&path, &mb).unwrap();
     assert!(saved.bytes > 0 && saved.blobs > 0 && !saved.unchanged);
 
-    // The mailbox file is format 3 and holds no content; each content file is named by the
+    // The mailbox file is format 4 and holds no content; each content file is named by the
     // SHA-256 of what is in it, in the folder of its first two digits.
     let head = fs::read(&path).unwrap();
-    assert_eq!((&head[..16], &head[16..24]), (&b"MailCraft index\n"[..], &[3u8, 0, 0, 0, 0, 0, 0, 0][..]));
+    assert_eq!((&head[..16], &head[16..24]), (&b"MailCraft index\n"[..], &[4u8, 0, 0, 0, 0, 0, 0, 0][..]));
     assert!(saved.compacted && saved.bytes == head.len() as u64);
     let content: u64 = mb.messages.values().map(|m| m.size()).sum();
     assert!(saved.bytes < content / 4, "{} of {content}", saved.bytes);

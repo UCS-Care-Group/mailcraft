@@ -327,6 +327,13 @@ impl Build {
             let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
             o.kept = Some(self.queue(bytes)?);
         }
+        // The header lines nothing reads by name (HS), as an attachment.
+        if m.header_block.data.len() > INLINE_MAX {
+            let data = std::mem::take(&mut m.header_block.data);
+            gone = gone.saturating_add(data.len() as u64);
+            let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+            m.header_block.kept = Some(self.queue(bytes)?);
+        }
         kept.text_hash = mailcraft_model::text_hash(&m.body.text);
         m.kept = (!kept.is_empty()).then(|| Box::new(kept));
         Ok((m, gone))
