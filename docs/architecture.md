@@ -117,7 +117,15 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
   (`crates/engine/src/store.rs`). So is a message's header block over a kilobyte: the header
   lines nothing in the program reads by name (`mailcraft_model::headers`: those it reads by name
   are `WORKING`, which a test holds to the source), kept apart and in order, read only by View
-  Source and what writes a message whole (`Session::loaded_message`). A file in format 3 opens
+  Source and what writes a message whole (`Session::loaded_message`). The blocks are packed one
+  after another in a few `headers-<n>.pack` files there rather than a file each (#1376,
+  `crates/engine/src/store_pack.rs`): a record names its block's SHA-256, length, pack and
+  offset, a save appends and flushes the pack before the record that names it, every read is
+  bounded by the pack's length and checked against the SHA-256, and the whole rewrite writes a
+  fresh pack when the old one holds more than 16 MB nothing names (what an Undo step holds counts
+  as named, and goes into the fresh pack too); a block that can't be read then fails that save and
+  the old pack stays, and the old pack goes only when no file kept aside names it. A save after
+  another program wrote the file reads where that file's blocks are before it names any. A file in format 3 opens
   as it is; the window puts its blocks beside it as it reads it and writes it in format 4 at
   once (an opening that only reads it, the command line's or an agent's, holds them in memory
   until a save), the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
