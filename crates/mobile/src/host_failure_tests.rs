@@ -65,6 +65,10 @@ impl Platform for Throws {
         Err(HostError::Native)
     }
 
+    fn time_zone_name(&self) -> Result<String, HostError> {
+        Err(HostError::Native)
+    }
+
     fn memory_budget(&self) -> Result<Option<u64>, HostError> {
         Err(HostError::Native)
     }
