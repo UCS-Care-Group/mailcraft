@@ -18,6 +18,30 @@ fn spreadsheet_paste_keeps_cells_and_styles_when_a_draft_reopens() {
     assert_eq!(serde_json::from_str::<mailcraft_model::rich::RichText>(&serde_json::to_string(&pasted).unwrap()).unwrap(), pasted);
 }
 
+#[test]
+fn malformed_saved_table_keeps_other_runs() {
+    use mailcraft_model::rich::{OBJECT, RichText};
+
+    let saved = serde_json::json!({"paragraphs": [{"runs": [
+        {"text": "Before"}, {"text": OBJECT.to_string(), "table": {"columns": 1, "rows": [[{
+            "lines": [], "header": false, "colspan": 1, "rowspan": 1, "alignment": "Left"
+        }]]}}, {"text": "After"}
+    ]}]});
+    fn table(body: &mut serde_json::Value) -> &mut serde_json::Value {
+        &mut body["paragraphs"][0]["runs"][1]["table"]
+    }
+    let mut wrong_type = saved.clone();
+    *table(&mut wrong_type) = serde_json::json!(17);
+    let mut unknown_alignment = saved.clone();
+    table(&mut unknown_alignment)["rows"][0][0]["alignment"] = serde_json::json!("Justify");
+    let mut missing_span = saved;
+    table(&mut missing_span)["rows"][0][0].as_object_mut().unwrap().remove("colspan");
+    for malformed in [wrong_type, unknown_alignment, missing_span] {
+        let reopened: RichText = serde_json::from_value(malformed).unwrap();
+        assert_eq!(reopened.text(), "BeforeAfter");
+    }
+}
+
 fn range(rows: usize, cols: usize) -> String {
     let row = format!("<tr>{}</tr>", "<td>cell</td>".repeat(cols));
     format!("<table>{}</table>", row.repeat(rows))

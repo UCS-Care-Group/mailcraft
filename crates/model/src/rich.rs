@@ -262,7 +262,11 @@ struct RawPastedTable {
 
 // An invalid table in an old or externally written draft is ignored without losing its other runs.
 fn read_pasted_table<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<std::sync::Arc<PastedTable>>, D::Error> {
-    Ok(Option::<RawPastedTable>::deserialize(deserializer)?.and_then(|raw| PastedTable::new(raw.columns, raw.rows)).map(std::sync::Arc::new))
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| serde_json::from_value::<RawPastedTable>(value).ok())
+        .and_then(|raw| PastedTable::new(raw.columns, raw.rows))
+        .map(std::sync::Arc::new))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

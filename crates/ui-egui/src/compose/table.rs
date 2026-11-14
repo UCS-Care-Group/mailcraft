@@ -137,11 +137,10 @@ impl TableLayout {
                 painter.rect_filled(rect, 0.0, background);
             }
             painter.rect_stroke(rect, 0.0, Stroke::new(1.0, tokens.border), StrokeKind::Inside);
-            let width = cell.text.size().x;
             let x = match cell.text.job.halign {
                 egui::Align::Min => rect.left() + PADDING,
-                egui::Align::Center => rect.center().x - width / 2.0,
-                egui::Align::Max => rect.right() - PADDING - width,
+                egui::Align::Center => rect.center().x,
+                egui::Align::Max => rect.right() - PADDING,
             };
             painter.with_clip_rect(rect).galley(pos2(x, rect.top() + PADDING), cell.text.clone(), tokens.text);
         }

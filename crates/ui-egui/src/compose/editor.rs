@@ -206,6 +206,11 @@ impl Para {
         self.pictures.iter().find(|b| b.local == local)
     }
 
+    /// The rectangle reserved for a picture or table at a place in the paragraph.
+    fn object_at(&self, local: usize) -> Option<Rect> {
+        self.picture_at(local).map(|b| b.rect).or_else(|| self.tables.iter().find(|b| b.local == local).map(|b| b.rect))
+    }
+
     /// The style of the character at `local` (the one after that offset).
     fn style_at(&self, local: usize) -> Option<&Style> {
         let mut seen = 0;
@@ -467,13 +472,11 @@ impl Layout {
     fn caret(&self, pos: usize) -> Rect {
         let Some(p) = self.para_at(pos) else { return Rect::from_min_size(pos2(0.0, 0.0), vec2(0.0, BASE_SIZE * 1.3)) };
         let local = pos.saturating_sub(p.start).min(p.chars);
-        if let Some(b) = p.picture_at(local) {
-            // Before a picture is at its left, not after its gap.
-            return Rect::from_min_max(pos2(b.rect.min.x, b.rect.min.y), pos2(b.rect.min.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = p.object_at(local) {
+            return Rect::from_min_max(pos2(rect.min.x, rect.min.y), pos2(rect.min.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
-        if let Some(b) = local.checked_sub(1).and_then(|l| p.picture_at(l)) {
-            // After a picture is at its right, wherever its character stands.
-            return Rect::from_min_max(pos2(b.rect.max.x, b.rect.min.y), pos2(b.rect.max.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = local.checked_sub(1).and_then(|l| p.object_at(l)) {
+            return Rect::from_min_max(pos2(rect.max.x, rect.min.y), pos2(rect.max.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
         let r = p.galley.pos_from_cursor(CCursor::new(local)).translate(vec2(p.indent(), p.top));
         if r.height() < 1.0 { Rect::from_min_size(pos2(p.indent(), p.top), vec2(0.0, p.height())) } else { r }
