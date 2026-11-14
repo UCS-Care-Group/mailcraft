@@ -1204,7 +1204,8 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
                 missing += 1;
                 last = Some(e);
             }
-            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && attempt < 8 => {
+            // (A folder in its place is no scanner: that is not waited for.)
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && attempt < 8 && !file.is_dir() => {
                 last = Some(e);
                 std::thread::sleep(Duration::from_millis(100 * attempt));
             }
@@ -3446,6 +3447,10 @@ fn refused_by_scanner(dir: &Path, r: &Ref, e: &std::io::Error) -> bool {
     }
     if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied {
         return blob_path(dir, &r.hash).is_some_and(|(_, file)| {
+            // Something else at its name (a folder) is no scanner.
+            if fs::symlink_metadata(&file).is_ok_and(|m| !m.is_file()) {
+                return false;
+            }
             let probe = temp_beside(&file);
             let made = create_private(&probe).is_ok();
             let _ = fs::remove_file(&probe);

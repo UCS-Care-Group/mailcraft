@@ -2178,6 +2178,11 @@ fn content_a_virus_scanner_takes_away_is_told_apart_from_a_failed_write() {
     let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
     assert_eq!(refused_by_scanner(&dir, &r, &denied), cfg!(windows));
     assert!(fs::read_dir(&sub).unwrap().next().is_none(), "the file tried beside it is gone");
+    // A folder in the file's place is no scanner, whatever Windows calls it.
+    let (_, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir(&file).unwrap();
+    assert!(!refused_by_scanner(&dir, &r, &denied));
+    fs::remove_dir(&file).unwrap();
     fs::remove_dir(&sub).unwrap();
     // A full disk, or anything else, still fails the save.
     assert!(!refused_by_scanner(&dir, &r, &std::io::Error::other("no space left")));
