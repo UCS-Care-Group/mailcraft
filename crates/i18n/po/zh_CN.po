@@ -16806,6 +16806,11 @@ msgid "Your mail server checked where this message came from, and the check fail
 msgstr "邮件服务器检查了此邮件的来源，但检查未通过：发件人地址可能是伪造的。"
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Your mail stays yours"

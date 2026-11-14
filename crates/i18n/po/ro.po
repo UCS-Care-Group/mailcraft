@@ -16868,6 +16868,11 @@ msgid "Your mail server checked where this message came from, and the check fail
 msgstr "Serverul de e-mail a verificat de unde a venit acest mesaj și verificarea a eșuat: adresa expeditorului poate fi falsificată."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Your mail stays yours"
