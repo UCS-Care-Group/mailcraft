@@ -233,3 +233,5 @@ mod tests {
         assert!(!contains_ci("Quarterly", "report"));
     }
 }
+#[cfg(test)]
+mod address_tests;
