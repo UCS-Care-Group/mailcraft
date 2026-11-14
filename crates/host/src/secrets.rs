@@ -63,3 +63,35 @@ pub enum StoreTrouble {
     /// The store is locked, or unlocking it was refused.
     Locked,
 }
+
+/// The name an account's secret of `kind` (`password` or `refresh`) is kept under in the credential
+/// store: bound to the address and to the server it is for, so that a secret remembered for one
+/// server is never handed to another.
+pub fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
+    let address = a.email.trim().to_ascii_lowercase();
+    let server = |s: &Option<mailcraft_model::Server>| match s {
+        Some(s) => format!("{}:{}", s.host.trim().to_ascii_lowercase(), s.port),
+        None => "none".to_string(),
+    };
+    if a.kind == mailcraft_model::AccountKind::Microsoft {
+        format!("{kind}:{address}|graph")
+    } else if a.kind == mailcraft_model::AccountKind::Jmap {
+        // (Its whole session address: another one, on the same server or not, is another server;
+        // and a bearer token is no password.)
+        let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
+        format!("{kind}:{address}|jmap={session}|bearer={bearer}")
+    } else if a.kind == mailcraft_model::AccountKind::Exchange {
+        // (Its whole EWS address: another one, on the same server or not, is another server;
+        // the user name it signs in with: a password is for one name; and the certificate it
+        // trusts besides the system's, when it does: a password remembered for the server the
+        // system vouches for is never handed to a connection that a pin lets through, AU3-02.)
+        let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
+        let user = a.ews.as_ref().map_or_else(String::new, |e| e.username.trim().to_ascii_lowercase());
+        match a.ews.as_ref().map(|e| e.trusted.trim().to_ascii_lowercase()).filter(|pin| !pin.is_empty()) {
+            Some(pin) => format!("{kind}:{address}|ews={url}|user={user}|pin={pin}"),
+            None => format!("{kind}:{address}|ews={url}|user={user}"),
+        }
+    } else {
+        format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
+    }
+}
