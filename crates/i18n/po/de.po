@@ -1533,7 +1533,7 @@ msgstr "Den Server des Kontos jetzt nach dem Kalender rund um diese Besprechung 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Ask to be told when the message is read"
-msgstr "Lesebestätigung anfordern"
+msgstr "Bitten Sie darum, benachrichtigt zu werden, sobald die Nachricht gelesen wurde"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
