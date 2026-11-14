@@ -29,7 +29,7 @@ use mailcraft_engine::cmd::people;
 use mailcraft_model::sync::{
     DirectoryKind, DirectoryPerson, EwsAddressList, EwsResolveRequest, EwsResolveResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXT, one_line,
 };
-use mailcraft_model::{AccountChoice, Id};
+use mailcraft_model::{AccountChoice, ContactKey, Id, KeyKind};
 use serde_json::json;
 
 use crate::check_names::EwsResolveJob;
@@ -581,9 +581,17 @@ fn add_to_contacts(app: &mut MailApp, person: &DirectoryPerson) {
             phones.push(json!({"label": label, "value": number}));
         }
     }
+    // The certificates go onto the contact's card, those a card takes (for mail, not an
+    // authority's), as a certificate added from a file would.
+    let keys: Vec<serde_json::Value> = person
+        .certificates
+        .iter()
+        .filter(|der| mailcraft_engine::cmd::keys::card_key_from(der).is_ok())
+        .map(|der| json!({"data": mailcraft_engine::cmd::base64_encode(der)}))
+        .collect();
     let params = json!({
         "displayName": person.name, "email": person.email, "company": person.company,
-        "department": person.department, "title": person.title, "phones": phones,
+        "department": person.department, "title": person.title, "phones": phones, "keys": keys,
     });
     match app.run("people.new", params) {
         Ok(_) => app.status(tl!("Added to Contacts")),
@@ -669,6 +677,20 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
             if !person.office.is_empty() {
                 crate::people_view::section(ui, tl!("Workplace"));
                 crate::people_view::field(ui, "address", &person.office, "", false);
+            }
+            if !person.certificates.is_empty() {
+                crate::people_view::section(ui, tl!("Certificates"));
+                for der in &person.certificates {
+                    let key = ContactKey { kind: KeyKind::X509, data: der.to_vec(), ..ContactKey::default() };
+                    crate::security::card_key_line(app, ui, &key, &t);
+                    if mailcraft_engine::cmd::keys::card_key_from(der).is_err() {
+                        ui.label(
+                            RichText::new(tl!("Not for mail, or an authority's: Add to Contacts leaves it out."))
+                                .font(regular(11.5))
+                                .color(t.text_dim),
+                        );
+                    }
+                }
             }
             ui.add_space(14.0);
             let place = widgets::place_name(&app.session.mailbox, account);

@@ -133,3 +133,19 @@ fn a_damaged_file_is_said_and_not_read() {
     // The paths the stand-in serves are the ones the tests name.
     assert!(PATH.ends_with('/') && FILE.ends_with(".lzx"));
 }
+
+/// A person's certificates come with the list, from both of the properties that hold them: each
+/// once, only what has the shape of one, and none for whoever has none.
+#[test]
+fn certificates_come_with_whoever_has_them() {
+    let standin = organisation();
+    let cert = |n: u8| vec![0x30, 0x03, 0x02, 0x01, n];
+    standin.state().directory[0].certificates = (vec![cert(1)], vec![cert(1), cert(2), b"not one".to_vec(), vec![0x30; 17 * 1024]]);
+    let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap().unwrap();
+    let ada = list.people.iter().find(|p| p.email == "ada.lovelace@example.org").unwrap();
+    let held: Vec<Vec<u8>> = ada.certificates.iter().map(|c| c.to_vec()).collect();
+    assert_eq!(held, [cert(1), cert(2)]);
+    assert!(list.people.iter().filter(|p| p.email != ada.email).all(|p| p.certificates.is_empty()));
+    // A log line says how many, never what.
+    assert!(format!("{ada:?}").contains("certificates: 2"));
+}

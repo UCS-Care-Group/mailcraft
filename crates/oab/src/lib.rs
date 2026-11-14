@@ -78,6 +78,13 @@ pub mod tag {
     pub const COMMENT: u16 = 0x3004;
     /// The DNs of a distribution list's members.
     pub const MEMBERS: u16 = 0x8009;
+    /// The entry's S/MIME certificates, X.509 in DER (`PidTagUserX509Certificate`).
+    pub const USER_X509_CERTIFICATE: u16 = 0x3A70;
+    /// The entry's certificates as the directory keeps them, X.509 in DER
+    /// (`PidTagAddressBookX509Certificate`).
+    pub const ADDRESS_BOOK_X509_CERTIFICATE: u16 = 0x8C6A;
+    /// The entry's certificate in Exchange's own older form (`PidTagUserCertificate`).
+    pub const USER_CERTIFICATE: u16 = 0x3A22;
 }
 
 /// The test writer: details files and stored compressed files, for this crate's tests and,

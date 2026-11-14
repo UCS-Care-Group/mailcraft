@@ -57,6 +57,8 @@ fn schema() -> Vec<PropDef> {
         def(0x3A08_001F),
         def(0x0FFE_0003),
         def(0x3900_0003),
+        def(0x3A70_1102),
+        def(0x8C6A_1102),
     ]
 }
 
@@ -98,6 +100,8 @@ impl State {
                     text(0x3A08_001F, &p.phone),
                     Some((0x0FFE_0003, Value::Integer(if display_type == 1 { 8 } else { 6 }))),
                     Some((0x3900_0003, Value::Integer(display_type))),
+                    (!p.certificates.0.is_empty()).then(|| (0x3A70_1102, Value::Binaries(p.certificates.0.clone()))),
+                    (!p.certificates.1.is_empty()).then(|| (0x8C6A_1102, Value::Binaries(p.certificates.1.clone()))),
                 ];
                 Record { values: values.into_iter().flatten().collect() }
             })

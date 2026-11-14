@@ -13,6 +13,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use std::sync::Arc;
+
+use crate::public_keys::MAX_KEY_BYTES;
 use crate::{Address, Id, MAX_ADDRESS};
 
 /// The most names one request looks up.
@@ -23,6 +26,8 @@ pub const MAX_RESOLVE_PEOPLE: usize = 100;
 pub const MAX_RESOLVE_TEXT: usize = 256;
 /// The most people of an Offline Address Book kept (#1393).
 pub const MAX_ADDRESS_LIST: usize = 200_000;
+/// The most certificates kept of one person of the address list.
+pub const MAX_PERSON_CERTIFICATES: usize = 8;
 /// The longest name, company, department, job title or office kept, in characters.
 const MAX_FIELD: usize = 256;
 /// The longest phone number kept, in characters.
@@ -69,6 +74,12 @@ pub struct DirectoryPerson {
     /// Where their office is.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub office: String,
+    /// Their certificates as the organisation's address book has them (X.509 in DER, at most
+    /// [`MAX_PERSON_CERTIFICATES`] of at most [`MAX_KEY_BYTES`] each), held with the list in
+    /// memory: never written, and not in what an agent or a script is given. Nothing is trusted
+    /// for being here: a certificate is checked as one that came in a message is.
+    #[serde(skip)]
+    pub certificates: Vec<Arc<Vec<u8>>>,
 }
 
 impl DirectoryPerson {
@@ -91,6 +102,7 @@ impl DirectoryPerson {
             phone: phone_number(&self.phone),
             mobile: phone_number(&self.mobile),
             office: one_line(&self.office, MAX_FIELD),
+            certificates: certificates(self.certificates),
         })
     }
 
@@ -100,10 +112,25 @@ impl DirectoryPerson {
     }
 }
 
+/// Certificates as a person of the address list keeps them: each in DER (a SEQUENCE) and no
+/// larger than a Public key is kept, each once, at most [`MAX_PERSON_CERTIFICATES`].
+fn certificates(all: Vec<Arc<Vec<u8>>>) -> Vec<Arc<Vec<u8>>> {
+    let mut kept: Vec<Arc<Vec<u8>>> = Vec::new();
+    for der in all {
+        if kept.len() >= MAX_PERSON_CERTIFICATES {
+            break;
+        }
+        if der.first() == Some(&0x30) && der.len() <= MAX_KEY_BYTES && !kept.contains(&der) {
+            kept.push(der);
+        }
+    }
+    kept
+}
+
 /// Who was found is the owner's business: a log line says what kind, never who.
 impl std::fmt::Debug for DirectoryPerson {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DirectoryPerson").field("kind", &self.kind).finish_non_exhaustive()
+        f.debug_struct("DirectoryPerson").field("kind", &self.kind).field("certificates", &self.certificates.len()).finish_non_exhaustive()
     }
 }
 

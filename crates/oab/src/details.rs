@@ -82,6 +82,15 @@ impl Record {
         }
     }
 
+    /// The binary values of a binary property, one or many (none when it is absent).
+    pub fn binaries(&self, id: u16) -> Vec<&[u8]> {
+        match self.get(id) {
+            Some(Value::Binary(b)) => vec![b.as_slice()],
+            Some(Value::Binaries(b)) => b.iter().map(Vec::as_slice).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// An integer property.
     pub fn integer(&self, id: u16) -> Option<u32> {
         match self.get(id)? {

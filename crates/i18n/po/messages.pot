@@ -1984,7 +1984,7 @@ msgid "Cc: {names}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 msgid "Certificates"
 msgstr ""
 
@@ -7372,6 +7372,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
 msgstr ""
 
 #. interface

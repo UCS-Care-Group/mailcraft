@@ -15,10 +15,14 @@
 //!
 //! Of each entry only what a person is reached by and told apart by is kept, as for a look-up
 //! ([`crate::resolve`]): the name, the SMTP address, the kind of recipient, company, department,
-//! job title, the business and mobile numbers and the office. Certificates, postal addresses,
-//! home numbers, notes and the rest are read (and checked) but not kept. Nothing of it is logged.
+//! job title, the business and mobile numbers and the office, and their S/MIME certificates
+//! (`PidTagUserX509Certificate`, `PidTagAddressBookX509Certificate`; Exchange's older form of
+//! its own is not read). Postal addresses, home numbers, notes and the rest are read (and
+//! checked) but not kept. Nothing of it is logged.
 
-use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsAddressList, MAX_ADDRESS_LIST};
+use std::sync::Arc;
+
+use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsAddressList, MAX_ADDRESS_LIST, MAX_PERSON_CERTIFICATES};
 use mailcraft_oab::{Limits, Record, tag};
 
 use crate::autodiscover::{ANSWER_SCHEMA, REQUEST_SCHEMA, RESPONSE_SCHEMA};
@@ -32,6 +36,8 @@ const MAX_ANSWER: usize = 256 * 1024;
 const MAX_MANIFEST: usize = 2 * 1024 * 1024;
 /// The largest address book file downloaded: larger ones are not read.
 pub const MAX_FILE: usize = RESPONSE_LIMIT;
+/// The most bytes of certificates held for a whole address list.
+pub const MAX_CERTIFICATE_BYTES: usize = 64 * 1024 * 1024;
 /// The longest file name taken from the table of contents.
 const MAX_FILE_NAME: usize = 128;
 /// `ver` of a version 4 full details file in the table of contents.
@@ -160,6 +166,12 @@ pub fn person(record: &Record) -> Option<DirectoryPerson> {
         phone: text(tag::BUSINESS_PHONE),
         mobile: text(tag::MOBILE_PHONE),
         office: text(tag::OFFICE_LOCATION),
+        certificates: [tag::USER_X509_CERTIFICATE, tag::ADDRESS_BOOK_X509_CERTIFICATE]
+            .into_iter()
+            .flat_map(|id| record.binaries(id))
+            .take(MAX_PERSON_CERTIFICATES.saturating_mul(2))
+            .map(|der| Arc::new(der.to_vec()))
+            .collect(),
     }
     .checked()
 }
@@ -178,6 +190,8 @@ fn wanted(property: u32) -> bool {
         tag::BUSINESS_PHONE,
         tag::MOBILE_PHONE,
         tag::OFFICE_LOCATION,
+        tag::USER_X509_CERTIFICATE,
+        tag::ADDRESS_BOOK_X509_CERTIFICATE,
     ]
     .contains(&id)
 }
@@ -189,6 +203,18 @@ pub fn address_list(file: &[u8]) -> Result<EwsAddressList, mailcraft_oab::Error>
     let mut people: Vec<DirectoryPerson> = details.records.iter().filter_map(person).collect();
     let more = people.len() > MAX_ADDRESS_LIST;
     people.truncate(MAX_ADDRESS_LIST);
+    // The certificates held, in all: past it, the people after have none.
+    let mut room = MAX_CERTIFICATE_BYTES;
+    for p in &mut people {
+        let size = p.certificates.iter().map(|c| c.len()).fold(0usize, usize::saturating_add);
+        match room.checked_sub(size) {
+            Some(left) => room = left,
+            None => {
+                p.certificates.clear();
+                room = 0;
+            }
+        }
+    }
     people.sort_by_cached_key(|p| (p.name.to_lowercase(), p.email.to_lowercase()));
     let name = details.name().map(|n| mailcraft_model::sync::one_line(n, 256)).unwrap_or_default();
     Ok(EwsAddressList { name, sequence: details.sequence().unwrap_or(0), people, more })

@@ -27,6 +27,9 @@ pub struct Person {
     pub office: String,
     /// Written into its `Contact` as a home phone number, which a client is not to keep.
     pub home: String,
+    /// Its S/MIME certificates, in the Offline Address Book only: the first list goes into
+    /// `PidTagUserX509Certificate`, the second into `PidTagAddressBookX509Certificate`.
+    pub certificates: (Vec<Vec<u8>>, Vec<Vec<u8>>),
 }
 
 impl Person {

@@ -690,6 +690,8 @@ fn directory_person(c: Candidate) -> DirectoryPerson {
         phone: c.phone,
         mobile: c.mobile,
         office: c.office,
+        // (A look-up by name brings no certificates: the Offline Address Book does.)
+        certificates: Vec::new(),
     }
 }
 

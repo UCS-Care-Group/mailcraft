@@ -386,3 +386,35 @@ fn the_card_says_who_is_in_the_contacts_and_opens_them() {
     assert!(h.state().address_book.is_none());
     assert_eq!(h.state().session.sel.contact, id);
 }
+
+/// A person's certificates from the address book are on the card, and Add to Contacts puts on the
+/// contact's card those a card takes: a certificate for mail, not an authority's (#1393).
+#[test]
+fn certificates_are_shown_and_go_onto_the_contacts_card() {
+    let alice: &[u8] = include_bytes!("../../smime/testdata/alice.sign.der");
+    let authority: &[u8] = include_bytes!("../../smime/testdata/ca.rsa.der");
+    let mut person = person("Alice Example", "alice@smime.example");
+    person.certificates = vec![Arc::new(alice.to_vec()), Arc::new(authority.to_vec())];
+    let (app, _, _) = window_with(false, Some(vec![person]));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(4);
+    h.state_mut().address_book.as_mut().unwrap().selected = Some(0);
+    h.run_steps(2);
+    // Each in a line of its own, saying who issued it.
+    assert_eq!(h.query_all_by_label_contains("issued by").count(), 2);
+    // The authority's is said to stay behind.
+    assert_eq!(h.query_all_by_label_contains("Add to Contacts leaves it out").count(), 1);
+    h.get_by_label("Add to Contacts").click();
+    h.run_steps(3);
+    let contact = h.state().session.mailbox.contacts.values().next().cloned().unwrap();
+    let keys: Vec<&[u8]> = contact.keys.iter().map(|k| k.data.as_slice()).collect();
+    assert_eq!(keys, [alice]);
+}
