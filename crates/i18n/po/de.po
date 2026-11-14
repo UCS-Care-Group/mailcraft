@@ -5503,7 +5503,7 @@ msgstr "{what} importiert; nach {count} abgebrochen: Die Datei enthält mehr als
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Imported: MailCraft keeps it in the system's credential store, still protected by its passphrase."
-msgstr "Importiert: MailCraft speichert ihn im Anmeldedatenspeicher des Systems, weiterhin durch seine Passphrase geschützt."
+msgstr "Importiert: MailCraft speichert ihn im Anmeldeinformationsspeicher des Systems, weiterhin durch seine Passphrase geschützt."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6097,7 +6097,7 @@ msgstr "Gespeicherter öffentlicher Schlüssel"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Kept in the system's credential store, never in the mailbox or its settings. Without it you sign in again each time MailCraft starts."
-msgstr "Wird im Anmeldedatenspeicher des Systems aufbewahrt, nie im Postfach oder in dessen Einstellungen. Ohne dies melden Sie sich bei jedem Start von MailCraft erneut an."
+msgstr "Wird im Anmeldeinformationsspeicher des Systems aufbewahrt, nie im Postfach oder in dessen Einstellungen. Ohne dies melden Sie sich bei jedem Start von MailCraft erneut an."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6592,7 +6592,7 @@ msgstr "MailCraft hält es im Arbeitsspeicher, bis Sie die App schließen. Es wi
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "MailCraft keeps the file, still protected by its passphrase, in the system's credential store. Only an ECDSA certificate (P-256 or P-384) is kept this way: an RSA one belongs on a smartcard or token (PKCS#11)."
-msgstr "MailCraft speichert die Datei, weiterhin durch ihre Passphrase geschützt, im Anmeldedatenspeicher des Systems. Auf diese Weise wird nur ein ECDSA-Zertifikat (P-256 oder P-384) gespeichert: Ein RSA-Zertifikat gehört auf eine Smartcard oder ein Token (PKCS#11)."
+msgstr "MailCraft speichert die Datei, weiterhin durch ihre Passphrase geschützt, im Anmeldeinformationsspeicher des Systems. Auf diese Weise wird nur ein ECDSA-Zertifikat (P-256 oder P-384) gespeichert: Ein RSA-Zertifikat gehört auf eine Smartcard oder ein Token (PKCS#11)."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6635,7 +6635,7 @@ msgstr "MailCraft erreicht die Regeln dieses Kontos auf dem Server, sobald es zu
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "MailCraft reads the key without its passphrase and keeps the file, still protected by it, in the system's credential store. The key must have a passphrase and sign with Ed25519 or ECDSA; MailCraft asks for the passphrase when you sign."
-msgstr "MailCraft liest den Schlüssel ohne seine Passphrase ein und speichert die Datei, weiterhin durch diese geschützt, im Anmeldedatenspeicher des Systems. Der Schlüssel muss durch eine Passphrase geschützt sein und mit Ed25519 oder ECDSA signieren; MailCraft fragt beim Signieren nach der Passphrase."
+msgstr "MailCraft liest den Schlüssel ohne seine Passphrase ein und speichert die Datei, weiterhin durch diese geschützt, im Anmeldeinformationsspeicher des Systems. Der Schlüssel muss durch eine Passphrase geschützt sein und mit Ed25519 oder ECDSA signieren; MailCraft fragt beim Signieren nach der Passphrase."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -7798,7 +7798,7 @@ msgstr "In diese Kopie wurden keine Mitwirkenden-Angaben eingebaut."
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"
-msgstr "Kein Anmeldedatenspeicher hat geantwortet (unter Linux stellen GNOME Keyring oder KWallet einen bereit)"
+msgstr "Kein Anmeldeinformationsspeicher hat geantwortet (unter Linux stellen GNOME Keyring oder KWallet einen bereit)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8344,7 +8344,7 @@ msgstr "Sobald ein Administrator genehmigt hat, versuchen Sie es erneut: Dann kl
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
-msgstr "Sobald es funktioniert hat, bewahrt der Anmeldedatenspeicher Ihres Systems es für das nächste Mal auf. Es wird nie in das Postfach geschrieben."
+msgstr "Sobald es funktioniert hat, bewahrt der Anmeldeinformationsspeicher Ihres Systems es für das nächste Mal auf. Es wird nie in das Postfach geschrieben."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -9710,7 +9710,7 @@ msgstr "Diese Bedingung entfernen"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
-msgstr "Möchten Sie Ihren {format}-Schlüssel für {who} von diesem Computer entfernen? Er wird aus dem Anmeldedatenspeicher des Systems gelöscht, und MailCraft kann nicht mehr damit signieren. Bewahren Sie eine Kopie der Datei auf, falls Sie den Schlüssel später wieder benötigen."
+msgstr "Möchten Sie Ihren {format}-Schlüssel für {who} von diesem Computer entfernen? Er wird aus dem Anmeldeinformationsspeicher des Systems gelöscht, und MailCraft kann nicht mehr damit signieren. Bewahren Sie eine Kopie der Datei auf, falls Sie den Schlüssel später wieder benötigen."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12776,7 +12776,7 @@ msgstr "Der vollständige Bericht befindet sich unter:"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "The import gave back something that isn't a key's name in the credential store."
-msgstr "Der Import hat etwas zurückgegeben, das kein Schlüsselname im Anmeldedatenspeicher ist."
+msgstr "Der Import hat etwas zurückgegeben, das kein Schlüsselname im Anmeldeinformationsspeicher ist."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -12814,7 +12814,7 @@ msgstr "Der beibehaltene Kontakt wird immer zusammengeführt"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "The key couldn't be removed from the system's credential store."
-msgstr "Der Schlüssel konnte nicht aus dem Anmeldedatenspeicher des Systems entfernt werden."
+msgstr "Der Schlüssel konnte nicht aus dem Anmeldeinformationsspeicher des Systems entfernt werden."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13368,18 +13368,18 @@ msgstr "Der Wechsel von {account} zu Microsoft Graph wartet, bis MailCraft den S
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "The system's credential store"
-msgstr "Der Anmeldedatenspeicher des Systems"
+msgstr "Der Anmeldeinformationsspeicher des Systems"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The system's credential store is locked, or unlocking it was refused"
-msgstr "Der Anmeldedatenspeicher des Systems ist gesperrt, oder das Entsperren wurde abgelehnt"
+msgstr "Der Anmeldeinformationsspeicher des Systems ist gesperrt, oder das Entsperren wurde abgelehnt"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "The system's credential store: {key}"
-msgstr "Der Anmeldedatenspeicher des Systems: {key}"
+msgstr "Der Anmeldeinformationsspeicher des Systems: {key}"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -14245,7 +14245,7 @@ msgstr "Dieses Bild wurde heruntergeladen, kann aber nicht angezeigt werden."
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
-msgstr "Dadurch wird alles entfernt, was MailCraft auf diesem Computer speichert: die E-Mails, Anlagen, Kontakte, Kalender und Einstellungen aller Konten, die im Anmeldedatenspeicher des Systems gespeicherten Anmeldedaten, heruntergeladene Bilder, geöffnete Anlagen und Protokolle."
+msgstr "Dadurch wird alles entfernt, was MailCraft auf diesem Computer speichert: die E-Mails, Anlagen, Kontakte, Kalender und Einstellungen aller Konten, die im Anmeldeinformationsspeicher des Systems gespeicherten Anmeldedaten, heruntergeladene Bilder, geöffnete Anlagen und Protokolle."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -19309,8 +19309,8 @@ msgstr[1] "{n} Probleme"
 #: crates/ui-egui/src/lib.rs
 msgid "{n} remembered sign-in could not be removed from the credential store"
 msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
-msgstr[0] "{n} gespeicherte Anmeldung konnte nicht aus dem Anmeldedatenspeicher entfernt werden"
-msgstr[1] "{n} gespeicherte Anmeldungen konnten nicht aus dem Anmeldedatenspeicher entfernt werden"
+msgstr[0] "{n} gespeicherte Anmeldung konnte nicht aus dem Anmeldeinformationsspeicher entfernt werden"
+msgstr[1] "{n} gespeicherte Anmeldungen konnten nicht aus dem Anmeldeinformationsspeicher entfernt werden"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
