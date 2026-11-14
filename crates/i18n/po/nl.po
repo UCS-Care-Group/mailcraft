@@ -548,6 +548,16 @@ msgstr "De automatische antwoorden van een gedeeld postvak worden ingesteld door
 msgid "A shared mailbox's rules are its own: this version doesn't make them"
 msgstr "De regels van een gedeeld postvak zijn van dat postvak: deze versie maakt ze niet"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of the account it is opened through"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A shared mailbox, read with the sign-in of {account}"
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "A sign-in is already open."
@@ -2401,6 +2411,11 @@ msgstr "Wijzig e-mailadres"
 #, fuzzy
 msgid "Change the colour"
 msgstr "De kleur wijzigen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12227,6 +12242,11 @@ msgstr "Weergegeven als tekst: er wordt niets in uitgevoerd, geopend of gedownlo
 #, fuzzy
 msgid "Shown beside the account's name, and on its mail where mail of several accounts is listed together."
 msgstr "Getoond naast de naam van het account, en bij de e-mail ervan waar e-mail van meerdere accounts samen wordt weergegeven."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
