@@ -168,9 +168,16 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
     }
 }
 
-fn text(v: &Value) -> Result<String, CmdError> {
+fn text(v: &Value, kind: &str) -> Result<String, CmdError> {
     let t: String = p::str(v, "value").unwrap_or("").to_string();
-    if t.is_empty() { Err(bad("a condition needs a `value`")) } else { Ok(t) }
+    let trimmed = t.trim();
+    if trimmed.is_empty() {
+        Err(bad("a condition needs a non-empty value"))
+    } else if kind != "matches" && trimmed.len() > mailcraft_model::MAX_TEXT_LENGTH {
+        Err(bad(format!("the value is too long (max {} characters)", mailcraft_model::MAX_TEXT_LENGTH)))
+    } else {
+        Ok(t)
+    }
 }
 
 fn condition(v: &Value) -> Result<Condition, CmdError> {
@@ -178,20 +185,18 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
     // act on a message, so it is refused where the rule is made: the window's own check doesn't
     // run for a direct call. The same bounded compile the matcher uses.
     let pattern = |which: &str| {
-        let value = text(v)?;
-        mailcraft_model::Pattern::new(value).ok_or_else(|| {
-            bad(format!("the {which} pattern is too long or not a regular expression"))
-        })
+        let value = text(v, "matches")?;
+        mailcraft_model::Pattern::new(value).ok_or_else(|| bad(format!("the {which} pattern is too long or not a regular expression")))
     };
     Ok(match p::req_str(v, "type")? {
-        "fromContains" => Condition::FromContains(text(v)?),
-        "toContains" => Condition::ToContains(text(v)?),
-        "subjectContains" => Condition::SubjectContains(text(v)?),
-        "bodyContains" => Condition::BodyContains(text(v)?),
-        "fromStartsWith" => Condition::FromStartsWith(text(v)?),
-        "toStartsWith" => Condition::ToStartsWith(text(v)?),
-        "subjectStartsWith" => Condition::SubjectStartsWith(text(v)?),
-        "bodyStartsWith" => Condition::BodyStartsWith(text(v)?),
+        "fromContains" => Condition::FromContains(text(v, "contains")?),
+        "toContains" => Condition::ToContains(text(v, "contains")?),
+        "subjectContains" => Condition::SubjectContains(text(v, "contains")?),
+        "bodyContains" => Condition::BodyContains(text(v, "contains")?),
+        "fromStartsWith" => Condition::FromStartsWith(text(v, "startsWith")?),
+        "toStartsWith" => Condition::ToStartsWith(text(v, "startsWith")?),
+        "subjectStartsWith" => Condition::SubjectStartsWith(text(v, "startsWith")?),
+        "bodyStartsWith" => Condition::BodyStartsWith(text(v, "startsWith")?),
         "subjectMatches" => Condition::SubjectMatches(pattern("subject")?),
         "bodyMatches" => Condition::BodyMatches(pattern("body")?),
         "hasAttachment" => Condition::HasAttachment,

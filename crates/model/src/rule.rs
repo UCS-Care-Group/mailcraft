@@ -30,7 +30,16 @@ pub const MAX_TEXT_LENGTH: usize = 200;
 /// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH.
 pub fn clean_condition_text(text: &str) -> String {
     let trimmed = text.trim();
-    if trimmed.len() > MAX_TEXT_LENGTH { trimmed[..MAX_TEXT_LENGTH].to_string() } else { trimmed.to_string() }
+    if trimmed.len() > MAX_TEXT_LENGTH {
+        // Cut at char boundary, not byte index
+        let mut end = MAX_TEXT_LENGTH;
+        while end > 0 && !trimmed.is_char_boundary(end) {
+            end -= 1;
+        }
+        trimmed[..end].to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// A regex pattern that has been compiled and is ready to match.
@@ -94,9 +103,9 @@ impl<'de> Deserialize<'de> for Pattern {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        // A pattern that won't compile becomes a rule that matches nothing, with its text kept.
-        // The regex field is None, so is_match() returns false.
-        Ok(Pattern { pattern: s, regex: None })
+        // Try to recompile the pattern; if it fails, keep the text but no regex (matches nothing).
+        let regex = Pattern::new(s.clone()).and_then(|p| p.regex);
+        Ok(Pattern { pattern: s, regex })
     }
 }
 

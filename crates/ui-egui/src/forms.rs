@@ -6238,9 +6238,14 @@ pub(crate) mod rules {
                     When::Attachment => json!({"type": c.kind.code()}),
                     When::Importance => json!({"type": c.kind.code(), "value": c.importance.code()}),
                     kind => {
-                        // Clean the text: trim whitespace, cap at MAX_TEXT_LENGTH
-                        let cleaned = mailcraft_model::clean_condition_text(&c.text);
-                        json!({"type": c.op.code(kind), "value": cleaned})
+                        // For regex patterns, don't trim or cut: the pattern must be valid as written
+                        let value = if c.op == Op::Matches {
+                            c.text.clone()
+                        } else {
+                            // Clean the text: trim whitespace, cap at MAX_TEXT_LENGTH
+                            mailcraft_model::clean_condition_text(&c.text)
+                        };
+                        json!({"type": c.op.code(kind), "value": value})
                     }
                 })
                 .collect();
@@ -6278,10 +6283,11 @@ pub(crate) mod rules {
                 if trimmed.is_empty() {
                     return false;
                 }
+                // For regex patterns, check the raw text (not trimmed) against the 1000 char limit
                 // A pattern's text is not trimmed: a long alternation like a@x.example|b@...|ca...
                 // must be refused whole if over 1000 chars, not cut to something that might still
                 // compile but match differently.
-                c.op != Op::Matches || mailcraft_model::regex_is_ok(trimmed)
+                if c.op == Op::Matches { mailcraft_model::regex_is_ok(&c.text) } else { mailcraft_model::regex_is_ok(trimmed) }
             });
             let acts = self.acts.iter().all(|a| match a.kind {
                 Do::Move => a.folder != 0,
