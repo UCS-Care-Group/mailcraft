@@ -360,7 +360,7 @@ fn look_for(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info, as
     let now = crate::now_ms();
     let store = Store::of(ctx);
     if !asked_for {
-        if !app.auto_sync {
+        if !app.session.driver.auto_sync() {
             return Ok(());
         }
         let store = store.lock().unwrap_or_else(|e| e.into_inner());

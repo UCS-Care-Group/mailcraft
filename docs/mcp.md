@@ -217,7 +217,7 @@ app's Send/Receive) delivers it.
 | `open_mailbox` / `save_mailbox` | a `.mailcraft` file, the sample mailbox, or an empty one |
 | `import_file` | bring in `.eml`, `.mbox`, `.ics`, `.vcf` |
 | `inspect_mailbox` / `list_folders` | accounts and counts; the folder tree |
-| `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are |
+| `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are. The folder is an id, a standard folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls it, or a path of the names `list_folders` shows. A kind is of the account `account` names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or its full path. A path without `account` is looked for in the account the window shows before any other. `account` goes with `folder`: an account that is there, whose folder it has to be, and on its own it is refused rather than left unused (#1200) |
 | `read_message` | one message in full |
 | `send_message` | write and send a new message |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people and to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or an account's id: for people, one whose contacts are read from its server; for to-dos, one with To Do; another is refused) |

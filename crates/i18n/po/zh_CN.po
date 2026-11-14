@@ -313,14 +313,14 @@ msgstr "正在导入 .pst 文件：完成后重试"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "日历更改尚无法发送，将重试：{error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "共享邮箱日历的更改被拒绝：此账户可能没有编辑权限。程序会再尝试一次，然后还原更改。"
@@ -1674,6 +1674,11 @@ msgid "At start time"
 msgstr "开始时"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "At the Foot of the Pane"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "At the same time: {items}"
@@ -1972,6 +1977,11 @@ msgid "Back to account settings"
 msgstr "返回账户设置"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bar on the Left"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Basic (user name and password over a secure connection)"
@@ -2224,7 +2234,7 @@ msgid "Can't sign"
 msgstr "无法签名"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "取消"
@@ -2417,8 +2427,8 @@ msgstr "已更改：选择其他签名或离开此页面时会自动保存。"
 msgid "Change…"
 msgstr "更改…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "更改日历需要您的许可：文件 › 信息 › 连接日历和联系人"
@@ -2504,6 +2514,11 @@ msgstr "检查姓名"
 #, fuzzy
 msgid "Check Now"
 msgstr "立即查看"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2787,6 +2802,11 @@ msgstr "关闭窗口"
 msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
 msgstr "关闭此共享邮箱并删除此处保留的邮件。服务器上没有任何变化。"
 
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Close to system tray"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -2976,6 +2996,11 @@ msgstr "继续"
 #, fuzzy
 msgid "Continue editing"
 msgstr "继续编辑"
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Continue in tray"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5094,8 +5119,8 @@ msgstr "完整详细信息：包括地点和备注"
 msgid "Full messages: {done} of {total}"
 msgstr "完整邮件：{done}/{total}"
 
-#. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "General"
 msgstr "常规"
@@ -5418,9 +5443,8 @@ msgstr "此版本未配置 Google 登录。请改用应用密码。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6477,6 +6501,11 @@ msgstr "仅此日程"
 msgid "Keep Both"
 msgstr "两者都保留"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -6897,6 +6926,11 @@ msgstr "在其他程序或网页中创建，其中部分内容 MailCraft 无法�
 msgid "Mail"
 msgstr "邮件"
 
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
@@ -7181,6 +7215,11 @@ msgstr[0] "启动 MailCraft 时提供的 {n} 个项目既不是邮件链接，�
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr "之后 MailCraft 将没有账户；可通过“文件 › 添加账户”重新设置。"
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "MailCraft will keep running"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7886,6 +7925,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "移动后，这些项目将进入您账户的日历，并在 Outlook 和其他设备上同步显示。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -7944,6 +7988,18 @@ msgstr "姓名或地址，用 ; 分隔"
 #, fuzzy
 msgid "Navigation"
 msgstr "导航"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Navigation Bar"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8562,8 +8618,8 @@ msgstr "没有正在登录的账户"
 msgid "Nobody matches the search"
 msgstr "没有匹配搜索条件的联系人"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "没有邀请任何有地址的人员"
@@ -8871,6 +8927,11 @@ msgstr "最早邮件置顶"
 #, fuzzy
 msgid "On"
 msgstr "开"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11370,8 +11431,8 @@ msgstr "第二时区"
 msgid "Security"
 msgstr "安全性"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "查看他人的忙闲状态需要您的许可：文件 › 信息 › 连接日历和联系人"
@@ -11661,7 +11722,7 @@ msgstr ""
 "所有文件夹"
 
 #. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "发送/接收所有文件夹"
@@ -11984,6 +12045,11 @@ msgstr "显示贡献者"
 #, fuzzy
 msgid "Show Gmail's categories under the Inbox"
 msgstr "在收件箱下显示 Gmail 的类别"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Show MailCraft"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -13392,8 +13458,8 @@ msgstr "日历“{name}”为只读：其所有者尚未允许此账户修改。
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "日历“{name}”仅显示所有者的忙闲状态；此账户无法更改该日历。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "无法接收日历更改：{error}"
@@ -13428,8 +13494,8 @@ msgstr "日历连接有效"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "日历连接正常：发送的内容已到达，服务器保存的内容与发送时一致。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "日历无法读取：{error}"
@@ -13506,8 +13572,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "共享邮箱的日历正在等待：{error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "无法接收类别：{error}"
@@ -13584,8 +13650,8 @@ msgstr "联系人 {id} 被指定了两次。"
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "联系人的表单已关闭：再次打开以添加密钥"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "无法接收联系人：{error}"
@@ -13793,8 +13859,8 @@ msgstr "密钥已从此计算机上移除。"
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "链接已复制到剪贴板：请将其发送给您组织的管理员"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "无法读取日历列表：{error}"
@@ -14045,14 +14111,14 @@ msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达�
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "无法读取服务器上的规则：任务意外停止"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "无法导入服务器上的规则：{error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
@@ -14129,8 +14195,8 @@ msgstr "服务器未提供“{name}”中的 1 封邮件"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "服务器未提供“{name}”中的 {count} 封邮件"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "服务器未提供其他人的忙闲信息"
@@ -14251,6 +14317,16 @@ msgstr "服务器名称"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -14308,8 +14384,8 @@ msgstr "共享邮箱的日历“{name}”仅显示所有者的忙闲状态；此
 msgid "The shared mailbox's e-mail address"
 msgstr "共享邮箱的电子邮件地址"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "用于打开此共享邮箱的账户登录被拒绝：请使用“发送/接收”重新登录"
@@ -14416,14 +14492,14 @@ msgstr "未找到该文本。"
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "待办事项无法保持同步：作业意外停止"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "无法接收待办事项：{error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "无法记录发送的待办事项：{error}"
@@ -14626,14 +14702,14 @@ msgstr "此账户未使用 Microsoft 登录"
 msgid "This account is no longer in the mailbox."
 msgstr "此账户已不在邮箱中。"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "此账户无权更改服务器上的规则"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "此账户无权通过 Microsoft Graph 使用待办事项"
@@ -14698,8 +14774,8 @@ msgstr "无法预览此附件。"
 msgid "This attachment is too large to preview."
 msgstr "此附件过大，无法预览。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "此版本无法向服务器查询其他人的忙闲信息：仅显示您自己的日历。"
@@ -15135,8 +15211,8 @@ msgstr "此会议尚未显示在您这里的日历中。显示后即可回复。
 msgid "This meeting was called off by its organizer."
 msgstr "此会议已被组织者取消。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "此会议的日历保存在本机，无法查询其他人的忙闲状态，因此只显示您自己的日历。"
@@ -16256,6 +16332,11 @@ msgstr "您所写的内容已从此窗口中清除。"
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "您输入的内容太长，无法放入 GitHub 链接。请缩短内容，并在 GitHub 上补充其余部分。"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16650,8 +16731,8 @@ msgstr "您以 {signedIn} 身份登录，而不是 {typed}。"
 msgid "You tentatively accepted this meeting."
 msgstr "您已暂定接受此会议。"
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工作”以连接。"
@@ -17461,6 +17542,11 @@ msgid "Sent Items"
 msgstr "已发送邮件"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -17639,6 +17725,11 @@ msgstr "图片已损坏或超过可显示的大小"
 #, fuzzy
 msgid "it is too large to show"
 msgstr "图片过大，无法显示"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -17851,7 +17942,7 @@ msgid "no event with id {id}"
 msgstr "没有 ID 为 {id} 的事件"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "没有文件夹“{path}”"
@@ -18258,6 +18349,11 @@ msgid "that event doesn't repeat"
 msgstr "此日程不重复"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18388,6 +18484,11 @@ msgstr "此账户已不存在"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "此账户的服务器没有可用名称"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18636,6 +18737,11 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18696,10 +18802,25 @@ msgid "the parent folder belongs to another account"
 msgstr "上级文件夹属于另一个账户"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "要替换的位置不在文本范围内"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18768,7 +18889,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "服务器与 MailCraft 没有共同支持的加密方式；服务器可能只提供 MailCraft 不使用的旧加密方式（CBC 套件），其管理员可以启用 AES-GCM 套件"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "服务器应答了未发送的命令"
@@ -18798,7 +18919,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "服务器要求的内容超出用户名和密码所含的内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "服务器要求的内容超出命令所含的内容"
@@ -18827,8 +18948,8 @@ msgstr "服务器关闭了连接"
 msgid "the server continued a cancelled password authentication"
 msgstr "服务器继续执行已取消的密码验证"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "无法访问服务器"
@@ -18880,6 +19001,11 @@ msgstr "服务器不接受在此连接中使用密码"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "服务器提前结束了命令"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18966,13 +19092,13 @@ msgid "the server sent nothing"
 msgstr "服务器没有发送任何内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "服务器对一个命令发送了太多响应"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "服务器响应一个命令发送了太多信息"
@@ -19068,7 +19194,7 @@ msgid "the text can't be looked for on the server"
 msgstr "无法在服务器上查找该文本"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"
@@ -19792,6 +19918,21 @@ msgstr "{host} 位于您地址所在的域中，但它不是该域指定的自�
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} 未启用加密，网络上的任何人都可能看到密码；请选择 TLS 或 STARTTLS"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -20215,8 +20356,8 @@ msgid "{n} change waiting for the IMAP server won't reach it; it stays in the ba
 msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."
 msgstr[0] "等待发送到 IMAP 服务器的 {n} 项更改不会送达；它们会保留在备份副本中。"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "对日历“{name}”的 {n} 项更改保留在此处，尚未发送：此账户可能已无权更改。若重新获得权限，将发送这些更改。"
@@ -20938,6 +21079,10 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

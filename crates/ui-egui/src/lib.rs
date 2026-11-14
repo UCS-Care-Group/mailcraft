@@ -65,6 +65,9 @@ pub mod chrome;
 mod clicks;
 #[cfg(test)]
 mod clicks_tests;
+pub mod close_to_tray;
+#[cfg(test)]
+mod close_to_tray_tests;
 pub mod compose;
 #[cfg(test)]
 mod confirm_ids_tests;
@@ -139,6 +142,8 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 mod merge_contacts;
+#[cfg(test)]
+mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
@@ -155,6 +160,9 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod out_of_sight;
+#[cfg(test)]
+mod out_of_sight_tests;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
@@ -359,8 +367,9 @@ pub struct Services {
     pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: find out about a domain on a background thread, so account setup can tell whose
     /// servers an address at a company's own domain uses: its mail exchangers (best first), and,
-    /// when they name no provider this program knows, the servers its own SRV records name
-    /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
+    /// when they name no provider this program knows, the servers its own records name (its SRV
+    /// records, RFC 6186, #1063; what it publishes for mail programs; Mozilla's ISP database,
+    /// #1112), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
     /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
     /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
@@ -807,6 +816,12 @@ pub struct UiState {
     pub high_contrast: bool,
     /// File › Options › General › Animations (#1183): as the system says, on or off.
     pub animations: motion::Motion,
+    /// Desktop: the close button hides the window while mail and reminders keep running.
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray: bool,
+    /// The owner has seen where the window goes on its first close to the tray (#544).
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -924,6 +939,8 @@ impl Default for UiState {
             theme: theme::Appearance::default(),
             high_contrast: false,
             animations: motion::Motion::default(),
+            close_to_tray: false,
+            close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1204,6 +1221,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    ("ui.closeToTray", "Close to system tray", "File › Options › General", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.importPrivateKey",
         "Import Your Certificate or Key",
@@ -1546,13 +1564,6 @@ pub struct MailApp {
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
-    /// Shared mailboxes whose Outbox waits for the owner's permission to send from shared
-    /// mailboxes (#70): a run that starts by itself neither takes that mail along nor starts for
-    /// it, until the owner asks for a run, presses Send in it, or allows it.
-    shared_send_waits: std::collections::HashSet<Id>,
-    /// Shared mailboxes the owner pressed Send in since their last run: when that run finds
-    /// sending from shared mailboxes isn't allowed yet, the window asks, whoever started it (#70).
-    shared_send_pressed: std::collections::HashSet<Id>,
     /// Shared mailboxes whose server won't let the owner in, and why (no Full Access, no such
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
@@ -1608,6 +1619,9 @@ pub struct MailApp {
     /// The window title last sent; a viewport command schedules a repaint, so only send changes.
     sent_title: String,
     pub quit_requested: bool,
+    /// The host hid the main window (put away in the tray, say): it is out of sight as a
+    /// minimised one is ([`out_of_sight::window_out_of_sight`]).
+    pub window_hidden: bool,
     /// MailCraft's data was removed from this computer ([`data_removal`]): nothing is written
     /// or remembered from here on, and the window goes when its report is read.
     pub data_removed: bool,
@@ -1631,9 +1645,6 @@ pub struct MailApp {
     pub(crate) graph_switch_copy: Option<graph_switch::Copying>,
     /// Accounts whose waiting switch was offered "Switch without Them" in this run.
     graph_switch_waiting_shown: std::collections::HashSet<Id>,
-    /// Send/Receive by itself when the app starts and every few minutes (on by default; how often
-    /// is the owner's `syncMinutes` option).
-    pub auto_sync: bool,
     /// Scroll bars float over what they scroll, slim, and show only while it moves or the pointer
     /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
     /// On a Mac only; tests and screenshots turn it on anywhere.
@@ -1732,6 +1743,8 @@ pub struct MailApp {
     pub(crate) remote_pictures: reading::RemotePictures,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
+    /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
+    pub(crate) out_of_sight: out_of_sight::OutOfSight,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -1754,10 +1767,7 @@ pub struct MailApp {
     pub(crate) swapping: bool,
     /// A Send/Receive that waits for the "sending" marks of what it sends to be written to the
     /// mailbox file before it is handed to the host ([`sending`], AU3-26).
-    pub(crate) send_gate: Option<sending::SendGate>,
-    /// A piece of the mail run under way was refused (AU3-26): at its end, the marks of what it
-    /// sent are left for the next run to hold, not taken off.
-    pub(crate) send_doubt: bool,
+    pub(crate) send_gate: Option<sending::Waiting>,
 }
 
 /// A Send/Receive of one account in flight, its pieces to come. A JMAP account's run takes the place
@@ -1840,8 +1850,6 @@ impl MailApp {
             auto_replies: Default::default(),
             open_shared: Default::default(),
             shared_calendar_tokens: Default::default(),
-            shared_send_waits: Default::default(),
-            shared_send_pressed: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
@@ -1871,6 +1879,7 @@ impl MailApp {
             sent_title: String::new(),
             shown_zone: None,
             quit_requested: false,
+            window_hidden: false,
             data_removed: false,
             autosave: true,
             offer_setup: false,
@@ -1879,7 +1888,6 @@ impl MailApp {
             graph_switch_tried: Default::default(),
             graph_switch_copy: None,
             graph_switch_waiting_shown: Default::default(),
-            auto_sync: true,
             overlay_scroll_bars: cfg!(target_os = "macos"),
             headless_shots: false,
             driven: false,
@@ -1917,6 +1925,7 @@ impl MailApp {
             windows: Default::default(),
             remote_pictures: Default::default(),
             sender_images: Default::default(),
+            out_of_sight: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
@@ -1927,7 +1936,6 @@ impl MailApp {
             reading_ahead: None,
             swapping: false,
             send_gate: None,
-            send_doubt: false,
         }
     }
 
@@ -2004,6 +2012,8 @@ impl MailApp {
         v.task_sort = saved.task_sort;
         // Gmail's categories as folders or as tabs (#911).
         v.gmail_tabs = saved.gmail_tabs;
+        // Where the switch between the modules is (#1174).
+        v.nav_foot = saved.nav_foot;
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;
@@ -2305,9 +2315,6 @@ impl MailApp {
             // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
-            self.session.driver.calendar.checked.remove(&account);
-            self.session.driver.calendar.consent_needed.remove(&account);
-            self.auto_replies.trouble.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
@@ -2555,6 +2562,15 @@ impl MailApp {
                 }
                 self.ui.google_client_id = id.to_string();
                 Ok(json!({"configured": !id.is_empty()}))
+            }
+            "ui.closeToTray" => {
+                let value = match p.get("value") {
+                    None => !self.ui.close_to_tray,
+                    Some(Value::Bool(value)) => *value,
+                    Some(_) => return Some(Err("value must be a boolean".into())),
+                };
+                self.ui.close_to_tray = value;
+                Ok(json!({"value": value}))
             }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
@@ -3264,7 +3280,9 @@ impl MailApp {
         };
         // A message an earlier run handed to the server, whose answer never came back, may have
         // gone: it is held for the owner to look at, never sent again by itself (AU3-26).
-        self.hold_unanswered(account);
+        if let Some(first) = self.session.send_hold_unanswered(account) {
+            self.status(first);
+        }
         // An Exchange server account is kept in step through Exchange Web Services (#252).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
             return self.start_ews_mail(account, quiet, p);
@@ -3475,7 +3493,7 @@ impl MailApp {
         let mb = &self.session.mailbox;
         // (A held message waits for the owner, not for a run; and so does mail in a shared
         // mailbox's Outbox that may not be sent from it yet, #70.)
-        let outbox = if self.shared_send_waits.contains(&account) {
+        let outbox = if self.session.shared_send_waits(account) {
             0
         } else {
             mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
@@ -3586,7 +3604,7 @@ impl MailApp {
         // is still bringing mail down: the run is called off, which loses nothing, and the next
         // one tells the server first.
         // (Whichever way the account is kept in step: a Graph run too, #274.)
-        if self.auto_sync
+        if self.session.driver.auto_sync()
             && self.syncing()
             && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
             && now_ms() - self.push_checked >= 3_000.0
@@ -3625,7 +3643,7 @@ impl MailApp {
         // Something made here waits to go out (a message to send, a read mark, a move): it
         // doesn't wait for the next round. Looked at every few seconds; what didn't go through
         // last time is left for a few minutes unless there is more of it.
-        if self.auto_sync && now - self.push_checked >= 1_500.0 {
+        if self.session.driver.auto_sync() && now - self.push_checked >= 1_500.0 {
             self.push_checked = now;
             for account in self.server_accounts() {
                 let waiting = self.waiting_to_go(account);
@@ -3641,7 +3659,7 @@ impl MailApp {
                 return;
             }
         }
-        if !self.auto_sync || minutes == 0.0 || (self.last_auto_sync != 0.0 && now - self.last_auto_sync < minutes * 60_000.0) {
+        if !self.session.driver.auto_sync() || minutes == 0.0 || (self.last_auto_sync != 0.0 && now - self.last_auto_sync < minutes * 60_000.0) {
             return;
         }
         self.last_auto_sync = now;
@@ -3735,7 +3753,7 @@ impl MailApp {
                     }
                     Err(e) => {
                         self.graph_problems.push(e.to_string());
-                        self.send_doubt = true;
+                        self.session.driver.sending.doubted();
                     }
                 }
                 if let Some((progress, status)) = kept {
@@ -3801,7 +3819,7 @@ impl MailApp {
         // ponytail: a host that doesn't stream (`result.mail`) has its sends cleared one by one
         // as they are taken in; one it didn't try is held at the next run.
         if answered && result.mail.is_none() {
-            self.run_answered(account);
+            self.session.send_run_answered(account);
         }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
@@ -4425,7 +4443,7 @@ impl MailApp {
                 }
                 Err(e) => {
                     self.status(e.to_string());
-                    self.send_doubt = true;
+                    self.session.driver.sending.doubted();
                 }
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
@@ -4440,7 +4458,7 @@ impl MailApp {
             self.logged_problems.end_run(account, "mail");
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
-            self.run_answered(account);
+            self.session.send_run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
@@ -4662,6 +4680,8 @@ impl MailApp {
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);
+        // What is kept to show things again quickly goes once the window has been out of sight a while.
+        out_of_sight::tick(self, ctx);
         control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog
@@ -4747,7 +4767,11 @@ impl MailApp {
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(100));
-        } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
+        } else if self.session.driver.auto_sync()
+            && self.services.can_sync()
+            && self.session.prefs.sync_minutes > 0
+            && !self.server_accounts().is_empty()
+        {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
             // something waits to go out.
             ctx.request_repaint_after(std::time::Duration::from_millis(1_500));
@@ -5183,6 +5207,7 @@ impl MailApp {
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
+        close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.
         text_menu::carry_out(self, &ctx);

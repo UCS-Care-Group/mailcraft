@@ -41,6 +41,8 @@ pub mod folder;
 #[cfg(test)]
 mod folder_empty_tests;
 #[cfg(test)]
+mod folder_kind_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -87,6 +89,8 @@ mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
+#[cfg(test)]
+mod navigation_bar_tests;
 #[cfg(test)]
 mod newer_account_tests;
 pub mod notes;

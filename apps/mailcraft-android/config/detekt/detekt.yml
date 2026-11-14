@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: MailCraft contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# detekt on top of its defaults. Everything is an error (maxIssues 0). The never-crash rules of
+# the project, for Kotlin: no `!!`, no `lateinit` where it can be avoided, no TODO and no
+# NotImplementedError. Kotlin here draws the interface and gives the platform's services; it never
+# parses anything that comes from outside.
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+  LateinitUsage:
+    active: true
+  CastNullableToNonNullableType:
+    active: true
+  UnnecessarySafeCall:
+    active: true
+  ImplicitDefaultLocale:
+    active: true
+  IgnoredReturnValue:
+    active: true
+
+exceptions:
+  NotImplementedDeclaration:
+    active: true
+  TooGenericExceptionCaught:
+    active: true
+    # A native call fails with a RuntimeException of the JVM's making; it is caught where it
+    # is made, in one place.
+    exceptionNames:
+      - ArrayIndexOutOfBoundsException
+      - Error
+      - Exception
+      - IllegalMonitorStateException
+      - IndexOutOfBoundsException
+      - NullPointerException
+      - Throwable
+  PrintStackTrace:
+    active: true
+  SwallowedException:
+    active: false
+
+style:
+  ForbiddenComment:
+    active: true
+    comments:
+      - value: 'TODO:'
+      - value: 'FIXME:'
+      - value: 'STOPSHIP:'
+  MagicNumber:
+    active: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignorePropertyDeclaration: true
+    ignoreExtensionFunctions: false
+    ignoreNamedArgument: true
+    ignoreRanges: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+  ReturnCount:
+    active: true
+    max: 3
+  WildcardImport:
+    active: true
+
+naming:
+  FunctionNaming:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'

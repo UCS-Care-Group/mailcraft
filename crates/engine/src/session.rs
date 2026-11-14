@@ -301,6 +301,12 @@ pub struct ViewState {
     pub scope: Scope,
     pub reading_pane: Pane,
     pub folder_pane: bool,
+    /// The switch between Mail, Calendar, People and Tasks at the foot of the pane on the left,
+    /// in place of the bar of icons down the window's edge (#1174; `view.navigationBar`), so the
+    /// bar's column is the window's. Where the module in view has no pane for it (Mail or the
+    /// calendar with theirs hidden) the bar stays, so the switch is never out of reach. Off: the
+    /// bar.
+    pub nav_foot: bool,
     pub calendar: CalView,
     /// The day the calendar shows (its week or month, depending on the view).
     pub date: Date,
@@ -342,6 +348,7 @@ impl Default for ViewState {
             scope: Scope::Folder,
             reading_pane: Pane::Right,
             folder_pane: true,
+            nav_foot: false,
             calendar: CalView::Week,
             date: Date::default(),
             days: 0,
@@ -2589,14 +2596,72 @@ impl Session {
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
     /// the state the command started from gets it too ([`Session::run`]).
     fn put_message(&mut self, id: Id, m: Message) {
+        self.put_in_place(id, m, false);
+    }
+
+    /// [`Session::put_message`]; `in_steps`: `m` is the message with content let go of, and the
+    /// Undo and Redo steps let go of it too ([`Session::lean_steps`]).
+    fn put_in_place(&mut self, id: Id, m: Message, in_steps: bool) {
         let new = Arc::new(m);
         let Some(old) = self.mailbox.messages.insert(id, new.clone()) else { return };
+        #[cfg(not(target_arch = "wasm32"))]
+        if in_steps {
+            self.lean_steps(id, &old, &new);
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = in_steps;
         if Arc::strong_count(&old) > 1 {
             self.hold(std::iter::once(&old));
         }
         if let Some(swaps) = &mut self.swaps {
             swaps.push(Swap { id, old, new });
         }
+    }
+
+    /// Message `id` was `old` and the budget let go of its content (`new`, which names it on
+    /// disk): the Undo and Redo steps let go of it too, so that what the budget let go of isn't
+    /// kept in memory by up to [`MAX_HISTORY`] steps on each side. A step that holds `old` itself
+    /// gets `new`; one that holds another version of it with content in memory (a step from
+    /// before a flag or a move, which copied the message) gets that version without what of
+    /// its content is on disk as it is ([`crate::store::evictable`]), and keeps it from the
+    /// sweep as a step's message that the mailbox doesn't have ([`Session::hold`]). Nothing a
+    /// step would put back changes but where its content is: an undo brings it in again when
+    /// it is wanted. Copies of the map that shared a chunk still share one.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn lean_steps(&mut self, id: Id, old: &Arc<Message>, new: &Arc<Message>) {
+        if self.history.is_empty() && self.redo.is_empty() {
+            return;
+        }
+        let Some(path) = self.path.clone() else { return };
+        let mut done = mailcraft_model::messages::Replaced::default();
+        // Each version found in a step, as it was and as it is without its content.
+        let mut made: Vec<(Arc<Message>, Arc<Message>)> = vec![(old.clone(), new.clone())];
+        let live = &self.mailbox.messages;
+        // `theirs` without its content: the one made already for that version, else one made now.
+        // (One with nothing to let go of is noted as its own, and not looked at again.)
+        let mut lean_of = |theirs: &Arc<Message>| -> Arc<Message> {
+            if let Some((_, lean)) = made.iter().find(|(was, _)| Arc::ptr_eq(was, theirs)) {
+                return lean.clone();
+            }
+            let lean = if in_memory(theirs) == 0 { None } else { crate::store::evictable(&path, id, theirs) };
+            let lean = lean.map_or_else(|| theirs.clone(), Arc::new);
+            made.push((theirs.clone(), lean.clone()));
+            lean
+        };
+        for step in self.history.iter_mut().chain(self.redo.iter_mut()) {
+            if let Some(theirs) = step.mailbox.messages.get(&id).cloned() {
+                let lean = lean_of(&theirs);
+                if !Arc::ptr_eq(&lean, &theirs) {
+                    step.mailbox.messages.put_in_place_of(id, &theirs, &lean, live, &mut done);
+                }
+            }
+            // What a step noted of a Microsoft, EWS or JMAP account's message, as it was right
+            // after the step, holds its content too.
+            if let Some(theirs) = step.touched.message_mut(id) {
+                *theirs = lean_of(theirs);
+            }
+        }
+        self.hold(made.iter().skip(1).filter(|(was, lean)| !Arc::ptr_eq(was, lean)).map(|(_, lean)| lean));
     }
 
     /// Keep what `messages` keep on disk from the sweep while something holds them.
@@ -2660,7 +2725,7 @@ impl Session {
                 }
                 match lean {
                     Some(lean) => {
-                        self.put_message(id, lean);
+                        self.put_in_place(id, lean, true);
                         self.resident_bytes = self.resident_bytes.saturating_sub(bytes);
                         self.loads += 1;
                     }
@@ -2684,6 +2749,61 @@ impl Session {
             !goes
         });
         self.resident_bytes = self.resident_bytes.saturating_sub(freed);
+    }
+
+    /// Let go of the content brought into messages, from the message after `from` (from the
+    /// first: `None`) on, as the budget does ([`Session::evict`]): a message whose body or files
+    /// are in memory and safely on disk as they are goes back to naming them, and its Undo and
+    /// Redo steps let go of them too. The messages `keep` names (open in a window, being written)
+    /// and those selected stay as they are. For a window out of sight a while; what is shown
+    /// again is read again. At most `most` messages are looked at in one call, whether they could
+    /// go or not: the answer is the message to go on
+    /// after, `None` once every message was looked at. Nothing is let go of while a command or a
+    /// search runs.
+    pub fn let_go_of_content(&mut self, from: Option<Id>, keep: &HashSet<Id>, most: usize) -> Option<Id> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.swaps.is_some() || self.search_pass.is_some() {
+                return from;
+            }
+            let path = self.path.clone()?;
+            let mut next = from.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
+            let mut left = most.max(1);
+            loop {
+                let found = self
+                    .mailbox
+                    .messages
+                    .range((next, std::ops::Bound::Unbounded))
+                    // What is selected stays, as the budget's own eviction leaves it.
+                    .find(|(id, m)| !keep.contains(id) && !self.sel.messages.contains(id) && may_go(m))
+                    .map(|(id, m)| (*id, crate::store::evictable(&path, *id, m)));
+                let Some((id, lean)) = found else { break };
+                next = std::ops::Bound::Excluded(id);
+                if let Some(lean) = lean {
+                    self.put_in_place(id, lean, true);
+                    self.loads += 1;
+                }
+                // Each one looked at counts, let go of or not: a slice is never a walk of all.
+                left -= 1;
+                if left == 0 {
+                    return Some(id);
+                }
+            }
+            // What is counted as brought in is what of it is still in memory and could go.
+            let messages = &self.mailbox.messages;
+            self.resident.retain_mut(|(id, bytes)| {
+                let now = messages.get(id).filter(|m| may_go(m)).map_or(0, |m| in_memory(m));
+                *bytes = (*bytes).min(now);
+                *bytes > 0
+            });
+            self.resident_bytes = self.resident.iter().map(|(_, b)| *b).fold(0, u64::saturating_add);
+            None
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (from, keep, most);
+            None
+        }
     }
 
     /// The mailbox was `was` and is now another (an undo or a redo): what is counted as brought
@@ -3827,6 +3947,19 @@ fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
     let original = m.original.as_ref().map_or(0, |o| o.data.len() as u64);
     m.attachments.iter().fold((body as u64).saturating_add(original), |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// Whether message `m` holds in memory content that a save keeps outside the mailbox file (a
+/// body or a file of more than [`crate::store::INLINE_MAX`] bytes, an original), and so may go
+/// back to naming it ([`Session::let_go_of_content`]).
+#[cfg(not(target_arch = "wasm32"))]
+fn may_go(m: &Message) -> bool {
+    let out = |n: usize| n > crate::store::INLINE_MAX;
+    out(m.body.text.len())
+        || m.body.html.as_ref().is_some_and(|h| out(h.len()))
+        || out(m.hidden_text.len())
+        || m.attachments.iter().any(|a| out(a.data.len()))
+        || m.original.as_ref().is_some_and(|o| !o.data.is_empty())
 }
 
 /// A body an opening for a window left on disk though the memory budget holds it, to be read
