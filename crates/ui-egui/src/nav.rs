@@ -957,9 +957,8 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
             let inboxes = app.session.mailbox.inboxes();
             let show_all = app.ui.all_inboxes && inboxes.len() >= 2;
-            let all_on = show_all
-                && app.session.view.all_inboxes
-                && (app.session.view.search.is_empty() || app.session.view.scope == mailcraft_engine::Scope::Folder);
+            let everywhere = !app.session.view.search.is_empty() && app.session.view.scope == mailcraft_engine::Scope::Everywhere;
+            let all_on = show_all && app.session.view.all_inboxes && !everywhere;
             let favorite_selected = !all_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.

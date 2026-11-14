@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use super::people;
 use super::tasks_remote::keeps_tasks;
-use super::{bad, done, mac_or};
+use super::{bad, done, fail, mac_or};
 use crate::session::{enum_code, parse_enum};
 use crate::{CalView, CmdResult, CommandSpec, Filter, Module, Pane, Scope, Session, SortBy, TaskFilter, ViewState, p};
 
@@ -156,11 +156,14 @@ fn filter(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn all_inboxes(s: &mut Session, _: &Value) -> CmdResult {
+    let inboxes = s.mailbox.inboxes();
+    if inboxes.len() < 2 {
+        return Err(fail("All Inboxes needs two mailboxes"));
+    }
     s.show_whole_folder();
     s.view.all_inboxes = true;
     s.view.module = Module::Mail;
     s.sel.messages.clear();
-    let inboxes = s.mailbox.inboxes();
     let counts = s.folder_counts();
     let messages: usize = inboxes.iter().map(|id| counts.total(*id)).sum();
     let unread: usize = inboxes.iter().map(|id| counts.unread(*id)).sum();

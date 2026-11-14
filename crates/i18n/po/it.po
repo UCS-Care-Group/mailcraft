@@ -953,8 +953,18 @@ msgid "All Categories…"
 msgstr "Tutte le categorie…"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 msgid "All Inboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All Inboxes and their subfolders"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "All Inboxes needs two mailboxes"
 msgstr ""
 
 #. interface
@@ -985,6 +995,11 @@ msgstr ""
 #, fuzzy
 msgid "All the conditions must hold"
 msgstr "Devono essere soddisfatte tutte le condizioni"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "All your mailboxes"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
