@@ -168,12 +168,21 @@ impl Core {
         let lang = self.lang();
         let sync = self.sync.clone();
         let adopted = self.call(move |session| Ok(sync.adopt(session, account, tokens))).await?;
-        match adopted {
-            Adopted::Kept => Ok(()),
-            Adopted::WrongPerson => Err(fail(lang, words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."))),
-            Adopted::Refused => Err(fail(lang, words("The account can't be signed in now."))),
+        match adopt_refusal(lang, adopted) {
+            None => Ok(()),
+            Some(reason) => Err(CoreError::Failed { reason }),
         }
     }
+}
+
+/// Why Send/Receive didn't take a sign-in, in the interface language; nothing when it took it.
+pub(crate) fn adopt_refusal(lang: Lang, adopted: Adopted) -> Option<String> {
+    let text = match adopted {
+        Adopted::Kept => return None,
+        Adopted::WrongPerson => words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."),
+        Adopted::Refused => words("The account can't be signed in now."),
+    };
+    Some(lang.t(text).to_string())
 }
 
 /// Marks a sentence for the catalogue (`cargo xtask i18n` gathers what is passed to it); the

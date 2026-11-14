@@ -226,6 +226,9 @@ pub(crate) struct SyncHost {
     notify_mail: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
+    /// The tests' own refusal of every sign-in handed over (never set outside a test: nothing does).
+    #[cfg(test)]
+    pub(crate) refuse_adopt: AtomicBool,
 }
 
 /// Writes the mailbox before a send goes out.
@@ -246,6 +249,8 @@ impl SyncHost {
             notify_mail: AtomicBool::new(true),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
+            #[cfg(test)]
+            refuse_adopt: AtomicBool::new(false),
         }
     }
 
@@ -289,6 +294,10 @@ impl SyncHost {
 
     /// The tokens of a sign-in the app made, taken in: refused when they are somebody else's.
     pub(crate) fn adopt(&self, session: &mut Session, account: u64, tokens: Tokens) -> Adopted {
+        #[cfg(test)]
+        if self.refuse_adopt.load(Ordering::Relaxed) {
+            return Adopted::Refused;
+        }
         let mut inner = self.lock();
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
@@ -300,6 +309,21 @@ impl SyncHost {
         drop(inner);
         self.pacer.poke();
         adopted
+    }
+
+    /// The account's refresh token as Send/Receive finds it: this session's first, then the
+    /// credential store's when the owner lets sign-ins be remembered.
+    pub(crate) fn refresh_for(&self, session: &Session, account: u64) -> Option<String> {
+        let inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        inner.sr.refresh_for(session, &ctx, account)
+    }
+
+    /// A refresh token a check of a permission was renewed to, for the session's sign-in of
+    /// `account` (only in place of the one the check began with).
+    pub(crate) fn take_renewed(&self, session: &Session, account: u64, renewed: &mailcraft_host::signin::Renewed) {
+        self.lock().sr.take_renewed(session, account, renewed);
     }
 
     /// Put what the host wrote to the credential store into the index of names.

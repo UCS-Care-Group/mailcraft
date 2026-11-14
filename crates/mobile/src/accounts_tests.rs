@@ -523,8 +523,8 @@ fn what_a_sign_in_covers_is_asked_of_microsoft_with_the_stored_token_and_never_o
     // The server can't be told: unknown, and nothing is concluded.
     point(&rig, &TokenServer::start(|_| (500, "{}".to_string())));
     assert_eq!(ask(&rig, Permission::Tasks), PermissionState::Unknown);
-    // Nothing kept: sign in.
-    rig.phone.secrets.kept.lock().unwrap().clear();
+    // Nothing kept, in the store or for the session: sign in.
+    block_on(rig.core.forget_sign_ins()).unwrap();
     assert_eq!(ask(&rig, Permission::Tasks), PermissionState::SignInNeeded);
     assert_eq!(rig.phone.pages.lock().unwrap().len(), pages);
 }
@@ -849,4 +849,102 @@ fn an_older_checks_renewal_never_replaces_a_newer_sign_in() {
     answer.send(()).unwrap();
     check.join().unwrap().unwrap();
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("newer-sign-in"), "an older answer replaced a newer sign-in");
+}
+
+#[test]
+fn with_sign_ins_not_remembered_a_check_uses_the_sessions_sign_in() {
+    // Microsoft answers only for the token the sign-in gave, then for the one it rotated that to.
+    let server = TokenServer::start(|form| {
+        let asked = percent_decoded(form);
+        if asked.contains("grant_type=authorization_code") {
+            (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+        } else if asked.contains("refresh_token=refresh-token-1") || asked.contains("refresh_token=rotated-in-memory") {
+            (200, tokens_for(ADA, "Ada", "rotated-in-memory"))
+        } else {
+            (400, r#"{"error":"invalid_grant","error_description":"AADSTS70000: expired"}"#.to_string())
+        }
+    });
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    assert_eq!(rig.secrets_kept(), 0);
+    // Right after the sign-in the check is not "sign in again": the sign-in is in memory.
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::Allowed);
+    // The token Microsoft rotated it to is the session's now, and nothing went to the store.
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::SharedMail)).unwrap(), PermissionState::Allowed);
+    assert!(percent_decoded(server.forms.lock().unwrap().last().unwrap()).contains("refresh_token=rotated-in-memory"));
+    assert_eq!(rig.secrets_kept(), 0);
+    // Forgotten: now it is.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::SignInNeeded);
+}
+
+#[test]
+fn add_account_whose_sign_in_send_receive_refuses_says_so_and_leaves_nothing() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    // No account half-added, no credential stored for it.
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secrets_kept(), 0);
+    // An account the owner has, signed in again and refused: it stays, with the sign-in it had.
+    rig.core.sync.refuse_adopt.store(false, Ordering::Relaxed);
+    let account = signed_in(&rig);
+    let newer = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "refresh-token-2")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", newer.port), format!("http://127.0.0.1:{0}/token", newer.port)));
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+}
+
+#[test]
+fn a_renewal_and_a_removal_sent_at_once_are_applied_one_after_the_other() {
+    // Every writer of a sign-in runs on the session's thread: a check's renewal and a removal that
+    // arrive together wait for it in turn, and neither sees the other half done.
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let answered = Arc::new(AtomicBool::new(false));
+    let told = answered.clone();
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            told.store(true, Ordering::Release);
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The session's thread is held while both writers arrive: the renewal first, then the removal.
+    let release = hold_session(&rig.core);
+    answer.send(()).unwrap();
+    while !answered.load(Ordering::Acquire) {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let core = rig.core.clone();
+    let removal = std::thread::spawn(move || block_on(core.remove_account(account)));
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Nothing is written while the thread is held.
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    drop(release);
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    removal.join().unwrap().unwrap();
+    // The renewal was kept, then the removal took it: no account and no sign-in.
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    assert_eq!(rig.secrets_kept(), 0);
 }

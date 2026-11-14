@@ -263,7 +263,7 @@ impl Core {
         // One job on the session's thread: the sign-in is kept, the account is added and
         // Send/Receive takes the sign-in, or none of it. A call dropped (or a core shut down) before
         // the job runs keeps nothing, and a job that runs needs nobody waiting for it to finish.
-        let (platform, sync, for_call) = (self.native.clone(), self.sync.clone(), address.clone());
+        let (platform, sync, for_call, lang) = (self.native.clone(), self.sync.clone(), address.clone(), self.lang());
         let added = self
             .call(move |s| {
                 // (An account the owner has signs in again: its settings stay as they are. A shared
@@ -275,11 +275,18 @@ impl Core {
                     .find(|a| a.kind == AccountKind::Microsoft && !a.is_shared() && a.email.trim().eq_ignore_ascii_case(&for_call));
                 let known = known.map(|a| a.id);
                 // Kept in the credential store only when the owner lets sign-ins be remembered; else
-                // Send/Receive holds it for the session alone.
+                // Send/Receive holds it for the session alone. (What was kept before for an account
+                // the owner has goes back if Send/Receive refuses the new sign-in.)
                 let remember = sync.remembers();
+                let before = if remember && known.is_some() { signin::kept_refresh(platform.as_ref(), &for_call) } else { None };
                 if remember && let Err(why) = signin::keep_refresh(platform.as_ref(), &for_call, &tokens.refresh) {
-                    return Ok(Err(why));
+                    return Ok(Err(why.to_string()));
                 }
+                let undo_kept = |platform: &dyn mailcraft_host::Platform| {
+                    if remember {
+                        signin::restore_refresh(platform, &for_call, before.as_deref());
+                    }
+                };
                 let account = match known {
                     Some(id) => id,
                     None => {
@@ -288,23 +295,29 @@ impl Core {
                             Ok(id) => id,
                             Err(error) => {
                                 // (Nothing is kept of a sign-in that made no account.)
-                                if remember {
-                                    signin::forget(platform.as_ref(), &for_call);
-                                }
+                                undo_kept(platform.as_ref());
                                 return Err(error);
                             }
                         }
                     }
                 };
                 // Send/Receive has the sign-in for the session at once, and an account that had to
-                // be signed in again no longer does.
-                let _ = sync.adopt(s, account, tokens);
+                // be signed in again no longer does. When it refuses the sign-in, nothing of it is
+                // left: an account made for it goes again, and the credential store has what it had.
+                let adopted = sync.adopt(s, account, tokens);
+                if let Some(why) = crate::sync_api::adopt_refusal(lang, adopted) {
+                    if known.is_none() && s.run("account.remove", &json!({"id": account})).is_err() {
+                        log::warn!("accounts: an account added for a refused sign-in couldn't be removed again");
+                    }
+                    undo_kept(platform.as_ref());
+                    return Ok(Err(why));
+                }
                 Ok(Ok(account))
             })
             .await;
         match added {
             Ok(Ok(account)) => Ok(SignInOutcome::SignedIn { account, email: address, name }),
-            Ok(Err(why)) => Ok(failed(why)),
+            Ok(Err(reason)) => Ok(SignInOutcome::Failed { reason }),
             Err(CoreError::Cancelled) => Err(CoreError::Cancelled),
             Err(CoreError::Failed { reason } | CoreError::BadRequest { reason }) => Ok(SignInOutcome::Failed { reason }),
             Err(_) => Ok(failed("the account could not be added")),
@@ -354,18 +367,21 @@ impl Core {
         }
     }
 
-    /// Whether `account`'s sign-in covers `permission`, asked of Microsoft with the stored refresh
-    /// token (nothing is opened and the owner is not asked). Nothing is stored of the answer.
+    /// Whether `account`'s sign-in covers `permission`, asked of Microsoft with the account's
+    /// refresh token as Send/Receive has it: the session's first (a sign-in the owner doesn't let
+    /// be remembered is in memory alone), then the credential store's. Nothing is opened and the
+    /// owner is not asked. Nothing is stored of the answer.
     pub async fn permission_state(&self, account: u64, permission: Permission) -> Result<PermissionState, CoreError> {
         let email = self.email_of(account).await?;
         let Some(o) = signin::client_oauth() else { return Ok(PermissionState::Unknown) };
         let mail = self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail));
         let graph = self.signins.at(Endpoints::for_resource(&o, Resource::Graph));
+        let sync = self.sync.clone();
+        let refresh = self.call(move |s| Ok(sync.refresh_for(s, account))).await?;
         let reply = Queue::<Checked>::new();
         let job_reply = reply.clone();
-        let platform = self.native.clone();
         let for_job = email.clone();
-        let job = move || signin::permission_standing(platform.as_ref(), &for_job, permission.into(), &mail, &graph);
+        let job = move || signin::permission_standing(refresh.as_deref(), &for_job, permission.into(), &mail, &graph);
         let spawned = std::thread::Builder::new().name("mailcraft-permission".to_string()).spawn(move || {
             let checked =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(job)).unwrap_or(Checked { standing: Standing::Unknown, renewed: None });
@@ -384,16 +400,21 @@ impl Core {
             let _ = self
                 .call(move |s| {
                     // The very account that was checked (one removed and added again is another, with
-                    // its own sign-in), only when the owner lets sign-ins be remembered, and (`keep`)
-                    // only in place of the stored sign-in the check began with: one forgotten, or
-                    // replaced by a newer sign-in, meanwhile is never written over.
+                    // its own sign-in), and only in place of the sign-in the check began with (the
+                    // session's, and the stored one when the owner lets sign-ins be remembered): one
+                    // forgotten, or replaced by a newer sign-in, meanwhile is never written over.
                     let there = s
                         .mailbox
                         .accounts
                         .iter()
                         .any(|a| a.id == account && a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
-                    if there && sync.remembers() {
-                        renewed.keep(platform.as_ref(), &email);
+                    if there {
+                        // The session's sign-in, whether or not it is remembered, and the stored
+                        // one when the owner lets it be.
+                        sync.take_renewed(s, account, &renewed);
+                        if sync.remembers() {
+                            renewed.keep(platform.as_ref(), &email);
+                        }
                     }
                     Ok(())
                 })
