@@ -14,6 +14,24 @@ fn pictures() -> Vec<String> {
 }
 
 #[test]
+fn a_remembered_sender_or_domain_gets_no_greyed_link() {
+    for (senders, domains) in [(vec!["news@shop.example"], vec![]), (vec![], vec!["shop.example"])] {
+        let mut unvouched = web_message(0, "news@shop.example", "Not vouched", &pictures());
+        unvouched.headers.clear();
+        let (mut app, ids) = app_with(vec![unvouched]);
+        app.ui.picture_senders = senders.into_iter().map(String::from).collect();
+        app.ui.picture_domains = domains.into_iter().map(String::from).collect();
+        let _host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+        let mut harness = window(app, (1280.0, 800.0));
+        select(&mut harness, ids[0]);
+        // The bar says it is asked first, and offers nothing to remember.
+        assert!(says(&harness, "You always download this sender's pictures"));
+        assert!(!says(&harness, "Always download pictures from") && !says(&harness, "Always from @"));
+        assert!(harness.state().hit.rect("alwaysDownloadPictures", ids[0]).is_none());
+    }
+}
+
+#[test]
 fn an_unvouched_sender_is_shown_greyed_out_without_the_domain() {
     let mut unvouched = web_message(0, "news@shop.example", "Not vouched", &pictures());
     unvouched.headers.clear();

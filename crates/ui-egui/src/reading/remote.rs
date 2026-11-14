@@ -480,13 +480,17 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             // with the reason, and the domain's is left out (#1347).
             let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m)) else { return };
             if !vouched(app.session.mailbox.account(m.account), m) {
+                // The bar already says a remembered sender is asked first: nothing more to say.
+                if sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email) {
+                    return;
+                }
                 let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
                 let why = crate::i18n::fmt(
                     tl!("Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."),
                     &[("sender", &short(&from, 60))],
                 );
                 // Not registered with `app.hit`: there is nothing to click.
-                ui.add_enabled(false, egui::Link::new(egui::RichText::new(label).font(semibold(11.5)))).on_disabled_hover_text(why);
+                ui.add(egui::Label::new(egui::RichText::new(label).font(semibold(11.5)).color(t.text_dim)).sense(Sense::hover())).on_hover_text(why);
                 return;
             }
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
