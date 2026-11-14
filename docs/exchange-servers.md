@@ -73,6 +73,24 @@ twice for the account, and `sync.progress` gave empty `timings` for it.
 **Not tried:** NTLM, Autodiscover from an address, any change sent up (read, flag, move, draft, send),
 the Windows installer, and the window used by hand.
 
+## Exchange Server 2010
+
+**Reported:** an organisation's own Exchange 2010 SP3 (build 14.3.513), by a tester with release
+0.12.0 (#1349). The account couldn't be added, and once past that its mail couldn't be read or
+marked. The tester measured what the server takes with hand-written requests, and MailCraft now
+asks it that way. **Not yet tried again against the server** since the change; the tests use a
+stand-in that refuses what the tester saw refused.
+
+| What the server does | What MailCraft does now |
+|---|---|
+| Knows no schema version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`) | Asks for Exchange 2013's version first; on that refusal, asks once more for `Exchange2010_SP2`, and keeps to it for the rest of the run (one step down, no more). The version learnt isn't kept with the account, so each Send/Receive (and each download of whole messages) starts with one request the server refuses |
+| Has neither the preview nor the follow-up flag (a schema fault) | A server answering in a version older than Exchange 2013's isn't asked for them, and a schema fault from such a server is read as their lack. A schema fault from a server answering in a newer version is left as the error it is |
+| Won't give the recipients in the list of a folder's changes (`ErrorInvalidPropertyForOperation`) | They are asked with `GetItem`, a hundred messages to a request |
+| Changes a message only when it is named with its change key, even when told to write over what is there | The change is refused once without it; MailCraft then asks for the item's key and sends the change again with it, and asks for the key first for every change after that in the run. A draft known without a key is handled the same way |
+
+Without the preview, a message from such a server shows no preview line in the message list, and its
+flag isn't read from the server.
+
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos

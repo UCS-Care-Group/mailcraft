@@ -55,6 +55,18 @@ pub(crate) struct Touched {
 }
 
 impl Touched {
+    /// The message `id` as the change left it, when it noted one: for letting go of its content.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn message_mut(&mut self, id: Id) -> Option<&mut Arc<Message>> {
+        self.messages.get_mut(&id).and_then(Option::as_mut)
+    }
+
+    /// Every message noted as the change left it.
+    #[cfg(test)]
+    pub(crate) fn noted_messages(&self) -> impl Iterator<Item = &Arc<Message>> {
+        self.messages.values().flatten()
+    }
+
     /// Whether the change imported, removed or changed a Public key: an undo of it changes
     /// them back, which is a setting's change.
     pub(crate) fn changed_keys(&self) -> bool {
@@ -429,6 +441,7 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
                 let mut f = t;
                 (f.remote, f.uid_validity, f.uid_seen, f.uid_from) = (c.remote.clone(), c.uid_validity, c.uid_seen, c.uid_from);
                 (f.whole, f.server, f.awaiting_listing) = (c.whole, c.server.clone(), c.awaiting_listing);
+                f.imap_status = c.imap_status;
                 kept.push(f);
             }
             (true, None) => kept.push(t),

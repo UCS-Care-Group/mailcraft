@@ -78,7 +78,7 @@ impl MailApp {
     pub(crate) fn calendar_tick(&mut self, ctx: &egui::Context) {
         let focused = ctx.input(|i| i.focused);
         self.calendar_tick_at(focused, now_ms());
-        if self.services.graph.is_none() || !self.auto_sync {
+        if self.services.graph.is_none() || !self.session.driver.auto_sync() {
             return;
         }
         if self.calendar.rx.is_some() {
@@ -114,8 +114,7 @@ impl MailApp {
     /// What is due is the engine's to say ([`mailcraft_engine::Session::calendar_due`]); this
     /// starts the job on the host, and tells the owner.
     pub fn calendar_tick_at(&mut self, focused: bool, now: f64) -> bool {
-        let facts =
-            CalendarFacts { focused, backstage: self.ui.backstage, enabled: self.auto_sync && self.services.graph.is_some(), busy: self.job_busy() };
+        let facts = CalendarFacts { focused, backstage: self.ui.backstage, reachable: self.services.graph.is_some(), busy: self.job_busy() };
         let look = self.session.calendar_due(&facts, now);
         self.tell_dropped(&look.dropped);
         // A calendar ticked in a shared mailbox that the owner's permission is missing for: asked.
@@ -1073,12 +1072,12 @@ mod tests {
         // Not while a Send/Receive is asking Graph, or is about to; and not when nothing may
         // start by itself.
         let t3 = t2 + 200.0 * SECOND;
-        app.sync_queue.push_back((account, true));
+        app.session.driver.round.queue.push_back((account, true));
         assert!(!app.calendar_tick_at(true, t3));
-        app.sync_queue.clear();
-        app.auto_sync = false;
+        app.session.driver.round.queue.clear();
+        app.session.driver.set_auto_sync(false);
         assert!(!app.calendar_tick_at(true, t3));
-        app.auto_sync = true;
+        app.session.driver.set_auto_sync(true);
         assert!(app.calendar_tick_at(true, t3));
         settle(&mut app);
     }

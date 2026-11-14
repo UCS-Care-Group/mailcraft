@@ -231,8 +231,8 @@ fn bounded_listing(listing: &mut FolderListing) {
 }
 
 /// A piece of a JMAP run held to its sizes, as the module documentation says; what became of
-/// changes too ([`super::jmap_up::bounded`]). A piece is the end of a run that went well (`whole`)
-/// only if it is the last, came whole, and tells of no trouble.
+/// changes and of mail sent too ([`super::jmap_up::bounded`]). A piece is the end of a run that
+/// went well (`whole`) only if it is the last, came whole, and tells of no trouble.
 pub(crate) fn bounded(mut result: JmapMailResult) -> JmapMailResult {
     super::jmap_up::bounded(&mut result);
     if let Some(listing) = result.listing.as_mut() {

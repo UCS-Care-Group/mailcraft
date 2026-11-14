@@ -345,7 +345,9 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 // MailCraft's mark, then the Quick Access Toolbar: Send/Receive, Undo, Redo.
                 let (mark, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-                icons::app_mark(ui.painter(), mark);
+                if let Some(icon) = title_icon(ui.ctx()) {
+                    ui.painter().image(icon.id(), mark, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                }
                 ui.add_space(8.0);
                 let sync_tip = if app.syncing() { tl!("Sending and receiving…") } else { tl!("Send/Receive All Folders") };
                 qat_button(ui, app, "sync", sync_tip, "ui.sync");
@@ -707,6 +709,24 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
             t.text_dim,
         );
     }
+}
+
+/// The app icon itself, the same picture the system shows for MailCraft, for the title bar: made
+/// once and kept in the context. `None` when it can't be read (the title bar then shows no mark).
+fn title_icon(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    /// The 64 px icon every build ships (`assets/app-icon`, attributed in `ATTRIBUTION.md`).
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.billsecond.mailcraft.png");
+    let id = egui::Id::unique("mailcraft-title-icon");
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let rgba = image::load_from_memory_with_format(PNG, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    // Drawn at 22 points: mipmaps keep it smooth at 100 % as well as on a sharper screen.
+    let options = egui::TextureOptions { mipmap_mode: Some(egui::TextureFilter::Linear), ..egui::TextureOptions::LINEAR };
+    let texture = ctx.load_texture("mailcraft-title-icon", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), options);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
 }
 
 #[cfg(test)]

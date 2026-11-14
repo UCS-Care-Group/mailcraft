@@ -30,7 +30,7 @@ fn app() -> (MailApp, u64, u64, u64) {
     let plain = add(2, "Lunch", "<p>Lunch on Friday?</p><style>p{color:#036}</style>");
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, responsive, dark, plain)
 }
 
@@ -222,7 +222,7 @@ fn the_look_is_for_the_width_the_body_is_laid_out_at() {
     mailbox.repair();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness = window(app, (1100.0, 900.0));
     for w in [1100.0, 900.0, 700.0, 1000.0] {
         harness.set_size(egui::vec2(w, 900.0));
@@ -250,7 +250,7 @@ fn a_style_with_a_media_attribute_alone_follows_the_pane() {
     let id = mailbox.add_message(m).unwrap();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness = window(app, (1800.0, 900.0));
     select(&mut harness, id);
     harness.run_steps(12);

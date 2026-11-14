@@ -254,6 +254,7 @@ const SAFE: &[&str] = &[
     "view.readingPane",
     "view.gmailCategories",
     "view.folderPane",
+    "view.navigationBar",
     "view.conversations",
     "view.sort",
     "view.reverseSort",
@@ -539,6 +540,7 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.closeToTray",
     "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",
@@ -1364,8 +1366,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(f) if !is_outbox(&s.mailbox, f.id) => {
                     format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                // An IMAP account's holds what is put there (#607).
-                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                // An IMAP account's holds what is put there (#607), and so does a JMAP account's
+                // what is moved there (#1074).
+                Some(f) if s.mailbox.holds_what_is_moved_in(f.id) => {
                     format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
                 }
                 _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),

@@ -238,9 +238,9 @@ pub fn tool_definitions() -> Value {
         tool(
             "list_messages",
             "List messages",
-            "The message list of a folder (by id, or by path such as \"Inbox/Projects\"), newest first, optionally narrowed by a search (from:, subject:, has:attachment, is:unread, before:/after:YYYY-MM-DD…).",
+            "The message list of a folder, newest first, optionally narrowed by a search (from:, subject:, has:attachment, is:unread, before:/after:YYYY-MM-DD…). The folder is an id, a standard folder's kind (inbox, sent, drafts, deleted, junk, archive, outbox), which works whatever the mailbox's language calls it, or a path of the folders' names as list_folders shows them, such as \"Inbox/Projects\". A kind is of the account that account names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or by its full path.",
             obj(
-                json!({"folder": s("Folder path or id (default: the folder in view)"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
+                json!({"folder": s("Folder id, kind (inbox, sent, drafts, deleted, junk, archive, outbox) or path (default: the folder in view)"), "account": n("Whose folder `folder` means, and only with it: an account that is there, and the folder has to be that account's. Without it, a kind is of the account in view, and a path is looked for there before any other account. list_folders says each account's id"), "query": s("Search"), "limit": n("Most messages to return (default 50)")}),
                 &[]
             ),
             true
@@ -481,8 +481,18 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             // One read: the folder and the search are named to `mail.list`, which leaves the
             // owner's folder, search and selection alone (#620).
             let mut params = json!({"query": st("query").unwrap_or(""), "limit": a.get("limit").and_then(Value::as_u64).unwrap_or(50)});
-            if let Some(folder) = a.get("folder").filter(|v| !v.is_null()) {
+            // What the agent named goes through as it stands, null and all, for `mail.list` to
+            // read (#1200). For `folder` a null and no key at all mean the same there, so this is
+            // the same call either way; it is written like `account` below, where the two differ.
+            if let Some(folder) = a.get("folder") {
                 params["folder"] = folder.clone();
+            }
+            // Whose Sent Items a kind means, when the agent doesn't want the account in view
+            // (#1200). An `account` the agent named goes through as it stands, `null` and all, so
+            // that `mail.list` is the one that says whether it is an id: dropped here, a wrong one
+            // would quietly become the account in view and the agent would read another mailbox.
+            if let Some(account) = a.get("account") {
+                params["account"] = account.clone();
             }
             wrap(exec(b, "mail.list", params))
         }
