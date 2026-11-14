@@ -68,7 +68,10 @@ fn an_ics_file_is_cut_to_size_like_an_invitation() {
 fn an_import_never_puts_mail_in_a_send_queue() {
     let (mut s, account) = session();
     let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
-    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    // (Mail meant for a server's folder stays on this computer, #1401: the account's Drafts
+    // stands for this computer's.)
+    let local = s.mailbox.local_account();
+    let drafts = s.mailbox.folder_of_kind(local, FolderKind::Drafts).unwrap();
     let eml = b"From: eve@example.net\r\nTo: ada@example.org\r\nSubject: hello\r\nMessage-ID: <a@example.net>\r\n\r\nbody\r\n";
     // From the view: the account's Drafts.
     s.view.folder = outbox;

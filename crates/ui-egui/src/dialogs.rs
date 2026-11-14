@@ -533,6 +533,35 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
+        // Copies only this computer has of mail its server has (#1401): what goes is counted first.
+        // None found: the command runs and says so.
+        "mail.removeImportedDuplicates" if params.get("preview").and_then(Value::as_bool) != Some(true) => {
+            let scope = mailcraft_engine::p::id_strict(params, "folder").ok()?;
+            let found = mailcraft_engine::cmd::imported_dupes::twins(mb, scope);
+            let n = found.remove.len();
+            if n == 0 {
+                return None;
+            }
+            let what = tln!(
+                n,
+                "{n} message on this computer is a copy of mail its server has in the same folder, and will be removed.",
+                "{n} messages on this computer are copies of mail their server has in the same folder, and will be removed."
+            );
+            // (Undo goes only as far back as the last Send/Receive that sent changes or mail.)
+            let mut text = format!(
+                "{what} {}",
+                tl!("The server's copies stay as they are, and nothing is sent to the server. Undo brings them back until the next Send/Receive.")
+            );
+            if found.kept > 0 {
+                let kept = tln!(
+                    found.kept,
+                    "{n} copy you changed (its flag, categories, read mark or a to-do) is kept.",
+                    "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
+                );
+                text = format!("{text} {kept}");
+            }
+            question(tl!("Remove Imported Duplicates"), text, tl!("Remove"))
+        }
         "folder.delete" => {
             let f = folder("id")?;
             let text =
