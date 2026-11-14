@@ -131,3 +131,18 @@ fn file_account_shows_the_about_page() {
 fn the_window_and_the_engine_say_the_same_words() {
     assert_eq!(said(), mailcraft_engine::cmd::send_receive::OFFLINE);
 }
+
+#[test]
+fn an_account_removed_while_waiting_in_a_round_leaves_the_line_and_its_progress_row_ends_the_round() {
+    let (mut a, account, asked) = window();
+    a.session.driver.set_auto_sync(false);
+    a.session.driver.round.begin_round(&[account], false);
+    a.session.sync_progress.begin(&[account]);
+    assert!(a.session.driver.round.is_queued(account) && a.session.sync_progress.accounts.iter().any(|r| r.account == account));
+    a.execute("account.remove", json!({"id": account})).unwrap();
+    assert!(!a.session.driver.round.is_queued(account), "the round let go of it");
+    a.auto_sync();
+    assert!(!a.session.sync_progress.accounts.iter().any(|r| r.account == account), "its row is left out");
+    assert!(!a.session.sync_progress.running(), "and the round is settled");
+    assert_eq!(asked.get(), 0, "nothing was asked of a host for it");
+}

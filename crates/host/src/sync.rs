@@ -13,6 +13,18 @@
 //! ([`Step::Unsupported`] says so for the others, which a front end runs its own way).
 //! Secrets come from the platform's credential store and from memory, are never logged and never
 //! appear in an error's text. Nothing of a message is logged.
+//!
+//! What the window refuses, this refuses: nothing starts while Work Offline is on, nor while the
+//! mailbox is unconfirmed (a file's accounts nobody has confirmed) or its data removed
+//! ([`Context::unconfirmed`], [`Context::data_removed`]); then no secret is read or kept either.
+//!
+//! The credential-store contract for a binding: [`SecretStore::get`] must not block on a prompt
+//! (hand in a store that answers from what it has), a refresh token is kept under
+//! [`secret_key`]`("refresh", account)` and nowhere else, and every key this module writes is
+//! reported once by [`SendReceive::take_written_keys`], for the binding to note in its own index
+//! so that removing all data finds it. A first sign-in is the binding's (open
+//! [`Platform::open_sign_in_page`], exchange the code) and is handed in with
+//! [`SendReceive::adopt_tokens`].
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -45,6 +57,22 @@ pub struct Context<'a> {
     /// Writes the mailbox once the messages about to be sent are marked as sent (AU3-26): the
     /// run goes only when this says yes. `None`: nothing outlives the process, nothing to write.
     pub persist: Option<&'a dyn Fn(&Session, u64) -> Result<(), String>>,
+    /// The mailbox came from a file whose accounts nobody has confirmed (C1): nothing reaches a
+    /// server, no remembered secret is read, and a manual round is refused.
+    pub unconfirmed: bool,
+    /// The owner removed all MailCraft's data: no secret is kept again.
+    pub data_removed: bool,
+    /// Whether another job of the front end (the calendar's) is at work for an account: its run
+    /// waits in line until that has ended. `None`: no other job.
+    pub job_busy: Option<&'a dyn Fn(Id) -> bool>,
+}
+
+impl Context<'_> {
+    /// Whether nothing may reach a server or a secret store: the mailbox is unconfirmed or its
+    /// data removed.
+    fn held(&self) -> bool {
+        self.unconfirmed || self.data_removed
+    }
 }
 
 /// What the host remembers between calls, in memory only: the sign-ins of this session. Never
@@ -58,11 +86,13 @@ pub struct SendReceive {
     /// The opening of the mailbox the state belongs to: another mailbox, another state.
     opening: Option<u64>,
     runner: Runner,
+    /// Names of the credential-store entries written, not yet reported.
+    written: Vec<String>,
 }
 
 impl Default for SendReceive {
     fn default() -> Self {
-        SendReceive { tokens: HashMap::new(), cancel: Arc::default(), running: None, opening: None, runner: real_runner() }
+        SendReceive { tokens: HashMap::new(), cancel: Arc::default(), running: None, opening: None, runner: real_runner(), written: Vec::new() }
     }
 }
 
@@ -79,6 +109,24 @@ struct Running {
     opening: u64,
     pieces: Receiver<GraphMailResult>,
     answer: Receiver<GraphResult>,
+    /// What waited to go once its first piece was in: more than that was made here since (the
+    /// run look calls the run off).
+    baseline: Option<usize>,
+    /// The run was called off so that what the owner did could go first.
+    called_off: bool,
+    /// Lines for the owner's log from the pieces taken so far.
+    errors: Vec<String>,
+}
+
+/// What [`SendReceive::adopt_tokens`] did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Adopted {
+    /// Kept for the session, and in the credential store when the owner lets it be.
+    Kept,
+    /// They are somebody else's: not kept.
+    WrongPerson,
+    /// Not kept: the account is gone, or the mailbox is unconfirmed or its data removed.
+    Refused,
 }
 
 /// Why an account was left out of the round.
@@ -152,31 +200,77 @@ impl SendReceive {
         session.driver.round.clear_lines();
     }
 
-    /// Forget the session's sign-ins (a mailbox took the place of the open one, or the owner
-    /// signed out).
-    pub fn forget(&mut self) {
+    /// Let go of the run under way: its flag is set, and the next run gets a flag of its own, so
+    /// that nothing the dropped job does to its flag reaches the next one.
+    fn drop_run(&mut self) {
         self.cancel.store(true, Ordering::Relaxed);
-        self.tokens.clear();
+        self.cancel = Arc::new(AtomicBool::new(false));
         self.running = None;
     }
 
-    /// Start a round for `accounts` now, the owner having asked for it.
-    pub fn start_round(&mut self, session: &mut Session, accounts: &[Id]) {
+    /// Forget the session's sign-ins (a mailbox took the place of the open one, or the owner
+    /// signed out). A run under way is called off and let go of.
+    pub fn forget(&mut self) {
+        self.tokens.clear();
+        self.drop_run();
+    }
+
+    /// Another mailbox, another state: what was kept for the one before is let go of.
+    fn follow_opening(&mut self, session: &Session) {
+        let opening = session.openings();
+        if self.opening != Some(opening) {
+            self.forget();
+            self.opening = Some(opening);
+        }
+    }
+
+    /// The names of the credential-store entries written since the last call, for the binding to
+    /// note (see the module's contract). At most 1,000 are held.
+    pub fn take_written_keys(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.written)
+    }
+
+    /// Take in the tokens of a sign-in the binding made: refused when they are somebody else's
+    /// (the account is not signed in as another person), kept for the session otherwise, with the
+    /// refresh token in the credential store when the owner lets it be.
+    pub fn adopt_tokens(&mut self, session: &Session, ctx: &Context, account: Id, tokens: Tokens) -> Adopted {
+        self.follow_opening(session);
+        let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
+        if ctx.held() {
+            return Adopted::Refused;
+        }
+        if mailcraft_engine::sync_driver::signed_in_as_other(a, &tokens) {
+            return Adopted::WrongPerson;
+        }
+        // The newest refresh token is the account's, for mail and Graph alike.
+        if !tokens.refresh.is_empty() {
+            self.remember(session, ctx, account, &tokens.refresh);
+        }
+        self.tokens.insert(account, mailcraft_engine::sync_driver::kept_for_session(tokens, ctx.now_s));
+        Adopted::Kept
+    }
+
+    /// Start a round for `accounts` now, the owner having asked for it. Refused (false) while
+    /// Work Offline is on or the mailbox is unconfirmed or its data removed.
+    pub fn start_round(&mut self, session: &mut Session, ctx: &Context, accounts: &[Id]) -> bool {
+        if session.prefs.offline || ctx.held() {
+            return false;
+        }
         session.driver.round.begin_round(accounts, false);
         session.sync_progress.begin(accounts);
+        true
     }
 
     /// What is due, and start it: a new round when the owner's minutes have gone by, changes made
     /// here that wait to go, and then the next account in line, one at a time.
     pub fn what_to_run(&mut self, host: &Host, session: &mut Session, ctx: &Context) -> Step {
-        let opening = session.openings();
-        if self.opening != Some(opening) {
-            self.forget();
-            self.opening = Some(opening);
-            self.cancel = Arc::new(AtomicBool::new(false));
-        }
+        self.follow_opening(session);
         if self.running.is_some() {
             return Step::Waiting;
+        }
+        // Working offline, or a mailbox nobody has confirmed: nothing starts by itself either.
+        if session.prefs.offline || ctx.held() {
+            return Step::Idle;
         }
         let auto = session.driver.auto_sync();
         if session.driver.round.queue.is_empty() {
@@ -203,7 +297,11 @@ impl SendReceive {
             }
             session.sync_progress.begin(&round);
         }
-        match session.driver.round.next(|_| false) {
+        let front_busy = match (session.driver.round.queue.front(), ctx.job_busy) {
+            (Some((account, _)), Some(busy)) => busy(*account),
+            _ => false,
+        };
+        match session.driver.round.next(|_| front_busy) {
             Next::Idle => Step::Idle,
             Next::Wait => Step::Waiting,
             Next::Start { account, quiet } => self.start(host, session, ctx, account, quiet),
@@ -217,7 +315,10 @@ impl SendReceive {
     }
 
     /// The account's refresh token: this session's, else the credential store's.
-    fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
+    pub(crate) fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
+        if ctx.held() {
+            return None;
+        }
         let kept = self.tokens.get(&account).map(|t| t.refresh.as_str());
         let stored = || {
             let (store, a) = (ctx.secrets?, session.mailbox.account(account)?);
@@ -233,10 +334,9 @@ impl SendReceive {
             return Step::LeftOut { account, why: Left::Gone };
         };
         // (A shared mailbox is read with its owner's sign-in, and is the window's for now.)
+        // The front end runs it (and says so in Send/Receive Progress, or leaves it out there).
         if a.kind != AccountKind::Microsoft || a.is_shared() {
-            let kind = a.kind;
-            session.sync_progress.leave_out(account);
-            return Step::Unsupported { account, kind };
+            return Step::Unsupported { account, kind: a.kind };
         }
         // A message an earlier run handed over, whose answer never came back, may have gone: it
         // is held for the owner, never sent again by itself (AU3-26).
@@ -273,7 +373,9 @@ impl SendReceive {
             return Step::LeftOut { account, why: Left::NotSaved };
         }
         let (pieces_tx, pieces) = sync_channel(8);
-        self.cancel.store(false, Ordering::Relaxed);
+        // A flag of this run's own: an earlier job that is still winding down can't call it off.
+        self.cancel = Arc::new(AtomicBool::new(false));
+        session.driver.fetch.resume();
         let request = GraphRequest {
             account: plan.owner,
             oauth: mailcraft_engine::sync_driver::effective_oauth(plan.oauth, &ctx.ids),
@@ -295,21 +397,21 @@ impl SendReceive {
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();
         let answer = host.run_job("send-receive", move |_platform: &dyn Platform| runner(request), || {});
-        self.running = Some(Running { account, quiet, opening: session.openings(), pieces, answer });
+        self.running =
+            Some(Running { account, quiet, opening: session.openings(), pieces, answer, baseline: None, called_off: false, errors: Vec::new() });
         Step::Started { account }
     }
 
     /// Take in what the run under way has brought so far: a few pieces of mail, and its answer
     /// when it is in. An answer for a mailbox that is no longer open is let go of.
     pub fn take_result(&mut self, session: &mut Session, ctx: &Context) -> Taken {
-        let Some(running) = &self.running else { return Taken::Nothing };
+        let Some(running) = self.running.as_mut() else { return Taken::Nothing };
         let (account, quiet) = (running.account, running.quiet);
         if running.opening != session.openings() {
             log::info!("send/receive: the answer is for a mailbox that is no longer open; let go of");
-            self.running = None;
+            self.drop_run();
             return Taken::Nothing;
         }
-        let mut errors = Vec::new();
         let mut piece_taken = false;
         let mut over = false;
         // A few a call: each one changes the lists, and the caller should stay quick.
@@ -317,15 +419,19 @@ impl SendReceive {
             match running.pieces.try_recv() {
                 Ok(piece) => {
                     piece_taken = true;
+                    // New mail may be waiting to be fetched whole: the background looks again.
+                    if !piece.pages.is_empty() {
+                        session.driver.fetch.wake();
+                    }
                     match mailcraft_engine::cmd::graph_mail::apply_graph_mail(session, piece) {
-                        Ok(said) => errors.extend(
+                        Ok(said) => running.errors.extend(
                             said["errors"]
                                 .as_array()
                                 .map(|all| all.iter().filter_map(|v| v.as_str()).map(str::to_string).collect::<Vec<_>>())
                                 .unwrap_or_default(),
                         ),
                         Err(e) => {
-                            errors.push(e.to_string());
+                            running.errors.push(e.to_string());
                             session.driver.sending.doubted();
                         }
                     }
@@ -336,6 +442,23 @@ impl SendReceive {
                     break;
                 }
             }
+        }
+        // Its first piece made the changes made here and sent the Outbox; what waits beyond what
+        // waits now was done here since.
+        if piece_taken && running.baseline.is_none() {
+            running.baseline = Some(mailcraft_engine::sync_driver::waiting_to_go(session, account));
+        }
+        // Something the owner did waits while a long run is still bringing mail down: the run is
+        // called off, which loses nothing, and the next one tells the server first.
+        if !over
+            && !running.called_off
+            && let Some(baseline) = running.baseline
+            && session.driver.auto_sync()
+            && session.driver.round.run_look_due(true, ctx.now_ms)
+            && mailcraft_engine::sync_driver::waiting_to_go(session, account) > baseline
+        {
+            self.cancel.store(true, Ordering::Relaxed);
+            running.called_off = true;
         }
         if !over {
             return if piece_taken { Taken::Piece } else { Taken::Pending };
@@ -348,8 +471,13 @@ impl SendReceive {
                 (GraphResult { account, ..Default::default() }, false)
             }
         };
+        let (errors, called_off) = (std::mem::take(&mut running.errors), running.called_off);
         self.running = None;
-        self.finish(session, ctx, account, quiet, answered, &mut result, errors)
+        // Called off so that what the owner did could go out: it goes on at once, as it was.
+        if called_off {
+            session.driver.round.put_back(account, quiet);
+        }
+        self.finish(session, ctx, account, answered, &mut result, errors)
     }
 
     /// The run's answer is in: tokens, what was sent, what was held, and the end of the run.
@@ -359,12 +487,10 @@ impl SendReceive {
         session: &mut Session,
         ctx: &Context,
         account: Id,
-        quiet: bool,
         answered: bool,
         result: &mut GraphResult,
         mut errors: Vec<String>,
     ) -> Taken {
-        let _ = quiet;
         // What was handed over and whose answer was lost may have gone: held for the owner, never
         // sent again by itself (AU3-26).
         let mut said = Vec::new();
@@ -389,17 +515,13 @@ impl SendReceive {
         }
         let mut wrong_person = false;
         if let Some(tokens) = result.tokens.take() {
-            match session.mailbox.account(account) {
-                Some(a) if mailcraft_engine::sync_driver::signed_in_as_other(a, &tokens) => wrong_person = true,
-                Some(_) => {
-                    // The newest refresh token is the account's, for mail and Graph alike.
-                    if !tokens.refresh.is_empty() {
-                        self.remember(session, ctx, account, &tokens.refresh);
-                    }
-                    self.tokens.insert(account, mailcraft_engine::sync_driver::kept_for_session(tokens, ctx.now_s));
-                }
-                None => {}
-            }
+            wrong_person = self.adopt_tokens(session, ctx, account, tokens) == Adopted::WrongPerson;
+        }
+        // Whether the calendar and contacts need the owner's permission is known from the answer.
+        if result.consent_needed {
+            session.driver.calendar.consent_needed.insert(account);
+        } else {
+            session.driver.calendar.consent_needed.remove(&account);
         }
         if !result.sent.is_empty() {
             let sent = mailcraft_model::sync::SyncResult { account, sent: result.sent.clone(), filed: result.sent.clone(), ..Default::default() };
@@ -433,9 +555,9 @@ impl SendReceive {
     }
 
     /// Keep the account's newest refresh token in the credential store, when the owner lets it be.
-    fn remember(&self, session: &Session, ctx: &Context, account: Id, refresh: &str) {
+    fn remember(&mut self, session: &Session, ctx: &Context, account: Id, refresh: &str) {
         let (Some(store), Some(a)) = (ctx.secrets, session.mailbox.account(account)) else { return };
-        if !ctx.remember {
+        if !ctx.remember || ctx.held() || refresh.is_empty() {
             return;
         }
         let key = secret_key("refresh", a);
@@ -444,6 +566,8 @@ impl SendReceive {
             // not leave a credential that appears successfully saved.
             log::warn!("couldn't keep a sign-in in the operating system's credential store");
             store.delete(&key);
+        } else if self.written.len() < 1000 && !self.written.contains(&key) {
+            self.written.push(key);
         }
     }
 
