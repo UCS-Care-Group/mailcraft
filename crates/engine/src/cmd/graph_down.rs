@@ -100,18 +100,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
-    // The server's id of the account's Sent Items: a draft sent here that it has listed there
-    // isn't waited for any more when another folder is read afresh (#1160), as no removal comes.
-    let sent_id = mb.folder_of_kind(account, FolderKind::Sent).and_then(|f| mb.folder(f)).and_then(|f| f.server.as_ref()).map(|s| s.id.clone());
     if page.afresh {
         for m in mb.messages.values_mut() {
-            if m.account == account
-                && m.sent_here
-                && !in_sent
-                && m.server.as_ref().is_some_and(|s| sent_id.as_deref() == Some(s.folder.as_str()) && !s.gone)
-            {
-                std::sync::Arc::make_mut(m).sent_here = false;
-            }
             if m.account == account
                 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone)
                 && let Some(s) = std::sync::Arc::make_mut(m).server.as_mut()

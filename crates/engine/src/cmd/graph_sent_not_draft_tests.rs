@@ -489,18 +489,26 @@ fn a_copy_or_a_move_of_a_draft_sent_here_is_not_marked() {
     assert!(!mb.message(id).unwrap().sent_here);
 }
 
-/// #1160 review: Drafts read afresh after the server listed the message in Sent Items brings no
-/// removal for it: the mark goes then, and the message stays where it is.
+/// #1160 review: Drafts read afresh after Sent Items has listed a draft sent here, and the
+/// listing (made before Exchange filed it) still has it as a draft. Out of date: the message sent
+/// stays in Sent Items, no draft, and nothing goes up for it. The mark stays (no removal comes);
+/// it holds no move once the server has the message outside Drafts.
 #[test]
-fn drafts_read_afresh_takes_the_mark_off_a_draft_sent_here_and_filed() {
+fn drafts_read_afresh_with_a_draft_sent_here_and_filed_leaves_it_sent() {
     let (mut mb, account, id, _) = marked_sent_here("FS");
-    let afresh = MessagePage { folder: "FD".into(), afresh: true, caught_up: true, ..Default::default() };
-    take_page(&mut mb, &mut ServerIndex::default(), account, &afresh, &mut Down::default());
+    let sent = mb.message(id).unwrap().folder;
+    let drafts = mb.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    let mut index = ServerIndex::default();
+    // Another folder read afresh first changes nothing of it.
+    let inbox_afresh = MessagePage { folder: "FI".into(), afresh: true, caught_up: true, ..Default::default() };
+    take_page(&mut mb, &mut index, account, &inbox_afresh, &mut Down::default());
+    let mut stale = page("FD", "AAkD1", Some(true));
+    stale.afresh = true;
+    stale.messages[0].server.change_key = "CK0".into();
+    take_page(&mut mb, &mut index, account, &stale, &mut Down::default());
     let m = mb.message(id).unwrap();
-    assert!(!m.sent_here);
+    assert_eq!((m.folder, m.draft), (sent, false), "followed back into Drafts as a draft");
     assert!(m.server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
-    // Not while the server has it in Drafts still: the listing may have it in a page to come.
-    let (mut mb, account, id, _) = marked_sent_here("FD");
-    take_page(&mut mb, &mut ServerIndex::default(), account, &afresh, &mut Down::default());
-    assert!(mb.message(id).unwrap().sent_here);
+    assert_eq!(mb.messages_in(drafts).count(), 0);
+    assert_eq!(moves(&mb), 0);
 }
