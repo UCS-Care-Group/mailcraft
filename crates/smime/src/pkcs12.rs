@@ -23,7 +23,7 @@ use aes::cipher::{BlockModeDecrypt, KeyIvInit};
 use const_oid::ObjectIdentifier;
 use der::Decode;
 use hmac::{KeyInit, Mac};
-use mailcraft_model::ber::{self, Tlv};
+use mailcraft_ber::{self as ber, Tlv};
 use zeroize::Zeroizing;
 
 /// The largest file opened (the window reads at most as much).

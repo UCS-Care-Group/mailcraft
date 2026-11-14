@@ -360,7 +360,7 @@ fn corpus_app(large: bool) -> (MailApp, Vec<(&'static str, u64)>) {
     }
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, ids)
 }
 
@@ -1348,7 +1348,7 @@ pub(super) fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let ids = messages.into_iter().map(|m| mailbox.add_message(Message { folder: inbox, ..m }).unwrap()).collect();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, ids)
 }
 
@@ -4038,6 +4038,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 mod inline_blocks;
 mod invitation;
 mod primary;
+mod remote_bar_why;
 mod remote_server;
 mod responsive;
 mod written_pictures;

@@ -16,7 +16,6 @@
 //! What a message says is hostile: the headers read, the addresses in them and their lengths are
 //! bounded, and only `https:`, `http:` and `mailto:` addresses are taken.
 
-use crate::auth_results::MAX_HEADERS_READ;
 use crate::sender_warnings::percent_decoded;
 use crate::{Account, Message};
 
@@ -52,10 +51,16 @@ impl Way {
     }
 }
 
-/// The value of the first header of `m` named `name` (any letter case), among those read.
-fn header<'a>(m: &'a Message, name: &str) -> Option<&'a str> {
-    m.headers.iter().take(MAX_HEADERS_READ).find(|(h, _)| h.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+/// Whether `m` has more than one `List-Unsubscribe` or `List-Unsubscribe-Post`: DKIM signs a
+/// header's instances from the bottom up (RFC 6376, 5.4.2), so one added above the signed one
+/// would be read in its place.
+fn several(m: &Message) -> bool {
+    m.header_values("List-Unsubscribe").nth(1).is_some() || m.header_values("List-Unsubscribe-Post").nth(1).is_some()
 }
+
+/// The shortest `header.b` (RFC 6008, 2) matched with a signature: fewer characters could start
+/// two signatures alike.
+const MIN_HEADER_B: usize = 8;
 
 /// The addresses of a `List-Unsubscribe` value: each between `<` and `>`, with the white space
 /// a folded header leaves inside taken out, at most [`MAX_ADDRESSES`], none longer than
@@ -90,36 +95,58 @@ fn dkim_tag(value: &str, name: &str) -> Option<String> {
     })
 }
 
-/// Whether `m` may be unsubscribed from in one click (RFC 8058, 4): one of its `DKIM-Signature`
-/// headers is by a domain whose signature the account's own server says passed
-/// ([`crate::auth_results::dkim_passed`]), and covers both `List-Unsubscribe` and
-/// `List-Unsubscribe-Post` (its `h=` names them). A DMARC pass alone, which may rest on SPF, or a
+/// Whether `m` may be unsubscribed from in one click (RFC 8058, 4): a `dkim=pass` the account's
+/// own server wrote ([`crate::auth_results::dkim_passed`]) names exactly one of its
+/// `DKIM-Signature` headers, and that one covers both `List-Unsubscribe` and
+/// `List-Unsubscribe-Post` (its `h=` names them). The pass names a signature by its domain and
+/// the start of its `b=` (`header.b`, [`MIN_HEADER_B`] characters or more); a pass without
+/// `header.b` names one only when it is the domain's only signature, so that a failing one added
+/// with the same `d=` can't borrow its pass. A DMARC pass alone, which may rest on SPF, or a
 /// signature that leaves the headers out, is not enough: anybody could have added them.
 pub fn signed_for_one_click(account: Option<&Account>, m: &Message) -> bool {
     let passed = crate::auth_results::dkim_passed(account, m);
     if passed.is_empty() {
         return false;
     }
-    m.headers.iter().take(MAX_HEADERS_READ).filter(|(h, _)| h.eq_ignore_ascii_case("DKIM-Signature")).any(|(_, value)| {
-        let by = dkim_tag(value, "d").and_then(|d| crate::auth_results::domain(&d));
-        let signed: Vec<String> = dkim_tag(value, "h").map(|h| h.split(':').map(str::to_ascii_lowercase).collect()).unwrap_or_default();
-        by.is_some_and(|d| passed.contains(&d))
-            && ["list-unsubscribe", "list-unsubscribe-post"].iter().all(|wanted| signed.iter().any(|s| s == wanted))
+    let signatures: Vec<(Option<String>, String, Vec<String>)> = m
+        .header_values("DKIM-Signature")
+        .map(|value| {
+            let by = dkim_tag(value, "d").and_then(|d| crate::auth_results::domain(&d));
+            let b = dkim_tag(value, "b").unwrap_or_default();
+            let signed = dkim_tag(value, "h").map(|h| h.split(':').map(str::to_ascii_lowercase).collect()).unwrap_or_default();
+            (by, b, signed)
+        })
+        .collect();
+    passed.iter().any(|(domain, start)| {
+        let start = start.as_deref().map(|b| b.chars().filter(|c| !c.is_whitespace()).collect::<String>());
+        if start.as_ref().is_some_and(|b| b.chars().count() < MIN_HEADER_B) {
+            return false;
+        }
+        let named: Vec<&Vec<String>> = signatures
+            .iter()
+            .filter(|(by, b, _)| by.as_ref() == Some(domain) && start.as_ref().is_none_or(|start| b.starts_with(start.as_str())))
+            .map(|(_, _, signed)| signed)
+            .collect();
+        matches!(named[..], [signed] if ["list-unsubscribe", "list-unsubscribe-post"].iter().all(|wanted| signed.iter().any(|s| s == wanted)))
     })
 }
 
 /// The way `m`, in `account`, offers to be unsubscribed from, if any ([`Way`]): one click only
 /// when it is signed for it ([`signed_for_one_click`]), else the next way its headers give (by
-/// mail, then the page, which may be the one-click address opened in the browser).
+/// mail, then the page, which may be the one-click address opened in the browser). Nothing for a
+/// message with more than one `List-Unsubscribe` or `List-Unsubscribe-Post` ([`several`]).
 pub fn way(account: Option<&Account>, m: &Message) -> Option<Way> {
-    let list = addresses(header(m, "List-Unsubscribe")?);
+    if several(m) {
+        return None;
+    }
+    let list = addresses(m.header("List-Unsubscribe")?);
     let web = |secure: bool| {
         list.iter().find_map(|a| {
             let link = mailcraft_link::WebLink::parse(a)?;
             (!secure || link.is_https()).then(|| link.as_str().to_string())
         })
     };
-    if header(m, "List-Unsubscribe-Post").is_some_and(one_click)
+    if m.header("List-Unsubscribe-Post").is_some_and(one_click)
         && signed_for_one_click(account, m)
         && let Some(url) = web(true)
     {

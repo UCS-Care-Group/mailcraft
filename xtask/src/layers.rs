@@ -38,12 +38,16 @@ pub const TABLE: &[(&str, Class)] = &[
     ("time", Class::Layer(0)),
     ("control-key", Class::Standalone),
     ("charset", Class::Standalone),
+    // ASN.1 BER and DER (X.690), for S/MIME and the reader of opaque signed messages: no dependencies.
+    ("ber", Class::Standalone),
     ("link", Class::Layer(0)),
     ("names", Class::Standalone),
     ("i18n", Class::Standalone),
     ("model", Class::Layer(1)),
     ("html", Class::Layer(1)),
     ("mime", Class::Layer(2)),
+    // The mailbox's messages as Internet messages, over `mime` (#1235).
+    ("mime-model", Class::Layer(2)),
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
@@ -53,6 +57,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("proto", Class::Layer(3)),
     // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
     ("jmap", Class::Layer(3)),
+    // JMAP's request, response and object types for serde (#1236): no I/O and no workspace crate, reusable outside the client.
+    ("jmap-types", Class::Standalone),
     ("dav", Class::Layer(3)),
     // Assuan and gpg-agent over any stream, beside `proto`: no sockets, so it builds for the browser too (which never uses it).
     ("assuan", Class::Layer(3)),
@@ -64,6 +70,9 @@ pub const TABLE: &[(&str, Class)] = &[
     // Host services (credential store, platform entries) below the window, over engine and net.
     ("host", Class::Layer(5)),
     ("ui-egui", Class::Layer(6)),
+    // The binding for the phone apps (UniFFI to Kotlin and Swift): a front end beside `ui-egui`
+    // that never depends on a UI toolkit, and is not part of the browser build.
+    ("mobile", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
     ("mailcraft", Class::Exempt),
@@ -74,8 +83,9 @@ pub const TABLE: &[(&str, Class)] = &[
 
 /// Explicit orderings *within* a layer (earlier may be used by later): the socket transport
 /// (`net`) drives the protocol state machines (`proto`), and web addresses (`link`) refuse the
-/// format characters of the one list (`names`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"]];
+/// format characters of the one list (`names`), and the mailbox's messages (`mime-model`) are read
+/// and written by the reader that knows nothing of a mailbox (`mime`).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

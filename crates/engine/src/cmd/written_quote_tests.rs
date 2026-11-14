@@ -64,7 +64,7 @@ fn written(c: &Compose) -> Vec<Attachment> {
 }
 
 fn wire(m: &Message) -> String {
-    String::from_utf8_lossy(&mailcraft_mime::write(m, &mailcraft_mime::WriteOptions::default())).to_string()
+    String::from_utf8_lossy(&mailcraft_mime_model::write(m, &mailcraft_mime_model::WriteOptions::default())).to_string()
 }
 
 #[test]

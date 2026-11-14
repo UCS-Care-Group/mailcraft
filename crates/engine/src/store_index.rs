@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The mailbox file in format 3: a log of records, so that a save appends what changed instead of
-//! writing everything again.
+//! The mailbox file in format 4 (3 is read too: 4 only adds a message's header block to the
+//! content a record may name, HS): a log of records, so that a save appends what changed instead
+//! of writing everything again.
 //!
 //! ```text
 //! header   16 bytes  "MailCraft index\n" (crate::io::INDEX_MAGIC)
-//!           4 bytes  the format number, little-endian: 3
+//!           4 bytes  the format number, little-endian: 4 (or 3)
 //!           4 bytes  0
 //! record    4 bytes  n, the length of the payload, little-endian (at most MAX_RECORD)
 //!           1 byte   what kind of record it is
@@ -48,8 +49,14 @@ use mailcraft_model::load_limit::{self, Budget};
 
 pub use crate::io::INDEX_MAGIC as MAGIC;
 
-/// This form's format number.
-pub const VERSION: u32 = 3;
+/// This form's format number. 4: a message's header block (the header lines nothing reads by
+/// name, HS) may be content of its own, named under `headers` beside its other parts; a program
+/// that knows only 3 would drop it, so it refuses the file.
+pub const VERSION: u32 = 4;
+
+/// The oldest format number of this form that is read; a file in it is written in [`VERSION`]
+/// at its first save.
+pub const OLDEST: u32 = 3;
 
 /// Bytes before the first record.
 pub const HEADER_LEN: u64 = 24;
@@ -251,6 +258,8 @@ pub struct Replayed {
     /// Damaged records of the first save (the whole mailbox) left out: items it is missing.
     /// Then `tail` is [`Tail::Bytes`] too.
     pub lost_records: u32,
+    /// The file's format number ([`OLDEST`] to [`VERSION`]).
+    pub version: u32,
 }
 
 enum Op {
@@ -421,12 +430,12 @@ pub fn replay_within(mut r: impl Read, file_len: u64, max_records: usize, budget
     if let Some(version) = version.filter(|v| *v > VERSION) {
         return Err(format!("this mailbox was written by a newer MailCraft (format {version})"));
     }
-    if version != Some(VERSION) || head.get(20..24) != Some(&[0u8; 4][..]) {
+    let Some(version) = version.filter(|v| (OLDEST..=VERSION).contains(v)).filter(|_| head.get(20..24) == Some(&[0u8; 4][..])) else {
         return Err("this mailbox file is damaged (its header)".into());
-    }
+    };
     let too_many = || TOO_MANY.to_string();
     let no_memory = || NO_MEMORY.to_string();
-    let mut out = Replayed { rest: None, items: HashMap::new(), good_len: HEADER_LEN, tail: Tail::Clean, lost_saves: 0, lost_records: 0 };
+    let mut out = Replayed { rest: None, items: HashMap::new(), good_len: HEADER_LEN, tail: Tail::Clean, lost_saves: 0, lost_records: 0, version };
     let mut at = HEADER_LEN;
     let mut pending: Vec<Op> = Vec::new();
     // Damaged records of the first save, and their bytes: the rest of it is kept (salvaged). Of

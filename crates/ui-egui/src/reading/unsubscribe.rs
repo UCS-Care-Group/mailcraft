@@ -24,6 +24,10 @@ use super::remote::notice;
 use crate::theme::{Tokens, regular, semibold};
 use crate::{MailApp, icons};
 
+/// The most characters of the subject and text a list gave its unsubscribe message shown in the
+/// question before it is sent.
+const SHOWN_TEXT: usize = 200;
+
 /// What came of unsubscribing from a message: each way says only what it knows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
@@ -184,12 +188,23 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Quest
             ),
             tl!("Unsubscribe"),
         ),
-        Way::Mail { to, .. } => {
+        Way::Mail { to, subject, body } => {
             let from = app.session.mailbox.account(m.account).map_or_else(String::new, |a| a.email.clone());
+            // What goes is what the list's address gave (else "Unsubscribe", as the engine
+            // writes it), shown cut short on one line: it is the list's text, not ours.
+            let said = |text: &str| {
+                let line: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                let line = if line.is_empty() { tl!("Unsubscribe").to_string() } else { line };
+                if line.chars().count() > SHOWN_TEXT { format!("{}…", line.chars().take(SHOWN_TEXT).collect::<String>()) } else { line }
+            };
             (
-                crate::i18n::fmt(
-                    tl!("A message asking to unsubscribe goes from {from} to {to}, through your Outbox."),
-                    &[("from", &from), ("to", &to)],
+                format!(
+                    "{} {}",
+                    crate::i18n::fmt(
+                        tl!("A message asking to unsubscribe goes from {from} to {to}, through your Outbox."),
+                        &[("from", &from), ("to", &to)],
+                    ),
+                    crate::i18n::fmt(tl!("Its subject: “{subject}”. Its text: “{body}”."), &[("subject", &said(&subject)), ("body", &said(&body))]),
                 ),
                 tl!("Send"),
             )

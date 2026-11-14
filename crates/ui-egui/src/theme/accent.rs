@@ -71,18 +71,18 @@ impl Accent {
             (Accent::Teal, false, false) => row(0x0B7F74, 0x085F57, 0xFFFFFF, 0xDCF2EF, 0x085F57, 0xECF8F6, 0xE6F6F3),
             (Accent::Violet, false, false) => row(0x6A4CF0, 0x4A2FC4, 0xFFFFFF, 0xECE8FF, 0x4A2FC4, 0xF3F0FF, 0xF0ECFF),
             (Accent::Graphite, false, false) => row(0x45556A, 0x2F3D50, 0xFFFFFF, 0xE6EAF0, 0x2F3D50, 0xF0F2F5, 0xEDF0F4),
-            (Accent::Blue, true, false) => row(0x5AA2FF, 0x8FBFFF, 0x08132B, 0x1F3358, 0xCFE0FF, 0x1F2B40, 0x1B2B45),
-            (Accent::Teal, true, false) => row(0x3FD1C0, 0x7DE3D6, 0x04201D, 0x123A38, 0xC4F5EF, 0x15292C, 0x143036),
-            (Accent::Violet, true, false) => row(0xA593FF, 0xC2B6FF, 0x150C3D, 0x2B2358, 0xDDD5FF, 0x221E40, 0x262050),
-            (Accent::Graphite, true, false) => row(0x9AA8BB, 0xC0CAD8, 0x0F1722, 0x2A3342, 0xDDE3EC, 0x202733, 0x232B38),
+            (Accent::Blue, true, false) => row(0x5AA2FF, 0x8FBFFF, 0x08132B, 0x263451, 0xCFE0FF, 0x262C39, 0x222C3E),
+            (Accent::Teal, true, false) => row(0x3FD1C0, 0x7DE3D6, 0x04201D, 0x193B31, 0xC4F5EF, 0x1C2A25, 0x1B312F),
+            (Accent::Violet, true, false) => row(0xA593FF, 0xC2B6FF, 0x150C3D, 0x322451, 0xDDD5FF, 0x291F39, 0x2D2149),
+            (Accent::Graphite, true, false) => row(0x9AA8BB, 0xC0CAD8, 0x0F1722, 0x31343B, 0xDDE3EC, 0x27282C, 0x2A2C31),
             (Accent::Blue, false, true) => row(0x0847B0, 0x062B9E, 0xFFFFFF, 0xD6E4FF, 0x062B9E, 0xE6EFFF, 0xDDE9FF),
             (Accent::Teal, false, true) => row(0x065A50, 0x054740, 0xFFFFFF, 0xCDEDE8, 0x054740, 0xE0F4F1, 0xD8F0EC),
             (Accent::Violet, false, true) => row(0x4A2EBC, 0x3A22A0, 0xFFFFFF, 0xE2DCFF, 0x3A22A0, 0xEEEAFF, 0xE8E3FF),
             (Accent::Graphite, false, true) => row(0x33414F, 0x1F2A36, 0xFFFFFF, 0xDCE1E8, 0x1F2A36, 0xEBEEF2, 0xE4E8ED),
-            (Accent::Blue, true, true) => row(0x8CC0FF, 0xB5D5FF, 0x051022, 0x1A3A6E, 0xE4EEFF, 0x1A2E4E, 0x183059),
-            (Accent::Teal, true, true) => row(0x6FE8DA, 0x9FF2E8, 0x03201C, 0x0F4440, 0xE0FAF7, 0x123B3A, 0x10403F),
-            (Accent::Violet, true, true) => row(0xC2B6FF, 0xDAD2FF, 0x120A35, 0x352A72, 0xEFEBFF, 0x2A2552, 0x2E2865),
-            (Accent::Graphite, true, true) => row(0xC0CCDB, 0xDCE3EC, 0x0C131D, 0x344055, 0xF0F3F7, 0x2A3342, 0x2E3849),
+            (Accent::Blue, true, true) => row(0x8CC0FF, 0xB5D5FF, 0x051022, 0x1C3867, 0xE4EEFF, 0x1C2C47, 0x1A2E52),
+            (Accent::Teal, true, true) => row(0x6FE8DA, 0x9FF2E8, 0x03201C, 0x114239, 0xE0FAF7, 0x143933, 0x123E38),
+            (Accent::Violet, true, true) => row(0xC2B6FF, 0xDAD2FF, 0x120A35, 0x37286B, 0xEFEBFF, 0x2C234B, 0x30265E),
+            (Accent::Graphite, true, true) => row(0xC0CCDB, 0xDCE3EC, 0x0C131D, 0x363E4E, 0xF0F3F7, 0x2C313B, 0x303642),
         }
     }
 }
@@ -163,12 +163,12 @@ impl Tokens {
     pub fn high_contrast(mut self) -> Tokens {
         self.high_contrast = true;
         if self.dark {
-            let window = hex(0x080A0E);
-            let panel = hex(0x0C0F14);
-            let surface = hex(0x10141A);
-            let ribbon = hex(0x161B23);
+            let window = hex(0x0A0A0B);
+            let panel = hex(0x0E0E0F);
+            let surface = hex(0x121213);
+            let ribbon = hex(0x19191B);
             let text = Color32::WHITE;
-            let hover = hex(0x262F3D);
+            let hover = hex(0x2C2C30);
             self.title_bar = window;
             self.tab_strip = window;
             self.nav = window;
@@ -181,26 +181,26 @@ impl Tokens {
             self.ribbon = ribbon;
             self.menu = ribbon;
             self.text = text;
-            self.text_dim = hex(0xE0E6F0);
-            self.group_label = hex(0xE0E6F0);
-            self.text_disabled = hex(0x9AA5B8);
+            self.text_dim = hex(0xE6E6EA);
+            self.group_label = hex(0xE6E6EA);
+            self.text_disabled = hex(0xA0A0A8);
             self.icon = Color32::WHITE;
-            self.border = hex(0x9AA6BA);
-            self.border_strong = hex(0xC8D0DE);
-            self.input_border = hex(0xC0C9D8);
+            self.border = hex(0xA8A8B0);
+            self.border_strong = hex(0xCFCFD6);
+            self.input_border = hex(0xC6C6CE);
             self.field_edge = self.input_border;
-            self.rule = hex(0x667286);
-            self.border_faint = hex(0x667286);
+            self.rule = hex(0x6E6E76);
+            self.border_faint = hex(0x6E6E76);
             self.ribbon_edge = Stroke::new(1.0, self.border);
             self.hover = hover;
-            self.pressed = hex(0x3A4556);
-            self.track = hex(0x5A6578);
-            self.pill_quiet = hex(0x2A3342);
-            self.selection_unfocused = hex(0x1A2230);
-            self.selection_edge_unfocused = hex(0xA0AEC6);
-            self.flagged_row = hex(0x3E2830);
+            self.pressed = hex(0x404046);
+            self.track = hex(0x616168);
+            self.pill_quiet = hex(0x2E2E33);
+            self.selection_unfocused = hex(0x222226);
+            self.selection_edge_unfocused = hex(0xA8A8B0);
+            self.flagged_row = hex(0x3E282D);
             self.overdue = hex(0xFFB3B3);
-            self.off_hours = hex(0x0E1218);
+            self.off_hours = hex(0x101011);
             self.find_highlight = Color32::from_rgba_unmultiplied(0xE0, 0xBC, 0x00, 0xA0);
             self.red = hex(0xFF8A8A);
             self.green = hex(0x7FE0A8);

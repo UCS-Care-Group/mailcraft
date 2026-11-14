@@ -83,21 +83,6 @@ fn a_message_read_before_looks_protected_by_its_parts_or_its_text() {
     assert!(!Message { body: Body { text: "Hello.".into(), html: None }, ..Default::default() }.looks_protected());
 }
 
-#[test]
-fn a_block_of_armour_is_begin_and_end() {
-    use crate::protected::has_armour_block;
-    assert!(has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n-----END PGP MESSAGE-----\n"));
-    assert!(has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\r\nHi\r\n-----BEGIN PGP SIGNATURE-----\r\nx\r\n-----END PGP SIGNATURE-----"));
-    assert!(!has_armour_block(b"-----BEGIN PGP MESSAGE-----\nabc\n"));
-    assert!(!has_armour_block(b"-----BEGIN PGP SIGNED MESSAGE-----\nHi\n-----END PGP SIGNATURE-----\n"));
-    assert!(!has_armour_block(b"-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n"));
-    assert!(!has_armour_block(b"> -----BEGIN PGP MESSAGE-----\n> -----END PGP MESSAGE-----\n"));
-    assert!(!has_armour_block(b""));
-    // Past the scan, an END isn't looked for.
-    let late = [&b"-----BEGIN PGP MESSAGE-----\n"[..], &vec![b'a'; crate::protected::MAX_ARMOUR_SCAN], b"\n-----END PGP MESSAGE-----\n"].concat();
-    assert!(!has_armour_block(&late));
-}
-
 /// The running total of originals is what a fresh sum gives, whichever way the messages change.
 #[test]
 fn the_running_total_of_originals_follows_every_change() {
