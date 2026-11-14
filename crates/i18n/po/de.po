@@ -15235,12 +15235,12 @@ msgstr "Fenster"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Windows certificate store"
-msgstr "Windows-Zertifikatsspeicher"
+msgstr "Windows-Zertifikatspeicher"
 
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Windows keeps the certificate and its private key in your certificate store, and asks you before MailCraft uses it."
-msgstr "Windows speichert das Zertifikat und seinen privaten Schlüssel in Ihrem Zertifikatsspeicher und fragt Sie, bevor MailCraft ihn verwendet."
+msgstr "Windows speichert das Zertifikat und seinen privaten Schlüssel in Ihrem Zertifikatspeicher und fragt Sie, bevor MailCraft ihn verwendet."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
