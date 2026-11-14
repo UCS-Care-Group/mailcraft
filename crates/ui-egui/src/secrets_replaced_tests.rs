@@ -61,3 +61,16 @@ fn secrets_stay_while_the_mailbox_does() {
     a.execute("mail.markAllRead", json!({})).ok();
     assert!(!a.passwords.is_empty());
 }
+
+#[test]
+fn a_replacement_forgets_what_the_background_fetch_knew() {
+    let mut a = app_with_secrets();
+    a.session.driver.fetch.offline = true;
+    a.session.driver.fetch.idle_until = f64::MAX;
+    a.session.driver.fetch.stuck.insert(1, (3, f64::MAX));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.drop_secrets_if_replaced();
+    assert!(!a.session.driver.fetch.offline);
+    assert!(!a.session.driver.fetch.resting(0.0));
+    assert!(a.session.driver.fetch.stuck.is_empty());
+}

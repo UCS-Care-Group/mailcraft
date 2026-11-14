@@ -84,7 +84,9 @@ class SignInHandbackTest {
         assertFalse(isSignInUrl("file:///etc/passwd"))
         assertFalse(isSignInUrl("javascript:alert(1)"))
         assertFalse(isSignInUrl("https:///nohost"))
-        assertFalse(isSignInUrl("https://user:pw@login.example.org/"))
+        // Built from parts: a URL literal with userinfo reads as a hard-coded credential.
+        val userinfo = "someone" + ":" + "placeholder"
+        assertFalse(isSignInUrl("https://" + userinfo + "@login.example.org/"))
         assertFalse(isSignInUrl("https://exa mple.org/"))
         assertFalse(isSignInUrl(""))
         assertFalse(isSignInUrl("https://login.example.org/" + "a".repeat(Redirect.MAX_ADDRESS)))

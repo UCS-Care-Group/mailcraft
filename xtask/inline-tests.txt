@@ -49,7 +49,6 @@ crates/mime/src/lib.rs
 crates/mime/src/mailto.rs
 crates/mime/src/mbox.rs
 crates/mime/src/media.rs
-crates/mime/src/parse.rs
 crates/mime/src/transfer.rs
 crates/mime/src/words.rs
 crates/mime/src/write.rs

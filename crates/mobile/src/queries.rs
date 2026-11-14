@@ -88,7 +88,7 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
+fn row(m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -98,7 +98,7 @@ fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> Mes
         subject: text::clip(&m.subject, MAX_SUBJECT),
         preview: mailcraft_engine::list::preview(m, MAX_PREVIEW),
         when: mailcraft_engine::list::when(m),
-        unread: unread > 0,
+        unread: r.unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
         has_attachments: m.attachments.iter().any(|a| !a.inline),
         important: m.importance == Importance::High,
@@ -107,8 +107,9 @@ fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> Mes
         draft: m.draft,
         pinned: m.pinned,
         categories: categories(&m.categories),
-        members: text::count_of(members),
-        group: group.map(|g| text::clip(&g, MAX_NAME)),
+        members: text::count_of(r.members.len()),
+        group_is_category: r.group.is_some() && r.category,
+        group: r.group.as_deref().map(|g| text::clip(g, MAX_NAME)),
     }
 }
 
@@ -171,7 +172,10 @@ impl Core {
             // The list is built by the engine's non-mutating path, over a view made for this
             // query alone: `Session::rows` would also move the selection's stays and the list
             // cache of the folder in view.
+            // (And without the messages a selection keeps in a list it was made in: such a
+            // message would show though it fails the filter.)
             let saved = s.view.clone();
+            let stays = s.sel.stays.take();
             s.view.folder = folder;
             s.view.filter = filter;
             s.view.search.clear();
@@ -180,13 +184,9 @@ impl Core {
             s.view.open.clear();
             let rows = mailcraft_engine::list::rows(s);
             s.view = saved;
+            s.sel.stays = stays;
             let start = usize::try_from(offset).unwrap_or(usize::MAX);
-            let window = rows
-                .iter()
-                .skip(start)
-                .take(count)
-                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
-                .collect();
+            let window = rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r))).collect();
             Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
         })
         .await
@@ -206,7 +206,12 @@ impl Core {
     /// `search` (any case; empty for everyone).
     pub async fn people(&self, search: String, offset: u32, count: u32) -> Result<PeopleWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (What waits for the session thread is held to a size: a longer search could not name anybody.)
+        let clipped = text::clip(&search, MAX_NAME);
+        // (The caller's own string would otherwise live as long as the call waits.)
+        drop(search);
+        let search = clipped;
+        self.call_holding(search.len(), move |s| {
             let needle = search.trim().to_lowercase();
             let hit = |c: &Contact| {
                 needle.is_empty()
@@ -249,7 +254,11 @@ impl Core {
     /// due date, those with none last; completed ones only when `completed` is set.
     pub async fn tasks(&self, account: u64, list: String, completed: bool, offset: u32, count: u32) -> Result<TaskWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (No list has an id longer than this, `task_lists` leaves such tasks out: nothing to match.)
+        if list.len() > MAX_LIST_ID {
+            return Err(bad("there is no such list"));
+        }
+        self.call_holding(list.len(), move |s| {
             let mut found: Vec<&Task> = s
                 .mailbox
                 .tasks

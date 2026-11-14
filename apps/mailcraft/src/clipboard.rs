@@ -11,6 +11,11 @@
 //! compositor's data-control protocol where it has one (KDE Plasma, wlroots compositors), else
 //! the X11 clipboard (an X11 session, or XWayland, which hands it on to Wayland programs).
 //!
+//! Under Wayland in the Flatpak neither of those is there (no data-control protocol, no X11), so
+//! HTML, pictures and text are read through winit's own `wl_data_device`, the one the window
+//! already uses for its text and file drops: the types asked for and the caps are in
+//! `clipboard_mime`. `arboard` is the way back when that has nothing to say (#1217).
+//!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
 //! copied is served from this program for as long as it holds the clipboard.
 
@@ -18,17 +23,43 @@ use std::cell::RefCell;
 
 use mailcraft_ui_egui::{RichClipboard, clipboard_picture_png as png};
 
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+use winit::platform::wayland::Clipboard as WaylandBoard;
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+use crate::clipboard_mime::{HTML_MIMES, IMAGE_MIMES, MAX_HTML_BYTES, MAX_PICTURE_BYTES, decode_html, png_fits};
+
 /// The most HTML one paste takes, in bytes (the engine's own limit).
 const MAX_HTML: usize = 4 << 20;
 
-/// The system's clipboard.
-pub fn board() -> Option<Box<dyn RichClipboard>> {
-    Some(Box::new(Board::default()))
+/// The system's clipboard. `display` is the window's `wl_display` when it runs under Wayland.
+pub fn board(display: Option<std::ptr::NonNull<std::ffi::c_void>>) -> Option<Box<dyn RichClipboard>> {
+    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(unused_mut))]
+    let mut board = Board::default();
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    {
+        board.wayland = display.and_then(WaylandBoard::for_display);
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+    let _ = display;
+    Some(Box::new(board))
+}
+
+/// The window's `wl_display`, when it runs under Wayland.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub fn wayland_display(window: &impl winit::raw_window_handle::HasDisplayHandle) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+    match window.display_handle().ok()?.as_raw() {
+        winit::raw_window_handle::RawDisplayHandle::Wayland(handle) => Some(handle.display),
+        _ => None,
+    }
 }
 
 #[derive(Default)]
 struct Board {
     open: RefCell<Option<arboard::Clipboard>>,
+    /// Winit's clipboard on the compositor's `wl_data_device`, under Wayland.
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    wayland: Option<WaylandBoard>,
 }
 
 impl Board {
@@ -54,21 +85,68 @@ impl RichClipboard for Board {
     }
 
     fn html(&self) -> Option<String> {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(wayland) = &self.wayland {
+            match wayland.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
+                Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
+                // Nothing of that kind offered: `arboard` may still have some.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
+            }
+        }
         let html = self.with(|b| b.get().html()).ok()?;
-        let html = fragment(&html);
-        (!html.trim().is_empty() && html.len() <= MAX_HTML).then(|| html.to_string())
+        html_of(&html)
     }
 
     fn text(&self) -> Option<String> {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(wayland) = &self.wayland {
+            match wayland.load_text() {
+                Ok(text) => return Some(text),
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(_) => {}
+            }
+        }
         // All of it, as Ctrl+V has it: what is too much for a message is refused where the paste
         // is made (`edit.paste`), the same for both.
         self.with(|b| b.get_text()).ok()
     }
 
     fn image(&self) -> Option<Vec<u8>> {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(wayland) = &self.wayland {
+            match wayland.load_mime(&IMAGE_MIMES, MAX_PICTURE_BYTES) {
+                Ok((_, bytes)) => return png_fits(&bytes).then_some(bytes),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                // The owner didn't answer in time: asking it again through `arboard` would wait as long.
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(e) => log::debug!("the Wayland clipboard gave no picture: {e}"),
+            }
+        }
         let image = self.with(|b| b.get_image()).ok()?;
         png(image.width, image.height, &image.bytes)
     }
+
+    fn has_image(&self) -> bool {
+        // Winit says from the types on offer, without a read; when it can't, read as before.
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(wayland) = &self.wayland
+            && wayland.offers(&IMAGE_MIMES)
+        {
+            return true;
+        }
+        self.image().is_some()
+    }
+}
+
+/// The HTML to paste out of what the clipboard held: none when it comes to nothing or to more
+/// than the engine takes.
+fn html_of(html: &str) -> Option<String> {
+    let html = fragment(html);
+    (!html.trim().is_empty() && html.len() <= MAX_HTML).then(|| html.to_string())
 }
 
 /// The HTML itself out of what a clipboard hands over. Windows' "HTML Format" can come with its

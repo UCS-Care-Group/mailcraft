@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use proptest::prelude::*;
+use serde_json::json;
 
 use super::*;
 use crate::connection::tests::any_json;
