@@ -159,16 +159,30 @@ pub fn hold_unsigned(mb: &mut Mailbox, account: Id, unsigned: &[Unsigned], lang:
 }
 
 /// A message on its way out of `mb`'s Outbox, with the key it goes signed with when its
-/// account always signs and it wasn't sent with Sign off: whatever queued it (Send, a meeting's
-/// answer, Send Again), it isn't sent unsigned while the account says every message is signed.
+/// account always signs and it wasn't sent with Sign off, or it was sent with Sign on: whatever
+/// queued it (Send, a meeting's answer, Send Again, #704), it isn't sent unsigned while it is to
+/// be signed. When the account has no key that can be used (none chosen, or one that can't be
+/// read from the mailbox's file), the message still carries one, [`NO_USABLE_KEY`]'s: no host can
+/// sign with that, so the run holds the message in the Outbox with why ([`hold_unsigned`]), and
+/// every path that sends refuses it as long as it has no signature (`signature_missing`).
 pub fn decided(mb: &Mailbox, mut m: mailcraft_model::Message) -> mailcraft_model::Message {
     if m.sign_with.is_none()
         && let Some(account) = mb.account(m.account).filter(|a| can_sign(a) && a.signing.signs(m.sign))
     {
-        m.sign_with = account.signing.key.as_ref().and_then(SigningKey::checked);
+        m.sign_with = Some(account.signing.key.as_ref().and_then(SigningKey::checked).unwrap_or_else(no_usable_key));
     }
     m
 }
+
+/// What a message to be signed carries when its account has no key that can be used: a key with
+/// no fingerprint, which [`SigningKey::checked`] refuses, so nothing signs with it and nothing
+/// sends the message without a signature.
+pub fn no_usable_key() -> SigningKey {
+    SigningKey { format: SignatureFormat::Smime, fingerprint: String::new(), label: String::new() }
+}
+
+/// Why a message carrying [`no_usable_key`] (or a key that can't be read) isn't sent.
+pub const NO_USABLE_KEY: &str = "no certificate or key to sign with is chosen for its account, or the one chosen can't be read: choose one in File › Info › Settings › Digital Signatures, or turn Sign off";
 
 /// The error a Send gets when the message can't go as [`will_sign`] says it must.
 pub(crate) fn send_refused(why: &'static str) -> CmdError {

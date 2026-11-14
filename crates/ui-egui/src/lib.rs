@@ -3776,7 +3776,7 @@ impl MailApp {
         }
         // What was handed to Microsoft and whose answer was lost may have gone: held for the
         // owner, never sent again by itself (AU3-26).
-        let mut said = Vec::new();
+        let (mut said, mut unsigned) = (Vec::new(), Vec::new());
         if mailcraft_engine::cmd::graph_send::hold_lost(
             &mut self.session.mailbox,
             account,
@@ -3789,13 +3789,16 @@ impl MailApp {
             account,
             &result.unsigned,
             self.session.interface_language,
-            &mut said,
+            &mut unsigned,
         ) {
             self.session.mailbox_changed();
-            if let Some(first) = said.first() {
+            if let Some(first) = said.first().or(unsigned.first()) {
                 self.status(first.clone());
             }
         }
+        // Not Digitally signed as it was to be (#30): kept among the run's problems, so that the
+        // account says it until the owner has seen it, not only in passing.
+        result.errors.extend(unsigned);
         // What the run sent is filed by now, what it held for a lost answer is held, and the rest
         // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
         // being sent any more. (A job that ended without an answer, or with a piece refused,

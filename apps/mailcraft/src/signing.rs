@@ -236,7 +236,7 @@ pub(crate) type Signer<'a> = dyn Fn(&SigningKey, &[u8]) -> Result<(mailcraft_mim
 pub(crate) fn sign_by(m: &mut Message, signer: &Signer<'_>) -> Result<(), String> {
     let Some(key) = m.sign_with.clone() else { return Ok(()) };
     m.original = None;
-    let key = key.checked().ok_or_else(|| "the key it was to be signed with can't be named".to_string())?;
+    let key = key.checked().ok_or_else(|| mailcraft_engine::cmd::signing::NO_USABLE_KEY.to_string())?;
     let entity = mailcraft_mime_model::signable(m);
     let (kind, micalg, signature) = signer(&key, &entity)?;
     finish(m, &entity, kind, micalg, &signature)
