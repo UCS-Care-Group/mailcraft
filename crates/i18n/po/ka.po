@@ -20838,8 +20838,8 @@ msgstr[1] "ამ კომპიუტერიდან წაიშლებ�
 #, fuzzy
 msgid "{n} copy you changed (its flag, categories, read mark or a to-do) is kept."
 msgid_plural "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
-msgstr[0] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულის ნიშანი ან დავალება), დარჩება."
-msgstr[1] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულის ნიშანი ან დავალება), დარჩება."
+msgstr[0] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულად მონიშვნა ან დავალება), დარჩება."
+msgstr[1] "{n} ასლი, რომელიც შეცვალეთ (დროშა, კატეგორიები, წაკითხულად მონიშვნა ან დავალება), დარჩება."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
