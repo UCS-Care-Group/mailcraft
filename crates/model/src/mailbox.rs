@@ -3186,7 +3186,10 @@ impl Mailbox {
         }
         // Moved out of the account, it didn't arrive where it is now.
         let binned = !waiting.is_empty() && self.in_deleted_items(id);
-        if let Ok(m) = self.message_mut(id)
+        // (Taken to change only when there is something to put on it: a message the rules left
+        // alone stays the one it was, and isn't copied.)
+        if (alert || !waiting.is_empty())
+            && let Ok(m) = self.message_mut(id)
             && m.account == account
         {
             m.rule_alert |= alert;

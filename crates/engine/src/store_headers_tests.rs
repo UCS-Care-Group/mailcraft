@@ -428,4 +428,10 @@ fn run_rules_now_reads_the_header_lines_kept_beside_the_mailbox_file() {
         assert_eq!(m.folder, reports);
         assert!(!m.header_block.is_loaded(), "the block of message {id} stays beside the file");
     }
+    // A word in no line: each message is brought in, read and put back as it was.
+    let (mut s, _) = session_on(&path, &mb, 3);
+    s.mailbox.rules[0].conditions = vec![Condition::HeaderContains(vec!["no-such-line".into()])];
+    let before: Vec<Arc<Message>> = ids.iter().map(|id| s.mailbox.messages.get(id).unwrap().clone()).collect();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0));
+    assert!(ids.iter().zip(&before).all(|(id, was)| Arc::ptr_eq(s.mailbox.messages.get(id).unwrap(), was)), "the mail as it was");
 }
