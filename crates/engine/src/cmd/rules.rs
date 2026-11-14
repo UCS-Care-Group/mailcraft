@@ -586,8 +586,9 @@ fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     // part too large to be shown isn't brought in for a rule either.
     let running = |r: &&Rule| r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id);
     let reads_bodies = s.mailbox.rules.iter().filter(running).any(Rule::reads_body);
-    // So does one that looks for words in the header, its lines kept outside memory too: brought
-    // in for the rules, and let go of again once they have run.
+    // So does one that reads the lines of the header block kept outside memory (words in the
+    // header, an automatic reply's mark): brought in for the rules, and let go of again once they
+    // have run.
     let reads_headers = s.mailbox.rules.iter().filter(running).any(Rule::reads_header);
     let clock = s.rule_clock();
     ids.into_iter()

@@ -324,7 +324,12 @@ impl Condition {
             // ([`Message::read_header`]: one read before they were, or made here), nor lines kept
             // outside memory ([`Message::header_block`]; Run Rules Now brings them in first).
             Condition::HeaderContains(_) => m.unfetched || m.incomplete || m.headers_cut || m.read_header.is_empty() || !m.header_block.is_loaded(),
-            Condition::Sensitivity(_) | Condition::AutomaticReply => m.unfetched || m.incomplete || m.headers_cut,
+            Condition::Sensitivity(_) => m.unfetched || m.incomplete || m.headers_cut,
+            // Nor a mark kept outside memory with the lines of its header block, as a build from
+            // before the mark stayed on the message kept it (Run Rules Now brings them in first).
+            Condition::AutomaticReply => {
+                m.unfetched || m.incomplete || m.headers_cut || (!m.header_block.is_loaded() && !m.has_header("Auto-Submitted"))
+            }
             // Nor a person a server's list gives by name alone (an Exchange server's own kind of
             // address), whose address the message, once here, says.
             Condition::FromContains(_) | Condition::From(_) => m.unfetched && m.from.email.trim().is_empty(),
@@ -788,10 +793,11 @@ impl Rule {
         self.conditions.iter().chain(&self.exceptions).any(Condition::reads_body)
     }
 
-    /// Whether it looks for words in the header of a message, whose block has to be in memory for
-    /// it ([`Message::header_block`]).
+    /// Whether it reads the lines of a message's header block, which have to be in memory for it
+    /// ([`Message::header_block`]): words in the header, and an automatic reply's mark, which a
+    /// build from before it stayed on the message kept there.
     pub fn reads_header(&self) -> bool {
-        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::HeaderContains(_)))
+        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::HeaderContains(_) | Condition::AutomaticReply))
     }
 
     /// Whether it is for the arriving mail of `account`.

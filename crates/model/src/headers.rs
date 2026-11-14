@@ -43,7 +43,8 @@ pub const WORKING: &[&str] = &[
     // too, #566).
     "Sender",
     "Sensitivity",
-    // An automatic reply, an out-of-office one say (a rule's condition, #566).
+    // An automatic reply, an out-of-office one say (a rule's condition, #566; one in a block kept
+    // before is read there too, `Message::is_automatic_reply`).
     "Auto-Submitted",
     // The id a message had before Microsoft Graph moved it to another account.
     "X-Microsoft-Original-Message-ID",

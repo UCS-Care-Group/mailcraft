@@ -935,3 +935,32 @@ fn a_header_rule_reads_the_header_block_and_cant_tell_while_it_is_kept_outside()
     assert!(!rule(vec![header("x-spam-flag: yes")], vec![]).matches(&m));
     assert!(!rule(vec![Condition::SubjectContains(vec!["away".into()])], vec![header("x-spam-flag")]).matches(&m), "the exception may hold");
 }
+
+/// A message whose `Auto-Submitted` line is in its header block, as a build from before the line
+/// stayed on the message kept it: "is an automatic reply" reads it there while the block is in
+/// memory, and can't tell while it is kept outside, so that an exception for automatic replies
+/// still leaves it alone (#566).
+#[test]
+fn an_automatic_reply_mark_kept_in_the_header_block_is_read_there() {
+    use mailcraft_model::{Action, Condition, ContentRef, HeaderBlock, HeaderLine, Rule};
+    let mut m = parse(b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: away\r\nAuto-Submitted: auto-replied\r\n\r\nbody\r\n");
+    m.headers.retain(|(name, _)| name != "Auto-Submitted");
+    m.header_block = HeaderBlock::of(&[HeaderLine { at: 0, name: "Auto-Submitted".into(), value: "auto-replied".into() }]);
+    // (A block in memory stays as it is when the message is split again, as at an open.)
+    m.split_headers();
+    let rule = Rule {
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["away".into()])],
+        exceptions: vec![Condition::AutomaticReply],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    assert!(Condition::AutomaticReply.matches(&m) && !Condition::AutomaticReply.unread_in(&m));
+    assert!(!rule.matches(&m), "the rule deletes an automatic reply its exception was to leave alone");
+    assert!(rule.reads_header(), "Run Rules Now brings the block in for it");
+    let kept = mailcraft_model::Message {
+        header_block: HeaderBlock { data: Default::default(), kept: Some(ContentRef { sha256: [7; 32], len: 2_000 }) },
+        ..m
+    };
+    assert!(Condition::AutomaticReply.unread_in(&kept) && !rule.matches(&kept));
+}

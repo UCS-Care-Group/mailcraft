@@ -435,3 +435,47 @@ fn run_rules_now_reads_the_header_lines_kept_beside_the_mailbox_file() {
     assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0));
     assert!(ids.iter().zip(&before).all(|(id, was)| Arc::ptr_eq(s.mailbox.messages.get(id).unwrap(), was)), "the mail as it was");
 }
+
+/// Run Rules Now brings in the header block for "except if it is an automatic reply" too: a block
+/// kept as a build from before the mark stayed on the message kept it, with the mark among its
+/// lines, leaves the reply alone, the block there or gone (#566).
+#[test]
+fn run_rules_now_reads_an_automatic_reply_mark_kept_beside_the_mailbox_file() {
+    use mailcraft_model::{Action, Condition, HeaderBlock, HeaderLine, Rule};
+    let mut mb = with_exchange_headers(2);
+    let account = mb.accounts[0].id;
+    let inbox = mb.inbox().unwrap();
+    let reports = mb.add_folder(account, None, "Reports").unwrap();
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    // The first is an automatic reply, the other isn't.
+    for id in &ids[..1] {
+        let m = mb.message_mut(*id).unwrap();
+        let mut lines = m.header_block.lines();
+        let at = lines.len() + m.headers.len();
+        lines.push(HeaderLine { at, name: "Auto-Submitted".into(), value: "auto-replied".into() });
+        m.header_block = HeaderBlock::of(&lines);
+    }
+    let subject = Condition::SubjectContains(vec!["message".into()]);
+    mb.rules.push(Rule {
+        id: 1,
+        name: "Reports".into(),
+        enabled: true,
+        conditions: vec![subject],
+        exceptions: vec![Condition::AutomaticReply],
+        actions: vec![Action::MoveTo(reports)],
+        ..Default::default()
+    });
+    let tmp = Temp::new("headers-rules-auto");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 2);
+    assert!(ids.iter().all(|id| !s.mailbox.message(*id).unwrap().header_block.is_loaded()), "kept beside the file");
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(1), "the one that isn't a reply");
+    let folder = |s: &Session, id: Id| s.mailbox.message(id).unwrap().folder;
+    assert_eq!((folder(&s, ids[0]), folder(&s, ids[1])), (inbox, reports));
+    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    clear_cache();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0), "can't be told");
+    assert_eq!(folder(&s, ids[0]), inbox);
+}

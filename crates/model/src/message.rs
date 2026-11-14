@@ -858,9 +858,12 @@ impl Message {
     }
 
     /// Whether it is an automatic reply, an out-of-office one say, as its sender's program marked
-    /// it (`Auto-Submitted: auto-replied`, RFC 3834).
+    /// it (`Auto-Submitted: auto-replied`, RFC 3834): on the message, or in its header block while
+    /// that is in memory, where a build from before the line stayed on the message put it.
     pub fn is_automatic_reply(&self) -> bool {
-        self.header("Auto-Submitted").is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("auto-replied"))
+        let replied = |v: &str| v.trim().to_ascii_lowercase().starts_with("auto-replied");
+        let in_block = || self.header_block.lines().iter().filter(|l| l.name.eq_ignore_ascii_case("Auto-Submitted")).any(|l| replied(&l.value));
+        self.header("Auto-Submitted").is_some_and(replied) || (!self.header_block.none_in_memory() && in_block())
     }
 
     /// Whether it is a meeting invitation or an update of one: a calendar part in memory that
