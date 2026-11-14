@@ -488,7 +488,9 @@ fn a_failed_index_write_is_retried_at_the_next_wake_with_nothing_new_written() {
     let tokens = Tokens { access: "a".into(), refresh: "r".into(), expires_at: i64::MAX, email: EMAIL.into(), ..Default::default() };
     block_on(core.adopt_tokens(id, tokens)).unwrap();
     let index = || platform.secrets.kept.lock().unwrap().iter().find(|(k, _)| k.contains("index")).map(|(_, v)| v.clone());
-    assert_eq!(index(), None);
+    // The write with the adoption was tried and failed. (The driver, woken by it, may already
+    // have written the index again: that is not asked here.)
+    assert_eq!(platform.secrets.fail_index.load(Ordering::Relaxed), 0, "the first write of the index failed");
     // The driver wakes by itself; no credential is written again.
     let deadline = Instant::now() + Duration::from_secs(10);
     while index().is_none() {
