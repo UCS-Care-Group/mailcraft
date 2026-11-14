@@ -19,6 +19,10 @@ pub const DIR: &str = "packaging/release-notes.d";
 pub const NOTES: &str = "packaging/release-notes.md";
 /// The folders, and the heading of the section each one's lines go under.
 pub const SECTIONS: [(&str, &str); 2] = [("new", "**What's new**"), ("fixes", "**Fixes**")];
+/// The platform markers a fragment's name may carry (`<issue>.android.md`): its lines then say
+/// which app they are about, `- **Android:** …`. A fragment without one is about the desktop (or
+/// everything) and is joined as written.
+pub const MARKERS: [(&str, &str); 2] = [("android", "Android"), ("ios", "iOS")];
 /// The longest fragment read.
 const MAX_FRAGMENT: u64 = 64 * 1024;
 
@@ -42,6 +46,19 @@ pub fn lines(text: &str) -> Result<Vec<String>, String> {
         return Err(format!("has a line that doesn't start with `- `: {bad:?}"));
     }
     Ok(lines)
+}
+
+/// The lines with the platform the file's name marks (`<name>.android.md`) after their dash. A
+/// second extension that isn't a known marker is an error, so a typo doesn't pass as the desktop's.
+fn mark(path: &Path, lines: Vec<String>) -> Result<Vec<String>, String> {
+    let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let Some((_, marker)) = stem.rsplit_once('.') else {
+        return Ok(lines);
+    };
+    let Some((_, label)) = MARKERS.iter().find(|(m, _)| *m == marker) else {
+        return Err(format!("`.{marker}` isn't a platform marker (use {})", MARKERS.map(|(m, _)| format!("`.{m}.md`")).join(" or ")));
+    };
+    Ok(lines.into_iter().map(|l| format!("- **{label}:** {}", l.strip_prefix("- ").unwrap_or(&l))).collect())
 }
 
 /// `notes` with each section's fragments put at the top of its list, newest first (ties by name,
@@ -94,6 +111,7 @@ pub fn gather(root: &Path) -> Result<Vec<Vec<Fragment>>, String> {
                 }
                 let text = std::fs::read_to_string(&path).map_err(|e| format!("{shown}: {e}"))?;
                 let lines = lines(&text).map_err(|e| format!("{shown} {e}"))?;
+                let lines = mark(&path, lines).map_err(|e| format!("{shown}: {e}"))?;
                 found.push(Fragment { added: added(root, &path), path, lines });
             }
         }
