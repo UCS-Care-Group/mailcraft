@@ -136,6 +136,14 @@ impl Core {
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
         let budget_id = enter_budget(host.platform().memory_budget());
         let events = Queue::new();
+        // The phone's own zone stands in where the system names none (Android often has no
+        // `/etc/localtime`), so that the day near midnight is the owner's.
+        let zone_host = platform.clone();
+        let make = move || {
+            let mut session = make();
+            session.fallback_offset = Some(Arc::new(move |at| zone_host.utc_offset_minutes(at).unwrap_or(0)));
+            session
+        };
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
         let sink = EventSink { queue: events.clone() };
         // The session is built before `start` returns, so a `make` that panics is an error here and

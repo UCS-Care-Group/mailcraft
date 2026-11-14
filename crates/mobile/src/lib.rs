@@ -42,6 +42,8 @@ mod junk_tests;
 mod review_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod zone_tests;
 
 pub use core::Core;
 pub use error::{CoreError, HostError};
