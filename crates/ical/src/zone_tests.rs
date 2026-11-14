@@ -418,3 +418,100 @@ fn a_series_that_ends_on_the_day_the_clocks_skip_its_last_hour_ends_that_day() {
         assert_eq!(last(&back.events[0]), last(&event), "{}", here.id());
     }
 }
+
+/// Found by `events_in_zones_round_trip`: a series at midnight in Pacific/Apia, shown in a
+/// calendar at Etc/GMT+12, every two months on the 30th, skipping the occurrence of
+/// 30 December 2011. Apia skipped that day (its clocks went from the end of the 29th at -10:00
+/// to the 31st at +14:00), so the occurrence the rule names "midnight on the 30th" is at the
+/// instant the clock there shows as midnight on the 31st. Its `EXDATE` was written as the 31st
+/// and read back as the occurrence of the 31st: a skipped day that wasn't the one skipped. It
+/// is written and read as the rule names it.
+#[test]
+fn a_skipped_occurrence_on_a_day_the_zone_skipped_is_that_occurrence() {
+    let here = zone("Etc/GMT+12");
+    let offset_at = |instant: Timestamp| here.offset_at(instant);
+    let start = at(2010, 6, 29, 23, 0);
+    let rule = Recurrence { interval: 2, ..Recurrence::every(Freq::Monthly) };
+    let mut event = Event { uid: "u@example.org".into(), start, end: start, recurrence: Some(rule), ..Default::default() };
+    let instants = (here.instant(start), here.instant(start));
+    (event.start_zone, event.end_zone) = mailcraft_model::zoned::own_zones(Some(zone("Pacific/Apia")), None, instants, true, &offset_at);
+    event.exceptions = vec![d(2011, 12, 29)];
+    let text = write_in(&[&event], &[], &options(), Some(here));
+    assert!(text.contains("EXDATE;TZID=Pacific/Apia:20111230T000000\r\n"), "{text}");
+    let back = read_in(&text, here);
+    assert!(back.notes.is_empty(), "{:?}", back.notes);
+    assert_eq!(back.events, vec![event.clone()], "{text}");
+    // Another program (and MailCraft before) writes the time the clock shows: the same instant,
+    // and the day the rule names at it is the one skipped.
+    let shown = text.replace("EXDATE;TZID=Pacific/Apia:20111230T000000", "EXDATE;TZID=Pacific/Apia:20111231T000000");
+    assert_eq!(read_in(&shown, here).events, vec![event.clone()], "{shown}");
+    // A daily series names both the 30th and the 31st there, at the same instant: the time the
+    // clock shows is the 31st's occurrence, which is the 30th here.
+    let daily = Event { recurrence: Some(Recurrence::every(Freq::Daily)), ..event.clone() };
+    let shown = write_in(&[&daily], &[], &options(), Some(here))
+        .replace("EXDATE;TZID=Pacific/Apia:20111230T000000", "EXDATE;TZID=Pacific/Apia:20111231T000000");
+    assert_eq!(read_in(&shown, here).events[0].exceptions, [d(2011, 12, 30)], "{shown}");
+    // America/Nuuk springs from 23:00 to midnight on the last Saturday of March: a weekly series
+    // at 23:30 on Saturdays names 23:30 on 27 March 2027, which the clock shows as 0:30 on the
+    // 28th. Either way it is the 27th that is skipped.
+    let nuuk = zone("America/Nuuk");
+    let at_nuuk = |instant: Timestamp| nuuk.offset_at(instant);
+    let start = at(2027, 3, 6, 23, 30);
+    let rule = Recurrence { by_day: vec![Weekday::Sat], ..Recurrence::every(Freq::Weekly) };
+    let mut weekly =
+        Event { uid: "u@example.org".into(), start, end: start, recurrence: Some(rule), exceptions: vec![d(2027, 3, 27)], ..Default::default() };
+    let instants = (nuuk.instant(start), nuuk.instant(start));
+    (weekly.start_zone, weekly.end_zone) = mailcraft_model::zoned::own_zones(Some(nuuk), None, instants, true, &at_nuuk);
+    let text = write_in(&[&weekly], &[], &options(), Some(nuuk));
+    assert!(text.contains("EXDATE;TZID=America/Nuuk:20270327T233000\r\n"), "{text}");
+    assert_eq!(read_in(&text, nuuk).events, vec![weekly.clone()], "{text}");
+    let shown = text.replace("EXDATE;TZID=America/Nuuk:20270327T233000", "EXDATE;TZID=America/Nuuk:20270328T003000");
+    assert_eq!(read_in(&shown, nuuk).events, vec![weekly], "{shown}");
+}
+
+/// The same for the zones that skipped a day when they moved across the date line, and for
+/// zones whose clocks skip the hour before or after midnight, for series of each kind at a time
+/// the clocks skip that skip each of their days around the change, wherever the calendar is
+/// shown.
+#[test]
+fn series_across_a_skipped_day_skip_their_own_days() {
+    // The zone, the day the clocks skip a time, and an hour of the day they skip.
+    for (own, change, skipped) in [
+        ("Pacific/Apia", d(2011, 12, 30), 0),
+        ("Pacific/Fakaofo", d(2011, 12, 30), 0),
+        ("Pacific/Kiritimati", d(1994, 12, 31), 0),
+        ("Pacific/Kanton", d(1994, 12, 31), 0),
+        ("Pacific/Kwajalein", d(1993, 8, 21), 0),
+        ("America/Nuuk", d(2027, 3, 27), 23),
+        ("America/Santiago", d(2026, 9, 6), 0),
+        ("America/Havana", d(2026, 3, 8), 0),
+    ] {
+        let own = zone(own);
+        for here in Zone::choices() {
+            let offset_at = |instant: Timestamp| here.offset_at(instant);
+            for (freq, hour) in [(Freq::Daily, skipped), (Freq::Daily, 9), (Freq::Weekly, skipped), (Freq::Monthly, skipped)] {
+                // A series by the clock of its zone that begins some weeks before the change and
+                // has an occurrence on the day of it.
+                let begins = if freq == Freq::Monthly { change.add_months(-1) } else { change.add_days(-28) };
+                if begins.day != change.day {
+                    continue;
+                }
+                let first = DateTime::new(begins, hour, 30, 0).unwrap();
+                let start = here.wall(own.instant(first));
+                if here.wall(here.instant(start)) != start || own.instant(own.wall(here.instant(start))) != here.instant(start) {
+                    continue;
+                }
+                let rule = Recurrence { count: Some(70), ..Recurrence::every(freq) };
+                let mut event =
+                    Event { uid: "u@example.org".into(), start, end: start.add_minutes(30), recurrence: Some(rule), ..Default::default() };
+                let instants = (here.instant(start), here.instant(event.end));
+                (event.start_zone, event.end_zone) = mailcraft_model::zoned::own_zones(Some(own), None, instants, true, &offset_at);
+                event.exceptions = event.series_days(change.add_days(-5), change.add_days(5), &offset_at);
+                let text = write_in(&[&event], &[], &options(), Some(here));
+                let back = read_in(&text, here);
+                assert!(back.notes.is_empty(), "{} {:?}", here.id(), back.notes);
+                assert_eq!(back.events, vec![event.clone()], "{} in {}\n{text}", own.id(), here.id());
+            }
+        }
+    }
+}

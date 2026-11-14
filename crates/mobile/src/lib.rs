@@ -41,9 +41,15 @@ mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
+mod preview_tests;
+#[cfg(test)]
+mod queue_tests;
+#[cfg(test)]
 mod review_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod zone_tests;
 
 pub use core::Core;
 pub use error::{CoreError, HostError};

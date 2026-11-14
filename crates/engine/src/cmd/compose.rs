@@ -1378,15 +1378,6 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
         ));
     }
-    // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
-    // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
-    // gone. It stays as it is being written.
-    if account.kind.has_server() && !account.kind.sends_mail() {
-        return Err(failed!(
-            "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
-        ));
-    }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();

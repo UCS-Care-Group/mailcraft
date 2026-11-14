@@ -301,6 +301,12 @@ pub struct ViewState {
     pub scope: Scope,
     pub reading_pane: Pane,
     pub folder_pane: bool,
+    /// The switch between Mail, Calendar, People and Tasks at the foot of the pane on the left,
+    /// in place of the bar of icons down the window's edge (#1174; `view.navigationBar`), so the
+    /// bar's column is the window's. Where the module in view has no pane for it (Mail or the
+    /// calendar with theirs hidden) the bar stays, so the switch is never out of reach. Off: the
+    /// bar.
+    pub nav_foot: bool,
     pub calendar: CalView,
     /// The day the calendar shows (its week or month, depending on the view).
     pub date: Date,
@@ -342,6 +348,7 @@ impl Default for ViewState {
             scope: Scope::Folder,
             reading_pane: Pane::Right,
             folder_pane: true,
+            nav_foot: false,
             calendar: CalView::Week,
             date: Date::default(),
             days: 0,
@@ -1067,6 +1074,10 @@ pub struct Session {
     /// The mailbox changed since it was opened or saved.
     pub dirty: bool,
     pub clock: Clock,
+    /// Minutes east of UTC at an instant, from a host that knows its owner's zone (a phone), for
+    /// when the calendar names no zone and the system names none either ([`Session::offset_at`]).
+    /// An explicitly chosen zone and a detected system zone go before it.
+    pub fallback_offset: Option<Arc<dyn Fn(Timestamp) -> i32 + Send + Sync>>,
     /// What the last synchronisation reported, for the status bar.
     pub sync_status: String,
     /// The sync driver's state: what a front end's background jobs remember between looks
@@ -1293,6 +1304,7 @@ impl Session {
             path: None,
             dirty: false,
             clock,
+            fallback_offset: None,
             sync_status: String::new(),
             driver: Default::default(),
             sync_progress: Default::default(),
@@ -1412,7 +1424,36 @@ impl Session {
     pub fn offset_at(&self, ts: Timestamp) -> i32 {
         match self.clock.offset {
             Some(offset) => offset,
-            None => self.zone().offset_at(ts),
+            None => {
+                let zone = self.zone();
+                match (&self.fallback_offset, zone.is_local()) {
+                    (Some(fallback), true) => fallback(ts).clamp(-18 * 60, 18 * 60),
+                    _ => zone.offset_at(ts),
+                }
+            }
+        }
+    }
+
+    /// The wall-clock time in the zone the calendar is shown in at `ts`, by the same offset as
+    /// [`Session::offset_at`] (the phone's, where the system names no zone).
+    pub fn wall_at(&self, ts: Timestamp) -> DateTime {
+        DateTime::from_civil_seconds(ts.saturating_add(i64::from(self.offset_at(ts)) * 60))
+    }
+
+    /// The instant of a wall-clock time in the zone the calendar is shown in, by the same offset as
+    /// [`Session::offset_at`]. Where the offset is the phone's (the system names no zone), a time
+    /// the clocks skip or repeat takes the offset in force at the time read as if it were UTC.
+    pub fn instant_of(&self, wall: DateTime) -> Timestamp {
+        let zone = self.zone();
+        match (&self.fallback_offset, zone.is_local(), self.clock.offset) {
+            (Some(fallback), true, None) => {
+                let first = wall.to_timestamp(0);
+                let guess = fallback(first).clamp(-18 * 60, 18 * 60);
+                let at = wall.to_timestamp(guess);
+                wall.to_timestamp(fallback(at).clamp(-18 * 60, 18 * 60))
+            }
+            (_, _, Some(offset)) => wall.to_timestamp(offset.clamp(-18 * 60, 18 * 60)),
+            _ => zone.instant(wall),
         }
     }
 
@@ -2744,6 +2785,61 @@ impl Session {
         self.resident_bytes = self.resident_bytes.saturating_sub(freed);
     }
 
+    /// Let go of the content brought into messages, from the message after `from` (from the
+    /// first: `None`) on, as the budget does ([`Session::evict`]): a message whose body or files
+    /// are in memory and safely on disk as they are goes back to naming them, and its Undo and
+    /// Redo steps let go of them too. The messages `keep` names (open in a window, being written)
+    /// and those selected stay as they are. For a window out of sight a while; what is shown
+    /// again is read again. At most `most` messages are looked at in one call, whether they could
+    /// go or not: the answer is the message to go on
+    /// after, `None` once every message was looked at. Nothing is let go of while a command or a
+    /// search runs.
+    pub fn let_go_of_content(&mut self, from: Option<Id>, keep: &HashSet<Id>, most: usize) -> Option<Id> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.swaps.is_some() || self.search_pass.is_some() {
+                return from;
+            }
+            let path = self.path.clone()?;
+            let mut next = from.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
+            let mut left = most.max(1);
+            loop {
+                let found = self
+                    .mailbox
+                    .messages
+                    .range((next, std::ops::Bound::Unbounded))
+                    // What is selected stays, as the budget's own eviction leaves it.
+                    .find(|(id, m)| !keep.contains(id) && !self.sel.messages.contains(id) && may_go(m))
+                    .map(|(id, m)| (*id, crate::store::evictable(&path, *id, m)));
+                let Some((id, lean)) = found else { break };
+                next = std::ops::Bound::Excluded(id);
+                if let Some(lean) = lean {
+                    self.put_in_place(id, lean, true);
+                    self.loads += 1;
+                }
+                // Each one looked at counts, let go of or not: a slice is never a walk of all.
+                left -= 1;
+                if left == 0 {
+                    return Some(id);
+                }
+            }
+            // What is counted as brought in is what of it is still in memory and could go.
+            let messages = &self.mailbox.messages;
+            self.resident.retain_mut(|(id, bytes)| {
+                let now = messages.get(id).filter(|m| may_go(m)).map_or(0, |m| in_memory(m));
+                *bytes = (*bytes).min(now);
+                *bytes > 0
+            });
+            self.resident_bytes = self.resident.iter().map(|(_, b)| *b).fold(0, u64::saturating_add);
+            None
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (from, keep, most);
+            None
+        }
+    }
+
     /// The mailbox was `was` and is now another (an undo or a redo): what is counted as brought
     /// into a message that holds less of it now (its body named on disk again, #688) is let go
     /// of by as much, so that the count is never more than what is held.
@@ -3885,6 +3981,19 @@ fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
     let original = m.original.as_ref().map_or(0, |o| o.data.len() as u64);
     m.attachments.iter().fold((body as u64).saturating_add(original), |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// Whether message `m` holds in memory content that a save keeps outside the mailbox file (a
+/// body or a file of more than [`crate::store::INLINE_MAX`] bytes, an original), and so may go
+/// back to naming it ([`Session::let_go_of_content`]).
+#[cfg(not(target_arch = "wasm32"))]
+fn may_go(m: &Message) -> bool {
+    let out = |n: usize| n > crate::store::INLINE_MAX;
+    out(m.body.text.len())
+        || m.body.html.as_ref().is_some_and(|h| out(h.len()))
+        || out(m.hidden_text.len())
+        || m.attachments.iter().any(|a| out(a.data.len()))
+        || m.original.as_ref().is_some_and(|o| !o.data.is_empty())
 }
 
 /// A body an opening for a window left on disk though the memory budget holds it, to be read

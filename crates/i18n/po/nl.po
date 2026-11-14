@@ -107,6 +107,11 @@ msgstr "„{shown}” is geen e-mailadres"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr "'{subject}' is mogelijk verzonden: kijk in Verzonden items. Het wordt vastgehouden in Postvak UIT."
@@ -1665,6 +1670,12 @@ msgid "At start time"
 msgstr "Op de begintijd"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "At the Foot of the Pane"
+msgstr "Onder aan het deelvenster"
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "At the same time: {items}"
@@ -1962,6 +1973,12 @@ msgid "Back to account settings"
 msgstr "Terug naar accountinstellingen"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Bar on the Left"
+msgstr "Balk aan de linkerkant"
+
+#. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Basic (user name and password over a secure connection)"
@@ -2213,7 +2230,7 @@ msgid "Can't sign"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2492,6 +2509,11 @@ msgstr "Namen controleren"
 #, fuzzy
 msgid "Check Now"
 msgstr "Nu controleren"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2773,6 +2795,11 @@ msgstr "Venster sluiten"
 msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
 msgstr "Sluit dit gedeelde postvak en verwijder de e-mail die hier voor het postvak wordt bewaard. Op de server verandert er niets."
 
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+msgid "Close to system tray"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -2958,6 +2985,11 @@ msgstr "Doorgaan"
 #, fuzzy
 msgid "Continue editing"
 msgstr "Doorgaan met bewerken"
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Continue in tray"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5072,8 +5104,8 @@ msgstr "Alle details: en waar, en de notities"
 msgid "Full messages: {done} of {total}"
 msgstr "Volledige berichten: {done} van {total}"
 
-#. interface, name
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "General"
 msgstr "Algemeen"
@@ -6428,6 +6460,11 @@ msgstr "Alleen deze"
 msgid "Keep Both"
 msgstr "Beide behouden"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -6844,6 +6881,11 @@ msgstr "Gemaakt in een ander programma of op het web, met onderdelen die MailCra
 msgid "Mail"
 msgstr "E-mail"
 
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
@@ -7125,6 +7167,11 @@ msgstr[1] "MailCraft is gestart met {n} dingen die geen e-mailkoppelingen zijn e
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr "MailCraft heeft daarna geen account: met Bestand › Account toevoegen maakt u er weer een aan."
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+msgid "MailCraft will keep running"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7835,6 +7882,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "Door ze te verplaatsen komen ze in de agenda van uw account, waar Outlook en uw andere apparaten ze ook hebben."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -7893,6 +7945,22 @@ msgstr "Namen of adressen, gescheiden door ;"
 #, fuzzy
 msgid "Navigation"
 msgstr "Navigatie"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Navigation\n"
+"Bar"
+msgstr ""
+"Navigatie-\n"
+"balk"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Navigation Bar"
+msgstr "Navigatiebalk"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8821,6 +8889,11 @@ msgstr "Oudste bovenaan"
 #, fuzzy
 msgid "On"
 msgstr "Op"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11588,7 +11661,7 @@ msgstr ""
 "alle mappen"
 
 #. command label, interface
-#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "Verzenden/ontvangen alle mappen"
@@ -11915,6 +11988,11 @@ msgstr "Bijdragers weergeven"
 #, fuzzy
 msgid "Show Gmail's categories under the Inbox"
 msgstr "De categorieën van Gmail onder het Postvak IN tonen"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Show MailCraft"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -14159,6 +14237,16 @@ msgstr "De naam van de server"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr ""
 
@@ -16152,6 +16240,11 @@ msgstr ""
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "Wat u schreef is te lang voor een koppeling naar GitHub: maak het korter en voeg de rest toe op GitHub"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16607,6 +16700,11 @@ msgstr "Uw e-mailserver heeft gecontroleerd waar dit bericht vandaan kwam, en de
 #, fuzzy
 msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
 msgstr "Uw e-mailserver heeft gecontroleerd waar dit bericht vandaan kwam, en de controle is mislukt: het adres van de afzender kan vervalst zijn."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -17344,6 +17442,11 @@ msgid "Sent Items"
 msgstr "Verzonden items"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr "map {id} hoort niet bij dat account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -17735,7 +17838,7 @@ msgid "no event with id {id}"
 msgstr "geen gebeurtenis met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "geen map „{path}”"
@@ -19694,6 +19797,21 @@ msgstr "{host} zit in het eigen domein van uw adres, maar het is niet de Autodis
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} is ingesteld zonder versleuteling, waardoor het wachtwoord voor iedereen op het netwerk zichtbaar zou zijn; kies TLS of STARTTLS"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -20027,24 +20145,6 @@ msgstr "{name}: geen berichtbestand"
 #, fuzzy
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}: geen bericht-, agenda- of contactbestand dat MailCraft leest"
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
-msgstr "{not_sending_yet}, en geen ander account hier heeft een e-mailserver om dit mee te verzenden."
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}: answer the invitation without sending an answer."
-msgstr "{not_sending_yet}: beantwoord de uitnodiging zonder een antwoord te verzenden."
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
-msgstr "{not_sending_yet}: verzend dit bericht vanaf een ander account, of sla het op als concept"
 
 #. what a command says
 #: crates/model/src/message.rs
@@ -20919,6 +21019,18 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
+#~ msgstr "{not_sending_yet}, en geen ander account hier heeft een e-mailserver om dit mee te verzenden."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: answer the invitation without sending an answer."
+#~ msgstr "{not_sending_yet}: beantwoord de uitnodiging zonder een antwoord te verzenden."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
+#~ msgstr "{not_sending_yet}: verzend dit bericht vanaf een ander account, of sla het op als concept"
 
 #, fuzzy
 #~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."

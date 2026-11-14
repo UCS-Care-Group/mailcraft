@@ -69,7 +69,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
 fn an_exchange_account_has_a_server_server_ids_and_sends_mail() {
     use crate::AccountKind::{self, *};
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::has_server), [false, true, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, false, true, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, true, true, false]);
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::server_ids), [false, false, true, true, true, false]);
 }
 
