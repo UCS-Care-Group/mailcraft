@@ -108,7 +108,7 @@ msgstr "„{shown}” is geen e-mailadres"
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
-msgstr ""
+msgstr "'{subject}' is mogelijk verzonden, ook al staat de kopie in Verzonden items (of Concepten) nog als concept. Het blijft in Postvak UIT staan."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -315,7 +315,7 @@ msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het kla
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "A JMAP account's mail can't be snoozed yet."
-msgstr ""
+msgstr "E-mail van een JMAP-account kan nog niet worden uitgesteld."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -666,7 +666,6 @@ msgstr "Accountinstellingen"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Account name"
 msgstr "Accountnaam"
 
@@ -1112,7 +1111,6 @@ msgstr "Altijd van @{domain}"
 
 #. name
 #: crates/ui-egui/src/motion.rs
-#, fuzzy
 msgid "Always play"
 msgstr "Altijd afspelen"
 
@@ -1125,7 +1123,7 @@ msgstr "Een agent vraagt"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "An Exchange server or IMAP?"
-msgstr ""
+msgstr "Een Exchange-server of IMAP?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1209,7 +1207,6 @@ msgstr[1] "En nog {n} dergelijke koppelingen."
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
-#, fuzzy
 msgid "Animations"
 msgstr "Animaties"
 
@@ -1579,7 +1576,7 @@ msgstr "Bezig de server te vragen…"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Asking your domain's DNS…"
-msgstr ""
+msgstr "Bezig het DNS van uw domein te vragen…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -1607,9 +1604,8 @@ msgstr "Op de begintijd"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "At the Foot of the Pane"
-msgstr "Onder aan het deelvenster"
+msgstr "Onder aan het venster"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1859,7 +1855,7 @@ msgstr "Automatische antwoorden: uw organisatie staat MailCraft niet toe ze te w
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Automatic setup (Autodiscover)"
-msgstr ""
+msgstr "Automatische instelling (Autodiscover)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -1903,7 +1899,6 @@ msgstr "Terug naar accountinstellingen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bar on the Left"
 msgstr "Balk aan de linkerkant"
 
@@ -2418,7 +2413,7 @@ msgstr "Nu controleren"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Check both servers before you connect."
-msgstr ""
+msgstr "Controleer beide servers voordat u verbindt."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2687,7 +2682,7 @@ msgstr "Sluit dit gedeelde postvak en verwijder de e-mail die hier voor het post
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 msgid "Close to system tray"
-msgstr ""
+msgstr "Sluiten naar het systeemvak"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -2867,7 +2862,7 @@ msgstr "Doorgaan met bewerken"
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 msgid "Continue in tray"
-msgstr ""
+msgstr "Doorgaan in het systeemvak"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2913,7 +2908,6 @@ msgstr "Gebeurtenis kopiëren"
 
 #. interface, name
 #: crates/ui-egui/src/move_items.rs
-#, fuzzy
 msgid "Copy Items"
 msgstr "Items kopiëren"
 
@@ -2963,7 +2957,6 @@ msgstr "Problemen kopiëren"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
-#, fuzzy
 msgid "Copy the selected items to the folder:"
 msgstr "De geselecteerde items naar de map kopiëren:"
 
@@ -4780,7 +4773,7 @@ msgstr "Doorsturen…"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
-msgstr ""
+msgstr "Gevonden in het DNS van uw domein. Uw aanmelding gaat pas naar een server buiten uw domein als u instemt."
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -5169,7 +5162,7 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
-msgstr ""
+msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6178,7 +6171,7 @@ msgstr "Beide behouden"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
-msgstr ""
+msgstr "Laat MailCraft doorlopen voor e-mail en herinneringen wanneer u het venster sluit. Klik het pictogram naast de klok om het weer te tonen, of kies Afsluiten uit het menu van het pictogram. Als er geen systeemvak is, sluit u MailCraft af."
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -6577,7 +6570,7 @@ msgstr "E-mail"
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 msgid "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
-msgstr ""
+msgstr "E-mail en herinneringen blijven doorlopen. Om het venster terug te halen, klikt u het pictogram van MailCraft in het systeemvak en kiest u MailCraft tonen. Op Windows staat het pictogram misschien onder de pijl voor verborgen pictogrammen naast de klok. Op macOS gebruikt u het pictogram in de menubalk of klikt u MailCraft in het Dock. Kies MailCraft afsluiten uit het menu van het pictogram."
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -6713,7 +6706,7 @@ msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Micr
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
-msgstr ""
+msgstr "MailCraft verwijdert nog geen mappen van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6786,7 +6779,7 @@ msgstr "MailCraft bewaart de regels van dit account op deze computer: de regel w
 #. what a command says
 #: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
 msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
-msgstr ""
+msgstr "MailCraft verplaatst e-mail van een JMAP-account alleen tussen de mappen die de server ervan heeft: de volgende Verzenden/ontvangen zou die terugbrengen"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6844,7 +6837,7 @@ msgstr "MailCraft stopte met het lezen van het .pst-bestand vóór het klaar was
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft tries the usual places for your address."
-msgstr ""
+msgstr "MailCraft probeert de gebruikelijke plaatsen voor uw adres."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -6863,7 +6856,7 @@ msgstr "MailCraft heeft daarna geen account: met Bestand › Account toevoegen m
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 msgid "MailCraft will keep running"
-msgstr ""
+msgstr "MailCraft blijft doorlopen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7427,7 +7420,6 @@ msgstr "Map verplaatsen"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
-#, fuzzy
 msgid "Move Items"
 msgstr "Items verplaatsen"
 
@@ -7462,7 +7454,6 @@ msgstr "Verplaats het bericht naar een map om de bijlagen te openen of op te sla
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
-#, fuzzy
 msgid "Move the selected items to the folder:"
 msgstr "De geselecteerde items naar de map verplaatsen:"
 
@@ -7537,7 +7528,7 @@ msgstr "Door ze te verplaatsen komen ze in de agenda van uw account, waar Outloo
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
-msgstr ""
+msgstr "De ISP-d database van Mozilla noemt {hosts} als de mailserver van {domain}, en dat zit niet in het eigen domein van uw adres."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7609,7 +7600,6 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Navigation Bar"
 msgstr "Navigatiebalk"
 
@@ -7643,7 +7633,6 @@ msgstr "Domein van de afzender nooit blokkeren"
 
 #. name
 #: crates/ui-egui/src/motion.rs
-#, fuzzy
 msgid "Never play"
 msgstr "Nooit afspelen"
 
@@ -8258,7 +8247,7 @@ msgstr "Niet toegestaan door uw organisatie"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Not an Exchange server? Set it up with IMAP"
-msgstr ""
+msgstr "Geen Exchange-server? Stel het in met IMAP"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8509,7 +8498,7 @@ msgstr "Op"
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
-msgstr ""
+msgstr "Op Wayland moet u MailCraft opnieuw starten na het inschakelen van deze optie. Een bereikbare X11- of XWayland-server en een systeemvak zijn nodig."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10800,7 +10789,7 @@ msgstr "Zoeksuggesties"
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Search again"
-msgstr ""
+msgstr "Zoek opnieuw"
 
 #. interface
 #: crates/ui-egui/src/pick_item.rs
@@ -11460,7 +11449,7 @@ msgstr "De categorieën van Gmail onder het Postvak IN tonen"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Show MailCraft"
-msgstr ""
+msgstr "MailCraft tonen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -11667,9 +11656,8 @@ msgstr "Getoond naast de naam van het account, en bij de e-mail ervan waar e-mai
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
-msgstr "Wordt getoond in het mappenvenster, bijvoorbeeld Werk of Thuis. Laat het leeg om het adres te tonen."
+msgstr "Wordt in het mappenvenster getoond, bijvoorbeeld Werk of Thuis. Laat het veld blanco om het adres te tonen."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -13064,12 +13052,12 @@ msgstr "De diagnosegegevens zijn niet opgeslagen, dus de pagina van GitHub is ni
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
-msgstr ""
+msgstr "Het domein {domain} noemt een server voor de automatische instelling van Exchange (Autodiscover), dus dit lijkt op een Exchange-serveraccount. Typ uw wachtwoord en druk op Verbinden: MailCraft zoekt de server en controleert het account. Tot die tijd wordt er niets verzonden."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
-msgstr ""
+msgstr "Het domein {domain} noemt een server voor de automatische instelling (Autodiscover). Op die manier worden Exchange-serveren gevonden, en sommige aanbieders gebruiken het ook voor hun IMAP-mail. Om welk type gaat het? De DNS werd gevraagd om de server te vinden, nooit de server zelf."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13650,12 +13638,12 @@ msgstr "De naam van de server"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
-msgstr ""
+msgstr "De servers hieronder zijn wat de ISP-d database van Mozilla vermeldt voor {domain}. Controleer ze voordat u verbindt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
-msgstr ""
+msgstr "De servers hieronder zijn wat {domain} openbaar maakt voor mailprogramma's (het autoconfig-document ervan). Controleer ze voordat u verbindt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -14154,7 +14142,7 @@ msgstr "Deze build kan geen afbeeldingen downloaden: ze blijven plaatsaanduiding
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This build can't look anything up. Type the server's address in Server settings."
-msgstr ""
+msgstr "Deze build kan niets opzoeken. Typ het adres van de server in Serverinstellingen."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -15350,9 +15338,8 @@ msgstr "Systeeminstelling gebruiken"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
-#, fuzzy
 msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
-msgstr "Systeeminstelling gebruiken volgt de animatie-effecten in de instellingen van Windows. Waar MailCraft de systeeminstelling nog niet kan lezen, worden animaties afgespeeld tot u Nooit afspelen kiest."
+msgstr "De systeeminstelling volgt de animatie-instellingen van Windows. In gevallen waar MailCraft de systeeminstelling nog niet kan lezen, worden animaties afgespeeld tot u Nooit afspelen kiest."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15620,7 +15607,7 @@ msgstr "Wat u schreef is te lang voor een koppeling naar GitHub: maak het korter
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
-msgstr ""
+msgstr "Wat {domain} openbaar maakt voor mailprogramma's, noemt {hosts} als zijn mailserver, en dat zit niet in het eigen domein van uw adres."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16028,17 +16015,17 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
-msgstr ""
+msgstr "De DNS van uw domein kon niet worden gevraagd. Controleer de netwerkverbinding en zoek opnieuw."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
-msgstr ""
+msgstr "De DNS van uw domein noemt geen server voor de automatische instelling. MailCraft probeert nog de gebruikelijke plaatsen voor uw adres."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
-msgstr ""
+msgstr "De DNS van uw domein wijst de autodiscovernaam naar {host}, maar noemt de server niet in de record voor de automatische instelling van Exchange. Het kan een webhost zijn, niet de mailserver van uw organisatie."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -16980,7 +16967,7 @@ msgstr "het is te groot om weer te geven"
 #. what a command says
 #: crates/mobile/src/error.rs
 msgid "it is too long for the platform"
-msgstr ""
+msgstr "het is te lang voor het platform"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -17598,7 +17585,7 @@ msgstr "die gebeurtenis herhaalt zich niet"
 #. what a command says
 #: crates/mobile/src/message.rs
 msgid "that is not a picture that can be shown"
-msgstr ""
+msgstr "dat is geen afbeelding die getoond kan worden"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -17734,7 +17721,7 @@ msgstr "de server van het account heeft geen bruikbare naam"
 #. what a command says
 #: crates/mobile/src/error.rs
 msgid "the app's own code failed"
-msgstr ""
+msgstr "de eigen code van de app is mislukt"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -17976,7 +17963,7 @@ msgstr "het bericht kan niet zoveel tekst bevatten"
 #. what a command says
 #: crates/mobile/src/message.rs
 msgid "the message could not be read"
-msgstr ""
+msgstr "het bericht kon niet worden gelezen"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -18041,12 +18028,12 @@ msgstr "de bovenliggende map hoort bij een ander account"
 #. what a command says
 #: crates/mobile/src/message.rs
 msgid "the picture could not be read"
-msgstr ""
+msgstr "de afbeelding kon niet worden gelezen"
 
 #. what a command says
 #: crates/mobile/src/message.rs
 msgid "the picture is too large"
-msgstr ""
+msgstr "de afbeelding is te groot"
 
 #. what a command says
 #: crates/model/src/rich/find.rs
@@ -18057,7 +18044,7 @@ msgstr "de te vervangen plaatsen zijn geen plaatsen in de tekst"
 #. what a command says
 #: crates/mobile/src/error.rs
 msgid "the platform refused or failed"
-msgstr ""
+msgstr "het platform weigerde of is mislukt"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18241,7 +18228,7 @@ msgstr "de server beëindigde de opdracht te vroeg"
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/status.rs
 msgid "the server ended the session"
-msgstr ""
+msgstr "de server beëindigde de sessie"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -19153,17 +19140,17 @@ msgstr "{host} is ingesteld zonder versleuteling, waardoor het wachtwoord voor i
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{host} is what Mozilla's ISP database lists for {domain}."
-msgstr ""
+msgstr "{host} is wat de ISP-d database van Mozilla vermeldt voor {domain}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
-msgstr ""
+msgstr "{host} is wat {domain} openbaar maakt voor mailprogramma's (het autoconfig-document ervan)."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{host} was found in the DNS records of {domain} (its SRV records)."
-msgstr ""
+msgstr "{host} werd gevonden in de DNS-records van {domain} (de SRV-records ervan)."
 
 #. date and time
 #: crates/i18n/src/date.rs
