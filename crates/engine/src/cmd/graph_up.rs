@@ -53,8 +53,11 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
         }
         // A draft sent here as the server's draft is in Sent Items here at once, and Exchange
         // files it there itself: moved meanwhile, it would be refused while it is being sent and
-        // put back into Drafts here (#1160).
-        let filed_by_server = m.sent_here && Some(m.folder) == sent_items;
+        // put back into Drafts here (#1160). Only while the server has it in Drafts still: one it
+        // has anywhere else is moved as any other.
+        let filed_by_server = m.sent_here
+            && Some(m.folder) == sent_items
+            && mb.folder_by_server(account, &server.folder).and_then(|f| mb.folder(f)).is_some_and(|f| f.kind == FolderKind::Drafts);
         if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder && !filed_by_server) {
             note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }

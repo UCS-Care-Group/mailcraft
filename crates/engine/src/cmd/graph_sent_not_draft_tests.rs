@@ -440,3 +440,67 @@ fn a_mailbox_file_with_sent_messages_kept_as_drafts_opens_with_them_sent() {
     let opened = crate::io::read_mailbox(&bytes).unwrap();
     assert!(!opened.message(sent).unwrap().draft);
 }
+
+/// A Microsoft account's message in Sent Items here, its server copy `AAkD1` in the server's
+/// folder `server_folder`, still marked as a draft sent here (#1160 review): a mark that outlived
+/// its use. The mailbox, the account, the message and the Inbox.
+fn marked_sent_here(server_folder: &str) -> (Mailbox, Id, Id, Id) {
+    let (mut mb, account) = mailbox();
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "FI".into(), ..Default::default() });
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FS", "AAkD1", Some(false)), &mut Down::default());
+    let id = only_in(&mb, account, "FS").id;
+    let m = mb.message_mut(id).unwrap();
+    m.sent_here = true;
+    m.server.as_mut().unwrap().folder = server_folder.into();
+    (mb, account, id, inbox)
+}
+
+/// #1160 review: a mark left on a message the server has filed (Drafts read afresh after Exchange
+/// filed it, so that no removal came) never keeps a move of the owner's from going up. Moved to
+/// the Inbox it goes up; moved back to Sent Items, so does that move: once each.
+#[test]
+fn a_draft_sent_here_and_filed_is_moved_as_any_other() {
+    let (mut mb, _, id, inbox) = marked_sent_here("FS");
+    let sent = mb.message(id).unwrap().folder;
+    assert_eq!(moves(&mb), 0);
+    mb.move_message(id, inbox).unwrap();
+    assert_eq!(moves(&mb), 1, "a move to the Inbox goes up");
+    // The move made there.
+    mb.message_mut(id).unwrap().server.as_mut().unwrap().folder = "FI".into();
+    assert_eq!(moves(&mb), 0);
+    mb.move_message(id, sent).unwrap();
+    assert_eq!(moves(&mb), 1, "the move back to Sent Items goes up");
+    // And a mark that is somehow still there on a message the server has outside Drafts holds no
+    // move back.
+    let (mb, ..) = marked_sent_here("FI");
+    assert_eq!(moves(&mb), 1);
+}
+
+/// #1160 review: a copy of a draft sent here is not one; nor is it once moved by the owner.
+#[test]
+fn a_copy_or_a_move_of_a_draft_sent_here_is_not_marked() {
+    let (mut mb, _, id, inbox) = marked_sent_here("FD");
+    let copy = mb.copy_message(id, inbox).unwrap();
+    assert!(!mb.message(copy).unwrap().sent_here);
+    assert!(mb.message(id).unwrap().sent_here);
+    mb.move_message(id, inbox).unwrap();
+    assert!(!mb.message(id).unwrap().sent_here);
+}
+
+/// #1160 review: Drafts read afresh after the server listed the message in Sent Items brings no
+/// removal for it: the mark goes then, and the message stays where it is.
+#[test]
+fn drafts_read_afresh_takes_the_mark_off_a_draft_sent_here_and_filed() {
+    let (mut mb, account, id, _) = marked_sent_here("FS");
+    let afresh = MessagePage { folder: "FD".into(), afresh: true, caught_up: true, ..Default::default() };
+    take_page(&mut mb, &mut ServerIndex::default(), account, &afresh, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(!m.sent_here);
+    assert!(m.server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+    // Not while the server has it in Drafts still: the listing may have it in a page to come.
+    let (mut mb, account, id, _) = marked_sent_here("FD");
+    take_page(&mut mb, &mut ServerIndex::default(), account, &afresh, &mut Down::default());
+    assert!(mb.message(id).unwrap().sent_here);
+}
