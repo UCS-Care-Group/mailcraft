@@ -46,10 +46,15 @@ pub(crate) struct FakeSecrets {
     pub(crate) fail_index: std::sync::atomic::AtomicUsize,
     /// Deleting removes nothing (the store refuses, and says nothing).
     pub(crate) stuck: std::sync::atomic::AtomicBool,
+    /// Reading a sign-in (not the index of names) fails.
+    pub(crate) unreadable: std::sync::atomic::AtomicBool,
 }
 
 impl SecretStore for FakeSecrets {
     fn get(&self, key: String) -> Result<Option<String>, HostError> {
+        if self.unreadable.load(Ordering::Relaxed) && !key.contains("index") {
+            return Err(HostError::Native);
+        }
         Ok(self.kept.lock().unwrap().iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone()))
     }
 

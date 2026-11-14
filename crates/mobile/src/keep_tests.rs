@@ -360,6 +360,40 @@ fn removing_the_data_says_so_when_the_credential_store_cannot_be_reached() {
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
 }
 
+#[test]
+fn a_sign_in_that_cannot_be_read_back_is_not_taken_for_removed() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    // The removal fails, and so does the read that would show it is still there.
+    platform.secrets.stuck.store(true, Ordering::Relaxed);
+    platform.secrets.unreadable.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    assert!(platform.secrets.kept.lock().unwrap().iter().any(|(_, v)| v == "stored-refresh"));
+    assert!(!subjects(&core).is_empty(), "the mailbox is not reported removed");
+    platform.secrets.stuck.store(false, Ordering::Relaxed);
+    platform.secrets.unreadable.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_restarted_core_keeps_an_index_it_could_not_read_and_a_retry_removes_what_it_names() {
+    let dir = Dir::new();
+    let platform = FakePlatform::new();
+    // An earlier run kept a sign-in for an account the mailbox no longer has, and named it in
+    // the index; this run starts with the store out of reach.
+    let gone = "refresh:gone@example.org|graph".to_string();
+    platform.secrets.kept.lock().unwrap().push((gone.clone(), "old-refresh".to_string()));
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), serde_json::to_string(&[&gone]).unwrap()));
+    platform.no_store.store(true, Ordering::Relaxed);
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    fill(&core);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    platform.no_store.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert!(platform.secrets.kept.lock().unwrap().is_empty(), "{:?}", platform.secrets.kept.lock().unwrap());
+}
+
 #[cfg(unix)]
 #[test]
 fn a_file_that_cannot_be_looked_at_is_never_written_over() {

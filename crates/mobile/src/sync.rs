@@ -43,6 +43,12 @@ pub(crate) const MS_CLIENT_ID: &str = match option_env!("MAILCRAFT_MS_CLIENT_ID"
 
 /// The credential-store entry that lists the names of the others the core wrote.
 const INDEX_KEY: &str = "mailcraft:index";
+
+/// Whether `name` is gone from `store`: removed without a failure, and read back as absent. A
+/// read that fails counts as "still there".
+fn removed(store: &dyn HostSecretStore, name: &str) -> bool {
+    store.remove(name).is_ok() && matches!(store.read(name), Ok(None))
+}
 /// The most names kept in the index (the host's own cap is the same).
 const MOST_KEYS: usize = 1000;
 /// How long the driver waits between wakes while a round is under way, and while none is.
@@ -153,6 +159,9 @@ struct Inner {
     waiters: Vec<Arc<Queue<Wake>>>,
     /// The names of the credential-store entries written, once read from the store.
     keys: Option<BTreeSet<String>>,
+    /// Names written while the index couldn't be read (the store unreachable or failing): they
+    /// join it once it is read, and are never written over it unread.
+    unindexed: BTreeSet<String>,
     /// The last write of the index of names failed: it is written again at the next wake.
     index_pending: bool,
     /// The app's own number for the next notification that counts mail.
@@ -250,7 +259,18 @@ impl SyncHost {
             return;
         }
         let secrets = self.host.platform().secrets();
-        let keys = self.keys_of(inner, secrets.as_deref());
+        let Some(keys) = self.keys_of(inner, secrets.as_deref()) else {
+            // The index can't be read now: what was written waits beside it for a later wake.
+            for key in written {
+                if inner.unindexed.len() < MOST_KEYS {
+                    inner.unindexed.insert(key);
+                } else {
+                    log::warn!("send/receive: too many credential-store entries to index");
+                }
+            }
+            inner.index_pending = true;
+            return;
+        };
         for key in written {
             if keys.len() < MOST_KEYS {
                 keys.insert(key);
@@ -270,43 +290,57 @@ impl SyncHost {
         }
     }
 
-    /// The index of names, read from the store the first time it is wanted.
-    fn keys_of<'a>(&self, inner: &'a mut Inner, store: Option<&dyn HostSecretStore>) -> &'a mut BTreeSet<String> {
-        inner.keys.get_or_insert_with(|| {
-            let found = store.and_then(|s| s.get(INDEX_KEY)).and_then(|json| serde_json::from_str::<Vec<String>>(&json).ok());
-            found.unwrap_or_default().into_iter().take(MOST_KEYS).collect()
-        })
+    /// The index of names, read from the store the first time it can be. `None` while the store
+    /// can't be reached or read: an index nobody could read is never taken for an empty one (and
+    /// written over). Names noted meanwhile join it once it is read.
+    fn keys_of<'a>(&self, inner: &'a mut Inner, store: Option<&dyn HostSecretStore>) -> Option<&'a mut BTreeSet<String>> {
+        if inner.keys.is_none() {
+            let found = store?.read(INDEX_KEY).ok()?;
+            let mut keys: BTreeSet<String> =
+                found.and_then(|json| serde_json::from_str::<Vec<String>>(&json).ok()).unwrap_or_default().into_iter().take(MOST_KEYS).collect();
+            let waiting = std::mem::take(&mut inner.unindexed);
+            if !waiting.is_empty() {
+                inner.index_pending = true;
+            }
+            for name in waiting {
+                if keys.len() < MOST_KEYS {
+                    keys.insert(name);
+                }
+            }
+            inner.keys = Some(keys);
+        }
+        inner.keys.as_mut()
     }
 
     /// Remove every sign-in this core kept: the entries it wrote (by the index), and those of the
     /// mailbox's accounts by their names. Forgets the session's too. An error says that some are
-    /// still in the credential store (or that it can't be reached): their names are kept, so that
-    /// calling it again tries again.
+    /// still in the credential store, or may be (it can't be reached, or a removal or a read
+    /// failed): their names are kept, and an index that couldn't be read is left as it is, so
+    /// that calling it again tries again.
     pub(crate) fn forget_sign_ins(&self, session: &Session) -> Result<usize, String> {
         let mut inner = self.lock();
         let store = self.platform.secrets();
         let secrets = self.host.platform().secrets();
-        let mut names: BTreeSet<String> = self.keys_of(&mut inner, secrets.as_deref()).clone();
+        let indexed = self.keys_of(&mut inner, secrets.as_deref()).map(|keys| keys.clone());
+        let index_read = indexed.is_some();
+        let mut names: BTreeSet<String> = indexed.unwrap_or_default();
+        names.extend(inner.unindexed.iter().cloned());
         for a in &session.mailbox.accounts {
             names.insert(secret_key("refresh", a));
         }
         inner.sr.forget();
         inner.needs_sign_in.clear();
+        let no_store = matches!(store, Ok(None));
         let mut left: BTreeSet<String> = BTreeSet::new();
         match (store, secrets.as_deref()) {
             (Ok(Some(_)), Some(store)) => {
                 for name in &names {
-                    store.delete(name);
-                    // (Whatever the store answers to a read that fails, a name it still gives is not removed.)
-                    if store.get(name).is_some() {
+                    if !removed(store, name) {
                         left.insert(name.clone());
                     }
                 }
-                if left.is_empty() {
-                    store.delete(INDEX_KEY);
-                    if store.get(INDEX_KEY).is_some() {
-                        left.insert(INDEX_KEY.to_string());
-                    }
+                if left.is_empty() && index_read && !removed(store, INDEX_KEY) {
+                    left.insert(INDEX_KEY.to_string());
                 }
             }
             // No store was ever there: nothing was kept in it.
@@ -314,15 +348,25 @@ impl SyncHost {
             // The store can't be reached now: what it holds can't be removed.
             _ => left.extend(names.iter().cloned()),
         }
-        if left.is_empty() {
+        if left.is_empty() && (index_read || no_store) {
             inner.keys = Some(BTreeSet::new());
+            inner.unindexed.clear();
             inner.index_pending = false;
             return Ok(names.len());
         }
         // What is left stays in the index, so that the next call finds it.
         left.remove(INDEX_KEY);
+        let count = left.len();
+        if !index_read {
+            // The index couldn't be read: it stays in the store as it is, unread names and all,
+            // and what is known to be left waits beside it.
+            inner.unindexed = left.into_iter().take(MOST_KEYS).collect();
+            inner.index_pending = !inner.unindexed.is_empty();
+            return Err("the credential store couldn't be read, so sign-ins may still be in it".to_string());
+        }
         let rewrite = !left.is_empty();
         inner.keys = Some(left.clone());
+        inner.unindexed.clear();
         inner.index_pending = rewrite;
         if rewrite
             && let Some(store) = secrets.as_deref()
@@ -330,7 +374,7 @@ impl SyncHost {
         {
             inner.index_pending = false;
         }
-        Err(format!("{} sign-ins couldn't be removed from the credential store", names.len().max(1)))
+        Err(format!("{} sign-ins couldn't be removed from the credential store", count.max(1)))
     }
 
     pub(crate) fn status(&self, session: &Session) -> SyncStatus {
