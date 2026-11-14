@@ -569,6 +569,16 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
+        if app.services.start_at_login.is_some() {
+            let mut on = app.ui.start_at_login;
+            let switch = ui.checkbox(&mut on, tl!("Start MailCraft when you sign in")).on_hover_text(tl!(
+                "MailCraft opens by itself when you sign in to this computer, minimized, or in the system tray when Close to system tray is on, so mail and reminders arrive without opening it. Nothing is sent anywhere: MailCraft adds itself to your computer's list of programs started at sign-in, where you can also remove it."
+            ));
+            app.hit.add("optionStartAtLogin", 0, switch.rect);
+            if switch.changed() {
+                let _ = app.run("ui.startAtLogin", json!({"value": on}));
+            }
+        }
     }
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;

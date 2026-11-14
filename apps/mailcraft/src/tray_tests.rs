@@ -22,7 +22,8 @@ fn hidden_windows_remain_reachable_and_quit_keeps_using_the_apps_save_path() {
     for action in ["click", "quit", "trayLost", "optionOff", "notification", "idle"] {
         let ctx = Context::default();
         let signals = Arc::new(Signals { pending: AtomicU8::new(0), online: AtomicBool::new(true), ctx: ctx.clone() });
-        let mut tray = Tray { backend: Some(backend::Backend::stand_in()), signals, hidden: true, can_hide: true };
+        let mut tray =
+            Tray { backend: Some(backend::Backend::stand_in()), signals, hidden: true, can_hide: true, start_hidden: None, minimize: false };
         let mut app = MailApp::new(mailcraft_engine::Session::new(mailcraft_model::Mailbox::default()), mailcraft_ui_egui::Services::default());
         app.ui.close_to_tray = true;
         match action {
@@ -95,4 +96,36 @@ fn appkit_hide_tracks_only_tray_closes_and_dock_unhide_ends_them() {
     assert!(tray.hidden, "the native hide wins over a viewport command queued before it");
     tray.after_frame_with_visibility(&ctx, Some(false));
     assert!(!tray.hidden, "the Dock's unhide ends the tray hide");
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+#[test]
+fn a_start_at_sign_in_goes_to_the_tray_only_when_it_can_come_back() {
+    // case: (option on, tray online, waited past the limit, owner brought it up) → hidden
+    for (option, online, late, focus, hides) in [
+        (true, true, false, false, true),
+        (false, true, false, false, false),
+        (true, false, false, false, false),
+        (true, true, true, false, false),
+        (true, true, false, true, false),
+    ] {
+        let ctx = Context::default();
+        let signals = Arc::new(Signals { pending: AtomicU8::new(0), online: AtomicBool::new(online), ctx: ctx.clone() });
+        let mut tray =
+            Tray { backend: Some(backend::Backend::stand_in()), signals, hidden: false, can_hide: true, start_hidden: None, minimize: false }
+                .start_hidden();
+        let mut app = MailApp::new(mailcraft_engine::Session::new(mailcraft_model::Mailbox::default()), mailcraft_ui_egui::Services::default());
+        app.ui.close_to_tray = option;
+        let now = if late { std::time::Instant::now() + TRAY_WAIT + std::time::Duration::from_secs(1) } else { std::time::Instant::now() };
+        let out = ctx.run_logic(&egui::RawInput::default(), |ctx| {
+            tray.hide_at_start(ctx, &app, focus, now);
+            tray.after_frame(ctx);
+        });
+        let commands = out.viewport_commands.get(&egui::ViewportId::ROOT).cloned().unwrap_or_default();
+        let case = (option, online, late, focus);
+        assert_eq!(commands.contains(&ViewportCommand::Visible(false)), hides, "{case:?}");
+        assert_eq!(tray.hidden, hides, "{case:?}");
+        // Waiting for a tray that may still come keeps the hide; anything else ends it.
+        assert_eq!(tray.start_hidden.is_some(), option && !online && !late && !focus, "{case:?}");
+    }
 }

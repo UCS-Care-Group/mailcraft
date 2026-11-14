@@ -27,6 +27,7 @@ mod apple_events;
 #[cfg(test)]
 mod approval_flow;
 mod attachment_render;
+mod autostart;
 mod block_on;
 mod browser;
 #[cfg(test)]
@@ -1436,6 +1437,8 @@ fn main() -> eframe::Result {
     let mut sample = false;
     let mut mailbox_path: Option<PathBuf> = None;
     let mut after_update = false;
+    // Started at sign-in (`autostart`): the window opens minimized, or in the tray.
+    let mut background = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1443,6 +1446,7 @@ fn main() -> eframe::Result {
             "--control-agents-only" => control_agents_only = true,
             "--sample" => sample = true,
             "--mailbox" => mailbox_path = args.next().map(PathBuf::from),
+            autostart::BACKGROUND => background = true,
             // Started by the version this one replaced: it is let go first.
             self_update::AFTER_UPDATE => after_update = true,
             "--version" => {
@@ -1568,6 +1572,10 @@ fn main() -> eframe::Result {
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
     }
+    // Start when you sign in: only a run that keeps its settings and its mailbox has the switch,
+    // and the system's list is what it shows (`autostart`).
+    let start_at_login = prefs_enabled() && !sample && autostart::supported();
+    let in_login_list = if start_at_login { autostart::reconcile() } else { None };
     // Registered before the event loop starts, so it catches the Finder event that launched us as
     // well as later ones. Lives until the event loop returns; the app creator only borrows it.
     #[cfg(target_os = "macos")]
@@ -1629,6 +1637,9 @@ fn main() -> eframe::Result {
                     services.clipboard_keys = clipboard_keys;
                 }
                 services.update_start = update_start;
+                if start_at_login {
+                    services.start_at_login = Some(Box::new(autostart::set));
+                }
                 services.claim_mailbox =
                     claimer.map(|c| Box::new(move |path: &std::path::Path| c.claim(path)) as Box<dyn Fn(&std::path::Path) -> bool>);
                 let mut app = MailApp::new(session, services);
@@ -1681,6 +1692,9 @@ fn main() -> eframe::Result {
                     Some(ui) => app.apply_prefs(ui),
                     None => app.fresh_prefs(),
                 }
+                if let Some(on) = in_login_list {
+                    app.ui.start_at_login = on;
+                }
                 app.settings_unread = settings_unread;
                 app.software_drawing = software;
                 app.ui.window = restored;
@@ -1727,7 +1741,10 @@ fn main() -> eframe::Result {
                 dialogs,
                 guard,
                 updates,
-                tray::Tray::new(&cc.egui_ctx, tray::can_hide(cc)),
+                {
+                    let tray = tray::Tray::new(&cc.egui_ctx, tray::can_hide(cc));
+                    if background { tray.start_hidden() } else { tray }
+                },
                 #[cfg(target_os = "macos")]
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]

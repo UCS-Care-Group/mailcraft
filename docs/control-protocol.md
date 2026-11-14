@@ -129,6 +129,7 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `app.status` | — | `{"mailbox": "open", "opening": {"name", "read", "total"} \| null}` (a mailbox File › Open is reading in the background, by its file's name alone). Agents may ask it too. While the window is still opening the mailbox it starts with: `{"mailbox": "opening", "stage": "reading"\|"gettingReady"\|"problem", "read", "total"}` (bytes; `problem`: the window shows why the mailbox couldn't be opened, or was damaged or repaired, and waits for the owner) |
 | `app.quit` | — | exit MailCraft, including when Close to system tray is enabled; saves and handles unsaved work first |
 | `ui.closeToTray` | `value?: bool` | set or toggle File › Options › General › Close to system tray (off by default); closing hides the desktop window only while a working tray is available; explicit Quit exits |
+| `ui.startAtLogin` | `value?: bool` | set or toggle File › Options › General › Start MailCraft when you sign in (off by default): the desktop app adds itself to, or removes itself from, the system's list of programs started at sign-in (an autostart entry on Linux and the BSDs, the Run key on Windows, a launch agent on macOS), and the switch changes only when that worked; such a start opens minimized, or in the tray when Close to system tray is on. Refused where the host can't do it (the browser, a run without settings, a Flatpak). An agent asks first |
 | *(any command id)* | its params | shorthand for `engine.execute` |
 
 ## The window's own commands

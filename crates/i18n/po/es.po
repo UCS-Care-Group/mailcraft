@@ -6654,6 +6654,11 @@ msgstr "Correo, calendario, personas y tareas, escrito desde cero en Rust. Se ej
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft ya puede mantener {account} sincronizada con Microsoft a través de Microsoft Graph, como hace Outlook en la Web, en lugar de IMAP. Así sus carpetas, marcas, categorías y borradores coinciden con lo que ve en Outlook, y su correo sigue llegando aunque su organización haya desactivado IMAP."
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft can't be started when you sign in from here"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -6767,6 +6772,11 @@ msgstr ""
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr "MailCraft ahora instala sus actualizaciones por sí mismo. Puede desactivarlo en Archivo › Acerca de."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "MailCraft opens by itself when you sign in to this computer, minimized, or in the system tray when Close to system tray is on, so mail and reminders arrive without opening it. Nothing is sent anywhere: MailCraft adds itself to your computer's list of programs started at sign-in, where you can also remove it."
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -12060,6 +12070,11 @@ msgid "Start"
 msgstr "Inicio"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Start MailCraft when you sign in"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Start again from the details"
@@ -12085,6 +12100,11 @@ msgstr "Empezar de nuevo"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Start time:"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Start when you sign in"
 msgstr ""
 
 #. interface

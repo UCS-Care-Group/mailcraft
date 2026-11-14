@@ -6690,6 +6690,11 @@ msgstr "Posta, calendario, persone e attività, scritti da zero in Rust. Funzion
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft ora può mantenere {account} sincronizzato con Microsoft tramite Microsoft Graph, come fa Outlook sul web, invece che tramite IMAP. Cartelle, contrassegni, categorie e bozze corrispondono allora a ciò che si vede in Outlook, e la posta continua ad arrivare anche dove l'organizzazione ha disattivato IMAP."
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft can't be started when you sign in from here"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -6805,6 +6810,11 @@ msgstr "Per accedere, MailCraft ha bisogno del browser del sistema. Puoi anche u
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr "MailCraft ora installa da sé i propri aggiornamenti. È possibile disattivarlo in File › Informazioni sul programma."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "MailCraft opens by itself when you sign in to this computer, minimized, or in the system tray when Close to system tray is on, so mail and reminders arrive without opening it. Nothing is sent anywhere: MailCraft adds itself to your computer's list of programs started at sign-in, where you can also remove it."
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -12119,6 +12129,11 @@ msgid "Start"
 msgstr "Inizio"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Start MailCraft when you sign in"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Start again from the details"
@@ -12144,6 +12159,11 @@ msgstr "Ricomincia"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Start time:"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Start when you sign in"
 msgstr ""
 
 #. interface

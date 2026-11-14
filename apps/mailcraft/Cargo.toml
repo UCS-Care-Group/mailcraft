@@ -118,6 +118,8 @@ keyring-core = "1"
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy
 # updates itself) and an organisation's policy that turns updating off (`install.rs`, `updater.rs`).
+# One value written, on the owner's say-so: `MailCraft` in the user's own `Run` key, for Start
+# MailCraft when you sign in (`autostart.rs`), and taken out again when they turn it off.
 winreg = "0.56"
 # Desktop alerts as toasts (`alerts.rs`): Windows.UI.Notifications and the XML they are made of.
 # Already in the tree (the GUI stack's), the same version; only these features are added.

@@ -6654,6 +6654,11 @@ msgstr "Courrier, calendrier, contacts et tâches, écrits de zéro en Rust. Il 
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft peut désormais synchroniser {account} avec Microsoft via Microsoft Graph, comme le fait Outlook sur le web, au lieu d'IMAP. Vos dossiers, indicateurs, catégories et brouillons correspondent alors à ce que vous voyez dans Outlook, et votre courrier continue d'arriver même si votre organisation a désactivé IMAP."
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft can't be started when you sign in from here"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -6767,6 +6772,11 @@ msgstr ""
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › About."
 msgstr "MailCraft installe désormais ses mises à jour lui-même. Vous pouvez désactiver cela dans Fichier › À propos."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "MailCraft opens by itself when you sign in to this computer, minimized, or in the system tray when Close to system tray is on, so mail and reminders arrive without opening it. Nothing is sent anywhere: MailCraft adds itself to your computer's list of programs started at sign-in, where you can also remove it."
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -12060,6 +12070,11 @@ msgid "Start"
 msgstr "Début"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Start MailCraft when you sign in"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Start again from the details"
@@ -12085,6 +12100,11 @@ msgstr "Recommencer"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Start time:"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Start when you sign in"
 msgstr ""
 
 #. interface
