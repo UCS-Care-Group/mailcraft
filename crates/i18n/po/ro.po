@@ -2720,7 +2720,7 @@ msgid "Classic Ribbon"
 msgstr "Panglică clasică"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clean Up"
 msgstr "Curățare"
@@ -4844,7 +4844,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Restrângeți calendarele acestui grup"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Dosar"
@@ -5880,6 +5880,11 @@ msgstr "Import fișier calendar"
 msgid "Import Contacts"
 msgstr "Import contacte"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import Mail"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -5952,6 +5957,19 @@ msgstr "Importați programările și sarcinile din {name} în calendar?"
 msgid "Import the contacts in {name} into Contacts?"
 msgstr "Importați contactele din {name} în Contacte?"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import the messages in {name} into {folder}?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import {n} message from {name} into {folder}?"
+msgid_plural "Import {n} messages from {name} into {folder}?"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -6011,6 +6029,16 @@ msgstr "S-a importat {what} în Ciorne pe acest computer: o ciornă rămâne pe 
 #, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr "S-a importat {what} într-un dosar local: mutați-l în cont ca să ajungă pe serverul Microsoft"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what} into the local folder Imported, on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what} into the local folder Imported: move it into the account to put it on its server"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7607,6 +7635,11 @@ msgid "Messages (.eml, .mbox), calendars (.ics) and contacts (.vcf)"
 msgstr "Mesaje (.eml, .mbox), calendare (.ics) și contacte (.vcf)"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "Messages already in that folder are left out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
@@ -8534,6 +8567,11 @@ msgstr "În această copie nu au fost incluse mențiunile contribuitorilor."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+msgid "No copies on this computer of mail its server has were found"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No credential store answered (on Linux, GNOME Keyring or KWallet provides one)"
 msgstr "Nu a răspuns niciun depozit de acreditări (pe Linux, GNOME Keyring sau KWallet oferă unul)"
@@ -8948,6 +8986,11 @@ msgstr "Nimic nu se potrivește."
 #, fuzzy
 msgid "Nothing more was found on the server"
 msgstr "Nu s-a mai găsit nimic pe server"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Nothing new imported: {already}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -10512,6 +10555,11 @@ msgstr "Eliminare atașament"
 msgid "Remove Everything"
 msgstr "Eliminare totală"
 
+#. command label, interface
+#: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
+msgid "Remove Imported Duplicates"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11301,6 +11349,11 @@ msgid "Saved on this computer only: this item is not in your Outlook calendar"
 msgstr "Salvat doar pe acest computer: acest element nu este în calendarul Outlook"
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved the message to {name}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Saved to Drafts"
@@ -11320,6 +11373,14 @@ msgid_plural "Saved {n} attachments"
 msgstr[0] "S-a salvat {n} atașament"
 msgstr[1] "S-au salvat {n} atașamente"
 msgstr[2] "S-au salvat {n} de atașamente"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Saved {n} message to {name}"
+msgid_plural "Saved {n} messages to {name}"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -14504,6 +14565,11 @@ msgstr "Certificatul serverului este pentru numele altui server, deci MailCraft 
 #, fuzzy
 msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
 msgstr "Certificatul serverului nu este încă valabil, deci MailCraft nu se conectează la el. Verificați data și ora acestui computer sau întrebați administratorul."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server's copies stay as they are, and nothing is sent to the server. Undo brings them back until the next Send/Receive."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18215,7 +18281,7 @@ msgid "no folder \"{path}\""
 msgstr "nu există dosarul „{path}”"
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "nu există dosar cu ID-ul {id}"
@@ -20671,6 +20737,30 @@ msgstr[0] "{n} contact se șterge după ce se salvează cel păstrat. Anulare î
 msgstr[1] "{n} contacte se șterg după ce se salvează cel păstrat. Anulare le readuce."
 msgstr[2] "{n} de contacte se șterg după ce se salvează cel păstrat. Anulare le readuce."
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} copy on this computer of mail its server has removed"
+msgid_plural "{n} copies on this computer of mail its server has removed"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} copy on this computer of mail its server has would be removed"
+msgid_plural "{n} copies on this computer of mail its server has would be removed"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} copy you changed (its flag, categories, read mark or a to-do) is kept."
+msgid_plural "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -20834,6 +20924,14 @@ msgstr[1] "{n} intrări de jurnal"
 msgstr[2] "{n} de intrări de jurnal"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} kept because it differs"
+msgid_plural "{n} kept because they differ"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "{n} mailbox file"
@@ -20933,6 +21031,14 @@ msgstr[1] "{n} mesaje de dimensiune necunoscută"
 msgstr[2] "{n} de mesaje de dimensiune necunoscută"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "{n} message on this computer is a copy of mail its server has in the same folder, and will be removed."
+msgid_plural "{n} messages on this computer are copies of mail their server has in the same folder, and will be removed."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message removed"
@@ -20958,6 +21064,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "{n} mesaj care a revenit gol după o ștergere refuzată se descarcă din nou."
 msgstr[1] "{n} mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
 msgstr[2] "{n} de mesaje care au revenit goale după o ștergere refuzată se descarcă din nou."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message was already here"
+msgid_plural "{n} messages were already here"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -21386,6 +21500,11 @@ msgstr "{rule}, din {day}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+msgid "{said}; {already}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{said}; {left}{more}"
 msgstr "{said}; {left}{more}"
@@ -21470,6 +21589,11 @@ msgstr "{weekday}, {day} {month}"
 #, fuzzy
 msgid "{weekday}, {month} {day}, {year}"
 msgstr "{weekday}, {day} {month} {year}"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{what} ({already})"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
