@@ -116,6 +116,8 @@ keyring-core = "1"
 [target.'cfg(target_os = "windows")'.dependencies]
 # Legacy Windows Recent Items shortcuts encode paths in the system ANSI code page.
 encoding_rs = { workspace = true }
+# Enumerate local fixed volumes without starting a shell or probing mapped drives.
+sysinfo = { version = "0.40.1", default-features = false, features = ["disk"] }
 # Windows Credential Manager, for the credential store above.
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy

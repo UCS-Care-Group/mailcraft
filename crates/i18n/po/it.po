@@ -1983,8 +1983,8 @@ msgstr "Importa"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
-msgid "Browse This PC…"
-msgstr "Sfoglia questo PC…"
+msgid "Browse…"
+msgstr "Sfoglia…"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -20218,6 +20218,9 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#~ msgid "Browse This PC…"
+#~ msgstr "Sfoglia questo PC…"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

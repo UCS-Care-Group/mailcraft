@@ -127,7 +127,7 @@ fn recent_attachments_open_in_compact_classic_columns_and_overflow() {
             h.query_by_label("Attach File").unwrap().rect().center()
         };
         crate::people_view::testing::click(&mut h, center, egui::PointerButton::Primary, 1);
-        assert!(h.query_by_label("Browse This PC…").is_some(), "{stage:?}");
+        assert!(h.query_by_label("Browse…").is_some(), "{stage:?}");
     }
 }
 

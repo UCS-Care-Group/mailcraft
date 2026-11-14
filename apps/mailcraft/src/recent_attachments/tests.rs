@@ -42,7 +42,7 @@ fn truncated_invalid_and_oversized_links_are_rejected() {
     for size in 0..good.len() {
         assert!(link_target(&good[..size], None).is_none(), "{size}");
     }
-    for (field, invalid) in [(0, 0), (20, 0x102), (24, 16), (0x4c, u32::MAX), (0x4c + 8, 3), (0x4c + 28, u32::MAX)] {
+    for (field, invalid) in [(0, 0), (20, 0x102), (24, 16), (0x4c, u32::MAX), (0x4c + 8, 2), (0x4c + 28, u32::MAX)] {
         let mut bytes = good.clone();
         set(&mut bytes, field, invalid);
         assert!(link_target(&bytes, None).is_none(), "{field}");
@@ -70,6 +70,23 @@ fn legacy_shortcuts_use_the_windows_ansi_code_page() {
     set(info, 24, size as u32 - 1);
     assert!(link_target(&bytes, None).is_none());
     assert_eq!(link_target(&bytes, Some(encoding_rs::WINDOWS_1252)), Some(PathBuf::from(r"C:\Documents\bûche.txt")));
+}
+
+#[test]
+fn mixed_link_info_uses_only_the_local_target_and_counts_utf16_units() {
+    let path = format!("C:\\{}.txt", "界".repeat(400));
+    let mut bytes = shortcut(&path);
+    set(&mut bytes, 0x4c + 8, 3);
+    assert_eq!(link_target(&bytes, None), Some(PathBuf::from(path)));
+    assert!(link_target(&shortcut(&format!("C:\\{}.txt", "界".repeat(MOST_PATH_UNITS))), None).is_none());
+}
+
+#[test]
+fn the_windows_volume_list_contains_the_known_local_system_drive() {
+    let system = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
+    let Some(Component::Prefix(prefix)) = system.components().next() else { panic!("system root needs a drive") };
+    let Prefix::Disk(drive) = prefix.kind() else { panic!("system root needs a normal drive") };
+    assert!(fixed_drives().contains(&drive.to_ascii_uppercase()));
 }
 
 #[test]

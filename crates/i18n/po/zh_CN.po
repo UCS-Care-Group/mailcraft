@@ -2088,7 +2088,7 @@ msgstr "导入"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
-msgid "Browse This PC…"
+msgid "Browse…"
 msgstr ""
 
 #. interface

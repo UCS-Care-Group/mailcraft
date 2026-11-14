@@ -6,14 +6,12 @@ use std::collections::{BinaryHeap, HashSet};
 use std::fs::{self, File};
 use std::io::Read;
 use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
-use std::os::windows::process::CommandExt;
 use std::path::{Component, Path, PathBuf, Prefix};
 
 use encoding_rs::Encoding;
 
 const MOST_FILES: usize = 10;
 const MOST_LINKS: usize = 256;
-const MOST_DIRECTORY_ENTRIES: usize = 4096;
 const MOST_LINK_BYTES: u64 = 64 * 1024;
 const MOST_PATH_UNITS: usize = 1024;
 const REPARSE_POINT: u32 = 0x400;
@@ -26,52 +24,46 @@ mod tests;
 pub(crate) fn list() -> Vec<PathBuf> {
     let Some(appdata) = std::env::var_os("APPDATA") else { return Vec::new() };
     let recent = PathBuf::from(appdata).join(r"Microsoft\Windows\Recent");
-    let (fixed, ansi) = windows_settings();
-    from_directory(&recent, &fixed, ansi)
+    let fixed = fixed_drives();
+    from_directory(&recent, &fixed, ansi_encoding())
 }
 
-/// Verify drive letters against the running system. A shortcut's stored drive type does not
-/// prove a letter hasn't since been mapped to a network share. Only this fixed script runs; no
-/// file name, shortcut or path is passed to PowerShell.
-fn windows_settings() -> (HashSet<u8>, Option<&'static Encoding>) {
-    use std::process::{Command, Stdio};
+/// Determine the drive letters of local fixed volumes before probing a shortcut target.
+fn fixed_drives() -> HashSet<u8> {
+    use sysinfo::{DiskRefreshKind, Disks};
 
-    let Some(windows) = std::env::var_os("SystemRoot") else { return (HashSet::new(), None) };
-    let powershell = PathBuf::from(windows).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
-    let script = "[Text.Encoding]::Default.CodePage; [IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq [IO.DriveType]::Fixed } | ForEach-Object { $_.Name.Substring(0,1) }";
-    let Ok(output) = Command::new(powershell)
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-    else {
-        return (HashSet::new(), None);
-    };
-    if !output.status.success() || output.stdout.len() > 256 {
-        return (HashSet::new(), None);
-    }
-    let mut lines = output.stdout.split(|b| *b == b'\n').map(|line| line.strip_suffix(b"\r").unwrap_or(line));
-    let ansi = lines.next().and_then(|line| {
-        let code = std::str::from_utf8(line).ok()?.parse::<u32>().ok()?;
-        let label = match code {
-            874 | 1250..=1258 => format!("windows-{code}"),
-            932 => "shift_jis".to_owned(),
-            936 => "gbk".to_owned(),
-            949 => "euc-kr".to_owned(),
-            950 => "big5".to_owned(),
-            65001 => "utf-8".to_owned(),
-            _ => return None,
-        };
-        Encoding::for_label_no_replacement(label.as_bytes())
-    });
-    let fixed = lines
-        .filter_map(|line| match line {
-            [letter] if letter.is_ascii_alphabetic() => Some(letter.to_ascii_uppercase()),
-            _ => None,
+    let Ok(disks) = Disks::new_with_refreshed_list_specifics(DiskRefreshKind::nothing()) else { return HashSet::new() };
+    disks
+        .iter()
+        .filter(|disk| !disk.is_removable())
+        .filter_map(|disk| {
+            let mut parts = disk.mount_point().components();
+            let Component::Prefix(prefix) = parts.next()? else { return None };
+            let Prefix::Disk(drive) = prefix.kind() else { return None };
+            if parts.next() != Some(Component::RootDir) || parts.next().is_some() {
+                return None;
+            }
+            Some(drive.to_ascii_uppercase())
         })
-        .collect();
-    (fixed, ansi)
+        .collect()
+}
+
+fn ansi_encoding() -> Option<&'static Encoding> {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+
+    let nls = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SYSTEM\CurrentControlSet\Control\Nls\CodePage").ok()?;
+    let code = nls.get_value::<String, _>("ACP").ok()?.parse::<u32>().ok()?;
+    let label = match code {
+        874 | 1250..=1258 => format!("windows-{code}"),
+        932 => "shift_jis".to_owned(),
+        936 => "gbk".to_owned(),
+        949 => "euc-kr".to_owned(),
+        950 => "big5".to_owned(),
+        65001 => "utf-8".to_owned(),
+        _ => return None,
+    };
+    Encoding::for_label_no_replacement(label.as_bytes())
 }
 
 fn from_directory(directory: &Path, fixed: &HashSet<u8>, ansi: Option<&'static Encoding>) -> Vec<PathBuf> {
@@ -81,7 +73,7 @@ fn from_directory(directory: &Path, fixed: &HashSet<u8>, ansi: Option<&'static E
     let Ok(entries) = fs::read_dir(directory) else { return Vec::new() };
     // Keep the newest candidates in bounded space, including when many entries are stale.
     let mut newest = BinaryHeap::new();
-    for entry in entries.take(MOST_DIRECTORY_ENTRIES).flatten() {
+    for entry in entries.flatten() {
         let path = entry.path();
         if !path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("lnk")) {
             continue;
@@ -182,7 +174,7 @@ fn link_target(bytes: &[u8], ansi: Option<&'static Encoding>) -> Option<PathBuf>
     }
     let info = info.get(..field(info, 0)?)?;
     let header = field(info, 4)?;
-    if (header != 0x1c && header < 0x24) || header > info.len() || field(info, 8)? != 1 {
+    if (header != 0x1c && header < 0x24) || header > info.len() || field(info, 8)? & 1 == 0 {
         return None;
     }
     let offset = |at| field(info, at).filter(|offset| *offset >= header && *offset < info.len());
@@ -205,7 +197,7 @@ fn link_target(bytes: &[u8], ansi: Option<&'static Encoding>) -> Option<PathBuf>
             None
         } else {
             // Unicode offsets take precedence. Decode a legacy path in the system code page.
-            let end = bytes.iter().take(MOST_PATH_UNITS + 1).position(|byte| *byte == 0)?;
+            let end = bytes.iter().take(4 * MOST_PATH_UNITS + 1).position(|byte| *byte == 0)?;
             let encoded = bytes.get(..end)?;
             if encoded.is_ascii() {
                 return std::str::from_utf8(encoded).ok().map(str::to_owned);
@@ -216,7 +208,7 @@ fn link_target(bytes: &[u8], ansi: Option<&'static Encoding>) -> Option<PathBuf>
     let base = if header >= 0x24 && field(info, 28)? != 0 { string(28, true)? } else { string(16, false)? };
     let suffix = if header >= 0x24 && field(info, 32)? != 0 { string(32, true)? } else { string(24, false)? };
     let target = format!("{base}{suffix}");
-    if target.len() > MOST_PATH_UNITS || target.chars().any(char::is_control) {
+    if target.encode_utf16().count() > MOST_PATH_UNITS || target.chars().any(char::is_control) {
         return None;
     }
     let target = PathBuf::from(target);

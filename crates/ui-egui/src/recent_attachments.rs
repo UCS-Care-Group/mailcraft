@@ -77,7 +77,10 @@ pub(super) fn contents(ui: &mut Ui, app: &mut MailApp) {
                     for path in paths.iter().take(10) {
                         let Some(name) = path.file_name().and_then(|name| name.to_str()) else { continue };
                         let Some(full) = path.to_str() else { continue };
-                        let label = mailcraft_engine::opening::file_name(name);
+                        let label = mailcraft_names::shown(name, 96);
+                        if label.is_empty() {
+                            continue;
+                        }
                         let display_path = full.replace(
                             |ch: char| {
                                 ch.is_control()
@@ -97,7 +100,7 @@ pub(super) fn contents(ui: &mut Ui, app: &mut MailApp) {
         }
     }
     ui.separator();
-    if ui.button(tl!("Browse This PC…")).clicked() {
+    if ui.button(tl!("Browse…")).clicked() {
         let _ = app.run("ui.attach", serde_json::json!({}));
         ui.close();
     }

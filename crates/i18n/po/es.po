@@ -1978,7 +1978,7 @@ msgstr "Incorporar"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
-msgid "Browse This PC…"
+msgid "Browse…"
 msgstr ""
 
 #. interface
