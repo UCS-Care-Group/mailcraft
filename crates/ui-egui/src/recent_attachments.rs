@@ -78,7 +78,14 @@ pub(super) fn contents(ui: &mut Ui, app: &mut MailApp) {
                         let Some(name) = path.file_name().and_then(|name| name.to_str()) else { continue };
                         let Some(full) = path.to_str() else { continue };
                         let label = mailcraft_engine::opening::file_name(name);
-                        if ui.button(label).clicked() {
+                        let display_path = full.replace(
+                            |ch: char| {
+                                ch.is_control()
+                                    || matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+                            },
+                            "\u{fffd}",
+                        );
+                        if ui.button(label).on_hover_text(display_path).clicked() {
                             if let Err(error) = crate::files::attach_all(app, &[full.to_owned()], Some(compose)) {
                                 app.status(error);
                             }

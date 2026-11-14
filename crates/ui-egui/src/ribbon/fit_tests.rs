@@ -102,6 +102,35 @@ fn hostile_inputs_do_not_panic() {
 
 type Window = egui_kittest::Harness<'static, MailApp>;
 
+#[test]
+fn recent_attachments_open_in_compact_classic_columns_and_overflow() {
+    use egui_kittest::kittest::Queryable as _;
+
+    for stage in [Some(Stage::Small), Some(Stage::Icons), None] {
+        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+        app.run("mail.new", json!({})).unwrap();
+        app.services.recent_attachments = Some(Box::new(|_| std::sync::mpsc::channel().1));
+        let group = super::g("Include", vec![super::Item::big("attach", "Attach File", "ui.attach", json!({}))]);
+        let mut group = group;
+        group.items[0].menu = Some(super::Menu::RecentAttachments);
+        let mut h = egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().build_ui_state(
+            move |ui, app: &mut MailApp| match stage {
+                Some(stage) => super::classic_cells(app, ui, &[&group.items[0]], stage),
+                None => super::group_entries(ui, app, &group),
+            },
+            app,
+        );
+        h.run_steps(5);
+        let center = if stage.is_some() {
+            h.state().hit.rect("ribbon", hit_id("ui.attach")).unwrap().center()
+        } else {
+            h.query_by_label("Attach File").unwrap().rect().center()
+        };
+        crate::people_view::testing::click(&mut h, center, egui::PointerButton::Primary, 1);
+        assert!(h.query_by_label("Browse This PC…").is_some(), "{stage:?}");
+    }
+}
+
 fn window(size_percent: u32) -> Window {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;

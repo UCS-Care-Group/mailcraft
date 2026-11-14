@@ -34,8 +34,13 @@ fn opening_a_composer_does_not_load_recent_files_and_they_are_not_a_command() {
 
 #[test]
 fn recent_file_menu_is_hidden_from_captures_and_attaches_to_the_composer() {
-    let file = std::env::temp_dir().join(format!("mailcraft-recent-{}.txt", std::process::id()));
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("mailcraft-recent.txt");
+    let other_directory = directory.path().join("other");
+    std::fs::create_dir(&other_directory).unwrap();
+    let other = other_directory.join("mailcraft-recent.txt");
     std::fs::write(&file, b"recent file").unwrap();
+    std::fs::write(&other, b"other recent file").unwrap();
     let name = file.file_name().unwrap().to_str().unwrap();
     let mut h = testing::window("view.mail");
     let calls = Rc::new(Cell::new(0));
@@ -44,7 +49,7 @@ fn recent_file_menu_is_hidden_from_captures_and_attaches_to_the_composer() {
     h.state_mut().services.recent_attachments = Some(Box::new(move |_| {
         count.set(count.get() + 1);
         let (tx, rx) = std::sync::mpsc::channel();
-        tx.send(vec![recent.clone()]).unwrap();
+        tx.send(vec![recent.clone(), other.clone()]).unwrap();
         rx
     }));
     let compose = h.state_mut().run("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
@@ -64,12 +69,15 @@ fn recent_file_menu_is_hidden_from_captures_and_attaches_to_the_composer() {
 
     h.state_mut().driven = false;
     testing::click(&mut h, arrow, PointerButton::Primary, 1);
-    let entry = h.query_by_label(name).unwrap().rect().center();
+    let entries: Vec<_> = h.query_all_by_label(name).map(|node| node.rect().center()).collect();
+    assert_eq!(entries.len(), 2);
+    h.hover_at(entries[0]);
+    h.run_steps(60);
+    assert!(h.query_by_label(file.to_str().unwrap()).is_some());
     assert_eq!(calls.get(), 1);
-    testing::click(&mut h, entry, PointerButton::Primary, 1);
+    testing::click(&mut h, entries[0], PointerButton::Primary, 1);
     let message = h.state().session.composing_by_id(compose).unwrap();
     assert_eq!(message.attachments.len(), 1);
     assert_eq!(message.attachments[0].name, name);
     assert_eq!(message.attachments[0].data.as_slice(), b"recent file");
-    std::fs::remove_file(file).unwrap();
 }

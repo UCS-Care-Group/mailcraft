@@ -1971,6 +1971,17 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
 
 // ---- the classic layout ----
 
+fn classic_recent_attachments(app: &mut MailApp, response: &egui::Response, enabled: bool) {
+    if !enabled {
+        return;
+    }
+    if crate::recent_attachments::available(app) {
+        egui::Popup::menu(response).show(|ui| crate::recent_attachments::contents(ui, app));
+    } else if response.clicked() {
+        let _ = app.run("ui.attach", json!({}));
+    }
+}
+
 /// A large button of the classic layout.
 fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
     let label = tl!(item.label);
@@ -1980,13 +1991,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
-            if on {
-                if crate::recent_attachments::available(app) {
-                    egui::Popup::menu(&resp).show(|ui| crate::recent_attachments::contents(ui, app));
-                } else if resp.clicked() {
-                    let _ = app.run("ui.attach", json!({}));
-                }
-            }
+            classic_recent_attachments(app, &resp, on);
         }
         (Some((command, params)), _) => {
             let on = app.enabled(command);
@@ -2031,6 +2036,12 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
             let name = item.name();
             let label = labelled.then_some(name.as_str());
             match (&item.command, item.menu) {
+                (_, Some(Menu::RecentAttachments)) => {
+                    let on = usable(app, item);
+                    let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
+                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
+                    classic_recent_attachments(app, &resp, on);
+                }
                 (Some((command, params)), _) => {
                     let on = app.enabled(command);
                     let resp = small_frame(ui, item.icon, label, on, item.checked, false);
@@ -2079,6 +2090,8 @@ fn group_entries(ui: &mut Ui, app: &mut MailApp, group: &Group) {
         if item.pending {
             let entry = ui.add_enabled(false, egui::Button::new(item.name()).min_size(vec2(190.0, 0.0)));
             entry.on_disabled_hover_text(tl!("Pending development"));
+        } else if item.menu == Some(Menu::RecentAttachments) && crate::recent_attachments::available(app) {
+            submenu(ui, app, item.name(), Menu::RecentAttachments);
         } else if item.command.is_some() {
             entry(ui, app, item);
         } else if let Some(menu) = item.menu {
