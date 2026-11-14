@@ -489,8 +489,14 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     tl!("Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."),
                     &[("sender", &short(&from, 60))],
                 );
-                // Not registered with `app.hit`: there is nothing to click.
-                ui.add(egui::Label::new(egui::RichText::new(label).font(semibold(11.5)).color(t.text_dim)).sense(Sense::hover())).on_hover_text(why);
+                // Not registered with `app.hit`: there is nothing to click. Greyed, with a few
+                // words after it that say why without pointing at it, and the whole reason when
+                // either is pointed at (#1386).
+                let shown = |ui: &mut Ui, text: egui::RichText, why: &str| {
+                    ui.add(egui::Label::new(text).sense(Sense::hover()).selectable(false)).on_hover_text(why);
+                };
+                shown(ui, egui::RichText::new(label).font(semibold(11.5)).color(t.text_disabled), &why);
+                shown(ui, egui::RichText::new(tl!("(the server didn't confirm the sender)")).font(regular(11.5)).color(t.text_dim), &why);
                 return;
             }
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
