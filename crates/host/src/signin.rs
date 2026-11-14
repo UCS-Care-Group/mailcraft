@@ -291,16 +291,15 @@ pub fn kept_refresh(platform: &dyn Platform, email: &str) -> Option<String> {
 }
 
 /// Put back what [`kept_refresh`] gave before a sign-in that was refused replaced it: `before`
-/// again, or nothing when nothing was kept.
+/// again, or no refresh token when none was kept. Only the refresh token is touched: anything else
+/// kept for the account stays as it was.
 pub fn restore_refresh(platform: &dyn Platform, email: &str, before: Option<&str>) {
+    let Some(store) = platform.secrets() else { return };
+    let key = microsoft_secret_key("refresh", email);
     match before {
-        Some(before) => {
-            // (A store that refuses keeps nothing rather than a sign-in that was refused.)
-            if keep_refresh(platform, email, before).is_err() {
-                forget(platform, email);
-            }
-        }
-        None => forget(platform, email),
+        // (A store that refuses keeps no refresh token rather than one that was refused.)
+        Some(before) if store.set(&key, before).is_ok() => {}
+        _ => store.delete(&key),
     }
 }
 

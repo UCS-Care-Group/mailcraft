@@ -902,6 +902,51 @@ fn add_account_whose_sign_in_send_receive_refuses_says_so_and_leaves_nothing() {
 }
 
 #[test]
+fn a_refused_add_account_puts_back_only_the_refresh_token() {
+    let rig = Rig::new(&good_server());
+    // Something else kept under the address (a password) is not the sign-in's to take.
+    rig.phone.secrets.kept.lock().unwrap().push(("password:ada@lumen.example|graph".to_string(), "kept-elsewhere".to_string()));
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    assert_eq!(rig.secret("password:ada@lumen.example|graph").as_deref(), Some("kept-elsewhere"));
+}
+
+#[test]
+fn with_sign_ins_not_remembered_a_late_renewal_never_brings_back_a_forgotten_session_sign_in() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner forgets the sign-ins while the answer is on its way.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    answer.send(()).unwrap();
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    // The renewal found no session sign-in to replace, so there still is none.
+    let asked = server.asked();
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::SignInNeeded);
+    assert_eq!(server.asked(), asked, "a forgotten sign-in was used");
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
 fn a_renewal_and_a_removal_sent_at_once_are_applied_one_after_the_other() {
     // Every writer of a sign-in runs on the session's thread: a check's renewal and a removal that
     // arrive together wait for it in turn, and neither sees the other half done.
