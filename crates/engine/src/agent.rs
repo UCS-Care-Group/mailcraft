@@ -240,6 +240,8 @@ const SAFE: &[&str] = &[
     "folder.rename",
     "folder.move",
     "folder.favorite",
+    "search.favorite",
+    "search.unfavorite",
     // An account's place in the folder pane (#702): as moving a folder, nothing leaves this
     // computer, nothing is removed, no setting of the account changes (the default account
     // stays the one it was), and Undo puts it back.

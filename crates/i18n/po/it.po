@@ -7567,7 +7567,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "La mia organizzazione deve prima approvare MailCraft: cosa fare"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nome"
@@ -9983,8 +9983,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Rimuovi dal calendario"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Rimuovi dai Preferiti"
@@ -10597,6 +10597,11 @@ msgstr ""
 #, fuzzy
 msgid "Save Signature"
 msgstr "Salva firma"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11355,6 +11360,11 @@ msgstr "Impostazioni server"
 #, fuzzy
 msgid "Server: {address}"
 msgstr "Server: {address}"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -17118,6 +17128,11 @@ msgstr "nessuna immagine {id} in questa firma"
 msgid "no rule with id {id}"
 msgstr "nessuna regola con id {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -17484,6 +17499,11 @@ msgstr "quel messaggio non è una bozza"
 #, fuzzy
 msgid "that message isn't held"
 msgstr "quel messaggio non è trattenuto"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -18277,6 +18297,11 @@ msgstr "il nome utente o la password contiene un carattere che non può essere i
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "il nome utente o la password è troppo lungo"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

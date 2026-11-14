@@ -126,6 +126,8 @@ pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
 #[cfg(test)]
+mod search_favorite_tests;
+#[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]

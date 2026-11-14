@@ -1246,3 +1246,82 @@ fn exchange_stamps_saved_before_781_vouch_for_nothing() {
     assert!(vouched(&mb));
     assert!(vouched(&from_json(&saved(&mb), usize::MAX).unwrap()));
 }
+
+#[test]
+fn a_saved_search_from_a_file_is_tidied() {
+    let (mut mb, _) = mailbox();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 0, name: "Gone".into(), query: "x".into(), scope: "folder".into(), folder: 0 },
+        SearchFavorite { id: 4, name: "  Ada\n".into(), query: "from:ada\u{1}".into(), scope: "inbox".into(), folder: 9_999_999 },
+        SearchFavorite { id: 4, name: "Again".into(), query: "y".into(), scope: "everywhere".into(), folder: 0 },
+    ];
+    mb.repair();
+    assert_eq!(mb.search_favorites.len(), 1);
+    let kept = &mb.search_favorites[0];
+    assert_eq!((kept.id, kept.name.as_str(), kept.query.as_str(), kept.scope.as_str(), kept.folder), (4, "Ada", "from:ada", "folder", 0));
+    let written = serde_json::to_string(&mb).unwrap();
+    assert!(written.contains("searchFavorites"));
+    mb.search_favorites.clear();
+    assert!(!serde_json::to_string(&mb).unwrap().contains("searchFavorites"));
+}
+
+#[test]
+fn repair_forgets_a_saved_search_folder_once_that_folder_is_gone() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let gone = mb.add_folder(account, None, "Old").unwrap();
+    mb.folders.iter_mut().find(|f| f.id == gone).unwrap().account = 9_999;
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "from:ada".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "from:bob".into(), scope: "folder".into(), folder: gone },
+    ];
+    mb.repair();
+    assert!(mb.folder(gone).is_none());
+    assert_eq!(mb.search_favorites.iter().find(|f| f.name == "Here").unwrap().folder, kept);
+    assert_eq!(mb.search_favorites.iter().find(|f| f.name == "There").unwrap().folder, 0);
+}
+
+#[test]
+fn removing_a_folder_clears_a_saved_search_that_named_it() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.inbox().unwrap();
+    let gone = mb.add_folder(account, None, "Old").unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "a".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "b".into(), scope: "folder".into(), folder: gone },
+    ];
+    mb.remove_folders(&[gone]);
+    assert_eq!(mb.search_favorites[0].folder, kept);
+    assert_eq!(mb.search_favorites[1].folder, 0);
+}
+
+#[test]
+fn repair_drops_a_saved_search_with_nothing_to_search_for() {
+    let (mut mb, account) = mailbox();
+    let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Blank".into(), query: "  \n".into(), scope: "folder".into(), folder },
+        SearchFavorite { id: 5, name: "Kept".into(), query: "from:ada".into(), scope: "folder".into(), folder },
+    ];
+    mb.repair();
+    assert_eq!(mb.search_favorites.len(), 1);
+    assert_eq!(mb.search_favorites[0].name, "Kept");
+}
+
+#[test]
+fn removing_an_account_clears_a_saved_search_that_named_its_folder() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.inbox().unwrap();
+    let other = mb.add_account(Account { email: "ada@mail.example".into(), kind: AccountKind::Imap, ..Default::default() });
+    let shared = mb.add_account(Account { email: "team@mail.example".into(), kind: AccountKind::Imap, shared_of: Some(other), ..Default::default() });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let shared_inbox = mb.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "a".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "b".into(), scope: "folder".into(), folder: other_inbox },
+        SearchFavorite { id: 6, name: "Shared".into(), query: "c".into(), scope: "folder".into(), folder: shared_inbox },
+    ];
+    mb.remove_account(other).unwrap();
+    assert_eq!(mb.search_favorites.iter().map(|f| f.folder).collect::<Vec<_>>(), vec![kept, 0, 0]);
+    assert_ne!(account, other);
+}

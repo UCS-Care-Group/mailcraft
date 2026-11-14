@@ -1451,6 +1451,8 @@ pub struct MailApp {
     pub(crate) search_focus: bool,
     /// Advanced Search, while its panel is open under the search box (#329).
     pub(crate) advanced_search: Option<advanced_search::Panel>,
+    /// The panel put aside while Save as a favorite asks for a name. Cancel puts it back.
+    pub(crate) advanced_search_held: Option<advanced_search::Panel>,
     /// Whether the title bar had room for the search box when it was last drawn.
     pub(crate) search_box_shown: bool,
     /// The messages being written whose Bcc line is shown, by their ids (#286).
@@ -1791,6 +1793,7 @@ impl MailApp {
             search_text: String::new(),
             search_focus: false,
             advanced_search: None,
+            advanced_search_held: None,
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
@@ -2190,14 +2193,20 @@ impl MailApp {
         self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
     }
 
+    /// The refusal `e` in the interface language: the engine's last error, its template filled,
+    /// or the text looked up whole.
+    pub(crate) fn words_of(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
+    }
+
     /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.words_of(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }

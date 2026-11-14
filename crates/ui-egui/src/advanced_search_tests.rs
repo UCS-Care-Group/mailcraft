@@ -3,7 +3,7 @@
 //! Advanced Search's panel under the search box (#329).
 
 use egui::{Key, PointerButton};
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use serde_json::json;
 
 use super::*;
@@ -522,4 +522,91 @@ fn typing_after_a_search_goes_on_at_the_end() {
     w.run_steps(3);
     testing::text(&mut w, "x");
     assert_eq!(search(&w), format!("{searched}x"));
+}
+
+#[test]
+fn saving_the_search_puts_it_above_the_favorite_folders() {
+    let mut w = window();
+    set_search(&mut w, "from:ada");
+    open(&mut w);
+    panel(&mut w).scope = Scope::Everywhere;
+    w.run_steps(2);
+    let search_at = w.get_by_label(tl!("Search")).rect();
+    let save_at = w.state().hit.rect("saveSearchFavorite", 0).expect("the save button");
+    let clear_at = w.get_by_label(tl!("Clear filters")).rect();
+    assert!(search_at.max.x <= save_at.min.x + 1.0, "Search, then Save as a favorite, then Clear filters");
+    assert!(save_at.max.x <= clear_at.min.x + 1.0);
+    click_at(&mut w, "saveSearchFavorite");
+    assert_eq!(w.state().dialog.as_ref().map(|d| d.name()), Some("searchFavorite"));
+    assert!(!is_open(&w));
+    match w.state_mut().dialog.as_mut() {
+        Some(crate::dialogs::Dialog::SearchFavorite { name, .. }) => *name = "Ada".into(),
+        _ => panic!("the name dialog"),
+    }
+    w.run_steps(2);
+    w.get_by_label(tl!("Save")).click();
+    w.run_steps(3);
+    assert!(w.state().dialog.is_none());
+    assert!(!is_open(&w), "a save closes the panel");
+    assert!(w.state().advanced_search_held.is_none(), "a save does not keep the panel to bring back");
+    assert_eq!(search(&w), "from:ada");
+    assert_eq!(w.state().session.view.scope, Scope::Everywhere);
+    let id = w.state().session.mailbox.search_favorites[0].id;
+    let fav = w.state().hit.rect("searchFavorite", id).expect("the saved search");
+    let folder = mailcraft_engine::cmd::folder::favorites(&w.state().session)[0];
+    let above = w.state().hit.rect("folder", folder).expect("a favorite folder");
+    assert!(fav.max.y <= above.min.y + 1.0, "newest saved search is above the favorite folders");
+    let home = w.state().session.mailbox.search_favorites[0].folder;
+    click_at(&mut w, "searchBox");
+    w.state_mut().execute("view.clearSearch", json!({})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "sent"})).unwrap();
+    w.run_steps(2);
+    assert_ne!(w.state().session.view.folder, home);
+    let at = w.state().hit.rect("searchFavorite", id).expect("still listed");
+    testing::click(&mut w, at.center(), PointerButton::Primary, 1);
+    assert_eq!(search(&w), "from:ada");
+    assert_eq!(w.state().session.view.scope, Scope::Everywhere);
+    assert_eq!(w.state().session.view.folder, home, "the search opens the folder it was saved in");
+    // The saved search is on, the copy under Favorites is not, and the account's list still marks the folder.
+    w.run_steps(2);
+    let fav = w.state().hit.rect("searchFavorite", id).expect("the saved search");
+    let shot = w.render().expect("the frame");
+    let pixel = |x: f32, y: f32| *shot.get_pixel(x.round() as u32, y.round() as u32);
+    let cool = |p: image::Rgba<u8>| u16::from(p[2]) > u16::from(p[0]) + 12;
+    let bar = |p: image::Rgba<u8>| u16::from(p[2]) > u16::from(p[0]) + 80;
+    assert!(cool(pixel(fav.min.x + 70.0, fav.center().y)), "the saved search is the row that is on");
+    assert!(bar(pixel(fav.min.x + 7.5, fav.center().y)), "the saved search has the mark");
+    assert!(!bar(pixel(fav.min.x + 7.5, fav.max.y + 12.0)), "the favorite folder row is not marked as well");
+    let lower = ((fav.max.y + 48.0) as u32)..((fav.max.y + 220.0) as u32);
+    assert!(lower.into_iter().any(|y| bar(pixel(fav.min.x + 7.5, y as f32))), "the folder in its account's list stays marked");
+}
+
+#[test]
+fn cancelling_the_name_keeps_the_filters() {
+    let mut w = window();
+    open(&mut w);
+    panel(&mut w).fields.from = "ada@example.org".into();
+    w.run_steps(2);
+    click_at(&mut w, "saveSearchFavorite");
+    assert!(!is_open(&w));
+    w.run_steps(2);
+    w.get_by_label(tl!("Cancel")).click();
+    w.run_steps(3);
+    assert!(is_open(&w));
+    assert_eq!(panel(&mut w).fields.from, "ada@example.org");
+}
+
+#[test]
+fn saving_waits_until_a_filter_is_set() {
+    let mut w = window();
+    w.state_mut().execute("view.clearSearch", json!({})).unwrap();
+    open(&mut w);
+    let save = w.get_by_label(tl!("Save as a favorite"));
+    assert!(save.accesskit_node().is_disabled(), "nothing to keep yet");
+    save.hover();
+    w.run_steps(40);
+    assert!(w.query_by_label(tl!("Set a filter first")).is_some(), "the button says why it waits");
+    panel(&mut w).fields.from = "ada".into();
+    w.run_steps(2);
+    assert!(!w.get_by_label(tl!("Save as a favorite")).accesskit_node().is_disabled());
 }
