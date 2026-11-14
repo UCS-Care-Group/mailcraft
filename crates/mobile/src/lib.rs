@@ -41,6 +41,8 @@ mod junk_tests;
 #[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
+mod queue_tests;
+#[cfg(test)]
 mod review_tests;
 #[cfg(test)]
 mod tests;
