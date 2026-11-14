@@ -296,6 +296,7 @@ impl SendReceive {
     /// permission ([`crate::signin::permission_standing`]): it replaces the session's only while
     /// that is still the one the check began with, so that a sign-in made, or forgotten, meanwhile
     /// is never written over by an older answer. Nothing is written to the credential store here.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn take_renewed(&mut self, session: &Session, account: Id, renewed: &crate::signin::Renewed) {
         self.follow_opening(session);
         if let Some(kept) = self.tokens.get_mut(&account)
