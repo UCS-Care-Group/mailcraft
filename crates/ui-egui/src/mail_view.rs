@@ -5,6 +5,7 @@
 //! The message list is laid out to the pixel from classic Outlook's at 100 %: every number below
 //! is a distance measured there, in points (pixels at 100 %).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
@@ -434,7 +435,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
 /// While a search is on, a bar over the list says so: how many it found and where, with a way
 /// back to the folder (✕, or Esc). Search is quick enough that the list changing by itself
 /// went unnoticed (#115).
-fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
+fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize, still: bool) {
     let on = !app.session.view.search.trim().is_empty();
     // It fades in when a search starts; with no search it is gone at once, ready to fade again.
     let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { crate::motion::fade(ui, 0.15) } else { 0.0 });
@@ -458,9 +459,15 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
         // (A shared mailbox's folder with the mailbox it is in, #70.)
         mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
     };
-    let said = match found {
-        0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
-        n => crate::i18n::fmt(&tln!(n, "{n} result in {scope}", "{n} results in {scope}"), &[("scope", &scope)]),
+    // One line for the whole search. Where a message was found is not part of it.
+    let said = if still && found == 0 {
+        tl!("Searching…").to_string()
+    } else {
+        let said = match found {
+            0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
+            n => crate::i18n::fmt(&tln!(n, "{n} result in {scope}", "{n} results in {scope}"), &[("scope", &scope)]),
+        };
+        if still { format!("{said} · {}", tl!("Searching…")) } else { said }
     };
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width() - lane_width(app), 30.0), Sense::hover());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &said));
@@ -485,16 +492,91 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     }
 }
 
+/// Messages a server result became when it was opened. They stay in that result's row, so opening
+/// one does not move it into a date group of the local list.
+fn server_opened(app: &MailApp) -> HashSet<Id> {
+    if !mailcraft_engine::cmd::search_server::is_current(&app.session) {
+        return HashSet::new();
+    }
+    app.session.server_search.results.iter().filter_map(|r| r.opened).collect()
+}
+
+/// The filtered list kept while the source rows and the opened set don't change.
+pub(crate) struct OpenedRows {
+    source: Arc<Vec<Row>>,
+    stamp: u64,
+    rows: Arc<Vec<Row>>,
+}
+
+/// `rows` without the messages [`server_opened`] names, the same `Arc` when nothing was opened
+/// and a cached copy while an opened hit stays open. A group heading moves to the next row that
+/// is still there.
+fn rows_for(app: &mut MailApp, opened: &HashSet<Id>) -> Arc<Vec<Row>> {
+    let source = app.session.rows();
+    if opened.is_empty() {
+        app.opened_rows = None;
+        return source;
+    }
+    let mut ids: Vec<Id> = opened.iter().copied().collect();
+    ids.sort_unstable();
+    let mut stamp = ids.len() as u64;
+    for id in ids {
+        stamp = stamp.wrapping_mul(31).wrapping_add(id);
+    }
+    if let Some(kept) = &app.opened_rows
+        && Arc::ptr_eq(&kept.source, &source)
+        && kept.stamp == stamp
+    {
+        return Arc::clone(&kept.rows);
+    }
+    let rows = without_opened(&source, opened);
+    app.opened_rows = Some(OpenedRows { source, stamp, rows: Arc::clone(&rows) });
+    rows
+}
+
+/// `rows` without the messages [`server_opened`] names. A group heading moves to the next row
+/// that is still there.
+fn without_opened(rows: &[Row], opened: &HashSet<Id>) -> Arc<Vec<Row>> {
+    let mut out = Vec::new();
+    let mut carry: Option<(String, bool)> = None;
+    for row in rows {
+        let mut row = row.clone();
+        if let Some(group) = row.group.take() {
+            carry = Some((group, row.category));
+        }
+        row.members.retain(|id| !opened.contains(id));
+        if row.members.is_empty() {
+            continue;
+        }
+        if opened.contains(&row.id)
+            && let Some(id) = row.members.first().copied()
+        {
+            row.id = id;
+        }
+        if let Some((group, category)) = carry.take() {
+            row.group = Some(group);
+            row.category = category;
+        }
+        out.push(row);
+    }
+    Arc::new(out)
+}
+
 fn list(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
     // Gmail's categories, when they are tabs above a Gmail Inbox's list (#911).
     crate::gmail_tabs::row(app, ui);
-    let rows = app.session.rows();
-    search_bar(app, ui, mailcraft_engine::list::listed(&rows));
-    // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
-    if !app.session.view.search.trim().is_empty() {
+    let opened = server_opened(app);
+    let rows = rows_for(app, &opened);
+    let on_server = if mailcraft_engine::cmd::search_server::is_current(&app.session) { app.session.server_search.results.len() } else { 0 };
+    let still = app.server_searching.busy();
+    search_bar(app, ui, mailcraft_engine::list::listed(&rows) + on_server, still);
+    // A search the server is also answering says nothing about what is only half downloaded:
+    // that mail is in the same list when the server finds it.
+    let telling = crate::server_search::warn_about_local(app.server_link(), still, on_server);
+    if telling && !app.session.view.search.trim().is_empty() {
         // (Counted as the list was built, not at every frame.)
         let partly = app.session.unfetched_in_view();
         if partly > 0 {
@@ -509,7 +591,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         }
     }
     // While the word index is being built, what it hasn't got yet is searched more slowly (R6.2).
-    if !app.session.view.search.trim().is_empty() && matches!(app.session.word_index(), mailcraft_engine::WordIndex::Building { .. }) {
+    if telling && !app.session.view.search.trim().is_empty() && matches!(app.session.word_index(), mailcraft_engine::WordIndex::Building { .. }) {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
         ui.painter().rect_filled(r, 0.0, t.panel);
         let text = tl!("Still indexing: some older mail is searched more slowly");
@@ -518,7 +600,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     }
     // A search that reads the text of messages goes as far into older mail as its time allows,
     // and says how far that was.
-    if app.session.unsearched > 0 && !app.session.view.search.trim().is_empty() {
+    if telling && app.session.unsearched > 0 && !app.session.view.search.trim().is_empty() {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
         ui.painter().rect_filled(r, 0.0, t.panel);
         let n = app.session.unsearched;
@@ -541,18 +623,31 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let below = if searching { server_rows::height(app, &local, server_h) } else { 0.0 };
     let overlay = app.overlay_scroll_bars;
     let lane_w = lane_width(app);
+    if rows.is_empty() && below == 0.0 {
+        // Still searching: the bar already says so. A finished search with nothing says so once.
+        if searching && still {
+            let r = ui.available_rect_before_wrap();
+            crate::software::spinner_at(ui, Rect::from_center_size(pos2(r.center().x, r.min.y + 48.0), vec2(22.0, 22.0)), Some(t.text_dim));
+            return;
+        }
+        let r = ui.available_rect_before_wrap();
+        let lines: &[&str] = if searching {
+            &[tl!("Nothing matches the search.")]
+        } else if app.session.view.filter != Filter::All {
+            &[tl!("Nothing matches this filter.")]
+        } else {
+            &[tl!("Nothing here yet.")]
+        };
+        for (i, line) in lines.iter().enumerate() {
+            ui.painter().text(pos2(r.center().x, r.min.y + 60.0 + i as f32 * 18.0), Align2::CENTER_CENTER, *line, regular(12.5), t.text_dim);
+        }
+        return;
+    }
     if rows.is_empty() {
         let r = ui.available_rect_before_wrap();
-        let msg = if searching {
-            tl!("Nothing matches the search.")
-        } else if app.session.view.filter != Filter::All {
-            tl!("Nothing matches this filter.")
-        } else {
-            tl!("Nothing here yet.")
-        };
-        ui.painter().text(pos2(r.center().x, r.min.y + 60.0), Align2::CENTER_CENTER, msg, regular(12.5), t.text_dim);
         if below > 0.0 {
-            let room = Rect::from_min_max(pos2(r.min.x, r.min.y + 90.0), r.max);
+            let head = if still { 28.0 } else { 0.0 };
+            let room = Rect::from_min_max(r.min, r.max);
             ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
                 let plain = ui.style().clone();
                 if overlay {
@@ -560,9 +655,16 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 }
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
                     ui.set_style(plain);
-                    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
+                    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below + head), Sense::hover());
                     let width = (area.width() - lane_w).max(0.0);
-                    server_rows::show(app, ui, &local, area.min.x, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
+                    if still {
+                        crate::software::spinner_at(
+                            ui,
+                            Rect::from_center_size(pos2(area.min.x + 24.0, area.min.y + head / 2.0), vec2(14.0, 14.0)),
+                            Some(t.group_label),
+                        );
+                    }
+                    server_rows::show(app, ui, &local, area.min.x, area.min.y + head, width, server_h, viewport.translate(area.min.to_vec2()));
                 });
             });
         }
@@ -630,6 +732,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
+        let mut marked_busy = false;
         for (i, row) in rows.iter().enumerate().skip(first) {
             let Some(top) = tops.get(i).copied() else { break };
             if top - GROUP_H > viewport.max.y {
@@ -638,14 +741,21 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             if let Some(group) = &row.group {
                 // Text on the list itself: no bar, no box.
                 let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                paint_clipped(
+                let name = group_name(group, row.category);
+                let w = paint_clipped(
                     ui.painter(),
                     pos2(gr.min.x + 16.0, gr.center().y + 3.0),
                     gr.width() - 22.0,
-                    group_name(group, row.category),
+                    name,
                     semibold(GROUP_TEXT),
                     t.group_label,
                 );
+                // While a search is still asking the servers: one spinner, beside the first heading in view.
+                if app.server_searching.busy() && !marked_busy {
+                    marked_busy = true;
+                    let x = (gr.min.x + 16.0 + w + 16.0).min(gr.max.x - 18.0);
+                    crate::software::spinner_at(ui, Rect::from_center_size(pos2(x, gr.center().y), vec2(14.0, 14.0)), Some(t.group_label));
+                }
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
             message_row(app, ui, row, rect, &drawn, focus);

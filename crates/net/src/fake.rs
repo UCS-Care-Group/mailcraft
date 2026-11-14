@@ -476,6 +476,37 @@ impl Fake<SmtpWorld> {
     }
 }
 
+/// A command line, with a synchronizing literal (`{n}`, then `+`, then `n` bytes) read into it.
+/// The fake answers `+` the way a server does, so a search word that is not ASCII can be sent.
+fn finish_literals(reader: &mut BufReader<Box<dyn MailIo>>, mut line: String) -> Option<String> {
+    loop {
+        let announced = line.rsplit(' ').next().unwrap_or("");
+        let Some(n) = announced.strip_prefix('{').and_then(|rest| rest.strip_suffix('}')).and_then(|n| n.parse::<usize>().ok()) else {
+            return Some(line);
+        };
+        if n > 8_192 || reader.get_mut().write_all(b"+ \r\n").is_err() {
+            return None;
+        }
+        let mut bytes = vec![0u8; n];
+        if reader.read_exact(&mut bytes).is_err() {
+            return None;
+        }
+        let at = line.rfind('{')?;
+        line.truncate(at);
+        let word = String::from_utf8_lossy(&bytes);
+        line.push('"');
+        line.push_str(&word.replace('\\', "\\\\").replace('"', "\\\""));
+        line.push('"');
+        let rest = read_line(reader)?;
+        if !rest.is_empty() {
+            if !line.ends_with(' ') {
+                line.push(' ');
+            }
+            line.push_str(&rest);
+        }
+    }
+}
+
 /// The next line without its line ending; `None` when the client is gone.
 fn read_line<S: Read>(reader: &mut BufReader<S>) -> Option<String> {
     let mut line = Vec::new();
@@ -578,6 +609,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     // The open mailbox was opened to be looked at only (EXAMINE).
     let mut read_only = true;
     while let Some(line) = read_line(&mut reader) {
+        // APPEND reads its own literal after it has answered `+`. Folding that literal in here
+        // would eat the body, and both sides would then wait for the other.
+        let (_, rest) = line.split_once(' ').unwrap_or((&line, ""));
+        let (verb, _) = rest.split_once(' ').unwrap_or((rest, ""));
+        let Some(line) = (if verb.eq_ignore_ascii_case("APPEND") { Some(line) } else { finish_literals(&mut reader, line) }) else {
+            return;
+        };
         let mut world = shared.lock().unwrap();
         world.log.push(line.clone());
         let (tag, rest) = line.split_once(' ').unwrap_or((&line, ""));
@@ -868,11 +906,36 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
-            // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
-            // UNDELETED X-GM-RAW "category:…"`: the searches asked of a server.
+            // `UID SEARCH UNDELETED TEXT <word>…`, `UID SEARCH UNDELETED HEADER <field> <text>`,
+            // and Gmail's `UID SEARCH UID <set> UNDELETED X-GM-RAW "category:…"`: the searches
+            // asked of a server.
             "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
                 let said = words(args);
                 let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                let texts: Vec<String> =
+                    said.windows(2).filter(|pair| pair[0].eq_ignore_ascii_case("TEXT")).map(|pair| pair[1].to_ascii_lowercase()).collect();
+                let keyed = said.iter().any(|w| matches!(w.to_ascii_uppercase().as_str(), "FROM" | "TO" | "CC" | "SUBJECT" | "BODY"));
+                if !texts.is_empty() && !keyed && !said.iter().any(|w| w.eq_ignore_ascii_case("HEADER")) {
+                    match open.and_then(|i| world.mailboxes.get(i)) {
+                        None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                        Some(mailbox) => {
+                            let found: String = mailbox
+                                .messages
+                                .iter()
+                                .filter(|m| !m.has("\\Deleted"))
+                                .filter(|m| {
+                                    let body = String::from_utf8_lossy(&m.body).to_ascii_lowercase();
+                                    texts.iter().all(|word| body.contains(word))
+                                })
+                                .map(|m| format!(" {}", m.uid))
+                                .collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                    }
+                    drop(world);
+                    let _ = reader.get_mut().write_all(&reply);
+                    continue;
+                }
                 let gmail_raw = said.len() == 6 && asked(1, "UID") && asked(3, "UNDELETED") && asked(4, "X-GM-RAW");
                 match open.and_then(|i| world.mailboxes.get(i)) {
                     _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),
@@ -889,6 +952,44 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         }
                         None => reply.extend(format!("{tag} BAD what\r\n").bytes()),
                     },
+                    _ if said.iter().any(|w| matches!(w.to_ascii_uppercase().as_str(), "FROM" | "TO" | "CC" | "SUBJECT" | "BODY" | "TEXT")) => {
+                        match open.and_then(|i| world.mailboxes.get(i)) {
+                            None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                            Some(mailbox) => {
+                                let mut pairs = Vec::new();
+                                let mut i = 0;
+                                while i + 1 < said.len() {
+                                    let key = said[i].to_ascii_uppercase();
+                                    if matches!(key.as_str(), "FROM" | "TO" | "CC" | "SUBJECT" | "BODY" | "TEXT") {
+                                        pairs.push((key, said[i + 1].to_ascii_lowercase()));
+                                        i += 2;
+                                    } else {
+                                        i += 1;
+                                    }
+                                }
+                                let found: String = mailbox
+                                    .messages
+                                    .iter()
+                                    .filter(|m| !m.has("\\Deleted"))
+                                    .filter(|m| {
+                                        let raw = String::from_utf8_lossy(&m.body).to_ascii_lowercase();
+                                        let body = raw.split("\r\n\r\n").nth(1).unwrap_or("");
+                                        pairs.iter().all(|(key, word)| match key.as_str() {
+                                            "TEXT" => raw.contains(word),
+                                            "BODY" => body.contains(word),
+                                            "FROM" => header_has(&m.body, "From", word),
+                                            "TO" => header_has(&m.body, "To", word),
+                                            "CC" => header_has(&m.body, "Cc", word),
+                                            "SUBJECT" => header_has(&m.body, "Subject", word),
+                                            _ => false,
+                                        })
+                                    })
+                                    .map(|m| format!(" {}", m.uid))
+                                    .collect();
+                                reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                            }
+                        }
+                    }
                     _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
                     None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
                     Some(mailbox) => {

@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! More results on the server (R6.2): below the local results of a search that involves a
-//! Microsoft account, a link that asks its server, and its mailbox's shared mailboxes', for more;
-//! the results come in a section of their own, On the server, 50 at a time. Nothing goes to the
-//! server until the owner clicks. Asked only with a Graph token of this session that is still
-//! good: without one (and when the last try couldn't reach the server) the link is greyed and
-//! says Not connected. Opening a result fetches it into its folder, as any message not fetched
-//! yet is when it is opened ([`crate::graph_fetch`]).
+//! More results on the server (R6.2): mail that was never downloaded is found when the owner
+//! clicks the link. Every Microsoft and IMAP mailbox the search covers is asked at once, and
+//! what a mailbox finds joins the same list while the others are still being searched. Nothing
+//! is asked before that click. A Microsoft account needs a Graph token of this session that is
+//! still good; an IMAP account the password or access token this session has. Without one, or
+//! when the last try couldn't reach the server, nothing is asked and the list is what is already
+//! here. Opening a result fetches it into its folder and keeps it in that row.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
 use mailcraft_engine::cmd::search_server;
@@ -17,6 +18,37 @@ use serde_json::json;
 
 use crate::MailApp;
 
+/// The folders of an IMAP account the search asks, by the names the server uses. One named
+/// folder, or every mail folder except Deleted Items, Junk and Outbox when the search is the
+/// whole mailbox.
+fn imap_folders(session: &mailcraft_engine::Session, account: Id, folder: &str) -> Vec<String> {
+    if !folder.is_empty() {
+        return vec![folder.to_string()];
+    }
+    // A search of one folder and what is under it asks those folders, not the account's Inbox
+    // first: the hit limit would otherwise stop before the folder in view was reached.
+    let under = (session.view.scope == mailcraft_engine::Scope::Subfolders).then(|| session.mailbox.subtree(session.view.folder));
+    session
+        .mailbox
+        .folders
+        .iter()
+        .filter(|f| f.account == account && !f.remote.is_empty())
+        // Deleted Items, Junk and Outbox stay out of a search of the whole mailbox. A search of
+        // one folder and what is under it keeps them when that folder is one of them.
+        .filter(|f| {
+            under.is_some()
+                || !matches!(f.kind, mailcraft_model::FolderKind::Deleted | mailcraft_model::FolderKind::Junk | mailcraft_model::FolderKind::Outbox)
+        })
+        .filter(|f| under.as_ref().is_none_or(|ids| ids.contains(&f.id)))
+        .map(|f| f.remote.clone())
+        .collect()
+}
+
+fn is_gmail(account: &mailcraft_model::Account) -> bool {
+    account.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Google)
+        || account.incoming.as_ref().is_some_and(|s| s.host.eq_ignore_ascii_case("imap.gmail.com"))
+}
+
 /// What the host is asked to search ([`crate::Services::graph_search`]).
 pub struct GraphSearchJob {
     pub request: GraphSearchRequest,
@@ -24,16 +56,99 @@ pub struct GraphSearchJob {
     pub access: String,
 }
 
-/// The pages being asked for, in the window: whose, and the answer to come.
+/// One mailbox being searched, and the answer to use if its thread goes away.
+struct Pending {
+    unreached: GraphSearchResult,
+    rx: Receiver<GraphSearchResult>,
+    /// A final answer (not `partial`) already arrived, so a dropped thread is not a failure.
+    settled: bool,
+}
+
+/// The pages being asked for, in the window: whose, and the answer to come. Several mailboxes
+/// at once. Nothing is asked until the owner clicks More results on the server.
 #[derive(Default)]
 pub struct ServerSearching {
-    pending: Vec<(GraphSearchResult, Receiver<GraphSearchResult>)>,
+    pending: Vec<Pending>,
+    /// Further pages of a Microsoft mailbox asked on their own after the first click.
+    auto_pages: u8,
+    /// The message a search row opened, being fetched whole.
+    pub(crate) opening: Option<Opening>,
+}
+
+/// One IMAP message asked for because its search row was opened. The account, folder and uid
+/// are what the row named, and `generation` is the mailbox that was open: an answer for another
+/// mailbox, or for a message that moved, is dropped.
+pub(crate) struct Opening {
+    id: Id,
+    account: Id,
+    folder: Id,
+    uid: u32,
+    generation: u64,
+    rx: Receiver<Result<mailcraft_model::Message, String>>,
 }
 
 impl ServerSearching {
     pub fn busy(&self) -> bool {
         !self.pending.is_empty()
     }
+
+    /// The mailbox went away: drop what was asked of it, so an answer cannot land on the next one.
+    pub(crate) fn clear(&mut self) {
+        self.pending.clear();
+        self.auto_pages = 0;
+        self.opening = None;
+    }
+}
+
+/// An IMAP account searched on its own server. The secret is the password or the access token.
+/// It is never written out and never shown.
+pub struct ImapSearchJob {
+    pub account: mailcraft_model::Account,
+    pub secret: String,
+    pub ticket: u64,
+    pub folders: Vec<String>,
+    pub query: String,
+    /// UIDs already on this computer, by the folder's name on the server. They are not counted
+    /// toward the hit limit, so a synced Inbox does not use the limit up.
+    pub known: HashMap<String, HashSet<u32>>,
+    /// Gmail, and the search is the whole mailbox: All Mail is asked once when that folder is here.
+    pub gmail_all: bool,
+}
+
+/// One IMAP message to fetch whole. The secret is never written out and never shown.
+pub struct ImapFetchJob {
+    pub account: mailcraft_model::Account,
+    pub secret: String,
+    pub folder: String,
+    pub uid: u32,
+    /// The folder's UIDVALIDITY when the hit was found. 0: not known, so the fetch does not check it.
+    pub validity: u32,
+}
+
+impl std::fmt::Debug for ImapFetchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImapFetchJob").field("account", &self.account.id).field("uid", &self.uid).finish()
+    }
+}
+
+impl std::fmt::Debug for ImapSearchJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImapSearchJob")
+            .field("account", &self.account.id)
+            .field("folders", &self.folders.len())
+            .field("known", &self.known.len())
+            .field("gmail_all", &self.gmail_all)
+            .finish()
+    }
+}
+
+/// The list says what it could not search here. It stays quiet while a server search is running,
+/// and after one that brought matches back: that mail is in the same list.
+pub(crate) fn warn_about_local(link: Link, still: bool, hits: usize) -> bool {
+    if still || matches!(link, Link::Searching) {
+        return false;
+    }
+    !(matches!(link, Link::End) && hits > 0)
 }
 
 /// What the link below the local results is.
@@ -72,8 +187,15 @@ impl MailApp {
         if held && search.asked() && !search.more() {
             return Link::End;
         }
-        let reachable = self.services.graph_search.is_some()
-            && search_server::mailboxes_for(&self.session).iter().any(|(account, _)| self.search_token(*account).is_some());
+        // A Microsoft mailbox needs a token of this session. An IMAP mailbox is asked on its own
+        // server; whether the password is here is found out when the search starts.
+        let mailboxes = search_server::mailboxes_for(&self.session);
+        let graph = self.services.graph_search.is_some() && mailboxes.iter().any(|(account, _)| self.search_token(*account).is_some());
+        let imap = self.services.imap_search.is_some()
+            && mailboxes
+                .iter()
+                .any(|(account, _)| self.session.mailbox.account(*account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Imap));
+        let reachable = graph || imap;
         match (reachable, held && search.offline) {
             (false, _) => Link::NotConnected { retry: false },
             (true, true) => Link::NotConnected { retry: true },
@@ -81,45 +203,86 @@ impl MailApp {
         }
     }
 
-    /// The owner clicked More results on the server: the next page of each mailbox the search goes
-    /// to is asked for. One without a sign-in of this session is answered here as not reached.
+    /// The next page of each mailbox the search goes to. Microsoft accounts go to Graph, IMAP
+    /// accounts to their own server, all of them at once. One without a sign-in of this session
+    /// is answered here as not reached.
     pub(crate) fn more_on_server(&mut self) {
+        // A new search, not the next page of the one already asked.
+        if !search_server::is_current(&self.session) || !self.session.server_search.asked() {
+            self.server_searching.auto_pages = 0;
+        }
         let requests = match search_server::requests(&mut self.session) {
             Ok(requests) => requests,
             Err(e) => return self.status(e.to_string()),
         };
         for request in requests {
-            // What is said for it when no answer comes: not reached.
-            let unreached = GraphSearchResult {
-                account: request.account,
-                email: request.email.clone(),
-                ticket: request.ticket,
-                offline: true,
-                errors: vec![tl!("Not connected").to_string()],
-                ..Default::default()
-            };
-            let (Some(search), Some(access)) = (self.services.graph_search.as_ref().filter(|_| !self.offline()), self.search_token(request.account))
-            else {
-                let _ = search_server::apply(&mut self.session, unreached);
-                continue;
-            };
-            let rx = search(GraphSearchJob { request, access });
-            self.server_searching.pending.push((unreached, rx));
+            let kind = self.session.mailbox.account(request.account).map(|a| a.kind);
+            if kind == Some(mailcraft_model::AccountKind::Imap) {
+                self.start_imap_search(request);
+            } else {
+                self.start_graph_search(request);
+            }
         }
     }
 
-    /// Each frame: take in the pages that came. (Public for a host's tests, which have no window.)
+    fn start_graph_search(&mut self, request: GraphSearchRequest) {
+        let unreached = self.unreached(&request);
+        let (Some(search), Some(access)) = (self.services.graph_search.as_ref().filter(|_| !self.offline()), self.search_token(request.account))
+        else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let rx = search(GraphSearchJob { request, access });
+        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+    }
+
+    fn start_imap_search(&mut self, request: GraphSearchRequest) {
+        let unreached = self.unreached(&request);
+        let Some(account) = self.session.mailbox.account(request.account).cloned() else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let secret = self.imap_secret(request.account);
+        let (Some(search), Some(secret)) = (self.services.imap_search.as_ref().filter(|_| !self.offline()), secret) else {
+            let _ = search_server::apply(&mut self.session, unreached);
+            return;
+        };
+        let folders = imap_folders(&self.session, request.account, &request.folder);
+        let known = known_uids(&self.session, request.account, &folders);
+        let gmail_all = request.folder.is_empty() && is_gmail(&account);
+        let rx = search(ImapSearchJob { account, secret, ticket: request.ticket, folders, query: request.query, known, gmail_all });
+        self.server_searching.pending.push(Pending { unreached, rx, settled: false });
+    }
+
+    fn unreached(&self, request: &GraphSearchRequest) -> GraphSearchResult {
+        GraphSearchResult {
+            account: request.account,
+            email: request.email.clone(),
+            ticket: request.ticket,
+            offline: true,
+            errors: vec![tl!("Not connected").to_string()],
+            ..Default::default()
+        }
+    }
+
+    /// Each frame: take in one page from each mailbox that has one. A mailbox that is still
+    /// searching keeps its place, so what it already found stays on screen while the others run.
+    /// (Public for a host's tests, which have no window.)
     pub fn drive_server_search(&mut self) {
+        self.take_opened();
         let mut came = Vec::new();
-        self.server_searching.pending.retain(|(unreached, rx)| match rx.try_recv() {
+        self.server_searching.pending.retain_mut(|pending| match pending.rx.try_recv() {
             Ok(result) => {
+                pending.settled = !result.partial;
                 came.push(result);
-                false
+                !pending.settled
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => true,
-            // A host that went away: as not reached.
+            // A host that went away before a final answer: as not reached.
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                came.push(unreached.clone());
+                if !pending.settled {
+                    came.push(pending.unreached.clone());
+                }
                 false
             }
         });
@@ -128,16 +291,102 @@ impl MailApp {
                 self.status(e.to_string());
             }
         }
+        // A Microsoft mailbox's next page, while the owner is still on this search. A few pages,
+        // not the whole mailbox: a specific word is among the first. A page that failed is not
+        // asked again on its own; the owner can.
+        let search = &self.session.server_search;
+        let follow = search.errors.is_empty() && !search.offline && search.mailboxes.iter().any(|m| !m.done && !m.waiting && !m.next.is_empty());
+        if !self.server_searching.busy() && self.server_searching.auto_pages < 4 && search_server::is_current(&self.session) && follow {
+            self.server_searching.auto_pages = self.server_searching.auto_pages.saturating_add(1);
+            self.more_on_server();
+        }
+    }
+
+    /// The password, or a still-good access token, this session has for an IMAP account.
+    fn imap_secret(&mut self, account: Id) -> Option<String> {
+        if let Some(pw) = self.passwords.get(&account).cloned() {
+            return Some(pw);
+        }
+        if let Some(pw) = self.remembered("password", account) {
+            self.passwords.insert(account, pw.clone());
+            return Some(pw);
+        }
+        self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
     }
 
     /// The owner opened the server result at `index`: it comes into its folder and is selected,
-    /// and the reading pane fetches it whole.
+    /// and stays in the same row. An IMAP message is fetched whole for the reading pane.
     pub(crate) fn open_server_result(&mut self, index: usize) {
         if let Err(e) = self.run("search.openServerResult", json!({"index": index})) {
             self.status(e);
+            return;
         }
         self.reveal_selection = false;
+        let Some(found) = self.session.server_search.results.get(index).cloned() else { return };
+        let Some(id) = found.opened else { return };
+        let Some(uid) = search_server::imap_uid(&found.found.server.id) else { return };
+        let validity = search_server::imap_validity(&found.found.server.id).unwrap_or(0);
+        self.start_imap_open(id, found.account, found.folder, uid, validity);
     }
+
+    /// Fetch the opened IMAP message whole. A Microsoft message is fetched the way any unfetched
+    /// message of its account is, once it is selected.
+    fn start_imap_open(&mut self, id: Id, account_id: Id, folder: Id, uid: u32, validity: u32) {
+        let generation = self.session.openings();
+        let Some(account) = self.session.mailbox.account(account_id).filter(|a| a.kind == mailcraft_model::AccountKind::Imap).cloned() else {
+            return;
+        };
+        let Some(remote) = self.session.mailbox.folder(folder).map(|f| f.remote.clone()).filter(|name| !name.is_empty()) else {
+            return;
+        };
+        let secret = self.imap_secret(account.id);
+        let Some(fetch) = self.services.imap_fetch.as_ref().filter(|_| !self.offline()) else { return };
+        let Some(secret) = secret else { return };
+        let rx = fetch(ImapFetchJob { account, secret, folder: remote, uid, validity });
+        self.server_searching.opening = Some(Opening { id, account: account_id, folder, uid, generation, rx });
+    }
+
+    fn take_opened(&mut self) {
+        let came = self
+            .server_searching
+            .opening
+            .as_ref()
+            .map(|opening| (opening.generation, opening.id, opening.account, opening.folder, opening.uid, opening.rx.try_recv()));
+        let Some((generation, id, account, folder, uid, came)) = came else { return };
+        if generation != self.session.openings() {
+            self.server_searching.opening = None;
+            return;
+        }
+        match came {
+            Ok(Ok(read)) => {
+                self.server_searching.opening = None;
+                let still = self.session.mailbox.message(id).is_some_and(|m| m.account == account && m.folder == folder && m.uid == uid);
+                if still {
+                    mailcraft_engine::cmd::imap_again::take_again(&mut self.session.mailbox, id, read);
+                    self.session.mailbox_changed();
+                }
+            }
+            Ok(Err(text)) => {
+                self.server_searching.opening = None;
+                self.status(text);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.server_searching.opening = None,
+        }
+    }
+}
+
+/// UIDs already on this computer in the folders the search asks, so they are not counted as hits.
+fn known_uids(session: &mailcraft_engine::Session, account: Id, folders: &[String]) -> HashMap<String, HashSet<u32>> {
+    let wanted: HashSet<&str> = folders.iter().map(String::as_str).collect();
+    let mut known: HashMap<String, HashSet<u32>> = HashMap::new();
+    for message in session.mailbox.messages.values().filter(|m| m.account == account && m.uid != 0) {
+        let Some(name) = session.mailbox.folder(message.folder).map(|f| f.remote.as_str()).filter(|name| wanted.contains(name)) else {
+            continue;
+        };
+        known.entry(name.to_string()).or_default().insert(message.uid);
+    }
+    known
 }
 
 #[cfg(test)]
@@ -236,7 +485,9 @@ mod tests {
         tx.send(answer(&job, messages, "https://graph.microsoft.com/v1.0/me/messages?$skip=50")).unwrap();
         app.drive_server_search();
         assert_eq!(app.session.server_search.results.len(), 50);
-        assert_eq!(app.server_link(), Link::Ask, "more to ask for");
+        assert_eq!(app.server_link(), Link::Searching, "the next page is asked while these are shown");
+        let (job, tx) = jobs.lock().unwrap().pop().unwrap();
+        assert!(job.request.next.ends_with("$skip=50"));
 
         // Opened: in its folder, selected, and fetched whole as the reading pane shows it.
         app.open_server_result(0);
@@ -247,10 +498,7 @@ mod tests {
         let asked: Vec<Vec<String>> = fetches.lock().unwrap().iter().map(|j| j.request.ids.clone()).collect();
         assert!(asked.iter().any(|ids| ids == &["AAkA-0".to_string()]), "{asked:?}");
 
-        // The next page, at the owner's click; then the end.
-        app.run("ui.moreResultsOnServer", json!({})).unwrap();
-        let (job, tx) = jobs.lock().unwrap().pop().unwrap();
-        assert!(job.request.next.ends_with("$skip=50"));
+        // The next page comes in on its own; then the end.
         tx.send(answer(&job, Vec::new(), "")).unwrap();
         app.drive_server_search();
         assert_eq!(app.server_link(), Link::End);
@@ -260,7 +508,7 @@ mod tests {
         assert!(app.session.server_search.results.is_empty() && app.server_link() == Link::Ask);
     }
 
-    /// The section On the server, with its rows' folders under the time and one row selected, in
+    /// Server results in the same list, a row's folder under the time and one row selected, in
     /// light and dark at 100 % and 200 %, as PNG files to look at:
     /// `MAILCRAFT_SHOTS_DIR=<dir> cargo test -p mailcraft-ui-egui shots_of_server_results -- --ignored`
     #[test]
@@ -338,5 +586,43 @@ mod tests {
         // A search that involves no Microsoft mailbox has no link at all.
         app.run("view.search", json!({"query": "is:unread", "scope": "everywhere"})).unwrap();
         assert_eq!(app.server_link(), Link::None);
+    }
+
+    #[test]
+    fn the_local_warning_stays_when_the_server_was_not_asked_or_found_nothing() {
+        assert!(warn_about_local(Link::None, false, 0));
+        assert!(warn_about_local(Link::Ask, false, 0));
+        assert!(warn_about_local(Link::NotConnected { retry: true }, false, 0));
+        assert!(warn_about_local(Link::End, false, 0));
+        assert!(!warn_about_local(Link::Searching, false, 0));
+        assert!(!warn_about_local(Link::End, true, 3));
+        assert!(!warn_about_local(Link::End, false, 3));
+    }
+
+    #[test]
+    fn a_search_under_junk_asks_junk() {
+        use mailcraft_model::sync::{FolderDelta, SyncResult};
+        let mut app = MailApp::new(Session::empty(), Services::default());
+        let account = app.execute("account.add", json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+        let folder = |remote: &str, kind| FolderDelta { remote: remote.into(), kind, uid_validity: 1, ..Default::default() };
+        app.execute(
+            "sync.apply",
+            json!({"result": SyncResult {
+                account,
+                folders: vec![folder("INBOX", FolderKind::Inbox), folder("Junk", FolderKind::Junk)],
+                ..Default::default()
+            }}),
+        )
+        .unwrap();
+        let junk = app.session.mailbox.folders.iter().find(|f| f.kind == FolderKind::Junk).unwrap().id;
+        app.session.view.folder = junk;
+        app.session.view.scope = mailcraft_engine::Scope::Subfolders;
+        assert_eq!(imap_folders(&app.session, account, ""), ["Junk"]);
+        app.session.view.scope = mailcraft_engine::Scope::Everywhere;
+        let wide = imap_folders(&app.session, account, "");
+        assert!(wide.iter().any(|name| name == "INBOX"));
+        assert!(!wide.iter().any(|name| name == "Junk"));
     }
 }

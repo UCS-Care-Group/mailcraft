@@ -143,7 +143,7 @@ msgid "(no name)"
 msgstr "(kein Name)"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "(keine Empfänger)"
@@ -1617,9 +1617,8 @@ msgstr "Zur Startzeit"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "At the Foot of the Pane"
-msgstr "Am Fuß des Bereichs"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1887,9 +1886,8 @@ msgstr "Zurück zu den Kontoeinstellungen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bar on the Left"
-msgstr "Leiste am linken Rand"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -7267,12 +7265,6 @@ msgid "Microsoft's page said so."
 msgstr "Das hat die Microsoft-Seite gemeldet."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "Der Microsoft-Server war nicht erreichbar. Klicken Sie, um es erneut zu versuchen."
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Middle name"
 msgstr ""
@@ -7576,19 +7568,15 @@ msgstr "Navigation"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
-"Navigations-\n"
-"leiste"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Navigation Bar"
-msgstr "Navigationsleiste"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8396,12 +8384,6 @@ msgid "Nothing matches."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "Auf dem Server wurde nichts weiter gefunden"
-
-#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Nothing to do here."
@@ -8504,16 +8486,10 @@ msgid "On the"
 msgstr "Am"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Auf dem Server"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "Auf dem Server · Suche läuft…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10837,6 +10813,11 @@ msgid "Searching the server…"
 msgstr "Server wird durchsucht…"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Searching…"
+msgstr "Suche läuft…"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Second time zone"
@@ -11148,9 +11129,8 @@ msgstr "Probleme bei Senden/Empfangen"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "Senden/Empfangen meldet Sie bei Microsoft an; danach kann der Server durchsucht werden."
+msgid "Send/Receive signs in; then the server can be searched."
+msgstr "Senden/Empfangen meldet Sie an; danach kann der Server durchsucht werden."
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -12012,12 +11992,6 @@ msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Progra
 #: crates/ui-egui/src/data_removal.rs
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr ""
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "Ein Teil der Suche wurde auf diesem Computer geprüft"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -13442,6 +13416,11 @@ msgid "The server answered, but not as an Exchange server does. Check its addres
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr "Der Server war nicht erreichbar. Klicken Sie, um es erneut zu versuchen."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr ""
@@ -13495,6 +13474,11 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped after 40 messages. There may be more."
+msgstr "Die Suche auf dem Server hat nach 40 Nachrichten aufgehört. Es kann mehr geben."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -16633,7 +16617,7 @@ msgstr "Gesendete Elemente"
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "folder {id} is not that account's"
-msgstr "Ordner {id} gehört nicht zum angegebenen Konto"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -17789,6 +17773,11 @@ msgstr "Die Nachricht hat keine Empfänger"
 msgid "the message has too many recipients"
 msgstr "Die Nachricht hat zu viele Empfänger"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -17862,9 +17851,8 @@ msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "die Suche betrifft kein Postfach eines Microsoft-Kontos"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -18499,6 +18487,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
 msgstr ""
 
 #. what a command says
@@ -20095,6 +20088,30 @@ msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die N
 #, fuzzy
 #~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 #~ msgstr "{not_sending_yet}: Senden Sie diese Nachricht von einem anderen Konto, oder speichern Sie sie als Entwurf"
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "Der Microsoft-Server war nicht erreichbar. Klicken Sie, um es erneut zu versuchen."
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "Auf dem Server wurde nichts weiter gefunden"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "Auf dem Server · Suche läuft…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "Senden/Empfangen meldet Sie bei Microsoft an; danach kann der Server durchsucht werden."
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "Ein Teil der Suche wurde auf diesem Computer geprüft"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "die Suche betrifft kein Postfach eines Microsoft-Kontos"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"

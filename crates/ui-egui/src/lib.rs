@@ -331,8 +331,16 @@ pub struct Services {
     /// Desktop: fetch messages of a Microsoft account whole on a background thread (R3.2).
     pub graph_fetch: Option<Box<dyn Fn(graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
-    /// (R6.2: More results on the server, only on the owner's click).
+    /// (R6.2: More results on the server). Started when the owner clicks that link, together
+    /// with every other mailbox the search covers. Nothing is asked before the click.
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Desktop: search an IMAP account on its own server. One connection per account, run at the
+    /// same time as the others; each folder's hits arrive as their own answer (`partial` until
+    /// the account's last).
+    pub imap_search: Option<Box<dyn Fn(server_search::ImapSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Desktop: fetch one IMAP message whole when its search row is opened, so the reading pane
+    /// has it without waiting for the next Send/Receive.
+    pub imap_fetch: Option<Box<dyn Fn(server_search::ImapFetchJob) -> Receiver<Result<mailcraft_model::Message, String>>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
@@ -1545,6 +1553,9 @@ pub struct MailApp {
     pub(crate) fetching: graph_fetch::Fetching,
     /// Pages of a search on the server being asked for ([`server_search`]).
     pub(crate) server_searching: server_search::ServerSearching,
+    /// The message list with opened server hits taken out, kept while that list and that set
+    /// don't change, so a frame doesn't copy the rows again (#503).
+    pub(crate) opened_rows: Option<mail_view::OpenedRows>,
     /// Keeping the calendar current between Send/Receive runs ([`calendar_sync`]).
     calendar: calendar_sync::CalendarSync,
     /// The next sign-in for Microsoft Graph also asks for the Favorites' permissions.
@@ -1833,6 +1844,7 @@ impl MailApp {
             graph_after_sign_in: None,
             fetching: Default::default(),
             server_searching: Default::default(),
+            opened_rows: None,
             calendar: Default::default(),
             favorites_next: false,
             shared_next: None,
@@ -4644,7 +4656,7 @@ impl MailApp {
         self.drive_fetch();
         self.offline_tick();
         self.drive_server_search();
-        if self.server_searching.busy() {
+        if self.server_searching.busy() || self.server_searching.opening.is_some() {
             crate::software::repaint_after(ctx, std::time::Duration::from_millis(200));
         }
         if self.fetching.busy() || self.session.driver.fetch.held.is_some() {
