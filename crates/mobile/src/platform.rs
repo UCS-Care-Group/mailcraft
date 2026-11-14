@@ -126,7 +126,15 @@ impl HostSecretStore for NativeSecrets {
     }
 
     fn delete(&self, key: &str) {
-        let _ = self.inner.delete(key.to_string());
+        let _ = self.remove(key);
+    }
+
+    fn read(&self, key: &str) -> Result<Option<String>, SecretError> {
+        self.inner.get(key.to_string()).map_err(SecretError::from)
+    }
+
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        self.inner.delete(key.to_string()).map_err(SecretError::from)
     }
 
     fn take_trouble(&self) -> Option<StoreTrouble> {
