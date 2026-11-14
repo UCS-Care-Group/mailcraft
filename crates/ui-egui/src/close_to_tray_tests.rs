@@ -24,7 +24,7 @@ fn the_first_close_explains_where_to_find_mailcraft_and_can_be_cancelled() {
     use egui_kittest::kittest::Queryable as _;
     for theme in ["light", "dark"] {
         let mut app = MailApp::new(mailcraft_engine::Session::new(mailcraft_model::Mailbox::default()), Services::default());
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.autosave = false;
         app.execute("ui.theme", json!({"value": theme})).unwrap();
         app.execute("ui.closeToTray", json!({"value": true})).unwrap();
@@ -79,7 +79,7 @@ fn the_checkbox_works_in_general_in_light_and_dark() {
     use egui_kittest::kittest::Queryable as _;
     for theme in ["light", "dark"] {
         let mut app = MailApp::new(mailcraft_engine::Session::new(mailcraft_model::Mailbox::default()), Services::default());
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.autosave = false;
         app.execute("ui.theme", json!({"value": theme})).unwrap();
         app.execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
