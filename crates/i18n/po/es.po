@@ -2706,11 +2706,23 @@ msgstr ""
 msgid "Closes this window. Nothing is kept."
 msgstr "Cierra esta ventana. No se guarda nada."
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse All Groups"
+msgstr "Contraer todos los grupos"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Collapse Conversation"
 msgstr "Contraer conversación"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse This Group"
+msgstr "Contraer este grupo"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4309,11 +4321,23 @@ msgstr ""
 msgid "Exchange server · no usable server address"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand All Groups"
+msgstr "Expandir todos los grupos"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Expand Conversation"
 msgstr "Expandir conversación"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand This Group"
+msgstr "Expandir este grupo"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8523,6 +8547,12 @@ msgstr "octubre"
 #, fuzzy
 msgid "Older"
 msgstr "Más antiguo"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Older Mail by Month and Year"
+msgstr "Correo más antiguo por mes y año"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -17094,6 +17124,12 @@ msgstr "no hay ninguna carpeta con el id. {id}"
 msgid "no free name for the folder {name}"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no group of this folder is collapsed"
+msgstr "ningún grupo de esta carpeta está contraído"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -17396,6 +17432,12 @@ msgstr "guarde o cierre primero la firma que se está editando"
 msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
 msgstr "guarde primero el buzón en un archivo: el cambio guarda una copia junto a ese archivo"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a collapsed group first"
+msgstr "seleccione primero un grupo contraído"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -17413,6 +17455,12 @@ msgstr "seleccione primero una conversación en la vista de conversaciones"
 #, fuzzy
 msgid "select a message first"
 msgstr "seleccione primero un mensaje"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a message in a list arranged in groups first"
+msgstr "seleccione primero un mensaje en una lista organizada en grupos"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -17771,6 +17819,29 @@ msgstr ""
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is collapsed"
+msgstr "el grupo está contraído"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is open"
+msgstr "el grupo está expandido"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the groups of a list arranged by category don't collapse"
+msgstr "los grupos de una lista organizada por categorías no se contraen"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "the heading \"{group}\" is longer than 254 characters"
+msgstr "el encabezado \"{group}\" tiene más de 254 caracteres"
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import couldn't account for every item of {path}"
@@ -17796,6 +17867,12 @@ msgstr ""
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "no se puede eliminar el último calendario"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the list isn't shown in groups"
+msgstr "la lista no se muestra en grupos"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -18684,6 +18761,12 @@ msgstr "que envía su correo: responda a la invitación allí, o aquí sin envia
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "que envía su correo: envíe este mensaje desde otra cuenta, o guárdelo como borrador para enviarlo desde esa versión"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "while something is searched for, every group shows whole"
+msgstr "mientras se busca algo, cada grupo se muestra entero"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
@@ -19083,6 +19166,14 @@ msgstr "{m} min {s} s"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} y {n} más"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{name} ({n} message)"
+msgid_plural "{name} ({n} messages)"
+msgstr[0] "{name} ({n} mensaje)"
+msgstr[1] "{name} ({n} mensajes)"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

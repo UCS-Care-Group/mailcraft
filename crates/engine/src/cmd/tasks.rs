@@ -132,7 +132,7 @@ pub fn place_of(s: &Session, id: &str, v: &Value) -> Result<Option<Id>, CmdError
     match id {
         "tasks.new" if v.get("title").is_some_and(|title| !title.is_null()) => Ok(place_of_new(s, v).ok().flatten()),
         "tasks.fromMessage" => {
-            let Some(message) = p::message_strict(v)?.or(s.sel.focus()).and_then(|m| s.mailbox.message(m)) else { return Ok(None) };
+            let Some(message) = p::message_strict(v)?.or(s.reading()).and_then(|m| s.mailbox.message(m)) else { return Ok(None) };
             let made = s.mailbox.tasks.values().any(|t| t.message == Some(message.id));
             Ok(if made { None } else { place_of_message(s, message) })
         }
@@ -334,7 +334,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let due = p::date(v, "due")?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // One to-do per message.

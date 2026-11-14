@@ -261,7 +261,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 /// The message a command answers, forwards or opens again, whole: its body and its files in
 /// memory, fetched from where the mailbox keeps them when they weren't (`Session::content`).
 fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -271,7 +271,7 @@ fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
 /// The message a reply answers, with what the reply quotes of it in memory: its body and the
 /// pictures its HTML shows (`Session::loaded_for_reply`); its other files stay where they are.
 fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }
@@ -556,7 +556,7 @@ fn reply(s: &mut Session, v: &Value) -> CmdResult {
 /// still answers it, and marks it answered once sent). One in Deleted Items already, or of an
 /// account without one, stays where it is: this never deletes for good.
 fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     // Mail a JMAP account's server has goes to Deleted Items only when the server has that folder
     // too: said before the reply is begun, not after.
     if s.mailbox.has_jmap_account()

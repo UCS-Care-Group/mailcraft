@@ -264,6 +264,11 @@ const SAFE: &[&str] = &[
     "view.searchSuggestions",
     "view.previewLines",
     "view.groups",
+    "view.collapseGroup",
+    "view.expandGroup",
+    "view.collapseAllGroups",
+    "view.expandAllGroups",
+    "view.olderByMonth",
     "view.oneLine",
     "view.day",
     "view.workWeek",
@@ -1720,7 +1725,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
 /// What a command that starts another message being written does (beside those open, #286).
 fn starting_text(s: &Session, id: &str, params: &Value) -> Option<String> {
     let message = |m: Option<Id>| m.and_then(|m| s.mailbox.message(m)).map(|m| quoted(&m.subject)).unwrap_or_else(|| "(none selected)".to_string());
-    let one = || message(p::message_strict(params).ok().and_then(|m| m.or(s.sel.focus())));
+    // What the command will act on, which a collapsed group's row is not (`Session::reading`,
+    // #929): named here, it would promise an agent a message the command then leaves alone.
+    let one = || message(p::message_strict(params).ok().and_then(|m| m.or(s.reading())));
     let several = || messages_text(s, &p::ids_strict(params).map(|m| m.unwrap_or_else(|| s.sel.messages.clone())).unwrap_or_default());
     let contact = || {
         let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));

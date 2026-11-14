@@ -2390,9 +2390,19 @@ msgstr ""
 msgid "Closes this window. Nothing is kept."
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Collapse All Groups"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Collapse Conversation"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Collapse This Group"
 msgstr ""
 
 #. command label
@@ -3783,9 +3793,19 @@ msgstr ""
 msgid "Exchange server · no usable server address"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Expand All Groups"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Expand Conversation"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Expand This Group"
 msgstr ""
 
 #. command label
@@ -7490,6 +7510,11 @@ msgstr ""
 #. name
 #: crates/time/src/lib.rs
 msgid "Older"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Older Mail by Month and Year"
 msgstr ""
 
 #. interface
@@ -15125,6 +15150,11 @@ msgstr ""
 msgid "no free name for the folder {name}"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "no group of this folder is collapsed"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "no incoming server"
@@ -15390,6 +15420,11 @@ msgstr ""
 msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "select a collapsed group first"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 msgid "select a contact first"
@@ -15403,6 +15438,11 @@ msgstr ""
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
 msgid "select a message first"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "select a message in a list arranged in groups first"
 msgstr ""
 
 #. what a command says, why a command can't run
@@ -15725,6 +15765,26 @@ msgstr ""
 msgid "the folder this message is in isn't on this computer any more"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the group is collapsed"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the group is open"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the groups of a list arranged by category don't collapse"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "the heading \"{group}\" is longer than 254 characters"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 msgid "the import couldn't account for every item of {path}"
@@ -15748,6 +15808,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "the last calendar can't be deleted"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "the list isn't shown in groups"
 msgstr ""
 
 #. what a command says
@@ -16523,6 +16588,11 @@ msgstr ""
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "while something is searched for, every group shows whole"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgctxt "why automatic replies weren't changed"
@@ -16878,6 +16948,13 @@ msgstr ""
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 msgid "{names} and {n} more"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "{name} ({n} message)"
+msgid_plural "{name} ({n} messages)"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

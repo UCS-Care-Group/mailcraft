@@ -48,7 +48,7 @@ fn file_open_drops_secrets_in_memory() {
 #[test]
 fn a_replacement_the_window_did_not_run_is_noticed_in_the_next_frame() {
     let mut a = app_with_secrets();
-    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     a.drop_secrets_if_replaced();
     assert!(nothing_kept(&a));
 }
@@ -68,7 +68,7 @@ fn a_replacement_forgets_what_the_background_fetch_knew() {
     a.session.driver.fetch.offline = true;
     a.session.driver.fetch.idle_until = f64::MAX;
     a.session.driver.fetch.stuck.insert(1, (3, f64::MAX));
-    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     a.drop_secrets_if_replaced();
     assert!(!a.session.driver.fetch.offline);
     assert!(!a.session.driver.fetch.resting(0.0));

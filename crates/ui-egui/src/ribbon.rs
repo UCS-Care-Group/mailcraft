@@ -399,7 +399,7 @@ fn no() -> Value {
 fn home_mail(app: &MailApp) -> Tab {
     // Junk ▾: Block Sender, Never Block…, Not Junk and Junk E-mail Options (#504).
     let junk = Item::small_menu("junk", "junk", "Junk", "Junk", Menu::Junk);
-    let pinned = app.session.focused_message().is_some_and(|m| m.pinned);
+    let pinned = app.session.reading_message().is_some_and(|m| m.pinned);
     Tab::of(vec![
         g(
             "New",
@@ -1317,7 +1317,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {
-            if app.session.sel.messages.is_empty() {
+            // A collapsed group's row stands for no message, so it is as good as none (#929).
+            if app.session.sel.messages.is_empty() || app.session.on_collapsed_group() {
                 ui.label(tl!("Select a message first"));
                 return;
             }
@@ -1339,7 +1340,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             });
         }
         Menu::Rules => {
-            if !app.session.sel.messages.is_empty() {
+            // The sender is the one of the message being read, which a collapsed group's row is
+            // not (#929): the item would open the dialog with nothing to build a rule from.
+            if app.session.reading().is_some() {
                 // A shared mailbox's rules are its own, which this version doesn't make: one for
                 // the owner's account would move the owner's own mail into the shared mailbox.
                 let mb = &app.session.mailbox;
@@ -1515,6 +1518,13 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             ui.separator();
             let groups = app.session.prefs.show_groups;
             mi_check(ui, app, "Show in Groups", groups, "view.groups", json!({"value": !groups}));
+            // (#929: older mail by month and year, and the groups collapsed or expanded.)
+            let by_month = app.session.prefs.older_by_month;
+            mi_check(ui, app, "Older Mail by Month and Year", by_month, "view.olderByMonth", json!({"value": !by_month}));
+            mi(ui, app, "Collapse This Group", "view.collapseGroup", json!({}));
+            mi(ui, app, "Expand This Group", "view.expandGroup", json!({}));
+            mi(ui, app, "Collapse All Groups", "view.collapseAllGroups", json!({}));
+            mi(ui, app, "Expand All Groups", "view.expandAllGroups", json!({}));
         }
         Menu::Theme => {
             let theme = app.ui.theme;

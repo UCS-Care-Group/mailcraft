@@ -373,7 +373,7 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
-    let mid = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));

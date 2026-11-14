@@ -458,7 +458,7 @@ fn a_copy_written_for_a_mailbox_that_was_replaced_switches_nobody() {
     app.switch_to_graph(account, "switchWithout").unwrap();
     assert!(app.graph_switch_copy.is_some());
     // Another file is opened, with an account of the same id that is on IMAP with Microsoft.
-    app.session.replace_mailbox(same_mailbox_again());
+    app.session.replace_mailbox(same_mailbox_again(), None);
     app.drop_secrets_if_replaced();
     tx.send(Ok(())).ok();
     app.poll_graph_switch_copy();
@@ -474,7 +474,7 @@ fn a_copy_that_finishes_after_a_swap_the_window_has_not_noticed_yet_is_dropped()
     let rx = Mutex::new(Some(rx));
     app.services.write_copy = Some(Box::new(move |_, _| rx.lock().unwrap().take().unwrap_or_else(|| mpsc::channel().1)));
     app.switch_to_graph(account, "switchWithout").unwrap();
-    app.session.replace_mailbox(same_mailbox_again());
+    app.session.replace_mailbox(same_mailbox_again(), None);
     tx.send(Ok(())).unwrap();
     app.poll_graph_switch_copy();
     assert!(app.session.mailbox.account(account).is_some_and(|a| a.on_imap_with_microsoft()), "switched without being asked");

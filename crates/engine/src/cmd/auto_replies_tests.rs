@@ -67,7 +67,7 @@ fn what_the_server_has_is_kept_as_plain_text() {
     // Never kept in the mailbox: another mailbox knows nothing of them.
     run(&mut s, "sync.applyAutomaticReplies", json!({"account": account, "setting": {"status": "alwaysEnabled"}}));
     assert!(any_on(&s));
-    s.replace_mailbox(s.mailbox.clone());
+    s.replace_mailbox(s.mailbox.clone(), s.path.clone());
     assert!(!any_on(&s) && s.auto_replies.is_empty());
 }
 

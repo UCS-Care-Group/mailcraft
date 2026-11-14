@@ -134,18 +134,21 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
 /// The reading pane: the selected message, or a word on why there is none to show.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
+    // (A collapsed group's row stands for no message, and shows none, #929: `reading` is then
+    // nothing, and the pane asks for an item to read, as it does with nothing selected at all.)
+    let showing = app.session.reading();
     let picked = app.session.sel.messages.len();
-    let preview_message = if picked == 1 { app.session.sel.focus() } else { None };
+    let preview_message = if picked == 1 { showing } else { None };
     crate::attachment_preview::follow_message(app, ui.ctx().viewport_id(), preview_message);
     // What showing it needs (its body, the pictures in it, a calendar part) is brought into
     // memory first, when the mailbox keeps it on disk; the message then shows whole in this
     // very frame. (One that can't be read says so in its text, once.)
-    if let Some(id) = app.session.sel.focus()
+    if let Some(id) = showing
         && app.session.needs_load_for_display(id)
     {
         let _ = app.session.load_for_display(id);
     }
-    let Some(m) = app.session.sel.focus().and_then(|id| app.session.mailbox.messages.get(&id).cloned()) else {
+    let Some(m) = showing.and_then(|id| app.session.mailbox.messages.get(&id).cloned()) else {
         let r = ui.available_rect_before_wrap();
         icons::paint(
             ui.painter(),

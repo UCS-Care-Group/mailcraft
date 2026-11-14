@@ -65,6 +65,8 @@ pub mod graph_place;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+#[cfg(test)]
+mod group_collapse_tests;
 pub mod help;
 #[cfg(test)]
 mod hidden_selection_tests;
@@ -234,9 +236,11 @@ pub(crate) fn done() -> CmdResult {
     Ok(json!({}))
 }
 
-/// Enabled only with a message selected.
+/// Enabled only with a message selected. A collapsed group's row is not one (#929): it is the
+/// switch that expands the group and stands for no message, and the commands that act on a
+/// message would act on nothing, so they are as grey as they are with nothing selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
-    if s.sel.messages.is_empty() { Some("select a message first") } else { None }
+    if s.sel.messages.is_empty() || s.on_collapsed_group() { Some("select a message first") } else { None }
 }
 
 /// Enabled only while a message is being written.
@@ -244,10 +248,13 @@ pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
     if s.compose.is_none() { Some("no message is being written") } else { None }
 }
 
-/// The messages a command acts on: `ids` / `id` when given, else the selection. They are read
+/// The messages a command acts on: `ids` / `id` when given, else the selection, less a collapsed
+/// group's row, which stands for no message ([`Session::selected_alone`], #929). They are read
 /// strictly ([`p::ids_strict`], #553): named wrongly, they are refused, never taken for the selection.
-pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    named_or_selected(s, p::ids_strict(v)?)
+pub(crate) fn targets(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    let named = p::ids_strict(v)?;
+    let ids = if named.is_some() { named } else { Some(s.selected_alone()) };
+    named_or_selected(s, ids)
 }
 
 /// As [`targets`], for Delete and Move: without `ids` / `id`, a message selected by its
@@ -344,6 +351,12 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
             .and_then(|j| rows.get(j))
             .or_else(|| rows.last())
     });
+    // (Never a collapsed group's heading (#929): picked as the group, the next Delete would take
+    // all of it. The selection is let go of there.)
+    if next.flatten().is_some_and(|row| row.folded.is_some()) {
+        s.sel.clear_messages();
+        return;
+    }
     if let Some(row) = next.flatten() {
         s.sel.messages = vec![row.id];
         // A conversation's row stands for it, as when it is stepped to; a message's own row under

@@ -629,7 +629,7 @@ fn a_forward_left_waiting_in_another_mailbox_isnt_said_to_be_called_off() {
     app.run("mail.forwardAsAttachment", json!({})).unwrap();
     // Another mailbox takes this one's place, and a reply there waits for its message.
     let mailbox = app.session.mailbox.clone();
-    app.session.replace_mailbox(mailbox);
+    app.session.replace_mailbox(mailbox, None);
     app.drop_secrets_if_replaced();
     app.judge_mailbox();
     app.confirm_servers().unwrap();

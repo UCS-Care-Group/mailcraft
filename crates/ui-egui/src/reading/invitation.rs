@@ -402,7 +402,7 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         return None;
     }
     let message = match p.get("message") {
-        None | Some(Value::Null) => app.session.sel.focus(),
+        None | Some(Value::Null) => app.session.reading(),
         Some(id) => id.as_u64(),
     };
     let Some(message) = message else { return Some(Err(tl!("Select a message first").to_string())) };

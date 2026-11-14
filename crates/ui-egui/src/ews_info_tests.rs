@@ -90,7 +90,7 @@ fn the_folders_a_run_could_not_read_go_with_the_mailbox_that_is_replaced() {
     a.ews_unreadable.insert(id, vec!["Inbox".into()]);
     a.drop_secrets_if_replaced();
     assert!(!a.ews_unreadable.is_empty(), "kept while the mailbox stays");
-    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     a.drop_secrets_if_replaced();
     assert!(a.ews_unreadable.is_empty());
 }

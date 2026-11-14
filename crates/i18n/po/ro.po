@@ -2868,11 +2868,23 @@ msgstr "Ați închis pagina? Aceasta deschide din nou pagina de conectare a furn
 msgid "Closes this window. Nothing is kept."
 msgstr "Închide această fereastră. Nu se păstrează nimic."
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse All Groups"
+msgstr "Restrângerea tuturor grupurilor"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Collapse Conversation"
 msgstr "Restrângere conversație"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse This Group"
+msgstr "Restrângerea acestui grup"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4549,11 +4561,23 @@ msgstr "Server Exchange {host}"
 msgid "Exchange server · no usable server address"
 msgstr "Server Exchange · nicio adresă de server utilizabilă"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand All Groups"
+msgstr "Extinderea tuturor grupurilor"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Expand Conversation"
 msgstr "Extindere conversație"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand This Group"
+msgstr "Extinderea acestui grup"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -9026,6 +9050,12 @@ msgstr "octombrie"
 #, fuzzy
 msgid "Older"
 msgstr "Mai vechi"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Older Mail by Month and Year"
+msgstr "E-mailuri mai vechi după lună și an"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -18216,6 +18246,12 @@ msgstr "nu există dosar cu ID-ul {id}"
 msgid "no free name for the folder {name}"
 msgstr "nu există un nume liber pentru dosarul {name}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no group of this folder is collapsed"
+msgstr "niciun grup din acest dosar nu este restrâns"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -18533,6 +18569,12 @@ msgstr "salvați sau închideți întâi semnătura în curs de editare"
 msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
 msgstr "salvați întâi cutia poștală într-un fișier: schimbarea păstrează o copie lângă acel fișier"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a collapsed group first"
+msgstr "selectați întâi un grup restrâns"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -18550,6 +18592,12 @@ msgstr "selectați întâi o conversație în vizualizarea pe conversații"
 #, fuzzy
 msgid "select a message first"
 msgstr "selectați întâi un mesaj"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a message in a list arranged in groups first"
+msgstr "selectați întâi un mesaj dintr-o listă aranjată pe grupuri"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -18933,6 +18981,29 @@ msgstr "dosarul în care se importa fișierul .pst a fost mutat în Elemente șt
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "dosarul în care este acest mesaj nu mai este pe acest computer"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is collapsed"
+msgstr "grupul este restrâns"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is open"
+msgstr "grupul este extins"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the groups of a list arranged by category don't collapse"
+msgstr "grupurile unei liste aranjate după categorii nu se restrâng"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "the heading \"{group}\" is longer than 254 characters"
+msgstr "antetul \"{group}\" are peste 254 de caractere"
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
@@ -18962,6 +19033,12 @@ msgstr "cheia este mai mare decât o păstrează fișa unui contact"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "ultimul calendar nu poate fi șters"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the list isn't shown in groups"
+msgstr "lista nu este afișată în grupuri"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -19881,6 +19958,12 @@ msgstr "care își trimite e-mailurile: răspundeți la invitație acolo sau aic
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "care își trimite e-mailurile: trimiteți acest mesaj din alt cont sau salvați-l ca ciornă ca să-l trimiteți din acea versiune"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "while something is searched for, every group shows whole"
+msgstr "în timpul unei căutări, fiecare grup este afișat întreg"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -20303,6 +20386,15 @@ msgstr "{m} min {s} s"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} și încă {n}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{name} ({n} message)"
+msgid_plural "{name} ({n} messages)"
+msgstr[0] "{name} ({n} mesaj)"
+msgstr[1] "{name} ({n} mesaje)"
+msgstr[2] "{name} ({n} de mesaje)"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

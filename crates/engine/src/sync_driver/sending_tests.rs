@@ -78,7 +78,7 @@ fn a_gate_of_another_mailbox_lets_go_and_marks_nothing() {
     let a = queued(&mut s, account, outbox, "One");
     let rev = s.send_marking(account, &[a]).unwrap();
     s.send_gate_wait(account, rev);
-    s.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    s.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     assert_eq!(s.send_gate_step(u64::MAX, false), GateStep::Idle, "the driver forgot it with the mailbox");
     // (And a gate that outlives its opening some other way is let go of, not opened.)
     s.send_gate_wait(1, 1);

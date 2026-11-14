@@ -620,7 +620,7 @@ fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec
 /// The message a command is about: the one it names, else the one being read.
 fn subject(app: &MailApp, p: &Value) -> Result<Arc<Message>, String> {
     let id = match p.get("message") {
-        None | Some(Value::Null) => app.session.sel.focus().ok_or_else(|| tl!("Select a message first").to_string())?,
+        None | Some(Value::Null) => app.session.reading().ok_or_else(|| tl!("Select a message first").to_string())?,
         Some(id) => id.as_u64().ok_or_else(|| "`message` is a message's id".to_string())?,
     };
     app.session.mailbox.messages.get(&id).cloned().ok_or_else(|| format!("no message with id {id}"))

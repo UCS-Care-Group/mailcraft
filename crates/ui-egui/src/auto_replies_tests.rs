@@ -295,7 +295,7 @@ fn another_mailbox_forgets_what_waited_and_what_was_on_its_way() {
         app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap();
         let before = jobs.lock().unwrap().len();
         // Another mailbox, whose account has the same id.
-        app.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+        app.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
         if noticed_first {
             app.drop_secrets_if_replaced();
         }

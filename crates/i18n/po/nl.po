@@ -2847,11 +2847,23 @@ msgstr "De pagina gesloten? Dit opent de aanmeldingspagina van de provider opnie
 msgid "Closes this window. Nothing is kept."
 msgstr "Sluit dit venster. Er wordt niets bewaard."
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse All Groups"
+msgstr "Alle groepen samenvouwen"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Collapse Conversation"
 msgstr "Gesprek samenvouwen"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Collapse This Group"
+msgstr "Deze groep samenvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4518,11 +4530,23 @@ msgstr "Exchange-server {host}"
 msgid "Exchange server · no usable server address"
 msgstr "Exchange-server · geen bruikbaar serveradres"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand All Groups"
+msgstr "Alle groepen uitvouwen"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Expand Conversation"
 msgstr "Gesprek uitvouwen"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Expand This Group"
+msgstr "Deze groep uitvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -8932,6 +8956,12 @@ msgstr "oktober"
 #, fuzzy
 msgid "Older"
 msgstr "Ouder"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Older Mail by Month and Year"
+msgstr "Oudere e-mail per maand en jaar"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -17995,6 +18025,12 @@ msgstr "geen map met id {id}"
 msgid "no free name for the folder {name}"
 msgstr "geen vrije naam voor de map {name}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no group of this folder is collapsed"
+msgstr "geen groep van deze map is samengevouwen"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -18310,6 +18346,12 @@ msgstr "sla de handtekening die wordt bewerkt eerst op of sluit die"
 msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
 msgstr "sla het postvak eerst op in een bestand: bij het overschakelen blijft een kopie ervan naast dat bestand"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a collapsed group first"
+msgstr "selecteer eerst een samengevouwen groep"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -18327,6 +18369,12 @@ msgstr "selecteer eerst een gesprek in de gespreksweergave"
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "select a message in a list arranged in groups first"
+msgstr "selecteer eerst een bericht in een lijst die in groepen is gerangschikt"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -18701,6 +18749,29 @@ msgstr "de map waar het .pst-bestand in werd geïmporteerd, werd verplaatst naar
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "de map waarin dit bericht staat, is niet meer op deze computer"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is collapsed"
+msgstr "de groep is samengevouwen"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the group is open"
+msgstr "de groep is uitgevouwen"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the groups of a list arranged by category don't collapse"
+msgstr "de groepen van een lijst die op categorie is gerangschikt, worden niet samengevouwen"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "the heading \"{group}\" is longer than 254 characters"
+msgstr "de kop \"{group}\" is langer dan 254 tekens"
+
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
@@ -18729,6 +18800,12 @@ msgstr ""
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "de laatste agenda kan niet worden verwijderd"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "the list isn't shown in groups"
+msgstr "de lijst wordt niet in groepen weergegeven"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -19640,6 +19717,12 @@ msgstr "die de e-mail verzendt: beantwoord de uitnodiging daar, of hier zonder e
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
 msgstr "die de e-mail verzendt: verzend dit bericht vanaf een ander account, of sla het op als concept om het vanuit die versie te verzenden"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "while something is searched for, every group shows whole"
+msgstr "tijdens een zoekopdracht wordt elke groep volledig weergegeven"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -20061,6 +20144,14 @@ msgstr "{m} min {s} s"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} en nog {n}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{name} ({n} message)"
+msgid_plural "{name} ({n} messages)"
+msgstr[0] "{name} ({n} bericht)"
+msgstr[1] "{name} ({n} berichten)"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

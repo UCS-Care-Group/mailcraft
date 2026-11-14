@@ -68,8 +68,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     settle(s)?;
     let mailbox =
         if p::bool(v, "sample") == Some(true) { crate::sample::mailbox(s.now(), s.offset_at(s.now())) } else { Mailbox::with_local_account("", "") };
-    s.replace_mailbox(mailbox);
-    s.path = None;
+    s.replace_mailbox(mailbox, None);
     Ok(json!({"sample": p::bool(v, "sample") == Some(true)}))
 }
 
@@ -176,9 +175,9 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     // First, so that opening the file the mailbox is kept in reads what was just written.
     settle(s)?;
     let (mailbox, left) = read(v)?;
-    s.replace_mailbox(mailbox);
     // Only a real file is a place to save back to.
-    s.path = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
+    let path: Option<std::path::PathBuf> = if v.get("data").is_some() { None } else { p::str(v, "path").map(Into::into) };
+    s.replace_mailbox(mailbox, path);
     let after = after_opening(s);
     let (favorites_now_graph, fetched_again) = (after.favorites_now_graph, after.fetched_again());
     Ok(json!({
@@ -349,7 +348,7 @@ fn import_pst(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
         return Err(failed!("no message with id {id}", id));
     }

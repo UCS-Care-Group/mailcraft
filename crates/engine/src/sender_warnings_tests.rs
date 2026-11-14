@@ -178,7 +178,7 @@ fn the_knowledge_follows_another_mailbox() {
     let (mut s, _) = imap(vec![]);
     s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();
     assert!(s.knows("lin.zhao@harborworks.example"));
-    s.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    s.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     assert!(!s.knows("lin.zhao@harborworks.example"));
 }
 
