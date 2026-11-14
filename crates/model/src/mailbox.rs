@@ -1468,7 +1468,13 @@ impl Mailbox {
         }
         self.accounts.retain(|a| !going.contains(&a.id));
         self.account_order.retain(|a| !going.contains(a));
+        let gone_folders: HashSet<Id> = self.folders.iter().filter(|f| going.contains(&f.account)).map(|f| f.id).collect();
         self.folders.retain(|f| !going.contains(&f.account));
+        for saved in &mut self.search_favorites {
+            if gone_folders.contains(&saved.folder) {
+                saved.folder = 0;
+            }
+        }
         self.messages.retain(|_, m| !going.contains(&m.account));
         self.pending.retain(|p| !going.contains(&p.account()));
         self.event_changes.retain(|change| !going.contains(&change.account));
@@ -3508,7 +3514,7 @@ impl Mailbox {
             }
         }
         let before = self.search_favorites.len();
-        self.search_favorites.retain(|f| !f.name.is_empty());
+        self.search_favorites.retain(|f| !f.name.is_empty() && !f.query.trim().is_empty());
         changed || self.search_favorites.len() != before
     }
 

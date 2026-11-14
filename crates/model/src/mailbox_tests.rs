@@ -1294,3 +1294,34 @@ fn removing_a_folder_clears_a_saved_search_that_named_it() {
     assert_eq!(mb.search_favorites[0].folder, kept);
     assert_eq!(mb.search_favorites[1].folder, 0);
 }
+
+#[test]
+fn repair_drops_a_saved_search_with_nothing_to_search_for() {
+    let (mut mb, account) = mailbox();
+    let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Blank".into(), query: "  \n".into(), scope: "folder".into(), folder },
+        SearchFavorite { id: 5, name: "Kept".into(), query: "from:ada".into(), scope: "folder".into(), folder },
+    ];
+    mb.repair();
+    assert_eq!(mb.search_favorites.len(), 1);
+    assert_eq!(mb.search_favorites[0].name, "Kept");
+}
+
+#[test]
+fn removing_an_account_clears_a_saved_search_that_named_its_folder() {
+    let (mut mb, account) = mailbox();
+    let kept = mb.inbox().unwrap();
+    let other = mb.add_account(Account { email: "ada@mail.example".into(), kind: AccountKind::Imap, ..Default::default() });
+    let shared = mb.add_account(Account { email: "team@mail.example".into(), kind: AccountKind::Imap, shared_of: Some(other), ..Default::default() });
+    let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let shared_inbox = mb.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    mb.search_favorites = vec![
+        SearchFavorite { id: 4, name: "Here".into(), query: "a".into(), scope: "folder".into(), folder: kept },
+        SearchFavorite { id: 5, name: "There".into(), query: "b".into(), scope: "folder".into(), folder: other_inbox },
+        SearchFavorite { id: 6, name: "Shared".into(), query: "c".into(), scope: "folder".into(), folder: shared_inbox },
+    ];
+    mb.remove_account(other).unwrap();
+    assert_eq!(mb.search_favorites.iter().map(|f| f.folder).collect::<Vec<_>>(), vec![kept, 0, 0]);
+    assert_ne!(account, other);
+}
