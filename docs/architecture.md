@@ -111,10 +111,17 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
 - **Conversations are grouped by topic** (the subject without `RE:`/`FW:` prefixes) within an
   account, as the incumbent does, not by `References` chains.
 - **A mailbox file, and its content beside it.** On the desktop `mailbox.mailcraft` holds
-  everything but content as a log of records (format 3, `crates/engine/src/store_index.rs`): the
+  everything but content as a log of records (format 4, `crates/engine/src/store_index.rs`): the
   rest of the mailbox, and one record per message, contact, event or task; bodies and attachments
   over a kilobyte are write-once files named by their SHA-256 in `mailbox.mailcraft.blobs/`
-  (`crates/engine/src/store.rs`). A save appends the records of what changed and a commit in one
+  (`crates/engine/src/store.rs`). So is a message's header block over a kilobyte: the header
+  lines nothing in the program reads by name (`mailcraft_model::headers`: those it reads by name
+  are `WORKING`, which a test holds to the source), kept apart and in order, read only by View
+  Source and what writes a message whole (`Session::loaded_message`). A file in format 3 opens
+  as it is; the window puts its blocks beside it as it reads it and writes it in format 4 at
+  once (an opening that only reads it, the command line's or an agent's, holds them in memory
+  until a save), the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
+  reads only format 3 calls a format-4 file one from a newer MailCraft. A save appends the records of what changed and a commit in one
   flushed write, on a background thread: a read mark costs a few hundred bytes however large the
   mailbox. What was last written is remembered item by item (its fingerprint, and a weak pointer
   to the copy in memory that it is), so a save looks only at items whose copy changed; when the
@@ -133,7 +140,7 @@ can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`
   was written here, by their SHA-256, is still this program's); MailCraft never removes a file kept
   aside, as each may be the only copy of what it holds. The sweep keeps
   every content file a kept-aside file names (damaged, changed, or of an earlier form). Formats 1
-  and 2 (JSON) are still read and become format 3 at the first changed save, the old file kept
+  and 2 (JSON) are still read and become format 4 at the first changed save, the old file kept
   beside it as `<file>.format1` or `.format2`, which is what MailCraft 0.4.3 and earlier can open
   (they call a format-3 file not a mailbox); a file that begins as ours but in a form newer than
   this program reads is said to be from a newer MailCraft. A self-contained single file is still what the browser, exports
