@@ -19,6 +19,79 @@ fn spreadsheet_paste_keeps_cells_and_styles_when_a_draft_reopens() {
 }
 
 #[test]
+fn spreadsheet_clipboard_keeps_spacer_rows_columns_and_row_spans() {
+    for html in [
+        r#"<style>.xl65 { text-align:right }</style><table><colgroup><col span="3"></colgroup><tr><td rowspan="2">Part</td><td></td><td class="xl65">12,30</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"#,
+        r#"<table cellspacing="0"><colgroup><col width="80"><col width="20"><col width="40"></colgroup><tr><td rowspan="2">Part</td><td><br></td><td align="right">12,30</td></tr><tr><td><br></td><td><br></td></tr><tr><td><br></td><td><br></td><td><br></td></tr></table>"#,
+        r#"<google-sheets-html-origin><table><colgroup><col span="3"></colgroup><tbody><tr><td rowspan="2">Part</td><td></td><td style="text-align:right" data-sheets-value="{}">12,30</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></tbody></table></google-sheets-html-origin>"#,
+    ] {
+        let pasted = from_html_for_compose(html);
+        let saved = to_html(&pasted);
+        assert!(saved.contains("rowspan=\"2\"") && saved.contains("align=\"right\">12,30"), "{saved}");
+        assert_eq!(saved.matches("<tr>").count(), 3, "{saved}");
+        assert_eq!(saved.matches("<td ").count(), 8, "{saved}");
+        assert_eq!(to_html(&from_html_with_pictures(&saved, &mut |_| None)), saved);
+    }
+    let span = "<table><tr><td rowspan=\"2\">Part</td></tr><tr></tr></table>";
+    let saved = to_html(&from_html_for_compose(span));
+    assert!(saved.contains("rowspan=\"2\"") && saved.contains("<tr></tr>"), "{saved}");
+    assert_eq!(to_html(&from_html_with_pictures(&saved, &mut |_| None)), saved);
+}
+
+#[test]
+fn reopening_a_draft_only_preserves_geometry_of_marked_tables() {
+    let html = "<table role=\"presentation\"><tr><td>Signature</td><td>Contact</td></tr></table><table border=\"1\"><tr><td>Foreign</td><td>Grid</td></tr></table>";
+    let reopened = from_html_with_pictures(html, &mut |_| None);
+    let plain = reopened.to_plain();
+    for value in ["Signature", "Contact", "Foreign", "Grid"] {
+        assert!(plain.contains(value), "{plain}");
+    }
+    assert!(!to_html(&reopened).contains("<table"));
+}
+
+#[test]
+fn inserting_a_signature_respects_the_table_storage_budget() {
+    use mailcraft_model::rich::{ListKind, MAX_CHARS, Paragraph, RichText, Run};
+
+    let html = "<table><tr><td>x</td></tr></table>";
+    let table = from_html_for_compose(html).paragraphs()[0].runs[0].clone();
+    let mut message = RichText::from_paragraphs(vec![Paragraph::new(vec![table, Run::plain("y".repeat(MAX_CHARS - 20))], ListKind::None)]);
+    let before = message.clone();
+    assert!(message.put_signature(&RichText::from_plain("1234567890123456"), 0).is_err());
+    assert_eq!(message, before);
+    assert!(message.put_signature(&RichText::from_plain("123456789012"), 0).is_ok());
+    assert!(message.put_signature(&RichText::from_plain("abcdefghijkl"), 0).is_ok());
+    assert!(message.paragraphs().iter().flat_map(|p| &p.runs).any(|run| run.table.is_some()));
+}
+
+#[test]
+fn undo_charges_shared_table_storage_once() {
+    use mailcraft_model::RichBody;
+    use mailcraft_model::rich::{CellAlignment, CellText, ListKind, MAX_CHARS, Paragraph, PastedTable, RichText, Run, Style, TableCell};
+
+    let cell = TableCell {
+        lines: vec![vec![CellText { text: "x".repeat(MAX_CHARS / 2), style: Style::default() }]],
+        header: false,
+        colspan: 1,
+        rowspan: 1,
+        background: None,
+        alignment: CellAlignment::Left,
+    };
+    let table = std::sync::Arc::new(PastedTable::new(1, vec![vec![cell]]).unwrap());
+    let mut body = RichBody::new(RichText::from_paragraphs(vec![Paragraph::new(vec![Run::table(table)], ListKind::None)]));
+    assert_eq!(body.text().len(), 1);
+    assert_eq!(body.text().to_plain().len(), MAX_CHARS / 2);
+    for _ in 0..20 {
+        body.insert_at(0, "a", &Style::default()).unwrap();
+    }
+    for _ in 0..20 {
+        assert!(body.undo());
+    }
+    assert!(!body.undo());
+    assert_eq!(body.text().len(), 1);
+}
+
+#[test]
 fn malformed_saved_table_keeps_other_runs() {
     use mailcraft_model::rich::{OBJECT, RichText};
 

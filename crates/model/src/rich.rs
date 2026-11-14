@@ -796,19 +796,31 @@ impl RichText {
     /// at `at` (the paragraph there is cut; an empty rest of the last paragraph is left out).
     pub fn put_signature(&mut self, sig: &RichText, at: usize) -> Result<(), ModelError> {
         let marked: Vec<Paragraph> = sig.paragraphs.iter().map(|p| Paragraph { signature: true, ..p.clone() }).collect();
-        if self.len().saturating_add(sig.len()) > MAX_CHARS || self.paragraphs.len().saturating_add(marked.len()) > MAX_PARAGRAPHS {
-            return Err(ModelError::Invalid("the message can't hold that much text".into()));
-        }
+        let too_much = || ModelError::Invalid("the message can't hold that much text".into());
+        let combined = self.storage_len().saturating_add(sig.storage_len());
+        let lines = self.paragraphs.len().saturating_add(marked.len());
         if let Some((a, b)) = self.signature_paragraphs() {
+            let replaced = &self.paragraphs[a..=b];
+            let replaced_size =
+                replaced.iter().flat_map(|p| &p.runs).map(|r| r.text.chars().count() + r.table.as_ref().map_or(0, |table| table.size)).sum::<usize>()
+                    + replaced.len()
+                    - 1;
+            if combined.saturating_sub(replaced_size) > MAX_CHARS || lines.saturating_sub(replaced.len()) > MAX_PARAGRAPHS {
+                return Err(too_much());
+            }
             self.paragraphs.splice(a..=b, marked);
             return Ok(());
         }
         let (pi, off) = self.locate(at)?;
         let last = pi + 1 == self.paragraphs.len();
         let Some(target) = self.paragraphs.get_mut(pi) else { return Err(ModelError::Invalid("no such paragraph".into())) };
+        let keep_tail = !last || off < target.chars();
+        if combined.saturating_add(1 + usize::from(keep_tail)) > MAX_CHARS || lines.saturating_add(usize::from(keep_tail)) > MAX_PARAGRAPHS {
+            return Err(too_much());
+        }
         let tail = target.split_off(off);
         let mut new = marked;
-        if !(tail.is_empty() && last) {
+        if keep_tail {
             new.push(Paragraph { signature: false, ..tail });
         }
         self.paragraphs.splice(pi + 1..pi + 1, new);
@@ -1009,11 +1021,11 @@ impl RichText {
 
     /// Text plus the data held by table objects, for storage and history limits.
     pub(super) fn storage_len(&self) -> usize {
-        self.paragraphs
-            .iter()
-            .flat_map(|p| &p.runs)
-            .filter_map(|run| run.table.as_deref())
-            .fold(self.len(), |size, table| size.saturating_add(table.size))
+        self.pasted_tables().fold(self.len(), |size, table| size.saturating_add(table.size))
+    }
+
+    fn pasted_tables(&self) -> impl Iterator<Item = &std::sync::Arc<PastedTable>> {
+        self.paragraphs.iter().flat_map(|p| &p.runs).filter_map(|run| run.table.as_ref())
     }
 
     /// Remove `[from, to)`; a paragraph break inside it joins the paragraphs on either side

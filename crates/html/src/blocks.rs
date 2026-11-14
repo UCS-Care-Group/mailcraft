@@ -113,19 +113,40 @@ pub(crate) struct Built {
 }
 
 pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
-    build_with(html, decode, env, keep_hidden, None)
+    build_with(html, decode, env, keep_hidden, None, ComposeTables::Off)
 }
 
 /// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
 /// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
 /// reading rule ([`is_safe_url`]). Never for received mail.
 pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
-    build_with(html, false, &Env::default(), false, Some(accept)).blocks
+    build_with(html, false, &Env::default(), false, Some(accept), ComposeTables::Off).blocks
 }
 
-fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>) -> Built {
+/// Read spreadsheet geometry from the clipboard, or only from marked tables when reopening a draft.
+pub fn parse_text_with_tables(html: &str, own_link: Option<fn(&str) -> Option<String>>) -> Vec<Block> {
+    let tables = if own_link.is_some() { ComposeTables::Marked } else { ComposeTables::All };
+    build_with(html, false, &Env::default(), false, own_link, tables).blocks
+}
+
+#[derive(Clone, Copy)]
+enum ComposeTables {
+    Off,
+    All,
+    Marked,
+}
+
+fn build_with(
+    html: &str,
+    decode: bool,
+    env: &Env,
+    keep_hidden: bool,
+    own_link: Option<fn(&str) -> Option<String>>,
+    compose_tables: ComposeTables,
+) -> Built {
     let mut builder = Builder::new(decode);
     builder.own_link = own_link;
+    builder.compose_tables = compose_tables;
     builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, crate::MAX_INPUT_WITH_PICTURES);
     builder.copies = html.len().saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
@@ -455,6 +476,7 @@ struct BoxBuild {
 #[derive(Debug)]
 struct TableBuild {
     rows: Vec<Row>,
+    compose_grid: bool,
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
@@ -632,6 +654,7 @@ struct Builder {
     unseen: Option<String>,
     /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`]).
     own_link: Option<fn(&str) -> Option<String>>,
+    compose_tables: ComposeTables,
     /// A space is due before the next hidden word.
     unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
@@ -693,6 +716,7 @@ impl Builder {
             hidden: 0,
             unseen: None,
             own_link: None,
+            compose_tables: ComposeTables::Off,
             unseen_gap: false,
             implied: 0,
             quote: 0,
@@ -1578,15 +1602,14 @@ impl Builder {
         for cell in &mut cells {
             cell.background = cell.background.or(row.background);
         }
-        if cells.is_empty() {
-            return;
-        }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
             Kind::Table(table) => Some(table),
             _ => None,
         });
         if let Some(table) = table {
-            table.rows.push(Row { cells });
+            if !cells.is_empty() || table.compose_grid {
+                table.rows.push(Row { cells });
+            }
             return;
         }
         for cell in cells {
@@ -1603,9 +1626,13 @@ impl Builder {
         let mut rows = table.rows;
         let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
-        rows.retain(|r| !r.cells.iter().all(empty));
+        if !table.compose_grid {
+            rows.retain(|r| !r.cells.iter().all(empty));
+        }
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
-        let layout = if table.presentation {
+        let layout = if table.compose_grid {
+            false
+        } else if table.presentation {
             true
         } else if table.header || table.border {
             false
@@ -1646,8 +1673,11 @@ impl Builder {
         if rows.is_empty() {
             return;
         }
-        let columns =
-            rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS);
+        let columns = if table.compose_grid {
+            grid_width(&rows)
+        } else {
+            rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS)
+        };
         // A table that only wraps a column of things is those things. Unless the things are
         // pictures and nothing else, a row each: those are slices of one picture, and stay the
         // rows of a table, for whoever draws them to set them edge to edge.
@@ -1695,6 +1725,7 @@ impl Builder {
         }
         let mut kind = BlockKind::Table(Table {
             rows,
+            compose_grid: table.compose_grid,
             columns: u16::try_from(columns).unwrap_or(u16::MAX),
             layout,
             border: table.border,
@@ -1730,6 +1761,7 @@ impl Builder {
         self.flush();
         let build = TableBuild {
             rows: Vec::new(),
+            compose_grid: false,
             width: None,
             background: None,
             align: Align::Left,
@@ -1770,6 +1802,11 @@ impl Builder {
         let float = if inline { floated(tag, &css) } else { None };
         let build = TableBuild {
             rows: Vec::new(),
+            compose_grid: match self.compose_tables {
+                ComposeTables::Off => false,
+                ComposeTables::All => true,
+                ComposeTables::Marked => tag.attr("data-mailcraft-grid").as_deref() == Some("1"),
+            },
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
             background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
             align: float
@@ -2666,6 +2703,28 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     let schemeless = url.strip_prefix("//").is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let url = if schemeless { format!("https:{url}") } else { url.to_string() };
     is_safe_url(&url).then_some(url)
+}
+
+/// Grid width including cells carried down from earlier rows. A result above the reader's
+/// column cap is kept above it so that the composer can fall back to text.
+fn grid_width(rows: &[Row]) -> usize {
+    let mut covered = [0usize; MAX_TABLE_COLUMNS];
+    let mut width = 1;
+    for row in rows {
+        let mut col = 0;
+        for cell in &row.cells {
+            while covered.get(col).is_some_and(|n| *n > 0) {
+                col += 1;
+            }
+            let end = col + usize::from(cell.colspan);
+            let Some(area) = covered.get_mut(col..end) else { return MAX_TABLE_COLUMNS + 1 };
+            area.iter_mut().for_each(|n| *n = (*n).max(usize::from(cell.rowspan)));
+            col = end;
+        }
+        width = width.max(col);
+        covered.iter_mut().for_each(|n| *n = n.saturating_sub(1));
+    }
+    width
 }
 
 /// Where each cell of `rows` sits, as the reading pane places it: its first column and how many it

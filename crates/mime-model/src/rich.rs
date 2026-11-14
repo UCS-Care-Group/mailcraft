@@ -125,7 +125,8 @@ fn paragraph(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<I
 
 /// Write the table using fixed markup and the same escaped text runs as the rest of the body.
 fn write_table(out: &mut String, table: &PastedTable) {
-    out.push_str("<table border=\"1\" cellpadding=\"4\" cellspacing=\"0\" style=\"border-collapse:collapse\">");
+    // The fixed grid makes cell boundaries visible in the editor and in the mail it sends.
+    out.push_str("<table data-mailcraft-grid=\"1\" border=\"1\" cellpadding=\"4\" cellspacing=\"0\" style=\"border-collapse:collapse\">");
     for row in table.rows() {
         out.push_str("<tr>");
         for cell in row {
@@ -443,7 +444,7 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
 
 fn read(html: &str, pictures: bool, tables: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
-    let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
+    let blocks = if tables { mailcraft_html::parse_text_with_tables(html, pictures.then_some(safe_link)) } else { mailcraft_html::parse_text(html) };
     let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
     let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
     let mut reader = Reader { out: Vec::new(), pictures, copies, tables };
@@ -510,6 +511,7 @@ impl Reader {
                 BlockKind::Table(table) => {
                     self.gap(b.space);
                     if self.tables
+                        && table.compose_grid
                         && let Some(table) = self.table(table)
                     {
                         self.out.push(Paragraph::new(vec![Run::table(std::sync::Arc::new(table))], ListKind::None));
