@@ -456,6 +456,26 @@ class AccountsTest {
     }
 
     @Test
+    fun leavingAddAccountWhileASignInIsQueuedMeansItNeverBegins() {
+        val first = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            signInGates.add(first)
+            signInResults.add(SignInResult.Cancelled)
+        }
+        val rig = Rig(api)
+        rig.actions.onEmail("a@example.org")
+        rig.actions.onSignIn()
+        rig.actions.onLeaveAdd()
+        rig.actions.onEmail("b@example.org")
+        rig.actions.onSignIn()
+        // The owner leaves B's waiting screen (the app's own Back), and starts nothing else.
+        rig.actions.onLeaveAdd()
+        first.complete(Unit)
+        assertEquals(listOf("a@example.org"), api.signIns)
+        assertEquals(AddAccountState.Form(), rig.ui.add)
+    }
+
+    @Test
     fun cancellingASignInThatIsStillQueuedMeansItNeverBegins() {
         val first = CompletableDeferred<Unit>()
         val api = FakeApi().apply {

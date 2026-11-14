@@ -157,7 +157,12 @@ internal class AccountsController(
         }
     }
 
-    private fun leaveAdd() = ui.update { it.copy(add = AddAccountState.Form()) }
+    /** Leaves Add Account: the form is as new, and a sign-in still queued there never begins. */
+    private fun leaveAdd() {
+        queued = 0L
+        signInOperation++
+        ui.update { it.copy(add = AddAccountState.Form()) }
+    }
 
     /** The form for an account the owner has, its address as the hint; a sign-in that waits is left as it is. */
     private fun signInAgain(account: AccountItem) = ui.update { state ->

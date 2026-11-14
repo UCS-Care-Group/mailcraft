@@ -127,6 +127,29 @@ class AccountsHubTest {
     }
 
     @Test
+    fun aSaveThatFailsAfterSavingWasTurnedOffLeavesThatNoticeAlone() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        lateinit var saving: AccountsHub
+        saving = AccountsHub(
+            api = HubApi(CompletableDeferred()),
+            texts = EnglishTexts,
+            scope = app,
+            save = {
+                gate.await()
+                throw CoreException.Failed("nothing is saved")
+            },
+            copy = {},
+        )
+        val save = app.launch { saving.saveNow() }
+        // The file turns out to be unkeepable while that save runs.
+        saving.handle(Event.StorageNotice(StorageNotice.NOT_KEPT, ""))
+        gate.complete(Unit)
+        save.join()
+        assertTrue(saving.controller.ui.value.savingOff)
+        assertFalse(saving.controller.ui.value.saveFailed)
+    }
+
+    @Test
     fun aMailboxThatCouldNotBeKeptAsideIsNeverSavedOver() = runBlocking {
         var saves = 0
         val saving = AccountsHub(

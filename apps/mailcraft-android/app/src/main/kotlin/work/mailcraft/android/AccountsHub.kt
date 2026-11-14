@@ -103,6 +103,8 @@ internal class AccountsHub(
         } catch (_: CoreException) {
             false
         }
+        // (Saving may have been turned off while it ran: that notice stands, and nothing is retried.)
+        if (savingOff) return false
         controller.setSaveFailed(!saved)
         if (!saved) retryLater()
         return saved
