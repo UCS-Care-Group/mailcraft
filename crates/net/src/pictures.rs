@@ -741,8 +741,9 @@ struct Answer {
     said: Said,
 }
 
-/// One GET, on a connection of its own, to an address that was checked first.
-fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline: Instant) -> Result<Answer, PictureError> {
+/// One GET, on a connection of its own, to an address that was checked first; a POST of `form`
+/// (`application/x-www-form-urlencoded`) instead when there is one.
+fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline: Instant, form: Option<&str>) -> Result<Answer, PictureError> {
     let port = match (url.port, url.secure) {
         (0, true) => 443,
         (0, false) => 80,
@@ -754,11 +755,19 @@ fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline
     let mut line = if url.secure { secure(line, &url.host)? } else { Line::Plain(line) };
     // The address was checked when it was read: nothing in it can end a line early. And this is
     // all that is ever said: what to send, to whom, how, and that nothing more will be asked.
-    let request = format!(
-        "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {ACCEPT}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nConnection: close\r\n\r\n",
-        url.path,
-        authority(url)
-    );
+    let request = match form {
+        None => format!(
+            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {ACCEPT}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nConnection: close\r\n\r\n",
+            url.path,
+            authority(url)
+        ),
+        Some(form) => format!(
+            "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: */*\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{form}",
+            url.path,
+            authority(url),
+            form.len()
+        ),
+    };
     send(&mut line, request.as_bytes())?;
     let mut kept = Kept { inner: &mut line, head: Vec::new() };
     let started = Instant::now();
@@ -781,7 +790,7 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
     // The address itself, then as many redirects as are followed, and one asking again: every
     // turn but the last of these is one or the other, so the turns are counted.
     loop {
-        let answer = ask(&at, reach, limits, left, deadline)?;
+        let answer = ask(&at, reach, limits, left, deadline, None)?;
         match answer.status {
             // What came packed (nobody asked for that) is unpacked, to no more than may be taken.
             200 => {
@@ -813,6 +822,43 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
         }
     }
 }
+
+/// What a one-click unsubscribe's answer may weigh: it is read only for its status.
+const UNSUBSCRIBE_BYTES: usize = 64 * 1024;
+/// How long a one-click unsubscribe may take.
+const UNSUBSCRIBE_PATIENCE: Duration = Duration::from_secs(20);
+
+/// RFC 8058's one-click unsubscribe: `POST` `List-Unsubscribe=One-Click` to `url`, which must be
+/// `https:`, once, the owner having clicked for it. It goes the way a picture does (public hosts
+/// only, checked against the addresses actually connected to; no cookies, no referrer, no
+/// sign-in) with less: no redirect is followed (RFC 8058 has the address answer itself), it is
+/// not asked again, and the answer is read for its status alone, [`UNSUBSCRIBE_BYTES`] of it at
+/// most, within [`UNSUBSCRIBE_PATIENCE`]. Blocks, so a host calls it on a background thread.
+pub fn unsubscribe(url: &str) -> Result<(), String> {
+    if !address(url).is_ok_and(|at| at.secure) {
+        return Err("its address isn't https".to_string());
+    }
+    let limits = Limits { max_bytes: UNSUBSCRIBE_BYTES, patience: UNSUBSCRIBE_PATIENCE, ..Limits::default() };
+    unsubscribe_with(url, &Reach::web(), &limits)
+}
+
+/// [`unsubscribe`], with the reach and the limits said (and so to a test's plain `http` server).
+fn unsubscribe_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<(), String> {
+    let at = address(url).map_err(|_| "its address isn't one MailCraft sends to".to_string())?;
+    let deadline = Instant::now() + limits.patience;
+    match ask(&at, reach, limits, limits.max_bytes, deadline, Some("List-Unsubscribe=One-Click")) {
+        Ok(answer) if (200..300).contains(&answer.status) => Ok(()),
+        Ok(answer) if (300..400).contains(&answer.status) => Err(format!("the list's server sent it on elsewhere ({})", answer.status)),
+        Ok(answer) => Err(format!("the list's server answered {}", answer.status)),
+        Err(PictureError::NotPublic) => Err("its address is on this computer or a private network".to_string()),
+        Err(PictureError::TimedOut) => Err("the list's server took too long".to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(test)]
+#[path = "unsubscribe_tests.rs"]
+mod unsubscribe_tests;
 
 #[cfg(test)]
 mod tests {

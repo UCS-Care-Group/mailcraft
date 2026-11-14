@@ -634,7 +634,11 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.clearPictureCache" => clear(app),
         // The other commands of a message that is being read: its selected text, and the
         // meeting it carries.
-        _ => return super::select::ui_command(app, id, p).or_else(|| super::invitation::ui_command(app, id, p)),
+        _ => {
+            return super::select::ui_command(app, id, p)
+                .or_else(|| super::invitation::ui_command(app, id, p))
+                .or_else(|| super::unsubscribe::ui_command(app, id, p));
+        }
     })
 }
 
