@@ -17485,6 +17485,11 @@ msgid "Sent Items"
 msgstr "已发送邮件"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -17880,7 +17885,7 @@ msgid "no event with id {id}"
 msgstr "没有 ID 为 {id} 的事件"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "没有文件夹“{path}”"
