@@ -12652,7 +12652,7 @@ msgstr "Der Kontakt {id} wurde zweimal angegeben."
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "The contact's form was closed: open it again to add the key"
-msgstr "Das Kontaktformular wurde geschlossen: öffnen Sie es erneut, um den Schlüssel hinzuzufügen"
+msgstr "Das Kontaktformular wurde geschlossen: Öffnen Sie es erneut, um den Schlüssel hinzuzufügen"
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
