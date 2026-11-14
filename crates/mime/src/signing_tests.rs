@@ -120,7 +120,24 @@ fn text_a_server_could_change_is_quoted_printable_when_signed() {
         ..Message::default()
     };
     let entity = String::from_utf8(signable(&attached)).unwrap_or_default();
-    assert!(entity.contains("message/rfc822") && entity.contains("Content-Transfer-Encoding: base64"), "{entity}");
+    // As a file, which base64 is allowed for (RFC 2046 §5.2.1 allows none for message/rfc822).
+    assert!(!entity.contains("message/rfc822"), "{entity}");
+    assert!(
+        entity.contains("Content-Type: application/octet-stream; name=\"m.eml\"") && entity.contains("Content-Transfer-Encoding: base64"),
+        "{entity}"
+    );
+    // One that can go as it is stays an attached message.
+    let clean = Message {
+        attachments: vec![Attachment {
+            name: "m.eml".into(),
+            mime: "message/rfc822".into(),
+            data: Arc::new(b"Subject: x\r\n\r\nend\r\n".to_vec()),
+            ..Attachment::default()
+        }],
+        ..Message::default()
+    };
+    let entity = String::from_utf8(signable(&clean)).unwrap_or_default();
+    assert!(entity.contains("message/rfc822") && entity.contains("Content-Transfer-Encoding: 7bit"), "{entity}");
 }
 
 #[test]

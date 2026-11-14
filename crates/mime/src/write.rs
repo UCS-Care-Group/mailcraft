@@ -376,8 +376,21 @@ fn changes_on_the_way(line: &str) -> bool {
 }
 
 fn attachment_part(attachment: &Attachment, signing: bool) -> Part {
-    let mime = media::safe_media_type(&attachment.mime);
+    let mut mime = media::safe_media_type(&attachment.mime);
     let mut name = clean(&attachment.name);
+    // RFC 2046 allows no base64 for an attached message: it goes as it is when it is clean 7-bit
+    // text. Bodies are always written 7-bit, so one with 8-bit bytes is base64 all the same.
+    let as_it_is =
+        is_seven_bit_message(&attachment.data) && !(signing && String::from_utf8_lossy(&attachment.data).split("\r\n").any(changes_on_the_way));
+    // Signed, an attached message that has to be base64 (a server on the way might change it as it
+    // is) goes as a file instead (#30), which base64 is allowed for: a strict reader would refuse
+    // `message/rfc822` in base64.
+    if signing && mime == "message/rfc822" && !as_it_is {
+        mime = "application/octet-stream".to_string();
+        if name.is_empty() {
+            name = "message.eml".to_string();
+        }
+    }
     if name.is_empty() && (mime == "text/plain" || mime == "text/html") {
         // A text part without a name would be read as the body.
         name = media::default_name(&mime);
@@ -391,10 +404,6 @@ fn attachment_part(attachment: &Attachment, signing: bool) -> Part {
         content_type.push_str(&quoted(&if is_plain(&name) { name.clone() } else { encode_b(&name, 42) }));
         disposition.push_str(&file_name_params(&name));
     }
-    // RFC 2046 allows no base64 for an attached message: it goes as it is when it is clean 7-bit
-    // text. Bodies are always written 7-bit, so one with 8-bit bytes is base64 all the same.
-    let as_it_is =
-        is_seven_bit_message(&attachment.data) && !(signing && String::from_utf8_lossy(&attachment.data).split("\r\n").any(changes_on_the_way));
     let (encoding, content) =
         if mime == "message/rfc822" && as_it_is { ("7bit", attachment.data.to_vec()) } else { ("base64", transfer::base64_lines(&attachment.data)) };
     let mut fields = vec![("Content-Type", content_type), ("Content-Transfer-Encoding", encoding.to_string()), ("Content-Disposition", disposition)];

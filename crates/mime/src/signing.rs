@@ -18,11 +18,17 @@ use crate::transfer;
 /// anything goes (#30 R19): it is never sent unsigned.
 pub const NOT_SIGNED: &str = "it was to be Digitally signed and wasn't, so it wasn't sent";
 
-/// Whether what `message` would be written as is a whole signed message: a signed body kept as
-/// its original, `multipart/signed` throughout. A message that was to be Digitally signed at Send
-/// and isn't this is refused by every path that sends mail (`mailcraft_mime_model::signature_missing`).
-pub fn is_signed(message: &Message) -> bool {
-    crate::writes_original(message) && message.original_bytes().and_then(crate::signed_parts).is_some_and(|p| p.whole)
+/// What kind of signed message `message` would be written as, when it is a whole one: a signed
+/// body kept as its original, `multipart/signed` throughout, with a signature part that isn't
+/// empty. A message that was to be Digitally signed at Send and isn't this, in the form it was to
+/// be signed in, is refused by every path that sends mail (`mailcraft_mime_model::signature_missing`).
+/// A layout check only: the signature itself is the signer's.
+pub fn signed_kind(message: &Message) -> Option<crate::SignedKind> {
+    if !crate::writes_original(message) {
+        return None;
+    }
+    let parts = message.original_bytes().and_then(crate::signed_parts)?;
+    (parts.whole && !parts.signature.is_empty()).then_some(parts.kind)
 }
 
 /// Which kind of Digital signature the second part is.

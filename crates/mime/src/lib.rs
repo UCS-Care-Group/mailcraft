@@ -112,7 +112,7 @@ pub use message::{Address, Attachment, Body, FlagStatus, Importance, Message, Ti
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use protected::{MAX_ARMOUR_SCAN, MAX_ORIGINAL, Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use signed::{SignedKind, SignedParts, signed_parts};
-pub use signing::{LayoutError, NOT_SIGNED, SignatureKind, is_signed, multipart_signed};
+pub use signing::{LayoutError, NOT_SIGNED, SignatureKind, multipart_signed, signed_kind};
 pub use words::{decode_words, encode_words};
 pub use write::{signable, write, writes_original, written_message_id};
 

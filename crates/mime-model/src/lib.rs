@@ -58,10 +58,18 @@ pub fn signable(message: &Message) -> Vec<u8> {
 }
 
 /// Whether `message` was to be Digitally signed at Send ([`Message::sign_with`]) and what it would
-/// be written as isn't a signed message: no signed body kept, or one that isn't `multipart/signed`
-/// ([`mailcraft_mime::is_signed`]). Every path that sends mail refuses such a message (#30).
+/// be written as isn't a signed message of that key's form: no signed body kept, one that isn't
+/// `multipart/signed` with a signature, or one signed in the other form (S/MIME for an OpenPGP
+/// key, or the other way round; [`mailcraft_mime::signed_kind`]). Every path that sends mail
+/// refuses such a message (#30).
 pub fn signature_missing(message: &Message) -> bool {
-    message.sign_with.is_some() && !mime::is_signed(&from_model(message))
+    use mailcraft_model::digital_signature::SignatureFormat;
+    let Some(key) = &message.sign_with else { return false };
+    let wanted = match key.format {
+        SignatureFormat::Smime => mime::SignedKind::SmimeDetached,
+        SignatureFormat::OpenPgp => mime::SignedKind::PgpDetached,
+    };
+    mime::signed_kind(&from_model(message)) != Some(wanted)
 }
 
 /// Write messages as an mbox file ([`mailcraft_mime::write_mbox`]).
@@ -203,5 +211,7 @@ fn addresses(list: Vec<mime::Address>) -> Vec<Address> {
 
 #[cfg(test)]
 mod adapter_tests;
+#[cfg(test)]
+mod signing_tests;
 #[cfg(test)]
 mod tests;
