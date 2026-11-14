@@ -6925,21 +6925,20 @@ msgstr "Nachricht"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid ""
 "Message\n"
 "Preview"
-msgstr "Nachrichtenvorschau"
+msgstr ""
+"Nachrichten-\n"
+"vorschau"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Message Preview"
 msgstr "Nachrichtenvorschau"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Messages"
 msgstr "Nachrichten"
 
@@ -11416,7 +11415,7 @@ msgstr "Anmelden"
 #. interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs
 msgid "Sign In Again"
-msgstr "Erneut Anmelden"
+msgstr "Erneut anmelden"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
