@@ -283,23 +283,18 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     if in_front || !app.ui.taskbar_dot {
         app.alerts.pending = 0;
     }
-    if in_front {
-        // Keep the Inboxes the mark started with. A fresh mark would start watching an Inbox
-        // whose first download has set `uid_seen` before the last piece arrived.
-        let mailbox = &app.session.mailbox;
-        app.alerts.taskbar = Some(match app.alerts.taskbar.as_ref() {
-            Some(mark) => arrivals::advance(mark, mailbox),
-            None => arrivals::mark(mailbox),
-        });
-    }
     let path = app.session.path.clone();
     if busy(app) {
         if app.alerts.run.is_none() {
             app.alerts.run = app.alerts.idle.take();
-            // A run that starts while the window is away counts from where the run started.
-            // One that starts in front keeps the mark just taken above.
-            if !in_front {
-                app.alerts.taskbar = app.alerts.run.as_ref().map(|(mark, _)| mark.clone());
+            // Every run, in front or not, starts from the mark taken before it. A first download
+            // that has since finished is in that mark; one still going is not.
+            app.alerts.taskbar = app.alerts.run.as_ref().map(|(mark, _)| mark.clone());
+        } else if in_front {
+            // Mail already on screen is not counted when the run ends after the window has gone.
+            // The Inboxes stay the ones the run started with.
+            if let Some(mark) = app.alerts.taskbar.as_ref() {
+                app.alerts.taskbar = Some(arrivals::advance(mark, &app.session.mailbox));
             }
         }
         app.alerts.badge = u32::try_from(app.alerts.pending).unwrap_or(0);

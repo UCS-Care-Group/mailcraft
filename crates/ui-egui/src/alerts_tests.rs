@@ -352,6 +352,32 @@ fn the_taskbar_counts_new_mail_until_the_window_is_in_front() {
     assert_eq!(app.taskbar_badge(), 2);
 }
 
+/// A first download looked at the whole time does not count. The next run, started in front
+/// and finished after the window has gone, does.
+#[test]
+fn a_finished_first_download_counts_on_the_next_run() {
+    let mut session = Session::empty();
+    let servers = json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example"}});
+    let account = session.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let services = Services { alert: Some(Box::new(Recorder::default())), ..Default::default() };
+    let mut app = MailApp::new(session, services);
+    app.autosave = false;
+    let ctx = egui::Context::default();
+    // The first download, looked at the whole time: the mail that was already on the server does not count.
+    run(&mut app, &ctx, true, account, inbox, &[(1, "Old", "History")]);
+    assert_eq!(app.taskbar_badge(), 0);
+    // The next run starts while the window is in front and ends after it has gone.
+    frame(&mut app, &ctx, true);
+    let (_tx, rx) = std::sync::mpsc::channel();
+    app.sync_rx = Some(crate::MailRun::Imap { account: 0, opening: app.session.openings(), rx });
+    frame(&mut app, &ctx, true);
+    deliver(&mut app, account, inbox, &[(2, "Rowan", "New")]);
+    app.sync_rx = None;
+    frame(&mut app, &ctx, false);
+    assert_eq!(app.taskbar_badge(), 1);
+}
+
 /// Mail that arrives during a run and is looked at before the run ends does not light the dot
 /// again when the window leaves and the run finishes, with nothing further arriving.
 #[test]
