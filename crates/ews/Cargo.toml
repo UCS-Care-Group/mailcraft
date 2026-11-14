@@ -17,6 +17,8 @@ mailcraft-time = { workspace = true }
 mailcraft-mime-model = { workspace = true }
 # The organisation's Offline Address Book (`oab`), read (#1393).
 mailcraft-oab = { workspace = true }
+# The certificates of the Offline Address Book read (#1393): the directory's own are CMS SignedData.
+mailcraft-smime = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true }
 # NTLMv2 (`ntlm`): MD4 of the password, then HMAC-MD5.
@@ -32,3 +34,4 @@ stand-in = ["mailcraft-oab/test-writer"]
 [dev-dependencies]
 proptest = { workspace = true }
 mailcraft-oab = { workspace = true, features = ["test-writer"] }
+mailcraft-charset = { workspace = true }

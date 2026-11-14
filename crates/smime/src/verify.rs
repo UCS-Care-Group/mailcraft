@@ -166,6 +166,20 @@ fn unchecked(why: Why) -> Checked {
     Checked { signature: DigitalSignature::bare(SignatureFormat::Smime, Verdict::Unchecked, why), certificate: None }
 }
 
+/// The certificates a CMS SignedData carries (RFC 5652 §5.1), those that can be read, in DER, at
+/// most `most`: a certificates-only one (a `.p7c` file), or a signed one such as the
+/// `userSMIMECertificate` a directory publishes. Nothing in it is checked or trusted. Empty when
+/// the bytes are no SignedData.
+pub(crate) fn carried_certificates(bytes: &[u8], most: usize) -> Vec<Vec<u8>> {
+    let Some(der) = ber::to_der(bytes) else { return Vec::new() };
+    let Some(parts) = content_info(&der) else { return Vec::new() };
+    if parts.content_type != SIGNED_DATA {
+        return Vec::new();
+    }
+    let Some(data) = signed_data(parts.content) else { return Vec::new() };
+    data.certificates.iter().filter(|c| Cert::from_der(c.whole).is_some()).take(most).map(|c| c.whole.to_vec()).collect()
+}
+
 struct ContentInfoParts<'a> {
     content_type: ObjectIdentifier,
     content: &'a [u8],

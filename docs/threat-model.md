@@ -289,9 +289,11 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   anything is allocated, a match never before the start or across a block or a chunk; its own
   property tests and fuzz target. Of each entry only what `DirectoryPerson::checked` keeps for a
   look-up is kept (at most 200,000 people), in memory while the program runs and never written,
-  with the entry's S/MIME certificates: at most eight of at most 16 KB each, each once and shaped
-  as DER, 64 MB for the whole list, never in what an agent is given and never trusted for being
-  there. The card reads them with the same certificate reader as a contact's card; Add to
+  with the entry's own S/MIME certificates (`PidTagAddressBookX509Certificate`, and those inside
+  the CMS SignedData of `PidTagUserX509Certificate`, read by the S/MIME crate's strict SignedData
+  reader, at most 1 MB and 16 certificates, nothing in it checked): an authority's and what the
+  certificate reader can't read are left out, at most eight of at most 16 KB each, each once,
+  64 MB for the whole list, never in what an agent is given and never trusted for being there. The card reads them with the same certificate reader as a contact's card; Add to
   Contacts puts on the contact's card only those `keys.import` would take (for mail, not an
   authority's).
 - A compromised server can still read and change the mail it holds. That is the server's job, not

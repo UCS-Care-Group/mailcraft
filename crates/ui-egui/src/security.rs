@@ -940,8 +940,10 @@ pub(crate) fn card_key_line(app: &MailApp, ui: &mut Ui, key: &ContactKey, t: &To
             ui.label(RichText::new(tl!("can't be read")).color(t.text_dim).size(11.5));
             return;
         }
-        if !facts.name.is_empty() {
-            ui.add(egui::Label::new(RichText::new(crate::own_keys::clip(&facts.name)).color(t.text).size(12.0)).truncate());
+        // Who it is for: its name, else (a certificate that names only an address) its address.
+        let holder = if facts.name.is_empty() { facts.addresses.first().cloned().unwrap_or_default() } else { facts.name.clone() };
+        if !holder.is_empty() {
+            ui.add(egui::Label::new(RichText::new(crate::own_keys::clip(&holder)).color(t.text).size(12.0)).truncate());
         }
         if !facts.issuer.is_empty() {
             ui.label(

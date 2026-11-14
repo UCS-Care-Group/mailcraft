@@ -134,18 +134,30 @@ fn a_damaged_file_is_said_and_not_read() {
     assert!(PATH.ends_with('/') && FILE.ends_with(".lzx"));
 }
 
-/// A person's certificates come with the list, from both of the properties that hold them: each
-/// once, only what has the shape of one, and none for whoever has none.
+/// The signature part of a signed message of the S/MIME crate's tests: a CMS SignedData that
+/// carries the signer's certificate, as a directory's `userSMIMECertificate` does.
+fn signed_data() -> Vec<u8> {
+    let message = String::from_utf8_lossy(include_bytes!("../../smime/testdata/detached.eml")).into_owned();
+    let part = message.split("filename=\"smime.p7s\"").nth(1).unwrap();
+    let text: String = part.lines().skip_while(|l| !l.trim().is_empty()).skip(1).take_while(|l| !l.starts_with("--")).collect();
+    mailcraft_charset::base64::STANDARD.decode(text.trim()).unwrap()
+}
+
+/// A person's own certificates come with the list: a certificate of the directory's, and those
+/// inside the SignedData of `userSMIMECertificate`, each once; an authority's, and what can't be
+/// read, are left out, and whoever has none has none.
 #[test]
 fn certificates_come_with_whoever_has_them() {
+    let alice = include_bytes!("../../smime/testdata/alice.sign.der").to_vec();
+    let authority = include_bytes!("../../smime/testdata/ca.rsa.der").to_vec();
     let standin = organisation();
-    let cert = |n: u8| vec![0x30, 0x03, 0x02, 0x01, n];
-    standin.state().directory[0].certificates = (vec![cert(1)], vec![cert(1), cert(2), b"not one".to_vec(), vec![0x30; 17 * 1024]]);
+    standin.state().directory[0].certificates =
+        (vec![signed_data(), b"not one".to_vec()], vec![alice.clone(), authority, vec![0x30, 0x03, 0x02, 0x01, 0x01]]);
     let list = block_on(fetch(&standin, URL, ME, &Secret::new(AUTHORIZATION))).unwrap().unwrap();
     let ada = list.people.iter().find(|p| p.email == "ada.lovelace@example.org").unwrap();
     let held: Vec<Vec<u8>> = ada.certificates.iter().map(|c| c.to_vec()).collect();
-    assert_eq!(held, [cert(1), cert(2)]);
+    assert_eq!(held, [alice]);
     assert!(list.people.iter().filter(|p| p.email != ada.email).all(|p| p.certificates.is_empty()));
     // A log line says how many, never what.
-    assert!(format!("{ada:?}").contains("certificates: 2"));
+    assert!(format!("{ada:?}").contains("certificates: 1"));
 }

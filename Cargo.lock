@@ -3242,9 +3242,11 @@ version = "0.12.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
+ "mailcraft-charset",
  "mailcraft-mime-model",
  "mailcraft-model",
  "mailcraft-oab",
+ "mailcraft-smime",
  "mailcraft-time",
  "md-5 0.11.0",
  "md4",

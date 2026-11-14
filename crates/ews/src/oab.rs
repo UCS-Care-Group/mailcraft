@@ -15,9 +15,9 @@
 //!
 //! Of each entry only what a person is reached by and told apart by is kept, as for a look-up
 //! ([`crate::resolve`]): the name, the SMTP address, the kind of recipient, company, department,
-//! job title, the business and mobile numbers and the office, and their S/MIME certificates
-//! (`PidTagUserX509Certificate`, `PidTagAddressBookX509Certificate`; Exchange's older form of
-//! its own is not read). Postal addresses, home numbers, notes and the rest are read (and
+//! job title, the business and mobile numbers and the office, and their own S/MIME certificates
+//! (`PidTagAddressBookX509Certificate`, and those inside `PidTagUserX509Certificate`'s CMS
+//! SignedData; Exchange's older form of its own is not read). Postal addresses, home numbers, notes and the rest are read (and
 //! checked) but not kept. Nothing of it is logged.
 
 use std::sync::Arc;
@@ -166,14 +166,32 @@ pub fn person(record: &Record) -> Option<DirectoryPerson> {
         phone: text(tag::BUSINESS_PHONE),
         mobile: text(tag::MOBILE_PHONE),
         office: text(tag::OFFICE_LOCATION),
-        certificates: [tag::USER_X509_CERTIFICATE, tag::ADDRESS_BOOK_X509_CERTIFICATE]
-            .into_iter()
-            .flat_map(|id| record.binaries(id))
-            .take(MAX_PERSON_CERTIFICATES.saturating_mul(2))
-            .map(|der| Arc::new(der.to_vec()))
-            .collect(),
+        certificates: certificates(record),
     }
     .checked()
+}
+
+/// A person's own certificates, each once: those of `PidTagAddressBookX509Certificate` (one
+/// certificate each), and those inside each of `PidTagUserX509Certificate` (a CMS SignedData, as
+/// the directory's `userSMIMECertificate` is, holding the person's certificate with the
+/// authorities above it); an authority's and what can't be read are left out.
+fn certificates(record: &Record) -> Vec<Arc<Vec<u8>>> {
+    let mut kept: Vec<Vec<u8>> = Vec::new();
+    for id in [tag::ADDRESS_BOOK_X509_CERTIFICATE, tag::USER_X509_CERTIFICATE] {
+        for blob in record.binaries(id).into_iter().take(MAX_PERSON_CERTIFICATES) {
+            let found = match mailcraft_smime::import::certificate_info(blob) {
+                Some(_) => vec![blob.to_vec()],
+                None => mailcraft_smime::import::carried_certificates(blob),
+            };
+            for der in found {
+                let own = mailcraft_smime::import::certificate_info(&der).is_some_and(|info| !info.authority);
+                if own && !kept.contains(&der) && kept.len() < MAX_PERSON_CERTIFICATES {
+                    kept.push(der);
+                }
+            }
+        }
+    }
+    kept.into_iter().map(Arc::new).collect()
 }
 
 /// The properties [`person`] reads: the rest of an entry is not kept.
