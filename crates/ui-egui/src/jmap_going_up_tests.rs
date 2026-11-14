@@ -224,7 +224,8 @@ fn a_run_that_sent_as_many_as_a_run_sends_is_followed_at_once_by_one_for_the_res
     // One more than a run sends.
     let most = mailcraft_model::sync::MAX_SENDS;
     let all: Vec<Id> = (0..=most).map(|n| written(&mut app, ada, &format!("Note {n}"))).collect();
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 0);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 0;
     app.auto_sync();
     app.auto_sync();
     let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
