@@ -87,7 +87,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, links and lists (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links and lists. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -436,7 +436,11 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let from_html = match html {
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
-            let rich = mailcraft_mime_model::rich::from_html(html);
+            let rich = if !plain && s.signature_edit.is_none() {
+                mailcraft_mime_model::rich::from_html_for_compose(html)
+            } else {
+                mailcraft_mime_model::rich::from_html(html)
+            };
             Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
         }
         None => None,

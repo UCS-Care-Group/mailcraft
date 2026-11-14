@@ -32,6 +32,9 @@ use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbe
 use mailcraft_model::signature::Picture;
 use serde_json::{Value, json};
 
+#[path = "table.rs"]
+mod table;
+
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
 use crate::theme::{Tokens, regular, semibold};
@@ -164,6 +167,12 @@ struct PictureBox {
     rect: Rect,
 }
 
+struct TableBox {
+    local: usize,
+    rect: Rect,
+    grid: table::TableLayout,
+}
+
 /// One paragraph, laid out.
 struct Para {
     /// What it was laid out from.
@@ -176,6 +185,7 @@ struct Para {
     start: usize,
     top: f32,
     pictures: Vec<PictureBox>,
+    tables: Vec<TableBox>,
 }
 
 impl Para {
@@ -194,6 +204,11 @@ impl Para {
     /// The picture at a place in the paragraph.
     fn picture_at(&self, local: usize) -> Option<&PictureBox> {
         self.pictures.iter().find(|b| b.local == local)
+    }
+
+    /// The rectangle reserved for a picture or table at a place in the paragraph.
+    fn object_at(&self, local: usize) -> Option<Rect> {
+        self.picture_at(local).map(|b| b.rect).or_else(|| self.tables.iter().find(|b| b.local == local).map(|b| b.rect))
     }
 
     /// The style of the character at `local` (the one after that offset).
@@ -272,13 +287,18 @@ impl Layout {
         // comes right after a character egui does not break a line after (a word, or another
         // picture).
         let mut sized = Vec::new();
+        let mut tables = std::collections::BTreeMap::new();
         let (mut local, mut last) = (0, None::<char>);
         for (r, run) in p.runs.iter().enumerate() {
             if let Some((id, size)) =
                 run.picture.filter(|_| !plain).and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room))))
             {
                 let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
-                sized.push((r, local, id, size, glued));
+                sized.push((r, local, Some(id), size, glued));
+            } else if !plain && let Some(source) = &run.table {
+                let grid = table::TableLayout::new(ctx, source, t, room);
+                sized.push((r, local, None, grid.size, true));
+                tables.insert(r, grid);
             }
             local += run.text.chars().count();
             last = run.text.chars().last().or(last);
@@ -317,7 +337,8 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
+                        let shown = if run.table.is_some() { "▦" } else { &run.text };
+                        job.append(shown, carry, text_format(&run.style, plain, t, &has));
                         carry = 0.0;
                     }
                 }
@@ -347,16 +368,21 @@ impl Layout {
         // Each picture is drawn where its gap is: in the gap before its character, or right of
         // its character when it starts its row (whether or not it was marked, so a picture is
         // never drawn away from its gap).
-        let pictures = sized
-            .into_iter()
-            .filter_map(|(_, local, id, size, _)| {
-                let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
-                let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
-                let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
-                rect.is_finite().then_some(PictureBox { local, id, rect })
-            })
-            .collect();
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures }
+        let mut pictures = Vec::new();
+        let mut grids = Vec::new();
+        for (run, local, id, size, _) in sized {
+            let glyph = galley.pos_from_cursor(CCursor { index: local.into(), prefer_next_row: true });
+            let left = if local == 0 || starts_row(glyph, size) { glyph.min.x } else { glyph.min.x - size.x };
+            let rect = Rect::from_min_size(pos2(left, glyph.max.y - size.y), size);
+            if rect.is_finite() {
+                if let Some(id) = id {
+                    pictures.push(PictureBox { local, id, rect });
+                } else if let Some(grid) = tables.remove(&run) {
+                    grids.push(TableBox { local, rect, grid });
+                }
+            }
+        }
+        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, tables: grids }
     }
 
     /// Characters in the text.
@@ -383,6 +409,9 @@ impl Layout {
         if let Some(b) = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2())) {
             return p.start + b.local + usize::from(local.x > b.rect.center().x);
         }
+        if let Some(b) = p.tables.iter().find(|b| b.rect.contains(local.to_pos2())) {
+            return p.start + b.local + usize::from(local.x > b.rect.center().x);
+        }
         p.start + p.galley.cursor_from_pos(local).index.0.min(p.chars)
     }
 
@@ -403,6 +432,12 @@ impl Layout {
         let local = vec2(at.x - p.indent(), at.y - p.top);
         let b = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2()))?;
         Some((p.start + b.local, b.id, b.rect.translate(vec2(p.indent(), p.top))))
+    }
+
+    fn table_hit(&self, at: Vec2) -> Option<usize> {
+        let p = self.para_at_y(at.y)?;
+        let local = pos2(at.x - p.indent(), at.y - p.top);
+        p.tables.iter().find(|b| b.rect.contains(local)).map(|b| p.start + b.local)
     }
 
     /// The picture that is the selection, alone: its id and where it is in the body.
@@ -437,13 +472,11 @@ impl Layout {
     fn caret(&self, pos: usize) -> Rect {
         let Some(p) = self.para_at(pos) else { return Rect::from_min_size(pos2(0.0, 0.0), vec2(0.0, BASE_SIZE * 1.3)) };
         let local = pos.saturating_sub(p.start).min(p.chars);
-        if let Some(b) = p.picture_at(local) {
-            // Before a picture is at its left, not after its gap.
-            return Rect::from_min_max(pos2(b.rect.min.x, b.rect.min.y), pos2(b.rect.min.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = p.object_at(local) {
+            return Rect::from_min_max(pos2(rect.min.x, rect.min.y), pos2(rect.min.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
-        if let Some(b) = local.checked_sub(1).and_then(|l| p.picture_at(l)) {
-            // After a picture is at its right, wherever its character stands.
-            return Rect::from_min_max(pos2(b.rect.max.x, b.rect.min.y), pos2(b.rect.max.x, b.rect.max.y)).translate(vec2(p.indent(), p.top));
+        if let Some(rect) = local.checked_sub(1).and_then(|l| p.object_at(l)) {
+            return Rect::from_min_max(pos2(rect.max.x, rect.min.y), pos2(rect.max.x, rect.max.y)).translate(vec2(p.indent(), p.top));
         }
         let r = p.galley.pos_from_cursor(CCursor::new(local)).translate(vec2(p.indent(), p.top));
         if r.height() < 1.0 { Rect::from_min_size(pos2(p.indent(), p.top), vec2(0.0, p.height())) } else { r }
@@ -722,13 +755,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let at = layout.hit(pointer - origin);
         let on = layout.char_under(pointer - origin).unwrap_or(at);
         let (pressed, shift) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers.shift));
-        let picture = layout.picture_hit(pointer - origin).filter(|_| pressed && !shift);
+        let object = if pressed && !shift {
+            layout.picture_hit(pointer - origin).map(|(place, _, _)| place).or_else(|| layout.table_hit(pointer - origin))
+        } else {
+            None
+        };
         let under = |unit: Unit| match unit {
             Unit::Char => (at, at),
             Unit::Word => layout.word_ends(on),
             Unit::Paragraph => layout.paragraph_ends(at),
         };
-        let asked = if let Some((place, _, _)) = picture {
+        let asked = if let Some(place) = object {
             st.anchor = None;
             resp.request_focus();
             select(place, place + 1)
@@ -940,6 +977,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        for table in &p.tables {
+            let rect = table.rect.translate(at.to_vec2());
+            table.grid.paint(painter, rect.min, &t);
+            let index = p.start + table.local;
+            if sel.start() <= index && sel.end() > index {
+                painter.rect_stroke(rect, 0.0, Stroke::new(2.0, fill), egui::StrokeKind::Inside);
+            }
+        }
         for b in &p.pictures {
             let r = b.rect.translate(at.to_vec2());
             let picture = shown.iter().find(|x| x.id == b.id);
@@ -1209,6 +1254,10 @@ mod tests {
 #[cfg(test)]
 #[path = "wide_picture_tests.rs"]
 mod wide_picture_tests;
+
+#[cfg(test)]
+#[path = "spreadsheet_tests.rs"]
+mod spreadsheet_tests;
 
 /// The HTML is one picture and nothing else that reads (a browser's Copy Image, #1217). A table
 /// or a rule (whose words `Block::text` doesn't hold) or a second picture is more than the one
