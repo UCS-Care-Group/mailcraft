@@ -46,6 +46,8 @@ mod diagnostics;
 mod diagnostics_problem_tests;
 #[cfg(test)]
 mod ews_mail_flow;
+#[cfg(test)]
+mod ews_resolve_flow;
 mod ews_runner;
 mod ews_setup;
 #[cfg(test)]
@@ -1059,7 +1061,7 @@ fn services(
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
-    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
+    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx, ews_resolve_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let rules_ctx = ctx.clone();
@@ -1137,6 +1139,8 @@ fn services(
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
+        // Names looked up in its address list, on the owner's Check Names (#1262).
+        ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))

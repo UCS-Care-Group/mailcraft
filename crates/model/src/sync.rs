@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importance, Message};
 use mailcraft_time::Timestamp;
 
+mod directory;
 mod drafts;
 mod ews;
 mod jmap;
@@ -19,6 +20,7 @@ mod place;
 mod problems_tests;
 mod progress;
 mod search;
+pub use directory::*;
 pub use drafts::*;
 pub use ews::*;
 pub use jmap::*;

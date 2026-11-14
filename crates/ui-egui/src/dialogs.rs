@@ -151,6 +151,8 @@ pub enum Dialog {
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
+    /// Check Names' question: which of several people a name typed stands for ([`crate::check_names`]).
+    NameChoice(Box<crate::check_names::NameChoice>),
     /// View Source: a message's source as plain text ([`crate::view_source`]).
     ViewSource(Box<crate::view_source::Source>),
     /// File › Options › Security's: importing a private key, verifying a Public key (#30;
@@ -261,6 +263,7 @@ impl Dialog {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
             },
+            Dialog::NameChoice(_) => "checkNames",
             Dialog::ViewSource(_) => "viewSource",
             Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
@@ -2090,6 +2093,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Pick(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::NameChoice(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Check Names"), crate::check_names::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::MergeContacts(dialog) => {

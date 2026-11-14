@@ -61,6 +61,9 @@ mod auto_replies_tests;
 pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
+pub mod check_names;
+#[cfg(test)]
+mod check_names_tests;
 pub mod chrome;
 mod clicks;
 #[cfg(test)]
@@ -355,6 +358,11 @@ pub struct Services {
     /// The same host: fetch messages of an Exchange server account whole
     /// (`mailcraft_ews::fetch_messages`), as `graph_fetch` does for a Microsoft account.
     pub ews_fetch: Option<Box<dyn Fn(ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// The same host: look names up in an Exchange server account's address list (#1262,
+    /// `mailcraft_ews::Client::resolve_names`, one `ResolveNames` for each name), on a background
+    /// thread, waking the UI with the answer. Absent where no host does (the browser): Check
+    /// Names then matches the contacts alone ([`check_names`]).
+    pub ews_resolve: Option<Box<dyn Fn(check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
     /// Desktop: set an Exchange server account up on a background thread (#252, E7), once the owner
     /// has pressed Connect and not before: find the server unless its address is given, ask the
     /// owner (through the job's answers) before the sign-in goes to a host outside the domain, and
@@ -1741,6 +1749,8 @@ pub struct MailApp {
     pub(crate) ran: (u64, String, Result<Value, String>),
     /// When people are free and busy, as Find a Time found out ([`scheduling`]).
     pub(crate) free_busy: scheduling::Store,
+    /// Names of the message being written looked up in an address list ([`check_names`]).
+    pub(crate) resolving: Option<check_names::Resolving>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -1912,6 +1922,7 @@ impl MailApp {
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
+            resolving: None,
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2104,6 +2115,8 @@ impl MailApp {
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        // Check Names pressed by the owner looks names up in the address list too ([`check_names`]).
+        let checking_names = id == "compose.checkNames" && params.get("found").is_none() && params.get("pick").is_none();
         let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Where a message it opens goes (#286): the reading pane, or a window of its own when File ›
         // Options says so or the caller asked for one.
@@ -2140,6 +2153,9 @@ impl MailApp {
             self.shared_send_pressed_in(sent);
             // From a JMAP account whose secret isn't at hand: it is asked for (M6).
             self.jmap_send_pressed(sent);
+        }
+        if checking_names && let Ok(v) = &r {
+            self.check_names_pressed(v);
         }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
@@ -4651,6 +4667,7 @@ impl MailApp {
         self.poll_auto_replies();
         self.poll_calendar_check();
         self.poll_free_busy();
+        self.poll_resolving();
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
         // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,

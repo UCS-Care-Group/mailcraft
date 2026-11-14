@@ -924,6 +924,11 @@ msgid "Address"
 msgstr "Adres"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Address list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Address:"
 msgstr ""
@@ -999,6 +1004,11 @@ msgstr "Alle accounts"
 #, fuzzy
 msgid "All day"
 msgstr "Hele dag"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "All names are checked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -2499,7 +2509,7 @@ msgid "Check Calendar Connection"
 msgstr "Agendaverbinding controleren"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "Namen controleren"
@@ -2967,6 +2977,11 @@ msgstr "Deelnemers contacteren"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Visitekaartje"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3825,6 +3840,11 @@ msgstr "Negeer deze waarschuwing voor dit bericht. Deze komt terug als er een ni
 #, fuzzy
 msgid "Display name"
 msgstr "Weergavenaam"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Distribution list"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5453,6 +5473,11 @@ msgid "Gravatar is asked for the sender's picture and told a hash of their addre
 msgstr "Aan Gravatar wordt de afbeelding van de afzender gevraagd, en een hash van diens adres doorgegeven; anders wordt aan favicon.im, en daarna aan Google, het pictogram van diens website gevraagd, en het domein van de afzender doorgegeven. Dit vertelt die diensten van wie u afbeeldingen bekijkt. Alleen voor de personen die u kent (uw contactpersonen, en iedereen aan wie u hebt geschreven) en de e-mail waarvan u afbeeldingen downloadt, nooit voor Ongewenste e-mail, en een afbeelding van een afzender alleen wanneer uw e-mailserver bevestigt dat de e-mail van die afzender is."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Group"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Group {n} of {total}"
@@ -6834,6 +6859,16 @@ msgid "Looking for your Exchange server…"
 msgstr "Bezig met zoeken naar uw Exchange-server…"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up in the organisation's address list…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
@@ -7716,6 +7751,11 @@ msgid "More results on the server can't be asked for now"
 msgstr "Meer resultaten op de server kunnen nu niet worden opgevraagd"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
@@ -8576,6 +8616,11 @@ msgstr "Niemand meldt zich aan"
 msgid "Nobody matches the search"
 msgstr "Niemand komt overeen met de zoekopdracht"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Nobody matches: {names}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
@@ -8849,7 +8894,7 @@ msgid "Numbering"
 msgstr "Nummering"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9496,6 +9541,11 @@ msgstr "Buiten mijn organisatie (uit)"
 msgid "Outside My Organization (On)"
 msgstr "Buiten mijn organisatie (aan)"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Outside the organisation"
+msgstr ""
+
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -10005,6 +10055,11 @@ msgstr "Voorgestelde tijd"
 #. command label
 #: crates/engine/src/cmd/keys.rs
 msgid "Public Keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Public folder"
 msgstr ""
 
 #. interface
@@ -13355,6 +13410,11 @@ msgstr "De server van het account heeft deze vergadering nog geen koppeling gege
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "De server van het account maakt deze aan wanneer de vergadering wordt verzonden; de koppeling om deel te nemen komt daarbij terug."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17203,7 +17263,7 @@ msgid "add an account first"
 msgstr "voeg eerst een account toe"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "voeg eerst een account toe (Bestand › Account toevoegen)"
@@ -17879,7 +17939,7 @@ msgid "no message being written has the id {id}"
 msgstr "geen bericht dat wordt geschreven, heeft het id {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"

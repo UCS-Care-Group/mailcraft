@@ -891,6 +891,11 @@ msgid "Address"
 msgstr "Adresse"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Address list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Address:"
 msgstr ""
@@ -964,6 +969,11 @@ msgstr "Alle Konten"
 #, fuzzy
 msgid "All day"
 msgstr "Ganztägig"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "All names are checked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -2366,7 +2376,7 @@ msgid "Check Calendar Connection"
 msgstr "Kalenderverbindung prüfen"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "Namen überprüfen"
@@ -2817,6 +2827,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/compose.rs
 msgid "Contact Card"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Contacts"
 msgstr ""
 
 #. interface
@@ -3648,6 +3663,11 @@ msgstr ""
 #, fuzzy
 msgid "Display name"
 msgstr "Anzeigename"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Distribution list"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5185,6 +5205,11 @@ msgid "Gravatar is asked for the sender's picture and told a hash of their addre
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Group"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Group {n} of {total}"
 msgstr ""
@@ -6494,6 +6519,16 @@ msgid "Looking for your Exchange server…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up in the organisation's address list…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr ""
@@ -7338,6 +7373,11 @@ msgid "More results on the server can't be asked for now"
 msgstr "Weitere Ergebnisse auf dem Server können derzeit nicht abgefragt werden"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
 msgstr ""
@@ -8174,6 +8214,11 @@ msgstr "Niemand meldet sich gerade an"
 msgid "Nobody matches the search"
 msgstr "Niemand entspricht der Suche"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Nobody matches: {names}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
@@ -8437,7 +8482,7 @@ msgid "Numbering"
 msgstr "Nummerierung"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9052,6 +9097,11 @@ msgstr ""
 msgid "Outside My Organization (On)"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Outside the organisation"
+msgstr ""
+
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -9531,6 +9581,11 @@ msgstr "Vorgeschlagene Zeit"
 #. command label
 #: crates/engine/src/cmd/keys.rs
 msgid "Public Keys"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Public folder"
 msgstr ""
 
 #. interface
@@ -12704,6 +12759,11 @@ msgstr "Der Server des Kontos hat für diese Besprechung noch keinen Teilnahmeli
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Der Server des Kontos erstellt sie, wenn die Besprechung gesendet wird; der Teilnahmelink kommt damit zurück."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -16318,7 +16378,7 @@ msgid "add an account first"
 msgstr "fügen Sie zuerst ein Konto hinzu"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "fügen Sie zuerst ein Konto hinzu (Datei › Konto hinzufügen)"
@@ -16960,7 +17020,7 @@ msgid "no message being written has the id {id}"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "es wird keine Nachricht geschrieben"

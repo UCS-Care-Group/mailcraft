@@ -44,10 +44,17 @@ use std::sync::mpsc::{Receiver, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mailcraft_ews::{AuthError, Client, HttpExchange, HttpRequest, HttpResponse, NtlmCredentials, Scheme, Secret, TransportError, auth, ntlm};
-use mailcraft_model::sync::{EwsFetchRequest, EwsMailRequest, EwsMailResult, GraphFetchResult, SyncPhase, Timings};
+use mailcraft_ews::{
+    AuthError, Candidate, Client, HttpExchange, HttpRequest, HttpResponse, NtlmCredentials, RecipientKind, ResolveNames, Scheme, Secret,
+    TransportError, auth, ntlm,
+};
+use mailcraft_model::sync::{
+    DirectoryKind, DirectoryPerson, EwsFetchRequest, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsResolveResult, EwsResolved,
+    GraphFetchResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, SyncPhase, Timings,
+};
 use mailcraft_net::https::Connection;
 use mailcraft_net::{CertificateProblem, NetError};
+use mailcraft_ui_egui::check_names::EwsResolveJob;
 use mailcraft_ui_egui::ews_mail::{EwsFetchJob, EwsJob};
 
 /// What the run says when the secure connection could not be had for a reason the owner can't
@@ -553,6 +560,105 @@ pub(crate) fn run_fetch_with(request: &EwsFetchRequest, password: &str, cancel: 
     let mut pause = |ms: u32| wait(cancel, ms);
     let result = crate::block_on::block_on(mailcraft_ews::fetch_messages(&client, &transport, request, cancel, &mut pause));
     settled_fetch(result, transport.problem().as_ref(), transport.auth_problem())
+}
+
+/// Looks names up in the address list of an Exchange server account on a thread of its own
+/// (#1262): `ResolveNames` for each name of the job, which reads and changes nothing.
+pub(crate) fn run_resolve(job: EwsResolveJob, wake: &egui::Context) -> Receiver<EwsResolveResult> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let wake = wake.clone();
+    let spawned = std::thread::Builder::new().name("exchange address list".into()).spawn(move || {
+        let EwsResolveJob { request, secret, cancel } = job;
+        let _ = tx.send(run_resolve_with(&request, &secret, &cancel));
+        wake.request_repaint();
+    });
+    if let Err(e) = spawned {
+        log::error!("couldn't start a look-up in an Exchange server account's address list: {e}");
+    }
+    rx
+}
+
+/// How long a busy server is waited for before a name is asked again, at most.
+const MOST_RESOLVE_WAIT_MS: u32 = 10_000;
+
+/// [`run_resolve`] on this thread. A name the server can't answer ends the look-up there, with
+/// what was found before it and the reason in words that name neither the server nor anybody.
+pub(crate) fn run_resolve_with(request: &EwsResolveRequest, password: &str, cancel: &Arc<AtomicBool>) -> EwsResolveResult {
+    let mut out = EwsResolveResult { account: request.account, ..Default::default() };
+    let client = match client(&request.url, &request.username, &request.email, password) {
+        Ok(client) => client,
+        Err(why) => {
+            out.error = Some(why.to_owned());
+            return out;
+        }
+    };
+    let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
+    for text in request.texts.iter().take(MAX_RESOLVE_TEXTS) {
+        let Some(lookup) = ResolveNames::new(text) else { continue };
+        let mut tries = 0u8;
+        let answer = loop {
+            if cancel.load(Ordering::Relaxed) {
+                return out;
+            }
+            tries = tries.saturating_add(1);
+            match crate::block_on::block_on(client.resolve_names(&transport, &lookup)) {
+                Err(mailcraft_ews::Error::Busy { back_off_ms }) if tries < 2 => {
+                    if !wait(cancel, back_off_ms.min(MOST_RESOLVE_WAIT_MS)) {
+                        return out;
+                    }
+                }
+                answer => break answer,
+            }
+        };
+        match answer {
+            Ok(resolved) => out.found.push(EwsResolved {
+                text: text.clone(),
+                people: resolved.candidates.into_iter().filter_map(|c| directory_person(c).checked()).take(MAX_RESOLVE_PEOPLE).collect(),
+                more: resolved.more,
+            }),
+            Err(error) => {
+                out.auth_refused = matches!(error, mailcraft_ews::Error::Unauthorized) && transport.auth_problem().is_none();
+                out.error = Some(resolve_words(&error, transport.problem().as_ref(), transport.auth_problem()));
+                return out;
+            }
+        }
+    }
+    out
+}
+
+/// The person a candidate of the address list is to the window.
+fn directory_person(c: Candidate) -> DirectoryPerson {
+    let kind = match c.kind {
+        RecipientKind::Mailbox => DirectoryKind::Mailbox,
+        RecipientKind::List => DirectoryKind::List,
+        RecipientKind::Contact => DirectoryKind::Contact,
+        RecipientKind::Group => DirectoryKind::Group,
+        RecipientKind::PublicFolder => DirectoryKind::PublicFolder,
+        _ => DirectoryKind::Other,
+    };
+    DirectoryPerson { name: c.name, email: c.email, kind, company: c.company, department: c.department, title: c.title }
+}
+
+/// Why a look-up stopped, in words for the owner.
+fn resolve_words(error: &mailcraft_ews::Error, problem: Option<&CertificateProblem>, auth: Option<AuthProblem>) -> String {
+    use mailcraft_ews::Error;
+    const LINE: &str = "Couldn't look the names up in the organisation's address list";
+    if let Some(auth) = auth {
+        return format!("{LINE}: {}", auth.words());
+    }
+    if let Some(problem) = problem {
+        return format!("{LINE}: {problem}");
+    }
+    let why = match error {
+        Error::Unauthorized => "the server turned the password down",
+        Error::Busy { .. } => "the server is busy; try again in a moment",
+        Error::Blocked(_) | Error::Forbidden => "the server doesn't allow it",
+        Error::Transport(TransportError::Unreachable) => "the server can't be reached",
+        Error::Transport(_) => "the connection to the server failed",
+        Error::Server(_) => "the server refused",
+        _ => "the server's answer can't be read",
+    };
+    format!("{LINE}: {why}")
 }
 
 #[cfg(test)]

@@ -929,6 +929,11 @@ msgid "Address"
 msgstr "Adresă"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Address list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Address:"
@@ -1005,6 +1010,11 @@ msgstr "Toate conturile"
 #, fuzzy
 msgid "All day"
 msgstr "Toată ziua"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "All names are checked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -2518,7 +2528,7 @@ msgid "Check Calendar Connection"
 msgstr "Verificare conexiune calendar"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "Verificare nume"
@@ -2992,6 +3002,11 @@ msgstr "Contactare participanți"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Fișă de contact"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3854,6 +3869,11 @@ msgstr "Închideți acest avertisment pentru acest mesaj. Revine dacă apare un 
 #, fuzzy
 msgid "Display name"
 msgstr "Nume afișat"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Distribution list"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5503,6 +5523,11 @@ msgid "Gravatar is asked for the sender's picture and told a hash of their addre
 msgstr "Gravatar este întrebat de imaginea expeditorului și primește un hash al adresei lui; altfel, favicon.im și apoi Google sunt întrebate de pictograma site-ului său și primesc domeniul expeditorului. Astfel aceste servicii află ale cui imagini vă uitați. Doar pentru persoanele pe care le cunoașteți (contactele dvs. și cei cărora le-ați scris) și pentru e-mailurile ale căror imagini le descărcați, niciodată pentru E-mail nedorit, iar imaginea unui expeditor doar când serverul de e-mail confirmă că mesajul e de la el."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Group"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Group {n} of {total}"
@@ -6912,6 +6937,16 @@ msgid "Looking for your Exchange server…"
 msgstr "Se caută serverul Exchange…"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up in the organisation's address list…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
@@ -7803,6 +7838,11 @@ msgid "More results on the server can't be asked for now"
 msgstr "Momentan nu se pot cere mai multe rezultate de pe server"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
@@ -8669,6 +8709,11 @@ msgstr "Nu se conectează nimeni"
 msgid "Nobody matches the search"
 msgstr "Nimeni nu se potrivește căutării"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Nobody matches: {names}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
@@ -8943,7 +8988,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9593,6 +9638,11 @@ msgstr "În afara organizației mele (oprit)"
 msgid "Outside My Organization (On)"
 msgstr "În afara organizației mele (pornit)"
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Outside the organisation"
+msgstr ""
+
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -10110,6 +10160,11 @@ msgstr "Oră propusă"
 #, fuzzy
 msgid "Public Keys"
 msgstr "Chei publice"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Public folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13494,6 +13549,11 @@ msgstr "Serverul contului nu i-a dat încă acestei întâlniri un link de parti
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Serverul contului îl creează când se trimite întâlnirea; linkul de participare vine odată cu ea."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17415,7 +17475,7 @@ msgid "add an account first"
 msgstr "adăugați întâi un cont"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "adăugați întâi un cont (Fișier › Adăugare cont)"
@@ -18101,7 +18161,7 @@ msgid "no message being written has the id {id}"
 msgstr "niciun mesaj în curs de scriere nu are ID-ul {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
