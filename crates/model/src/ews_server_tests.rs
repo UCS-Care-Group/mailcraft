@@ -59,6 +59,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        parents: true,
     };
     let text = format!("{server:?}");
     assert!(!text.contains("secret") && !text.contains("ada") && !text.contains("abab") && !text.contains("HIER"), "{text}");
@@ -68,7 +69,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
 fn an_exchange_account_has_a_server_server_ids_and_sends_mail() {
     use crate::AccountKind::{self, *};
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::has_server), [false, true, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, false, true, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, true, true, false]);
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::server_ids), [false, false, true, true, true, false]);
 }
 
@@ -80,6 +81,7 @@ fn an_exchange_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
         username: "CORP\\ada".into(),
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
+        parents: true,
     };
     let account = Account { id: 4, email: "ada@example.org".into(), kind: AccountKind::Exchange, ews: Some(server), ..Default::default() };
     let json = serde_json::to_string(&account).unwrap();
