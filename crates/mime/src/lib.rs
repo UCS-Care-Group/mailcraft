@@ -25,6 +25,7 @@ mod message;
 mod parse;
 mod protected;
 mod signed;
+mod signing;
 mod transfer;
 mod words;
 mod write;
@@ -41,6 +42,8 @@ mod protected_tests;
 mod read_receipt_tests;
 #[cfg(test)]
 mod signed_tests;
+#[cfg(test)]
+mod signing_tests;
 #[cfg(test)]
 mod tests;
 
@@ -109,8 +112,9 @@ pub use message::{Address, Attachment, Body, FlagStatus, Importance, Message, Ti
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use protected::{MAX_ARMOUR_SCAN, MAX_ORIGINAL, Protection, crlf, has_binary, is_protected, parse_fetched, protection};
 pub use signed::{SignedKind, SignedParts, signed_parts};
+pub use signing::{LayoutError, NOT_SIGNED, SignatureKind, multipart_signed, signed_kind};
 pub use words::{decode_words, encode_words};
-pub use write::{write, writes_original, written_message_id};
+pub use write::{signable, write, writes_original, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

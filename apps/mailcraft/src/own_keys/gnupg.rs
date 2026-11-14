@@ -50,6 +50,11 @@ pub fn valid() -> Result<Vec<(String, String)>, String> {
 }
 
 impl Gpg {
+    /// Where `gpg` is.
+    pub fn program(&self) -> &Path {
+        &self.0
+    }
+
     pub fn secret_keys(&self) -> Result<Vec<OwnKey>, String> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
         Ok(secret_in(&run(&self.0, &[&LIST[..], &["--list-secret-keys"]].concat())?, now))

@@ -342,7 +342,7 @@ fn a_shared_mailboxs_drafts_and_sends_are_made_in_it_and_never_in_the_owners_mai
             ..Default::default()
         },
     ];
-    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Opening hours")) }];
+    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Opening hours")), discard: String::new() }];
     let all = whole(run(&server, &asked));
     assert!(all.errors.is_empty() && all.refused.is_none(), "{:?}", all.errors);
     assert_eq!(all.drafts.len(), 2, "{:?}", all.drafts);
@@ -361,7 +361,7 @@ fn a_shared_mailboxs_drafts_and_sends_are_made_in_it_and_never_in_the_owners_mai
     let made = all.drafts.iter().find(|d| d.change.message == 5).map(|d| d.id.clone()).unwrap();
     let mut asked = request(SHARED, Vec::new());
     let draft = DraftUp { message: 5, id: made.clone(), marker: "mailcraft-70-5".into(), ..Default::default() };
-    asked.sends = vec![SendUp { message: 5, draft: Some(draft), mime: None }];
+    asked.sends = vec![SendUp { message: 5, draft: Some(draft), mime: None, discard: String::new() }];
     let all = whole(run(&server, &asked));
     assert!(matches!(all.sent.as_slice(), [done] if done.outcome == SendOutcome::Sent), "{:?}", all.sent);
     {
@@ -383,7 +383,7 @@ fn a_send_exchange_wont_let_go_from_a_shared_mailbox_is_held_and_nothing_goes() 
     server.state().other(SHARED).unwrap().send_as_denied = true;
     let before = owners(&server);
     let mut asked = request(SHARED, Vec::new());
-    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Denied")) }];
+    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Denied")), discard: String::new() }];
     let all = whole(run(&server, &asked));
     match all.sent.as_slice() {
         [done] => assert_eq!(done.outcome, SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() }),

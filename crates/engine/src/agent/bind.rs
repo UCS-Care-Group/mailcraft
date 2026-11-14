@@ -126,7 +126,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.list" => Account,
         "rules.add" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,
-        "compose.send" | "compose.discard" | "compose.close" => Compose,
+        "compose.send" | "compose.discard" | "compose.close" | "compose.sign" => Compose,
         "ui.closeWindow" | "ui.eventWindow" | "ui.dialog" | "ui.closeDialog" => Window,
         "file.new" | "file.open" | "file.save" | "file.saveAs" => Mailbox,
         "edit.undo" | "edit.redo" => Undo,

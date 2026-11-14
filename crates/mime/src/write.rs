@@ -88,7 +88,7 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         return out;
     }
     write_field(&mut out, "MIME-Version", "1.0");
-    let body = body(message);
+    let body = body(message, false);
     for (name, value) in &body.fields {
         write_field(&mut out, name, value);
     }
@@ -277,9 +277,35 @@ fn calendar_form(message: &Message) -> Option<(usize, String)> {
     })
 }
 
-/// The MIME structure of a message's body and attachments.
-fn body(message: &Message) -> Part {
+/// The body of `message` as the entity a Digital signature is made over (#30, RFC 8551 §3.1,
+/// RFC 3156 §3): its content fields, an empty line and its body, in CRLF lines and 7-bit
+/// throughout, ending with a line end of its own. Text that a server on the way might change
+/// (white space at a line's end, a line that begins `From ` or is a lone `.`) is
+/// quoted-printable, and an attached message that could be is base64, so that what is signed
+/// arrives as it was. The same message always gives the same bytes.
+///
+/// That last line end is the entity's: the boundary's own comes after it (RFC 2046 §5.1.1).
+/// Microsoft 365 writes a message sent through it again, and gives a part of a
+/// `multipart/signed` that doesn't end with a line end one, which changed an entity ending
+/// `--boundary--` without one under its signature (#30: every such signature checked BAD). It
+/// is added only when the entity doesn't end with one already (text that ends with a line end),
+/// so that a server that trims a part's line ends at its end to one changes nothing either; for
+/// the same reason, signed text keeps at most one line end at its end (blank lines there show
+/// nothing).
+pub fn signable(message: &Message) -> Vec<u8> {
+    let mut entity = body(message, true).bytes();
+    if !entity.ends_with(b"\r\n") {
+        entity.extend_from_slice(b"\r\n");
+    }
+    entity
+}
+
+/// The MIME structure of a message's body and attachments. `signing`: for a Digital signature
+/// ([`signable`]).
+fn body(message: &Message, signing: bool) -> Part {
     let mut counter = 0u32;
+    let text_part = |subtype: &str, text: &str| text_part(subtype, text, signing);
+    let attachment_part = |a: &Attachment| attachment_part(a, signing);
     let text = text_part("plain", &message.body.text);
     let calendar = calendar_form(message);
     let rest = message.attachments.iter().enumerate().filter(|(index, _)| calendar.as_ref().is_none_or(|(form, _)| form != index)).map(|(_, a)| a);
@@ -325,17 +351,46 @@ fn body(message: &Message) -> Part {
     root
 }
 
-fn text_part(subtype: &str, text: &str) -> Part {
-    let text = charset::unix_lines(text);
-    let seven_bit = text.bytes().all(|b| matches!(b, b'\n' | b'\t' | 0x20..=0x7E)) && text.split('\n').all(|line| line.len() <= MAX_LINE);
+fn text_part(subtype: &str, text: &str, signing: bool) -> Part {
+    let mut text = charset::unix_lines(text);
+    if signing {
+        // Blank lines at the end show nothing, and a server that trims a part's line ends at its
+        // end to one would change them under the signature (#30): signed text ends with one at
+        // most, as the signed entity does.
+        let kept = text.trim_end_matches('\n').len();
+        if text.len() > kept.saturating_add(1) {
+            text.truncate(kept.saturating_add(1));
+        }
+    }
+    let seven_bit = text.bytes().all(|b| matches!(b, b'\n' | b'\t' | 0x20..=0x7E))
+        && text.split('\n').all(|line| line.len() <= MAX_LINE && !(signing && changes_on_the_way(line)));
     let (encoding, content) =
         if seven_bit { ("7bit", text.replace('\n', "\r\n").into_bytes()) } else { ("quoted-printable", transfer::qp_encode(text.as_bytes())) };
     Part { fields: vec![("Content-Type", format!("text/{subtype}; charset=utf-8")), ("Content-Transfer-Encoding", encoding.to_string())], content }
 }
 
-fn attachment_part(attachment: &Attachment) -> Part {
-    let mime = media::safe_media_type(&attachment.mime);
+/// Whether a line of text might be changed by a server on the way (RFC 3156 §3): white space at
+/// its end, a `From ` at its start (which mbox files quote), a lone `.` (SMTP's end of data).
+fn changes_on_the_way(line: &str) -> bool {
+    line.ends_with([' ', '\t']) || line.starts_with("From ") || line == "."
+}
+
+fn attachment_part(attachment: &Attachment, signing: bool) -> Part {
+    let mut mime = media::safe_media_type(&attachment.mime);
     let mut name = clean(&attachment.name);
+    // RFC 2046 allows no base64 for an attached message: it goes as it is when it is clean 7-bit
+    // text. Bodies are always written 7-bit, so one with 8-bit bytes is base64 all the same.
+    let as_it_is =
+        is_seven_bit_message(&attachment.data) && !(signing && String::from_utf8_lossy(&attachment.data).split("\r\n").any(changes_on_the_way));
+    // Signed, an attached message that has to be base64 (a server on the way might change it as it
+    // is) goes as a file instead (#30), which base64 is allowed for: a strict reader would refuse
+    // `message/rfc822` in base64.
+    if signing && mime == "message/rfc822" && !as_it_is {
+        mime = "application/octet-stream".to_string();
+        if name.is_empty() {
+            name = "message.eml".to_string();
+        }
+    }
     if name.is_empty() && (mime == "text/plain" || mime == "text/html") {
         // A text part without a name would be read as the body.
         name = media::default_name(&mime);
@@ -349,13 +404,8 @@ fn attachment_part(attachment: &Attachment) -> Part {
         content_type.push_str(&quoted(&if is_plain(&name) { name.clone() } else { encode_b(&name, 42) }));
         disposition.push_str(&file_name_params(&name));
     }
-    // RFC 2046 allows no base64 for an attached message: it goes as it is when it is clean 7-bit
-    // text. Bodies are always written 7-bit, so one with 8-bit bytes is base64 all the same.
-    let (encoding, content) = if mime == "message/rfc822" && is_seven_bit_message(&attachment.data) {
-        ("7bit", attachment.data.to_vec())
-    } else {
-        ("base64", transfer::base64_lines(&attachment.data))
-    };
+    let (encoding, content) =
+        if mime == "message/rfc822" && as_it_is { ("7bit", attachment.data.to_vec()) } else { ("base64", transfer::base64_lines(&attachment.data)) };
     let mut fields = vec![("Content-Type", content_type), ("Content-Transfer-Encoding", encoding.to_string()), ("Content-Disposition", disposition)];
     let content_id = message_id(&attachment.content_id);
     if !content_id.is_empty() {
@@ -639,7 +689,7 @@ mod tests {
     #[test]
     fn text_encodings() {
         let part = |t: &str| {
-            let p = text_part("plain", t);
+            let p = text_part("plain", t, false);
             (p.fields.get(1).map(|f| f.1.clone()).unwrap(), String::from_utf8(p.content).unwrap())
         };
         assert_eq!(part("plain\ntext\r\nmixed\rends"), ("7bit".into(), "plain\r\ntext\r\nmixed\r\nends".into()));
@@ -824,7 +874,8 @@ mod tests {
 
     #[test]
     fn unsafe_media_types_and_nameless_text_attachments() {
-        let part = |mime: &str, name: &str| attachment_part(&Attachment { name: name.into(), mime: mime.into(), ..Attachment::default() }).fields;
+        let part =
+            |mime: &str, name: &str| attachment_part(&Attachment { name: name.into(), mime: mime.into(), ..Attachment::default() }, false).fields;
         assert_eq!(part("multipart/mixed; boundary=x", "a.bin").first().map(|f| f.1.as_str()), Some("application/octet-stream; name=\"a.bin\""));
         assert_eq!(part("", "").first().map(|f| f.1.as_str()), Some("application/octet-stream"));
         assert_eq!(part("application/pdf", "").get(2).map(|f| f.1.as_str()), Some("attachment"));
@@ -837,12 +888,15 @@ mod tests {
     #[test]
     fn attached_messages_travel_as_they_are_when_they_can() {
         let part = |data: &[u8]| {
-            let p = attachment_part(&Attachment {
-                name: "m.eml".into(),
-                mime: "message/rfc822".into(),
-                data: std::sync::Arc::new(data.to_vec()),
-                ..Attachment::default()
-            });
+            let p = attachment_part(
+                &Attachment {
+                    name: "m.eml".into(),
+                    mime: "message/rfc822".into(),
+                    data: std::sync::Arc::new(data.to_vec()),
+                    ..Attachment::default()
+                },
+                false,
+            );
             (p.fields.get(1).map(|f| f.1.clone()).unwrap(), p.content)
         };
         assert_eq!(part(b"Subject: x\r\n\r\nbody\r\n"), ("7bit".into(), b"Subject: x\r\n\r\nbody\r\n".to_vec()));
@@ -855,12 +909,10 @@ mod tests {
         assert_eq!(part(b"nul\0").0, "base64");
         assert_eq!(part(&[b'x'; 999]).0, "base64");
         // Other attachments are always base64, however plain they are.
-        let p = attachment_part(&Attachment {
-            name: "a.txt".into(),
-            mime: "text/plain".into(),
-            data: std::sync::Arc::new(b"plain".to_vec()),
-            ..Attachment::default()
-        });
+        let p = attachment_part(
+            &Attachment { name: "a.txt".into(), mime: "text/plain".into(), data: std::sync::Arc::new(b"plain".to_vec()), ..Attachment::default() },
+            false,
+        );
         assert_eq!(p.fields.get(1).map(|f| f.1.as_str()), Some("base64"));
     }
 

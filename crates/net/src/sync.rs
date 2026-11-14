@@ -350,6 +350,11 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         }
         // Dated once, so that the copy kept on the server says what the one that went says.
         let message = dated(message);
+        // To be Digitally signed and not (the host couldn't): held, never sent unsigned (#30).
+        if mailcraft_mime_model::signature_missing(&message) {
+            run.out.unsigned.push(mailcraft_model::signing::Unsigned { message: message.id, why: "the signature wasn't made".into() });
+            continue;
+        }
         run.asked = run.asked.saturating_add(1);
         let outcome = Envelope::of(&request.account, &message).and_then(|envelope| deliver(&mut smtp, &envelope, &message));
         match outcome {

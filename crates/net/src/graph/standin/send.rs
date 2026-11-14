@@ -36,13 +36,23 @@ pub struct Sent {
     /// Whose mailbox sent it: `me`, or `users/{address}` for another (#70), whose Sent Items
     /// has the copy.
     pub mailbox: String,
+    /// For one sent as MIME: the bytes it was handed, as they came (#30: a Digitally signed
+    /// message goes byte for byte).
+    pub mime: Vec<u8>,
 }
 
 impl State {
     /// File `m` in Sent Items as sent, under an id of its own, and keep a word of it.
     fn file_sent(&mut self, mut m: Message, how: &str, save: bool) {
         let mailbox = self.whose().to_string();
-        self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to: m.in_reply_to.clone(), mailbox });
+        self.sent.push(Sent {
+            subject: m.subject.clone(),
+            to: m.to.clone(),
+            how: how.into(),
+            in_reply_to: m.in_reply_to.clone(),
+            mailbox,
+            mime: Vec::new(),
+        });
         if m.to.is_empty() && m.cc.is_empty() && m.bcc.is_empty() {
             return;
         }
@@ -57,11 +67,14 @@ impl State {
     /// `POST /me/sendMail`.
     pub(super) fn send_mail(&mut self, asked: &Asked) -> Result<Answer, Refusal> {
         let mime = asked.header("content-type").to_ascii_lowercase().starts_with("text/plain");
+        let mut bytes = Vec::new();
         let (m, save) = if mime {
             let raw = STANDARD
                 .decode(asked.body.trim().as_bytes())
                 .map_err(|_| refuse(400, "ErrorMimeContentInvalidBase64String", "The MIME content is not valid base64."))?;
-            (self.message_of_mime(&String::from_utf8_lossy(&raw))?, true)
+            let m = self.message_of_mime(&String::from_utf8_lossy(&raw))?;
+            bytes = raw;
+            (m, true)
         } else {
             let body = asked.json();
             let map = body.as_object().ok_or_else(|| bad("sendMail takes a message."))?;
@@ -76,6 +89,9 @@ impl State {
             return Err(refuse(400, "ErrorInvalidRecipients", "At least one recipient is required."));
         }
         self.file_sent(m, "sendMail", save);
+        if let Some(sent) = self.sent.last_mut() {
+            sent.mime = bytes;
+        }
         Ok((202, None))
     }
 

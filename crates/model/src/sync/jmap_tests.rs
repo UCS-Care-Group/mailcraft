@@ -33,7 +33,7 @@ fn request() -> JmapMailRequest {
             JmapChange::Move { message: 5, id: "E3".into(), from: "M1".into(), to: "M2".into() },
             JmapChange::Destroy { id: "E9".into() },
         ],
-        sends: vec![SendUp { message: 7, draft: None, mime: Some(Box::new(to_bob)) }],
+        sends: vec![SendUp { message: 7, draft: None, mime: Some(Box::new(to_bob)), discard: String::new() }],
         background: true,
         threads: vec!["E5".into()],
     }

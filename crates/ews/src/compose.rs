@@ -35,6 +35,8 @@ pub enum Unsendable {
     BadAddress,
     /// Larger than any server takes.
     TooLarge,
+    /// To be Digitally signed, and not (#30 R19): it is never sent unsigned.
+    NotSigned,
 }
 
 impl std::fmt::Display for Unsendable {
@@ -43,6 +45,7 @@ impl std::fmt::Display for Unsendable {
             Self::NoRecipients => "the message has no recipients",
             Self::BadAddress => "a recipient's address isn't one mail can be sent to",
             Self::TooLarge => "the message is too large to send",
+            Self::NotSigned => mailcraft_mime_model::NOT_SIGNED,
         })
     }
 }
@@ -354,6 +357,9 @@ impl SendMessage {
     /// Writes `message` as it goes. Not a message that can go (no recipient, an address that isn't
     /// one, too large) is said so, and nothing is sent.
     pub fn new(message: &Message) -> Result<Self, Unsendable> {
+        if mailcraft_mime_model::signature_missing(message) {
+            return Err(Unsendable::NotSigned);
+        }
         let mut anyone = false;
         for address in message.recipients() {
             let email = address.email.trim();

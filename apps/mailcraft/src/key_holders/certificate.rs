@@ -9,9 +9,9 @@
 
 use x509_cert::Certificate;
 use x509_cert::der::asn1::{Ia5StringRef, ObjectIdentifier, UintRef};
-use x509_cert::der::{Decode, Reader, SliceReader};
+use x509_cert::der::{Decode, Encode, Reader, SliceReader};
 use x509_cert::ext::pkix::name::GeneralName;
-use x509_cert::ext::pkix::{ExtendedKeyUsage, KeyUsage, SubjectAltName};
+use x509_cert::ext::pkix::{BasicConstraints, ExtendedKeyUsage, KeyUsage, SubjectAltName};
 
 use super::{KeyHolderError, MAX_CERTIFICATE_LEN};
 
@@ -194,6 +194,70 @@ impl HeldCertificate {
     pub fn fingerprint_hex(&self) -> String {
         hex(&self.fingerprint)
     }
+}
+
+/// The most certificates of authorities looked through for a signer's chain.
+pub const MAX_AUTHORITIES: usize = 512;
+/// The most bytes of them, together.
+pub const MAX_AUTHORITY_BYTES: usize = 8 * 1024 * 1024;
+
+/// Keep `der` among `pool` when it fits: at most [`MAX_AUTHORITIES`] certificates of at most
+/// [`MAX_CERTIFICATE_LEN`] bytes each and [`MAX_AUTHORITY_BYTES`] together; whether there is room
+/// for more.
+pub fn gather(pool: &mut Vec<Vec<u8>>, der: Vec<u8>) -> bool {
+    let total: usize = pool.iter().map(Vec::len).sum();
+    if pool.len() >= MAX_AUTHORITIES {
+        return false;
+    }
+    if der.len() <= MAX_CERTIFICATE_LEN && total.saturating_add(der.len()) <= MAX_AUTHORITY_BYTES && !pool.contains(&der) {
+        pool.push(der);
+    }
+    true
+}
+
+/// The certificates of the authorities between the signer's certificate `leaf` and its root,
+/// in order, found by name among `pool` (what the system's store or the token holds besides):
+/// what an S/MIME signature carries so that a recipient who has only the root can check it
+/// (RFC 8551 §2.4.1, RFC 5652 §5.1). Only a certificate of an authority (basic constraints with
+/// `cA`) is taken; the root itself (a certificate whose issuer is its subject) is the
+/// recipient's to trust and isn't carried. At most `max`; a loop ends where it would go round.
+/// Whatever can't be read is passed over: the signature goes with what was found.
+pub fn chain(leaf: &[u8], pool: &[Vec<u8>], max: usize) -> Vec<Vec<u8>> {
+    // (subject, issuer, whether an authority's), each name as its DER.
+    let names = |der: &[u8]| -> Option<(Vec<u8>, Vec<u8>, bool)> {
+        if der.len() > MAX_CERTIFICATE_LEN {
+            return None;
+        }
+        let cert = Certificate::from_der(der).ok()?;
+        let tbs = cert.tbs_certificate();
+        let ca = tbs
+            .extensions()
+            .map(|e| e.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .find(|e| e.extn_id == ID_CE_BASIC_CONSTRAINTS)
+            .and_then(|e| BasicConstraints::from_der(e.extn_value.as_bytes()).ok())
+            .is_some_and(|b| b.ca);
+        Some((tbs.subject().to_der().ok()?, tbs.issuer().to_der().ok()?, ca))
+    };
+    let authorities: Vec<(&Vec<u8>, (Vec<u8>, Vec<u8>, bool))> =
+        pool.iter().take(MAX_AUTHORITIES).filter_map(|der| names(der).filter(|n| n.2).map(|n| (der, n))).collect();
+    let mut out = Vec::new();
+    let Some((_, mut issuer, _)) = names(leaf) else { return out };
+    let mut seen = vec![sha256(leaf)];
+    while out.len() < max {
+        let Some((der, (subject, next, _))) = authorities.iter().find(|(der, (subject, _, _))| *subject == issuer && !seen.contains(&sha256(der)))
+        else {
+            break;
+        };
+        if subject == next {
+            break;
+        }
+        seen.push(sha256(der));
+        out.push((*der).clone());
+        issuer = next.clone();
+    }
+    out
 }
 
 /// SHA-256 of `bytes`.

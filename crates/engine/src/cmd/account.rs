@@ -882,7 +882,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let (ops, _) = remote_ops(s, account, MAX_OPS);
     let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
-    let outbox = s.loaded_outbox(outbox);
+    let outbox = s.loaded_outbox(outbox).into_iter().map(|m| super::signing::decided(&s.mailbox, m)).collect();
     let gmail_moves = gmail_moves(s, account);
     Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, gmail_moves, ..Default::default() })
 }
@@ -1422,6 +1422,11 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // said already that it couldn't send it.)
     let mut said = Vec::new();
     super::graph_send::hold_lost(mb, account, &result.unsure, "the server", s.interface_language, &mut said);
+    // Not Digitally signed as it was to be (#30): it didn't go, and waits for the owner, who is
+    // told among the run's problems (never only in passing: nothing else says it wasn't sent).
+    let mut unsigned = Vec::new();
+    super::signing::hold_unsigned(mb, account, &result.unsigned, s.interface_language, &mut unsigned);
+    result.errors.extend(unsigned);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
         let free = !made.remote.is_empty() && !mb.folders.iter().any(|f| f.account == account && f.remote == made.remote);
@@ -1527,6 +1532,10 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // Sent: it isn't to be signed again (its signed copy is the server's, #30).
+            if let Ok(m) = mb.message_mut(*id) {
+                m.sign_with = None;
+            }
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
             // message moved in, which would put it there twice. An original elsewhere goes once

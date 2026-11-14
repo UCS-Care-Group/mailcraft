@@ -46,6 +46,7 @@ pub mod search;
 pub mod sender_warnings;
 pub mod shown;
 pub mod signature;
+pub mod signing;
 pub mod sync;
 mod task;
 pub mod thread_index;

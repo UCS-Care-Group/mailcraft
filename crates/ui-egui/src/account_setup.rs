@@ -210,6 +210,8 @@ pub enum Action {
     NotNow,
     /// Set up the account that signed in, rather than the address that was typed.
     UseSignedIn,
+    /// Open Digital Signatures for the account whose settings these are (#30).
+    DigitalSignatures,
     /// Confirm that the entered custom-domain address is an alias of the signed-in mailbox.
     KeepAlias,
     /// Not an Exchange server after all: on to IMAP servers, guessed from the domain.
@@ -1174,6 +1176,13 @@ impl AccountSetup {
             (Page::Settings, Action::Go) => return self.save(app),
             (Page::Settings, Action::ConvertToGoogle) => self.start_google_conversion(app),
             (Page::Settings, Action::GoogleReconnect) => self.start_google_reconnect(app),
+            // Account Settings closes and Digital Signatures opens in its place (with nothing
+            // unsaved here: the button waits for that).
+            (Page::Settings, Action::DigitalSignatures) => {
+                if let Some(id) = self.edit.as_ref().map(|e| e.id) {
+                    return app.run("ui.dialog", json!({"name": "digitalSignatures", "account": id})).is_ok();
+                }
+            }
             _ => {}
         }
         false
@@ -1596,13 +1605,17 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
-    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
-    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
-    /// until this holds.
+    /// Whether Account Settings has nothing unsaved: everything [`AccountSetup::save`] writes as
+    /// it was (its fields, a new password, the colour, asking before deleting a conversation, the
+    /// mail kept offline and Gmail's switches). A Google switch or reconnect, and Digital
+    /// Signatures, close the dialog without saving, so they wait until this holds.
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && self.ask_conversation.is_none_or(|(was, ask)| was == ask)
+            && self.keep_offline.is_none_or(|(was, keep)| was == keep)
+            && self.gmail.is_none_or(|g| !g.changed())
     }
 
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
@@ -2354,7 +2367,14 @@ impl AccountSetup {
         // footer. At 320px it would push Save/Cancel outside the window, so it moves into
         // the scrollable body instead (where keyboard focus can still reach it).
         let footer_google_action = ui.available_width() >= 390.0;
-        let (mut convert, mut reconnect) = (false, false);
+        let (mut convert, mut reconnect, mut sign_open) = (false, false, false);
+        // For an account that can send Digitally signed mail: the label of the key it signs with.
+        let signing = self
+            .edit
+            .as_ref()
+            .and_then(|edit| app.session.mailbox.account(edit.id))
+            .filter(|a| mailcraft_engine::cmd::signing::can_sign(a))
+            .map(|a| a.signing.key.as_ref().map(|k| k.label.clone()));
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -2442,6 +2462,20 @@ impl AccountSetup {
                 }
                 note(ui, tl!("Shown beside the account's name, and on its mail where mail of several accounts is listed together."), t.text_dim);
             }
+            // Which certificate or OpenPGP key its mail is Digitally signed with (#30).
+            if let Some(key) = &signing {
+                caption(ui, tl!("Digital Signatures"), &t);
+                let now = match key {
+                    Some(label) if !label.is_empty() => fmt(tl!("Signs with {key}"), &[("key", label)]),
+                    Some(_) => tl!("A certificate or key to sign with is chosen").to_string(),
+                    None => tl!("No certificate or key to sign with is chosen").to_string(),
+                };
+                note(ui, &now, t.text_dim);
+                sign_open = button(ui, tl!("Digital Signatures…"), false, unchanged).clicked();
+                if !unchanged {
+                    note(ui, tl!("Save or discard changes here before choosing how this account signs."), t.orange);
+                }
+            }
             if let Some(gmail) = self.gmail.as_mut() {
                 caption(ui, tl!("Gmail categories"), &t);
                 ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
@@ -2468,6 +2502,8 @@ impl AccountSetup {
             Some(Action::ConvertToGoogle)
         } else if reconnect {
             Some(Action::GoogleReconnect)
+        } else if sign_open {
+            Some(Action::DigitalSignatures)
         } else {
             (save || pass.submit).then_some(Action::Go)
         }
@@ -3976,6 +4012,42 @@ mod tests {
                     assert_eq!(page(&h), None);
                 }
             }
+        }
+    }
+
+    /// Digital Signatures… closes Account Settings without saving, so it waits while anything
+    /// Save would write is changed: the switches below the servers too (#30).
+    #[test]
+    fn digital_signatures_waits_for_every_unsaved_change() {
+        let mut a = app(true);
+        let imap = json!({"email": "noor@lumen.example", "incoming": {"host": "imap.lumen.example"}, "outgoing": {"host": "smtp.lumen.example"}});
+        let imap = a.execute("account.add", imap).unwrap()["id"].as_u64().unwrap();
+        let gmail = json!({"email": "noor@gmail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"}});
+        let gmail = a.execute("account.add", gmail).unwrap()["id"].as_u64().unwrap();
+        let graph = a.execute("account.add", json!({"email": "ada@lumen.example", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let button = |h: &Harness<'static, MailApp>| {
+            !egui_kittest::kittest::NodeT::accesskit_node(&h.get_by_role_and_label(Role::Button, "Digital Signatures…")).is_disabled()
+        };
+        let waits = |h: &Harness<'static, MailApp>| says(h, "Save or discard changes here before choosing how this account signs.");
+        type Change = fn(&mut AccountSetup);
+        let changes: [(u64, Change); 4] = [
+            (imap, |w| w.ask_conversation = w.ask_conversation.map(|(was, ask)| (was, !ask))),
+            (gmail, |w| w.gmail = w.gmail.map(|g| GmailSwitches { show: (g.show.0, !g.show.1), ..g })),
+            (gmail, |w| w.gmail = w.gmail.map(|g| GmailSwitches { primary_only: (g.primary_only.0, !g.primary_only.1), ..g })),
+            (graph, |w| {
+                w.keep_offline =
+                    w.keep_offline.map(|(was, _)| (was, if was == KeepOffline::Months3 { KeepOffline::All } else { KeepOffline::Months3 }))
+            }),
+        ];
+        let mut a = Some(a);
+        for (id, change) in changes {
+            let mut h = open(a.take().unwrap(), json!({"id": id}));
+            assert!(button(&h) && !waits(&h), "nothing changed: it opens");
+            change(wizard_mut(&mut h));
+            h.run_steps(3);
+            assert!(!button(&h) && waits(&h), "a change Save would write: it waits");
+            click(&mut h, "Cancel");
+            a = Some(std::mem::replace(h.state_mut(), app(false)));
         }
     }
 

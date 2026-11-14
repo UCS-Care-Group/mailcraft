@@ -32,7 +32,7 @@ use crate::{MailApp, theme::Tokens};
 pub(super) const SIZE: [f32; 2] = [980.0, 720.0];
 
 /// The tabs of its ribbon, in order.
-pub(crate) const TABS: [&str; 4] = ["Message", "Insert", "Format Text", "Review"];
+pub(crate) const TABS: [&str; 5] = ["Message", "Insert", "Options", "Format Text", "Review"];
 
 /// The commands that answer a message: the reading pane is theirs, and a window only from a
 /// message's own window or when File › Options says so; at the bound they stay in the pane.
