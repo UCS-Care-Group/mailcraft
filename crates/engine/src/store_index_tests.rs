@@ -511,8 +511,8 @@ fn a_file_of_a_newer_form_is_said_to_be_from_a_newer_mailcraft() {
     save(&path, &mailbox(3)).unwrap();
     let good = fs::read(&path).unwrap();
     // This form with a higher number, and another form of ours altogether.
-    let higher = [&good[..16], &[4, 0, 0, 0][..], &good[20..]].concat();
-    for (bytes, says) in [(higher, "newer MailCraft (format 4)"), (b"MailCraft journal\n\x05\0\0\0".to_vec(), "newer MailCraft")] {
+    let higher = [&good[..16], &[5, 0, 0, 0][..], &good[20..]].concat();
+    for (bytes, says) in [(higher, "newer MailCraft (format 5)"), (b"MailCraft journal\n\x05\0\0\0".to_vec(), "newer MailCraft")] {
         fs::write(&path, &bytes).unwrap();
         let error = open(&path).unwrap_err();
         assert!(error.contains(says), "{error}");
@@ -756,7 +756,7 @@ fn a_record_larger_than_a_piece_is_summed_in_pieces_and_the_file_is_still_known(
     let mut mb = mailbox(4);
     let first = *mb.messages.keys().next().unwrap();
     // A record of 3 MB: read past the buffer, straight into its own.
-    mb.message_mut(first).unwrap().headers.push(("X-Large".into(), "x".repeat(3 * HASH_PIECE)));
+    mb.message_mut(first).unwrap().headers.push(("X-MailCraft-Large".into(), "x".repeat(3 * HASH_PIECE)));
     save(&path, &mb).unwrap();
     *lock(&shared(&path).state) = State::default();
     SUMMED.set((0, 0));
@@ -843,7 +843,9 @@ fn a_hostile_file_of_this_form_is_refused_or_read_and_names_nothing_outside_its_
     };
     let refused = [
         // A newer format, a header that isn't one, nothing after the header.
-        [&good[..16], &[4, 0, 0, 0, 0, 0, 0, 0][..], &good[24..]].concat(),
+        [&good[..16], &[5, 0, 0, 0, 0, 0, 0, 0][..], &good[24..]].concat(),
+        // (A format of this form before the oldest read: 3.)
+        [&good[..16], &[2, 0, 0, 0, 0, 0, 0, 0][..], &good[24..]].concat(),
         [&good[..20], &[1, 0, 0, 0][..], &good[24..]].concat(),
         index::header().to_vec(),
         // Records whose checksums are right and whose content isn't.

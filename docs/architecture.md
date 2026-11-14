@@ -45,6 +45,14 @@ egui, eframe, winit or rfd.
 | apps | `mailcraft` | Desktop app (eframe + wgpu; logging, window geometry, native dialogs, Send/Receive thread, control server; leaving, `quit.rs`: unsaved work asks first on every platform, then on macOS the process ends through `-[NSApplication terminate:]` (`quit_macos.rs`, MailCraft's own) rather than by closing the window, which can crash AppKit, and the macOS menu bar (`menubar.rs`, `muda`; its table of command ids is `ui-egui`'s `menubar`) has Quit (⌘Q) asking like the close button) |
 | apps | `mailcraft-cli` | `info`, `folders`, `list`, `show`, `import`, `export`, `convert`, `run`, `sync`, `commands`, `parity`, `mcp` |
 | apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads) |
+| apps | `mailcraft-android` | Android app: a Gradle project (Kotlin, Jetpack Compose, minSdk 29) over the Rust library of `crates/mobile`, which `cargo-ndk` builds for arm64-v8a and x86_64; UniFFI's Kotlin bindings are generated from it at build time. Not a Cargo member; `cargo xtask mobile` builds, lints (Android Lint and detekt, both as errors) and tests it, and checks the licences of what ships and that no Google Play Services or Firebase is in it |
+
+Languages: the program is Rust. Kotlin is allowed only under `apps/mailcraft-android` and Swift only
+under `apps/mailcraft-ios`, for the interface and the platform layer (what the system gives the program:
+credential store, browser, files, notifications, clock). They never parse anything that comes from
+outside: messages, server answers and files are read by Rust, which gives the apps typed records and
+display blocks. Their lint is part of the build and enforces never-crash (no `!!`, no `lateinit` where it
+can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`).
 
 ## Data flow
 
@@ -64,7 +72,7 @@ egui, eframe, winit or rfd.
    sends the Outbox through SMTP and downloads new mail and flag changes over IMAP with `proto`
    and `mime`; `sync.apply` (pure) takes the result in and runs the rules on new Inbox mail. The
    engine and the UI never touch a socket, which is why they build for the browser. A JMAP
-   account goes the Graph way: `sync.jmapRequest` (pure) says what to take up and read, the host (the browser
+   account goes the Graph way: `sync.jmapRequest` (pure) says what to take up, send and read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
    `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
    account (#252, Exchange Web Services) goes the same way: its request and result shapes are
@@ -103,10 +111,17 @@ egui, eframe, winit or rfd.
 - **Conversations are grouped by topic** (the subject without `RE:`/`FW:` prefixes) within an
   account, as the incumbent does, not by `References` chains.
 - **A mailbox file, and its content beside it.** On the desktop `mailbox.mailcraft` holds
-  everything but content as a log of records (format 3, `crates/engine/src/store_index.rs`): the
+  everything but content as a log of records (format 4, `crates/engine/src/store_index.rs`): the
   rest of the mailbox, and one record per message, contact, event or task; bodies and attachments
   over a kilobyte are write-once files named by their SHA-256 in `mailbox.mailcraft.blobs/`
-  (`crates/engine/src/store.rs`). A save appends the records of what changed and a commit in one
+  (`crates/engine/src/store.rs`). So is a message's header block over a kilobyte: the header
+  lines nothing in the program reads by name (`mailcraft_model::headers`: those it reads by name
+  are `WORKING`, which a test holds to the source), kept apart and in order, read only by View
+  Source and what writes a message whole (`Session::loaded_message`). A file in format 3 opens
+  as it is; the window puts its blocks beside it as it reads it and writes it in format 4 at
+  once (an opening that only reads it, the command line's or an agent's, holds them in memory
+  until a save), the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
+  reads only format 3 calls a format-4 file one from a newer MailCraft. A save appends the records of what changed and a commit in one
   flushed write, on a background thread: a read mark costs a few hundred bytes however large the
   mailbox. What was last written is remembered item by item (its fingerprint, and a weak pointer
   to the copy in memory that it is), so a save looks only at items whose copy changed; when the
@@ -125,7 +140,7 @@ egui, eframe, winit or rfd.
   was written here, by their SHA-256, is still this program's); MailCraft never removes a file kept
   aside, as each may be the only copy of what it holds. The sweep keeps
   every content file a kept-aside file names (damaged, changed, or of an earlier form). Formats 1
-  and 2 (JSON) are still read and become format 3 at the first changed save, the old file kept
+  and 2 (JSON) are still read and become format 4 at the first changed save, the old file kept
   beside it as `<file>.format1` or `.format2`, which is what MailCraft 0.4.3 and earlier can open
   (they call a format-3 file not a mailbox); a file that begins as ours but in a form newer than
   this program reads is said to be from a newer MailCraft. A self-contained single file is still what the browser, exports

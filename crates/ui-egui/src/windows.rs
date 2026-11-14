@@ -221,6 +221,17 @@ impl Windows {
         self.open.iter().find(|w| matches!(w.what, What::Message { message: m, .. } if m == message)).map(|w| w.id)
     }
 
+    /// The messages of the mailbox open in windows of their own.
+    pub(crate) fn messages(&self) -> Vec<Id> {
+        self.open
+            .iter()
+            .filter_map(|w| match w.what {
+                What::Message { message, .. } => Some(message),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
@@ -1459,7 +1470,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2395,7 +2406,7 @@ mod tests {
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         // The calendar keeps itself current: what is made here goes to the stand-in at once.
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         let mut harness = window(a);
         harness.run_steps(6);
         assert!(event_named(&harness, "Budget review").is_some(), "the server's calendar came down");
@@ -2635,7 +2646,7 @@ mod tests {
         let server = serve(&mut a);
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         // The stand-in for the server: Maya is busy from one to two and away from four on;
         // Tomás can't be looked up; of Priya it says nothing.
         let asks: Arc<Mutex<Vec<FreeBusyAsk>>> = Default::default();
