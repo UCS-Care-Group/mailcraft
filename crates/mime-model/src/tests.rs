@@ -541,6 +541,7 @@ fn message() -> impl Strategy<Value = Message> {
             gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
             gmail_refusals: 0,
             gmail_id: 42,
+            gmail_labels: vec!["Not/Carried".into()],
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
             refetch: false,

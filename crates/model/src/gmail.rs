@@ -112,14 +112,18 @@ const MAX_LABELS_READ: usize = 256;
 /// [`MAX_GMAIL_LABELS`], in the server's order.
 pub fn tidy_labels<S: AsRef<str>>(labels: impl IntoIterator<Item = S>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
+    // Each kept label in small letters, worked out once.
+    let mut seen: Vec<String> = Vec::new();
     for label in labels.into_iter().take(MAX_LABELS_READ) {
         if out.len() >= MAX_GMAIL_LABELS {
             break;
         }
         let Some(label) = mailcraft_names::incoming(label.as_ref(), MAX_GMAIL_LABEL_LEN) else { continue };
-        if label_name(&label).trim().is_empty() || out.iter().any(|kept| kept.to_lowercase() == label.to_lowercase()) {
+        let lower = label.to_lowercase();
+        if label_name(&label).trim().is_empty() || seen.contains(&lower) {
             continue;
         }
+        seen.push(lower);
         out.push(label);
     }
     out

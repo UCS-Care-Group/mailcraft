@@ -1024,15 +1024,15 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
-                    } else if world.gmail && items.contains("X-GM-MSGID") {
-                        let id = GMAIL_IDS + u64::from(uid);
+                    } else if world.gmail && (items.contains("X-GM-MSGID") || items.contains("X-GM-LABELS")) {
+                        let id = if items.contains("X-GM-MSGID") { format!(" X-GM-MSGID {}", GMAIL_IDS + u64::from(uid)) } else { String::new() };
                         let labels = if items.contains("X-GM-LABELS") {
                             let said = world.gmail_labels.iter().find(|(at, u, _)| at == open_raw && *u == uid).map_or("", |(_, _, l)| l.as_str());
                             format!(" X-GM-LABELS ({said})")
                         } else {
                             String::new()
                         };
-                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid} X-GM-MSGID {id}{labels})\r\n").bytes());
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid}{id}{labels})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }

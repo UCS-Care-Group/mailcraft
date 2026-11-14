@@ -125,3 +125,72 @@ proptest! {
         let _ = Imap::resume(&mut s).uid_fetch_flags_gmail("1:*");
     }
 }
+
+#[test]
+fn a_folder_other_than_the_inbox_asks_for_labels_alone() {
+    let mut s = Script::new("* 1 FETCH (UID 1 FLAGS () X-GM-MSGID 5 X-GM-LABELS (a))\r\nA0001 OK done\r\n");
+    let got = Imap::resume(&mut s).uid_fetch_flags_labels("1:*").unwrap();
+    assert_eq!(s.sent(), "A0001 UID FETCH 1:* (UID FLAGS X-GM-LABELS)\r\n");
+    // An id it wasn't asked for is not taken.
+    assert_eq!(got.into_iter().map(|f| (f.uid, f.gmail_id, f.gmail_labels)).collect::<Vec<_>>(), [(1, None, owned(&["a"]))]);
+}
+
+#[test]
+fn nil_in_a_list_is_no_label() {
+    assert_eq!(labels("* 1 FETCH (UID 1 FLAGS () X-GM-LABELS (NIL))\r\nA0001 OK done\r\n"), [(1, owned(&[]))]);
+    // A label called so comes quoted, and is one.
+    assert_eq!(labels("* 1 FETCH (UID 1 FLAGS () X-GM-LABELS (nil \"NIL\"))\r\nA0001 OK done\r\n"), [(1, owned(&["NIL"]))]);
+}
+
+#[test]
+fn tiny_labels_count_against_the_budget_too() {
+    // Empty labels, as many as a message keeps: each costs its overhead, so the budget still ends.
+    let list: String = (0..MAX_GMAIL_LABELS).map(|_| " \"\"").collect();
+    let per_message = MAX_GMAIL_LABELS * LABEL_OVERHEAD;
+    let count = MAX_GMAIL_LABEL_BYTES / per_message + 4;
+    let mut server = String::new();
+    for uid in 1..=count {
+        server += &format!("* {uid} FETCH (UID {uid} FLAGS () X-GM-LABELS ({list}))\r\n");
+    }
+    server += "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    imap.selected = Selected { exists: u32::try_from(count).unwrap_or(u32::MAX), uid_validity: 1, uid_next: 0 };
+    let got = imap.uid_fetch_flags_labels("1:*").unwrap();
+    assert_eq!(got.len(), count);
+    let kept = got.iter().filter(|f| f.gmail_labels.is_some()).count();
+    assert!(kept * per_message <= MAX_GMAIL_LABEL_BYTES && kept < count);
+}
+
+#[test]
+fn a_big_folders_listing_is_not_cut_short_for_its_size() {
+    // 300,000 messages with labels: more text than one command may otherwise bring (32 MiB).
+    let count: u32 = 300_000;
+    let mut server = String::with_capacity(count as usize * 200);
+    for uid in 1..=count {
+        server += &format!(
+            "* {uid} FETCH (FLAGS (\\Seen) UID {uid} X-GM-LABELS (\\Inbox \\Important \"Work/Clients and partners\" \"Receipts 2026\" \"Travel/Japan\"))\r\n"
+        );
+    }
+    assert!(server.len() > MAX_COMMAND_TEXT);
+    server += "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    imap.selected = Selected { exists: count, uid_validity: 1, uid_next: count + 1 };
+    assert_eq!(imap.uid_fetch_flags_labels("1:*").map(|got| got.len()), Ok(count as usize));
+    // The room is the listing's alone: the next command has the usual cap again.
+    assert_eq!(imap.text_cap, MAX_COMMAND_TEXT);
+}
+
+#[test]
+fn a_small_folders_listing_still_has_its_cap() {
+    // One message, and more than 32 MiB of other lines before it: refused as before.
+    let junk = format!("* OK {}\r\n", "x".repeat(60_000));
+    let mut server = junk.repeat(MAX_COMMAND_TEXT / 60_000 + 8);
+    server += "* 1 FETCH (UID 1 FLAGS () X-GM-LABELS (a))\r\nA0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    imap.selected = Selected { exists: 1, uid_validity: 1, uid_next: 2 };
+    assert!(matches!(imap.uid_fetch_flags_labels("1:*"), Err(ProtoError::Protocol(_))));
+    assert_eq!(imap.text_cap, MAX_COMMAND_TEXT);
+}

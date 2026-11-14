@@ -186,7 +186,9 @@ it would mark most mail; search for it with `label:important`.
 To change a message's labels, move or copy it between label folders, as before: MailCraft doesn't
 change labels any other way, and it uses no Gmail API for them. Labels are read over the same IMAP
 connection as the mail (Gmail's `X-GM-LABELS`, with each folder's flags), so nothing else is
-sent; a change made on another device shows once Send/Receive reads that folder again.
+sent; a change made on another device shows at the next Send/Receive that reads that folder, which
+is within the hour (a folder whose counts haven't changed is passed over meanwhile). A copy of a
+message into another folder takes no labels until that folder's own listing says them.
 
 `label:` searches them, anywhere in the label's path and ignoring case: `label:clients`,
 `label:"work/clients"`, `label:important`. Agents see a message's `gmailLabels`, as message data:

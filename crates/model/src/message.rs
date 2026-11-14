@@ -581,18 +581,18 @@ impl Message {
     pub fn lies_in(&mut self, folder: Id, account: Id, uid: u32, synced: Option<RemoteFlags>) {
         if folder != self.folder {
             self.left_gmail_inbox();
-            // What Gmail said of it in the folder it left; the folder it is in now says again.
-            self.gmail_labels.clear();
         }
         (self.folder, self.account, self.uid, self.synced) = (folder, account, uid, synced);
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
-    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
-    /// if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it, a move between them waiting
+    /// for Gmail and Gmail's labels of it are forgotten: what the server says of the folder it is
+    /// in now says them again, if anything (#911, #1153). A copy into another folder, a local one
+    /// or another account's, takes none of them.
     pub fn left_gmail_inbox(&mut self) {
         (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
+        self.gmail_labels.clear();
     }
 
     /// Every recipient: To, Cc, Bcc.

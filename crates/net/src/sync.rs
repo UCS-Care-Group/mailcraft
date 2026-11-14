@@ -1126,7 +1126,15 @@ impl FolderSync<'_> {
         let uid_seen = self.state.filter(|_| !reset).map_or(0, |s| s.uid_seen);
         let uid_from = self.state.filter(|_| !reset).map_or(0, |s| s.uid_from);
 
-        let listed = match if self.gmail || self.labels { imap.uid_fetch_flags_gmail("1:*") } else { imap.uid_fetch_flags("1:*") } {
+        // Gmail's ids for its Inbox alone (#911); its labels for every folder of it (#1153).
+        let listing = if self.gmail {
+            imap.uid_fetch_flags_gmail("1:*")
+        } else if self.labels {
+            imap.uid_fetch_flags_labels("1:*")
+        } else {
+            imap.uid_fetch_flags("1:*")
+        };
+        let listed = match listing {
             Ok(listed) => listed,
             // Some servers refuse `1:*` in an empty mailbox rather than answer with nothing.
             Err(ProtoError::Rejected(_)) if selected.exists == 0 => Vec::new(),

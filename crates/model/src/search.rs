@@ -1018,7 +1018,10 @@ impl Query {
                 }
                 Kind::Category(x) => m.categories.iter().any(|c| contains_ci(c, x)),
                 Kind::Gmail(c) => m.gmail_category == Some(*c),
-                Kind::Label(x) => m.gmail_labels.iter().any(|l| contains_ci(crate::gmail::label_name(l), x)),
+                Kind::Label(x) => {
+                    let x = x.trim_matches(|c: char| c == '"' || c.is_whitespace());
+                    !x.is_empty() && m.gmail_labels.iter().any(|l| contains_ci(crate::gmail::label_name(l), x))
+                }
                 Kind::HasAttachment => m.has_attachments(),
                 Kind::Unread => !m.read,
                 Kind::Read => m.read,

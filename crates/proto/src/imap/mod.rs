@@ -63,9 +63,18 @@ const MAX_FLAGS: usize = 64;
 pub const MAX_GMAIL_LABELS: usize = 64;
 /// Longest of Gmail's labels kept, in bytes as the server wrote it (cut at a character boundary).
 const MAX_GMAIL_LABEL_LEN: usize = 256;
-/// Most bytes of Gmail's labels one fetch keeps, all its messages together: past it, a message's
-/// labels are not taken (`None`), as if the server hadn't said them.
+/// Most bytes of Gmail's labels one fetch keeps, all its messages together, each label counted
+/// with [`LABEL_OVERHEAD`]: past it, a message's labels are not taken (`None`), as if the server
+/// hadn't said them.
 const MAX_GMAIL_LABEL_BYTES: usize = 32 << 20;
+/// What a label kept costs beyond its bytes (its `String`), counted against
+/// [`MAX_GMAIL_LABEL_BYTES`] so that many empty or tiny labels can't get past it.
+const LABEL_OVERHEAD: usize = std::mem::size_of::<String>();
+/// Text a listing of flags may take for each message the mailbox may report, beyond
+/// [`MAX_COMMAND_TEXT`]: a big folder's listing (Gmail's, with labels, runs to a few hundred
+/// bytes a message) is never cut short for being big (#1153), and what a hostile server can send
+/// stays bounded by the mailbox's size. Only a count: what is kept is bounded on its own.
+const FETCH_TEXT_PER_MESSAGE: usize = 2 << 10;
 const MAX_CAPABILITIES: usize = 256;
 /// Longest string sent in quotes; a longer one goes as a literal.
 const MAX_QUOTED: usize = 1_000;
@@ -101,6 +110,9 @@ pub struct Imap<S> {
     text_seen: usize,
     /// Most responses the current command may bring.
     response_cap: usize,
+    /// Most text (outside literals) the current command may bring: [`MAX_COMMAND_TEXT`], or more
+    /// for a listing of a big mailbox's flags.
+    text_cap: usize,
     /// Untagged lines too long to take are read past instead of ending the session, for the
     /// current command alone (a Gmail search, #911); `skipped` says one was.
     skip_long: bool,
@@ -390,6 +402,8 @@ fn short_flags(flags: Vec<Value>) -> Vec<String> {
 fn gmail_labels(labels: Vec<Value>) -> Vec<String> {
     labels
         .into_iter()
+        // `NIL` in the list is nothing, not a label (a label called so comes quoted).
+        .filter(|value| !value.atom().is_some_and(|atom| atom.eq_ignore_ascii_case("NIL")))
         .filter_map(Value::into_text)
         .take(MAX_GMAIL_LABELS)
         .map(|mut label| {
@@ -658,6 +672,7 @@ impl<S: Read + Write> Imap<S> {
             leaving: false,
             text_seen: 0,
             response_cap: MAX_RESPONSES,
+            text_cap: MAX_COMMAND_TEXT,
             skip_long: false,
             skipped: false,
             idle_tag: None,
@@ -827,7 +842,7 @@ impl<S: Read + Write> Imap<S> {
     ///
     /// The messages come back in UID order, each once.
     pub fn uid_fetch_flags(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
-        self.fetch_flags(set, false)
+        self.fetch_flags(set, false, false)
     }
 
     /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's id and labels of each message as
@@ -837,16 +852,31 @@ impl<S: Read + Write> Imap<S> {
     /// no labels has `None` there, and one past [`MAX_GMAIL_LABEL_BYTES`] of labels in the fetch
     /// too.
     pub fn uid_fetch_flags_gmail(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
-        self.fetch_flags(set, true)
+        self.fetch_flags(set, true, true)
     }
 
-    fn fetch_flags(&mut self, set: &str, gmail: bool) -> Result<Vec<Fetched>, ProtoError> {
+    /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's labels of each message as well but
+    /// not its id (`UID FETCH <set> (UID FLAGS X-GM-LABELS)`, in [`Fetched::gmail_labels`]): for a
+    /// Gmail folder whose ids aren't wanted (every folder but the Inbox), so that its listing is
+    /// no longer than it has to be.
+    pub fn uid_fetch_flags_labels(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
+        self.fetch_flags(set, false, true)
+    }
+
+    fn fetch_flags(&mut self, set: &str, ids: bool, labels_wanted: bool) -> Result<Vec<Fetched>, ProtoError> {
         let mut found: BTreeMap<u32, (Vec<String>, Option<u64>, Option<Vec<String>>)> = BTreeMap::new();
         // The bytes of labels kept so far, all messages together.
         let mut label_bytes = 0usize;
-        let command = Self::fetch(set, if gmail { "(UID FLAGS X-GM-MSGID X-GM-LABELS)" } else { "(UID FLAGS)" })?;
+        let items = match (ids, labels_wanted) {
+            (true, true) => "(UID FLAGS X-GM-MSGID X-GM-LABELS)",
+            (true, false) => "(UID FLAGS X-GM-MSGID)",
+            (false, true) => "(UID FLAGS X-GM-LABELS)",
+            (false, false) => "(UID FLAGS)",
+        };
+        let command = Self::fetch(set, items)?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         self.response_cap = wanted.responses();
+        self.text_cap = MAX_COMMAND_TEXT.max(wanted.cap.saturating_mul(FETCH_TEXT_PER_MESSAGE));
         let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
             if let Some(item) = Item::from(values)
@@ -858,11 +888,11 @@ impl<S: Read + Write> Imap<S> {
                 if let Some(later) = item.flags {
                     *flags = later;
                 }
-                if gmail && item.gmail_id.is_some() {
+                if ids && item.gmail_id.is_some() {
                     *id = item.gmail_id;
                 }
-                if gmail && let Some(later) = item.gmail_labels {
-                    let size = later.iter().map(String::len).sum::<usize>();
+                if labels_wanted && let Some(later) = item.gmail_labels {
+                    let size = later.iter().map(|label| label.len().saturating_add(LABEL_OVERHEAD)).sum::<usize>();
                     if label_bytes.saturating_add(size) <= MAX_GMAIL_LABEL_BYTES {
                         label_bytes = label_bytes.saturating_add(size);
                         *labels = Some(later);
@@ -871,6 +901,7 @@ impl<S: Read + Write> Imap<S> {
             }
         });
         self.response_cap = MAX_RESPONSES;
+        self.text_cap = MAX_COMMAND_TEXT;
         answered?;
         wanted.check()?;
         Ok(found
@@ -1196,7 +1227,7 @@ impl<S: Read + Write> Imap<S> {
     fn read_until(&mut self, tag: &str, literal_waiting: bool, on_data: &mut dyn FnMut(Vec<Value>)) -> Result<Option<StatusLine>, ProtoError> {
         for _ in 0..self.response_cap {
             let response = self.read_response()?;
-            if self.text_seen > MAX_COMMAND_TEXT {
+            if self.text_seen > self.text_cap {
                 return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
             }
             match response {
@@ -1231,7 +1262,7 @@ impl<S: Read + Write> Imap<S> {
             let Some(line) = line else {
                 self.skipped = true;
                 self.text_seen = self.text_seen.saturating_add(crate::MAX_LINE);
-                if self.text_seen > MAX_COMMAND_TEXT {
+                if self.text_seen > self.text_cap {
                     return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
                 }
                 continue;

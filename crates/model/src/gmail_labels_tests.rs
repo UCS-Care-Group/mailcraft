@@ -76,6 +76,32 @@ fn a_message_that_moves_forgets_its_labels() {
 }
 
 #[test]
+fn a_copy_takes_no_labels() {
+    // A Gmail account's labelled message, copied into a folder on this computer and into another
+    // folder of its own account: neither copy shows, finds or tells agents of the labels.
+    let mut mb = Mailbox::with_local_account("Rowan", "rowan@example.org");
+    let local = mb.accounts.first().map_or(0, |a| a.id);
+    let gmail = mb.add_account(Account {
+        email: "rowan@mail.example".into(),
+        incoming: Some(Server { host: "imap.gmail.com".into(), ..Default::default() }),
+        ..Default::default()
+    });
+    let inbox = mb.folder_of_kind(gmail, FolderKind::Inbox).unwrap();
+    let archive = mb.folder_of_kind(gmail, FolderKind::Archive).unwrap();
+    let here = mb.add_folder(local, None, "Kept").unwrap();
+    let id =
+        mb.add_message(Message { folder: inbox, account: gmail, uid: 3, subject: "Labelled".into(), ..labelled(&["\\Inbox", "Receipts"]) }).unwrap();
+    for folder in [here, archive] {
+        let copy = mb.copy_message(id, folder).unwrap();
+        let m = mb.message(copy).unwrap();
+        assert!(m.gmail_labels.is_empty(), "{folder}");
+        assert!(!Query::parse("label:receipts").matches(m, 0));
+    }
+    // The message itself keeps them.
+    assert_eq!(mb.message(id).map(|m| m.gmail_labels.len()), Some(2));
+}
+
+#[test]
 fn pieces_of_a_folder_keep_their_labels() {
     let piece = |uid: u32| FolderDelta {
         remote: "INBOX".into(),
@@ -96,6 +122,9 @@ fn the_search_box_finds_labels() {
     assert!(hit("label:clients") && hit("label:work/clients") && hit("label:WORK"));
     assert!(hit("label:important") && hit("labels:inbox") && hit("label:\"café receipts\""));
     assert!(!hit("label:personal") && hit("-label:personal") && !hit("-label:work"));
+    // A label of nothing but space finds nothing (`label:""` is a keyword with nothing after it,
+    // which asks for nothing, as every keyword's does).
+    assert!(!hit("label:\" \""));
     // Words of a label are not words of the message.
     assert!(!hit("clients"));
     // A message of no Gmail account has none.

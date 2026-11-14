@@ -45,6 +45,9 @@ fn labels_come_with_new_mail_and_follow_the_server() {
     // asks for them.
     let log = imap.world().log.clone();
     assert!(log.iter().filter(|line| line.contains("X-GM-LABELS")).all(|line| line.contains("UID FETCH 1:*")));
+    // Gmail's ids are asked of the Inbox alone.
+    assert_eq!(log.iter().filter(|line| line.contains("X-GM-MSGID")).count(), 1);
+    assert!(log.iter().any(|line| line.contains("UID FETCH 1:* (UID FLAGS X-GM-LABELS)")));
 
     // Labels change on the server: the next run says so, for the messages already here.
     let folders = applied(&local_folders(), &result);
