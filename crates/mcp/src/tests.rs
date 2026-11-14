@@ -146,3 +146,41 @@ fn list_contacts_shows_every_account_whatever_the_window_shows() {
     let one = tool(&mut s, "list_contacts", json!({"account": work}));
     assert_eq!(names(&one), ["In work"]);
 }
+
+/// `list_messages` names a standard folder by its kind, whatever the mailbox's language calls it
+/// (#1200): "sent" reaches "Gesendete Elemente".
+#[test]
+fn list_messages_takes_a_folders_kind_in_any_language() {
+    let mut session = mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0);
+    let account = session.mailbox.default_account().unwrap().id;
+    let sent = session.mailbox.folders.iter_mut().find(|f| f.account == account && f.name == "Sent Items").expect("the sample's Sent Items");
+    sent.name = "Gesendete Elemente".into();
+    let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));
+    let listed = tool(&mut s, "list_messages", json!({"folder": "Sent"}));
+    let messages = listed["messages"].as_array().unwrap();
+    assert!(!messages.is_empty());
+    let by_path = tool(&mut s, "list_messages", json!({"folder": "Gesendete Elemente"}));
+    assert_eq!(by_path["messages"], listed["messages"]);
+}
+
+/// `account` says whose folder a kind means, whatever the window shows (#1200).
+#[test]
+fn list_messages_takes_the_account_a_kind_is_of() {
+    let mut session = mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0);
+    // A second account, whose Inbox is still empty and called something else.
+    let second = session.run("account.add", &json!({"email": "noor@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let theirs = session.mailbox.folders.iter_mut().find(|f| f.account == second && f.name == "Inbox").expect("its Inbox");
+    theirs.name = "Posteingang".into();
+    let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));
+    let count = |v: &Value| v["messages"].as_array().unwrap().len();
+    assert_eq!(count(&tool(&mut s, "list_messages", json!({"folder": "inbox", "account": second}))), 0);
+    assert!(count(&tool(&mut s, "list_messages", json!({"folder": "inbox"}))) > 0, "the account in view is the first one");
+
+    // An `account` that isn't an id is passed on as it stands and refused there, never dropped
+    // for the account in view: the agent would read another mailbox and nothing would say so.
+    for account in [json!("2"), json!(0), json!(-1), json!(true), Value::Null] {
+        let args = json!({"name": "list_messages", "arguments": {"folder": "inbox", "account": account}});
+        let res = call(&mut s, 9, "tools/call", args)["result"].clone();
+        assert_eq!(res["isError"], true, "{account}: {res}");
+    }
+}

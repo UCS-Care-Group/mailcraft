@@ -59,7 +59,8 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
         importance: m.importance,
         categories: m.categories.clone(),
         answered: m.answered,
-        headers: m.headers.clone(),
+        headers: mailcraft_model::headers::split(m.all_headers()).0,
+        header_block: mailcraft_model::headers::split(m.all_headers()).1,
         ..Message::default()
     }
 }
@@ -324,7 +325,7 @@ fn a_foreign_message_survives_reading_writing_and_reading() {
     assert_eq!(first.body.text, "La réunion est à 10h.");
     assert_eq!(first.body.html.as_deref(), Some("<p>La réunion est à <b>10h</b>.</p>"));
     assert_eq!(first.attachments[0].name, "ordre du jour été.pdf");
-    assert_eq!((first.importance, first.read, first.categories.len(), first.headers.len()), (Importance::High, true, 2, 1));
+    assert_eq!((first.importance, first.read, first.categories.len(), first.all_headers().len()), (Importance::High, true, 2, 1));
     let opts = WriteOptions { include_bcc: true, offset_minutes: 120 };
     let second = parse(&write(&first, &opts));
     assert_eq!(second, first);
@@ -522,6 +523,7 @@ fn message() -> impl Strategy<Value = Message> {
             categories,
             answered,
             headers,
+            header_block: Default::default(),
             fresh_stamps: false,
             id: 7,
             account: 3,
@@ -551,6 +553,7 @@ fn message() -> impl Strategy<Value = Message> {
             server_draft: None,
             held: String::new(),
             sending: false,
+            sent_here: false,
             answers: None,
             kept: None,
             original: None,

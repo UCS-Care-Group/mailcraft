@@ -1305,7 +1305,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         // The lane and its arrows, on a Mac too (`overlay_scroll_tests` has the bar that floats).
         app.overlay_scroll_bars = false;
         app
