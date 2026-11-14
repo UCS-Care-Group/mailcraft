@@ -3,7 +3,7 @@
 //! A fake `Platform` and a tiny executor, for the tests of the binding.
 
 use std::future::Future;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
 use std::thread::Thread;
@@ -68,15 +68,22 @@ pub(crate) struct FakePlatform {
     pub(crate) budget: Option<u64>,
     pub(crate) secrets: Arc<FakeSecrets>,
     pub(crate) notified: AtomicUsize,
+    /// Minutes east of UTC the phone says it is in.
+    pub(crate) offset: AtomicI32,
 }
 
 impl FakePlatform {
     pub(crate) fn new() -> Arc<FakePlatform> {
-        Arc::new(FakePlatform { budget: None, secrets: Arc::new(FakeSecrets::default()), notified: AtomicUsize::new(0) })
+        Arc::new(FakePlatform { budget: None, secrets: Arc::new(FakeSecrets::default()), notified: AtomicUsize::new(0), offset: AtomicI32::new(0) })
     }
 
     pub(crate) fn with_budget(budget: u64) -> Arc<FakePlatform> {
-        Arc::new(FakePlatform { budget: Some(budget), secrets: Arc::new(FakeSecrets::default()), notified: AtomicUsize::new(0) })
+        Arc::new(FakePlatform {
+            budget: Some(budget),
+            secrets: Arc::new(FakeSecrets::default()),
+            notified: AtomicUsize::new(0),
+            offset: AtomicI32::new(0),
+        })
     }
 }
 
@@ -111,7 +118,7 @@ impl Platform for FakePlatform {
     }
 
     fn utc_offset_minutes(&self, _at: i64) -> Result<i32, HostError> {
-        Ok(0)
+        Ok(self.offset.load(Ordering::Relaxed))
     }
 
     fn memory_budget(&self) -> Result<Option<u64>, HostError> {

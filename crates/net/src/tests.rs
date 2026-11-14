@@ -1425,6 +1425,16 @@ fn a_server_that_is_not_gmail_keeps_its_ways_with_all_mail() {
     );
     assert_eq!(server_uids(&imap, "[Gmail]/All Mail"), [1]);
 
+    // A Dovecot-style server with an `INBOX.` personal namespace creates top-level folders under it.
+    let imap = two_way(true, true);
+    imap.world().namespace = Some(("INBOX.".into(), ".".into()));
+    let folders = without(synced_folders(&imap), "INBOX", &[1]);
+    let result = sync(&pushing(&imap, &folders, vec![archiving(901, 1, "Archive")]));
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert_eq!(result.created, [Created { folder: ARCHIVE, remote: "INBOX.Archive".into() }]);
+    assert_eq!(changes(&imap), ["CREATE \"INBOX.Archive\"", "SUBSCRIBE \"INBOX.Archive\"", "UID MOVE 1 \"INBOX.Archive\""]);
+    assert_eq!(server_uids(&imap, "INBOX.Archive"), [1]);
+
     // Gmail with a mailbox for archived mail of its own (made by the owner, or by an earlier
     // version): that one is used, as before.
     let imap = gmail();

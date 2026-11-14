@@ -294,6 +294,11 @@ pub fn app_items() -> Vec<Item> {
     vec![item(Own::Settings)]
 }
 
+/// The tray menu's labels, translated with the interface.
+pub fn tray_text() -> (String, String, String) {
+    (tl!("Show MailCraft").to_string(), tl!("Send/Receive All Folders").to_string(), tl!("Quit MailCraft").to_string())
+}
+
 /// The words of the app menu and the Window menu, whose items the system provides.
 pub struct AppText {
     pub about: String,

@@ -335,6 +335,8 @@ fn build(messages: usize, attachments: usize, exchange: bool) -> Result<(Mailbox
         };
         if exchange {
             m.headers = exchange_headers(&mut rng, i);
+            // (As a message read from its server has them: what nothing reads by name apart.)
+            m.split_headers();
         }
         m.body.text = text(&mut rng, body_len);
         if rng.below(10) < 6 {
@@ -611,7 +613,8 @@ fn open_only(dir: &Path) -> Result<(), String> {
     let opened = opened?;
     let after = memory();
     let bodies: u64 = opened.mailbox.messages.values().map(|m| (m.body.text.len() + m.body.html.as_ref().map_or(0, String::len)) as u64).sum();
-    println!("{}: {} messages", path.display(), opened.mailbox.messages.len());
+    let size = std::fs::metadata(&path).map_or(0, |m| m.len());
+    println!("{}: {} messages, the mailbox file {}", path.display(), opened.mailbox.messages.len(), mb(size));
     println!("  open                       {}", ms(took));
     println!(
         "  {} parts in memory ({} of bodies), {} left on disk, {} unavailable (body budget {})",

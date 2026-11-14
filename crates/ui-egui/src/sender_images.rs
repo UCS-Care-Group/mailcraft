@@ -86,6 +86,17 @@ pub struct SenderImages {
     alive: Arc<()>,
 }
 
+impl SenderImages {
+    /// Let go of the senders' pictures kept in memory (the window is out of sight,
+    /// [`crate::out_of_sight`]): they are asked for again (from the host's cache first) when a
+    /// row of theirs is next on screen. What is known to have no picture is kept, and is not
+    /// asked about again; a look-up on its way is taken in when rows are next shown.
+    pub(crate) fn let_go_of_pictures(&mut self) {
+        self.looks.retain(|_, (look, _)| matches!(look, Look::Missing | Look::Asked(..)));
+        self.decoded = None;
+    }
+}
+
 /// Whether the owner knows `address` (in lower case): it is one of the contacts', or mail in
 /// Sent Items went to it.
 fn is_known(app: &mut MailApp, address: &str) -> bool {

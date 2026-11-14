@@ -65,6 +65,9 @@ pub mod chrome;
 mod clicks;
 #[cfg(test)]
 mod clicks_tests;
+pub mod close_to_tray;
+#[cfg(test)]
+mod close_to_tray_tests;
 pub mod compose;
 #[cfg(test)]
 mod confirm_ids_tests;
@@ -139,6 +142,8 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 mod merge_contacts;
+#[cfg(test)]
+mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
@@ -155,6 +160,9 @@ mod opened_message;
 #[cfg(test)]
 mod opened_message_tests;
 pub mod opening;
+pub mod out_of_sight;
+#[cfg(test)]
+mod out_of_sight_tests;
 pub mod own_keys;
 #[cfg(test)]
 mod password_kept_tests;
@@ -359,8 +367,9 @@ pub struct Services {
     pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: find out about a domain on a background thread, so account setup can tell whose
     /// servers an address at a company's own domain uses: its mail exchangers (best first), and,
-    /// when they name no provider this program knows, the servers its own SRV records name
-    /// (RFC 6186, #1063), for the owner to confirm. Only the domain is given, never the mailbox name.
+    /// when they name no provider this program knows, the servers its own records name (its SRV
+    /// records, RFC 6186, #1063; what it publishes for mail programs; Mozilla's ISP database,
+    /// #1112), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
     /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
     /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
@@ -807,6 +816,12 @@ pub struct UiState {
     pub high_contrast: bool,
     /// File › Options › General › Animations (#1183): as the system says, on or off.
     pub animations: motion::Motion,
+    /// Desktop: the close button hides the window while mail and reminders keep running.
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray: bool,
+    /// The owner has seen where the window goes on its first close to the tray (#544).
+    #[serde(deserialize_with = "theme::lenient_bool")]
+    pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
@@ -924,6 +939,8 @@ impl Default for UiState {
             theme: theme::Appearance::default(),
             high_contrast: false,
             animations: motion::Motion::default(),
+            close_to_tray: false,
+            close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
             light_messages: false,
             replies_in_window: false,
@@ -1204,6 +1221,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.microsoftClientId", "Microsoft Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.googleClientId", "Google Desktop Application ID", "File › Options", r#"{"value": string (empty: the build's own)}"#),
     ("ui.rememberSignIn", "Remember Passwords and Sign-Ins", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    ("ui.closeToTray", "Close to system tray", "File › Options › General", r#"{"value"?: bool (default: toggle)}"#),
     (
         "ui.importPrivateKey",
         "Import Your Certificate or Key",
@@ -1601,6 +1619,9 @@ pub struct MailApp {
     /// The window title last sent; a viewport command schedules a repaint, so only send changes.
     sent_title: String,
     pub quit_requested: bool,
+    /// The host hid the main window (put away in the tray, say): it is out of sight as a
+    /// minimised one is ([`out_of_sight::window_out_of_sight`]).
+    pub window_hidden: bool,
     /// MailCraft's data was removed from this computer ([`data_removal`]): nothing is written
     /// or remembered from here on, and the window goes when its report is read.
     pub data_removed: bool,
@@ -1641,6 +1662,9 @@ pub struct MailApp {
     inbox_check: inbox_pass::InboxCheck,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
+    /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
+    /// for it once, when nothing else is under way ([`MailApp::ask_for_jmap_send`]).
+    jmap_send_asks: std::collections::HashSet<Id>,
     /// How many changes the server made in the JMAP run under way, as its pieces said so far.
     jmap_made: usize,
     last_autosave: f64,
@@ -1707,6 +1731,8 @@ pub struct MailApp {
     pub(crate) remote_pictures: reading::RemotePictures,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
+    /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
+    pub(crate) out_of_sight: out_of_sight::OutOfSight,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -1841,6 +1867,7 @@ impl MailApp {
             sent_title: String::new(),
             shown_zone: None,
             quit_requested: false,
+            window_hidden: false,
             data_removed: false,
             autosave: true,
             offer_setup: false,
@@ -1855,6 +1882,7 @@ impl MailApp {
             inbox_run: None,
             inbox_check: Default::default(),
             snooze_last: 0,
+            jmap_send_asks: Default::default(),
             jmap_made: 0,
             last_autosave: 0.0,
             draft_saved_at: None,
@@ -1880,6 +1908,7 @@ impl MailApp {
             windows: Default::default(),
             remote_pictures: Default::default(),
             sender_images: Default::default(),
+            out_of_sight: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
@@ -1966,6 +1995,8 @@ impl MailApp {
         v.task_sort = saved.task_sort;
         // Gmail's categories as folders or as tabs (#911).
         v.gmail_tabs = saved.gmail_tabs;
+        // Where the switch between the modules is (#1174).
+        v.nav_foot = saved.nav_foot;
         // One account's tasks and contacts only in the mailbox they were chosen in: in another,
         // the same id is somebody else's account, or none, and the list starts on All accounts.
         let mailbox = &self.session.mailbox;
@@ -2107,6 +2138,8 @@ impl MailApp {
             && let Some(sent) = v.get("id").and_then(Value::as_u64)
         {
             self.shared_send_pressed_in(sent);
+            // From a JMAP account whose secret isn't at hand: it is asked for (M6).
+            self.jmap_send_pressed(sent);
         }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
@@ -2514,6 +2547,15 @@ impl MailApp {
                 }
                 self.ui.google_client_id = id.to_string();
                 Ok(json!({"configured": !id.is_empty()}))
+            }
+            "ui.closeToTray" => {
+                let value = match p.get("value") {
+                    None => !self.ui.close_to_tray,
+                    Some(Value::Bool(value)) => *value,
+                    Some(_) => return Some(Err("value must be a boolean".into())),
+                };
+                self.ui.close_to_tray = value;
+                Ok(json!({"value": value}))
             }
             "ui.rememberSignIn" => {
                 let on = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.remember_sign_in);
@@ -3435,6 +3477,7 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
+            self.jmap_send_asks.clear();
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
@@ -3535,6 +3578,10 @@ impl MailApp {
                 return;
             }
             Next::Idle => {}
+        }
+        // The owner pressed Send in a JMAP account whose secret isn't at hand: asked for now (M6).
+        if self.ask_for_jmap_send() {
+            return;
         }
         self.settle_progress();
         let minutes = f64::from(self.session.prefs.sync_minutes);
@@ -4254,9 +4301,9 @@ impl MailApp {
         // What is waiting, taken in together, for as long as a frame can spare (#991): each time
         // reads the whole account and has the lists made again, whatever the pieces bring, and a
         // run with thousands of folders hands over a piece or more for each.
-        let started = std::time::Instant::now();
+        let started = mailcraft_time::Stopwatch::start();
         let mut first = true;
-        while std::mem::take(&mut first) || started.elapsed() < SYNC_FRAME_BUDGET {
+        while std::mem::take(&mut first) || started.so_far() < SYNC_FRAME_BUDGET {
             // (A JMAP account's run has pieces of its own: [`jmap_mail`].)
             if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
                 return self.poll_jmap();
@@ -4568,6 +4615,8 @@ impl MailApp {
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);
+        // What is kept to show things again quickly goes once the window has been out of sight a while.
+        out_of_sight::tick(self, ctx);
         control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog
@@ -5093,6 +5142,7 @@ impl MailApp {
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
+        close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);
         // What was chosen in a text's menu, once everything that has one is drawn.
         text_menu::carry_out(self, &ctx);

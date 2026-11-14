@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [assuan, dav_xml, dav_document, mime, html, sheet, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response, ews, ews_autodiscover, ews_ntlm, pst, rtf, mailbox_file, openpgp, smime, pkcs12]
+        target: [assuan, dav_xml, dav_document, mime, html, sheet, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response, ews, ews_autodiscover, ews_ntlm, pst, rtf, mailbox_file, header_block, openpgp, smime, pkcs12]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

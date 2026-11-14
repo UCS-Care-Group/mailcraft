@@ -360,6 +360,16 @@ impl Pictures {
         self.remote.clear();
     }
 
+    /// Let go of every picture kept, its texture and what it was decoded from, and of the
+    /// pictures from the web (the window is out of sight, [`crate::out_of_sight`]): each is made
+    /// again, and asked for again, when it is next shown.
+    pub fn let_go(&mut self) {
+        self.entries.clear();
+        self.remote.clear();
+        self.decoded_in = None;
+        self.asked_at = None;
+    }
+
     /// Keep what became of the picture at `url`.
     pub fn set_remote(&mut self, url: Arc<str>, state: Remote, frame: u64) {
         self.remote.insert(url, RemoteEntry { state, used: frame });

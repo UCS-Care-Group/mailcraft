@@ -294,6 +294,129 @@ fn a_draft_sent_here_and_still_listed_in_drafts_stays_queued_in_the_outbox() {
     }
 }
 
+/// #1160: a draft the server has, sent here as that draft (`…/messages/{id}/send`), keeps its id
+/// when Exchange files it in Sent Items, but the delta of the same run may still list it in
+/// Drafts, a draft, before Exchange has moved it. It is the message just sent: never a [Draft]
+/// in Drafts that looks unsent and invites sending it twice. It is in Sent Items from the moment
+/// the send clears, and stays one message there when the server lists it there.
+#[test]
+fn a_draft_sent_here_is_never_a_draft_again_while_the_server_files_it() {
+    let (mut mb, account) = mailbox();
+    let (outbox, drafts, sent) = (
+        mb.folder_of_kind(account, FolderKind::Outbox).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Drafts).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Sent).unwrap(),
+    );
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    {
+        // As compose leaves it when the owner sends it.
+        let m = mb.message_mut(id).unwrap();
+        (m.folder, m.draft, m.unfetched) = (outbox, false, false);
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, marker: "mc-1".into(), ..Default::default() });
+    }
+    let done =
+        mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, draft: None, draft_left: String::new() };
+    super::super::graph_send::send_done(&mut mb, account, &done, mailcraft_i18n::Lang::English, &mut Vec::new());
+    let in_sent = |mb: &Mailbox| mb.messages_in(sent).map(|m| (m.id, m.draft)).collect::<Vec<_>>();
+    assert_eq!(in_sent(&mb), vec![(id, false)], "the message sent is in Sent Items at once");
+    assert_eq!(mb.messages_in(outbox).count(), 0);
+    // Exchange files it in Sent Items itself: no move goes up for it, which it would refuse while
+    // the message is being sent and put it back into Drafts here.
+    assert_eq!(moves(&mb), 0, "a move into Sent Items went up for a message the server files there");
+    // The same run's delta still lists it in Drafts, a draft.
+    let mut index = ServerIndex::default();
+    let mut listed = page("FD", "AAkD1", Some(true));
+    listed.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &listed, &mut Down::default());
+    assert_eq!(mb.messages_in(drafts).count(), 0, "a message sent here came back as a draft in Drafts");
+    assert_eq!(in_sent(&mb), vec![(id, false)]);
+    assert_eq!(moves(&mb), 0);
+    // The next run: gone from Drafts, and listed in Sent Items, a draft still or not.
+    let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    for draft in [Some(true), Some(false)] {
+        let mut filed = page("FS", "AAkD1", draft);
+        filed.messages[0].server.change_key = "CK3".into();
+        take_page(&mut mb, &mut index, account, &filed, &mut Down::default());
+        assert_eq!(in_sent(&mb), vec![(id, false)], "one sent message in Sent Items ({draft:?})");
+        assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+        assert_eq!(moves(&mb), 0);
+    }
+    assert_eq!(mb.messages_in(drafts).count(), 0);
+    assert!(!mb.message(id).unwrap().sent_here, "filed by the server, it is a message as any other");
+}
+
+/// The moves into another folder that would go up for the account's messages.
+fn moves(mb: &Mailbox) -> usize {
+    let account = mb.accounts[0].id;
+    let s = crate::Session::at(mb.clone(), 1_800_000_000, 0);
+    let (changes, _) = super::super::graph_up::message_changes(&s, account, 100);
+    changes.iter().filter(|c| matches!(c, mailcraft_model::sync::MessageChange::Move { .. })).count()
+}
+
+/// #1160 review: a draft sent here that the server has listed in Sent Items already, then listed
+/// in Drafts, a draft, by a listing made before Exchange filed it (a later page of the same run).
+/// That listing is out of date: the message sent stays in Sent Items, no draft, and nothing goes
+/// up for it. Once the server says it is gone from Drafts, it is a message as any other.
+#[test]
+fn a_draft_sent_here_and_listed_in_sent_items_is_not_taken_back_to_drafts_by_a_listing_from_before() {
+    let (mut mb, account) = mailbox();
+    let (outbox, drafts, sent) = (
+        mb.folder_of_kind(account, FolderKind::Outbox).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Drafts).unwrap(),
+        mb.folder_of_kind(account, FolderKind::Sent).unwrap(),
+    );
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FD", "AAkD1", Some(true)), &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    {
+        let m = mb.message_mut(id).unwrap();
+        (m.folder, m.draft, m.unfetched) = (outbox, false, false);
+        m.server_draft = Some(mailcraft_model::sync::ServerDraft { pending: true, marker: "mc-1".into(), ..Default::default() });
+    }
+    let done =
+        mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, draft: None, draft_left: String::new() };
+    super::super::graph_send::send_done(&mut mb, account, &done, mailcraft_i18n::Lang::English, &mut Vec::new());
+    assert!(mb.message(id).unwrap().sent_here);
+    let in_sent = |mb: &Mailbox| mb.messages_in(sent).map(|m| (m.id, m.draft)).collect::<Vec<_>>();
+    // Sent Items lists it first, a draft by Exchange's word.
+    let mut filed = page("FS", "AAkD1", Some(true));
+    filed.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &filed, &mut Down::default());
+    assert_eq!(in_sent(&mb), vec![(id, false)]);
+    // Then Drafts, from before it was filed.
+    let mut stale = page("FD", "AAkD1", Some(true));
+    stale.messages[0].server.change_key = "CK1".into();
+    let mut down = Down::default();
+    take_page(&mut mb, &mut index, account, &stale, &mut down);
+    assert_eq!(mb.messages_in(drafts).count(), 0, "followed back into Drafts as a draft");
+    assert_eq!(in_sent(&mb), vec![(id, false)]);
+    assert_eq!(down.changed, 0);
+    assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+    assert_eq!(moves(&mb), 0);
+    // The next run: gone from Drafts. It stays in Sent Items, where the server has it.
+    let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(!m.sent_here && m.server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+    assert_eq!(in_sent(&mb), vec![(id, false)]);
+    assert_eq!(moves(&mb), 0);
+}
+
+/// A mailbox file from before #1160 has no `sentHere`: its messages read as not sent here.
+#[test]
+fn a_message_from_an_older_file_is_not_marked_sent_here() {
+    let m: Message = serde_json::from_str(r#"{"id": 7, "subject": "Older"}"#).unwrap();
+    assert!(!m.sent_here);
+    let mut marked = m.clone();
+    marked.sent_here = true;
+    let back: Message = serde_json::from_str(&serde_json::to_string(&marked).unwrap()).unwrap();
+    assert!(back.sent_here);
+    assert!(!serde_json::to_string(&m).unwrap().contains("sentHere"));
+}
+
 /// A JMAP account's Sent folder is read through the same path; its server keeps its own word
 /// on what is a draft, and nothing is taken for sent there.
 #[test]
@@ -316,4 +439,76 @@ fn a_mailbox_file_with_sent_messages_kept_as_drafts_opens_with_them_sent() {
     let bytes = crate::io::write_mailbox(&mb).unwrap();
     let opened = crate::io::read_mailbox(&bytes).unwrap();
     assert!(!opened.message(sent).unwrap().draft);
+}
+
+/// A Microsoft account's message in Sent Items here, its server copy `AAkD1` in the server's
+/// folder `server_folder`, still marked as a draft sent here (#1160 review): a mark that outlived
+/// its use. The mailbox, the account, the message and the Inbox.
+fn marked_sent_here(server_folder: &str) -> (Mailbox, Id, Id, Id) {
+    let (mut mb, account) = mailbox();
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "FI".into(), ..Default::default() });
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page("FS", "AAkD1", Some(false)), &mut Down::default());
+    let id = only_in(&mb, account, "FS").id;
+    let m = mb.message_mut(id).unwrap();
+    m.sent_here = true;
+    m.server.as_mut().unwrap().folder = server_folder.into();
+    (mb, account, id, inbox)
+}
+
+/// #1160 review: a mark left on a message the server has filed (Drafts read afresh after Exchange
+/// filed it, so that no removal came) never keeps a move of the owner's from going up. Moved to
+/// the Inbox it goes up; moved back to Sent Items, so does that move: once each.
+#[test]
+fn a_draft_sent_here_and_filed_is_moved_as_any_other() {
+    let (mut mb, _, id, inbox) = marked_sent_here("FS");
+    let sent = mb.message(id).unwrap().folder;
+    assert_eq!(moves(&mb), 0);
+    mb.move_message(id, inbox).unwrap();
+    assert_eq!(moves(&mb), 1, "a move to the Inbox goes up");
+    // The move made there.
+    mb.message_mut(id).unwrap().server.as_mut().unwrap().folder = "FI".into();
+    assert_eq!(moves(&mb), 0);
+    mb.move_message(id, sent).unwrap();
+    assert_eq!(moves(&mb), 1, "the move back to Sent Items goes up");
+    // And a mark that is somehow still there on a message the server has outside Drafts holds no
+    // move back.
+    let (mb, ..) = marked_sent_here("FI");
+    assert_eq!(moves(&mb), 1);
+}
+
+/// #1160 review: a copy of a draft sent here is not one; nor is it once moved by the owner.
+#[test]
+fn a_copy_or_a_move_of_a_draft_sent_here_is_not_marked() {
+    let (mut mb, _, id, inbox) = marked_sent_here("FD");
+    let copy = mb.copy_message(id, inbox).unwrap();
+    assert!(!mb.message(copy).unwrap().sent_here);
+    assert!(mb.message(id).unwrap().sent_here);
+    mb.move_message(id, inbox).unwrap();
+    assert!(!mb.message(id).unwrap().sent_here);
+}
+
+/// #1160 review: Drafts read afresh after Sent Items has listed a draft sent here, and the
+/// listing (made before Exchange filed it) still has it as a draft. Out of date: the message sent
+/// stays in Sent Items, no draft, and nothing goes up for it. The mark stays (no removal comes);
+/// it holds no move once the server has the message outside Drafts.
+#[test]
+fn drafts_read_afresh_with_a_draft_sent_here_and_filed_leaves_it_sent() {
+    let (mut mb, account, id, _) = marked_sent_here("FS");
+    let sent = mb.message(id).unwrap().folder;
+    let drafts = mb.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    let mut index = ServerIndex::default();
+    // Another folder read afresh first changes nothing of it.
+    let inbox_afresh = MessagePage { folder: "FI".into(), afresh: true, caught_up: true, ..Default::default() };
+    take_page(&mut mb, &mut index, account, &inbox_afresh, &mut Down::default());
+    let mut stale = page("FD", "AAkD1", Some(true));
+    stale.afresh = true;
+    stale.messages[0].server.change_key = "CK0".into();
+    take_page(&mut mb, &mut index, account, &stale, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert_eq!((m.folder, m.draft), (sent, false), "followed back into Drafts as a draft");
+    assert!(m.server.as_ref().is_some_and(|s| s.folder == "FS" && !s.gone));
+    assert_eq!(mb.messages_in(drafts).count(), 0);
+    assert_eq!(moves(&mb), 0);
 }
