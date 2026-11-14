@@ -242,7 +242,15 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     // preview), then its categories; its preview before them.
     let lines = app.session.prefs.preview_lines;
     let preview_y = rect.min.y + PREVIEW_TOP + 7.0;
-    let (mut sx, tail_y) = if lines > 0 { (time_end, preview_y) } else { (time_end - date_w - 8.0, line2) };
+    // In one line with no preview the folder and the categories share the sender's line. They
+    // start left of the marks; the date's left edge is where an attachment mark already sits.
+    let (mut sx, tail_y) = if one && lines == 0 {
+        (x, line1)
+    } else if lines > 0 {
+        (time_end, preview_y)
+    } else {
+        (time_end - date_w - 8.0, line2)
+    };
     if let Some(folder) = super::shows_folder(&app.session).then(|| app.session.mailbox.folder(r.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
         sx = super::paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
