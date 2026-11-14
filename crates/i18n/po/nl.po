@@ -13848,9 +13848,8 @@ msgstr "De lijst met afzenders is vol: verwijder er enkele via Bestand › Optie
 
 #. what a command says
 #: crates/mobile/src/core.rs
-#, fuzzy
 msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
-msgstr "De lijst met aanmeldingen die op deze telefoon zijn bewaard, was beschadigd, dus er kunnen nog oudere aanmeldingen op staan. Als u de opslag van MailCraft wist in de Instellingen van Android, worden ze verwijderd."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
