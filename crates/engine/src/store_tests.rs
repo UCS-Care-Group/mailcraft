@@ -1046,7 +1046,7 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     saver.submit(&path, &states[0], 6);
     until(|| lock(&saver.queue.jobs).writing.is_some());
     mb.message_mut(ids[0]).unwrap().read = true;
-    write_index(&mut gate, &path, &mb, &held.progress).unwrap();
+    write_index(&mut gate, &path, &mb, &[], &held.progress).unwrap();
     gate.newest = next_seq();
     drop(gate);
     saver.flush();
@@ -1751,7 +1751,7 @@ fn every_content_name_in_a_damaged_file_is_found_wherever_it_falls() {
     // Not names: too short, upper case, not closed.
     bytes.extend_from_slice(format!("\"{}\" \"{}\" \"{}", &names[0].hex()[1..], names[1].hex().to_uppercase(), names[2].hex()).as_bytes());
     let mut found = HashSet::new();
-    names_in(&bytes[..], &mut found).unwrap();
+    names_in(&bytes[..], &mut found, &mut HashSet::new()).unwrap();
     assert_eq!(found, names.iter().copied().collect::<HashSet<_>>());
 }
 

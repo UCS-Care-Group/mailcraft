@@ -33,7 +33,7 @@ use std::sync::{Mutex, OnceLock};
 
 use mailcraft_model::headers::MAX_HEADER_BLOCK;
 
-use super::{Digest, MAX_ENTRIES, Ref, get_loose, lock, open_plain, sync_dir_of};
+use super::{Digest, MAX_ENTRIES, Ref, get_loose, lock, sync_dir_of};
 
 /// What a pack may hold that no mailbox file names before the next whole rewrite writes a fresh
 /// one (16 MB; less in tests, so that small mailboxes get there).
@@ -95,6 +95,20 @@ pub(super) fn install(dir: &Path, current: Option<u32>, at: HashMap<Digest, Loc>
     lock(known()).insert(dir.to_path_buf(), Known { current, at, unsynced });
 }
 
+/// What a mailbox file somebody else wrote since it was read here says of the packs of `dir`
+/// (`at`, the highest pack it names `named`): taken over what was known, which may name packs
+/// that writer has since given up. What is known here and the file doesn't name stays (mail in
+/// memory may still have its block there); every place is checked against the pack before it is
+/// named again ([`Writer::place`]).
+pub(super) fn refresh(dir: &Path, named: Option<u32>, at: HashMap<Digest, Loc>) {
+    let mut all = lock(known());
+    let k = all.entry(dir.to_path_buf()).or_default();
+    k.at.extend(at);
+    // Appended to from now on: the pack the file names last, else the one known if it is there.
+    k.current = named.or(k.current.filter(|n| len(dir, *n) > 0));
+    k.unsynced = false;
+}
+
 /// Nothing is known of the packs of `dir` (the file there is of a form that names none).
 pub(super) fn forget(dir: &Path) {
     lock(known()).remove(dir);
@@ -124,44 +138,104 @@ pub(super) fn read(dir: &Path, r: &Ref) -> Option<Vec<u8>> {
 /// plain file (never a link), long enough, and bytes of that length with that SHA-256. Every
 /// number here came from a file anybody could have written.
 pub(super) fn read_at(dir: &Path, loc: Loc, r: &Ref) -> Option<Vec<u8>> {
-    if r.len > MAX_HEADER_BLOCK as u64 {
-        return None;
+    let mut file = name(loc.pack).and_then(|name| open_pack(&dir.join(name)).ok().flatten())?;
+    read_from(&mut file, loc, r).ok().flatten()
+}
+
+/// A pack opened for reading, and its length: `None` when there is no plain file of that name
+/// (never a link). An error is one of reading it now (no permission, a file in use, the disk),
+/// not of its not being there.
+fn open_pack(file: &Path) -> std::io::Result<Option<(fs::File, u64)>> {
+    let gone = |e: std::io::Error| if e.kind() == std::io::ErrorKind::NotFound { Ok(None) } else { Err(e) };
+    #[cfg(windows)]
+    let opened = {
+        use std::os::windows::fs::OpenOptionsExt as _;
+        // FILE_FLAG_OPEN_REPARSE_POINT: a link opens as itself, and then isn't a plain file.
+        match fs::OpenOptions::new().read(true).custom_flags(0x0020_0000).open(file) {
+            Ok(f) => f,
+            Err(e) => return gone(e),
+        }
+    };
+    #[cfg(not(windows))]
+    let opened = {
+        match fs::symlink_metadata(file) {
+            Ok(m) if m.file_type().is_file() => {}
+            Ok(_) => return Ok(None),
+            Err(e) => return gone(e),
+        }
+        match fs::File::open(file) {
+            Ok(f) => f,
+            Err(e) => return gone(e),
+        }
+    };
+    let meta = opened.metadata()?;
+    Ok(meta.file_type().is_file().then_some((opened, meta.len())))
+}
+
+/// The block `r` from `loc` in the open pack `file` (of that length): `None` when it isn't
+/// there or isn't what its name says, an error when it couldn't be read.
+fn read_from(file: &mut (fs::File, u64), loc: Loc, r: &Ref) -> std::io::Result<Option<Vec<u8>>> {
+    let (file, on_disk) = file;
+    let Ok(len) = usize::try_from(r.len) else { return Ok(None) };
+    if r.len > MAX_HEADER_BLOCK as u64 || loc.at.checked_add(r.len).is_none_or(|end| end > *on_disk) {
+        return Ok(None);
     }
-    let (mut file, on_disk) = open_plain(&dir.join(name(loc.pack)?))?;
-    if loc.at.checked_add(r.len)? > on_disk {
-        return None;
-    }
-    file.seek(SeekFrom::Start(loc.at)).ok()?;
-    let len = usize::try_from(r.len).ok()?;
+    file.seek(SeekFrom::Start(loc.at))?;
     let mut bytes = Vec::new();
-    bytes.try_reserve_exact(len).ok()?;
-    file.take(r.len).read_to_end(&mut bytes).ok()?;
-    (bytes.len() == len && Digest::of(&bytes) == r.hash).then_some(bytes)
+    if bytes.try_reserve_exact(len).is_err() {
+        return Ok(None);
+    }
+    std::io::Read::by_ref(file).take(r.len).read_to_end(&mut bytes)?;
+    Ok((bytes.len() == len && Digest::of(&bytes) == r.hash).then_some(bytes))
 }
 
 /// Write zeros over the block `r` where it is in the packs of `dir`, once the bytes there are
 /// checked to be it, and forget where it was: for a block nothing names any more whose lines are
 /// to leave the disk now (the mail of an account removed), not at the next fresh pack. Whether it
 /// was written over.
-pub(super) fn wipe(dir: &Path, r: &Ref) -> bool {
-    let Some(loc) = find(dir, &r.hash) else { return false };
-    if read_at(dir, loc, r).is_none() {
-        return false;
+/// The blocks are taken a pack at a time, through one handle and one flush for each (an account
+/// of tens of thousands of messages removed is not as many flushes). The blocks written over.
+pub(super) fn wipe(dir: &Path, refs: &[Ref]) -> Vec<Ref> {
+    let mut by_pack: HashMap<u32, Vec<(Loc, Ref)>> = HashMap::new();
+    {
+        let known = lock(known());
+        let Some(k) = known.get(dir) else { return Vec::new() };
+        for r in refs {
+            if let Some(loc) = k.at.get(&r.hash) {
+                by_pack.entry(loc.pack).or_default().push((*loc, *r));
+            }
+        }
     }
-    let Some(file) = name(loc.pack).map(|name| dir.join(name)) else { return false };
-    let Ok(len) = usize::try_from(r.len) else { return false };
-    let wiped = fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_file())
-        && fs::OpenOptions::new()
-            .write(true)
-            .open(&file)
-            .and_then(|mut f| {
-                f.seek(SeekFrom::Start(loc.at))?;
-                f.write_all(&vec![0u8; len])?;
-                f.sync_data()
-            })
-            .is_ok();
-    if wiped && let Some(k) = lock(known()).get_mut(dir) {
-        k.at.remove(&r.hash);
+    let mut wiped = Vec::new();
+    for (n, blocks) in by_pack {
+        let Some(path) = name(n).map(|name| dir.join(name)) else { continue };
+        // A plain file only, never a link; read and written through the one handle.
+        if !fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_file()) {
+            continue;
+        }
+        let Ok(f) = fs::OpenOptions::new().read(true).write(true).open(&path) else { continue };
+        let Ok(on_disk) = f.metadata().map(|m| m.len()) else { continue };
+        let mut file = (f, on_disk);
+        let mut here = Vec::new();
+        for (loc, r) in blocks {
+            // Only bytes checked to be the block: a stale place never has something else zeroed.
+            if !matches!(read_from(&mut file, loc, &r), Ok(Some(_))) {
+                continue;
+            }
+            let Ok(len) = usize::try_from(r.len) else { continue };
+            let zeroed = file.0.seek(SeekFrom::Start(loc.at)).and_then(|_| file.0.write_all(&vec![0u8; len]));
+            if zeroed.is_ok() {
+                here.push(r);
+            }
+        }
+        if !here.is_empty() && file.0.sync_data().is_ok() {
+            wiped.extend(here);
+        }
+    }
+    if let Some(k) = lock(known()).get_mut(dir) {
+        for r in &wiped {
+            k.at.remove(&r.hash);
+        }
     }
     wiped
 }
@@ -179,7 +253,6 @@ pub(super) struct Writer {
     /// The pack written to: `None` until the first block when a new one is to be made.
     pack: Option<u32>,
     file: Option<fs::File>,
-    end: u64,
     /// The pack was made by this writer: the folder is flushed with it.
     created: bool,
     /// A pack of its own, of only the blocks placed here (a whole rewrite giving space back):
@@ -188,6 +261,11 @@ pub(super) struct Writer {
     /// Blocks that aren't in memory are brought in from where they are (a whole rewrite).
     migrate: bool,
     placed: HashMap<Digest, Loc>,
+    /// How long each pack named by what is known was when this writer first looked: a place there
+    /// that goes past it isn't named again.
+    lens: HashMap<u32, u64>,
+    /// The pack blocks are brought in from, kept open from one to the next.
+    reader: Option<(u32, (fs::File, u64))>,
     /// Blocks read from content files of their own, to remove once a pack holds them.
     loose: Vec<Ref>,
     /// The pack an opening wrote into unflushed was flushed by [`Writer::sync`].
@@ -202,11 +280,12 @@ impl Writer {
             dir: dir.to_path_buf(),
             pack,
             file: None,
-            end: 0,
             created: false,
             fresh,
             migrate,
             placed: HashMap::new(),
+            lens: HashMap::new(),
+            reader: None,
             loose: Vec::new(),
             synced_known: false,
             wrote: 0,
@@ -234,23 +313,38 @@ impl Writer {
     /// now from `held` (its bytes in memory) or, when this writer brings blocks in, from where it
     /// is. `None`: it stays named as a content file of its own (the block isn't in memory and
     /// isn't in a pack, or can't be read: it is then unavailable, and kept named all the same).
+    ///
+    /// A place known from before is named again only when its pack is there and long enough for
+    /// it (another writer of the file may have given that pack up). A writer of a fresh pack fails
+    /// when a block known to be in a pack can't be read now (no permission, a file in use, the
+    /// disk): the pack it is in goes once the fresh one is named, and the block with it.
     pub(super) fn place(&mut self, r: &Ref, held: Option<&[u8]>) -> std::io::Result<Option<Loc>> {
         if let Some(loc) = self.placed.get(&r.hash) {
             return Ok(Some(*loc));
         }
-        if !self.fresh
-            && let Some(loc) = find(&self.dir, &r.hash)
-        {
-            return Ok(Some(loc));
-        }
         if r.len > MAX_HEADER_BLOCK as u64 {
             return Ok(None);
+        }
+        let known = find(&self.dir, &r.hash);
+        if !self.fresh
+            && let Some(loc) = known
+            && self.holds(loc, r)
+        {
+            return Ok(Some(loc));
         }
         let read: Vec<u8>;
         let bytes = match held {
             Some(bytes) => bytes,
             None if self.migrate => {
-                read = match self::read(&self.dir, r) {
+                let packed = match known {
+                    Some(loc) => match self.read_old(loc, r) {
+                        Ok(bytes) => bytes,
+                        Err(e) if self.fresh => return Err(e),
+                        Err(_) => None,
+                    },
+                    None => None,
+                };
+                read = match packed {
                     Some(bytes) => bytes,
                     None => match get_loose(&self.dir, r) {
                         Some(bytes) => {
@@ -272,6 +366,25 @@ impl Writer {
         Ok(Some(loc))
     }
 
+    /// Whether pack `loc.pack` is long enough to hold the block `r` at `loc.at`, by its length when
+    /// this writer first looked.
+    fn holds(&mut self, loc: Loc, r: &Ref) -> bool {
+        let on_disk = *self.lens.entry(loc.pack).or_insert_with(|| len(&self.dir, loc.pack));
+        loc.at.checked_add(r.len).is_some_and(|end| end <= on_disk)
+    }
+
+    /// The block `r` from `loc`, through a handle kept open for the next block of the same pack.
+    fn read_old(&mut self, loc: Loc, r: &Ref) -> std::io::Result<Option<Vec<u8>>> {
+        if self.reader.as_ref().is_none_or(|(n, _)| *n != loc.pack) {
+            let Some(file) = name(loc.pack).map(|name| self.dir.join(name)) else { return Ok(None) };
+            self.reader = open_pack(&file)?.map(|f| (loc.pack, f));
+        }
+        match &mut self.reader {
+            Some((_, file)) => read_from(file, loc, r),
+            None => Ok(None),
+        }
+    }
+
     /// The pack's file, opened (or made) for appending.
     fn open(&mut self) -> std::io::Result<u32> {
         if let (Some(n), Some(_)) = (self.pack, &self.file) {
@@ -291,11 +404,10 @@ impl Writer {
                 Err(_) => false,
             };
             let mut open = fs::OpenOptions::new();
-            open.append(true).create(!there);
+            open.read(true).append(true).create(!there);
             #[cfg(unix)]
             std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
             let f = open.open(&file)?;
-            self.end = f.metadata()?.len();
             self.created = !there;
             self.file = Some(f);
             return Ok(n);
@@ -311,9 +423,14 @@ impl Writer {
                 continue;
             }
             let file = self.dir.join(name(n).ok_or_else(|| std::io::Error::other("no such pack"))?);
-            match super::create_private(&file) {
+            let mut open = fs::OpenOptions::new();
+            open.read(true).append(true).create_new(true);
+            // Mail is private: nobody else on the machine reads it.
+            #[cfg(unix)]
+            std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
+            match open.open(&file) {
                 Ok(f) => {
-                    (self.pack, self.file, self.end, self.created) = (Some(n), Some(f), 0, true);
+                    (self.pack, self.file, self.created) = (Some(n), Some(f), true);
                     return Ok(n);
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -323,19 +440,25 @@ impl Writer {
         Err(std::io::Error::other("no name for a new pack"))
     }
 
-    /// Write `bytes` at the end of the pack; where they went.
+    /// Write `bytes` at the end of the pack; where they went. Where the end is, is asked of the
+    /// file itself, and what is there afterwards read back: a program without the window's lock
+    /// (the command line, an agent) appending to the same pack at the same moment makes this save
+    /// fail, never a mailbox file name the wrong bytes.
     fn append(&mut self, bytes: &[u8]) -> std::io::Result<Loc> {
         let pack = self.open()?;
-        let at = self.end;
-        let end = at.checked_add(bytes.len() as u64).ok_or_else(|| std::io::Error::other("the pack is full"))?;
+        let len = bytes.len() as u64;
         let file = self.file.as_mut().ok_or_else(|| std::io::Error::other("the pack isn't open"))?;
-        if let Err(e) = file.write_all(bytes) {
-            // What was written of it is named by nothing; the next block goes after it.
-            self.end = file.metadata().map_or(end, |m| m.len());
-            return Err(e);
+        let at = file.seek(SeekFrom::End(0))?;
+        at.checked_add(len).ok_or_else(|| std::io::Error::other("the pack is full"))?;
+        // (What was written of a block that failed is named by nothing; the next goes after it.)
+        file.write_all(bytes)?;
+        let on_disk = file.metadata()?.len();
+        let mut there = (file.try_clone()?, on_disk);
+        let r = Ref { hash: Digest::of(bytes), len };
+        if read_from(&mut there, Loc { pack, at }, &r)?.is_none() {
+            return Err(std::io::Error::other("the pack was written to by another program at the same time"));
         }
-        self.end = end;
-        self.wrote = self.wrote.saturating_add(bytes.len() as u64);
+        self.wrote = self.wrote.saturating_add(len);
         Ok(Loc { pack, at })
     }
 
