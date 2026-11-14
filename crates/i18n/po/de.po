@@ -2366,6 +2366,11 @@ msgid "Check Now"
 msgstr "Jetzt prüfen"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -5128,7 +5133,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
 msgstr ""
 
 #. interface
@@ -7448,6 +7453,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "Durch das Verschieben kommen sie in den Kalender Ihres Kontos, wo auch Outlook und Ihre anderen Geräte sie haben."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -8101,8 +8111,8 @@ msgstr "Niemand meldet sich gerade an"
 msgid "Nobody matches the search"
 msgstr "Niemand entspricht der Suche"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Niemand mit einer Adresse ist eingeladen"
@@ -10744,8 +10754,8 @@ msgstr "Zweite Zeitzone"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Um zu sehen, wann andere gebucht sind, ist Ihre Erlaubnis nötig: Datei › Informationen › Kalender und Kontakte verbinden"
@@ -13305,8 +13315,8 @@ msgstr "Der Server hat 1 Nachricht aus „{name}“ nicht herausgegeben"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "Der Server hat {count} Nachrichten aus „{name}“ nicht herausgegeben"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Der Server hat nicht mitgeteilt, wann andere gebucht sind"
@@ -13408,6 +13418,16 @@ msgstr ""
 #, fuzzy
 msgid "The server's name"
 msgstr "Der Name des Servers"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13818,8 +13838,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Dieser Build kann keinen Server fragen, wann andere gebucht sind: Nur Ihr eigener Kalender wird angezeigt."
@@ -14242,8 +14262,8 @@ msgstr "Diese Besprechung ist hier noch nicht in Ihrem Kalender. Sie kann beantw
 msgid "This meeting was called off by its organizer."
 msgstr "Diese Besprechung wurde von ihrem Organisator abgesagt."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "Der Kalender dieser Besprechung liegt auf diesem Computer, der nicht wissen kann, wann andere gebucht sind: Nur Ihr eigener Kalender wird angezeigt."
@@ -15291,6 +15311,11 @@ msgstr ""
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -15654,8 +15679,8 @@ msgstr "Sie haben sich als {signedIn} angemeldet, nicht als {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "Sie haben diese Besprechung mit Vorbehalt zugesagt."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 
@@ -16580,6 +16605,11 @@ msgstr "es ist beschädigt oder zu groß für die Anzeige"
 msgid "it is too large to show"
 msgstr "es ist zu groß für die Anzeige"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -17169,6 +17199,11 @@ msgid "that event doesn't repeat"
 msgstr "dieses Ereignis wiederholt sich nicht"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -17289,6 +17324,11 @@ msgstr "das Konto ist nicht mehr vorhanden"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "Der Server des Kontos hat keinen verwendbaren Namen"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -17519,6 +17559,11 @@ msgid "the message can't hold that much text"
 msgstr "die Nachricht kann nicht so viel Text aufnehmen"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the message has no HTML signature"
 msgstr ""
@@ -17577,8 +17622,23 @@ msgid "the parent folder belongs to another account"
 msgstr "der übergeordnete Ordner gehört zu einem anderen Konto"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 msgid "the places to replace are not places in the text"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
 msgstr ""
 
 #. what a command says
@@ -17643,7 +17703,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "Der Server hat auf einen Befehl geantwortet, der nicht gesendet wurde"
@@ -17673,7 +17733,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "Der Server hat nach mehr als einem Benutzernamen und einem Passwort gefragt"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "Der Server hat nach mehr gefragt, als der Befehl hatte"
@@ -17755,6 +17815,11 @@ msgstr "Der Server nimmt über diese Verbindung kein Passwort an"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "Der Server hat den Befehl vorzeitig beendet"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -17840,13 +17905,13 @@ msgid "the server sent nothing"
 msgstr "der Server hat nichts gesendet"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "Der Server hat zu viele Antworten auf einen Befehl gesendet"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "Der Server hat als Antwort auf einen Befehl zu viel gesendet"
@@ -17940,7 +18005,7 @@ msgid "the text can't be looked for on the server"
 msgstr "Nach dem Text kann auf dem Server nicht gesucht werden"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "Der Text enthält ein Zeichen, das nicht gesendet werden kann"
@@ -18628,6 +18693,21 @@ msgstr ""
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} ist ohne Verschlüsselung eingestellt, wodurch das Passwort für jeden im Netzwerk sichtbar wäre; wählen Sie TLS oder STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs

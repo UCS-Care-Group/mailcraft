@@ -2511,6 +2511,11 @@ msgid "Check Now"
 msgstr "立即查看"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
@@ -5423,9 +5428,8 @@ msgstr "此版本未配置 Google 登录。请改用应用密码。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7891,6 +7895,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr "移动后，这些项目将进入您账户的日历，并在 Outlook 和其他设备上同步显示。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "My Calendars"
@@ -8567,8 +8576,8 @@ msgstr "没有正在登录的账户"
 msgid "Nobody matches the search"
 msgstr "没有匹配搜索条件的联系人"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "没有邀请任何有地址的人员"
@@ -11375,8 +11384,8 @@ msgstr "第二时区"
 msgid "Security"
 msgstr "安全性"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "查看他人的忙闲状态需要您的许可：文件 › 信息 › 连接日历和联系人"
@@ -14134,8 +14143,8 @@ msgstr "服务器未提供“{name}”中的 1 封邮件"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "服务器未提供“{name}”中的 {count} 封邮件"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "服务器未提供其他人的忙闲信息"
@@ -14253,6 +14262,16 @@ msgstr "服务器证书尚未生效，MailCraft 无法连接。请检查此计�
 #, fuzzy
 msgid "The server's name"
 msgstr "服务器名称"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -14703,8 +14722,8 @@ msgstr "无法预览此附件。"
 msgid "This attachment is too large to preview."
 msgstr "此附件过大，无法预览。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "此版本无法向服务器查询其他人的忙闲信息：仅显示您自己的日历。"
@@ -15140,8 +15159,8 @@ msgstr "此会议尚未显示在您这里的日历中。显示后即可回复。
 msgid "This meeting was called off by its organizer."
 msgstr "此会议已被组织者取消。"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "此会议的日历保存在本机，无法查询其他人的忙闲状态，因此只显示您自己的日历。"
@@ -16261,6 +16280,11 @@ msgstr "您所写的内容已从此窗口中清除。"
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr "您输入的内容太长，无法放入 GitHub 链接。请缩短内容，并在 GitHub 上补充其余部分。"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16655,8 +16679,8 @@ msgstr "您以 {signedIn} 身份登录，而不是 {typed}。"
 msgid "You tentatively accepted this meeting."
 msgstr "您已暂定接受此会议。"
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工作”以连接。"
@@ -17645,6 +17669,11 @@ msgstr "图片已损坏或超过可显示的大小"
 msgid "it is too large to show"
 msgstr "图片过大，无法显示"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -18263,6 +18292,11 @@ msgid "that event doesn't repeat"
 msgstr "此日程不重复"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18393,6 +18427,11 @@ msgstr "此账户已不存在"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "此账户的服务器没有可用名称"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18641,6 +18680,11 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18701,10 +18745,25 @@ msgid "the parent folder belongs to another account"
 msgstr "上级文件夹属于另一个账户"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "要替换的位置不在文本范围内"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18773,7 +18832,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "服务器与 MailCraft 没有共同支持的加密方式；服务器可能只提供 MailCraft 不使用的旧加密方式（CBC 套件），其管理员可以启用 AES-GCM 套件"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "服务器应答了未发送的命令"
@@ -18803,7 +18862,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "服务器要求的内容超出用户名和密码所含的内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "服务器要求的内容超出命令所含的内容"
@@ -18885,6 +18944,11 @@ msgstr "服务器不接受在此连接中使用密码"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "服务器提前结束了命令"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18971,13 +19035,13 @@ msgid "the server sent nothing"
 msgstr "服务器没有发送任何内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "服务器对一个命令发送了太多响应"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "服务器响应一个命令发送了太多信息"
@@ -19073,7 +19137,7 @@ msgid "the text can't be looked for on the server"
 msgstr "无法在服务器上查找该文本"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "文本中包含无法发送的字符"
@@ -19796,6 +19860,21 @@ msgstr "{host} 位于您地址所在的域中，但它不是该域指定的自�
 #, fuzzy
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
 msgstr "{host} 未启用加密，网络上的任何人都可能看到密码；请选择 TLS 或 STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -20937,6 +21016,10 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 #, fuzzy
 #~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 #~ msgstr "{not_sending_yet}：请使用其他账户发送此邮件，或将其保存为草稿"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "当 Google 审核 MailCraft 时，Google 登录仅向受邀测试人员开放。如需加入，请发送电子邮件至 systems@ucscaregroup.co.uk。"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

@@ -1,0 +1,18 @@
+# The UniFFI binding generator, at the exact version `crates/mobile` is built with (the Kotlin
+# must come from the same version as the Rust). Not a member of the workspace: it has its own
+# lock file, so the generator's dependencies stay out of the program's tree.
+[package]
+name = "mailcraft-uniffi-bindgen"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/main.rs"
+
+[dependencies]
+uniffi = { version = "=0.32.2", features = ["cli"] }

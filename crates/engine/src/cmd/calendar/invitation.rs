@@ -354,7 +354,7 @@ fn answer_mark(message: &Message, code: &str, at: Timestamp) -> u64 {
 
 /// The answer that was noted on a message when the owner gave it, and when that was.
 fn noted_answer(s: &Session, message: &Message) -> Option<(Response, Timestamp)> {
-    let ours = |(_, value): &&(String, String)| {
+    let ours = |value: &str| {
         let mut words = value.split_whitespace();
         let response = Response::parse(words.next()?)?;
         let code = answer_code(response)?;
@@ -362,7 +362,9 @@ fn noted_answer(s: &Session, message: &Message) -> Option<(Response, Timestamp)>
         let mark = u64::from_str_radix(words.next()?, 16).ok()?;
         (mark == answer_mark(message, code, at) && at > 0 && at <= s.now().saturating_add(mailcraft_time::DAY)).then_some((response, at))
     };
-    message.headers.iter().rev().take(2_000).filter(|(name, _)| name.eq_ignore_ascii_case(ANSWER_HEADER)).find_map(|note| ours(&note))
+    // (The last noted is the one that counts.)
+    let notes: Vec<&str> = message.header_values(ANSWER_HEADER).collect();
+    notes.into_iter().rev().find_map(ours)
 }
 
 /// Note on a message what the owner answered, and when.
@@ -371,7 +373,7 @@ fn note_answer(s: &mut Session, message: Id, response: Response) {
     let Some(code) = answer_code(response) else { return };
     if let Ok(message) = s.mailbox.message_mut(message) {
         message.answered = true;
-        message.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(ANSWER_HEADER));
+        message.remove_header(ANSWER_HEADER);
         if message.headers.len() < 1_000 {
             let mark = answer_mark(message, code, now);
             message.headers.push((ANSWER_HEADER.to_string(), format!("{code} {now} {mark:016x}")));

@@ -888,7 +888,7 @@ fn frame(app: &mut MailApp) {
 /// look for something that waits to go out.
 fn by_itself_only_to_push(app: &mut MailApp) {
     app.session.prefs.sync_minutes = 0;
-    app.auto_sync = true;
+    app.session.driver.set_auto_sync(true);
 }
 
 #[test]

@@ -299,7 +299,7 @@ fn nothing_starts_sending_or_receiving_once_the_data_is_removed() {
         seen.fetch_add(1, Ordering::SeqCst);
         std::sync::mpsc::channel().1
     }));
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     a.sync_queue.push_back((1, true));
     a.execute("ui.removeAllData", json!({})).unwrap();
     assert!(a.sync_queue.is_empty(), "a run was still waiting its turn");

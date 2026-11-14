@@ -165,12 +165,12 @@ fn a_yes_for_the_automatic_replies_is_a_yes_for_the_rules_and_back() {
     assert!(app.dialog.is_none());
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
     // And back: a yes for the rules is one for the automatic replies.
-    app.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
+    app.session.driver.auto_replies.perm.insert(owner, crate::auto_replies::Permission::Declined);
     app.ask_rules_again(owner);
     app.dialog = None;
     app.run("ui.allowRules", json!({"account": owner, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert_eq!(app.auto_replies.perm.get(&owner), None);
+    assert_eq!(app.session.driver.auto_replies.perm.get(&owner), None);
 }
 
 /// Working offline, nothing of the rules goes to the server or is read from it, and the owner
@@ -395,7 +395,7 @@ fn changes_held_back_from_the_server_say_the_server_still_has_the_rule_as_it_was
     // The rule deleted here is said in the Rules window while it is still on the server.
     app.session.driver.rules.perm.insert(owner, Permission::Declined);
     app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let h = shown(app);
     let said = "1 rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).";
     assert!(h.query_by_label(said).is_some());
@@ -406,7 +406,7 @@ fn the_new_rule_is_not_filled_in_from_a_shared_mailboxs_message_or_an_id_that_is
     use mailcraft_model::sync::{FolderListing, GraphFolder, GraphMailResult};
     use mailcraft_model::{Address, FolderKind, Message};
     let (mut app, _, _, _, _) = window();
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let shared = app.execute("account.addSharedMailbox", json!({"address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
     let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
     let folders = vec![folder("t-in", "Inbox", FolderKind::Inbox), folder("t-ar", "Archive", FolderKind::Archive)];

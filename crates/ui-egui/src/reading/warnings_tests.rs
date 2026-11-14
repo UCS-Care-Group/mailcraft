@@ -75,7 +75,7 @@ fn window() -> Window {
     s.run("folder.select", &json!({"id": inbox})).unwrap();
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1400.0, 900.0)).build_ui_state(
             |ui, app: &mut MailApp| {

@@ -2091,6 +2091,11 @@ msgid "Check Now"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Check both servers before you connect."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
@@ -4506,7 +4511,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
 msgstr ""
 
 #. interface
@@ -6560,6 +6565,11 @@ msgid "Moving them puts them into your account's calendar, where Outlook and you
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "My Calendars"
 msgstr ""
@@ -7115,8 +7125,8 @@ msgstr ""
 msgid "Nobody matches the search"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "Nobody with an address is invited"
 msgstr ""
 
@@ -9438,8 +9448,8 @@ msgstr ""
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr ""
 
@@ -11737,8 +11747,8 @@ msgstr ""
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "The server didn't say when other people are busy"
 msgstr ""
 
@@ -11835,6 +11845,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The server's name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
 msgstr ""
 
 #. interface
@@ -12212,8 +12232,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr ""
 
@@ -12584,8 +12604,8 @@ msgstr ""
 msgid "This meeting was called off by its organizer."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr ""
 
@@ -13501,6 +13521,11 @@ msgstr ""
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -13824,8 +13849,8 @@ msgstr ""
 msgid "You tentatively accepted this meeting."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 
@@ -14658,6 +14683,11 @@ msgstr ""
 msgid "it is too large to show"
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "it looks for a name, and the server looks at addresses only"
@@ -15174,6 +15204,11 @@ msgid "that event doesn't repeat"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "that is the account's own address: name the shared mailbox's"
 msgstr ""
@@ -15281,6 +15316,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "the account's server has no usable name"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
 msgstr ""
 
 #. what a command says
@@ -15489,6 +15529,11 @@ msgid "the message can't hold that much text"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the message has no HTML signature"
 msgstr ""
@@ -15539,8 +15584,23 @@ msgid "the parent folder belongs to another account"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 msgid "the places to replace are not places in the text"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
 msgstr ""
 
 #. what a command says
@@ -15599,7 +15659,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server answered a command that wasn't sent"
 msgstr ""
 
@@ -15624,7 +15684,7 @@ msgid "the server asked for more than a user name and password"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server asked for more than the command had"
 msgstr ""
 
@@ -15691,6 +15751,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server ended the command early"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -15764,12 +15829,12 @@ msgid "the server sent nothing"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server sent too many responses to one command"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the server sent too much in answer to one command"
 msgstr ""
 
@@ -15849,7 +15914,7 @@ msgid "the text can't be looked for on the server"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 msgid "the text has a character that can't be sent"
 msgstr ""
 
@@ -16455,6 +16520,21 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
 msgstr ""
 
 #. date and time
