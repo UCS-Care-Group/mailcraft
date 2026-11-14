@@ -678,11 +678,18 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
                 crate::people_view::section(ui, tl!("Workplace"));
                 crate::people_view::field(ui, "address", &person.office, "", false);
             }
-            if !person.certificates.is_empty() {
+            // Only certificates that can be read: one that can't says nothing worth a line.
+            let readable: Vec<ContactKey> = person
+                .certificates
+                .iter()
+                .map(|der| ContactKey { kind: KeyKind::X509, data: der.to_vec(), ..ContactKey::default() })
+                .filter(|key| mailcraft_engine::cmd::keys::card_key_facts(key).format.is_some())
+                .collect();
+            if !readable.is_empty() {
                 crate::people_view::section(ui, tl!("Certificates"));
-                for der in &person.certificates {
-                    let key = ContactKey { kind: KeyKind::X509, data: der.to_vec(), ..ContactKey::default() };
-                    crate::security::card_key_line(app, ui, &key, &t);
+                for key in &readable {
+                    let der = &key.data;
+                    crate::security::card_key_line(app, ui, key, &t);
                     if mailcraft_engine::cmd::keys::card_key_from(der).is_err() {
                         ui.label(
                             RichText::new(tl!("Not for mail, or an authority's: Add to Contacts leaves it out."))

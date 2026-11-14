@@ -394,7 +394,8 @@ fn certificates_are_shown_and_go_onto_the_contacts_card() {
     let alice: &[u8] = include_bytes!("../../smime/testdata/alice.sign.der");
     let authority: &[u8] = include_bytes!("../../smime/testdata/ca.rsa.der");
     let mut person = person("Alice Example", "alice@smime.example");
-    person.certificates = vec![Arc::new(alice.to_vec()), Arc::new(authority.to_vec())];
+    // (The third has the shape of one but isn't: it isn't shown.)
+    person.certificates = vec![Arc::new(alice.to_vec()), Arc::new(authority.to_vec()), Arc::new(vec![0x30, 0x03, 0x02, 0x01, 0x01])];
     let (app, _, _) = window_with(false, Some(vec![person]));
     let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
         |ui, app: &mut MailApp| {
@@ -410,6 +411,7 @@ fn certificates_are_shown_and_go_onto_the_contacts_card() {
     h.run_steps(2);
     // Each in a line of its own, saying who issued it.
     assert_eq!(h.query_all_by_label_contains("issued by").count(), 2);
+    assert!(h.query_by_label_contains("can't be read").is_none());
     // The authority's is said to stay behind.
     assert_eq!(h.query_all_by_label_contains("Add to Contacts leaves it out").count(), 1);
     h.get_by_label("Add to Contacts").click();
