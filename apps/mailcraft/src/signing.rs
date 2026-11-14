@@ -35,8 +35,8 @@ use std::time::Duration;
 
 use mailcraft_model::digital_signature::SignatureFormat;
 use mailcraft_model::signing::{SigningKey, Unsigned};
-use mailcraft_model::sync::{SendDone, SendOutcome, SendUp};
-use mailcraft_model::{Message, Original};
+use mailcraft_model::sync::{EwsMailResult, SendDone, SendOutcome, SendUp, SyncRequest, SyncResult};
+use mailcraft_model::{Id, Message, Original};
 use mailcraft_ui_egui::digital_signatures::{SigningChoice, SigningHost};
 use mailcraft_ui_egui::own_keys::KeyPlace;
 
@@ -124,6 +124,41 @@ impl SigningHost for Host {
 /// Seconds since 1970 now.
 fn now() -> i64 {
     key_holders::now().and_then(|n| i64::try_from(n).ok()).unwrap_or(0)
+}
+
+/// [`sign`] by the program's own host, now.
+pub(crate) fn sign_now(m: &mut Message) -> Result<(), String> {
+    sign(&host(), m, now())
+}
+
+/// An IMAP run (Send/Receive) with what is to go Digitally signed signed first: those that can't
+/// be are taken out of the Outbox and said in a piece of their own, handed over before the run
+/// (`deliver`; false: nobody listens any more, and nothing more is done), then `run` does the
+/// rest with what is left, handing its pieces over the same way. That first piece is never the
+/// last (`partial`): the window stops listening at the last, and the rest of the Outbox goes
+/// after it, whose answers would be lost and the messages sent again at the next run.
+pub(crate) fn signed_run(
+    mut request: SyncRequest,
+    sign: &dyn Fn(&mut Message) -> Result<(), String>,
+    run: impl FnOnce(&SyncRequest, &mut dyn FnMut(SyncResult)),
+    deliver: &mut dyn FnMut(SyncResult) -> bool,
+) {
+    let unsigned = sign_outbox_with(&mut request.outbox, sign);
+    if !unsigned.is_empty() {
+        let piece = SyncResult { account: request.account.id, email: request.account.email.clone(), unsigned, partial: true, ..Default::default() };
+        if !deliver(piece) {
+            return;
+        }
+    }
+    run(&request, &mut |piece| {
+        deliver(piece);
+    });
+}
+
+/// What an Exchange run hands over first when some of its sends couldn't be signed: those held,
+/// with why. Never the last piece (`partial`), as for [`signed_run`]: the rest of the run follows.
+pub(crate) fn held_piece(account: Id, email: String, held: Vec<SendDone>) -> Option<EwsMailResult> {
+    (!held.is_empty()).then(|| EwsMailResult { account, email, sent: held, partial: true, ..Default::default() })
 }
 
 /// Sign the Outbox messages of an IMAP or a Graph run that are to be signed; those that can't be

@@ -5,7 +5,7 @@
 
 use mailcraft_model::digital_signature::SignatureFormat;
 use mailcraft_model::signing::SigningKey;
-use mailcraft_model::sync::{SendOutcome, SendUp};
+use mailcraft_model::sync::{SendOutcome, SendUp, SyncRequest, SyncResult};
 use mailcraft_model::{Address, Body, Message};
 use mailcraft_ui_egui::digital_signatures::SigningHost;
 
@@ -113,4 +113,47 @@ fpr:::::::::1111111111111111111111111111111111111111:\n";
     };
     assert_eq!(hex(listing), ["0123456789ABCDEF0123456789ABCDEF01234567"], "primary keys only; a subkey's and a broken one aren't");
     assert!(hex(&[0xFF; 64]).is_empty());
+}
+
+/// Security review of #1036: a message that can't be signed is said in a piece that isn't the
+/// run's last, so the window keeps listening while the rest of the Outbox goes, and the run's own
+/// last piece still comes and is the only last one (else what was sent after it is sent again).
+#[test]
+fn a_message_that_cant_be_signed_doesnt_end_the_run_for_the_rest_of_the_outbox() {
+    let mut request = SyncRequest { outbox: vec![message(2, true), message(3, false)], ..Default::default() };
+    request.account.id = 7;
+    let mut pieces: Vec<SyncResult> = Vec::new();
+    let mut ran_with = Vec::new();
+    signed_run(
+        request,
+        &stand_in,
+        |request, deliver| {
+            ran_with = request.outbox.iter().map(|m| m.id).collect();
+            deliver(SyncResult { account: 7, sent: vec![3], partial: true, ..Default::default() });
+            deliver(SyncResult { account: 7, ..Default::default() });
+        },
+        &mut |piece| {
+            pieces.push(piece);
+            true
+        },
+    );
+    assert_eq!(ran_with, [3], "the message that couldn't be signed is out of the run, the other goes");
+    assert_eq!(pieces.len(), 3);
+    assert_eq!(pieces[0].unsigned.iter().map(|u| u.message).collect::<Vec<_>>(), [2]);
+    assert!(pieces[0].partial, "the held message's piece isn't the last");
+    assert_eq!(pieces[1].sent, [3], "what went after it is said");
+    assert_eq!(pieces.iter().filter(|p| !p.partial).count(), 1, "one last piece");
+    assert!(pieces.last().is_some_and(|p| !p.partial), "and it is the run's own, at the end");
+
+    // Nobody listening: nothing more is done.
+    let mut ran = false;
+    let request = SyncRequest { outbox: vec![message(2, true)], ..Default::default() };
+    signed_run(request, &stand_in, |_, _| ran = true, &mut |_| false);
+    assert!(!ran);
+
+    // An Exchange run's piece for what it couldn't sign isn't its last either.
+    let held = held_sends(vec![mailcraft_model::signing::Unsigned { message: 2, why: "no PIN".into() }]);
+    let piece = held_piece(7, "owner@example.org".into(), held).unwrap();
+    assert!(piece.partial && piece.sent.len() == 1);
+    assert!(held_piece(7, String::new(), Vec::new()).is_none(), "nothing held, no piece");
 }

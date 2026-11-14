@@ -1105,26 +1105,21 @@ fn services(
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
                 // What is to go Digitally signed is signed first; what can't be is held (#30).
-                let mut request = request;
-                let unsigned = signing::sign_outbox(&mut request.outbox);
-                if !unsigned.is_empty() {
-                    let piece = mailcraft_model::sync::SyncResult {
-                        account: request.account.id,
-                        email: request.account.email.clone(),
-                        unsigned,
-                        ..Default::default()
-                    };
-                    if tx.send(piece).is_err() {
-                        return;
-                    }
-                }
-                mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
+                let mut deliver = |piece| {
                     // Nobody is listening any more (the window closed): stop.
-                    if tx.send(piece).is_err() {
+                    let listening = tx.send(piece).is_ok();
+                    if !listening {
                         cancel.store(true, Ordering::Relaxed);
                     }
                     wake.request_repaint();
-                });
+                    listening
+                };
+                signing::signed_run(
+                    request,
+                    &signing::sign_now,
+                    |request, deliver| mailcraft_net::sync_with(request, &cancel, deliver),
+                    &mut deliver,
+                );
             });
             // A dropped sender reads as "stopped unexpectedly" in the app.
             if let Err(e) = spawned {
