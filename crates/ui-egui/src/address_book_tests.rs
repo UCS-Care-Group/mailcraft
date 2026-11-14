@@ -71,6 +71,8 @@ fn window_with(hold: bool, list: Option<Vec<DirectoryPerson>>) -> (MailApp, Id, 
     app.passwords.insert(account, "an invented password".into());
     let asked: Asked = Arc::new(Mutex::new(Vec::new()));
     let log = asked.clone();
+    // A held look-up's sender is kept here, so that it neither answers nor hangs up.
+    let held = Mutex::new(Vec::new());
     app.services.ews_resolve = Some(Box::new(move |job| {
         log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
         let (tx, rx) = std::sync::mpsc::channel();
@@ -87,7 +89,7 @@ fn window_with(hold: bool, list: Option<Vec<DirectoryPerson>>) -> (MailApp, Id, 
             };
             tx.send(result).unwrap();
         } else if hold {
-            std::mem::forget(tx);
+            held.lock().unwrap().push(tx);
         } else {
             let text = job.request.texts.first().cloned().unwrap_or_default();
             tx.send(EwsResolveResult { account: job.request.account, found: answer(&text), ..Default::default() }).unwrap();
