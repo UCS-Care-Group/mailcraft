@@ -10989,7 +10989,7 @@ msgstr "Gesendet an"
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Sent to the MailCraft team privately. If it's a real problem we may make it public on GitHub, with what you wrote and the diagnostics, so we can track it. Leave out anything private."
-msgstr "Der Bericht wurde vertraulich an das MailCraft-Team gesendet. Wenn es sich um ein tatsächliches Problem handelt, veröffentlichen wir ihn möglicherweise zusammen mit Ihrer Beschreibung und den Diagnoseinformationen auf GitHub, damit wir den Vorgang verfolgen können. Lassen Sie vertrauliche Angaben weg."
+msgstr "Der Bericht wurde vertraulich an das MailCraft-Team gesendet. Wenn es sich um ein tatsächliches Problem handelt, veröffentlichen wir ihn möglicherweise zusammen mit Ihrer Beschreibung und den Diagnosedaten auf GitHub, damit wir den Vorgang verfolgen können. Lassen Sie vertrauliche Angaben weg."
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -12692,17 +12692,17 @@ msgstr "Zum Tag dieser Besprechung kann der Kalender des Kontos nicht abgefragt 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics are too long for a report. Untick Include diagnostics, or open it on GitHub."
-msgstr "Die Diagnoseinformationen sind zu umfangreich für einen Bericht. Deaktivieren Sie „Diagnoseinformationen einschließen“ oder öffnen Sie den Bericht auf GitHub."
+msgstr "Die Diagnosedaten sind zu umfangreich für einen Bericht. Deaktivieren Sie „Diagnosedaten einschließen“ oder öffnen Sie den Bericht auf GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics couldn't be saved: {error}"
-msgstr "Die Diagnoseinformationen konnten nicht gespeichert werden: {error}"
+msgstr "Die Diagnosedaten konnten nicht gespeichert werden: {error}"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics."
-msgstr "Die Diagnoseinformationen wurden nicht gespeichert, daher wurde die GitHub-Seite nicht geöffnet. Versuchen Sie es erneut oder deaktivieren Sie „Diagnoseinformationen einschließen“."
+msgstr "Die Diagnosedaten wurden nicht gespeichert, daher wurde die GitHub-Seite nicht geöffnet. Versuchen Sie es erneut oder deaktivieren Sie „Diagnosedaten einschließen“."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14250,7 +14250,7 @@ msgstr "Dadurch wird alles entfernt, was MailCraft auf diesem Computer speichert
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "This report is too long to send: shorten what you wrote, or untick Include diagnostics."
-msgstr "Dieser Bericht ist zu lang zum Senden: Kürzen Sie Ihre Beschreibung oder deaktivieren Sie „Diagnoseinformationen einschließen“."
+msgstr "Dieser Bericht ist zu lang zum Senden: Kürzen Sie Ihre Beschreibung oder deaktivieren Sie „Diagnosedaten einschließen“."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
