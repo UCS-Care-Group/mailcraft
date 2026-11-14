@@ -150,6 +150,9 @@ mod tasks_remote_tests;
 #[cfg(test)]
 mod tasks_tests;
 mod thread_ids;
+pub mod unsubscribe;
+#[cfg(test)]
+mod unsubscribe_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -197,6 +200,7 @@ pub fn registry() -> Registry {
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());

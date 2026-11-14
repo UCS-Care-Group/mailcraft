@@ -457,6 +457,12 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "O întâlnire care se repetă și sare peste unele zile nu poate fi pusă de aici în calendarul serverului: fiecare invitat ar primi câte o anulare pentru fiecare zi sărită. Păstrați-o într-un calendar de pe acest computer sau creați-o din nou fără zilele sărite."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr "Un mesaj care cere dezabonarea pleacă de la {from} către {to}, prin Mesaje de trimis."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -1246,6 +1252,12 @@ msgid "An item that repeats can't be taken to another calendar this way. Hold Ct
 msgstr "Un element care se repetă nu poate fi dus în alt calendar în acest fel. Țineți apăsat Ctrl ca să copiați acolo această apariție sau folosiți Mutare în calendar din meniul lui pentru toată seria."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "An unsubscribe is already on its way."
+msgstr "O dezabonare este deja în curs."
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
@@ -1629,6 +1641,12 @@ msgstr "Cereți încă o dată imaginile care nu au putut fi descărcate."
 #, fuzzy
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Cereți acum serverului contului calendarul din jurul acestei întâlniri."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr "Cereți listei să nu vă mai trimită mesaje. MailCraft întreabă înainte și spune cum."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5105,6 +5123,12 @@ msgstr "De la"
 msgid "From Sender"
 msgstr "De la expeditor"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "De la o listă de corespondență."
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6275,6 +6299,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "Ajunge pe server după ce MailCraft are voie să modifice regulile serverului (Fișier › Informații › Întrebați din nou); până atunci rulează pe acest computer, cât timp MailCraft e deschis."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "Pleacă la următoarea Trimitere/primire; apoi lista vă scoate."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6399,6 +6429,12 @@ msgstr "Mesajele lui din alte dosare rămân unde sunt."
 #, fuzzy
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr "Mesajele, atașamentele, setările și conectarea memorată pleacă odată cu el, la fel calendarul, contactele, sarcinile și programul de lucru venite de pe serverul lui."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr "Subiect: „{subject}”. Text: „{body}”."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7214,6 +7250,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr "MailCraft citește cheia fără fraza de acces și păstrează fișierul, protejat în continuare de ea, în depozitul de acreditări al sistemului. Cheia trebuie să aibă o frază de acces și să semneze cu Ed25519 sau ECDSA; MailCraft cere fraza de acces la semnare."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft trimite către {host} adresa pe care lista a dat-o pentru dezabonare, care vă poate identifica în fața ei, și nimic altceva: niciun cookie, nicio autentificare. Ca orice conexiune, arată și adresa dvs. de internet."
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7523,7 +7565,7 @@ msgstr[1] "Îmbinare {n} contacte…"
 msgstr[2] "Îmbinare {n} de contacte…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mesaj"
@@ -8806,6 +8848,12 @@ msgid "Not saved"
 msgstr "Nesalvat"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Not unsubscribed."
+msgstr "Dezabonare nereușită."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Not verified"
@@ -9121,6 +9169,12 @@ msgstr "Întâlnire online"
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Doar o întâlnire pe care o organizați are Găsire oră"
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr "De aici se trimite doar o dezabonare prin e-mail: un clic și o pagină web trec prin fereastră."
+
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
@@ -9376,6 +9430,12 @@ msgstr "Deschideți întâlnirea cu ora propusă completată. Nu se trimite nimi
 #, fuzzy
 msgid "Open the message"
 msgstr "Deschideți mesajul"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Open the page"
+msgstr "Deschideți pagina"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9634,6 +9694,12 @@ msgstr "Pagina în jos"
 #, fuzzy
 msgid "Page Up"
 msgstr "Pagina în sus"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "Pagină deschisă."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10746,6 +10812,12 @@ msgid "Request a Read Receipt"
 msgstr "Solicitare confirmare de citire"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "Cerere în Mesaje de trimis."
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Required"
@@ -11552,7 +11624,7 @@ msgid "Select a meeting first"
 msgstr "Selectați întâi o întâlnire"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "Selectați întâi un mesaj"
@@ -11576,7 +11648,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "Selectați mesajul înainte de a-i previzualiza atașamentul."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "Trimitere"
@@ -13959,6 +14031,18 @@ msgid "The list of senders is full: remove some in File › Options"
 msgstr "Lista de expeditori este plină: eliminați câțiva din Fișier › Opțiuni"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server didn't take the request: {why}."
+msgstr "Serverul listei nu a acceptat cererea: {why}."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr "Serverul listei a acceptat cererea. Mesajele pot înceta abia după câteva zile."
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "The local program receives the selected attachment and runs with your permissions."
@@ -14602,7 +14686,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "Numele de utilizator este prea lung sau conține un caracter pe care un nume nu îl poate avea"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "Fereastra nu este încă deschisă."
@@ -14768,6 +14852,12 @@ msgstr "Acest cont nu folosește conectarea Google."
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "Acest cont nu își păstrează regulile pe server"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "Acest cont nu trimite e-mail din MailCraft, deci nu se poate dezabona prin e-mail."
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -14959,6 +15049,12 @@ msgstr "Această versiune nu poate accesa serverul pentru a modifica răspunsuri
 #, fuzzy
 msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "Această versiune nu se poate conecta la acest tip de cont. Folosiți aplicația desktop."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "Această versiune nu se poate dezabona cu un clic."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -15231,6 +15327,18 @@ msgid "This link goes somewhere other than its text says."
 msgstr "Acest link duce în altă parte decât spune textul lui."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "Această listă dezabonează pe propria pagină, la {host}. Se deschide în browser: vizitarea ei îi spune listei că această adresă este citită."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "Pagina acestei liste nu poate fi deschisă."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This mailbox is in Microsoft 365"
@@ -15356,11 +15464,23 @@ msgstr "Acest mesaj nu anulează o întâlnire."
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Acest mesaj nu propune altă oră pentru o întâlnire."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "Acest mesaj nu spune cum vă puteți dezabona."
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "Acest mesaj se descarcă după ce ajung mesajele care se descarcă acum."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "Acest mesaj are un avertisment despre expeditor: mutați-l în E-mail nedorit în loc să vă dezabonați."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15379,6 +15499,12 @@ msgstr "Acest mesaj are imagini pe web. Această versiune nu le poate descărca.
 #, fuzzy
 msgid "This message hasn't been sent."
 msgstr "Acest mesaj nu a fost trimis."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Acest mesaj este în E-mail nedorit: ștergeți-l în loc să vă dezabonați."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15875,7 +16001,7 @@ msgid "Try Signing In Again"
 msgstr "Încercați din nou conectarea"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Încercați din nou"
@@ -16045,6 +16171,30 @@ msgstr "Modificări nesalvate"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Mesaj nesalvat"
+
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe"
+msgstr "Dezabonare"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "Dezabonați-vă pe pagina listei, în browser."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribed."
+msgstr "Dezabonat."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing…"
+msgstr "Dezabonare în curs…"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -16911,6 +17061,12 @@ msgstr "Serverul de e-mail a verificat de unde a venit acest mesaj și verificar
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "Serverul dvs. de e-mail nu garantează că acest mesaj vine de la expeditor, deci linkul de dezabonare nu este folosit."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18406,7 +18562,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selectați întâi o conversație în vizualizarea pe conversații"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selectați întâi un mesaj"
@@ -18525,6 +18681,12 @@ msgid "that message isn't held"
 msgstr "acel mesaj nu este reținut"
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "that message isn't here"
+msgstr "acel mesaj nu este aici"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
 msgid "that was only looked at, not read in full"
@@ -18591,7 +18753,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "contul nu are nume de utilizator sau adresă de e-mail cu care să se conecteze"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "contul nu mai există"
@@ -18944,6 +19106,12 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "sfârșitul propus nu este după începutul propus"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "the request was lost"
+msgstr "cererea s-a pierdut"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -19497,7 +19665,7 @@ msgid "this account has no Drafts folder"
 msgstr "acest cont nu are dosar Ciorne"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "acest cont nu are dosar Mesaje de trimis"

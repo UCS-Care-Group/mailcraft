@@ -130,6 +130,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
+    ("ui.unsubscribe", "{}", Setup::None),
+    ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),

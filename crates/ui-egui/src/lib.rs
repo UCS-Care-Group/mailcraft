@@ -465,6 +465,11 @@ pub struct Services {
     /// window no longer wants it, and the host asks nothing more for it.
     /// Absent in the browser and the tests: senders keep their initials.
     pub sender_images: Option<Box<dyn Fn(String, std::sync::Weak<()>) -> Receiver<Result<Vec<u8>, String>>>>,
+    /// Desktop: RFC 8058's one-click unsubscribe, `POST`ed to the `https:` address a message
+    /// gave, on a background thread, as the owner asked (`mailcraft_net::pictures::unsubscribe`:
+    /// public hosts only, no redirect, size and time capped). The answer, or why there is none,
+    /// arrives through the channel. Absent in the browser and the tests: one click isn't offered.
+    pub unsubscribe: Option<Box<dyn Fn(String) -> Receiver<Result<(), String>>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -1299,6 +1304,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Find a Time page), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for Find a Time} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
     ),
     (
+        "ui.unsubscribe",
+        "Unsubscribe",
+        "Message",
+        r#"{"message"?: number (default: the selected message)} — as its List-Unsubscribe headers say, after the owner's yes: one click posts to the list's server (desktop), by mail puts the request in the Outbox (`mail.unsubscribe`), a web page opens in the browser; answers {"message", "way", "started"? (oneClick: the answer comes later, on the bar above the message), "sent"? (mail), "url"? (page)}. Refused for mail its server doesn't vouch for, or with a sender warning"#,
+    ),
+    (
         "ui.downloadPictures",
         "Download Pictures",
         "Message",
@@ -1729,6 +1740,8 @@ pub struct MailApp {
     pub(crate) windows: windows::Windows,
     /// Pictures from the web: which messages may show them, and the ones on their way.
     pub(crate) remote_pictures: reading::RemotePictures,
+    /// The one-click unsubscribe on its way, and what came of the last one (#1207).
+    pub(crate) unsubscribing: reading::unsubscribe::Unsubscribing,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
     /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
@@ -1907,6 +1920,7 @@ impl MailApp {
             refused: None,
             windows: Default::default(),
             remote_pictures: Default::default(),
+            unsubscribing: Default::default(),
             sender_images: Default::default(),
             out_of_sight: Default::default(),
             text_selection: Default::default(),

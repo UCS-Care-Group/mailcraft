@@ -457,6 +457,12 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "无法从这里将跳过部分日期的重复会议放到服务器日历中：所有受邀者都会收到每个跳过日期的取消通知。请将其保存在此计算机的日历中，或重新创建不跳过日期的会议。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr "一封请求退订的邮件将通过发件箱从 {from} 发送到 {to}。"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -1244,6 +1250,12 @@ msgid "An item that repeats can't be taken to another calendar this way. Hold Ct
 msgstr "无法通过此方式将重复项目移动到其他日历。按住 Ctrl 可将此次日程复制到目标日历；要移动整个系列，请使用菜单中的“移动到日历”。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "An unsubscribe is already on its way."
+msgstr "退订请求已在处理中。"
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
@@ -1624,6 +1636,12 @@ msgstr "再次请求下载未能下载的图片。"
 #, fuzzy
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "立即向账户服务器查询此会议附近的日历日程。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr "请邮件列表停止向你发送邮件。MailCraft 会先询问你，并说明方式。"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5088,6 +5106,12 @@ msgstr "发件人"
 msgid "From Sender"
 msgstr "来自发件人"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "来自邮件列表。"
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6254,6 +6278,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "获得更改服务器规则的权限后，规则将发送到服务器（文件 › 信息 › 再次询问）；在此之前，只在 MailCraft 打开时于此计算机运行。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "它会在下次发送/接收时发出，之后邮件列表会将你移除。"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6378,6 +6408,12 @@ msgstr "其他文件夹中的邮件保留在原来的位置。"
 #, fuzzy
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr "其邮件、附件、设置和记住的登录信息也会一并删除；来自服务器的日历、联系人、任务和工作时间亦然。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr "主题：“{subject}”。正文：“{body}”。"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7191,6 +7227,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr "MailCraft 读取密钥时无需输入密码短语，并将仍受密码短语保护的文件保存在系统凭据存储中。密钥必须设置密码短语，并使用 Ed25519 或 ECDSA 签名；签名时 MailCraft 会要求输入密码短语。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft 只会把此列表提供的退订地址发送给 {host}，该地址可能让对方识别出你，此外不发送任何内容：没有 Cookie，也不登录。与任何连接一样，它也会显示你的 IP 地址。"
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7496,7 +7538,7 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8770,6 +8812,12 @@ msgid "Not saved"
 msgstr "未保存"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Not unsubscribed."
+msgstr "未退订。"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Not verified"
@@ -9085,6 +9133,12 @@ msgstr "线上会议"
 msgid "Only a meeting you organize has Find a Time"
 msgstr "只有您组织的会议才有“查找时间”"
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr "这里只发送通过邮件的退订：一键退订和网页退订由窗口处理。"
+
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
@@ -9340,6 +9394,12 @@ msgstr "打开会议并填入建议的时间。在您于该窗口中发送更新
 #, fuzzy
 msgid "Open the message"
 msgstr "打开邮件"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Open the page"
+msgstr "打开页面"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9598,6 +9658,12 @@ msgstr "向下翻页"
 #, fuzzy
 msgid "Page Up"
 msgstr "向上翻页"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "页面已打开。"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10708,6 +10774,12 @@ msgid "Request a Read Receipt"
 msgstr "请求已读回执"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "请求已放入发件箱。"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Required"
@@ -11512,7 +11584,7 @@ msgid "Select a meeting first"
 msgstr "请先选择会议"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "请先选择一封邮件"
@@ -11536,7 +11608,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "请先选择邮件，再预览其附件。"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "发送"
@@ -13908,6 +13980,18 @@ msgid "The list of senders is full: remove some in File › Options"
 msgstr "发件人列表已满：在“文件” › “选项”中删除一些发件人"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server didn't take the request: {why}."
+msgstr "列表的服务器没有接受该请求：{why}。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr "列表的服务器已接受该请求。其邮件可能需要几天才会停止。"
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "The local program receives the selected attachment and runs with your permissions."
@@ -14551,7 +14635,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "用户名太长或包含名称中不能包含的字符"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "窗口尚未打开。"
@@ -14717,6 +14801,12 @@ msgstr "此账户不使用 Google 登录。"
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "此账户的规则不保存在服务器上"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "此账户不从 MailCraft 发送邮件，因此无法通过邮件退订。"
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -14908,6 +14998,12 @@ msgstr "此版本无法连接服务器以更改自动回复。请使用桌面应
 #, fuzzy
 msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "此版本无法登录此类账户。请使用桌面应用。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "此版本无法一键退订。"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -15168,6 +15264,18 @@ msgid "This link goes somewhere other than its text says."
 msgstr "此链接的实际目标与显示文字所示的地址不同。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "此列表在其自己的页面上退订，位于 {host}。它会在你的浏览器中打开：访问该页面会让列表知道此地址有人在阅读。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "无法打开此列表的页面。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This mailbox is in Microsoft 365"
@@ -15293,11 +15401,23 @@ msgstr "此邮件并非取消会议的通知。"
 msgid "This message doesn't propose another time for a meeting."
 msgstr "此邮件并未提出其他会议时间。"
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "此邮件没有说明如何退订。"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "当前正在下载的邮件完成后，会下载此邮件。"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "此邮件有关于其发件人的警告：请将其移到垃圾邮件，而不是退订。"
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15316,6 +15436,12 @@ msgstr "此邮件包含网络图片，此版本无法下载。"
 #, fuzzy
 msgid "This message hasn't been sent."
 msgstr "此邮件尚未发送。"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "此邮件位于垃圾邮件中：请删除它，而不是退订。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15812,7 +15938,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -15982,6 +16108,30 @@ msgstr "未保存的更改"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "未保存的邮件"
+
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe"
+msgstr "退订"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "在浏览器中打开列表的页面退订。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribed."
+msgstr "已退订。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing…"
+msgstr "正在退订…"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -16849,6 +16999,12 @@ msgstr "邮件服务器检查了此邮件的来源，但检查未通过：发件
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "你的邮件服务器无法证实此邮件来自其发件人，因此不会使用其退订链接。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18339,7 +18495,7 @@ msgid "select a conversation in conversation view first"
 msgstr "首先在对话视图中选择一个对话"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
@@ -18458,6 +18614,12 @@ msgid "that message isn't held"
 msgstr "此邮件未被保留"
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "that message isn't here"
+msgstr "该邮件不在这里"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
 msgid "that was only looked at, not read in full"
@@ -18524,7 +18686,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
@@ -18877,6 +19039,12 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "建议的结束时间必须晚于建议的开始时间"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "the request was lost"
+msgstr "请求已丢失"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -19430,7 +19598,7 @@ msgid "this account has no Drafts folder"
 msgstr "此账户没有“草稿”文件夹"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "此账户没有“发件箱”文件夹"

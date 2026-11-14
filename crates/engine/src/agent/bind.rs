@@ -84,6 +84,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.neverBlockDomain"
         | "rules.fromMessage"
         | "ui.downloadPictures"
+        | "ui.unsubscribe"
+        | "mail.unsubscribe"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,
