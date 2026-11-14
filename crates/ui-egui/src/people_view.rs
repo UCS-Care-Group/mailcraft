@@ -287,11 +287,17 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     ui: &mut Ui,
     layout: &Layout<G>,
     reveal: Option<(Id, u16)>,
+    overlay_scroll_bars: bool,
     label: impl Fn(G) -> String,
     mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
+    let plain = ui.style().clone();
+    if overlay_scroll_bars {
+        crate::widgets::overlay_scroll_style(ui, &t);
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        ui.set_style(plain.clone());
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
         if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
@@ -307,6 +313,7 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
             row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+    ui.set_style(plain);
 }
 
 /// The contact list as laid out, with the names of the categories its headings stand for when it
@@ -588,7 +595,14 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     let labelled = labelled(app);
-    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+    show_rows(
+        ui,
+        layout,
+        reveal,
+        app.overlay_scroll_bars,
+        |g| group_label(g, &layout.names),
+        |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled),
+    );
 }
 
 /// Whether each row says where its contact is: every account's contacts are in one list.
