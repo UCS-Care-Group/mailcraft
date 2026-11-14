@@ -3861,7 +3861,7 @@ msgstr "პასუხების მიმართვა"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Discard"
-msgstr "გადაგდება"
+msgstr "უარყოფა"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
@@ -11297,25 +11297,25 @@ msgstr "მონახაზის შენახვა"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Save or discard changes here before reconnecting."
-msgstr "ხელახლა დაკავშირებამდე შეინახეთ ან გააუქმეთ აქ შეტანილი ცვლილებები."
+msgstr "ხელახლა დაკავშირებამდე შეინახეთ ან უარყავით აქ შეტანილი ცვლილებები."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Save or discard changes here before switching sign-in methods."
-msgstr "შესვლის მეთოდის შეცვლამდე შეინახეთ ან გააუქმეთ აქ შეტანილი ცვლილებები."
+msgstr "შესვლის მეთოდის შეცვლამდე შეინახეთ ან უარყავით აქ შეტანილი ცვლილებები."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Save or discard changes to this account before reconnecting with Google."
-msgstr "Google-თან ხელახლა დაკავშირებამდე შეინახეთ ან გააუქმეთ ამ ანგარიშის ცვლილებები."
+msgstr "Google-თან ხელახლა დაკავშირებამდე შეინახეთ ან უარყავით ამ ანგარიშის ცვლილებები."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Save or discard changes to this account before switching to Google sign-in."
-msgstr "Google-ით შესვლაზე გადასვლამდე შეინახეთ ან გააუქმეთ ამ ანგარიშის ცვლილებები."
+msgstr "Google-ით შესვლაზე გადასვლამდე შეინახეთ ან უარყავით ამ ანგარიშის ცვლილებები."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
