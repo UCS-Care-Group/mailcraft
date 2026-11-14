@@ -1231,16 +1231,26 @@ fn put(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<bool> {
             return Ok(false);
         }
     }
-    // Twice at most: a folder that went missing between making it and writing into it (a sweep, a
-    // tidy-up tool) is made again.
+    // A folder that went missing between making it and writing into it (a sweep, a tidy-up tool)
+    // is made again, once. On Windows a virus scanner looking at a file just written (Bitdefender,
+    // Defender) can refuse it for a few seconds: tried again for up to about 3.5 s (#1311).
     let mut last = None;
-    for _ in 0..2 {
+    let mut missing = 0;
+    for attempt in 1..=8u64 {
         own_dir(&sub)?;
         match write_atomic(&file, bytes) {
             Ok(()) => return Ok(true),
             // Somebody else saving the same content at the same moment is no failure.
             Err(_) if there(&file) => return Ok(false),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => last = Some(e),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound && missing < 1 => {
+                missing += 1;
+                last = Some(e);
+            }
+            // (A folder in its place is no scanner: that is not waited for.)
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && attempt < 8 && !file.is_dir() => {
+                last = Some(e);
+                std::thread::sleep(Duration::from_millis(100 * attempt));
+            }
             Err(e) => return Err(e),
         }
     }
@@ -2983,6 +2993,10 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         return None;
     }
     let parts = &st.disk.as_ref()?.messages.get(&id)?.parts;
+    // A part is let go of only when its file is there: a save leaves out one a virus scanner
+    // refused or took away (#1311), and the copy in memory is then the only one.
+    let dir = blob_dir(&resolve(path));
+    let there = |r: &Ref| blob_path(&dir, &r.hash).is_some_and(|(_, file)| fs::metadata(file).is_ok_and(|f| f.is_file() && f.len() == r.len));
     let mut lean = Message::clone(m);
     let mut kept = m.kept.as_deref().copied().unwrap_or_default();
     let mut any = false;
@@ -2990,6 +3004,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         && !m.body.text.is_empty()
         && m.body.text.len() as u64 == p.r.len
         && Ref::of(m.body.text.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.body.text = String::new();
         kept.text = Some(p.r.to_model());
@@ -2998,6 +3013,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     if let (Some(p), Some(html)) = (parts.html, &m.body.html)
         && html.len() as u64 == p.r.len
         && Ref::of(html.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.body.html = None;
         kept.html = Some(p.r.to_model());
@@ -3007,6 +3023,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
         && !m.hidden_text.is_empty()
         && m.hidden_text.len() as u64 == p.r.len
         && Ref::of(m.hidden_text.as_bytes()) == p.r
+        && there(&p.r)
     {
         lean.hidden_text = String::new();
         kept.hidden = Some(p.r.to_model());
@@ -3014,7 +3031,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     }
     for (a, p) in lean.attachments.iter_mut().zip(&parts.attachments) {
         let Some(p) = p else { continue };
-        if a.data.is_empty() || a.data.len() as u64 != p.r.len {
+        if a.data.is_empty() || a.data.len() as u64 != p.r.len || !there(&p.r) {
             continue;
         }
         let key = Arc::as_ptr(&a.data) as usize;
@@ -3028,6 +3045,7 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     if let (Some(p), Some(o)) = (parts.original, lean.original.as_mut())
         && !o.data.is_empty()
         && o.data.len() as u64 == p.r.len
+        && there(&p.r)
         && st
             .hashes
             .get(&(Arc::as_ptr(&o.data) as usize))
@@ -3613,11 +3631,11 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
                 saved.blob_bytes += r.len;
             }
             Some(Ok(false)) => {}
-            // A virus scanner took the file away as it was written: that one part is left out
+            // A virus scanner took the file away as it was written, or refuses it: that one part is left out
             // (it reads as unavailable, like any missing content) and the rest of the mailbox is
             // saved, rather than every save failing for as long as the message is open.
             Some(Err(e)) if refused_by_scanner(&dir, r, &e) => {
-                log::warn!("content file {}: removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
+                log::warn!("content file {}: refused or removed by a virus scanner as it was written ({e}); that part is left out", r.hash.hex());
             }
             Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
             None => return Err("the content couldn't be written".into()),
@@ -3628,13 +3646,27 @@ fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved, p
 
 /// Whether writing the content `r` under `dir` failed because something on this computer (a
 /// virus scanner) refused it or took it away: Windows says so (`ERROR_VIRUS_INFECTED`,
-/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice.
-/// Anything else (a full disk, a folder that went) still fails the save.
+/// `ERROR_VIRUS_DELETED`), or the file went while its folder stayed, after [`put`] tried twice,
+/// or Windows still said "access denied" for this one file after [`put`] waited for it while a
+/// file of another name can be made beside it (Bitdefender refuses what it flags that way, #1311).
+/// Anything else (a full disk, a folder that went or that can't be written to) still fails the save.
 fn refused_by_scanner(dir: &Path, r: &Ref, e: &std::io::Error) -> bool {
     const VIRUS_INFECTED: i32 = 225;
     const VIRUS_DELETED: i32 = 226;
     if cfg!(windows) && matches!(e.raw_os_error(), Some(VIRUS_INFECTED | VIRUS_DELETED)) {
         return true;
+    }
+    if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied {
+        return blob_path(dir, &r.hash).is_some_and(|(_, file)| {
+            // Something else at its name (a folder) is no scanner.
+            if fs::symlink_metadata(&file).is_ok_and(|m| !m.is_file()) {
+                return false;
+            }
+            let probe = temp_beside(&file);
+            let made = create_private(&probe).is_ok();
+            let _ = fs::remove_file(&probe);
+            made
+        });
     }
     e.kind() == std::io::ErrorKind::NotFound && blob_path(dir, &r.hash).is_some_and(|(sub, _)| sub.is_dir())
 }
