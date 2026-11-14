@@ -14586,6 +14586,11 @@ msgid "Sent Items"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "folders are nested too deeply"
 msgstr ""
@@ -14916,7 +14921,7 @@ msgid "no event with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 msgid "no folder \"{path}\""
 msgstr ""
 

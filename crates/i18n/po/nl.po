@@ -17392,6 +17392,11 @@ msgid "Sent Items"
 msgstr "Verzonden items"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr "map {id} hoort niet bij dat account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -17783,7 +17788,7 @@ msgid "no event with id {id}"
 msgstr "geen gebeurtenis met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "geen map „{path}”"

@@ -2459,6 +2459,15 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // A folder named as a kind or a path (#1200): the branch that reads the text, walks the
+        // paths of every account and then tries the digits as an id. Without one of these, that
+        // whole branch is never entered by this test. No `account` on the first four, because one
+        // that is refused ends the call before `folder` is looked at.
+        json!({"folder": "\u{0}inbox/../..", "ids": [[[]]]}),
+        json!({"folder": "x".repeat(100_000)}),
+        json!({"folder": "18446744073709551615", "query": "\u{202e}"}),
+        json!({"folder": "///", "limit": 1e300}),
+        json!({"folder": "inbox", "account": 18446744073709551615u64}),
         // Messages forwarded together (#360): more than one message carries, each named again and
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),

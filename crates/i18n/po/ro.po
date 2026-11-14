@@ -17610,6 +17610,11 @@ msgid "Sent Items"
 msgstr "Elemente trimise"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr "dosarul {id} nu aparține acelui cont"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -18004,7 +18009,7 @@ msgid "no event with id {id}"
 msgstr "nu există eveniment cu ID-ul {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "nu există dosarul „{path}”"

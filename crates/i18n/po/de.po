@@ -16496,6 +16496,11 @@ msgid "Sent Items"
 msgstr "Gesendete Elemente"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "folder {id} is not that account's"
+msgstr "Ordner {id} gehört nicht zum angegebenen Konto"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -16867,7 +16872,7 @@ msgid "no event with id {id}"
 msgstr "kein Ereignis mit der ID {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
+#: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "kein Ordner „{path}“"
