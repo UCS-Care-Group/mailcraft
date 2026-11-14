@@ -46,3 +46,31 @@ fn a_zone_the_system_names_goes_before_the_phones_offset() {
     let berlinless = Zone::named("America/New_York").unwrap();
     assert_eq!(today_on(platform, Some(berlinless), ""), Date::new(2026, 10, 14).unwrap());
 }
+
+#[test]
+fn the_calendar_starts_on_the_phones_day_when_the_system_names_no_zone() {
+    let platform = FakePlatform::new();
+    platform.offset.store(120, Ordering::Relaxed);
+    let core = Core::start(platform, || {
+        let clock = Clock { now: Some(late()), offset: None, zone: Some(Zone::LOCAL) };
+        Session::with_clock(sample::mailbox(late(), 0), clock)
+    })
+    .unwrap();
+    let (today, shown) = block_on(core.call(|s| Ok((s.today(), s.view.date)))).unwrap();
+    assert_eq!((today, shown), (Date::new(2026, 10, 15).unwrap(), Date::new(2026, 10, 15).unwrap()));
+}
+
+#[test]
+fn a_date_the_session_was_made_with_is_kept() {
+    let platform = FakePlatform::new();
+    platform.offset.store(120, Ordering::Relaxed);
+    let chosen = Date::new(2026, 1, 2).unwrap();
+    let core = Core::start(platform, move || {
+        let clock = Clock { now: Some(late()), offset: None, zone: Some(Zone::LOCAL) };
+        let mut s = Session::with_clock(sample::mailbox(late(), 0), clock);
+        s.view.date = chosen;
+        s
+    })
+    .unwrap();
+    assert_eq!(block_on(core.call(|s| Ok(s.view.date))).unwrap(), chosen);
+}

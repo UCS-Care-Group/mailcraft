@@ -128,6 +128,10 @@ fn make_room<T: Shed>(items: &mut VecDeque<T>, incoming: &T) -> bool {
         items.remove(at);
         return true;
     }
+    // A notice never costs what must be acted on: with no notice queued, it is the one shed.
+    if incoming.weight() == Weight::Notice {
+        return false;
+    }
     // Only what must be acted on is left, more of it than anybody can have meant to leave
     // unread: the memory stays bounded and the oldest goes.
     // The one revision stands for every cached query: it is kept, and the oldest other event goes.

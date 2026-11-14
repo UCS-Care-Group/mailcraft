@@ -141,7 +141,13 @@ impl Core {
         let zone_host = platform.clone();
         let make = move || {
             let mut session = make();
+            // `with_clock` set the calendar's date before the phone's offset stood in: a date
+            // `make` left at that default follows it, one it chose stays.
+            let default_date = session.view.date == session.today();
             session.fallback_offset = Some(Arc::new(move |at| zone_host.utc_offset_minutes(at).unwrap_or(0)));
+            if default_date {
+                session.view.date = session.today();
+            }
             session
         };
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);

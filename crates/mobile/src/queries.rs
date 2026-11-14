@@ -91,8 +91,25 @@ fn task_record(t: &Task) -> TaskRecord {
 /// The preview of the message of `r`: from a copy with its body read back when the mailbox kept it
 /// on disk (outside what the session holds in memory), without changing the mailbox. A body that
 /// can't be read leaves the preview empty and the row as it is.
+///
+/// A body kept on disk that is over [`MAX_PREVIEW_READ`] (by the length the store names for it) is
+/// not read at all: a phone must not allocate a whole body for each of up to 200 rows.
 fn preview_of(s: &Session, m: &Message) -> String {
+    if m.kept.as_deref().is_some_and(|k| kept_len(k) > MAX_PREVIEW_READ) {
+        return String::new();
+    }
     s.loaded_message_where(m.id, |_| false).map(|loaded| mailcraft_engine::list::preview(&loaded, MAX_PREVIEW)).unwrap_or_default()
+}
+
+/// The most a body kept on disk may be for its row's preview to be read from it: 256 KiB, the
+/// text, the HTML and the hidden words together.
+// ponytail: the upgrade is a verified prefix read from the store (the engine would have to say
+// how a prefix is checked against the SHA-256 of the whole), so a long body still has a preview.
+pub(crate) const MAX_PREVIEW_READ: u64 = 256 * 1024;
+
+/// How many bytes reading back what is kept of a body would bring in, by the lengths the store names.
+fn kept_len(k: &mailcraft_model::KeptBody) -> u64 {
+    [k.text, k.html, k.hidden].into_iter().flatten().fold(0u64, |n, r| n.saturating_add(r.len))
 }
 
 fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {

@@ -39,3 +39,18 @@ fn the_oldest_notification_goes_first() {
     assert!(!events.contains(&notice(0)));
     assert!(events.contains(&notice(9_999)));
 }
+
+#[test]
+fn a_notification_never_evicts_a_full_queue_of_sign_ins() {
+    let queue = Queue::<Event>::new();
+    for account in 0..MOST_QUEUED as u64 {
+        queue.push(Event::SignInNeeded { account });
+    }
+    queue.push(notice(1));
+    let events = drain(&queue);
+    assert_eq!(events.len(), MOST_QUEUED);
+    assert!(!events.contains(&notice(1)));
+    for account in 0..MOST_QUEUED as u64 {
+        assert!(events.contains(&Event::SignInNeeded { account }));
+    }
+}

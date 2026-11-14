@@ -1425,6 +1425,29 @@ impl Session {
         }
     }
 
+    /// The wall-clock time in the zone the calendar is shown in at `ts`, by the same offset as
+    /// [`Session::offset_at`] (the phone's, where the system names no zone).
+    pub fn wall_at(&self, ts: Timestamp) -> DateTime {
+        DateTime::from_civil_seconds(ts.saturating_add(i64::from(self.offset_at(ts)) * 60))
+    }
+
+    /// The instant of a wall-clock time in the zone the calendar is shown in, by the same offset as
+    /// [`Session::offset_at`]. Where the offset is the phone's (the system names no zone), a time
+    /// the clocks skip or repeat takes the offset in force at the time read as if it were UTC.
+    pub fn instant_of(&self, wall: DateTime) -> Timestamp {
+        let zone = self.zone();
+        match (&self.fallback_offset, zone.is_local(), self.clock.offset) {
+            (Some(fallback), true, None) => {
+                let first = wall.to_timestamp(0);
+                let guess = fallback(first).clamp(-18 * 60, 18 * 60);
+                let at = wall.to_timestamp(guess);
+                wall.to_timestamp(fallback(at).clamp(-18 * 60, 18 * 60))
+            }
+            (_, _, Some(offset)) => wall.to_timestamp(offset.clamp(-18 * 60, 18 * 60)),
+            _ => zone.instant(wall),
+        }
+    }
+
     /// Have the mailbox's wall-clock times be by the clock of the zone the calendar is shown in
     /// ([`Session::zone`]); returns whether anything in the mailbox reads differently for it.
     ///
