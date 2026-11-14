@@ -57,6 +57,10 @@ internal class AccountsHub(
     copy: (String) -> Unit,
     /** True while changes can't be kept (the kept mailbox could not be read or put aside). */
     savingOff: StateFlow<Boolean> = MutableStateFlow(false),
+    /** True while the last save failed: the changes are in memory only, and a retry is coming. */
+    saveFailed: StateFlow<Boolean> = MutableStateFlow(false),
+    /** Tries the save again now. */
+    private val retrySave: suspend () -> Unit = {},
 ) {
     /** True once the kept mailbox was opened (or there was none). */
     val restored = MutableStateFlow(false)
@@ -77,6 +81,7 @@ internal class AccountsHub(
             reloads.update { it + 1 }
         },
         copy = copy,
+        retrySave = retrySave,
     )
 
     init {
@@ -85,6 +90,7 @@ internal class AccountsHub(
             restored.value = true
         }
         scope.launch { savingOff.collect { off -> controller.setSavingOff(off) } }
+        scope.launch { saveFailed.collect { failed -> controller.setSaveFailed(failed) } }
     }
 
     /** The accounts as the window has them now. */

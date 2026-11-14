@@ -303,6 +303,8 @@ internal data class AccountsUi(
     val removeFailed: Boolean = false,
     /** The kept mailbox could be neither read nor put aside, so nothing is saved this session. */
     val savingOff: Boolean = false,
+    /** The last save failed: the latest changes are in memory only, and the app tries again. */
+    val saveFailed: Boolean = false,
     /** A sign-in was lost to the system closing the app: the address it was for ("" if unknown). */
     val interrupted: String? = null,
 )
@@ -330,4 +332,6 @@ internal class AccountActions(
     /** The interrupted sign-in is tried again: Add Account opens with its address. */
     val onRestartInterrupted: () -> Unit = {},
     val onDismissInterrupted: () -> Unit = {},
+    /** Tries the failed save of the mailbox again now. */
+    val onRetrySave: () -> Unit = {},
 )

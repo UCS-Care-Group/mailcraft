@@ -3,6 +3,9 @@
 package work.mailcraft.android
 
 import java.io.File
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,5 +61,70 @@ class MailboxFileTest {
         store.keep { saved++ }
         assertEquals(1, saved)
         assertFalse(store.savingOff.value)
+    }
+
+    private fun scopeOf() =
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default + kotlinx.coroutines.SupervisorJob())
+
+    @Test
+    fun aFailedSaveIsShownTriedAgainAndClearedWhenItWorks() = runBlocking {
+        val dir = tmp.newFolder("d")
+        val scope = scopeOf()
+        val store = MailboxFile(dir, scope = scope, retryAfter = listOf(1L), pause = { kotlinx.coroutines.delay(it) })
+        val tries = java.util.concurrent.atomic.AtomicInteger()
+        store.keep {
+            if (tries.incrementAndGet() < 3) throw CoreException.Failed("disk full")
+        }
+        assertTrue(store.saveFailed.value || tries.get() >= 3)
+        kotlinx.coroutines.withTimeout(5_000) { store.saveFailed.first { !it && tries.get() >= 3 } }
+        assertEquals(3, tries.get())
+        assertFalse(store.saveFailed.value)
+        scope.cancel()
+    }
+
+    @Test
+    fun withoutAScopeAFailedSaveWaitsForRetry() = runBlocking {
+        val dir = tmp.newFolder("e")
+        val store = MailboxFile(dir)
+        var fail = true
+        var tries = 0
+        store.keep {
+            tries++
+            if (fail) throw CoreException.Failed("disk full")
+        }
+        assertTrue(store.saveFailed.value)
+        fail = false
+        store.keepAgain()
+        assertEquals(2, tries)
+        assertFalse(store.saveFailed.value)
+    }
+
+    @Test
+    fun aFolderThatCannotBeMadeIsAFailedSave() = runBlocking {
+        val blocker = tmp.newFile("f")
+        val store = MailboxFile(File(blocker, "sub"))
+        var saved = 0
+        store.keep { saved++ }
+        assertEquals(0, saved)
+        assertTrue(store.saveFailed.value)
+    }
+
+    @Test
+    fun savesNeverOverlap() = runBlocking {
+        val dir = tmp.newFolder("g")
+        val store = MailboxFile(dir)
+        val inside = java.util.concurrent.atomic.AtomicInteger()
+        val worst = java.util.concurrent.atomic.AtomicInteger()
+        val jobs = List(8) {
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+                store.keep {
+                    worst.updateAndGet { m -> maxOf(m, inside.incrementAndGet()) }
+                    kotlinx.coroutines.delay(5)
+                    inside.decrementAndGet()
+                }
+            }
+        }
+        jobs.forEach { it.join() }
+        assertEquals(1, worst.get())
     }
 }

@@ -187,4 +187,19 @@ class SignInHandbackTest {
         assertNull(later.take())
         assertFalse(record.exists())
     }
+
+    @Test
+    fun aSecondRedirectDuringALiveSignInKeepsItsRecord() {
+        val record = java.io.File(tmp.newFolder("s"), "pending")
+        val handback = SignInHandback(PendingSignIn(record))
+        val told = mutableListOf<String>()
+        handback.sink = { true }
+        handback.interrupted = { told.add(it) }
+        handback.remember("ada@example.org")
+        handback.arm()
+        assertTrue(handback.deliver(good))
+        assertFalse(handback.deliver(good))
+        assertTrue(told.isEmpty())
+        assertTrue("still there for a later process death", record.exists())
+    }
 }

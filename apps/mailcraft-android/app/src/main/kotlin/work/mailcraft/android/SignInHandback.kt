@@ -46,6 +46,9 @@ internal object Redirect {
 internal class SignInHandback(private val pending: PendingSignIn? = null) {
     private val armed = AtomicBoolean(false)
 
+    /** This process started a sign-in or grant that has not ended: its recovery record is not lost. */
+    private val live = AtomicBoolean(false)
+
     /** Where an accepted address goes; false from it means no sign-in took it. Set once the core exists. */
     @Volatile
     var sink: (String) -> Boolean = { false }
@@ -59,16 +62,19 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
 
     /** A sign-in for [email] begins: should the app be closed meanwhile, the next start knows. */
     fun remember(email: String) {
+        live.set(true)
         pending?.save(email)
     }
 
     /** A sign-in is about to open its page: the next address is for it. */
     fun arm() {
+        live.set(true)
         armed.set(true)
     }
 
     /** Nobody waits any more. */
     fun disarm() {
+        live.set(false)
         armed.set(false)
         pending?.clear()
     }
@@ -80,7 +86,9 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
         if (!armed.compareAndSet(true, false)) {
             // (None waits here. If one did before the system closed the app, it is told, once; a stranger's
             // address finds no such record and costs nothing.)
-            pending?.take()?.let(interrupted)
+            // (Not while this process's own sign-in is still under way, e.g. past its first redirect:
+            // its record stays for a later process death.)
+            if (!live.get()) pending?.take()?.let(interrupted)
             return false
         }
         return sink(accepted)

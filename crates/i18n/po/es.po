@@ -1223,7 +1223,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."
 msgstr ""
 
@@ -6769,7 +6769,12 @@ msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy 
 msgstr "MailCraft no pudo abrir su navegador para la página de aprobación de Microsoft. Copie el mensaje en su lugar: el vínculo que contiene abre la misma página."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
 msgstr ""
 
@@ -8442,7 +8447,7 @@ msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Aún no se guarda en ningún sitio: use Abrir y exportar › Guardar buzón como."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Ahora no"
@@ -10383,6 +10388,11 @@ msgstr "Reiniciar para actualizar"
 msgid "Restart to update is the owner's click."
 msgstr "Solo el propietario puede hacer clic en Reiniciar para actualizar."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Retry"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/snooze.rs
 msgid "Return Now"
@@ -11885,7 +11895,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Volver a iniciar sesión"

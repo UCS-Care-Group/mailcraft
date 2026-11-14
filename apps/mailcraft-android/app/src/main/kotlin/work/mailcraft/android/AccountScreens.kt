@@ -228,12 +228,16 @@ internal fun WithAppNotices(
     onRestart: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val notices = ui.savingOff || ui.interrupted != null
+    val notices = ui.savingOff || ui.saveFailed || ui.interrupted != null
     Column(modifier = Modifier.fillMaxSize()) {
         if (notices) {
             Column(modifier = Modifier.statusBarsPadding().padding(horizontal = Gutter, vertical = Gap)) {
                 if (ui.savingOff) {
                     NoticeCard(texts.t("MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."))
+                }
+                if (ui.saveFailed) {
+                    NoticeCard(texts.t("MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."))
+                    TextButton(onClick = actions.onRetrySave) { Text(texts.t("Retry")) }
                 }
                 if (ui.interrupted != null) {
                     NoticeCard(texts.t("Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."))

@@ -65,7 +65,7 @@ class MailCraftApplication : Application() {
             createChannels(applicationContext, channelSpecs(core::t))
             // The address the sign-in's page comes back to goes to the core as it is.
             handback.sink = core::handBackRedirect
-            val store = MailboxFile(File(noBackupFilesDir, "mailbox"))
+            val store = MailboxFile(File(noBackupFilesDir, "mailbox"), scope = scope)
             val hub = AccountsHub(
                 api = CoreAccounts(core, handback),
                 texts = CoreTexts(core),
@@ -74,6 +74,8 @@ class MailCraftApplication : Application() {
                 keep = { store.keep(core) },
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 savingOff = store.savingOff,
+                saveFailed = store.saveFailed,
+                retrySave = { store.keepAgain() },
             )
             handback.interrupted = hub.controller::signInInterrupted
             events.register(hub::handle)

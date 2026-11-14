@@ -1267,7 +1267,7 @@ msgstr[0] "En nog {n} dergelijke koppeling."
 msgstr[1] "En nog {n} dergelijke koppelingen."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."
 msgstr ""
 
@@ -7116,7 +7116,12 @@ msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy 
 msgstr "MailCraft kon uw browser niet openen voor de goedkeuringspagina van Microsoft. Kopieer in plaats daarvan het bericht: de koppeling erin opent dezelfde pagina."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
 msgstr ""
 
@@ -8843,7 +8848,7 @@ msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Nog nergens bewaard: gebruik Openen & exporteren › Postvak opslaan als."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Niet nu"
@@ -10889,6 +10894,11 @@ msgstr "Opnieuw starten om bij te werken"
 msgid "Restart to update is the owner's click."
 msgstr "Opnieuw starten om bij te werken is de klik van de eigenaar."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Retry"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/snooze.rs
 msgid "Return Now"
@@ -12465,7 +12475,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Opnieuw aanmelden voor automatische antwoorden"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Opnieuw aanmelden"

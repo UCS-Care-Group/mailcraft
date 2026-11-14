@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
  * changed (to keep the mailbox and read the list again), [copy] puts text on the clipboard, and
  * [texts] says the words of a notice.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 internal class AccountsController(
     private val api: AccountsApi,
     private val scope: CoroutineScope,
@@ -24,6 +24,7 @@ internal class AccountsController(
     private val accounts: () -> List<AccountItem>,
     private val changed: suspend () -> Unit,
     private val copy: (String) -> Unit,
+    private val retrySave: suspend () -> Unit = {},
 ) {
     val ui = MutableStateFlow(AccountsUi())
 
@@ -44,10 +45,14 @@ internal class AccountsController(
         onShown = ::refreshStatuses,
         onRestartInterrupted = ::restartInterrupted,
         onDismissInterrupted = ::dismissInterrupted,
+        onRetrySave = { scope.launch { retrySave() } },
     )
 
     /** The kept mailbox can't be written this session: the screens say so. */
     fun setSavingOff(off: Boolean) = ui.update { it.copy(savingOff = off) }
+
+    /** The last save of the mailbox failed (or worked again): the screens say it isn't saved yet. */
+    fun setSaveFailed(failed: Boolean) = ui.update { it.copy(saveFailed = failed) }
 
     /**
      * Android closed the app while the provider's page was open and the owner came back: the sign-in
