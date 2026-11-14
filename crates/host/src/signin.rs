@@ -118,6 +118,18 @@ pub struct Armer {
 }
 
 impl Armer {
+    /// Open the slot again unless `cancel` is set, checked under the slot's lock, which [`Place`]'s drop
+    /// takes after setting it: a sign-in that was called off never leaves a sender for a later one.
+    pub fn arm_unless(&self, cancel: &AtomicBool) -> Option<Receiver<String>> {
+        let mut slot = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
+        if cancel.load(Ordering::Acquire) {
+            return None;
+        }
+        let (tx, rx) = mpsc::channel();
+        *slot = Some(tx);
+        Some(rx)
+    }
+
     /// Open the slot again: the receiver gets the next address delivered.
     pub fn arm(&self) -> Receiver<String> {
         let (tx, rx) = mpsc::channel();
@@ -241,7 +253,8 @@ pub fn page(
     let handback = move |flag: &AtomicBool, patience: Duration| {
         let mut landed = landed.lock().unwrap_or_else(PoisonError::into_inner);
         let address = wait_for(&landed, flag, patience)?;
-        *landed = armer.arm();
+        // (Called off meanwhile: the slot is left as the next sign-in finds it.)
+        *landed = armer.arm_unless(flag).ok_or(NetError::SignInCancelled)?;
         Ok(address)
     };
     let handback: &Handback = &handback;

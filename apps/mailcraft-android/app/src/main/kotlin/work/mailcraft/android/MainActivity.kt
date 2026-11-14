@@ -130,6 +130,11 @@ private fun CoreShell(
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
+            outline = when {
+                outlined == null -> OutlineStatus.Loading
+                outlined?.outline == null -> OutlineStatus.Failed
+                else -> OutlineStatus.Ready
+            },
         ),
         actions = ShellActions(
             onFolder = { _, selected -> picked = selected.id.toLong() },

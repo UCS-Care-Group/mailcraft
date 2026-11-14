@@ -25,12 +25,16 @@ private class FakeApi : AccountsApi {
     val removed = mutableListOf<ULong>()
     var cancelled = 0
     var gate: CompletableDeferred<Unit>? = null
+    val signInGates = ArrayDeque<CompletableDeferred<Unit>>()
+    val signInResults = ArrayDeque<SignInResult>()
     var statusGate: CompletableDeferred<Unit>? = null
 
     override suspend fun signIn(email: String): SignInResult {
         signIns.add(email)
-        gate?.await()
-        return signedIn
+        val own = signInGates.removeFirstOrNull()
+        val queued = signInResults.removeFirstOrNull()
+        (own ?: gate)?.await()
+        return queued ?: signedIn
     }
 
     override suspend fun grant(account: ULong, permission: PermissionKind): GrantResult {
@@ -83,6 +87,41 @@ class AccountsTest {
         assertEquals(listOf("ada@example.org"), rig.api.signIns)
         assertEquals(AddAccountState.Done(7u), rig.ui.add)
         assertEquals(1, rig.changes)
+    }
+
+    @Test
+    fun anEarlierSignInsLateAnswerNeverReplacesALaterSignInsWaiting() {
+        val first = CompletableDeferred<Unit>()
+        val second = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            signInGates.addAll(listOf(first, second))
+            signInResults.addAll(listOf(SignInResult.Cancelled, SignInResult.SignedIn(7u, "ada@example.org", "Ada Example")))
+        }
+        val rig = Rig(api)
+        rig.actions.onEmail("ada@example.org")
+        rig.actions.onSignIn()
+        rig.actions.onLeaveAdd()
+        rig.actions.onEmail("ada@example.org")
+        rig.actions.onSignIn()
+        assertEquals(AddAccountState.Waiting("ada@example.org"), rig.ui.add)
+        // The first one comes back late: the second still waits.
+        first.complete(Unit)
+        assertEquals(AddAccountState.Waiting("ada@example.org"), rig.ui.add)
+        second.complete(Unit)
+        assertEquals(AddAccountState.Done(7u), rig.ui.add)
+    }
+
+    @Test
+    fun aSignInLostToTheSystemIsSaidAndSignInAgainOpensTheFormWithItsAddress() {
+        val rig = Rig()
+        rig.controller.signInInterrupted("ada@example.org")
+        assertEquals("ada@example.org", rig.ui.interrupted)
+        rig.actions.onRestartInterrupted()
+        assertNull(rig.ui.interrupted)
+        assertEquals(AddAccountState.Form("ada@example.org"), rig.ui.add)
+        rig.controller.signInInterrupted("ada@example.org")
+        rig.actions.onDismissInterrupted()
+        assertNull(rig.ui.interrupted)
     }
 
     @Test

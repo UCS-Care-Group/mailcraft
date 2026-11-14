@@ -123,6 +123,8 @@ internal interface AccountsApi {
 internal class CoreAccounts(private val core: Core, private val handback: SignInHandback) : AccountsApi {
     override suspend fun signIn(email: String): SignInResult =
         try {
+            // (If the system closes the app while the page is open, the next start knows this was under way.)
+            handback.remember(email)
             when (val outcome = core.signInMicrosoft(email)) {
                 is SignInOutcome.SignedIn -> SignInResult.SignedIn(outcome.account, outcome.email, outcome.name)
                 is SignInOutcome.NeedsApproval -> SignInResult.NeedsApproval
@@ -301,6 +303,8 @@ internal data class AccountsUi(
     val removeFailed: Boolean = false,
     /** The kept mailbox could be neither read nor put aside, so nothing is saved this session. */
     val savingOff: Boolean = false,
+    /** A sign-in was lost to the system closing the app: the address it was for ("" if unknown). */
+    val interrupted: String? = null,
 )
 
 /** What the account screens ask of the app: one entry for each thing the owner can do there. */
@@ -323,4 +327,7 @@ internal class AccountActions(
     val onRemoveCancel: () -> Unit = {},
     /** The Accounts page is on screen with these accounts: where each permission stands is asked. */
     val onShown: (List<AccountItem>) -> Unit = {},
+    /** The interrupted sign-in is tried again: Add Account opens with its address. */
+    val onRestartInterrupted: () -> Unit = {},
+    val onDismissInterrupted: () -> Unit = {},
 )

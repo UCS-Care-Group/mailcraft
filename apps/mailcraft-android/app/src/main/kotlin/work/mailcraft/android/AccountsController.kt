@@ -42,10 +42,32 @@ internal class AccountsController(
         onRemove = ::remove,
         onRemoveCancel = ::removeCancel,
         onShown = ::refreshStatuses,
+        onRestartInterrupted = ::restartInterrupted,
+        onDismissInterrupted = ::dismissInterrupted,
     )
 
     /** The kept mailbox can't be written this session: the screens say so. */
     fun setSavingOff(off: Boolean) = ui.update { it.copy(savingOff = off) }
+
+    /**
+     * Android closed the app while the provider's page was open and the owner came back: the sign-in
+     * that was under way is gone with the process, so the screens say so and offer a new one.
+     */
+    fun signInInterrupted(email: String) = ui.update { state ->
+        if (state.add is AddAccountState.Waiting) state else state.copy(interrupted = email.take(MAX_EMAIL))
+    }
+
+    private fun dismissInterrupted() = ui.update { it.copy(interrupted = null) }
+
+    /** The form, its address as the hint, for the sign-in that was interrupted. */
+    private fun restartInterrupted() = ui.update { state ->
+        val email = state.interrupted ?: return@update state
+        if (state.add is AddAccountState.Waiting) {
+            state.copy(interrupted = null)
+        } else {
+            state.copy(add = AddAccountState.Form(email), interrupted = null)
+        }
+    }
 
     private fun typed(email: String) = ui.update { state ->
         val add = state.add
@@ -62,9 +84,13 @@ internal class AccountsController(
         is AddAccountState.Waiting, is AddAccountState.Done -> null
     }
 
+    /** Which sign-in owns the Add Account screen: a result of an earlier one is never shown. */
+    private var signInOperation = 0L
+
     /** Opens Microsoft's page and waits for the owner. Only from the form or the approval help. */
     fun signIn() {
         val email = emailOf(ui.value.add) ?: return
+        val operation = ++signInOperation
         ui.update { it.copy(add = AddAccountState.Waiting(email)) }
         scope.launch {
             val result = api.signIn(email)
@@ -76,7 +102,8 @@ internal class AccountsController(
             }
             ui.update { state ->
                 // (The owner may have left the screen meanwhile: what is there is left as it is.)
-                if (state.add is AddAccountState.Waiting) state.copy(add = afterSignIn(email, result, link)) else state
+                val current = operation == signInOperation && state.add is AddAccountState.Waiting
+                if (current) state.copy(add = afterSignIn(email, result, link)) else state
             }
         }
     }

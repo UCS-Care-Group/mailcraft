@@ -9,9 +9,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -94,7 +99,7 @@ private fun AddAccountForm(texts: Texts, state: AddAccountState.Form, actions: A
 }
 
 @Composable
-private fun NoticeCard(text: String) {
+internal fun NoticeCard(text: String) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
         Text(
             text,
@@ -168,11 +173,6 @@ internal fun NoAccount(texts: Texts, onAdd: () -> Unit, modifier: Modifier = Mod
 @Composable
 internal fun AccountsPage(texts: Texts, accounts: List<AccountItem>, ui: AccountsUi, actions: AccountActions, onAdd: () -> Unit) {
     LaunchedEffect(accounts) { actions.onShown(accounts) }
-    if (ui.savingOff) {
-        Box(modifier = Modifier.padding(horizontal = Gutter, vertical = Gap)) {
-            NoticeCard(texts.t("MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."))
-        }
-    }
     accounts.forEach { account ->
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = Gap)) {
             Text(account.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -216,5 +216,36 @@ private fun PermissionRow(
             PermissionStatus.SignInNeeded -> TextButton(onClick = onSignInAgain) { Text(texts.t("Sign in again")) }
             else -> Unit
         }
+    }
+}
+
+/** [content] under what is wrong with keeping the mailbox, or with a sign-in the system cut short. */
+@Composable
+internal fun WithAppNotices(
+    texts: Texts,
+    ui: AccountsUi,
+    actions: AccountActions,
+    onRestart: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val notices = ui.savingOff || ui.interrupted != null
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (notices) {
+            Column(modifier = Modifier.statusBarsPadding().padding(horizontal = Gutter, vertical = Gap)) {
+                if (ui.savingOff) {
+                    NoticeCard(texts.t("MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."))
+                }
+                if (ui.interrupted != null) {
+                    NoticeCard(texts.t("Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."))
+                    Row {
+                        TextButton(onClick = { actions.onRestartInterrupted(); onRestart() }) { Text(texts.t("Sign in again")) }
+                        TextButton(onClick = actions.onDismissInterrupted) { Text(texts.t("Not now")) }
+                    }
+                }
+            }
+        }
+        // (The notices took the status bar's room: the screen below is not padded for it twice.)
+        val below = if (notices) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier
+        Box(modifier = Modifier.weight(1f).then(below)) { content() }
     }
 }

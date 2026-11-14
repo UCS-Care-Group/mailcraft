@@ -49,7 +49,12 @@ internal class ShellData(
     val chosenLanguage: String,
     /** What the account screens draw besides the list of accounts. */
     val accountsUi: AccountsUi = AccountsUi(),
+    /** What reading the outline came to: no accounts means none only when it is [OutlineStatus.Ready]. */
+    val outline: OutlineStatus = OutlineStatus.Ready,
 )
+
+/** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
+internal enum class OutlineStatus { Loading, Failed, Ready }
 
 /** What the shell asks of the app. */
 internal class ShellActions(
@@ -118,15 +123,17 @@ internal fun AppShell(
             )
         },
     ) {
-        ShellScreen(
-            texts = texts,
-            data = data,
-            actions = actions,
-            nav = nav,
-            onNav = { nav = it },
-            onLeaveAdd = leaveAdd,
-            onMenu = { scope.launch { drawer.open() } },
-        )
+        WithAppNotices(texts, data.accountsUi, actions.accounts, onRestart = { nav = nav.openAddAccount() }) {
+            ShellScreen(
+                texts = texts,
+                data = data,
+                actions = actions,
+                nav = nav,
+                onNav = { nav = it },
+                onLeaveAdd = leaveAdd,
+                onMenu = { scope.launch { drawer.open() } },
+            )
+        }
     }
     AccountDialogs(texts, data, actions.accounts)
 }
@@ -163,7 +170,8 @@ private fun ShellScreen(
             onMenu = onMenu,
         ) { modifier ->
             when (nav.tab) {
-                Tab.Mail -> if (data.accounts.isEmpty() && data.mail !is InboxState.Failed) {
+                // (No account is said only after a read that worked and found none.)
+                Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
                     NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
                 } else {
                     InboxScreen(texts, data.mail, modifier)

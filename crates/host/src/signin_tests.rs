@@ -152,8 +152,27 @@ fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
     let port = listener.local_addr().unwrap().port();
     let server = std::thread::spawn(move || {
         let (mut conn, _) = listener.accept().unwrap();
-        let mut seen = vec![0u8; 8192];
-        let n = conn.read(&mut seen).unwrap_or(0);
+        // (The whole request: its head, then as many body bytes as it says, within a few seconds.)
+        conn.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+        let mut seen: Vec<u8> = Vec::new();
+        let mut chunk = [0u8; 2048];
+        loop {
+            let text = String::from_utf8_lossy(&seen).into_owned();
+            if let Some(end) = text.find("\r\n\r\n") {
+                let length = text[..end]
+                    .lines()
+                    .find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").and_then(|v| v.trim().parse::<usize>().ok()))
+                    .unwrap_or(0);
+                if seen.len() >= end + 4 + length {
+                    break;
+                }
+            }
+            match conn.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => seen.extend_from_slice(&chunk[..n]),
+            }
+        }
+        let n = seen.len();
         let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"acc-ess.tok_en","refresh_token":"re-fresh.tok_en"}"#;
         let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
         conn.write_all(reply.as_bytes()).unwrap();
@@ -196,4 +215,17 @@ fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
     assert!(!gave_up.load(std::sync::atomic::Ordering::Acquire));
     assert_eq!(*phone.opened.lock().unwrap(), 2);
     assert!(server.join().unwrap().contains("second-code"));
+}
+
+#[test]
+fn a_called_off_sign_in_does_not_arm_the_slot_again() {
+    let signins = SignIns::default();
+    let armer = signins.armer();
+    let live = std::sync::atomic::AtomicBool::new(false);
+    assert!(armer.arm_unless(&live).is_some());
+    let _ = signins.deliver("x://y".to_string());
+    // Called off (the place dropped, the slot cleared), and a stale hand-back comes after.
+    let called_off = std::sync::atomic::AtomicBool::new(true);
+    assert!(armer.arm_unless(&called_off).is_none());
+    assert!(!signins.deliver("x://z".to_string()), "nothing waits for it");
 }

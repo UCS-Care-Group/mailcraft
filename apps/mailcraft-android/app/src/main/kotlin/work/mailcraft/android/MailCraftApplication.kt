@@ -22,7 +22,7 @@ internal sealed interface Started {
 /** Holds the one [Core] for the life of the process. */
 class MailCraftApplication : Application() {
     /** Where the sign-in's redirect lands ([RedirectActivity]). */
-    internal val handback = SignInHandback()
+    internal val handback by lazy { SignInHandback(PendingSignIn(File(noBackupFilesDir, "pending-signin"))) }
     private val foreground = ForegroundActivity()
 
     /** Outlives every window: the sign-in and the account work run here, not in a screen's scope. */
@@ -75,6 +75,7 @@ class MailCraftApplication : Application() {
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 savingOff = store.savingOff,
             )
+            handback.interrupted = hub.controller::signInInterrupted
             events.register(hub::handle)
             events.launchIn(scope) { nextEvent(core) }
             Started.Ready(core, hub)

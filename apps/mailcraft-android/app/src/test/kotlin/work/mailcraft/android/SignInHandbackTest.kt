@@ -7,9 +7,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class SignInHandbackTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private val good = "work.mailcraft.android://oauth2redirect?code=c&state=s"
 
     @Test
@@ -139,5 +144,47 @@ class SignInHandbackTest {
         assertFalse(isSignInUrl("https://exa mple.org/"))
         assertFalse(isSignInUrl(""))
         assertFalse(isSignInUrl("https://login.example.org/" + "a".repeat(Redirect.MAX_ADDRESS)))
+    }
+
+    @Test
+    fun aRedirectAfterTheSystemClosedTheAppIsToldOnceAndNeverPassedOn() {
+        val record = java.io.File(tmp.newFolder("p"), "pending")
+        // The sign-in began in the process that is gone.
+        PendingSignIn(record).save("ada@example.org")
+        val passed = mutableListOf<String>()
+        val told = mutableListOf<String>()
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.sink = { passed.add(it) }
+        handback.interrupted = { told.add(it) }
+        assertFalse(handback.deliver(good))
+        assertEquals(listOf("ada@example.org"), told)
+        assertTrue(passed.isEmpty())
+        // Only once.
+        assertFalse(handback.deliver(good))
+        assertEquals(1, told.size)
+    }
+
+    @Test
+    fun aStrangersAddressWithNoSignInUnderWayTellsNothing() {
+        val handback = SignInHandback(PendingSignIn(java.io.File(tmp.newFolder("q"), "pending")))
+        val told = mutableListOf<String>()
+        handback.interrupted = { told.add(it) }
+        assertFalse(handback.deliver(good))
+        assertTrue(told.isEmpty())
+    }
+
+    @Test
+    fun aSignInThatEndedLeavesNoRecordAndAnOldRecordIsNotBelieved() {
+        val dir = tmp.newFolder("r")
+        val record = java.io.File(dir, "pending")
+        val handback = SignInHandback(PendingSignIn(record))
+        handback.remember("ada@example.org")
+        assertTrue(record.exists())
+        handback.disarm()
+        assertFalse(record.exists())
+        PendingSignIn(record).save("ada@example.org")
+        val later = PendingSignIn(record, now = { record.lastModified() + 11 * 60 * 1000L })
+        assertNull(later.take())
+        assertFalse(record.exists())
     }
 }
