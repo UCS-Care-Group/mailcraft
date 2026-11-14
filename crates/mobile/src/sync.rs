@@ -30,6 +30,7 @@ use mailcraft_model::sync::Tokens;
 use mailcraft_time::Zone;
 
 use crate::events::{Event, EventSink};
+use crate::keep::Keep;
 use crate::platform::Platform;
 use crate::queue::{Queue, Shed, Weight};
 use crate::{NotificationRecord, NotificationTopic};
@@ -157,6 +158,7 @@ struct Inner {
 }
 
 pub(crate) struct SyncHost {
+    persist: Option<Persist>,
     host: Host,
     platform: Arc<dyn Platform>,
     sink: EventSink,
@@ -170,9 +172,14 @@ pub(crate) struct SyncHost {
     pub(crate) pacer: Pacer,
 }
 
+/// Writes the mailbox before a send goes out.
+type Persist = Box<dyn Fn(&Session, u64) -> Result<(), String> + Send + Sync>;
+
 impl SyncHost {
-    pub(crate) fn new(host: Host, platform: Arc<dyn Platform>, sink: EventSink, sr: SendReceive) -> SyncHost {
+    pub(crate) fn new(host: Host, platform: Arc<dyn Platform>, sink: EventSink, sr: SendReceive, keep: Option<Arc<Keep>>) -> SyncHost {
+        let persist: Option<Persist> = keep.map(|keep| Box::new(move |session: &Session, _rev: u64| keep.save(session)) as Persist);
         SyncHost {
+            persist,
             host,
             platform,
             sink,
@@ -203,7 +210,7 @@ impl SyncHost {
         self.notify_mail.store(on, Ordering::Relaxed);
     }
 
-    fn context<'a>(&self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
+    fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
         Context {
             secrets,
             remember: self.remember.load(Ordering::Relaxed),
@@ -211,9 +218,8 @@ impl SyncHost {
             now_ms: self.started.elapsed().as_secs_f64() * 1000.0,
             now_s: self.host.platform().now(),
             minutes: f64::from(session.prefs.sync_minutes),
-            // (The phone's mailbox is kept by its own storage; until that is given here, nothing
-            // outlives the process to be written before a send.)
-            persist: None,
+            // What a send marks as sending is on disk before the send goes out (AU3-26).
+            persist: self.persist.as_ref().map(|p| p as &dyn Fn(&Session, u64) -> Result<(), String>),
             unconfirmed: false,
             data_removed: false,
             job_busy: None,
