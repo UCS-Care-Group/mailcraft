@@ -63,6 +63,12 @@ sync` refuses it.
   try after one that ended early uploads the same message; a copy the server has from that earlier
   try is sent instead, and filed in Sent as well wherever else it lies (moved into Sent on a server
   that keeps an email in one mailbox).
+  The identity is the one the server has for the account's own address, or failing that one for
+  its whole domain (`*@domain`); an alias the server keeps an identity of its own for is not used,
+  so a message written from that alias is refused by the server (`forbiddenFrom`) and held. The
+  copy in Sent names no Bcc recipients either, and once the server has the message this
+  computer's own copy is let go of, so after sending nothing here records who got a blind copy
+  (an IMAP account's copy in Sent keeps them).
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
