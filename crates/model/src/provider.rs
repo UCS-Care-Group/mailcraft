@@ -73,12 +73,15 @@ pub fn is_microsoft_imap_host(host: &str) -> bool {
 ///
 /// Only what the provider publishes: Google documents `mx.google.com` as the authserv-id of the
 /// header Gmail adds (Gmail help, "Trace an email with its full headers"), and Gmail and Google
-/// Workspace share `imap.gmail.com`. Other providers are left out until their ids are
-/// documented: for them (and for an unknown host) the caller falls back to the IMAP host's own
-/// domain, or asks the owner.
+/// Workspace share `imap.gmail.com`. IONOS's servers write `kundenserver.de`, the domain of its
+/// own mail servers (IONOS help, "IP addresses of the IONOS mail servers": `mout.kundenserver.de`
+/// and the rest; seen as the id on a tester's mail, #1311), for every country's IMAP host. Other
+/// providers are left out until their ids are known: for them (and for an unknown host) the
+/// caller falls back to the IMAP host's own domain, or asks the owner.
 pub fn authserv_ids(imap_host: &str) -> &'static [&'static str] {
     match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
         "imap.gmail.com" => &["mx.google.com"],
+        "imap.ionos.co.uk" | "imap.ionos.de" | "imap.ionos.com" | "imap.ionos.es" | "imap.ionos.fr" | "imap.ionos.it" => &["kundenserver.de"],
         _ => &[],
     }
 }
