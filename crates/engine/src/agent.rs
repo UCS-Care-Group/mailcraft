@@ -299,6 +299,7 @@ const SAFE: &[&str] = &[
     // (People shows the address list; nothing is looked up for an agent: only what the owner types
     // in the window's search box is, #1262.)
     "people.addressBook",
+    "view.peopleContactBook",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -364,6 +365,7 @@ const SAFE: &[&str] = &[
     "people.select",
     "people.get",
     "people.list",
+    "people.contactBooks",
     "people.search",
     "people.arrange",
     "people.favorite",
