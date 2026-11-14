@@ -2983,7 +2983,7 @@ msgstr "დიაგნოსტიკის კოპირება"
 #: crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "Copy Event"
-msgstr "მოვლენის კოპირება"
+msgstr "ღონისძიების კოპირება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4129,7 +4129,7 @@ msgstr "კონტაქტის რედაქტირება"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Edit Event"
-msgstr "მოვლენის რედაქტირება"
+msgstr "ღონისძიების რედაქტირება"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -4299,7 +4299,7 @@ msgstr "ყველა კონტაქტი, .vcf ფორმატში"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Every event and task, as .ics"
-msgstr "ყველა მოვლენა და დავალება, .ics ფორმატში"
+msgstr "ყველა ღონისძიება და დავალება, .ics ფორმატში"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5073,7 +5073,7 @@ msgstr "კონტაქტის მიღება"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Get Event"
-msgstr "მოვლენის მიღება"
+msgstr "ღონისძიების მიღება"
 
 #. command label
 #: crates/engine/src/cmd/notes.rs
@@ -6523,7 +6523,7 @@ msgstr "ინახება აქ: {path}, მუშაობისას ა
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
-msgstr "ინახება მხოლოდ ამ კომპიუტერზე: მოწვევები და განმეორებადი მოვლენები სერვერზე ჯერ არ იგზავნება"
+msgstr "ინახება მხოლოდ ამ კომპიუტერზე: მოწვევები და განმეორებადი ღონისძიებები სერვერზე ჯერ არ იგზავნება"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6697,7 +6697,7 @@ msgstr "კონტაქტების ჩამოთვლა"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "List Events"
-msgstr "მოვლენების ჩამოთვლა"
+msgstr "ღონისძიებების ჩამოთვლა"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
@@ -7693,7 +7693,7 @@ msgstr "ჩამოწევა"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Move Event"
-msgstr "მოვლენის გადატანა"
+msgstr "ღონისძიების გადატანა"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -7849,7 +7849,7 @@ msgstr "სახელები"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Names and colours for sorting mail, events, people and tasks"
-msgstr "სახელები და ფერები ფოსტის, მოვლენების, ადამიანებისა და დავალებების დასალაგებლად"
+msgstr "სახელები და ფერები ფოსტის, ღონისძიებების, ადამიანებისა და დავალებების დასალაგებლად"
 
 #. interface
 #: crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -7973,7 +7973,7 @@ msgstr ""
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "New All Day Event"
-msgstr "ახალი მთელი დღის მოვლენა"
+msgstr "ახალი მთელი დღის ღონისძიება"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -11291,7 +11291,7 @@ msgstr "კონტაქტის მონიშვნა"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Select Event"
-msgstr "მოვლენის მონიშვნა"
+msgstr "ღონისძიების მონიშვნა"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -12471,7 +12471,7 @@ msgstr "ძიების ნაწილი ამ კომპიუტერ
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Somebody"
-msgstr "უცნობი"
+msgstr "ვიღაც"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -13341,13 +13341,13 @@ msgid ""
 msgstr ""
 "საერთო საფოსტო ყუთის {address} კალენდარი ორჯერ ჩანს: „ჩემს კალენდრებში“ საერთო საფოსტო ყუთთან ერთად და „გაზიარებულ კალენდრებში“ სახელით „{name}“, რადგან ისიც გაგიზიარეს და მიიღეთ.\n"
 "\n"
-"დაიმალოს ასლი „გაზიარებულ კალენდრებში“? საერთო საფოსტო ყუთის საკუთარი კალენდარი რჩება და, სადაც ნებადართულია, საშუალებას გაძლევთ შეცვალოთ მოვლენები, უპასუხოთ შეხვედრის მოთხოვნებს და გააგზავნოთ ამ ყუთიდან. სერვერზე არაფერი იცვლება: ასლის ისევ საჩვენებლად დააწკაპეთ მარჯვენა ღილაკით საერთო საფოსტო ყუთის კალენდარზე."
+"დაიმალოს ასლი „გაზიარებულ კალენდრებში“? საერთო საფოსტო ყუთის საკუთარი კალენდარი რჩება და, სადაც ნებადართულია, საშუალებას გაძლევთ შეცვალოთ ღონისძიებები, უპასუხოთ შეხვედრის მოთხოვნებს და გააგზავნოთ ამ ყუთიდან. სერვერზე არაფერი იცვლება: ასლის ისევ საჩვენებლად დააწკაპეთ მარჯვენა ღილაკით საერთო საფოსტო ყუთის კალენდარზე."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
-msgstr "კალენდარი ({address}) და ამ კომპიუტერზე შენახული მისი მოვლენები წაიშლება. სერვერზე მყოფ კალენდარს არაფერი ემართება და შეგიძლიათ ისევ გახსნათ."
+msgstr "კალენდარი ({address}) და ამ კომპიუტერზე შენახული მისი ღონისძიებები წაიშლება. სერვერზე მყოფ კალენდარს არაფერი ემართება და შეგიძლიათ ისევ გახსნათ."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -14783,7 +14783,7 @@ msgstr "ამ დომენის სერვერებს ავტომ
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there."
-msgstr "ამ მოვლენას ანგარიშის {who} სერვერი ინახავს. მისი გადატანა შეიძლება ამ ანგარიშის სხვა კალენდარში, მაგრამ არა მის გარეთ: გარეთ გატანა იქ მას წაშლიდა."
+msgstr "ამ ღონისძიებას ანგარიშის {who} სერვერი ინახავს. მისი გადატანა შეიძლება ამ ანგარიშის სხვა კალენდარში, მაგრამ არა მის გარეთ: გარეთ გატანა იქ მას წაშლიდა."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17121,7 +17121,7 @@ msgstr "ანგარიშს საკუთარი თავის წი
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "an event needs a title"
-msgstr "მოვლენას სათაური სჭირდება"
+msgstr "ღონისძიებას სათაური სჭირდება"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17692,7 +17692,7 @@ msgstr "კონტაქტი id-ით {id} არ არსებობს"
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
 msgid "no event with id {id}"
-msgstr "მოვლენა id-ით {id} არ არსებობს"
+msgstr "ღონისძიება id-ით {id} არ არსებობს"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
@@ -18094,7 +18094,7 @@ msgstr "someone@example.org ან @example.org"
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
-msgstr "ეს მოვლენა არ მეორდება"
+msgstr "ეს ღონისძიება არ მეორდება"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -18346,7 +18346,7 @@ msgstr "დროის შუალედის დასასრული მ
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "the event is gone"
-msgstr "მოვლენა აღარ არსებობს"
+msgstr "ღონისძიება აღარ არსებობს"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
@@ -19788,7 +19788,7 @@ msgstr "{name}: კონტაქტები არ არის"
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no events or tasks"
-msgstr "{name}: მოვლენები ან დავალებები არ არის"
+msgstr "{name}: ღონისძიებები ან დავალებები არ არის"
 
 #. what a command says
 #: crates/engine/src/io.rs
@@ -20119,16 +20119,16 @@ msgstr[1] "ჩამოტვირთული სურათები ({n}) �
 #, fuzzy
 msgid "{n} event"
 msgid_plural "{n} events"
-msgstr[0] "მოვლენა: {n}"
-msgstr[1] "მოვლენა: {n}"
+msgstr[0] "ღონისძიება: {n}"
+msgstr[1] "ღონისძიება: {n}"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "{n} event in view"
 msgid_plural "{n} events in view"
-msgstr[0] "ხედში მოვლენა: {n}"
-msgstr[1] "ხედში მოვლენა: {n}"
+msgstr[0] "ხედში ღონისძიება: {n}"
+msgstr[1] "ხედში ღონისძიება: {n}"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
