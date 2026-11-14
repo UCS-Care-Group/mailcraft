@@ -66,12 +66,19 @@ pub(crate) struct Forgotten {
 
 /// Whether the index of names is in the store but doesn't parse (`None` when it is absent,
 /// parses, or can't be read), and then whether it was set aside under a name of its own
-/// (`mailcraft:index.unreadable-<ms>`) and read back as it was. A store that can't hold it
-/// there leaves it where it is.
+/// (`mailcraft:index.unreadable-<ms>`) and read back as it was. It is set aside only once the
+/// notice that sign-ins may remain is kept in the store (`NOTICE_KEY`), so that a restart can't
+/// lose both; a store that can't hold either leaves the index where it is, and the next removal
+/// finds it damaged again.
 fn set_aside_index(store: &dyn HostSecretStore, now_s: i64) -> Option<bool> {
     let old = store.read(INDEX_KEY).ok().flatten()?;
     if serde_json::from_str::<Vec<String>>(&old).is_ok() {
         return None;
+    }
+    let noted = store.set(NOTICE_KEY, "1").is_ok() && store.read(NOTICE_KEY).is_ok_and(|v| v.is_some());
+    if !noted {
+        log::warn!("send/receive: the notice that sign-ins may remain couldn't be kept, so the damaged index is kept instead");
+        return Some(false);
     }
     let aside = format!("{INDEX_KEY}.unreadable-{}", now_s.saturating_mul(1000));
     let kept = store.set(&aside, &old).is_ok() && store.read(&aside).is_ok_and(|v| v.as_deref() == Some(old.as_str()));
@@ -365,13 +372,19 @@ impl SyncHost {
         let store = self.platform.secrets();
         let secrets = self.host.platform().secrets();
         let mut indexed = self.keys_of(&mut inner, secrets.as_deref()).map(|keys| keys.clone());
-        // A notice an earlier run couldn't give (its removal failed, then the app ended) is still due.
+        // A notice an earlier run couldn't give (its removal failed, then the app ended) is still
+        // due. When the store can't say whether one is, the removal isn't taken for complete.
+        let mut notice_unread = false;
         if !inner.notice_checked
             && let Some(store) = secrets.as_deref()
-            && let Ok(found) = store.read(NOTICE_KEY)
         {
-            inner.notice_checked = true;
-            inner.index_garbled |= found.is_some();
+            match store.read(NOTICE_KEY) {
+                Ok(found) => {
+                    inner.notice_checked = true;
+                    inner.index_garbled |= found.is_some();
+                }
+                Err(_) => notice_unread = true,
+            }
         }
         // An index that is there but doesn't parse would make every removal refuse for ever: it is
         // set aside under a name of its own and a fresh one starts from the names known now. When
@@ -382,10 +395,6 @@ impl SyncHost {
             && let Some(set_aside) = set_aside_index(store, self.host.platform().now())
         {
             inner.index_garbled = true;
-            inner.notice_checked = true;
-            if store.set(NOTICE_KEY, "1").is_err() {
-                log::warn!("send/receive: the notice that sign-ins may remain couldn't be kept past a restart");
-            }
             if set_aside {
                 let mut fresh: BTreeSet<String> = std::mem::take(&mut inner.unindexed).into_iter().take(MOST_KEYS).collect();
                 for a in &session.mailbox.accounts {
@@ -426,6 +435,11 @@ impl SyncHost {
             (Ok(None), _) => {}
             // The store can't be reached now: what it holds can't be removed.
             _ => left.extend(names.iter().cloned()),
+        }
+        if left.is_empty() && notice_unread {
+            // Everything named is gone, but sign-ins a damaged index named in an earlier run may
+            // not be: the retry reads the notice again.
+            return Err("the credential store couldn't be read, so sign-ins may still be in it".to_string());
         }
         if left.is_empty() && (index_read || no_store || garbled_kept) {
             // An index kept as it was, unparsed, stays unread: names written later wait beside it.

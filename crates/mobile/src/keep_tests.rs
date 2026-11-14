@@ -577,6 +577,34 @@ fn the_notice_of_a_damaged_index_outlives_a_restart_before_the_retry() {
     assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
 }
 
+#[test]
+fn a_damaged_index_is_kept_as_it_is_when_its_notice_cannot_be_kept() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:index".to_string(), "{not a list".to_string()));
+    platform.secrets.notice_unwritable.store(true, Ordering::Relaxed);
+    let answer = block_on(core.delete_local_data()).unwrap();
+    assert!(matches!(answer, DataRemoved::SignInsMayRemain { .. }), "{answer:?}");
+    let kept = platform.secrets.kept.lock().unwrap().clone();
+    // Nothing was set aside: the damaged index itself is what a later run finds again.
+    assert_eq!(kept, vec![("mailcraft:index".to_string(), "{not a list".to_string())]);
+}
+
+#[test]
+fn a_removal_is_not_taken_for_complete_while_a_notice_still_due_cannot_be_read() {
+    let dir = Dir::new();
+    let platform = FakePlatform::new();
+    // An earlier run found the index damaged and couldn't say so before it ended.
+    platform.secrets.kept.lock().unwrap().push(("mailcraft:notice-sign-ins-may-remain".to_string(), "1".to_string()));
+    platform.secrets.notice_unreadable.store(true, Ordering::Relaxed);
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    platform.secrets.notice_unreadable.store(false, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()).unwrap(), DataRemoved::SignInsMayRemain { .. }));
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
+    assert_eq!(block_on(core.delete_local_data()).unwrap(), DataRemoved::All, "and says it once");
+}
+
 #[cfg(unix)]
 #[test]
 fn a_file_that_cannot_be_looked_at_is_never_written_over() {

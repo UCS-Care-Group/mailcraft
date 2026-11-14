@@ -48,10 +48,16 @@ pub(crate) struct FakeSecrets {
     pub(crate) stuck: std::sync::atomic::AtomicBool,
     /// Reading a sign-in (not the index of names) fails.
     pub(crate) unreadable: std::sync::atomic::AtomicBool,
+    /// Reading, or writing, the entry that keeps a notice still to give fails.
+    pub(crate) notice_unreadable: std::sync::atomic::AtomicBool,
+    pub(crate) notice_unwritable: std::sync::atomic::AtomicBool,
 }
 
 impl SecretStore for FakeSecrets {
     fn get(&self, key: String) -> Result<Option<String>, HostError> {
+        if key.contains("notice") && self.notice_unreadable.load(Ordering::Relaxed) {
+            return Err(HostError::Native);
+        }
         if self.unreadable.load(Ordering::Relaxed) && !key.contains("index") {
             return Err(HostError::Native);
         }
@@ -59,6 +65,9 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
+        if key.contains("notice") && self.notice_unwritable.load(Ordering::Relaxed) {
+            return Err(HostError::Unsupported);
+        }
         if key.contains("index") && self.fail_index.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok() {
             return Err(HostError::Unsupported);
         }
