@@ -132,13 +132,15 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     if pane == Pane::Bottom {
-        let h = (ui.available_height() * 0.42).clamp(140.0, 520.0);
-        egui::Panel::top("message_list")
-            .default_size(h)
-            .size_range(120.0..=(ui.available_height() - 140.0).max(160.0))
+        let max = (ui.available_height() - 140.0).max(160.0);
+        let h = if app.ui.list_height > 0.0 { app.ui.list_height } else { (ui.available_height() * 0.42).clamp(140.0, 520.0) };
+        let shown = egui::Panel::top("message_list")
+            .default_size(h.min(max))
+            .size_range(120.0..=max)
             .resizable(true)
             .frame(frame)
             .show(ui, |ui| list(app, ui));
+        app.ui.list_height = shown.response.rect.height();
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
         let shown = egui::Panel::left("message_list")
