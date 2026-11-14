@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
-use mailcraft_mime::rich::{Img, to_html_with};
+use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
@@ -788,16 +788,17 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
     // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
     // message (read, answered, flagged, categorised), and every header kept with it but those
     // known to come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let opts = mailcraft_mime_model::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
     let unmarked = Message {
         read: false,
         answered: false,
         flag: FlagStatus::None,
         categories: Vec::new(),
-        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        headers: m.all_headers().into_iter().filter(|(name, _)| goes_along(name)).collect(),
+        header_block: mailcraft_model::HeaderBlock::default(),
         ..Message::clone(&m)
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    let bytes = mailcraft_mime_model::write(&unmarked, &opts);
     Ok(Attachment::new(super::file::eml_name(&m), "message/rfc822", bytes))
 }
 
@@ -812,10 +813,7 @@ mod attach_item_tests;
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
 fn not_downloaded(m: &Message) -> bool {
-    m.body.html.is_none()
-        && m.attachments.is_empty()
-        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
-        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+    m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
 /// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
@@ -946,7 +944,7 @@ fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
 /// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
 /// opened to write again; a request in mail that comes in is never read, nor answered.
 fn asked_receipt(m: &Message) -> bool {
-    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+    m.read_receipt || m.has_header("Disposition-Notification-To")
 }
 
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
@@ -977,7 +975,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
-        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+        mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
             let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
             if pictures.iter().any(|p| p.id == id) {
                 return Some(id);
@@ -1256,7 +1254,7 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
@@ -1270,10 +1268,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             let own = c.signature_html();
             let html = [
                 before.as_ref().map(|t| to_html_with(t, &img)),
-                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
+                Some(own.map_or_else(|| mailcraft_mime_model::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(|t| to_html_with(t, &img)),
             ];
-            Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
+            Body { text: plain, html: Some(mailcraft_mime_model::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
         BodyFormat::Plain => Body { text: plain, html: None },
     }
@@ -1378,15 +1376,6 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
         return Err(super::account::added_by_newer(
             &account,
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
-        ));
-    }
-    // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
-    // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
-    // gone. It stays as it is being written.
-    if account.kind.has_server() && !account.kind.sends_mail() {
-        return Err(failed!(
-            "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(mailcraft_model::NOT_SENDING_YET)
         ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one

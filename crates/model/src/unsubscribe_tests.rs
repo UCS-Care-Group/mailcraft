@@ -96,6 +96,43 @@ fn one_click_needs_a_passing_signature_that_covers_both_headers() {
 }
 
 #[test]
+fn a_second_unsubscribe_header_above_the_signed_one_offers_nothing() {
+    // DKIM signs from the bottom up: one added on top would be read while the bottom one passes.
+    let added = ("List-Unsubscribe", "<https://collect.example/u>");
+    let mut m = with(&[("List-Unsubscribe", "<https://news.example/u/7f3a>"), POST]);
+    m.headers.insert(0, (added.0.into(), added.1.into()));
+    assert_eq!(of(&m), None);
+    let mut m = with(&[("List-Unsubscribe", "<mailto:leave@news.example>")]);
+    m.headers.insert(0, (added.0.into(), added.1.into()));
+    assert_eq!(of(&m), None);
+    let m = with(&[("List-Unsubscribe", "<https://news.example/u/7f3a>"), POST, POST]);
+    assert_eq!(of(&m), None);
+}
+
+#[test]
+fn a_pass_counts_only_for_the_one_signature_it_names() {
+    let list = ("List-Unsubscribe", "<https://news.example/u/7f3a>");
+    let page = Some(Way::Page { url: "https://news.example/u/7f3a".into() });
+    let one_click = Some(Way::OneClick { url: "https://news.example/u/7f3a".into() });
+    // The list's real signature leaves the headers out; a forged one with the same `d=` covers
+    // them and fails. A pass without `header.b` can't say which passed.
+    let real = "v=1; d=news.example; s=s1; h=from:subject; bh=AA; b=RealSignature0001";
+    let forged = "v=1; d=news.example; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; bh=AA; b=Forged00000002";
+    let signed = |results: &str| {
+        let mut m = bare(&[list, POST, ("Authentication-Results", results)]);
+        m.headers.push(("DKIM-Signature".into(), forged.into()));
+        m.headers.push(("DKIM-Signature".into(), real.into()));
+        m
+    };
+    assert_eq!(of(&signed("mx.lumen.example; dkim=pass header.d=news.example")), page);
+    // With `header.b`, the pass is the real signature's, which doesn't cover the headers.
+    assert_eq!(of(&signed("mx.lumen.example; dkim=pass header.d=news.example header.b=RealSign")), page);
+    // A pass naming the covering signature is one click; one too short to tell is not.
+    assert_eq!(of(&signed("mx.lumen.example; dkim=pass header.d=news.example header.b=Forged00")), one_click);
+    assert_eq!(of(&signed("mx.lumen.example; dkim=pass header.d=news.example header.b=Forg")), page);
+}
+
+#[test]
 fn the_post_header_must_say_one_click() {
     for value in ["List-Unsubscribe=One-Click", " list-unsubscribe = One-Click ", "LIST-UNSUBSCRIBE=One-Click"] {
         let m = with(&[("List-Unsubscribe", "<https://lumen.example/u>"), ("List-Unsubscribe-Post", value)]);

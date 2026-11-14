@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"}, "outgoing"?: same} (what the host found in the domain's own SRV records, RFC 6186, #1063; taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063); what is found or guessed is for the owner to confirm; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (the found incoming server's, as its source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts; taken only with an incoming server found by autoconfig or ispdb)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -45,7 +45,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -172,10 +172,15 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let known = found.is_some();
     // A domain nobody here knows: the servers a host found in its own records (#1063), for the
     // owner to confirm, and the usual names for whichever it lacks.
-    let (mut incoming, mut outgoing) = (None, None);
+    let (mut incoming, mut outgoing, mut username) = (None, None, email.clone());
     if !known && let Some(records) = v.get("found").filter(|f| f.is_object()) {
         incoming = found_server(records.get("incoming"), (993, 143));
         outgoing = found_server(records.get("outgoing"), (465, 587));
+        // The user name is the incoming server's: it is taken only with that server, and only
+        // from a source that writes one (the SRV records don't: the address, RFC 6186).
+        if incoming.as_ref().is_some_and(|(_, via)| *via != Via::Srv) {
+            username = found_username(p::str(records, "username").unwrap_or_default(), &email, &domain);
+        }
     }
     let preset = found.unwrap_or_else(|| provider::guess(&domain));
     let via_of = |server: &Option<(Server, Via)>| server.as_ref().map(|(_, via)| via.code()).unwrap_or("guess");
@@ -197,7 +202,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         "service": preset.service,
         "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
         "provider": preset.oauth.map(OAuthProvider::code),
-        "username": email,
+        "username": username,
         "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
         "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),
         "note": preset.note,
@@ -232,6 +237,30 @@ fn found_server(v: Option<&Value>, usual: (u16, u16)) -> Option<(Server, Via)> {
     };
     let via = Via::parse(p::str(v, "via")?)?;
     Some((Server { host, port, security }, via))
+}
+
+/// The user name a found source says the owner signs in with: the address, or what the
+/// source's placeholders make of it. Anything else that still has a placeholder in it, or that
+/// no field could hold, is the address.
+fn found_username(template: &str, email: &str, domain: &str) -> String {
+    let template: String = template.trim().chars().filter(|c| !c.is_control()).take(254).collect();
+    if template.is_empty() {
+        return email.to_string();
+    }
+    let local = email.rsplit_once('@').map(|(local, _)| local).unwrap_or(email);
+    let placeholders = [("%EMAILADDRESS%", email), ("%EMAILLOCALPART%", local), ("%EMAILDOMAIN%", domain)];
+    // One pass over the template: what is put in is the address's own text, never read as a
+    // placeholder again, so an address with a `%` in it stays as it is.
+    let (mut filled, mut rest) = (String::new(), template.as_str());
+    while let Some((before, _)) = rest.split_once('%') {
+        let from = rest.get(before.len()..).unwrap_or_default();
+        let Some((name, value)) = placeholders.iter().find(|(name, _)| from.starts_with(name)) else { return email.to_string() };
+        filled.push_str(before);
+        filled.push_str(value);
+        rest = from.get(name.len()..).unwrap_or_default();
+    }
+    filled.push_str(rest);
+    if filled.chars().count() > 254 { email.to_string() } else { filled }
 }
 
 fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
@@ -545,6 +574,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
+    let named_by_address = before.named_by_address();
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
     // An Exchange server account is the same: its ids are the server's.
@@ -602,10 +632,20 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         (a.email, a.kind, a.oauth, a.incoming, a.outgoing, a.username) = (before.email, before.kind, None, None, None, String::new());
         a.shared_of = before.shared_of;
     }
+    // The name in the folder pane (#1017): an empty one is the address again, and one that is the
+    // address follows it to a new one unless another name is given with it.
+    if a.name.trim().is_empty() || (p::str(v, "name").is_none() && named_by_address) {
+        a.name = a.name_by_default();
+    }
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // A shorter window: what is outside it now is thinned at the next tick, for any host.
+    let shortened = a.keep_offline < before.keep_offline;
     *s.mailbox.account_mut(id)? = a;
+    if shortened {
+        s.driver.thinning.now = true;
+    }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
@@ -720,6 +760,10 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
+    // Where the sync driver's jobs and permissions stood for them goes too (to-dos, rules,
+    // automatic replies, the calendar, the Favorites, free and busy times, what waited to be
+    // sent): nobody is to be asked about an account that isn't there.
+    s.driver.forget_accounts(&going);
     // What its server was asked for, for mail moved out of it, nothing will answer now (#30).
     super::mail::check_again::settle(&mut s.mailbox);
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
@@ -816,6 +860,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
     }
     let mut again = super::imap_again::wanted(&s.mailbox, account, s.now());
+    let now = s.now();
     let folders = s
         .mailbox
         .folders
@@ -830,6 +875,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
             again: again.remove(&f.id).unwrap_or_default(),
+            // Good to pass the folder over by until the next reading in full is due (#276).
+            status: f.imap_status.filter(|st| (0..super::graph_mail::FULL_SWEEP_EVERY).contains(&now.saturating_sub(st.at))),
         })
         .collect();
     let (ops, _) = remote_ops(s, account, MAX_OPS);
@@ -1143,6 +1190,8 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     // So has one kept in step over JMAP (`sync.jmapRequest`): every mailbox is read.
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
         s.jmap_read.remove(&account);
+        let now = s.now();
+        super::graph_send::date_undated(&mut s.mailbox, account, now);
         let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false)?).map_err(|e| fail(e.to_string()))?;
         req["jmap"] = json!(true);
         return Ok(req);
@@ -1805,7 +1854,7 @@ fn merge_flags(mb: &mut Mailbox, id: Id, theirs: RemoteFlags) -> bool {
 /// The Message-ID a message was sent with, when a server gave it another on the way and kept the
 /// first in a header of its own (Microsoft's do that to mail sent through them).
 fn original_id(m: &Message) -> Option<&str> {
-    let value = m.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case("X-Microsoft-Original-Message-ID")).map(|(_, value)| value.as_str())?;
+    let value = m.header("X-Microsoft-Original-Message-ID")?;
     Some(value.trim().trim_start_matches('<').trim_end_matches('>').trim()).filter(|id| !id.is_empty())
 }
 
@@ -1831,8 +1880,7 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let waiting = |id: &Id| mb.message(*id).filter(|m| m.folder == folder && m.uid == 0 && m.synced.is_some());
     // A copy put there from elsewhere is known by its marker alone: mail that merely looks like
     // it may be the server's own (#451).
-    let carries =
-        |m: &Message| theirs.headers.iter().any(|(name, value)| name.eq_ignore_ascii_case(mailcraft_mime::PLACE_HEADER) && *value == m.placed);
+    let carries = |m: &Message| theirs.header_values(mailcraft_mime::PLACE_HEADER).any(|value| value == m.placed);
     let by_id = expected.iter().position(|id| waiting(id).is_some_and(|m| if m.placed.is_empty() { same_id(m) } else { carries(m) }));
     let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| m.placed.is_empty() && same_mail(m, theirs))))?;
     let id = expected.swap_remove(at);
@@ -2286,6 +2334,11 @@ fn take_in(
     if let Ok(f) = mb.folder_mut(folder) {
         if delta.complete {
             f.whole = Some(true);
+            // What the server said of it before it was read to the end (#276), or nothing.
+            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: now, ..status });
+        }
+        if reset {
+            f.imap_status = None;
         }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {

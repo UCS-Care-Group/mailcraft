@@ -43,9 +43,9 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 ## Architecture (see `docs/architecture.md`)
 | Layer | Crate | Job |
 |---|---|---|
-| L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; web addresses as they are shown and launched; one list of format characters, and a name coming in and being shown; interface text in other languages (`.po` catalogues, plural rules) |
+| L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n`, `ber`, `jmap-types` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; web addresses as they are shown and launched; one list of format characters, and a name coming in and being shown; interface text in other languages (`.po` catalogues, plural rules); bounded BER/DER reading for signed messages; JMAP request and response types (serde only, no I/O) |
 | L1 | `model`, `html` | the mailbox and its edit primitives, recurrence, search, sync data; hostile HTML to display blocks |
-| L2 | `mime`, `ical`, `vcard`, `pst` | Internet messages and mbox; iCalendar; vCard; Outlook data files (.pst), read |
+| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst` | Internet messages and mbox on their own types (no `model`); the mailbox's messages to and from them; iCalendar; vCard; Outlook data files (.pst), read |
 | L3 | `proto`, `net`, `jmap`, `dav` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising; JMAP requests and answers, no I/O of its own; bounded DAV documents and XML, no I/O |
 | L4 | `engine` | Session, undo, **command registry**, Outlook feature catalog, sample, I/O dispatch |
 | L5 | `mcp` | MCP server (headless or bridged to the app) |
@@ -56,7 +56,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 - **The engine never does I/O with servers.** `sync.request` says what a synchronisation should do, `sync.apply` takes in what it brought back (`crates/model/src/sync.rs`); a host with sockets (`mailcraft-net`, on a background thread in the desktop app and in the CLI) does the part in between. That is what keeps the engine and the UI building for the browser.
 - **Parity is measured:** `crates/engine/src/catalog.rs` lists Outlook's ribbon/menu features with command ids. `cargo xtask parity` writes `docs/parity-checklist.md`; a test enforces a floor that only rises. Implement missing ids to raise it.
 - **Layering** is enforced by `cargo xtask layers`. Nothing below L6 depends on egui/eframe/winit/rfd. The UI is thin and reads `Session` state; colours come from `theme::Tokens`; text goes through `tl!`, and a count through `tln!(n, "{n} message", "{n} messages")` (never an English `if n == 1`); `cargo xtask i18n` refreshes `crates/i18n/po/messages.pot` (CI fails when it is stale).
-- **Rust only** (no handwritten JS/TS). **Never break wasm** (`cargo xtask wasm`).
+- **Rust only**, with two exceptions: Kotlin under `apps/mailcraft-android` and Swift under `apps/mailcraft-ios`, for the interface and the platform layer alone. They never parse anything that comes from outside (messages, server answers and files are read by Rust), and their lint (detekt and Android Lint for Kotlin, as errors) enforces never-crash: no `!!`, no `lateinit` where it can be avoided, no `TODO`. No handwritten JS/TS. Every Kotlin and Swift file starts with the SPDX lines like a Rust one (`cargo xtask spdx`). **Never break wasm** (`cargo xtask wasm`).
 
 ## Quality gates
 Before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, assets, spdx (every Rust file starts with its SPDX copyright and licence lines; `cargo xtask spdx --fix` adds them), test-files (no new inline test module; `xtask/inline-tests.txt` lists the older ones and only shrinks), layers, wasm, deny: advisories, licences and sources of the dependencies through `cargo-deny`, which CI requires). Commit after every arc of work that builds, with a task id in the message (`M2.1: recurrence editor`).

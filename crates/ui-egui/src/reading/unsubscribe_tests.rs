@@ -41,7 +41,7 @@ fn list_app(headers: &[(&str, &str)]) -> (MailApp, u64) {
     let id = mailbox.add_message(m).unwrap();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     (app, id)
 }
 
@@ -149,6 +149,14 @@ fn the_question_says_what_each_way_does() {
     let (app, id) = list_app(&[("Authentication-Results", PASSED), ("List-Unsubscribe", "<mailto:leave@news.example>")]);
     let q = question(&app, &json!({"message": id})).unwrap();
     assert!(q.text.contains("leave@news.example") && q.text.contains("avery@lumen-works.example"), "{}", q.text);
+    // What goes is shown: "Unsubscribe" when the address gives nothing, else its own words, on
+    // one line and cut short.
+    assert!(q.text.contains("“Unsubscribe”"), "{}", q.text);
+    let long = "x".repeat(500);
+    let list = format!("<mailto:leave@news.example?subject=Stop%20please&body=Remove%0Ame%20{long}>");
+    let (app, id) = list_app(&[("Authentication-Results", PASSED), ("List-Unsubscribe", list.as_str())]);
+    let q = question(&app, &json!({"message": id})).unwrap();
+    assert!(q.text.contains("“Stop please”") && q.text.contains("“Remove me x") && q.text.contains("…”") && !q.text.contains(&long), "{}", q.text);
     // A message that says nothing asks nothing.
     let (app, id) = list_app(&[("Authentication-Results", PASSED)]);
     assert!(question(&app, &json!({"message": id})).is_none());

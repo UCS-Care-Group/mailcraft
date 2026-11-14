@@ -221,6 +221,17 @@ impl Windows {
         self.open.iter().find(|w| matches!(w.what, What::Message { message: m, .. } if m == message)).map(|w| w.id)
     }
 
+    /// The messages of the mailbox open in windows of their own.
+    pub(crate) fn messages(&self) -> Vec<Id> {
+        self.open
+            .iter()
+            .filter_map(|w| match w.what {
+                What::Message { message, .. } => Some(message),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
@@ -1183,6 +1194,9 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
     window.asked = true;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // eframe gives `raw_input_hook` no say over a window shown like this: where the window
+        // layer's clipboard keys are off, they become cut, copy and paste here (#1217).
+        clipboard_keys(app, &ctx);
         // What was chosen in a text's menu here, before anything reads the input.
         let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
@@ -1206,6 +1220,15 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
         crate::text_menu::finish(&ctx, menus);
     });
     close
+}
+
+/// Where the window layer's clipboard keys are off (`Services::clipboard_keys`), the key presses
+/// of this pass become cut, copy and paste.
+pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
+    if app.services.clipboard_keys {
+        let board = app.services.clipboard.as_deref();
+        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
+    }
 }
 
 /// A movable window inside the main one; `behind`: another of them is the active one (or a
@@ -1447,7 +1470,7 @@ mod tests {
     fn app() -> MailApp {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app
     }
 
@@ -2383,7 +2406,7 @@ mod tests {
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         // The calendar keeps itself current: what is made here goes to the stand-in at once.
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         let mut harness = window(a);
         harness.run_steps(6);
         assert!(event_named(&harness, "Budget review").is_some(), "the server's calendar came down");
@@ -2623,7 +2646,7 @@ mod tests {
         let server = serve(&mut a);
         microsoft_account(&mut a);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
-        a.auto_sync = true;
+        a.session.driver.set_auto_sync(true);
         // The stand-in for the server: Maya is busy from one to two and away from four on;
         // Tomás can't be looked up; of Priya it says nothing.
         let asks: Arc<Mutex<Vec<FreeBusyAsk>>> = Default::default();

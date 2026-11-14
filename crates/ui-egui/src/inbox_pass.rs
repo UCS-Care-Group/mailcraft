@@ -35,6 +35,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+use mailcraft_engine::sync_driver::Start;
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
@@ -93,7 +94,7 @@ impl MailApp {
     pub(crate) fn inbox_check_tick(&mut self) -> Option<Id> {
         self.take_in_given_way();
         let now = self.session.now();
-        if !self.auto_sync || self.session.prefs.sync_minutes == 0 || self.services.graph.is_none() {
+        if !self.session.driver.auto_sync() || self.session.prefs.sync_minutes == 0 || self.services.graph.is_none() {
             self.inbox_check.queue.clear();
             return None;
         }
@@ -101,13 +102,7 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
-        let round = self.sync_rx.is_some()
-            || self.graph_rx.is_some()
-            || !self.sync_queue.is_empty()
-            || !self.inbox_queue.is_empty()
-            || self.signing_in.is_some()
-            || self.approving()
-            || self.graph_switch_copy.is_some();
+        let round = self.job_busy().blocks(Start::InboxCheck);
         // (A clock put back starts the minute again.)
         if round || self.inbox_check.last == 0 || now < self.inbox_check.last {
             self.inbox_check.queue.clear();
@@ -162,7 +157,7 @@ impl MailApp {
     /// A round of `accounts` is about to begin: those with an Inbox pass line up for it, in the
     /// round's order.
     pub(crate) fn queue_inbox_passes(&mut self, accounts: &[Id], quiet: bool) {
-        self.inbox_queue = accounts
+        self.session.driver.round.inbox_queue = accounts
             .iter()
             .copied()
             .filter(|account| mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some())
@@ -173,7 +168,7 @@ impl MailApp {
     /// Start the next Inbox pass in line; an account that can't have one now (it would have to
     /// sign in, or Microsoft won't open it) goes without. What was started, if anything.
     pub(crate) fn start_next_inbox_pass(&mut self) -> Option<Value> {
-        while let Some((account, quiet)) = self.inbox_queue.pop_front() {
+        while let Some((account, quiet)) = self.session.driver.round.inbox_queue.pop_front() {
             if let Some(started) = self.start_inbox_pass(account, quiet, false) {
                 return Some(started);
             }
@@ -320,7 +315,7 @@ impl MailApp {
             return;
         }
         // Stop ends the round: nothing is left in line.
-        if self.services.sync_cancel.load(Ordering::Relaxed) && self.sync_queue.is_empty() {
+        if self.services.sync_cancel.load(Ordering::Relaxed) && self.session.driver.round.queue.is_empty() {
             let now = self.session.now();
             self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
             self.session.sync_progress.end(account, true);

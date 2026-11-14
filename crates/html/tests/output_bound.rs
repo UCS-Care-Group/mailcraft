@@ -3,7 +3,7 @@
 //! What `parse` makes stays a small multiple of what it reads (the crate's contract), whatever
 //! the nesting of styles and links and however long the addresses: written out, the blocks are
 //! at most `K` times the input and a fixed allowance, and what they repeat of links and fonts at
-//! most `COPIES` times (`mailcraft-mime`'s `tests/rich_output_bound.rs` holds the composer's
+//! most `COPIES` times (`mailcraft-mime-model`'s `tests/rich_output_bound.rs` holds the composer's
 //! reading of HTML to the same bound).
 
 use mailcraft_html::{Block, BlockKind, parse, parse_text_own};
