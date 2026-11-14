@@ -15,7 +15,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .reads()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
+            .params(r#"{"folder": number | "sent" | "Inbox/Projects", "account"?: number} (an id; a standard folder's kind, inbox, drafts, sent, deleted, junk, archive or outbox, in any language of the mailbox, of `account` or else the account in view; otherwise a path, which is looked for in `account`, or without it in the account in view before any other, and digits that name no folder an id. A kind comes before a folder of that name, which is still reached by its id or by a path with its parent; `folder` comes before `id`, `kind` and `path`. `account` is an account that is there, and what it names must be that account's, in every form: a folder of another account's, by its id, its kind or its path, is refused rather than quietly given. A shared mailbox is an account of its own here, so its folders are its id's, not those of the account it is opened through) | {"id": number, "account"?: number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects", "account"?: number}, and "gmail"?: "primary"|"social"|"promotions"|"updates"|"forums" (the Inbox of a Gmail account whose categories are shown: its mail Gmail put in that category, #911)"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).reads().params(
             r#"{} — every account's folder tree with each folder's messages and unread, and for each account its own "unread" (a shared mailbox's are on its own entry, with "sharedOf": the account it is opened through, and never added to that account's), "favoritesFrom", and "favorites": what the pane lists under Favorites, in its order"#,
         ),
@@ -122,8 +122,9 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     if s.mailbox.count(s.view.folder) == 0 {
         return Some("the folder is already empty");
     }
-    // Not of what a JMAP account's server has (M6): the next run would bring it back.
-    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+    // Not of a folder holding what a JMAP account's server has (M6): the next run would bring it
+    // back. (The mail in it goes, and its server is told.)
+    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_NOT_DELETED_YET)
 }
 
 /// Why the folder in view is left as it is, when it is one of its server's own (Conversation
@@ -160,7 +161,7 @@ fn can_delete(s: &Session) -> Option<&'static str> {
     if let r @ Some(_) = server_owned(s) {
         return r;
     }
-    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_NOT_DELETED_YET)
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
@@ -190,10 +191,99 @@ pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id
         .map(|f| f.id)
 }
 
+/// Folder `id`, when it is the account named's (#1200). An id is of `account` as much as a kind
+/// or a path is: without this, `{"folder": 12, "account": 2}` would answer with account 1's
+/// folder 12 and nothing would say whose it was.
+fn of_account(s: &Session, id: Id, account: Option<Id>) -> Result<Id, CmdError> {
+    let folder = s.mailbox.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
+    match account.is_none_or(|a| folder.account == a) {
+        true => Ok(folder.id),
+        false => Err(failed!("folder {id} is not that account's", id)),
+    }
+}
+
+/// A folder by its path (#1200): in the account named, or, with none named, in the account in
+/// view before any other, because two accounts may both have "Inbox/Projects" and the one in
+/// front of the owner is the one they mean. The others come after it, so a path still reaches
+/// every folder it used to.
+fn path_in(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
+    match account {
+        Some(a) => by_path(s, Some(a), path),
+        None => {
+            let of = s.mailbox.folder(s.view.folder).map(|f| f.account).or_else(|| s.mailbox.default_account().map(|a| a.id));
+            // (With no account in view there is no first place to look, and the one search stands.)
+            by_path(s, of, path).or_else(|| of.and_then(|_| by_path(s, None, path)))
+        }
+    }
+}
+
+/// A folder as an agent, a script or the command line names it (#1200): a number is its id; a
+/// word that is a standard folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`,
+/// `archive`, `outbox`, in any case) is that folder of `account`, else of the account in view,
+/// else of the default one, whatever it is called in the mailbox's language; any other text is
+/// a path (`Inbox/Projects`), and a path of digits that names no folder is the folder with that
+/// id. So `Sent` reaches "Gesendete Elemente", and a folder called "2024" is still that folder.
+///
+/// A kind comes before a path, so a folder of the owner's own called "Archive" is shadowed by the
+/// account's Archive; that one is still reached by its id or by a path with its parent. Where the
+/// account has no folder of that kind, a folder of that name is taken instead.
+pub(crate) fn named(s: &Session, folder: &Value, account: Option<Id>) -> Result<Id, CmdError> {
+    if let Some(id) = folder.as_u64() {
+        return of_account(s, id, account);
+    }
+    let text = folder
+        .as_str()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| bad("`folder` is an id, a kind such as \"sent\", or a path such as \"Inbox/Projects\""))?;
+    let kind = FolderKind::parse(text).filter(|k| *k != FolderKind::Custom);
+    // A kind is one account's: the one named, else the account in view, else the default one.
+    let of = account.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).or_else(|| s.mailbox.default_account().map(|a| a.id));
+    if let Some(kind) = kind {
+        if let Some(id) = of.and_then(|a| s.mailbox.folder_of_kind(a, kind)) {
+            return Ok(id);
+        }
+        // Its account has no folder of that kind: one of its own called that, and no other
+        // account's, so a word for a kind never reaches somebody else's mail.
+        if let Some(id) = by_path(s, of, text) {
+            return Ok(id);
+        }
+    } else if let Some(id) = path_in(s, account, text) {
+        return Ok(id);
+    }
+    // Digits that name no folder are an id, of the account named when there is one, and said so
+    // in the same words as the id written as a number.
+    if let Ok(id) = text.parse::<u64>()
+        && s.mailbox.folder(id).is_some()
+    {
+        return of_account(s, id, account);
+    }
+    // (A kind the account has no folder of, and nothing of that name either.)
+    match kind {
+        Some(kind) => Err(failed!("no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name()))),
+        None => Err(failed!("no folder \"{path}\"", path = text)),
+    }
+}
+
+/// `account` from the parameters (#1200): an id, and an account that is there. Taken for "none",
+/// an account that isn't there would quietly become the account in view, and the answer would
+/// read as though it came from the one that was asked for. `mail.list` and `folder.select` read
+/// it through this, so that [`named`] is given an account it can trust. `folder.new` does not: it
+/// takes `account` only where `parent` names no folder, and reads it loosely.
+pub(crate) fn account_named(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
+    let Some(id) = p::id_strict(v, "account")? else { return Ok(None) };
+    match s.mailbox.account(id) {
+        Some(_) => Ok(Some(id)),
+        None => Err(failed!("no account with id {id}", id)),
+    }
+}
+
 fn select(s: &mut Session, v: &Value) -> CmdResult {
-    let account = p::id(v, "account");
-    let id = if let Some(id) = p::id_strict(v, "id")? {
-        s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?
+    let account = account_named(s, v)?;
+    let id = if let Some(folder) = v.get("folder").filter(|f| !f.is_null()) {
+        named(s, folder, account)?
+    } else if let Some(id) = p::id_strict(v, "id")? {
+        of_account(s, id, account)?
     } else if let Some(kind) = p::str(v, "kind") {
         let kind = FolderKind::parse(kind).ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted, junk, archive or outbox"))?;
         let account = account.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).or_else(|| s.mailbox.default_account().map(|a| a.id));
@@ -201,9 +291,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
             .and_then(|a| s.mailbox.folder_of_kind(a, kind))
             .ok_or_else(|| failed!("no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name())))?
     } else if let Some(path) = p::str(v, "path") {
-        by_path(s, account, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
+        // As `folder` takes a path (#1200): the account named, else the one in view first.
+        path_in(s, account, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
     } else {
-        return Err(bad("`id`, `kind` or `path` is required"));
+        return Err(bad("`folder`, `id`, `kind` or `path` is required"));
     };
     // One of Gmail's categories of a Gmail account's Inbox (#911).
     let gmail = match v.get("gmail") {

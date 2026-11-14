@@ -79,8 +79,8 @@ fn went_offline(app: &mut MailApp) {
     if app.syncing() {
         let _ = app.ui_command("ui.cancelSync", &json!({}));
     }
-    app.sync_queue.clear();
-    app.inbox_queue.clear();
+    app.session.driver.round.queue.clear();
+    app.session.driver.round.inbox_queue.clear();
     app.pause_fetch();
     // (A sender's image being looked up stops before its next request; none is kept.)
     app.sender_images = crate::sender_images::SenderImages::default();
@@ -90,7 +90,7 @@ fn went_offline(app: &mut MailApp) {
 /// Work Offline turned off: what waits in the Outbox goes with a Send/Receive at once.
 fn went_online(app: &mut MailApp) {
     app.status(tl!("Back online"));
-    if app.auto_sync && app.services.can_sync() && !app.server_accounts().is_empty() && !app.syncing() {
+    if app.session.driver.auto_sync() && app.services.can_sync() && !app.server_accounts().is_empty() && !app.syncing() {
         let _ = app.start_sync(&json!({"quiet": true}));
     }
 }

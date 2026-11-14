@@ -134,7 +134,7 @@ fn a_store_waiting_for_its_unlock_never_stops_the_window() {
     let (store, answer) = Locked::new();
     store.blocks.store(true, Ordering::SeqCst);
     let (mut a, imap, microsoft, seen) = window(&store);
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     let started = std::time::Instant::now();
     frames(&mut a, imap, microsoft, 300);
     // A window that waited on the store would wait until the end of the test; a slow test machine
@@ -161,7 +161,7 @@ fn a_refusal_is_not_asked_again_until_the_owner_acts() {
     let (store, _answer) = Locked::new();
     store.refuses.store(true, Ordering::SeqCst);
     let (mut a, imap, microsoft, seen) = window(&store);
-    a.auto_sync = true;
+    a.session.driver.set_auto_sync(true);
     frames(&mut a, imap, microsoft, 50);
     settle(&mut a);
     frames(&mut a, imap, microsoft, 300);

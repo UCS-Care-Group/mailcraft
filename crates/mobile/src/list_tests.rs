@@ -234,13 +234,13 @@ fn deleting_a_conversation_row_takes_the_messages_it_stands_for() {
 }
 
 #[test]
-fn an_account_says_whether_it_has_a_server_and_a_refresh_with_none_is_refused() {
+fn an_account_says_its_kind_and_a_refresh_with_no_server_is_refused() {
     let core = sample_core();
     let accounts = block_on(core.folders(0)).unwrap().accounts;
-    assert!(!accounts.is_empty() && accounts.iter().all(|a| !a.server));
+    assert!(!accounts.is_empty() && accounts.iter().all(|a| a.kind == "local"));
     assert!(exec(&core, "sync.request", json!({})).is_err());
     let gmail = block_on(gmail_core().folders(0)).unwrap();
-    assert!(gmail.accounts.iter().all(|a| a.server));
+    assert!(gmail.accounts.iter().all(|a| a.kind == "imap"));
 }
 
 fn zebra_core() -> Arc<Core> {

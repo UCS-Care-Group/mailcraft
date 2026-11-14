@@ -155,7 +155,7 @@ private fun LazyItemScope.ListedRow(
     onMenu: () -> Unit,
 ) {
     Column(modifier = Modifier.animateItem()) {
-        row.group?.let { GroupHeader(context.texts, it) }
+        row.group?.let { GroupHeader(context.texts, it, row.groupIsCategory) }
         SwipeableRow(
             texts = context.texts,
             row = row,
@@ -202,11 +202,10 @@ private fun NoticeEffect(texts: Texts, event: NoticeEvent?, host: SnackbarHostSt
 }
 
 /** The words of a notice. */
-internal fun noticeText(texts: Texts, notice: Notice): String = when (notice) {
-    Notice.NoAccount -> texts.t("No account is connected, so there is no mail to check for.")
-    Notice.NotYet -> texts.t("Checking for new mail is not available in this version yet.")
-    Notice.Failed -> texts.t("That did not work.")
-    is Notice.Done -> doneText(texts, notice.triage, notice.count)
+internal fun noticeText(texts: Texts, notice: ListNotice): String = when (notice) {
+    is ListNotice.Said -> notice.message
+    ListNotice.Failed -> texts.t("That did not work.")
+    is ListNotice.Done -> doneText(texts, notice.triage, notice.count)
 }
 
 private fun doneText(texts: Texts, triage: Triage, count: Int): String {

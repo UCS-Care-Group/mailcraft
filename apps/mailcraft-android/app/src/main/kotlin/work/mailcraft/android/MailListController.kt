@@ -3,19 +3,23 @@
 package work.mailcraft.android
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import uniffi.mailcraft_mobile.Event
 
 /**
  * The message list's logic, apart from any screen: which list is shown, which pages of it have been
  * read, what the commands on it do. It reads windows of rows through [MailSource] and never the
  * whole list: pages as the screen scrolls to them, and, when the core says the mailbox changed,
  * again only the pages on screen. Every function may be called from the main thread: the work is
- * the source's, off it.
+ * the source's, off it. There is one for the app, made with the core, so that the list outlives a
+ * window; the windows only read [ui].
  */
 internal class MailListController(
     private val source: MailSource,
@@ -36,22 +40,15 @@ internal class MailListController(
     /** The pages being read now, by list and page, so that scrolling does not ask for one twice. */
     private val reading: MutableSet<Pair<Int, Int>> = java.util.Collections.synchronizedSet(HashSet())
 
-    @Volatile
-    private var hasServer = false
-
     /** Whether the rows held are of an earlier query, its first page not yet in: nothing is read into them. */
     @Volatile
     private var switching = false
 
-    /** Whether any account is kept in step with a server: what a pull to refresh can do. */
-    fun accountsHaveServer(value: Boolean) {
-        hasServer = value
-    }
-
     /**
-     * Shows the list [query] asks for: reads its first page and its tabs. The rows of the list that
-     * was shown stay until that page arrives, so that a keystroke in the search or a change of filter
-     * does not blank the screen.
+     * Shows the list [query] asks for: reads its first page and its tabs. In the same folder, the
+     * rows of the list that was shown stay until that page arrives, so that a keystroke in the search
+     * or a change of filter does not blank the screen; another folder's rows never stand under the
+     * new folder's name, so the list says it is loading until its own page is in.
      */
     suspend fun show(query: MailQuery) {
         val mine = generation.incrementAndGet()
@@ -59,9 +56,11 @@ internal class MailListController(
         val sameFolder = before.query?.folder == query.folder
         switching = true
         state.update {
+            val keep = sameFolder && it.snapshot.total > 0
             it.copy(
                 query = query,
-                load = if (it.snapshot.total > 0) it.load else LoadState.Loading,
+                load = if (keep) it.load else LoadState.Loading,
+                snapshot = if (sameFolder) it.snapshot else ListSnapshot.Empty,
                 tabs = if (sameFolder) it.tabs else emptyList(),
             )
         }
@@ -130,18 +129,23 @@ internal class MailListController(
         if (query.search.isBlank()) loadTabs(mine, query.folder)
     }
 
-    /** Pull to refresh: asks the core to check for mail, and says so when there is nothing to check. */
+    /**
+     * Pull to refresh: asks the core to send and receive. A round that starts needs no word (the
+     * freshness line moves when it ends); one the core won't start says why, in its own words.
+     */
     suspend fun refresh() {
         state.update { it.copy(refreshing = true) }
-        val outcome = source.refresh(hasServer)
-        when (outcome) {
-            RefreshOutcome.NoAccount -> notify(Notice.NoAccount)
-            RefreshOutcome.Failed -> notify(Notice.Failed)
-            RefreshOutcome.Requested -> notify(Notice.NotYet)
+        when (val outcome = source.refresh()) {
+            RefreshOutcome.Started -> Unit
+            is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
+            RefreshOutcome.Failed -> notify(ListNotice.Failed)
         }
         reload()
         state.update { it.copy(refreshing = false) }
     }
+
+    /** The categories mail can be given, with their colours. */
+    suspend fun categories(): List<CategoryItem> = source.categories()
 
     /** A synchronisation finished: the list is as fresh as now. */
     fun updated() {
@@ -161,12 +165,12 @@ internal class MailListController(
         val done = source.focusedRun(triage, rows)
         reload()
         // A change the owner can see in the list needs no word; one that takes mail away offers its undo.
-        if (!done) notify(Notice.Failed) else if (triage.destructive) notify(Notice.Done(triage, rows.size))
+        if (!done) notify(ListNotice.Failed) else if (triage.destructive) notify(ListNotice.Done(triage, rows.size))
     }
 
     /** Takes back the last change. */
     suspend fun undo() {
-        if (!source.run("edit.undo", "{}")) notify(Notice.Failed)
+        if (!source.run("edit.undo", "{}")) notify(ListNotice.Failed)
         reload()
     }
 
@@ -175,7 +179,7 @@ internal class MailListController(
         state.update { if (it.notice?.seq == seq) it.copy(notice = null) else it }
     }
 
-    private fun notify(notice: Notice) {
+    private fun notify(notice: ListNotice) {
         val event = NoticeEvent(notices.incrementAndGet(), notice)
         state.update { it.copy(notice = event) }
     }
@@ -183,6 +187,19 @@ internal class MailListController(
     private fun MailListUi.merged(window: RowsWindow): MailListUi {
         val next = snapshot.with(window) ?: return this
         return copy(snapshot = next, load = LoadState.Ready)
+    }
+}
+
+/**
+ * Takes the core's events that are the list's, in [scope]: a newer revision reads the pages on
+ * screen again, a Send/Receive round that finished marks the list fresh. Every other event is left
+ * to its own handler.
+ */
+internal fun MailListController.handle(event: Event, scope: CoroutineScope) {
+    when (event) {
+        is Event.RevChanged -> scope.launch { revChanged(event.rev) }
+        is Event.SyncFinished -> if (event.finished) updated()
+        else -> Unit
     }
 }
 

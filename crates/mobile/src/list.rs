@@ -39,8 +39,10 @@ pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>
     };
     // The list is built by the engine's non-mutating path over a view made for this query alone
     // (`Session::rows` would also move the selection's stays and the list cache of the folder in
-    // view), and the view is put back after.
+    // view), and the view is put back after. The selection's stays are set aside too: a message a
+    // selection keeps in the list it was made in would show though it fails the filter.
     let saved = s.view.clone();
+    let stays = s.sel.stays.take();
     s.view.folder = q.folder;
     s.view.filter = filter;
     s.view.search = text::clip(q.search.trim(), MAX_SEARCH);
@@ -52,9 +54,9 @@ pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>
     s.view.open.clear();
     let rows = mailcraft_engine::list::rows(s);
     s.view = saved;
+    s.sel.stays = stays;
     let start = usize::try_from(offset).unwrap_or(usize::MAX);
-    let window =
-        rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, &r.members, r.unread, r.group.clone()))).collect();
+    let window = rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(s, m, r))).collect();
     Ok(MessageWindow { rev: s.rev(), folder: q.folder, total: text::count_of(rows.len()), offset, rows: window })
 }
 

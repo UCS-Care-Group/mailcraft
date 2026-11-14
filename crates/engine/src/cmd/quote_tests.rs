@@ -102,7 +102,7 @@ fn a_reply_carries_the_original_html_with_its_look() {
     assert_eq!(m.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect::<Vec<_>>(), [("logo.png", true)]);
     assert!(!m.has_attachments());
     // On the wire, the picture is beside the HTML that shows it.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     let wire = String::from_utf8_lossy(&bytes);
     assert!(wire.contains("multipart/related") && wire.contains("Content-ID: <logo@news.example>"), "{wire}");
     assert!(s.mailbox.message(id).unwrap().answered);
@@ -261,7 +261,7 @@ fn originals_of_any_shape_are_carried_without_panicking() {
         assert!(q.html.starts_with(QUOTE_MARK), "{html:?}");
         let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
         let m = Arc::new(s.mailbox.message(sent).unwrap().clone());
-        let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+        let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
         let head_end = bytes.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
         assert!(!String::from_utf8_lossy(&bytes[..head_end]).to_ascii_lowercase().contains("\r\nbcc:"), "{html:?}");
     }
@@ -309,6 +309,7 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::Italian, "-----Messaggio originale-----", "Da: "),
         (Lang::Dutch, "-----Oorspronkelijk bericht-----", "Van: "),
         (Lang::Romanian, "-----Mesaj original-----", "De la: "),
+        (Lang::ChineseSimplified, "-----原始邮件-----", "来自： "),
     ];
     for (lang, marker, from) in markers {
         let mut s = session();

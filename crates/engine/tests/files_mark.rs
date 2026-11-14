@@ -29,6 +29,7 @@ const OTHER_WRITERS: &[(&str, &str)] = &[
     ("crates/engine/src/mark.rs", "the mark itself, and the writers of the sender's bytes"),
     ("crates/engine/src/store.rs", "the mailbox file and its content folder"),
     ("crates/engine/src/store_stream.rs", "the mailbox file's time"),
+    ("crates/engine/src/store_pack.rs", "the packs of header blocks in the mailbox's content folder"),
     ("crates/engine/src/store_before.rs", "its tests"),
     ("crates/engine/src/words.rs", "the search index"),
     ("crates/engine/src/io.rs", "reads a file named from outside"),

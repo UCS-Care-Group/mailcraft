@@ -342,7 +342,7 @@ fn the_subject_line_cuts_copies_and_pastes_through_its_menu() {
 fn a_password_field_offers_paste_alone() {
     let board = Board::holding(TYPED);
     let mut a = app(Some(&board));
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     let r = a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}));
     let account = r.unwrap()["id"].as_u64().unwrap();
     a.dialog = Some(Dialog::Password { account, password: String::new(), shown: false });
@@ -1482,7 +1482,7 @@ fn pasted(into: Into, board: &Board, menu: bool) -> (String, Option<Selection>, 
         }
         Into::Password => {
             let mut a = app(Some(board));
-            a.auto_sync = false;
+            a.session.driver.set_auto_sync(false);
             let account = a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
                 .as_u64()
                 .unwrap();
@@ -1602,7 +1602,7 @@ fn a_dialog_leaves_the_keyboard_to_its_fields_menu() {
     let board = Board::holding("2026-10-30");
     for name in ["Search Commands", "Go to Date", "Password"] {
         let mut a = app(Some(&board));
-        a.auto_sync = false;
+        a.session.driver.set_auto_sync(false);
         let (dialog, role) = match name {
             "Search Commands" => (Dialog::Commands { query: String::new(), selected: 0 }, Role::TextInput),
             "Go to Date" => (Dialog::GoToDate { text: String::new(), error: String::new() }, Role::TextInput),

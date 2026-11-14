@@ -19,18 +19,10 @@ internal data class FolderItem(
 )
 
 /** An account and its folders, top folders first and each folder's own just after it. */
-internal data class AccountItem(
-    val id: ULong,
-    val name: String,
-    val email: String,
-    val folders: List<FolderItem>,
-    /** The account is kept in step with a mail server. */
-    val server: Boolean = false,
-)
+internal data class AccountItem(val id: ULong, val name: String, val email: String, val folders: List<FolderItem>)
 
 /** The accounts of the mailbox, and the folder the Mail tab opens on. */
 internal data class MailboxOutline(val accounts: List<AccountItem>, val inboxId: ULong?)
-
 
 /** How far down the folder tree the drawer goes; deeper folders sit at this depth. */
 internal const val MAX_FOLDER_DEPTH = 4
@@ -66,36 +58,23 @@ internal fun folderTree(folders: List<FolderItem>): List<FolderItem> {
 }
 
 /**
- * Opens the sample mailbox and lists its accounts and folders, read-only. The sample is the core's
- * own invented mailbox; no account is signed in and nothing is fetched.
+ * Lists the Microsoft accounts of the mailbox and their folders, read-only. The phone app has no
+ * other kind of account in v1: the mailbox's empty local one, which the core always has, is not shown.
  */
 internal suspend fun loadOutline(
     core: Core,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ): MailboxOutline? = withContext(dispatcher) {
     try {
-        core.execute("file.new", """{"sample":true}""")
-        readOutline(core)
-    } catch (_: CoreException) {
-        null
-    }
-}
-
-/** The accounts and folders as they are now (with their unread counts), without opening anything. */
-internal suspend fun readOutline(
-    core: Core,
-    dispatcher: CoroutineDispatcher = Dispatchers.Default,
-): MailboxOutline? = withContext(dispatcher) {
-    try {
         val list = core.folders(0uL)
-        val accounts = list.accounts.map { account ->
+        val accounts = list.accounts.filter { it.kind == "microsoft" }.map { account ->
             val own = list.folders.filter { it.account == account.id }.map {
                 FolderItem(it.id, it.parent, it.name, it.kind, it.unread)
             }
-            val name = account.displayName.ifBlank { account.name }
-            AccountItem(account.id, name, account.email, folderTree(own), account.server)
+            val name = account.displayName.ifBlank { account.name }.ifBlank { account.email }
+            AccountItem(account.id, name, account.email, folderTree(own))
         }
-        val inbox = list.folders.firstOrNull { it.kind == "inbox" }
+        val inbox = accounts.firstNotNullOfOrNull { account -> account.folders.firstOrNull { it.kind == "inbox" } }
         MailboxOutline(accounts, inbox?.id)
     } catch (_: CoreException) {
         null

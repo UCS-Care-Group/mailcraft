@@ -545,7 +545,7 @@ mod tests {
         // It opened, nothing was asked, and it is that occurrence that is meant.
         assert!(!matches!(app.dialog, Some(crate::dialogs::Dialog::Confirm { .. })), "no question about the series");
         assert!(app.windows.of_event(daily).is_some() || app.dialog.as_ref().is_some_and(|d| d.name() == "editEvent"));
-        assert_eq!(app.calendar.opened, Some((daily, Some(day(13)))));
+        assert_eq!(app.session.driver.calendar.opened, Some((daily, Some(day(13)))));
         assert_eq!((app.session.sel.event, app.session.sel.event_day), (Some(daily), Some(day(13))));
         // What its form saves is saved for that day alone, as if the question had been answered.
         let saved = crate::dialogs::as_opened(&mut app, "calendar.edit", json!({"id": daily, "title": "Daily sync, moved"}));
@@ -555,11 +555,11 @@ mod tests {
 
         // Today's, by its start; and an appointment that doesn't repeat simply opens.
         open(&mut app, daily, at(day(14), 16, 10));
-        assert_eq!(app.calendar.opened, Some((daily, Some(day(14)))));
+        assert_eq!(app.session.driver.calendar.opened, Some((daily, Some(day(14)))));
         let _ = app.execute("ui.closeWindow", json!({"all": true}));
         app.dialog = None;
         open(&mut app, single, at(day(14), 16, 20));
-        assert_eq!((app.calendar.opened, app.session.sel.event), (None, Some(single)));
+        assert_eq!((app.session.driver.calendar.opened, app.session.sel.event), (None, Some(single)));
         assert!(app.windows.of_event(single).is_some() || app.dialog.is_some());
         // An item that is gone opens nothing, and a start nobody could mean is still a day.
         let _ = app.execute("ui.closeWindow", json!({"all": true}));

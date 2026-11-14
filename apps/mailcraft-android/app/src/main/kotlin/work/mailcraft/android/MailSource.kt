@@ -10,16 +10,16 @@ import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.ListQuery
 import uniffi.mailcraft_mobile.NetworkKind
 
-/** What asking the core to check for mail came to. */
-internal enum class RefreshOutcome {
-    /** No account is kept in step with a server: there is nothing to check. */
-    NoAccount,
+/** What asking the core to send and receive came to. */
+internal sealed interface RefreshOutcome {
+    /** A round is under way (or was already): its end comes as an event. */
+    data object Started : RefreshOutcome
 
-    /** The core was asked. */
-    Requested,
+    /** The core would not start one, and says why in the owner's language (no account, no network…). */
+    class Refused(val message: String) : RefreshOutcome
 
-    /** The core refused or could not be asked. */
-    Failed,
+    /** The core could not be asked. */
+    data object Failed : RefreshOutcome
 }
 
 /**
@@ -38,8 +38,8 @@ internal interface MailSource {
 
     suspend fun categories(): List<CategoryItem>
 
-    /** Asks the core to check [hasServer] accounts for mail. */
-    suspend fun refresh(hasServer: Boolean): RefreshOutcome
+    /** Asks the core to send and receive now, as the owner did. */
+    suspend fun refresh(): RefreshOutcome
 
     /** Whether the device is online. */
     suspend fun offline(): Boolean
@@ -84,10 +84,13 @@ internal class CoreMailSource(
         }
     }
 
-    override suspend fun refresh(hasServer: Boolean): RefreshOutcome = when {
-        !hasServer -> RefreshOutcome.NoAccount
-        run("sync.request", "{}") -> RefreshOutcome.Requested
-        else -> RefreshOutcome.Failed
+    override suspend fun refresh(): RefreshOutcome = withContext(dispatcher) {
+        try {
+            val answer = core.syncNow()
+            if (answer.started) RefreshOutcome.Started else RefreshOutcome.Refused(answer.message)
+        } catch (_: CoreException) {
+            RefreshOutcome.Failed
+        }
     }
 
     override suspend fun offline(): Boolean = withContext(dispatcher) { core.network() == NetworkKind.Offline }
@@ -115,6 +118,7 @@ internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     members = members.toInt(),
     memberIds = memberIds,
     group = group,
+    groupIsCategory = groupIsCategory,
     categories = categories,
     account = account,
     folder = folder,

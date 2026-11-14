@@ -13,7 +13,8 @@ const NOW: i64 = 1_791_993_600;
 #[test]
 fn the_box_shows_and_saves_whether_deleting_a_conversation_asks() {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
-    (a.autosave, a.auto_sync) = (false, false);
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
     let id = a.session.mailbox.accounts[0].id;
     let mut w = AccountSetup::open(&a, &json!({"id": id})).unwrap();
     assert_eq!(w.ask_conversation, Some((true, true)));

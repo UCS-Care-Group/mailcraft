@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import uniffi.mailcraft_mobile.Event
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -114,6 +119,49 @@ class MailListControllerTest {
     }
 
     @Test
+    fun anotherFoldersRowsNeverStandWhileTheNewFolderLoads() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(30))
+        val c = controller(source)
+        c.show(inbox)
+        val gate = CompletableDeferred<Unit>().also { source.gate = it }
+        // The same folder under another filter keeps its rows while the new page is on its way.
+        val filtered = launch(start = CoroutineStart.UNDISPATCHED) { c.show(inbox.copy(filter = ListFilter.Unread)) }
+        assertEquals(LoadState.Ready, c.ui.value.load)
+        assertEquals(30, c.ui.value.snapshot.total)
+        gate.complete(Unit)
+        filtered.join()
+        // Another folder says it is loading, and shows none of the last folder's rows.
+        source.gate = CompletableDeferred<Unit>()
+        val other = launch(start = CoroutineStart.UNDISPATCHED) { c.show(MailQuery(2uL)) }
+        assertEquals(LoadState.Loading, c.ui.value.load)
+        assertEquals(0, c.ui.value.snapshot.total)
+        assertNull(c.ui.value.snapshot.row(0))
+        source.gate?.complete(Unit)
+        other.join()
+        assertEquals(LoadState.Ready, c.ui.value.load)
+        assertEquals(30, c.ui.value.snapshot.total)
+    }
+
+    @Test
+    fun theCoresEventsReadTheListAgainAndMarkItFresh() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(10))
+        val c = controller(source) { 7_000L }
+        c.show(inbox)
+        source.change(FakeMailSource.rows(9))
+        coroutineScope { c.handle(Event.RevChanged(source.rev), this) }
+        assertEquals(9, c.ui.value.snapshot.total)
+        // A round called off for its time is no word that mail is up to date; one that finished is.
+        c.handle(Event.SyncFinished(0uL, false), this)
+        assertNull(c.ui.value.updatedAtMillis)
+        c.handle(Event.SyncFinished(2uL, true), this)
+        assertEquals(7_000L, c.ui.value.updatedAtMillis)
+        // Events that are another handler's change nothing.
+        source.windows.clear()
+        c.handle(Event.ReminderScheduleChanged, this)
+        assertTrue(source.windows.isEmpty())
+    }
+
+    @Test
     fun swipingDeleteRunsTheCommandOnTheRowAndOffersUndo() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(5))
         val c = controller(source)
@@ -121,7 +169,7 @@ class MailListControllerTest {
         c.triage(SwipeAction.Delete.triage(FakeMailSource.row(1)), listOf(FakeMailSource.row(1)))
         assertEquals("mail.delete" to """{"ids":[1]}""", source.commands.last())
         val notice = c.ui.value.notice?.notice
-        assertTrue(notice is Notice.Done && notice.undoable)
+        assertTrue(notice is ListNotice.Done && notice.undoable)
         assertEquals(4, c.ui.value.snapshot.total)
         c.undo()
         assertEquals("edit.undo", source.commands.last().first)
@@ -179,22 +227,28 @@ class MailListControllerTest {
         val c = controller(source)
         c.show(inbox)
         c.triage(Triage.Delete, listOf(FakeMailSource.row(1)))
-        assertTrue(c.ui.value.notice?.notice is Notice.Failed)
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
         assertEquals(3, c.ui.value.snapshot.total)
     }
 
     @Test
-    fun pullToRefreshWithNoAccountSaysSoAndWithOneAsksTheCore() = runBlocking {
+    fun pullToRefreshAsksTheCoreAndSaysWhyWhenItWontSendAndReceive() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(3))
         val c = controller(source)
         c.show(inbox)
         c.refresh()
-        assertTrue(c.ui.value.notice?.notice is Notice.NoAccount)
+        val said = c.ui.value.notice?.notice
+        assertTrue(said is ListNotice.Said && said.message == "There is no account to send and receive.")
         assertEquals(false, c.ui.value.refreshing)
-        c.accountsHaveServer(true)
+        // A round that starts needs no word; one that can't be asked for says it did not work.
+        c.noticeShown(c.ui.value.notice!!.seq)
+        source.refreshOutcome = RefreshOutcome.Started
         c.refresh()
-        assertTrue(c.ui.value.notice?.notice is Notice.NotYet)
-        assertEquals(2, source.refreshes.get())
+        assertNull(c.ui.value.notice)
+        source.refreshOutcome = RefreshOutcome.Failed
+        c.refresh()
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
+        assertEquals(3, source.refreshes.get())
     }
 
     @Test

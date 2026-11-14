@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 
 /** A mail source over a list of invented rows that records what it is asked, for the tests. */
 internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSource {
@@ -14,7 +15,10 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var failCommands = false
     var isOffline = false
     val refreshes = AtomicInteger()
-    var refreshOutcome = RefreshOutcome.NoAccount
+    var refreshOutcome: RefreshOutcome = RefreshOutcome.Refused("There is no account to send and receive.")
+
+    /** When set, a window is answered only once it is completed: a read still on its way. */
+    var gate: CompletableDeferred<Unit>? = null
 
     /** A change from outside: the rows are these now, at the next revision. */
     fun change(newRows: List<InboxRow>) {
@@ -24,6 +28,7 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
 
     override suspend fun window(query: MailQuery, offset: Int, count: Int): RowsWindow? {
         windows += offset to count
+        gate?.await()
         if (failWindows) return null
         return RowsWindow(rev, rows.size, offset, rows.drop(offset).take(count))
     }
@@ -40,9 +45,9 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
 
     override suspend fun categories() = listOf(CategoryItem("Green category", 0x2E8B57))
 
-    override suspend fun refresh(hasServer: Boolean): RefreshOutcome {
+    override suspend fun refresh(): RefreshOutcome {
         refreshes.incrementAndGet()
-        return if (hasServer) RefreshOutcome.Requested else refreshOutcome
+        return refreshOutcome
     }
 
     override suspend fun offline() = isOffline

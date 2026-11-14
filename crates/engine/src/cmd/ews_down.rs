@@ -236,7 +236,14 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
     let lost = queued || missing;
     super::graph_mail::drop_own_deletes(mb, account, &own);
     let mut folders: Vec<GraphFolder> = deltas.changed.clone();
-    if !deltas.afresh {
+    // What isn't in the list stays as it is: all of it after a delta, or after a read afresh past
+    // a mail folder that couldn't be read nor where it lies; after one past folders that lie in
+    // known places, what lies directly in those places, for it may be one of them (#1108). (A
+    // place this account doesn't have is the top here, where such a folder is kept.)
+    let keep_all = !deltas.afresh || deltas.unreadable_anywhere;
+    let places: HashSet<&str> =
+        deltas.unreadable_in.iter().map(|p| if mb.folder_by_server(account, p).is_some() { p.as_str() } else { "" }).collect();
+    if keep_all || !places.is_empty() {
         let named: HashSet<&str> = deltas.changed.iter().map(|f| f.id.as_str()).chain(deltas.deleted.iter().map(String::as_str)).collect();
         let stubs: Vec<GraphFolder> = mb
             .folders
@@ -244,6 +251,7 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
             .filter(|f| f.account == account)
             .filter_map(|f| f.server.as_ref().map(|server| (f.kind, server)))
             .filter(|(_, server)| !named.contains(server.id.as_str()))
+            .filter(|(_, server)| keep_all || places.contains(server.parent.as_str()))
             .map(|(kind, server)| GraphFolder {
                 id: server.id.clone(),
                 parent: server.parent.clone(),

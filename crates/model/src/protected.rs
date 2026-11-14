@@ -31,34 +31,6 @@ pub fn has_armour_within(text: &[u8], most: usize) -> bool {
     })
 }
 
-/// Whether `text` holds a whole piece of OpenPGP armour in its first [`MAX_ARMOUR_SCAN`] bytes,
-/// each line of it a line of its own: `-----BEGIN PGP MESSAGE-----` and, after it,
-/// `-----END PGP MESSAGE-----`; or `-----BEGIN PGP SIGNED MESSAGE-----`, then
-/// `-----BEGIN PGP SIGNATURE-----`, then `-----END PGP SIGNATURE-----`. What a message must hold
-/// to be kept as an inline-PGP one: a lone line that opens armour is not enough.
-pub fn has_armour_block(text: &[u8]) -> bool {
-    const MESSAGE: [&[u8]; 2] = [b"-----BEGIN PGP MESSAGE-----", b"-----END PGP MESSAGE-----"];
-    const SIGNED: [&[u8]; 3] = [b"-----BEGIN PGP SIGNED MESSAGE-----", b"-----BEGIN PGP SIGNATURE-----", b"-----END PGP SIGNATURE-----"];
-    let text = text.get(..MAX_ARMOUR_SCAN).unwrap_or(text);
-    // How far into each sequence the lines so far have come.
-    let (mut message, mut signed) = (0usize, 0usize);
-    for line in text.split(|b| *b == b'\n') {
-        let line = line.strip_prefix(b"\xef\xbb\xbf").unwrap_or(line);
-        let end = line.iter().rposition(|b| !matches!(b, b' ' | b'\t' | b'\r')).map_or(0, |i| i.saturating_add(1));
-        let line = line.get(..end).unwrap_or_default();
-        if MESSAGE.get(message) == Some(&line) {
-            message = message.saturating_add(1);
-        }
-        if SIGNED.get(signed) == Some(&line) {
-            signed = signed.saturating_add(1);
-        }
-        if message == MESSAGE.len() || signed == SIGNED.len() {
-            return true;
-        }
-    }
-    false
-}
-
 /// Whether a part of media type `mime` named `name` carries a Digital signature or encrypted
 /// content: `application/pkcs7-signature`, `application/pkcs7-mime` (and their `x-` forms),
 /// `application/pgp-signature`, `application/pgp-encrypted`, or a file named `smime.p7s` or
