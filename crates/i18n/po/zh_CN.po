@@ -569,8 +569,8 @@ msgstr "网址、电子邮件地址、电话号码（tel:）或其他地址，�
 msgid "AM"
 msgstr "上午"
 
-#. ribbon location
-#: crates/ui-egui/src/lib.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "About"
 msgstr "关于"
@@ -690,8 +690,8 @@ msgstr "账户设置"
 msgid "Account name"
 msgstr ""
 
-#. interface, ribbon
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Accounts"
 msgstr "账户"
@@ -1967,8 +1967,8 @@ msgstr "仅空闲/忙碌状态"
 msgid "Available formats:"
 msgstr "可用格式："
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "返回"
@@ -2146,8 +2146,8 @@ msgstr "按大小"
 msgid "By Subject"
 msgstr "按主题"
 
-#. command label, interface, name, ribbon, ribbon location, what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, name, ribbon, ribbon location, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "日历"
@@ -6647,8 +6647,8 @@ msgstr "钥匙串"
 msgid "Label"
 msgstr "标签"
 
-#. interface, ribbon
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Language"
 msgstr "语言"
@@ -6940,8 +6940,8 @@ msgstr "由其贡献者制作："
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "在其他程序或网页中创建，其中部分内容 MailCraft 无法显示"
 
-#. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "邮件"
@@ -7035,8 +7035,8 @@ msgstr "仅限邮件"
 msgid "Mail to Keep Offline"
 msgstr "要保留以供离线使用的邮件"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Mail to keep offline"
 msgstr "要保留以供离线使用的邮件"
@@ -7458,6 +7458,11 @@ msgstr "5月"
 #, fuzzy
 msgid "Meeting"
 msgstr "会议"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+msgid "Menu"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -8887,6 +8892,11 @@ msgstr "没有任何内容发送给 Microsoft，并且您的密码也没有保�
 msgid "Nothing was sent: the mailbox couldn't be saved first ({error})"
 msgstr "没有发送任何内容：无法先保存邮箱（{error}）"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Notifications"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -9693,14 +9703,14 @@ msgstr "粘贴或编写签名的 HTML"
 msgid "Pattern"
 msgstr "模式"
 
-#. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "待开发"
 
-#. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "People"
 msgstr "联系人"
@@ -9777,8 +9787,8 @@ msgstr "图片在文字上方"
 msgid "Picture beside text"
 msgstr "图片在文字旁"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pictures"
 msgstr "图片"
@@ -11805,6 +11815,11 @@ msgstr "使用 JMAP 发送/接收"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "使用 Microsoft Graph 发送/接收"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Sender images"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11962,8 +11977,8 @@ msgstr "手动设置"
 msgid "Setting up the account stopped unexpectedly"
 msgstr "账户设置意外中断"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Settings"
 msgstr "设置"
@@ -13019,6 +13034,11 @@ msgstr "同步"
 msgid "System"
 msgstr "系统"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "System default"
+msgstr ""
+
 #. interface, ribbon
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -13079,8 +13099,8 @@ msgstr "任务状态报告："
 msgid "Task:"
 msgstr "任务："
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "任务"
@@ -13963,7 +13983,7 @@ msgid "The mailbox at {address} can't be reached through Microsoft Graph."
 msgstr "无法通过 Microsoft Graph 访问 {address} 对应的邮箱。"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
 msgid "The mailbox could not be read."
 msgstr ""
 
@@ -14184,7 +14204,7 @@ msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
 msgid "The sample mailbox has no Inbox."
 msgstr ""
 
@@ -15770,8 +15790,8 @@ msgstr "收件人："
 msgid "To: {names}"
 msgstr "收件人：{names}"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, command label, interface, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Today"
 msgstr "今天"
@@ -16222,6 +16242,11 @@ msgstr "验证公钥"
 #, fuzzy
 msgid "Verify…"
 msgstr "验证…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Version"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -18999,7 +19024,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr "服务器与 MailCraft 没有共同支持的加密方式；服务器可能只提供 MailCraft 不使用的旧加密方式（CBC 套件），其管理员可以启用 AES-GCM 套件"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "服务器应答了未发送的命令"
@@ -19071,6 +19096,11 @@ msgid "the server didn't answer"
 msgstr "服务器没有应答"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server didn't end IDLE properly"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
@@ -19118,7 +19148,7 @@ msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "服务器结束会话：{reason}"
@@ -19128,6 +19158,11 @@ msgstr "服务器结束会话：{reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "服务器在问候响应中拒绝连接：{reason}"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server isn't idling"
+msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/folder.rs
@@ -19172,6 +19207,11 @@ msgid "the server requested more than one PLAIN response"
 msgstr "服务器请求了多个 PLAIN 响应"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server said something that is no news while idle"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "the server said: {reason}"
@@ -19195,6 +19235,11 @@ msgstr "服务器发送了网页而不是图片"
 msgid "the server sent data before the secure connection started"
 msgstr "服务器在安全连接建立前发送了数据"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs
+msgid "the server sent data it has no reason to send while idle"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -19202,7 +19247,7 @@ msgid "the server sent nothing"
 msgstr "服务器没有发送任何内容"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "服务器对一个命令发送了太多响应"
@@ -19232,7 +19277,7 @@ msgid "the server took too long"
 msgstr "服务器响应超时"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server took too long to answer"
 msgstr "服务器响应时间过长"
@@ -20945,6 +20990,12 @@ msgstr[0] "其中 {n} 项与其他内容不一致，已修正。"
 msgid "{n} unread"
 msgid_plural "{n} unread"
 msgstr[0] "{n} 封未读"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
+msgid "{n} unread message"
+msgid_plural "{n} unread messages"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

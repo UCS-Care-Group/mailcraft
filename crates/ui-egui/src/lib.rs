@@ -120,6 +120,7 @@ mod graph_switch;
 mod host_said_tests;
 pub mod i18n;
 pub mod icons;
+mod idle_watch;
 pub mod import_pst;
 pub mod import_tree;
 mod inbox_pass;
@@ -264,6 +265,7 @@ use serde_json::{Value, json};
 pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
+pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
 pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
@@ -313,6 +315,10 @@ pub struct Services {
     /// Set to call a Send/Receive off: the host's run stops at the next safe place and says so
     /// in its last piece. The host clears it when it starts a run.
     pub sync_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Desktop: keep a connection to an IMAP account's server open in IDLE on its Inbox, on a
+    /// thread of the host's, and say when mail arrives (#276, [`idle_watch`]). The watch ends when
+    /// its flag is set. Absent in the browser, and where the host doesn't listen.
+    pub idle: Option<Box<dyn Fn(SyncRequest) -> IdleWatch>>,
     /// Desktop: sign an account's owner in on the provider's own page (OAuth 2.0) on a background
     /// thread: renew quietly with the refresh token when there is one, else open the browser and
     /// wait. The tokens, or why there are none, arrive through the channel and the host wakes the
@@ -1660,6 +1666,8 @@ pub struct MailApp {
     inbox_run: Option<Id>,
     /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
     inbox_check: inbox_pass::InboxCheck,
+    /// The Inboxes listened to for new mail (#276, [`idle_watch`]).
+    idle: idle_watch::IdleWatches,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
     /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
@@ -1881,6 +1889,7 @@ impl MailApp {
             driven: false,
             inbox_run: None,
             inbox_check: Default::default(),
+            idle: Default::default(),
             snooze_last: 0,
             jmap_send_asks: Default::default(),
             jmap_made: 0,
@@ -4672,6 +4681,8 @@ impl MailApp {
             self.auto_sync();
             // The Inbox by itself every minute, between rounds (#276).
             self.inbox_check_tick();
+            // New mail the moment it arrives, where the server says so (#276).
+            self.idle_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).

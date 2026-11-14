@@ -63,6 +63,13 @@ internal fun clearDirectory(dir: File) {
     dir.walkBottomUp().forEach { it.delete() }
 }
 
+/** Removes each copy folder under [dir] last written more than [maxAgeMillis] before [now]. */
+internal fun clearOlderThan(dir: File, maxAgeMillis: Long, now: Long) {
+    dir.listFiles()?.forEach { child ->
+        if (now - child.lastModified() > maxAgeMillis) clearDirectory(child)
+    }
+}
+
 private val RESERVED = setOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
 private val INSTALLABLE = setOf("apk", "apks", "xapk", "aab")
 private const val SPACE = 0x20
@@ -103,13 +110,17 @@ internal class OpenedFiles(private val context: Context) {
         }
     }
 
-    /** The copies left by an earlier run; none is needed once the app has been restarted. */
-    fun clear() {
-        clearDirectory(root)
+    /**
+     * Takes away the copies older than a day. A viewer the owner left open may still be reading a
+     * recent one after the app's process restarted, so only the old ones go.
+     */
+    fun clearOld(now: Long = System.currentTimeMillis()) {
+        clearOlderThan(root, MAX_AGE_MILLIS, now)
     }
 
     internal companion object {
         const val FOLDER = "attachments"
+        const val MAX_AGE_MILLIS = 24L * 60 * 60 * 1000
 
         fun authority(context: Context): String = context.packageName + ".files"
     }

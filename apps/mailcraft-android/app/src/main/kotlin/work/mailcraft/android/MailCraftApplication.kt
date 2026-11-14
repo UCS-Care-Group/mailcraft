@@ -48,8 +48,8 @@ class MailCraftApplication : Application() {
 
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
-        // Copies of attachments written for other programs to open are not kept past a restart.
-        runCatching { OpenedFiles(this).clear() }
+        // Copies of attachments written for other programs to open are kept a day, not for good.
+        runCatching { OpenedFiles(this).clearOld() }
     }
 
     /** The mailbox is written when no window is on screen: the system may end the process after it. */
