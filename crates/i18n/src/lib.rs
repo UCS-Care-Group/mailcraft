@@ -74,8 +74,18 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 10] =
-        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::ChineseSimplified, Lang::Georgian, Lang::Pseudo];
+    pub const ALL: [Lang; 10] = [
+        Lang::English,
+        Lang::French,
+        Lang::German,
+        Lang::Spanish,
+        Lang::Italian,
+        Lang::Dutch,
+        Lang::Romanian,
+        Lang::ChineseSimplified,
+        Lang::Georgian,
+        Lang::Pseudo,
+    ];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -149,7 +159,10 @@ impl Lang {
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::ChineseSimplified | Lang::Georgian)
+        matches!(
+            self,
+            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::ChineseSimplified | Lang::Georgian
+        )
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
