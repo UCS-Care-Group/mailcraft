@@ -6,7 +6,8 @@
 //! of a term excludes what it matches. Keywords: `from`, `to`, `cc`, `subject`, `body`,
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
 //! `gmail:primary|social|promotions|updates|forums` (Gmail's inbox categories, #911: not the
-//! owner's own, which are `category:`),
+//! owner's own, which are `category:`), `label:` (a Gmail account's labels of a message, #1153:
+//! anywhere in the label's path, Gmail's own by their name without the backslash, `label:important`),
 //! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`),
 //! and `received:` with a day, a range of days as Outlook writes one (`received:10/1/2026..10/22/2026`,
 //! both days in it, #329), or one side of one (`received:>=2026-10-01`, `<=`, and `>` and `<`, the
@@ -62,6 +63,8 @@ enum Kind {
     Category(String),
     /// One of Gmail's inbox categories (#911).
     Gmail(crate::GmailCategory),
+    /// Text in one of Gmail's labels of a message (#1153).
+    Label(String),
     HasAttachment,
     Unread,
     Read,
@@ -321,6 +324,7 @@ fn keyword_kind(body: &str) -> Option<Kind> {
         "body" => words_in(BODY, &v),
         "category" | "categories" => Kind::Category(v),
         "gmail" => Kind::Gmail(crate::GmailCategory::parse(&v)?),
+        "label" | "labels" => Kind::Label(v),
         "attachment" | "attachments" => words_in(ATTACHMENT, &v),
         "has" | "hasattachment" | "hasattachments" => match v.to_ascii_lowercase().as_str() {
             "attachment" | "attachments" | "yes" | "true" => Kind::HasAttachment,
@@ -418,8 +422,24 @@ const MAX_SUGGESTED_NAME: usize = 256;
 
 /// The keywords offered while the start of one is typed: each once, without the other names it
 /// may be written by (`categories:`).
-const OFFERED: &[&str] =
-    &["from", "to", "cc", "subject", "body", "category", "gmail", "attachment", "has", "is", "importance", "before", "after", "on", "received"];
+const OFFERED: &[&str] = &[
+    "from",
+    "to",
+    "cc",
+    "subject",
+    "body",
+    "category",
+    "gmail",
+    "label",
+    "attachment",
+    "has",
+    "is",
+    "importance",
+    "before",
+    "after",
+    "on",
+    "received",
+];
 
 /// What `is:` and `has:` take.
 const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
@@ -753,6 +773,8 @@ pub(crate) const KEYWORDS: &[&str] = &[
     "category",
     "categories",
     "gmail",
+    "label",
+    "labels",
     "attachment",
     "attachments",
     "has",
@@ -996,6 +1018,10 @@ impl Query {
                 }
                 Kind::Category(x) => m.categories.iter().any(|c| contains_ci(c, x)),
                 Kind::Gmail(c) => m.gmail_category == Some(*c),
+                Kind::Label(x) => {
+                    let x = x.trim_matches(|c: char| c == '"' || c.is_whitespace());
+                    !x.is_empty() && m.gmail_labels.iter().any(|l| contains_ci(crate::gmail::label_name(l), x))
+                }
                 Kind::HasAttachment => m.has_attachments(),
                 Kind::Unread => !m.read,
                 Kind::Read => m.read,

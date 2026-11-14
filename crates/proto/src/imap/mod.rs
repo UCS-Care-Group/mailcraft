@@ -59,6 +59,35 @@ const MAX_LITERALS: usize = 32;
 const MAX_TEXT: usize = 4 * MAX_LINE;
 /// Most flags kept for one message or mailbox, and most sent in one command.
 const MAX_FLAGS: usize = 64;
+/// Most of Gmail's labels kept for one message (`X-GM-LABELS`, #1153); the rest are dropped.
+pub const MAX_GMAIL_LABELS: usize = 64;
+/// Longest of Gmail's labels kept, in bytes as the server wrote it (cut at a character boundary).
+const MAX_GMAIL_LABEL_LEN: usize = 256;
+/// Most bytes of Gmail's labels one fetch keeps, all its messages together, each label counted
+/// with [`LABEL_OVERHEAD`]: past it, a message's labels are not taken (`None`), as if the server
+/// hadn't said them.
+const MAX_GMAIL_LABEL_BYTES: usize = 32 << 20;
+/// What a label kept costs beyond its bytes (its `String`), counted against
+/// [`MAX_GMAIL_LABEL_BYTES`] so that many empty or tiny labels can't get past it.
+const LABEL_OVERHEAD: usize = std::mem::size_of::<String>();
+/// Text a listing of flags may take for each message the mailbox may report, beyond
+/// [`MAX_COMMAND_TEXT`]: a big folder's listing (Gmail's, with labels, runs to a few hundred
+/// bytes a message) is never cut short for being big (#1153), and what a hostile server can send
+/// stays bounded by the mailbox's size, and by [`MAX_FETCH_TEXT`] whatever size it claims. Only
+/// a count: what is kept is bounded on its own ([`MAX_FLAG_BYTES`], [`MAX_GMAIL_LABEL_BYTES`]).
+const FETCH_TEXT_PER_MESSAGE: usize = 2 << 10;
+/// Most text a listing of flags may take, however many messages the mailbox claims.
+const MAX_FETCH_TEXT: usize = 256 << 20;
+/// Most bytes of flags one fetch keeps, all its messages together, each message counted with
+/// [`ENTRY_OVERHEAD`] and each flag with [`FLAG_OVERHEAD`]: past it the listing fails, so that a
+/// server claiming a huge mailbox can't fill memory and no message is taken to have lost its flags.
+/// Room for over a million messages with a few flags each.
+const MAX_FLAG_BYTES: usize = 256 << 20;
+/// What a flag kept costs beyond its bytes (its `String`).
+const FLAG_OVERHEAD: usize = std::mem::size_of::<String>();
+/// What a message kept in a listing costs beyond its flags and labels: its entry in the map, with
+/// room for the map's own nodes.
+const ENTRY_OVERHEAD: usize = 2 * std::mem::size_of::<(u32, (Vec<String>, Option<u64>, Option<Vec<String>>))>();
 const MAX_CAPABILITIES: usize = 256;
 /// Longest string sent in quotes; a longer one goes as a literal.
 const MAX_QUOTED: usize = 1_000;
@@ -94,6 +123,9 @@ pub struct Imap<S> {
     text_seen: usize,
     /// Most responses the current command may bring.
     response_cap: usize,
+    /// Most text (outside literals) the current command may bring: [`MAX_COMMAND_TEXT`], or more
+    /// for a listing of a big mailbox's flags.
+    text_cap: usize,
     /// Untagged lines too long to take are read past instead of ending the session, for the
     /// current command alone (a Gmail search, #911); `skipped` says one was.
     skip_long: bool,
@@ -146,6 +178,11 @@ pub struct Fetched {
     /// Gmail's own id of the message (`X-GM-MSGID`, Google's "Gmail IMAP extensions"), when
     /// asked for and given; `None` from every other server.
     pub gmail_id: Option<u64>,
+    /// Gmail's labels of the message (`X-GM-LABELS`, Google's "Gmail IMAP extensions", #1153),
+    /// when asked for and given: as the server wrote them, modified UTF-7 decoded, Gmail's own
+    /// (`\Inbox`, `\Important`…) with their backslash; at most [`MAX_GMAIL_LABELS`], each cut
+    /// short. Text from the server, not yet cleaned for showing. `None` from every other server.
+    pub gmail_labels: Option<Vec<String>>,
 }
 
 /// What became of the messages a UID COPY or UID MOVE named, when the server says (the `COPYUID`
@@ -280,6 +317,8 @@ struct Item {
     size: Option<u64>,
     /// Gmail's id of the message (`X-GM-MSGID`).
     gmail_id: Option<u64>,
+    /// Gmail's labels of the message (`X-GM-LABELS`).
+    gmail_labels: Option<Vec<String>>,
 }
 
 impl Item {
@@ -303,6 +342,7 @@ impl Item {
                 ("INTERNALDATE", Value::Str(date)) => item.internal_date = Some(String::from_utf8_lossy(&date).into_owned()),
                 ("RFC822.SIZE", value) => item.size = value.atom().and_then(|n| n.parse().ok()),
                 ("X-GM-MSGID", value) => item.gmail_id = value.atom().and_then(gmail_id),
+                ("X-GM-LABELS", Value::List(labels)) => item.gmail_labels = Some(gmail_labels(labels)),
                 ("BODY[]" | "RFC822", Value::Str(body)) => item.body = Some(body),
                 ("BODY[HEADER]" | "RFC822.HEADER", Value::Str(header)) => item.header = Some(header),
                 _ => {}
@@ -365,6 +405,29 @@ fn short_flags(flags: Vec<Value>) -> Vec<String> {
                 flag.truncate(end);
             }
             flag
+        })
+        .collect()
+}
+
+/// Gmail's labels of a message (`X-GM-LABELS`): a list of atoms and strings, modified UTF-7 as
+/// mailbox names are; as many as are kept, each cut at a character boundary before it is decoded.
+/// Anything in the list that isn't an atom or a string (a list) is skipped.
+fn gmail_labels(labels: Vec<Value>) -> Vec<String> {
+    labels
+        .into_iter()
+        // `NIL` in the list is nothing, not a label (a label called so comes quoted).
+        .filter(|value| !value.atom().is_some_and(|atom| atom.eq_ignore_ascii_case("NIL")))
+        .filter_map(Value::into_text)
+        .take(MAX_GMAIL_LABELS)
+        .map(|mut label| {
+            if label.len() > MAX_GMAIL_LABEL_LEN {
+                let mut end = MAX_GMAIL_LABEL_LEN;
+                while !label.is_char_boundary(end) {
+                    end = end.saturating_sub(1);
+                }
+                label.truncate(end);
+            }
+            decode_utf7(&label)
         })
         .collect()
 }
@@ -622,6 +685,7 @@ impl<S: Read + Write> Imap<S> {
             leaving: false,
             text_seen: 0,
             response_cap: MAX_RESPONSES,
+            text_cap: MAX_COMMAND_TEXT,
             skip_long: false,
             skipped: false,
             idle_tag: None,
@@ -791,42 +855,86 @@ impl<S: Read + Write> Imap<S> {
     ///
     /// The messages come back in UID order, each once.
     pub fn uid_fetch_flags(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
-        self.fetch_flags(set, false)
+        self.fetch_flags(set, false, false)
     }
 
-    /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's id of each message as well
-    /// (`UID FETCH <set> (UID FLAGS X-GM-MSGID)`, in [`Fetched::gmail_id`]): for Gmail's server
-    /// alone, which documents it among its IMAP extensions. A message it gives no id, or one
-    /// that isn't a number, has none.
+    /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's id and labels of each message as
+    /// well (`UID FETCH <set> (UID FLAGS X-GM-MSGID X-GM-LABELS)`, in [`Fetched::gmail_id`] and
+    /// [`Fetched::gmail_labels`]): for Gmail's server alone, which documents them among its IMAP
+    /// extensions. A message it gives no id, or one that isn't a number, has none; one it gives
+    /// no labels has `None` there, and one past [`MAX_GMAIL_LABEL_BYTES`] of labels in the fetch
+    /// too.
     pub fn uid_fetch_flags_gmail(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
-        self.fetch_flags(set, true)
+        self.fetch_flags(set, true, true)
     }
 
-    fn fetch_flags(&mut self, set: &str, gmail: bool) -> Result<Vec<Fetched>, ProtoError> {
-        let mut found: BTreeMap<u32, (Vec<String>, Option<u64>)> = BTreeMap::new();
-        let command = Self::fetch(set, if gmail { "(UID FLAGS X-GM-MSGID)" } else { "(UID FLAGS)" })?;
+    /// [`uid_fetch_flags`](Self::uid_fetch_flags), with Gmail's labels of each message as well but
+    /// not its id (`UID FETCH <set> (UID FLAGS X-GM-LABELS)`, in [`Fetched::gmail_labels`]): for a
+    /// Gmail folder whose ids aren't wanted (every folder but the Inbox), so that its listing is
+    /// no longer than it has to be.
+    pub fn uid_fetch_flags_labels(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
+        self.fetch_flags(set, false, true)
+    }
+
+    fn fetch_flags(&mut self, set: &str, ids: bool, labels_wanted: bool) -> Result<Vec<Fetched>, ProtoError> {
+        let mut found: BTreeMap<u32, (Vec<String>, Option<u64>, Option<Vec<String>>)> = BTreeMap::new();
+        // The bytes of labels and of flags kept so far, all messages together.
+        let mut label_bytes = 0usize;
+        let mut flag_bytes = 0usize;
+        let items = match (ids, labels_wanted) {
+            (true, true) => "(UID FLAGS X-GM-MSGID X-GM-LABELS)",
+            (true, false) => "(UID FLAGS X-GM-MSGID)",
+            (false, true) => "(UID FLAGS X-GM-LABELS)",
+            (false, false) => "(UID FLAGS)",
+        };
+        let command = Self::fetch(set, items)?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol(said!("not a set of messages")))?;
         self.response_cap = wanted.responses();
+        let claimed = usize::try_from(self.selected.exists).unwrap_or(usize::MAX);
+        self.text_cap = claimed.saturating_mul(FETCH_TEXT_PER_MESSAGE).clamp(MAX_COMMAND_TEXT, MAX_FETCH_TEXT);
         let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
-            if let Some(item) = Item::from(values)
+            if flag_bytes <= MAX_FLAG_BYTES
+                && let Some(item) = Item::from(values)
                 && wanted.wants(item.uid)
                 && (found.contains_key(&item.uid) || wanted.room(found.len()))
             {
-                let (flags, id) = found.entry(item.uid).or_default();
+                // Each word counted as it comes, a repeat included: past the budget nothing more
+                // is kept and the listing fails below.
+                let size = item.flags.iter().flatten().map(|flag| flag.len().saturating_add(FLAG_OVERHEAD)).sum::<usize>();
+                let entry = if found.contains_key(&item.uid) { 0 } else { ENTRY_OVERHEAD };
+                flag_bytes = flag_bytes.saturating_add(size).saturating_add(entry);
+                if flag_bytes > MAX_FLAG_BYTES {
+                    return;
+                }
+                let (flags, id, labels) = found.entry(item.uid).or_default();
                 // When the server speaks of a message twice, its later word counts.
                 if let Some(later) = item.flags {
                     *flags = later;
                 }
-                if gmail && item.gmail_id.is_some() {
+                if ids && item.gmail_id.is_some() {
                     *id = item.gmail_id;
+                }
+                if labels_wanted && let Some(later) = item.gmail_labels {
+                    let size = later.iter().map(|label| label.len().saturating_add(LABEL_OVERHEAD)).sum::<usize>();
+                    if label_bytes.saturating_add(size) <= MAX_GMAIL_LABEL_BYTES {
+                        label_bytes = label_bytes.saturating_add(size);
+                        *labels = Some(later);
+                    }
                 }
             }
         });
         self.response_cap = MAX_RESPONSES;
+        self.text_cap = MAX_COMMAND_TEXT;
         answered?;
+        if flag_bytes > MAX_FLAG_BYTES {
+            return Err(ProtoError::Protocol(said!("more flags than one listing keeps")));
+        }
         wanted.check()?;
-        Ok(found.into_iter().map(|(uid, (flags, gmail_id))| Fetched { uid, flags, internal_date: None, body: None, gmail_id }).collect())
+        Ok(found
+            .into_iter()
+            .map(|(uid, (flags, gmail_id, gmail_labels))| Fetched { uid, flags, internal_date: None, body: None, gmail_id, gmail_labels })
+            .collect())
     }
 
     /// UID FETCH <set> (UID RFC822.SIZE): the size in bytes of every message in the set, in UID order.
@@ -1146,7 +1254,7 @@ impl<S: Read + Write> Imap<S> {
     fn read_until(&mut self, tag: &str, literal_waiting: bool, on_data: &mut dyn FnMut(Vec<Value>)) -> Result<Option<StatusLine>, ProtoError> {
         for _ in 0..self.response_cap {
             let response = self.read_response()?;
-            if self.text_seen > MAX_COMMAND_TEXT {
+            if self.text_seen > self.text_cap {
                 return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
             }
             match response {
@@ -1181,7 +1289,7 @@ impl<S: Read + Write> Imap<S> {
             let Some(line) = line else {
                 self.skipped = true;
                 self.text_seen = self.text_seen.saturating_add(crate::MAX_LINE);
-                if self.text_seen > MAX_COMMAND_TEXT {
+                if self.text_seen > self.text_cap {
                     return Err(ProtoError::Protocol(said!("the server sent too much in answer to one command")));
                 }
                 continue;
@@ -1280,6 +1388,8 @@ impl<S: Read + Write> Imap<S> {
     }
 }
 
+#[cfg(test)]
+mod gmail_labels_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]

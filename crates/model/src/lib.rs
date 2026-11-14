@@ -172,6 +172,8 @@ mod calendar_rights_tests;
 #[cfg(test)]
 mod contact_key_tests;
 #[cfg(test)]
+mod gmail_labels_tests;
+#[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]
 mod headers_tests;

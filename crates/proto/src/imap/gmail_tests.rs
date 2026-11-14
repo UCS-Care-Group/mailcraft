@@ -20,7 +20,7 @@ fn gmail_ids_come_with_the_flags() {
     let ids: Vec<(u32, Option<u64>)> = got.iter().map(|f| (f.uid, f.gmail_id)).collect();
     assert_eq!(ids, [(4, Some(1_278_455_344_230_334_865)), (7, Some(u64::MAX)), (9, None), (10, None)]);
     assert_eq!(got.get(1).map(|f| f.flags.clone()), Some(vec!["\\Flagged".to_string()]));
-    assert_eq!(s.sent(), "A0001 UID FETCH 1:* (UID FLAGS X-GM-MSGID)\r\n");
+    assert_eq!(s.sent(), "A0001 UID FETCH 1:* (UID FLAGS X-GM-MSGID X-GM-LABELS)\r\n");
     // Without asking for them, an id the server gives anyway is not taken.
     let mut s = Script::new("* 1 FETCH (UID 4 FLAGS () X-GM-MSGID 5)\r\nA0001 OK done\r\n");
     assert_eq!(Imap::resume(&mut s).uid_fetch_flags("1:*").unwrap().first().and_then(|f| f.gmail_id), None);

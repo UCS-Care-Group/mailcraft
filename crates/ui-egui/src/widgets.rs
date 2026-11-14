@@ -363,6 +363,42 @@ pub fn category_chip(ui: &Ui, left_center: egui::Pos2, name: &str, color: Color3
     w
 }
 
+/// The longest a Gmail label's tag is drawn, its text cut with an ellipsis past it.
+pub const LABEL_TAG_MAX: f32 = 140.0;
+
+/// The laid-out name of a Gmail label's tag (#1153): one line, cut at `max_width` with an
+/// ellipsis.
+pub fn label_tag_text(p: &egui::Painter, name: &str, size: f32, max_width: f32) -> std::sync::Arc<egui::Galley> {
+    let t = Tokens::get(p.ctx());
+    let mut job = egui::text::LayoutJob::single_section(
+        name.to_string(),
+        egui::text::TextFormat { font_id: regular(size), color: t.text, ..Default::default() },
+    );
+    job.wrap = egui::text::TextWrapping { max_width: max_width.max(8.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    p.layout_job(job)
+}
+
+/// How wide a Gmail label's tag is with `text` in it.
+pub fn label_tag_width(text: &egui::Galley) -> f32 {
+    text.size().x + 15.0
+}
+
+/// A Gmail label (#1153), drawn as a luggage tag: pointed at its left with a hole, in the
+/// window's own neutral colours, so that it is never taken for one of the owner's categories
+/// (rounded and in their colour) or for Gmail's inbox category (a tab or a folder). Its left
+/// middle at `left_center`; returns its width.
+pub fn paint_label_tag(p: &egui::Painter, left_center: egui::Pos2, text: std::sync::Arc<egui::Galley>, height: f32) -> f32 {
+    let t = Tokens::get(p.ctx());
+    let w = label_tag_width(&text);
+    let (x, y, half) = (left_center.x, left_center.y, height / 2.0);
+    let points = vec![pos2(x, y), pos2(x + 6.0, y - half), pos2(x + w, y - half), pos2(x + w, y + half), pos2(x + 6.0, y + half)];
+    p.add(egui::Shape::convex_polygon(points, t.pressed, Stroke::new(1.0, t.border_strong)));
+    p.circle_filled(pos2(x + 5.5, y), 1.4, t.text_dim);
+    let size = text.size();
+    p.galley(pos2(x + 10.0, y - size.y / 2.0), text, t.text);
+    w
+}
+
 /// What a place is called: an account by its address (two accounts of one person can have one
 /// name), 0 this computer.
 pub fn place_name(mailbox: &mailcraft_model::Mailbox, account: mailcraft_model::Id) -> String {

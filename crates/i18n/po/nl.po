@@ -5290,6 +5290,11 @@ msgstr "Gmail-categorieën"
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr "Gmail heeft de id van dit bericht nog niet gezegd: doe eerst Verzenden/ontvangen"
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Gmail label: {label}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -17852,6 +17857,11 @@ msgstr "komt niet overeen"
 #, fuzzy
 msgid "month"
 msgstr "maand"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

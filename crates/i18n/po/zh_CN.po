@@ -5315,6 +5315,11 @@ msgstr "Gmail 类别"
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr "Gmail 尚未提供该邮件的 ID：请先执行发送/接收"
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Gmail label: {label}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -18004,6 +18009,11 @@ msgstr "不匹配"
 #, fuzzy
 msgid "month"
 msgstr "月"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

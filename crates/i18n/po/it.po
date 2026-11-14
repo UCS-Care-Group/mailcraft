@@ -5056,6 +5056,11 @@ msgstr "Categorie di Gmail"
 msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Gmail label: {label}"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
@@ -17061,6 +17066,11 @@ msgstr ""
 #, fuzzy
 msgid "month"
 msgstr "mese"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+msgid "more flags than one listing keeps"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

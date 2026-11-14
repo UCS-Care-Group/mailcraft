@@ -347,6 +347,10 @@ pub(crate) struct ImapWorld {
     pub(crate) gmail_categories: Vec<(String, u32, String)>,
     /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
     pub(crate) gmail_finds_deleted: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and what goes between the
+    /// parentheses of `X-GM-LABELS (…)` for each message that has labels (#1153), as it stands, so
+    /// that a test can write anything there; a message not named has `X-GM-LABELS ()`.
+    pub(crate) gmail_labels: Vec<(String, u32, String)>,
     /// Don't know STATUS: answer BAD to it, as a very old server would.
     pub(crate) no_status: bool,
     /// Know IDLE (RFC 2177), and say so. While a client idles, every line in `idle_events` is
@@ -989,6 +993,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (whole, header) = (items.contains("BODY.PEEK[]"), items.contains("BODY.PEEK[HEADER]"));
                 let mut refused = !fetch.eq_ignore_ascii_case("FETCH");
                 let messages = open.and_then(|i| world.mailboxes.get(i)).map_or(&[][..], |m| &m.messages[..]);
+                let open_raw = open.and_then(|i| world.mailboxes.get(i)).map_or("", |m| m.raw.as_str());
                 for (index, message) in messages.iter().enumerate().filter(|(_, m)| in_set(set, m.uid)) {
                     let (seq, uid, flags) = (index + 1, message.uid, &message.flags);
                     if whole && world.hang_up_at_uid == Some(uid) {
@@ -1019,9 +1024,15 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
-                    } else if world.gmail && items.contains("X-GM-MSGID") {
-                        let id = GMAIL_IDS + u64::from(uid);
-                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid} X-GM-MSGID {id})\r\n").bytes());
+                    } else if world.gmail && (items.contains("X-GM-MSGID") || items.contains("X-GM-LABELS")) {
+                        let id = if items.contains("X-GM-MSGID") { format!(" X-GM-MSGID {}", GMAIL_IDS + u64::from(uid)) } else { String::new() };
+                        let labels = if items.contains("X-GM-LABELS") {
+                            let said = world.gmail_labels.iter().find(|(at, u, _)| at == open_raw && *u == uid).map_or("", |(_, _, l)| l.as_str());
+                            format!(" X-GM-LABELS ({said})")
+                        } else {
+                            String::new()
+                        };
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid}{id}{labels})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }

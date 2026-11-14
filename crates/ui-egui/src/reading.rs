@@ -80,6 +80,8 @@ pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
 const SHOWN_NAMES: usize = 50;
 const SHOWN_CATEGORIES: usize = 8;
+/// Most of a message's Gmail labels shown in the reading pane (#1153).
+const SHOWN_LABELS: usize = 16;
 
 /// The widest a picture in a message's body is shown, in points. Its text fills the pane, as
 /// Outlook's does, and as the body of a reply being written does above the original (#47).
@@ -639,6 +641,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                 + 6.0;
         }
     }
+    gmail_labels(app, ui, m);
     // The rest of the conversation, to jump to.
     // (Worked out once per change to the mailbox, not at every frame.)
     let thread = app.session.conversation(m.id);
@@ -667,6 +670,27 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
             }
         });
     }
+}
+
+/// A Gmail account's labels of the message (#1153), as tags under the categories: read only, the
+/// owner's own labels but the one of the folder it is in ([`Message::shown_gmail_labels`]), each
+/// by the last part of its path, the whole path in its tooltip.
+fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
+    let folder = app.session.mailbox.folder(m.folder).map(|f| f.remote.as_str()).unwrap_or_default();
+    let labels: Vec<String> = m.shown_gmail_labels(folder).take(SHOWN_LABELS).map(str::to_string).collect();
+    if labels.is_empty() {
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+        for label in &labels {
+            let text = crate::widgets::label_tag_text(ui.painter(), mailcraft_model::gmail::label_leaf(label), 10.5, crate::widgets::LABEL_TAG_MAX);
+            let (r, response) = ui.allocate_exact_size(vec2(crate::widgets::label_tag_width(&text), 18.0), Sense::hover());
+            crate::widgets::paint_label_tag(ui.painter(), pos2(r.min.x, r.center().y), text, 16.0);
+            app.hit.add("gmailLabel", m.id, r);
+            response.on_hover_text(crate::i18n::fmt(tl!("Gmail label: {label}"), &[("label", label)]));
+        }
+    });
 }
 
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
