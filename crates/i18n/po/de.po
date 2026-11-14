@@ -868,7 +868,7 @@ msgstr "Adresse"
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Address:"
-msgstr "Adresse"
+msgstr "Adresse:"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
