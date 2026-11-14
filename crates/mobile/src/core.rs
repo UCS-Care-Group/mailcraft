@@ -7,15 +7,18 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender, TrySendError};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use mailcraft_engine::Session;
+use mailcraft_host::sync::SendReceive;
 use mailcraft_i18n::Lang;
 use serde_json::Value;
 
 use crate::events::{Event, EventSink};
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
+use crate::sign_in::Redirects;
+use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
 use crate::{CoreError, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
@@ -23,7 +26,7 @@ use crate::{CoreError, android};
 const MAX_COMMAND_ID: usize = 128;
 const MAX_PARAMS_BYTES: usize = 8 * 1024 * 1024;
 
-type Job = Box<dyn FnOnce(&mut Session) + Send>;
+pub(crate) type Job = Box<dyn FnOnce(&mut Session) + Send>;
 
 /// Most calls waiting for the session thread, and most bytes of parameters they hold between
 /// them: a call past either is refused at once (`Failed`), never waited for, so a session thread
@@ -100,7 +103,7 @@ fn leave_budget(id: u64) {
 
 /// Cancels a call that was not yet started when the future waiting for it is dropped (the app's
 /// coroutine was cancelled): the session thread then skips it.
-struct CancelOnDrop(Arc<AtomicBool>);
+pub(crate) struct CancelOnDrop(pub(crate) Arc<AtomicBool>);
 
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
@@ -116,20 +119,35 @@ pub struct Core {
     /// This core's entry in [`BUDGETS`], when its device gave a budget.
     budget_id: Option<u64>,
     events: Arc<Queue<Event>>,
-    platform: Arc<dyn Platform>,
+    pub(crate) platform: Arc<dyn Platform>,
     memory_budget: u64,
     language: AtomicU8,
     /// The latest language asked for, until the session thread has applied it (before its next job):
     /// it can't be lost to a full queue.
     pending_language: Arc<Mutex<Option<Lang>>>,
     /// Set when `shutdown` begins: a call still waiting in the queue is then cancelled and not run.
-    closing: Arc<AtomicBool>,
+    pub(crate) closing: Arc<AtomicBool>,
+    /// Send/Receive: what is due, what a run brought, the sign-ins of the session.
+    pub(crate) sync: Arc<SyncHost>,
+    /// Where the address a sign-in page came back to is handed over.
+    pub(crate) redirects: Arc<Redirects>,
+    /// A sign-in is open (one at a time).
+    pub(crate) signing_in: Arc<AtomicBool>,
 }
 
 impl Core {
     /// A core over a session built by `make` on the core's own thread. For the tests, and for a
     /// host that opens a mailbox itself.
     pub fn start(platform: Arc<dyn Platform>, make: impl FnOnce() -> Session + Send + 'static) -> Result<Arc<Core>, CoreError> {
+        Core::start_with(platform, make, SendReceive::new())
+    }
+
+    /// [`Core::start`] with the Send/Receive state the caller made (the tests': runs that ask no server).
+    pub(crate) fn start_with(
+        platform: Arc<dyn Platform>,
+        make: impl FnOnce() -> Session + Send + 'static,
+        send_receive: SendReceive,
+    ) -> Result<Arc<Core>, CoreError> {
         android::check()?;
         let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
         // What the device can spare caps what the session keeps of mail content: the lowest of the
@@ -139,11 +157,15 @@ impl Core {
         // The phone's own zone stands in where the system names none (Android often has no
         // `/etc/localtime`), so that the day near midnight is the owner's.
         let zone_host = platform.clone();
+        let zone_platform = platform.clone();
         let make = move || {
             let mut session = make();
-            // `with_clock` set the calendar's date before the phone's offset stood in: a date
-            // `make` left at that default follows it, one it chose stays.
+            // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
+            // left at that default follows the zone, one it chose stays. Asked before either change.
             let default_date = session.view.date == session.today();
+            // The phone's zone by its name, when it gives one this program knows: a mailbox
+            // stamped with a named zone is then rebased correctly.
+            follow_time_zone(&mut session, zone_platform.as_ref());
             session.fallback_offset = Some(Arc::new(move |at| zone_host.utc_offset_minutes(at).unwrap_or(0)));
             if default_date {
                 session.view.date = session.today();
@@ -152,6 +174,9 @@ impl Core {
         };
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
         let sink = EventSink { queue: events.clone() };
+        let memory_budget = host.memory_budget();
+        // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for a asked one.
+        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only()));
         // The session is built before `start` returns, so a `make` that panics is an error here and
         // not a core whose every call would wait for a reply that never comes.
         let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
@@ -165,17 +190,69 @@ impl Core {
             budget_id.iter().for_each(|id| leave_budget(*id));
             return Err(CoreError::Init { reason: "the session could not be opened".to_string() });
         }
-        Ok(Arc::new(Core {
+        let core = Arc::new(Core {
             jobs: Mutex::new(Some(jobs)),
             waiting: Arc::default(),
             budget_id,
             events,
             platform,
-            memory_budget: host.memory_budget(),
+            memory_budget,
             language: AtomicU8::new(0),
             pending_language: Arc::default(),
             closing: Arc::new(AtomicBool::new(false)),
-        }))
+            sync,
+            redirects: Arc::default(),
+            signing_in: Arc::default(),
+        });
+        core.start_driver();
+        Ok(core)
+    }
+
+    /// The thread that wakes Send/Receive: it holds the core weakly, so it ends with it.
+    fn start_driver(self: &Arc<Core>) {
+        let weak: Weak<Core> = Arc::downgrade(self);
+        let sync = self.sync.clone();
+        let closing = self.closing.clone();
+        let started = std::thread::Builder::new().name("mailcraft-sync".to_string()).spawn(move || {
+            let mut wait = FIRST_WAIT;
+            loop {
+                sync.pacer.wait(wait);
+                if closing.load(Ordering::Acquire) {
+                    return;
+                }
+                let Some(core) = weak.upgrade() else { return };
+                core.enqueue_tick();
+                wait = sync.next_wait();
+            }
+        });
+        if started.is_err() {
+            log::warn!("a thread for Send/Receive could not be started; it runs only when asked");
+        }
+    }
+
+    /// Ask the session's thread for one wake of Send/Receive, unless one is already waiting.
+    pub(crate) fn enqueue_tick(&self) {
+        if self.closing.load(Ordering::Acquire) || self.sync.tick_queued.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let sync = self.sync.clone();
+        let closing = self.closing.clone();
+        let job: Job = Box::new(move |session: &mut Session| {
+            sync.tick_queued.store(false, Ordering::Release);
+            // A tick queued before `shutdown` is drained after it: it starts no round.
+            if closing.load(Ordering::Acquire) {
+                return;
+            }
+            // (A panic is caught by the caller; this one leaves the mailbox as it was.)
+            let _ = catch_unwind(AssertUnwindSafe(|| sync.tick(session)));
+        });
+        let sent = {
+            let jobs = self.jobs.lock().unwrap_or_else(PoisonError::into_inner);
+            jobs.as_ref().map(|tx| tx.try_send(job))
+        };
+        if !matches!(sent, Some(Ok(()))) {
+            self.sync.tick_queued.store(false, Ordering::Release);
+        }
     }
 
     /// Where the sync driver (and anything else on the Rust side) puts events.
@@ -303,6 +380,8 @@ impl Core {
     /// `next_event` ends. The session thread ends with its last job.
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
+        self.sync.pacer.poke();
+        self.redirects.close();
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner).take();
         self.events.close();
     }
@@ -353,7 +432,7 @@ impl Core {
         self.waiting.0.load(Ordering::Acquire)
     }
 
-    fn lang(&self) -> Lang {
+    pub(crate) fn lang(&self) -> Lang {
         Lang::ALL.get(usize::from(self.language.load(Ordering::Relaxed))).copied().unwrap_or_default()
     }
 }
