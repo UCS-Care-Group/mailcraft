@@ -1694,6 +1694,7 @@ mod tests {
             ("it", include_str!("../../i18n/po/it.po")),
             ("nl", include_str!("../../i18n/po/nl.po")),
             ("ro", include_str!("../../i18n/po/ro.po")),
+            ("tr", include_str!("../../i18n/po/tr.po")),
         ];
         let mut chars = BTreeSet::new();
         for (code, text) in catalogues {

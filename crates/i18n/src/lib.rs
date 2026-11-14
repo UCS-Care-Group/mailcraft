@@ -66,6 +66,7 @@ pub enum Lang {
     Dutch,
     Romanian,
     ChineseSimplified,
+    Turkish,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -73,8 +74,18 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 9] =
-        [Lang::English, Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::ChineseSimplified, Lang::Pseudo];
+    pub const ALL: [Lang; 10] = [
+        Lang::English,
+        Lang::French,
+        Lang::German,
+        Lang::Spanish,
+        Lang::Italian,
+        Lang::Dutch,
+        Lang::Romanian,
+        Lang::ChineseSimplified,
+        Lang::Turkish,
+        Lang::Pseudo,
+    ];
 
     /// Its code: `en`, `fr`, `pseudo` (the settings' and the commands' value; the `.po` file's name).
     pub fn code(self) -> &'static str {
@@ -87,6 +98,7 @@ impl Lang {
             Lang::Dutch => "nl",
             Lang::Romanian => "ro",
             Lang::ChineseSimplified => "zh_CN",
+            Lang::Turkish => "tr",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -124,6 +136,7 @@ impl Lang {
             "it" => Some(Lang::Italian),
             "nl" => Some(Lang::Dutch),
             "ro" => Some(Lang::Romanian),
+            "tr" => Some(Lang::Turkish),
             _ => None,
         }
     }
@@ -139,13 +152,17 @@ impl Lang {
             Lang::Dutch => "Nederlands",
             Lang::Romanian => "Română",
             Lang::ChineseSimplified => "简体中文",
+            Lang::Turkish => "Türkçe",
             Lang::Pseudo => "Pseudo",
         }
     }
 
     /// No native speaker has reviewed its main screens yet: named "(preview)" where it is chosen.
     pub fn preview(self) -> bool {
-        matches!(self, Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::ChineseSimplified)
+        matches!(
+            self,
+            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::ChineseSimplified | Lang::Turkish
+        )
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -400,6 +417,7 @@ mod tests {
         assert_eq!(Lang::from_code("es_MX.UTF-8"), Some(Lang::Spanish));
         assert_eq!(Lang::from_code("it-CH"), Some(Lang::Italian));
         assert_eq!(Lang::from_code("nl-NL"), Some(Lang::Dutch));
+        assert_eq!(Lang::from_code("tr-TR"), Some(Lang::Turkish));
         let fr = if Lang::French.has_catalogue() { Lang::French } else { Lang::English };
         assert_eq!(Lang::from_pref("auto", Some("fr-BE")), fr);
         assert_eq!(Lang::from_pref("fr", None), fr);
@@ -411,11 +429,20 @@ mod tests {
     /// "Archive" the command, and a text said with a folder's name names the folder.
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
-        let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        let said: Vec<(&str, &str)> = [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Turkish]
+            .iter()
+            .map(|l| (l.t("Archive"), l.folder("Archive")))
+            .collect();
         assert_eq!(
             said,
-            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+            [
+                ("Archiver", "Archives"),
+                ("Archivieren", "Archiv"),
+                ("Archivar", "Archivo"),
+                ("Archivia", "Archivio"),
+                ("Archiveren", "Archief"),
+                ("Arşiv", "Arşiv"),
+            ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.
@@ -442,15 +469,18 @@ mod tests {
         if !cfg!(target_arch = "wasm32") {
             expected.push("简体中文（预览）");
         }
+        expected.push("Türkçe (önizleme)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
         assert_eq!(Lang::from_pref("auto", Some("it-CH")), Lang::Italian);
         assert_eq!(Lang::from_pref("auto", Some("fr-CA")), Lang::French);
         assert_eq!(Lang::from_pref("auto", Some("nl-NL")), Lang::Dutch);
+        assert_eq!(Lang::from_pref("auto", Some("tr-TR")), Lang::Turkish);
         assert_eq!(Lang::from_pref("nl", None), Lang::Dutch);
         assert_eq!(Lang::from_pref("auto", Some("ro_RO.UTF-8")), Lang::Romanian);
         assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
+        assert_eq!(Lang::from_pref("tr", None), Lang::Turkish);
     }
 
     #[test]
