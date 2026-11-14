@@ -467,7 +467,7 @@ impl SendReceive {
             Ok(r) => (r, true),
             Err(TryRecvError::Empty) => return Taken::Pending,
             Err(TryRecvError::Disconnected) => {
-                log::warn!("send/receive, account {account}: the job ended without an answer (its thread ended early)");
+                log::warn!("send/receive: the job ended without an answer (its thread ended early)");
                 (GraphResult { account, ..Default::default() }, false)
             }
         };
