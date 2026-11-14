@@ -396,7 +396,14 @@ fn an_explicit_stop_after_a_call_off_never_puts_the_run_back() {
     let h = host();
     let c = ctx(&store, 100_000.0);
     assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. }));
-    while !matches!(sr.take_result(&mut s, &c), Taken::Piece) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        match sr.take_result(&mut s, &c) {
+            Taken::Piece => break,
+            Taken::Pending => {}
+            other => panic!("the run ended before its first piece: {}", matches!(other, Taken::Done { .. })),
+        }
+        assert!(std::time::Instant::now() < deadline, "no piece came within the time");
         std::thread::sleep(Duration::from_millis(2));
     }
     let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
@@ -419,7 +426,10 @@ fn a_sign_in_that_could_not_be_noted_for_removal_is_not_written() {
     let c = ctx(&store, 1.0);
     let mine = Tokens { refresh: "fresh-token".into(), email: "me@example.org".into(), ..Default::default() };
     assert_eq!(sr.adopt_tokens(&s, &c, id, mine), Adopted::Kept);
-    assert_eq!(store.0.lock().unwrap().len(), before, "nothing new is written");
+    let kept = store.0.lock().unwrap();
+    assert_eq!(kept.len(), before, "nothing new is written");
+    assert!(!kept.values().any(|v| v.contains("fresh-token")), "the new token is in no entry");
+    drop(kept);
     assert_eq!(sr.take_written_keys().len(), 1000);
     let _ = &mut s;
 }
