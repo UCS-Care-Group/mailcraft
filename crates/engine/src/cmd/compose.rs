@@ -794,7 +794,8 @@ fn eml_attachment(s: &Session, id: Id) -> Result<Attachment, CmdError> {
         answered: false,
         flag: FlagStatus::None,
         categories: Vec::new(),
-        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        headers: m.all_headers().into_iter().filter(|(name, _)| goes_along(name)).collect(),
+        header_block: mailcraft_model::HeaderBlock::default(),
         ..Message::clone(&m)
     };
     let bytes = mailcraft_mime_model::write(&unmarked, &opts);
@@ -812,10 +813,7 @@ mod attach_item_tests;
 /// write that mark into a message of their own; only plain text that opens as the note does,
 /// with no file, is taken for it.
 fn not_downloaded(m: &Message) -> bool {
-    m.body.html.is_none()
-        && m.attachments.is_empty()
-        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
-        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+    m.body.html.is_none() && m.attachments.is_empty() && m.body.text.starts_with(NOT_DOWNLOADED_NOTE) && m.has_header(NOT_DOWNLOADED)
 }
 
 /// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
@@ -946,7 +944,7 @@ fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
 /// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
 /// opened to write again; a request in mail that comes in is never read, nor answered.
 fn asked_receipt(m: &Message) -> bool {
-    m.read_receipt || m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("disposition-notification-to"))
+    m.read_receipt || m.has_header("Disposition-Notification-To")
 }
 
 /// The message being written made again from `m` (a draft opened, a sent message to send again):
