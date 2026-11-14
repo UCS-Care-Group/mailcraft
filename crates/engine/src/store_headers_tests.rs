@@ -61,6 +61,32 @@ fn block_files(path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The packs of header blocks beside the mailbox file at `path` (#1376).
+pub(super) fn packs(path: &Path) -> Vec<PathBuf> {
+    pack::on_disk(&blob_dir(path)).into_iter().map(|(_, file)| file).collect()
+}
+
+/// How many bytes the packs beside the mailbox file at `path` hold.
+pub(super) fn pack_bytes(path: &Path) -> u64 {
+    packs(path).iter().map(|f| fs::metadata(f).unwrap().len()).sum()
+}
+
+/// The bytes of the header blocks of `mb` that go outside the record, each once, its messages'
+/// header lines split as they are read.
+pub(super) fn block_bytes(mb: &Mailbox) -> u64 {
+    let mut seen = HashSet::new();
+    let mut total = 0;
+    for m in mb.messages.values() {
+        let mut m = Message::clone(m);
+        m.split_headers();
+        let data = &m.header_block.data;
+        if data.len() > INLINE_MAX && seen.insert(Digest::of(data)) {
+            total += data.len() as u64;
+        }
+    }
+    total
+}
+
 /// A mailbox file of format 3, as MailCraft 0.12.0 wrote it: every header line of a message in
 /// its record. The mailbox is given back as it was, its header lines unsplit.
 fn format_3(path: &Path, messages: usize) -> Mailbox {
@@ -88,7 +114,10 @@ fn a_large_header_block_is_kept_beside_the_mailbox_file_and_read_when_wanted() {
     assert_eq!(crate::store_before::format_on_disk(&path), Some(INDEX_VERSION));
     let file = fs::read(&path).unwrap();
     assert!(!file.windows(17).any(|w| w == b"X-Microsoft-Antis"), "the block is not in the mailbox file");
-    assert_eq!(block_files(&path).len(), 4);
+    // In one pack, not a file each (#1376).
+    assert!(block_files(&path).is_empty());
+    assert_eq!(packs(&path).len(), 1);
+    assert_eq!(pack_bytes(&path), block_bytes(&mb));
     clear_cache();
     let opened = open(&path).unwrap();
     for m in opened.mailbox.messages.values() {
@@ -111,11 +140,12 @@ fn a_file_of_format_3_puts_its_header_blocks_beside_it_as_it_opens_and_is_writte
     let opened = open_window(&path);
     // Each block went beside the file as it was read, and is named on its message.
     assert!(opened.mailbox.messages.values().all(|m| m.header_block.data.is_empty() && m.header_block.kept.is_some()));
-    assert_eq!(block_files(&path).len(), 5);
+    assert!(block_files(&path).is_empty());
+    assert_eq!(pack_bytes(&path), block_bytes(&mb), "in a pack");
     // The file itself is as it was until a save: a stop now (a crash) loses nothing.
     assert_eq!(fs::read(&path).unwrap(), had);
     assert_eq!(sweep(&path, Duration::ZERO).unwrap().removed, 0, "a sweep leaves what the open put beside it");
-    assert_eq!(block_files(&path).len(), 5);
+    assert_eq!(pack_bytes(&path), block_bytes(&mb));
     clear_cache();
     let again = whole(&path);
     for (id, m) in &mb.messages {
@@ -142,9 +172,20 @@ fn a_missing_or_damaged_header_block_leaves_the_message_without_it_and_nothing_e
     let path = tmp.file();
     save(&path, &mb).unwrap();
     let ids: Vec<Id> = mb.messages.keys().copied().collect();
-    let block = |id: Id| blob_file(&path, &mb.message(id).unwrap().header_block.data);
-    fs::remove_file(block(ids[0])).unwrap();
-    fs::write(block(ids[1]), b"[[0,\"Received\"").unwrap();
+    // Two blocks damaged where they are in the pack (#1376): one written over, one a byte changed.
+    for (n, id) in ids[..2].iter().enumerate() {
+        let data = &mb.message(*id).unwrap().header_block.data;
+        let loc = pack::find(&blob_dir(&path), &Digest::of(data)).unwrap();
+        let file = blob_dir(&path).join(pack::name(loc.pack).unwrap());
+        let mut bytes = fs::read(&file).unwrap();
+        let at = loc.at as usize;
+        if n == 0 {
+            bytes[at..at + 16].fill(0);
+        } else {
+            bytes[at + 1] ^= 0xff;
+        }
+        fs::write(&file, bytes).unwrap();
+    }
     clear_cache();
     let opened = open(&path).unwrap();
     assert_eq!(opened.unavailable, 0, "a header block is not the message's content");
@@ -161,20 +202,30 @@ fn a_missing_or_damaged_header_block_leaves_the_message_without_it_and_nothing_e
 fn a_hostile_name_for_a_header_block_names_none() {
     let max = mailcraft_model::headers::MAX_HEADER_BLOCK as u64;
     let name = Digest::of(b"x").hex();
-    for headers in [(name.clone(), max + 1), (name.clone(), u64::MAX), ("not a name".into(), 10), (String::new(), 0)] {
-        let wire = WireParts { headers: Some(headers), ..Default::default() };
-        assert!(wire.parts().headers.is_none());
+    let at = Some(pack::Loc { pack: 1, at: 0 });
+    for (hash, len) in [(name.clone(), max + 1), (name.clone(), u64::MAX), ("not a name".into(), 10), (String::new(), 0)] {
+        for at in [None, at] {
+            let wire = WireParts { headers: Some(HeaderWire { hash: hash.clone(), len, at }), ..Default::default() };
+            assert!(wire.parts().headers.is_none() && wire.parts().headers_at.is_none() && wire.pack().is_none());
+        }
     }
-    let wire = WireParts { headers: Some((name, max)), ..Default::default() };
-    assert!(wire.parts().headers.is_some());
+    let wire = WireParts { headers: Some(HeaderWire { hash: name, len: max, at }), ..Default::default() };
+    assert!(wire.parts().headers.is_some() && wire.parts().headers_at == at);
 }
 
 proptest! {
     #[test]
-    fn any_content_names_never_name_more_than_a_block_can_be(name in ".{0,80}", len in any::<u64>(), junk in proptest::collection::vec(any::<u8>(), 0..256)) {
+    fn any_content_names_never_name_more_than_a_block_can_be(
+        name in ".{0,80}",
+        len in any::<u64>(),
+        pack in any::<u64>(),
+        at in any::<u64>(),
+        junk in proptest::collection::vec(any::<u8>(), 0..256),
+    ) {
         let max = mailcraft_model::headers::MAX_HEADER_BLOCK as u64;
         let json = serde_json::to_vec(&json!({"headers": [name, len]})).unwrap();
-        for bytes in [json, junk] {
+        let packed = serde_json::to_vec(&json!({"headers": [name, len, pack, at]})).unwrap();
+        for bytes in [json, packed, junk] {
             if let Ok(wire) = load_limit::read_json::<WireParts>(&bytes, &open_budget()) {
                 prop_assert!(wire.parts().headers.is_none_or(|p| p.r.len <= max));
             }
@@ -202,7 +253,7 @@ fn an_opening_that_only_reads_a_file_of_format_3_puts_nothing_beside_it() {
     let had = fs::read(&path).unwrap();
     clear_cache();
     let opened = open(&path).unwrap();
-    assert!(block_files(&path).is_empty());
+    assert!(block_files(&path).is_empty() && packs(&path).is_empty());
     assert_eq!(fs::read(&path).unwrap(), had);
     for (id, m) in &mb.messages {
         assert_eq!(opened.mailbox.message(*id).unwrap().all_headers(), m.headers, "held in memory as before");
@@ -236,7 +287,7 @@ fn what_an_opening_put_beside_a_file_outlives_a_sweep_that_reads_the_file() {
     fs::OpenOptions::new().write(true).open(&path).unwrap().set_modified(SystemTime::now() - Duration::from_secs(3_600)).unwrap();
     a_day_old(&path);
     assert_eq!(sweep(&path, Duration::ZERO).unwrap().removed, 0);
-    assert_eq!(block_files(&path).len(), 4);
+    assert_eq!(pack_bytes(&path), block_bytes(&mb));
     save(&path, &opened.mailbox).unwrap();
     clear_cache();
     let back = whole(&path);
@@ -255,7 +306,7 @@ fn a_block_gone_before_the_save_never_fails_it() {
     let ids: Vec<Id> = mb.messages.keys().copied().collect();
     // One message is gone from the mailbox, and every header block from the disk.
     opened.mailbox.messages.remove(&ids[0]);
-    block_files(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
     save(&path, &opened.mailbox).unwrap();
     save(&path, &opened.mailbox).unwrap();
     clear_cache();
@@ -276,7 +327,7 @@ fn a_file_of_format_3_that_names_a_block_that_isnt_there_still_saves() {
     let mut bytes = fs::read(&path).unwrap();
     bytes.splice(16..20, 3u32.to_le_bytes());
     fs::write(&path, bytes).unwrap();
-    block_files(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
     clear_cache();
     let opened = open_window(&path);
     save(&path, &opened.mailbox).unwrap();
@@ -328,7 +379,7 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
         at += found + line.len();
     }
     // Its block gone from the disk: what reads it says so in the log, and writes the rest.
-    fs::remove_file(blob_file(&path, &was.header_block.data)).unwrap();
+    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
     clear_cache();
     let without = s.loaded_message(id).unwrap();
     assert_eq!(without.all_headers(), was.headers);

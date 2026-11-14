@@ -1358,7 +1358,7 @@ fn save_v2(path: &Path, mb: &Mailbox) {
     let mut hashes = HashMap::new();
     let (mut messages, mut blobs) = (serde_json::Map::new(), serde_json::Map::new());
     for (id, m) in &mb.messages {
-        let p = prepare(*id, m, &mut hashes).unwrap();
+        let p = prepare(*id, m, &mut hashes, None).unwrap();
         for (r, bytes) in p.parts.content(m) {
             let _ = make_dir(&dir);
             put(&dir, &r, bytes).unwrap();
@@ -2098,6 +2098,9 @@ mod hidden;
 
 #[path = "store_headers_tests.rs"]
 mod headers;
+
+#[path = "store_pack_tests.rs"]
+mod pack_tests;
 
 #[path = "store_original_tests.rs"]
 mod original;
