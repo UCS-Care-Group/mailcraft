@@ -239,6 +239,8 @@ mod text_menu_tests;
 pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
+#[cfg(test)]
+mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
 mod update_switches_tests;
@@ -830,6 +832,8 @@ pub struct UiState {
     pub close_to_tray_notice_seen: bool,
     /// The accent colour of the window.
     pub accent: theme::Accent,
+    /// The greys of the dark theme: neutral (the default) or tinted blue (#1384).
+    pub dark_style: theme::DarkStyle,
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
@@ -948,6 +952,7 @@ impl Default for UiState {
             close_to_tray: false,
             close_to_tray_notice_seen: false,
             accent: theme::Accent::default(),
+            dark_style: theme::DarkStyle::default(),
             light_messages: false,
             replies_in_window: false,
             interface_size: theme::InterfaceSize::default(),
@@ -1033,6 +1038,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"value": "system"|"on"|"off"} — whether the window's animations play: as the system says (Windows' Animation effects; where the system says nothing, they play), always, or never (menus and sections open at once, scrolling to a place jumps there; a spinner still turns)"#,
     ),
     ("ui.accent", "Accent Colour", "File › Options", r#"{"accent": "blue"|"teal"|"violet"|"graphite"}"#),
+    ("ui.darkStyle", "Dark Theme Style", "File › Options", r#"{"value": "neutral"|"blue"}"#),
     (
         "ui.lightMessages",
         "Messages on a Light Background",
@@ -2498,6 +2504,13 @@ impl MailApp {
                     Ok(json!({"accent": a.code()}))
                 }
                 None => Err("`accent` is blue, teal, violet or graphite".into()),
+            },
+            "ui.darkStyle" => match s("value").and_then(theme::DarkStyle::from_code) {
+                Some(style) => {
+                    self.ui.dark_style = style;
+                    Ok(json!({"value": style.code()}))
+                }
+                None => Err("`value` is neutral or blue".into()),
             },
             "ui.language" => {
                 let code = s("language").unwrap_or_default();
@@ -4591,7 +4604,12 @@ impl MailApp {
         }
         // Settled from the main window's input, so every window has the same theme.
         let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
-        let choice = theme::ThemeChoice { appearance: self.ui.theme, accent: self.ui.accent, high_contrast: self.ui.high_contrast };
+        let choice = theme::ThemeChoice {
+            appearance: self.ui.theme,
+            accent: self.ui.accent,
+            high_contrast: self.ui.high_contrast,
+            dark_style: self.ui.dark_style,
+        };
         if self.applied_theme != Some((preference, choice)) {
             theme::apply(ctx, preference, &choice);
             self.applied_theme = Some((preference, choice));
@@ -5476,6 +5494,14 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
             let said = i18n::fmt(tl!("Imported {what} into the new folder {name}"), &[("what", &what), ("name", name)]);
             let stopped = v.get("stopped").and_then(Value::as_bool) == Some(true);
+            // What was there already (#1401).
+            let said = match n("duplicates").filter(|c| *c > 0) {
+                Some(c) => i18n::fmt(
+                    tl!("{said}; {already}"),
+                    &[("said", &said), ("already", &tln!(c, "{n} message was already here", "{n} messages were already here"))],
+                ),
+                None => said,
+            };
             Some(match (left, stopped) {
                 (0, false) => said,
                 (left, _) => {
@@ -5500,10 +5526,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                     parts.push(said(c));
                 }
             }
-            let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
-            // the account from there, it is put on the server (#451). Drafts stay in their own
-            // mailbox, this computer's.
+            // What the folder held already was left out (#1401): said, and alone when nothing
+            // else came in.
+            let already = n("already").filter(|c| *c > 0).map(|c| tln!(c, "{n} message was already here", "{n} messages were already here"));
+            if parts.is_empty() {
+                return already.map(|already| i18n::fmt(tl!("Nothing new imported: {already}"), &[("already", &already)]));
+            }
+            let what = match &already {
+                Some(already) => i18n::fmt(tl!("{what} ({already})"), &[("what", &parts.join(", ")), ("already", already)]),
+                None => parts.join(", "),
+            };
+            // Mail meant for an account a server keeps went to a local folder (R3 spec S30,
+            // #1401); moved into a Microsoft or an IMAP account from there, it is put on the
+            // server (#451). Drafts stay in their own mailbox, this computer's.
             let local = v.get("local").and_then(Value::as_bool) == Some(true);
             if local && v.get("drafts").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
@@ -5512,10 +5547,17 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 ));
             }
             if local {
-                return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
-                    &[("what", &what)],
-                ));
+                return Some(match v.get("account").and_then(Value::as_str) {
+                    Some("microsoft") | None => i18n::fmt(
+                        tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
+                        &[("what", &what)],
+                    ),
+                    Some("imap") => i18n::fmt(
+                        tl!("Imported {what} into the local folder Imported: move it into the account to put it on its server"),
+                        &[("what", &what)],
+                    ),
+                    Some(_) => i18n::fmt(tl!("Imported {what} into the local folder Imported, on this computer"), &[("what", &what)]),
+                });
             }
             if let Some(c) = n("stoppedAfter") {
                 let count = tln!(c, "{n} message", "{n} messages");
@@ -5528,6 +5570,24 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         }
         "people.fromMessage" if v.get("existing").and_then(Value::as_bool) == Some(true) => Some(tl!("Already in your contacts").to_string()),
         "folder.empty" => n("removed").map(|c| tln!(c, "{n} message removed", "{n} messages removed")),
+        // Copies only this computer had of mail its server has (#1401).
+        "mail.removeImportedDuplicates" => Some({
+            let said = match (n("removed").unwrap_or(0), v.get("preview").and_then(Value::as_bool) == Some(true)) {
+                (0, _) => tl!("No copies on this computer of mail its server has were found").to_string(),
+                (c, true) => tln!(
+                    c,
+                    "{n} copy on this computer of mail its server has would be removed",
+                    "{n} copies on this computer of mail its server has would be removed"
+                ),
+                (c, false) => {
+                    tln!(c, "{n} copy on this computer of mail its server has removed", "{n} copies on this computer of mail its server has removed")
+                }
+            };
+            match n("kept").filter(|c| *c > 0) {
+                Some(c) => format!("{said}; {}", tln!(c, "{n} kept because it differs", "{n} kept because they differ")),
+                None => said,
+            }
+        }),
         // An appointment that goes into another calendar of its account is made there first, and
         // taken out of the one it was in once that is done: said, as it takes a moment.
         "calendar.edit" if v.get("moved").and_then(Value::as_bool) == Some(true) => {

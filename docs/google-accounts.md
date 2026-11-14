@@ -169,6 +169,31 @@ the categories: Gmail's API takes no app password, so its Move to Category will 
 note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
 The browser build won't move them either.
 
+## Gmail's labels
+
+Gmail keeps mail under labels, and MailCraft shows each label as a folder, as Gmail's IMAP
+does. A message also shows its labels, read only: as grey tags, pointed at one end, under the
+categories in the reading pane, and the first two at the right of its row in the message list
+(with how many more). A nested label (`Work/Clients`) shows its last part, `Clients`; in the
+reading pane its tooltip gives the whole path. The tags are not MailCraft's own categories, which
+are rounded and in their colour, nor Gmail's inbox categories.
+
+Not shown, because the window already says them: Gmail's own labels (Inbox, Sent, Drafts, Starred,
+which is the flag, Spam, Trash) and the label of the folder you are looking at. Gmail's
+**Important** isn't shown either: it is Gmail's guess, not the sender's importance nor yours, and
+it would mark most mail; search for it with `label:important`.
+
+To change a message's labels, move or copy it between label folders, as before: MailCraft doesn't
+change labels any other way, and it uses no Gmail API for them. Labels are read over the same IMAP
+connection as the mail (Gmail's `X-GM-LABELS`, with each folder's flags), so nothing else is
+sent; a change made on another device shows at the next Send/Receive that reads that folder, which
+is within the hour (a folder whose counts haven't changed is passed over meanwhile). A copy of a
+message into another folder takes no labels until that folder's own listing says them.
+
+`label:` searches them, anywhere in the label's path and ignoring case: `label:clients`,
+`label:"work/clients"`, `label:important`. Agents see a message's `gmailLabels`, as message data:
+a label can be written by anyone who shares it with you, or by a filter.
+
 ## Google restrictions and useful error distinctions
 
 A development registration and an organisation's access policy are separate checks. An HTTP

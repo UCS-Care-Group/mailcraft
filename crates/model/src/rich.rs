@@ -61,6 +61,8 @@ pub const OBJECT: char = '\u{fffc}';
 pub enum Font {
     Arial,
     Calibri,
+    /// Fixed width, for text art and columns lined up with spaces (#969).
+    CourierNew,
     Georgia,
     Verdana,
     /// The reader's own interface font (Segoe UI on Windows, the system's elsewhere).
@@ -68,13 +70,14 @@ pub enum Font {
 }
 
 impl Font {
-    pub const ALL: [Font; 5] = [Font::Arial, Font::Calibri, Font::Georgia, Font::Verdana, Font::System];
+    pub const ALL: [Font; 6] = [Font::Arial, Font::Calibri, Font::CourierNew, Font::Georgia, Font::Verdana, Font::System];
 
     /// The name a menu shows.
     pub fn label(self) -> &'static str {
         match self {
             Font::Arial => "Arial",
             Font::Calibri => "Calibri",
+            Font::CourierNew => "Courier New",
             Font::Georgia => "Georgia",
             Font::Verdana => "Verdana",
             Font::System => "System",
@@ -86,10 +89,16 @@ impl Font {
         match self {
             Font::Arial => "Arial, Helvetica, sans-serif",
             Font::Calibri => "Calibri, Carlito, sans-serif",
+            Font::CourierNew => "'Courier New', Courier, monospace",
             Font::Georgia => "Georgia, serif",
             Font::Verdana => "Verdana, Geneva, sans-serif",
             Font::System => "'Segoe UI', system-ui, sans-serif",
         }
+    }
+
+    /// Whether every character is as wide as the next, so text lined up with spaces stays lined up.
+    pub fn is_fixed_width(self) -> bool {
+        self == Font::CourierNew
     }
 
     /// The font a CSS `font-family` list asks for first, when it is one of these.
@@ -98,6 +107,8 @@ impl Font {
         Some(match first.as_str() {
             "arial" | "helvetica" => Font::Arial,
             "calibri" | "carlito" => Font::Calibri,
+            // A fixed-width family keeps its columns as the one fixed-width font there is.
+            "courier new" | "courier" | "liberation mono" | "cousine" | "monospace" | "ui-monospace" => Font::CourierNew,
             "georgia" => Font::Georgia,
             "verdana" | "geneva" => Font::Verdana,
             "segoe ui" | "system-ui" | "-apple-system" => Font::System,

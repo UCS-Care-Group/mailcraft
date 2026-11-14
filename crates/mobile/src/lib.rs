@@ -27,6 +27,7 @@ pub mod blocks;
 mod core;
 mod error;
 mod events;
+mod keep;
 mod message;
 mod platform;
 mod queries;
@@ -44,6 +45,8 @@ mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
+mod keep_tests;
+#[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
 mod queue_tests;
@@ -60,7 +63,7 @@ mod zone_tests;
 
 pub use core::Core;
 pub use error::{CoreError, HostError};
-pub use events::{Event, EventSink};
+pub use events::{Event, EventSink, StorageNotice};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};

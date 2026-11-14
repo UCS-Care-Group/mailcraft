@@ -25,6 +25,8 @@ const SLICE: Duration = Duration::from_millis(100);
 #[derive(Default)]
 struct Slot {
     armed: bool,
+    /// The number of the attempt that armed the slot, and the last one handed out.
+    attempt: u64,
     address: Option<String>,
     /// The core was shut down: every wait ends, and none begins again.
     closed: bool,
@@ -39,9 +41,12 @@ pub(crate) struct Redirects {
 
 impl Redirects {
     /// A sign-in is about to open its page: forget what is left and listen.
-    pub(crate) fn arm(&self) {
+    /// Gives the number of this attempt, which alone may [`disarm`](Self::disarm) it.
+    pub(crate) fn arm(&self) -> u64 {
         let mut slot = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
-        *slot = Slot { armed: true, address: None, closed: slot.closed };
+        let attempt = slot.attempt.wrapping_add(1);
+        *slot = Slot { armed: true, attempt, address: None, closed: slot.closed };
+        attempt
     }
 
     /// The core was shut down: a sign-in that waits is called off.
@@ -50,9 +55,12 @@ impl Redirects {
         self.cv.notify_all();
     }
 
-    pub(crate) fn disarm(&self) {
+    /// Stop listening, when `attempt` is the one that armed the slot (a later sign-in's stays).
+    pub(crate) fn disarm(&self, attempt: u64) {
         let mut slot = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
-        *slot = Slot { closed: slot.closed, ..Slot::default() };
+        if slot.attempt == attempt {
+            *slot = Slot { closed: slot.closed, attempt, ..Slot::default() };
+        }
     }
 
     /// The app hands over the address it was opened with. Taken only while a sign-in waits, and
