@@ -32,8 +32,9 @@
 //! changed here since the server last said. No server id and no sync state is logged.
 
 use mailcraft_model::sync::{
-    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsScope, FolderChange, FolderChangeDone, GraphFetchResult,
-    MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MessageOutcome, SendOutcome, SyncPhase,
+    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsScope, FolderChange, FolderChangeDone,
+    GraphFetchResult, MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MAX_RESOLVE_TEXT, MAX_RESOLVE_TEXTS,
+    MessageOutcome, SendOutcome, SyncPhase, one_line,
 };
 use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -87,6 +88,12 @@ fn named_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
 
 /// The account `account` and its server, when it is an Exchange server account whose server
 /// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
+/// Whether `account` is an Exchange server account whose server can be asked (for its address
+/// list, People's Address Book).
+pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
+    ews_account(mb, account).is_ok()
+}
+
 fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Exchange {
@@ -223,6 +230,42 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
         trusted: server.trusted.clone(),
         ids,
         background: message.is_none(),
+    })
+}
+
+/// The names `texts` to look up in the address list of the account the message being written goes
+/// from (#1262), when that is an Exchange server account whose server may be used: each name one
+/// line, at most [`MAX_RESOLVE_TEXT`] characters, each once, at most [`MAX_RESOLVE_TEXTS`] of them.
+/// Nothing but the names goes to the server.
+pub fn ews_resolve_request(s: &Session, texts: &[String]) -> Result<EwsResolveRequest, CmdError> {
+    let compose = s.compose.as_ref().ok_or_else(|| fail("no message is being written"))?;
+    let account = s
+        .mailbox
+        .account(compose.account)
+        .or(s.mailbox.default_account())
+        .map(|a| a.id)
+        .ok_or_else(|| fail("add an account first (File › Add Account)"))?;
+    ews_resolve_request_for(s, account, texts)
+}
+
+/// What the address list of the Exchange server account `account` is asked for `texts` (People's
+/// Address Book: what the owner searches for).
+pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Result<EwsResolveRequest, CmdError> {
+    let (a, server) = ews_account(&s.mailbox, account)?;
+    let mut asked: Vec<String> = Vec::new();
+    for text in texts {
+        let text = one_line(text, MAX_RESOLVE_TEXT);
+        if !text.is_empty() && !asked.iter().any(|seen| seen.to_lowercase() == text.to_lowercase()) && asked.len() < MAX_RESOLVE_TEXTS {
+            asked.push(text);
+        }
+    }
+    Ok(EwsResolveRequest {
+        account,
+        email: a.email.clone(),
+        url: server.url.clone(),
+        username: server.username.clone(),
+        trusted: server.trusted.clone(),
+        texts: asked,
     })
 }
 

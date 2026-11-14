@@ -153,7 +153,10 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
     let mut buf = text.to_string();
     let edit = line_edit(&mut buf, id, hint, at.width());
     let layout = egui::Layout::centered_and_justified(egui::Direction::TopDown);
-    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, true)).inner;
+    // Nothing is suggested while a dialog is open (Check Names' choice): one list of people at a
+    // time.
+    let offer = app.dialog.is_none();
+    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, offer)).inner;
     if focus {
         out.text_edit.response.request_focus();
     }

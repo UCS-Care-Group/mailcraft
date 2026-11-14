@@ -912,8 +912,8 @@ msgstr ""
 "Adăugare la\n"
 "Favorite"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Add to Contacts"
 msgstr "Adăugare la Contacte"
@@ -943,10 +943,37 @@ msgid "Added by a newer version of MailCraft: send and receive with it there"
 msgstr "Adăugat de o versiune mai nouă a MailCraft: trimiteți și primiți cu acea versiune"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Added to Contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adresă"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Address\n"
+"Book"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Address Book"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Address list"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Address list · {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1015,7 +1042,7 @@ msgid "All Mailboxes"
 msgstr "Toate cutiile poștale"
 
 #. interface
-#: crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "Toate conturile"
@@ -1025,6 +1052,11 @@ msgstr "Toate conturile"
 #, fuzzy
 msgid "All day"
 msgstr "Toată ziua"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "All names are checked"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -2553,7 +2585,7 @@ msgid "Check Calendar Connection"
 msgstr "Verificare conexiune calendar"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Check Names"
 msgstr "Verificare nume"
@@ -3001,7 +3033,7 @@ msgid "Connecting to the mail server"
 msgstr "Conectare la serverul de e-mail"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Contact"
 msgstr "Contact"
@@ -3027,6 +3059,11 @@ msgstr "Contactare participanți"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Fișă de contact"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3901,6 +3938,11 @@ msgid "Display name"
 msgstr "Nume afișat"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Distribution list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Do"
@@ -4314,7 +4356,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "Ambele butoane scriu lui {name}: răspunsul dvs. și ora pe care o propuneți."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/people.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Email"
 msgstr "E-mail"
@@ -5163,6 +5205,11 @@ msgid "From outside your organisation."
 msgstr "Din afara organizației dvs."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "From {name}"
@@ -5546,6 +5593,11 @@ msgstr "Grafit"
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "Gravatar este întrebat de imaginea expeditorului și primește un hash al adresei lui; altfel, favicon.im și apoi Google sunt întrebate de pictograma site-ului său și primesc domeniul expeditorului. Astfel aceste servicii află ale cui imagini vă uitați. Doar pentru persoanele pe care le cunoașteți (contactele dvs. și cei cărora le-ați scris) și pentru e-mailurile ale căror imagini le descărcați, niciodată pentru E-mail nedorit, iar imaginea unui expeditor doar când serverul de e-mail confirmă că mesajul e de la el."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Group"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -6957,6 +7009,16 @@ msgid "Looking for your Exchange server…"
 msgstr "Se caută serverul Exchange…"
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up in the organisation's address list…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Looking the names up stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
@@ -7782,7 +7844,7 @@ msgid "Minimize"
 msgstr "Minimizare"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Mobile"
 msgstr "Mobil"
@@ -7846,6 +7908,11 @@ msgstr "Nu se oferă mai multe rezultate de pe server: {why}"
 #, fuzzy
 msgid "More results on the server can't be asked for now"
 msgstr "Momentan nu se pot cere mai multe rezultate de pe server"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "More than one person matches \"{name}\". Choose one:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -8702,6 +8769,11 @@ msgid "Nobody has proposed another time."
 msgstr "Nimeni nu a propus altă oră."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address list matches"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Nobody is invited to this appointment."
@@ -8718,6 +8790,11 @@ msgstr "Nu se conectează nimeni"
 #, fuzzy
 msgid "Nobody matches the search"
 msgstr "Nimeni nu se potrivește căutării"
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Nobody matches: {names}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -8998,7 +9075,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9246,6 +9323,11 @@ msgstr "Trimite doar în acest interval de timp:"
 #, fuzzy
 msgid "Only the beginning of this message is here. The rest downloads with the next Send/Receive."
 msgstr "Aici este doar începutul acestui mesaj. Restul se descarcă la următoarea Trimitere/primire."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Only the first {n} are shown: type more of the name to find somebody else."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -9652,6 +9734,11 @@ msgstr "În afara organizației mele (oprit)"
 #, fuzzy
 msgid "Outside My Organization (On)"
 msgstr "În afara organizației mele (pornit)"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Outside the organisation"
+msgstr ""
 
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -10170,6 +10257,11 @@ msgstr "Oră propusă"
 #, fuzzy
 msgid "Public Keys"
 msgstr "Chei publice"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+msgid "Public folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11528,16 +11620,31 @@ msgid "Search people"
 msgstr "Căutare persoane"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Search the address list"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/zones.rs
 #, fuzzy
 msgid "Search time zones"
 msgstr "Căutare fusuri orare"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Searching the address list stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Searching the server…"
 msgstr "Se caută pe server…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Searching…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11628,6 +11735,11 @@ msgstr "Selectați un element pentru citire"
 #, fuzzy
 msgid "Select some text first"
 msgstr "Selectați întâi un text"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Select somebody to see the details"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -13544,6 +13656,11 @@ msgid "The account {address} is opened through is gone."
 msgstr "Contul prin care este deschis {address} nu mai există."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The account's password is needed first: press Send/Receive and type it"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The account's server forwards it, and tells the meeting's organizer that you did."
@@ -13584,6 +13701,11 @@ msgstr "Serverul contului nu i-a dat încă acestei întâlniri un link de parti
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Serverul contului îl creează când se trimite întâlnirea; linkul de participare vine odată cu ea."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -15643,6 +15765,11 @@ msgstr "Contul acestei cutii poștale partajate nu mai există: eliminați cutia
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr "Acest sistem nu are un loc cunoscut de MailCraft pentru certificatele S/MIME cu cheie privată."
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "This version of MailCraft can't search an address list"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -16064,6 +16191,11 @@ msgstr "Două sau mai multe dintre aceste conturi au aceeași adresă. Confirma�
 #, fuzzy
 msgid "Type"
 msgstr "Tip"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Type a name in the search box to search the organisation's address list"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -16710,7 +16842,7 @@ msgid "Words, from:, to:, category:, on:…"
 msgstr "Cuvinte, from:, to:, category:, on:…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Work"
 msgstr "Serviciu"
@@ -16789,6 +16921,11 @@ msgstr "Program de lucru"
 msgid "Working offline: mail you send waits in the Outbox"
 msgstr "Lucru offline: e-mailurile trimise așteaptă în Mesaje de trimis"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Workplace"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16796,7 +16933,7 @@ msgid "Write to the organizer without answering"
 msgstr "Scrieți organizatorului fără a răspunde"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Write to {address}"
 msgstr "Scrieți la {address}"
@@ -17543,6 +17680,11 @@ msgstr "imaginile unei semnături sunt PNG, JPEG sau GIF (multe programe de e-ma
 msgid "a task needs a title"
 msgstr "o sarcină are nevoie de un titlu"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "add an Exchange server account first: its organisation's address list is searched"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -17550,7 +17692,7 @@ msgid "add an account first"
 msgstr "adăugați întâi un cont"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "add an account first (File › Add Account)"
 msgstr "adăugați întâi un cont (Fișier › Adăugare cont)"
@@ -18236,7 +18378,7 @@ msgid "no message being written has the id {id}"
 msgstr "niciun mesaj în curs de scriere nu are ID-ul {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
@@ -20736,6 +20878,14 @@ msgid_plural "{n} folders"
 msgstr[0] "{n} dosar"
 msgstr[1] "{n} dosare"
 msgstr[2] "{n} de dosare"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "{n} found in the address list"
+msgid_plural "{n} found in the address list"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs

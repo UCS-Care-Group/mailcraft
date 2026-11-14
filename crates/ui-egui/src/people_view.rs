@@ -30,6 +30,11 @@ const NOTES_MAX: usize = 20_000;
 const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    // The organisation's address list, chosen in place of the contacts (#1262).
+    if app.address_book_shown().is_some() {
+        crate::address_book::show(app, ui);
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
@@ -575,15 +580,8 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     if resp.on_hover_text(tl!("New Contact")).clicked() {
         let _ = app.run("people.new", json!({}));
     }
-    let accounts = people::contact_accounts(&app.session.mailbox);
-    let shown = people::shown_account(&app.session);
-    if !accounts.is_empty() {
-        ui.add_space(2.0);
-        if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
-            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
-        }
-        ui.add_space(8.0);
-    }
+    // Whose contacts, or an organisation's address list.
+    crate::address_book::book_choice(app, ui);
     let line = ui.cursor().min.y;
     ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
 
@@ -872,7 +870,7 @@ pub(crate) fn section(ui: &mut Ui, title: &str) {
 }
 
 /// One line of a section: an icon, a value and its label. A `link` is a button.
-fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
+pub(crate) fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), if link { Sense::click() } else { Sense::hover() });
     if link && resp.hovered() {

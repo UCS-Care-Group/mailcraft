@@ -20,17 +20,17 @@ use mailcraft_model::{FolderKind, Id, Mailbox};
 use mailcraft_ui_egui::{MailApp, Services};
 use serde_json::{Value, json};
 
-const ME: &str = "ada@example.org";
-const USER: &str = "CORP\\ada";
-const PASSWORD: &str = "an invented password";
+pub(crate) const ME: &str = "ada@example.org";
+pub(crate) const USER: &str = "CORP\\ada";
+pub(crate) const PASSWORD: &str = "an invented password";
 /// Wednesday 2026-10-14 16:00 UTC.
-const NOW: i64 = 1_791_993_600;
+pub(crate) const NOW: i64 = 1_791_993_600;
 
 /// Serves the stand-in over HTTP on this machine until the test is over: one request per
 /// connection. Its address.
-struct Server {
-    url: String,
-    standin: Arc<StandIn>,
+pub(crate) struct Server {
+    pub(crate) url: String,
+    pub(crate) standin: Arc<StandIn>,
     stop: Arc<AtomicBool>,
 }
 
@@ -42,7 +42,7 @@ impl Drop for Server {
     }
 }
 
-fn serve() -> Server {
+pub(crate) fn serve() -> Server {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/EWS/Exchange.asmx", listener.local_addr().unwrap());
     let standin = Arc::new(StandIn::new());
@@ -115,7 +115,7 @@ fn window(server: &Server) -> (MailApp, Id) {
 
 /// Send/Receive as the owner asks for it, to its end; the background download is then held back
 /// (as after Stop), so that what is opened next isn't here whole yet. What `ui.sync` answered.
-fn send_receive(app: &mut MailApp, params: Value) -> Value {
+pub(crate) fn send_receive(app: &mut MailApp, params: Value) -> Value {
     let started = app.execute("ui.sync", params).unwrap();
     for _ in 0..6_000 {
         app.poll_sync();

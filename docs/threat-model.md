@@ -262,6 +262,21 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
   over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
+- **An address list is a server's word, read as hostile** (#1262). Check Names asks an Exchange
+  server account's address list (`ResolveNames`, the directory alone) only on the owner's press,
+  and only for the names typed that the contacts don't settle: at most ten, each one line of at
+  most 256 characters; People's Address Book asks it for what the owner types in its search box,
+  one text at a time, once typing pauses, and lets go of a look-up that what is typed has passed.
+  Of each answer at most 100 people are read, each a name, an SMTP address that has one `@` and
+  nothing that could end a header or add a recipient, the kind of recipient, four bounded lines
+  (company, department, job title, office) and the work and mobile numbers, kept only when they
+  are written as phone numbers are (digits with spaces, `+`, `-`, `.`, `/`, brackets and an
+  extension's `x`); other numbers, postal addresses and notes the answer holds are dropped
+  (`crates/ews/src/resolve.rs`, and again in `DirectoryPerson::checked`). Who is found lives in
+  the window and is never written down, unless the owner presses Add to Contacts. The engine checks them again
+  as a command's params (`compose.checkNames` `found`), puts a name in only when exactly one
+  person matches it, and asks the owner to choose among several. A server can offer a wrong
+  person for a name; the owner sees the address before the message goes.
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 

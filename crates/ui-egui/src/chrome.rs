@@ -155,6 +155,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     let panel = app.advanced_search.is_some();
     let hint = match app.session.view.module {
+        Module::People if app.address_book_shown().is_some() => tl!("Search the address list"),
         Module::People => tl!("Search people"),
         // Calendar and Tasks have no search of their own yet: what is typed looks in the mail.
         Module::Calendar | Module::Tasks => tl!("Search mail"),
@@ -214,7 +215,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
+        if mail_search {
+            let _ = app.execute("view.search", json!({"query": text}));
+        } else {
+            app.type_people_search(&text);
+        }
     }
     // Escape is the box's while it has the keyboard and nothing is over it, the list under it
     // either (#406), so nothing drawn after it does something with the same key (a selection in
@@ -479,6 +484,10 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
                         st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
+                    }
+                    Module::People if app.address_book_shown().is_some() => {
+                        let found = app.address_book.as_ref().map_or(0, |b| b.people.len());
+                        st(ui, &tln!(found, "{n} found in the address list", "{n} found in the address list"), t.text_dim);
                     }
                     Module::People => {
                         let shown = crate::people_view::shown_total(app, ui.ctx());
