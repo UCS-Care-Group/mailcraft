@@ -380,3 +380,46 @@ fn something_made_here_during_a_long_run_calls_it_off_and_it_goes_first_again() 
     assert!(matches!(until_over(&mut sr, &mut s, &later), Taken::Done { .. }));
     assert!(s.driver.round.is_queued(id), "it goes on at once, as it was");
 }
+
+#[test]
+fn an_explicit_stop_after_a_call_off_never_puts_the_run_back() {
+    use mailcraft_model::{Address, FolderKind, Message};
+    let (mut s, id, store) = one_with_a_sign_in();
+    let (release, gate) = std::sync::mpsc::channel::<()>();
+    let gate = Mutex::new(gate);
+    let mut sr = SendReceive::with_runner(move |req: GraphRequest| {
+        let pieces = req.mail_pieces.clone().unwrap();
+        let _ = pieces.send(GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() });
+        let _ = gate.lock().unwrap().recv_timeout(Duration::from_secs(5));
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let h = host();
+    let c = ctx(&store, 100_000.0);
+    assert!(matches!(sr.what_to_run(&h, &mut s, &c), Step::Started { .. }));
+    while !matches!(sr.take_result(&mut s, &c), Taken::Piece) {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let outbox = s.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
+    let m = Message { account: id, folder: outbox, subject: "Later".into(), to: vec![Address::new("", "kit@example.net")], ..Default::default() };
+    s.mailbox.add_message(m).unwrap();
+    let later = ctx(&store, 200_000.0);
+    let _ = sr.take_result(&mut s, &later); // called off
+    sr.stop(&mut s);
+    let _ = release.send(());
+    assert!(matches!(until_over(&mut sr, &mut s, &later), Taken::Done { .. }));
+    assert!(!s.driver.round.is_queued(id), "a stop is not undone by an earlier call-off");
+}
+
+#[test]
+fn a_sign_in_that_could_not_be_noted_for_removal_is_not_written() {
+    let (mut s, id, store) = one_with_a_sign_in();
+    let mut sr = SendReceive::new();
+    sr.fill_written(1000);
+    let before = store.0.lock().unwrap().len();
+    let c = ctx(&store, 1.0);
+    let mine = Tokens { refresh: "fresh-token".into(), email: "me@example.org".into(), ..Default::default() };
+    assert_eq!(sr.adopt_tokens(&s, &c, id, mine), Adopted::Kept);
+    assert_eq!(store.0.lock().unwrap().len(), before, "nothing new is written");
+    assert_eq!(sr.take_written_keys().len(), 1000);
+    let _ = &mut s;
+}

@@ -38,12 +38,22 @@ pub enum MailStart {
 /// What a run is made of: the account, its sign-in settings as the account holds them (the host
 /// fills in the application id), the refresh token to ask for a token with, and what the mailbox
 /// asks of Graph. The Outbox goes with the run itself, as sends and drafts in `mail`.
-#[derive(Debug)]
 pub struct MailPlan {
     pub owner: Account,
     pub oauth: OAuth,
     pub refresh: String,
     pub mail: GraphMailRequest,
+}
+
+impl std::fmt::Debug for MailPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MailPlan")
+            .field("account", &self.owner.email)
+            .field("oauth", &self.oauth)
+            .field("refresh", &if self.refresh.is_empty() { "" } else { "…" })
+            .field("mail", &self.mail)
+            .finish()
+    }
 }
 
 /// Decide how `account`'s run starts, given the refresh token a front end or host found for it

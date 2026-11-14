@@ -114,6 +114,8 @@ struct Running {
     baseline: Option<usize>,
     /// The run was called off so that what the owner did could go first.
     called_off: bool,
+    /// The owner stopped the round: nothing calls the run off or puts it back after that.
+    stopped: bool,
     /// Lines for the owner's log from the pieces taken so far.
     errors: Vec<String>,
 }
@@ -198,6 +200,11 @@ impl SendReceive {
     pub fn stop(&mut self, session: &mut Session) {
         self.cancel.store(true, Ordering::Relaxed);
         session.driver.round.clear_lines();
+        // An explicit stop outranks a call-off made earlier: the run is not put back.
+        if let Some(running) = self.running.as_mut() {
+            running.stopped = true;
+            running.called_off = false;
+        }
     }
 
     /// Let go of the run under way: its flag is set, and the next run gets a flag of its own, so
@@ -222,6 +229,12 @@ impl SendReceive {
             self.forget();
             self.opening = Some(opening);
         }
+    }
+
+    /// Fill the list of written entries (the tests': the cap is reached by no real mailbox).
+    #[cfg(test)]
+    pub(crate) fn fill_written(&mut self, n: usize) {
+        self.written = (0..n).map(|i| format!("other-{i}")).collect();
     }
 
     /// The names of the credential-store entries written since the last call, for the binding to
@@ -397,8 +410,17 @@ impl SendReceive {
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();
         let answer = host.run_job("send-receive", move |_platform: &dyn Platform| runner(request), || {});
-        self.running =
-            Some(Running { account, quiet, opening: session.openings(), pieces, answer, baseline: None, called_off: false, errors: Vec::new() });
+        self.running = Some(Running {
+            account,
+            quiet,
+            opening: session.openings(),
+            pieces,
+            answer,
+            baseline: None,
+            called_off: false,
+            stopped: false,
+            errors: Vec::new(),
+        });
         Step::Started { account }
     }
 
@@ -452,6 +474,7 @@ impl SendReceive {
         // called off, which loses nothing, and the next one tells the server first.
         if !over
             && !running.called_off
+            && !running.stopped
             && let Some(baseline) = running.baseline
             && session.driver.auto_sync()
             && session.driver.round.run_look_due(true, ctx.now_ms)
@@ -561,12 +584,18 @@ impl SendReceive {
             return;
         }
         let key = secret_key("refresh", a);
+        // Every entry written must be reportable for the data-removal contract: with the list full
+        // and this key not in it, nothing is written (the token stays in memory for the session).
+        if self.written.len() >= 1000 && !self.written.contains(&key) {
+            log::warn!("couldn't keep a sign-in in the operating system's credential store: too many entries are waiting to be reported");
+            return;
+        }
         if store.set(&key, refresh).is_err() {
             // A store error can echo its input; never put it in diagnostics. A partial write must
             // not leave a credential that appears successfully saved.
             log::warn!("couldn't keep a sign-in in the operating system's credential store");
             store.delete(&key);
-        } else if self.written.len() < 1000 && !self.written.contains(&key) {
+        } else if !self.written.contains(&key) {
             self.written.push(key);
         }
     }

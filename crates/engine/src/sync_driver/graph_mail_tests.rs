@@ -43,3 +43,10 @@ fn an_account_not_kept_in_step_through_graph_is_refused() {
     let (s, id) = session(AccountKind::Imap, true);
     assert!(matches!(plan_graph_mail(&s, id, true, "refresh".into()), Err(Refusal::NotGraph(why)) if why.contains("Graph")));
 }
+
+#[test]
+fn a_plans_debug_text_never_holds_the_refresh_token() {
+    let (s, id) = session(AccountKind::Microsoft, true);
+    let start = plan_graph_mail(&s, id, true, "fake-refresh-token-123".into()).unwrap();
+    assert!(!format!("{start:?}").contains("fake-refresh-token-123"));
+}
