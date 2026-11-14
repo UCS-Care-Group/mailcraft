@@ -99,6 +99,46 @@ fn a_stand_in_answers_a_directory_read() {
     assert!(!result.auth_refused);
 }
 
+/// The stand-in, with every request it was asked written down.
+struct Logged {
+    standin: crate::standin::StandIn,
+    bodies: Mutex<Vec<String>>,
+}
+
+impl crate::http::HttpExchange for Logged {
+    fn exchange(&self, request: &crate::http::HttpRequest) -> impl Future<Output = Result<crate::http::HttpResponse, crate::http::TransportError>> {
+        self.bodies.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(String::from_utf8_lossy(request.body()).into_owned());
+        self.standin.exchange(request)
+    }
+}
+
+/// A read of the calendar alone (#1274) asks for the calendars and nothing else: no address book,
+/// no to-do list.
+#[test]
+fn a_calendar_read_asks_for_the_calendars_alone() {
+    let logged = Logged { standin: crate::standin::StandIn::new(), bodies: Mutex::new(Vec::new()) };
+    let client = crate::Client::new("http://127.0.0.1/EWS/Exchange.asmx", crate::Secret::new(crate::standin::AUTHORIZATION)).unwrap();
+    let request = mailcraft_model::sync::EwsDirectoryRequest {
+        account: 1,
+        email: "ada@example.org".into(),
+        url: "http://127.0.0.1/EWS/Exchange.asmx".into(),
+        calendars: true,
+        from: 1_791_000_000,
+        to: 1_793_000_000,
+        background: true,
+        ..Default::default()
+    };
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let result = crate::standin::block_on(sync_directory(&client, &logged, &request, &cancel, &mut |_| true)).unwrap();
+    assert!(result.errors.is_empty(), "{}", result.errors.join("; "));
+    assert!(result.calendars.is_some() && result.contacts.is_none() && result.tasks.is_none());
+    assert!(result.events.iter().all(|download| (download.from, download.to) == (request.from, request.to)));
+    let bodies = logged.bodies.lock().unwrap().clone();
+    assert!(bodies.iter().any(|body| body.contains("\"calendar\"")), "{bodies:?}");
+    assert!(bodies.iter().all(|body| !body.contains("\"contacts\"") && !body.contains("\"tasks\"")), "{bodies:?}");
+    assert!(bodies.iter().all(|body| !body.contains("CreateItem") && !body.contains("UpdateItem") && !body.contains("DeleteItem")));
+}
+
 #[test]
 fn a_task_patch_becomes_a_to_do() {
     let op = TaskOp {

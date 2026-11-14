@@ -16481,8 +16481,28 @@ msgid "The account's server makes it when the meeting is sent; the link to join 
 msgstr "Serwer konta tworzy je po wysłaniu spotkania; łącze do dołączenia wraca razem z nim."
 
 #. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/contacts_opened.rs
 msgid "The address book of {address} is open already."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
 msgstr ""
 
 #. interface
@@ -19449,6 +19469,11 @@ msgstr "Wpisz swój adres e-mail, a MailCraft znajdzie resztę: Microsoft 365, O
 #, fuzzy
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
 msgstr "Wpisanie * lub - i spacji na początku wiersza rozpoczyna listę punktowaną, a 1. lub 1) – numerowaną. Cofnij przywraca to, co wpisano."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

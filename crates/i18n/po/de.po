@@ -15414,8 +15414,28 @@ msgid "The account's server makes it when the meeting is sent; the link to join 
 msgstr "Der Server des Kontos erstellt sie, wenn die Besprechung gesendet wird; der Teilnahmelink kommt damit zurück."
 
 #. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/contacts_opened.rs
 msgid "The address book of {address} is open already."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
 msgstr ""
 
 #. interface
@@ -18180,6 +18200,11 @@ msgstr "Geben Sie Ihre E-Mail-Adresse ein, und MailCraft findet den Rest: Micros
 #: crates/ui-egui/src/backstage.rs
 msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
 msgstr "Wenn Sie am Zeilenanfang * oder - gefolgt von einem Leerzeichen eingeben, beginnt eine Aufzählungsliste; mit 1. oder 1) eine nummerierte Liste. Mit Rückgängig wird Ihre Eingabe wiederhergestellt."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

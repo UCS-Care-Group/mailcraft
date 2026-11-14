@@ -164,9 +164,12 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
         .map(|server| EwsFolderState { folder: server.id.clone(), state: server.sync_state.clone() })
         .collect();
     // The calendar, contacts and to-dos after the mail: a full run only (not an Inbox pass or a
-    // light look), so that the lists on screen stay current without holding mail up.
+    // light look), so that the lists on screen stay current without holding mail up. The calendar
+    // a month back and a year ahead (#1274).
     if !light && !request.inbox_pass {
-        request.directory = Some(Box::new(super::ews_directory::ews_directory_request(s, account, None, None, false)?));
+        use super::ews_directory::{Part, ews_directory_request, send_receive_stretch};
+        let (from, to) = send_receive_stretch(s);
+        request.directory = Some(Box::new(ews_directory_request(s, account, Some(from), Some(to), Part::Whole, false)?));
     }
     // The conversation ids of mail listed before they were asked for, in a run of every folder (#795).
     if !light {
