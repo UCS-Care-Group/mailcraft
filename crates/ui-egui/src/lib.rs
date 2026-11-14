@@ -1735,6 +1735,8 @@ pub struct MailApp {
     pub(crate) out_of_sight: out_of_sight::OutOfSight,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
+    /// Pending jump to a bookmark in the reading pane: (message_id, quote, offset).
+    pub(crate) bookmark_target: Option<(Id, String, usize)>,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
     /// it went: an appointment window whose save had to ask first learns from it what came of
     /// the question once it is answered.
@@ -1910,6 +1912,7 @@ impl MailApp {
             sender_images: Default::default(),
             out_of_sight: Default::default(),
             text_selection: Default::default(),
+            bookmark_target: None,
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
             updates: Default::default(),
@@ -2263,6 +2266,14 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
+        // Jump to bookmark (#951): remember target quote/offset for the reading pane.
+        if let (Ok(jumped), "bookmark.jump") = (&r, id)
+            && let Some(mid) = jumped.get("message").and_then(Value::as_u64)
+        {
+            let quote = jumped.get("quote").and_then(Value::as_str).unwrap_or_default().to_string();
+            let offset = jumped.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
+            self.bookmark_target = Some((mid, quote, offset));
+        }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
             && let Some(account) = opened.get("account").and_then(Value::as_u64)

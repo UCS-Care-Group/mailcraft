@@ -35,6 +35,10 @@ pub(crate) const CONTENT: &[&str] = &[
     "calendar.proposals",
     // The meeting's link, as its server or an invitation gave it.
     "calendar.join",
+    // Bookmarks holding excerpts/quotes from messages (#951).
+    "bookmark.add",
+    "bookmark.list",
+    "bookmark.jump",
     "people.get",
     "people.list",
     "people.search",
@@ -113,6 +117,8 @@ const TEXT_KEYS: &[&str] = &[
     "label",
     "value",
     "websites",
+    // Bookmark quotes and labels
+    "quote",
 ];
 
 fn wrap_text(t: &str) -> String {
