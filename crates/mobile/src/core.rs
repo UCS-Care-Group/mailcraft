@@ -206,12 +206,12 @@ impl Core {
                 // choice dropped); the next save writes what they changed.
                 let _ = mailcraft_engine::cmd::file::after_opening(&mut session);
             }
+            // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
+            // left at that default follows the zone, one it chose stays. Asked before either change.
+            let default_date = session.view.date == session.today();
             // The phone's zone by its name, when it gives one this program knows: a mailbox
             // stamped with a named zone is then rebased correctly.
             follow_time_zone(&mut session, zone_platform.as_ref());
-            // `with_clock` set the calendar's date before the phone's offset stood in: a date
-            // `make` left at that default follows it, one it chose stays.
-            let default_date = session.view.date == session.today();
             session.fallback_offset = Some(Arc::new(move |at| zone_host.utc_offset_minutes(at).unwrap_or(0)));
             if default_date {
                 session.view.date = session.today();
@@ -220,7 +220,8 @@ impl Core {
         };
         let (jobs, inbox) = mpsc::sync_channel::<Job>(MAX_WAITING_JOBS);
         let memory_budget = host.memory_budget();
-        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive, keep.clone()));
+        // The phone runs Microsoft (Graph) accounts only, for a clock-started round as for an asked one.
+        let sync = Arc::new(SyncHost::new(host, platform.clone(), sink.clone(), send_receive.graph_only(), keep.clone()));
         // The session is built before `start` returns, so a `make` that panics is an error here and
         // not a core whose every call would wait for a reply that never comes.
         let (ready_tx, ready) = mpsc::sync_channel::<bool>(1);
@@ -288,8 +289,13 @@ impl Core {
             return;
         }
         let sync = self.sync.clone();
+        let closing = self.closing.clone();
         let job: Job = Box::new(move |session: &mut Session| {
             sync.tick_queued.store(false, Ordering::Release);
+            // A tick queued before `shutdown` is drained after it: it starts no round.
+            if closing.load(Ordering::Acquire) {
+                return;
+            }
             // (A panic is caught by the caller; this one leaves the mailbox as it was.)
             let _ = catch_unwind(AssertUnwindSafe(|| sync.tick(session)));
         });
@@ -438,12 +444,13 @@ impl Core {
         let keep = self.keep.clone();
         let sync = self.sync.clone();
         self.call(move |session| {
-            sync.forget_sign_ins(session);
+            // Both are tried, so that one failing doesn't leave the other undone.
+            let signed_in = sync.forget_sign_ins(session).map(|_| ());
             let removed = match &keep {
                 Some(keep) => keep.delete_all(),
                 None => Ok(()),
             };
-            if let Err(reason) = removed {
+            if let Some(reason) = signed_in.err().or(removed.err()) {
                 return Err(CoreError::Failed { reason });
             }
             session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));

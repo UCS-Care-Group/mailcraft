@@ -153,6 +153,8 @@ struct Inner {
     waiters: Vec<Arc<Queue<Wake>>>,
     /// The names of the credential-store entries written, once read from the store.
     keys: Option<BTreeSet<String>>,
+    /// The last write of the index of names failed: it is written again at the next wake.
+    index_pending: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
 }
@@ -244,12 +246,11 @@ impl SyncHost {
     /// Put what the host wrote to the credential store into the index of names.
     fn note_keys(&self, inner: &mut Inner) {
         let written = inner.sr.take_written_keys();
-        if written.is_empty() {
+        if written.is_empty() && !inner.index_pending {
             return;
         }
         let secrets = self.host.platform().secrets();
         let keys = self.keys_of(inner, secrets.as_deref());
-        let before = keys.len();
         for key in written {
             if keys.len() < MOST_KEYS {
                 keys.insert(key);
@@ -257,15 +258,15 @@ impl SyncHost {
                 log::warn!("send/receive: too many credential-store entries to index");
             }
         }
-        if keys.len() != before
-            && let Some(store) = secrets.as_deref()
-        {
+        // Every batch that named a credential writes the index, and so does a wake after a write
+        // that failed, so that "remove my data" can find every name after a restart.
+        if let Some(store) = secrets.as_deref() {
             let list: Vec<&String> = keys.iter().collect();
-            if let Ok(json) = serde_json::to_string(&list)
-                && store.set(INDEX_KEY, &json).is_err()
-            {
+            let kept = serde_json::to_string(&list).is_ok_and(|json| store.set(INDEX_KEY, &json).is_ok());
+            if !kept {
                 log::warn!("send/receive: the index of credential-store entries couldn't be kept");
             }
+            inner.index_pending = !kept;
         }
     }
 
@@ -278,22 +279,58 @@ impl SyncHost {
     }
 
     /// Remove every sign-in this core kept: the entries it wrote (by the index), and those of the
-    /// mailbox's accounts by their names. Forgets the session's too.
-    pub(crate) fn forget_sign_ins(&self, session: &Session) -> usize {
+    /// mailbox's accounts by their names. Forgets the session's too. An error says that some are
+    /// still in the credential store (or that it can't be reached): their names are kept, so that
+    /// calling it again tries again.
+    pub(crate) fn forget_sign_ins(&self, session: &Session) -> Result<usize, String> {
         let mut inner = self.lock();
+        let store = self.platform.secrets();
         let secrets = self.host.platform().secrets();
         let mut names: BTreeSet<String> = self.keys_of(&mut inner, secrets.as_deref()).clone();
         for a in &session.mailbox.accounts {
             names.insert(secret_key("refresh", a));
         }
-        if let Some(store) = secrets.as_deref() {
-            names.iter().for_each(|name| store.delete(name));
-            store.delete(INDEX_KEY);
-        }
-        inner.keys = Some(BTreeSet::new());
         inner.sr.forget();
         inner.needs_sign_in.clear();
-        names.len()
+        let mut left: BTreeSet<String> = BTreeSet::new();
+        match (store, secrets.as_deref()) {
+            (Ok(Some(_)), Some(store)) => {
+                for name in &names {
+                    store.delete(name);
+                    // (Whatever the store answers to a read that fails, a name it still gives is not removed.)
+                    if store.get(name).is_some() {
+                        left.insert(name.clone());
+                    }
+                }
+                if left.is_empty() {
+                    store.delete(INDEX_KEY);
+                    if store.get(INDEX_KEY).is_some() {
+                        left.insert(INDEX_KEY.to_string());
+                    }
+                }
+            }
+            // No store was ever there: nothing was kept in it.
+            (Ok(None), _) => {}
+            // The store can't be reached now: what it holds can't be removed.
+            _ => left.extend(names.iter().cloned()),
+        }
+        if left.is_empty() {
+            inner.keys = Some(BTreeSet::new());
+            inner.index_pending = false;
+            return Ok(names.len());
+        }
+        // What is left stays in the index, so that the next call finds it.
+        left.remove(INDEX_KEY);
+        let rewrite = !left.is_empty();
+        inner.keys = Some(left.clone());
+        inner.index_pending = rewrite;
+        if rewrite
+            && let Some(store) = secrets.as_deref()
+            && serde_json::to_string(&left.iter().collect::<Vec<_>>()).is_ok_and(|json| store.set(INDEX_KEY, &json).is_ok())
+        {
+            inner.index_pending = false;
+        }
+        Err(format!("{} sign-ins couldn't be removed from the credential store", names.len().max(1)))
     }
 
     pub(crate) fn status(&self, session: &Session) -> SyncStatus {
@@ -326,12 +363,10 @@ impl SyncHost {
         }
         let mut supported = Vec::new();
         for id in accounts {
-            match session.mailbox.account(id) {
-                Some(a) if a.kind == AccountKind::Microsoft && !a.is_shared() => supported.push(id),
-                Some(a) => {
-                    inner.unsupported.insert(id, a.kind);
-                }
-                None => {}
+            if inner.sr.eligible(session, id) {
+                supported.push(id);
+            } else if let Some(a) = session.mailbox.account(id) {
+                inner.unsupported.insert(id, a.kind);
             }
         }
         if supported.is_empty() {
@@ -380,6 +415,14 @@ impl SyncHost {
         let platform_offline = matches!(self.host.platform().network(), NetworkState::Offline);
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
+        // What the phone can't run is told of as `ask` does, whoever starts the round.
+        for id in server_accounts(session) {
+            if !inner.sr.eligible(session, id)
+                && let Some(a) = session.mailbox.account(id)
+            {
+                inner.unsupported.insert(id, a.kind);
+            }
+        }
         if !inner.sr.busy() && inner.run_mark.is_none() {
             inner.idle_mark = Some(arrivals::mark(&session.mailbox));
         }

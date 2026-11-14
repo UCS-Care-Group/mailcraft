@@ -324,6 +324,67 @@ fn removing_the_data_removes_the_files_and_the_sign_ins() {
     assert_eq!(on_disk(&dir.file()).len(), 3);
 }
 
+/// A core with a mailbox, its sign-in kept, and the platform that holds it.
+fn with_stored_sign_in(dir: &Dir) -> (Arc<Core>, Arc<FakePlatform>) {
+    let platform = FakePlatform::new();
+    let core = Core::open(platform.clone(), dir.path().to_string()).unwrap();
+    let account = fill(&core);
+    let key = block_on(core.call(move |s| Ok(secret_key("refresh", s.mailbox.account(account).unwrap())))).unwrap();
+    platform.secrets.kept.lock().unwrap().push((key, "stored-refresh".to_string()));
+    block_on(core.save_now()).unwrap();
+    (core, platform)
+}
+
+#[test]
+fn removing_the_data_says_so_when_a_sign_in_stays_in_the_store_and_a_retry_removes_it() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.secrets.stuck.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    assert!(platform.secrets.kept.lock().unwrap().iter().any(|(_, v)| v == "stored-refresh"), "the token is still there, and the owner was told");
+    assert!(!subjects(&core).is_empty(), "the mailbox is not reported removed");
+    platform.secrets.stuck.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
+    assert!(subjects(&core).is_empty());
+}
+
+#[test]
+fn removing_the_data_says_so_when_the_credential_store_cannot_be_reached() {
+    let dir = Dir::new();
+    let (core, platform) = with_stored_sign_in(&dir);
+    platform.no_store.store(true, Ordering::Relaxed);
+    assert!(matches!(block_on(core.delete_local_data()), Err(CoreError::Failed { .. })));
+    platform.no_store.store(false, Ordering::Relaxed);
+    block_on(core.delete_local_data()).unwrap();
+    assert!(platform.secrets.kept.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_that_cannot_be_looked_at_is_never_written_over() {
+    let dir = Dir::new();
+    {
+        let core = open(&dir);
+        fill(&core);
+        block_on(core.save_now()).unwrap();
+        core.shutdown();
+    }
+    let before = std::fs::read(dir.file()).unwrap();
+    // A folder that can't be entered: the file can neither be looked at nor read.
+    set_mode(&dir.0, 0o000);
+    if std::fs::metadata(dir.file()).is_ok() {
+        restore_access(&dir.0);
+        return;
+    }
+    let core = open(&dir);
+    assert!(drain(&core).iter().any(|e| matches!(e, Event::StorageNotice { notice: StorageNotice::NotKept, .. })));
+    fill(&core);
+    assert!(block_on(core.save_now()).is_err());
+    restore_access(&dir.0);
+    assert_eq!(std::fs::read(dir.file()).unwrap(), before);
+}
+
 #[test]
 fn junk_directories_never_panic() {
     let dir = Dir::new();

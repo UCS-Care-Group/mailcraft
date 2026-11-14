@@ -106,10 +106,14 @@ impl Core {
     }
 
     /// Remove every sign-in the core kept (from the credential store and from memory), for
-    /// "remove all my data". Returns how many entries were looked for.
+    /// "remove all my data". Returns how many entries were looked for; an error says that some are still in the store (calling it again tries again).
     pub async fn forget_sign_ins(&self) -> Result<u64, CoreError> {
         let sync = self.sync.clone();
-        self.call(move |session| Ok(u64::try_from(sync.forget_sign_ins(session)).unwrap_or(u64::MAX))).await
+        self.call(move |session| match sync.forget_sign_ins(session) {
+            Ok(count) => Ok(u64::try_from(count).unwrap_or(u64::MAX)),
+            Err(reason) => Err(CoreError::Failed { reason }),
+        })
+        .await
     }
 
     /// Sign `account` (a Microsoft account) in on the provider's page. Opens the page through
@@ -190,7 +194,7 @@ impl Core {
         let cancel = Arc::new(AtomicBool::new(false));
         let _guard = CancelOnDrop(cancel.clone());
         let (redirects, platform, out) = (self.redirects.clone(), self.platform.clone(), reply.clone());
-        redirects.arm();
+        let attempt = redirects.arm();
         let thread_cancel = cancel.clone();
         let spawned = std::thread::Builder::new().name("mailcraft-sign-in".to_string()).spawn(move || {
             let page_failed = Arc::new(AtomicBool::new(false));
@@ -203,7 +207,7 @@ impl Core {
                 }
             };
             let done = sign_in::run(&oauth, &address, &scheme, &open, &redirects, &thread_cancel, endpoints.as_ref());
-            redirects.disarm();
+            redirects.disarm(attempt);
             out.push(match done {
                 Ok(tokens) => Ok(tokens),
                 Err(_) if page_failed.load(Ordering::Acquire) => Err(fail(lang, words("The sign-in page couldn't be opened."))),
@@ -212,7 +216,7 @@ impl Core {
             });
         });
         if spawned.is_err() {
-            self.redirects.disarm();
+            self.redirects.disarm(attempt);
             return Err(fail(lang, words("The sign-in couldn't be started.")));
         }
         reply.next().await.unwrap_or(Err(CoreError::Cancelled))

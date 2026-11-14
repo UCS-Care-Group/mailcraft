@@ -42,6 +42,10 @@ pub(crate) fn block_on<F: Future>(f: F) -> F::Output {
 #[derive(Default)]
 pub(crate) struct FakeSecrets {
     pub(crate) kept: Mutex<Vec<(String, String)>>,
+    /// How many of the next writes of the index of names fail.
+    pub(crate) fail_index: std::sync::atomic::AtomicUsize,
+    /// Deleting removes nothing (the store refuses, and says nothing).
+    pub(crate) stuck: std::sync::atomic::AtomicBool,
 }
 
 impl SecretStore for FakeSecrets {
@@ -50,6 +54,9 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
+        if key.contains("index") && self.fail_index.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1)).is_ok() {
+            return Err(HostError::Unsupported);
+        }
         let mut kept = self.kept.lock().unwrap();
         kept.retain(|(k, _)| *k != key);
         kept.push((key, secret));
@@ -57,6 +64,9 @@ impl SecretStore for FakeSecrets {
     }
 
     fn delete(&self, key: String) -> Result<(), HostError> {
+        if self.stuck.load(Ordering::Relaxed) {
+            return Err(HostError::Unsupported);
+        }
         self.kept.lock().unwrap().retain(|(k, _)| *k != key);
         Ok(())
     }
@@ -74,6 +84,8 @@ pub(crate) struct FakePlatform {
     pub(crate) offset: AtomicI32,
     /// The IANA name of the phone's zone, when it says one.
     pub(crate) zone: Mutex<Option<String>>,
+    /// The credential store can't be reached.
+    pub(crate) no_store: std::sync::atomic::AtomicBool,
     /// What the network is said to be.
     pub(crate) net: Mutex<NetworkKind>,
     /// The pages the core asked to be opened.
@@ -94,6 +106,7 @@ impl FakePlatform {
             notified: AtomicUsize::new(0),
             offset: AtomicI32::new(0),
             zone: Mutex::new(None),
+            no_store: std::sync::atomic::AtomicBool::new(false),
             net: Mutex::new(NetworkKind::Online { metered: true, data_saving: false }),
             opened: Mutex::new(Vec::new()),
             shown: Mutex::new(Vec::new()),
@@ -107,6 +120,9 @@ impl FakePlatform {
 
 impl Platform for FakePlatform {
     fn secrets(&self) -> Result<Option<Arc<dyn SecretStore>>, HostError> {
+        if self.no_store.load(Ordering::Relaxed) {
+            return Err(HostError::Unsupported);
+        }
         Ok(Some(self.secrets.clone()))
     }
 

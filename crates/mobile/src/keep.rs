@@ -82,8 +82,17 @@ impl Keep {
 
     /// The mailbox the file holds (or a new one). Never fails: what can't be read is put aside.
     pub(crate) fn open(&self) -> Mailbox {
-        if fs::symlink_metadata(&self.path).is_err() {
-            return Mailbox::with_local_account("", "");
+        match fs::symlink_metadata(&self.path) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Mailbox::with_local_account("", ""),
+            Err(e) => {
+                // The file may be there and can't be looked at now: nothing is written over it
+                // until it can be read or set aside (a restart tries again).
+                log::error!("the mailbox file couldn't be looked at: {e}");
+                self.lock().writable = false;
+                self.sink.push(Event::StorageNotice { notice: StorageNotice::NotKept, detail: String::new() });
+                return Mailbox::with_local_account("", "");
+            }
         }
         let opened = catch_unwind(AssertUnwindSafe(|| mailcraft_engine::store::open(&self.path)))
             .unwrap_or_else(|_| Err("the file crashed the reader".to_string()));
@@ -188,7 +197,11 @@ impl Keep {
         let mut failed = 0usize;
         match fs::read_dir(&self.dir) {
             Ok(entries) => {
-                for entry in entries.flatten() {
+                for entry in entries {
+                    let Ok(entry) = entry else {
+                        failed += 1;
+                        continue;
+                    };
                     let p = entry.path();
                     let real_dir = fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_dir());
                     let done = if real_dir { fs::remove_dir_all(&p) } else { fs::remove_file(&p) };
