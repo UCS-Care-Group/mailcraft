@@ -1674,6 +1674,9 @@ pub struct MailApp {
     /// Accounts whose next run that nobody asked for only tells the server what changed here
     /// (the quick way out for a read mark or a move), bringing nothing down.
     push_only_next: std::collections::HashSet<Id>,
+    /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
+    /// for it once, when nothing else is under way ([`MailApp::ask_for_jmap_send`]).
+    jmap_send_asks: std::collections::HashSet<Id>,
     /// Per account: how much was still waiting after its last Send/Receive, and when that was.
     /// What a server refuses keeps waiting, and must not start a run every few seconds.
     push_seen: std::collections::HashMap<Id, (usize, f64)>,
@@ -1899,6 +1902,7 @@ impl MailApp {
             snooze_last: 0,
             push_checked: 0.0,
             push_only_next: Default::default(),
+            jmap_send_asks: Default::default(),
             push_seen: Default::default(),
             jmap_made: 0,
             last_autosave: 0.0,
@@ -2155,6 +2159,8 @@ impl MailApp {
             && let Some(sent) = v.get("id").and_then(Value::as_u64)
         {
             self.shared_send_pressed_in(sent);
+            // From a JMAP account whose secret isn't at hand: it is asked for (M6).
+            self.jmap_send_pressed(sent);
         }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
@@ -3541,6 +3547,7 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
+            self.jmap_send_asks.clear();
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
@@ -3635,6 +3642,10 @@ impl MailApp {
             if !started {
                 self.session.sync_progress.leave_out(account);
             }
+            return;
+        }
+        // The owner pressed Send in a JMAP account whose secret isn't at hand: asked for now (M6).
+        if self.ask_for_jmap_send() {
             return;
         }
         self.settle_progress();

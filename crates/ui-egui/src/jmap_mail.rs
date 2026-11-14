@@ -3,9 +3,9 @@
 //! An account kept in step over JMAP (M6), in the window: its Send/Receive, and the secret it goes
 //! with. Its messages are fetched whole as a Microsoft account's are ([`crate::graph_fetch`]).
 //!
-//! The engine says what a run takes up and reads (`sync.jmapRequest`) and takes in what it
+//! The engine says what a run takes up, sends and reads (`sync.jmapRequest`) and takes in what it
 //! brings ([`apply_jmap_mail`]); the host does the talking in between ([`crate::Services::jmap`])
-//! and hands the run back in pieces: what became of the changes, the listing,
+//! and hands the run back in pieces: what became of the changes and of the mail sent, the listing,
 //! then a window of a mailbox at a time. Each piece is taken in as it comes, one that says only
 //! what became of what went up as any other. A run
 //! goes in the place of an IMAP one ([`MailRun`]), so that it waits its turn in a round, Cancel
@@ -26,9 +26,16 @@
 //! place is called off, and nothing it still brings is taken in.
 //!
 //! **Going up**: what was changed here (a mark, a move between the server's folders, a deletion
-//! for good) goes with the next run, which takes it up before it reads, and that run is due within
-//! seconds, as a Microsoft account's is ([`MailApp::waiting_to_go`]); something made while a run
-//! is under way calls it off to go up first. Nothing is sent from such an account yet.
+//! for good) or queued in the Outbox goes with the next run, which takes it up before it reads,
+//! and that run is due within seconds, as a Microsoft account's is ([`MailApp::waiting_to_go`]);
+//! something made while a run is under way calls it off to go up first. What a run sends is marked
+//! as being sent, on disk, before it leaves ([`MailApp::hand_jmap`]): a message whose answer never
+//! came is held at the next run, never sent again by itself.
+//!
+//! **Send asks for the secret**: a run by itself never asks anybody anything, so mail put in the
+//! Outbox of an account whose secret isn't at hand would wait there unseen. When the owner presses
+//! Send in such an account, the secret is asked for once ([`MailApp::jmap_send_pressed`]); a no
+//! leaves the message in the Outbox for the next Send/Receive the owner asks for.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -104,6 +111,36 @@ impl MailApp {
         Ok(json!({"started": true, "account": account, "jmap": true}))
     }
 
+    /// The owner pressed Send in the window and the message `sent` waits in an Outbox: when that
+    /// is a JMAP account's, and its secret isn't at hand, it is asked for as soon as nothing else
+    /// is under way ([`MailApp::ask_for_jmap_send`]). An account whose secret is at hand needs
+    /// nothing: its run is due anyway.
+    pub(crate) fn jmap_send_pressed(&mut self, sent: Id) {
+        let mb = &self.session.mailbox;
+        let Some(account) = mb.message(sent).map(|m| m.account) else { return };
+        let jmap = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+        if jmap && self.services.jmap.is_some() && !self.can_send_jmap_quietly(account) {
+            self.jmap_send_asks.insert(account);
+        }
+    }
+
+    /// Whether a run of the JMAP account `account` can go by itself: its secret is at hand, and
+    /// its server didn't turn it down.
+    fn can_send_jmap_quietly(&self, account: Id) -> bool {
+        !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some()
+    }
+
+    /// Nothing is under way and no question is open: a JMAP account the owner pressed Send in,
+    /// whose mail still waits and whose secret still isn't at hand, has its Send/Receive started
+    /// as the owner's own, which asks for the secret. Once per Send: an owner who closes the
+    /// question isn't asked again until the next one. Whether a Send/Receive was started.
+    pub(crate) fn ask_for_jmap_send(&mut self) -> bool {
+        let Some(account) = self.jmap_send_asks.iter().next().copied() else { return false };
+        self.jmap_send_asks.remove(&account);
+        let waits = mailcraft_engine::cmd::graph_send::waiting(&self.session.mailbox, account) > 0;
+        waits && !self.can_send_jmap_quietly(account) && self.start_sync(&json!({"account": account})).is_ok()
+    }
+
     /// Take in what the JMAP run under way has brought so far, a few pieces a frame (each one
     /// redraws the lists, and the window should stay quick); the last one ends the run. Called by
     /// [`MailApp::poll_sync`].
@@ -144,9 +181,11 @@ impl MailApp {
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                     // What the server wouldn't do in a run that went well otherwise (a change it
-                    // refused) stays to be read in its problems.
+                    // refused, a message it wouldn't send) stays to be read in its problems.
                     whole &= said["refused"].as_u64().unwrap_or(0) == 0;
-                    let made = said["pushed"].as_u64().unwrap_or(0);
+                    // What a run made: changes taken up, and messages sent (a run sends only so many,
+                    // and what is left of a full Outbox goes with the next at once).
+                    let made = said["pushed"].as_u64().unwrap_or(0).saturating_add(said["sent"].as_u64().unwrap_or(0));
                     self.jmap_made = self.jmap_made.saturating_add(usize::try_from(made).unwrap_or(usize::MAX));
                 }
                 Err(e) => {

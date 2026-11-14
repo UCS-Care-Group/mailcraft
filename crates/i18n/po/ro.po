@@ -107,6 +107,11 @@ msgstr "„{shown}” nu este o adresă de e-mail"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr "„{subject}” poate să fi fost trimis: verificați în Elemente trimise. Este păstrat în Mesaje de trimis."
@@ -20341,24 +20346,6 @@ msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}: nu este un fișier de mesaj, calendar sau contact pe care îl citește MailCraft"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
-msgstr "{not_sending_yet} și niciun alt cont de aici nu are un server de e-mail prin care să trimită acest mesaj."
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}: answer the invitation without sending an answer."
-msgstr "{not_sending_yet}: răspundeți la invitație fără a trimite un răspuns."
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
-msgstr "{not_sending_yet}: trimiteți acest mesaj din alt cont sau salvați-l ca ciornă"
-
-#. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
 msgid "{n} KB"
@@ -21308,6 +21295,18 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
+#~ msgstr "{not_sending_yet} și niciun alt cont de aici nu are un server de e-mail prin care să trimită acest mesaj."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: answer the invitation without sending an answer."
+#~ msgstr "{not_sending_yet}: răspundeți la invitație fără a trimite un răspuns."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
+#~ msgstr "{not_sending_yet}: trimiteți acest mesaj din alt cont sau salvați-l ca ciornă"
 
 #, fuzzy
 #~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."

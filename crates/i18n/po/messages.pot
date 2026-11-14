@@ -90,6 +90,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr ""
 
@@ -16872,21 +16877,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/io.rs
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-msgid "{not_sending_yet}: answer the invitation without sending an answer."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 msgstr ""
 
 #. what a command says

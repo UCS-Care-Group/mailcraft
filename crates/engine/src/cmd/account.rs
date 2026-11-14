@@ -1190,6 +1190,8 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     // So has one kept in step over JMAP (`sync.jmapRequest`): every mailbox is read.
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
         s.jmap_read.remove(&account);
+        let now = s.now();
+        super::graph_send::date_undated(&mut s.mailbox, account, now);
         let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false)?).map_err(|e| fail(e.to_string()))?;
         req["jmap"] = json!(true);
         return Ok(req);

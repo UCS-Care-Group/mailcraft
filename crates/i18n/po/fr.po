@@ -106,6 +106,11 @@ msgstr "« {shown} » n'est pas une adresse e-mail"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."
 msgstr "« {subject} » a peut-être été envoyé : vérifiez dans Éléments envoyés. Il est conservé dans la Boîte d'envoi."
@@ -19108,24 +19113,6 @@ msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name} : ce n'est pas un fichier de message, de calendrier ou de contact que MailCraft sait lire"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
-msgstr "{not_sending_yet}, et aucun autre compte ici n'a de serveur de messagerie par lequel l'envoyer."
-
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
-#, fuzzy
-msgid "{not_sending_yet}: answer the invitation without sending an answer."
-msgstr "{not_sending_yet} : répondez à l'invitation sans envoyer de réponse."
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
-msgstr "{not_sending_yet} : envoyez ce message depuis un autre compte, ou enregistrez-le comme brouillon"
-
-#. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
 msgid "{n} KB"
@@ -19955,6 +19942,18 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
+#~ msgstr "{not_sending_yet}, et aucun autre compte ici n'a de serveur de messagerie par lequel l'envoyer."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: answer the invitation without sending an answer."
+#~ msgstr "{not_sending_yet} : répondez à l'invitation sans envoyer de réponse."
+
+#, fuzzy
+#~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
+#~ msgstr "{not_sending_yet} : envoyez ce message depuis un autre compte, ou enregistrez-le comme brouillon"
 
 #, fuzzy
 #~ msgid "The server has {count} folders; only the first {max} were read"
