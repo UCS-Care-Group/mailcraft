@@ -1,0 +1,12 @@
+[package]
+name = "mailcraft-oab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft reader of Exchange Offline Address Books (OAB version 4, [MS-OXOAB]) and their LZX compression ([MS-PATCH]): no I/O of its own"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }

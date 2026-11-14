@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, Offline Address Books, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -31,6 +31,7 @@ mailcraft-model = { path = "../crates/model" }
 mailcraft-openpgp = { path = "../crates/openpgp" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
+mailcraft-oab = { path = "../crates/oab" }
 mailcraft-smime = { path = "../crates/smime" }
 mailcraft-vcard = { path = "../crates/vcard" }
 
@@ -180,6 +181,13 @@ bench = false
 [[bin]]
 name = "pst"
 path = "fuzz_targets/pst.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "oab"
+path = "fuzz_targets/oab.rs"
 test = false
 doc = false
 bench = false

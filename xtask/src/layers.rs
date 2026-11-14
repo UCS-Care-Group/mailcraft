@@ -51,6 +51,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
+    // Exchange Offline Address Books and their LZX compression (#1393): no dependencies, no I/O.
+    ("oab", Class::Layer(2)),
     // OpenPGP checking (#30): rPGP under it, no I/O, builds for the browser.
     ("openpgp", Class::Layer(2)),
     ("smime", Class::Layer(2)),

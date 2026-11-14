@@ -3423,6 +3423,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-oab"
+version = "0.12.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "mailcraft-openpgp"
 version = "0.12.0"
 dependencies = [

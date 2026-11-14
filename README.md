@@ -127,7 +127,7 @@ See [docs/mcp.md](docs/mcp.md) and [docs/control-protocol.md](docs/control-proto
 |---|---|---|
 | L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n` | Calendar maths and date text; control-port key files; character sets; web addresses; format characters and names; interface languages |
 | L1 | `model`, `html` | The mailbox and its edit primitives, recurrence, search; hostile HTML to safe display blocks |
-| L2 | `mime`, `ical`, `vcard`, `pst` | Internet messages and mbox; iCalendar; vCard; Outlook data files (.pst), read |
+| L2 | `mime`, `ical`, `vcard`, `pst`, `oab` | Internet messages and mbox; iCalendar; vCard; Outlook data files (.pst), read; Exchange Offline Address Books, read |
 | L3 | `proto`, `net`, `jmap`, `dav` | IMAP and SMTP without sockets; TLS sockets and synchronisation; JMAP requests and answers; bounded DAV documents |
 | L4 | `engine` | Session, undo, the command registry, the feature catalog, file dispatch |
 | L5 | `mcp` | MCP server |
