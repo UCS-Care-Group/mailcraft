@@ -306,14 +306,14 @@ msgstr ""
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Une modification du calendrier n'a pas encore pu être envoyée et sera de nouveau tentée : {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr ""
 
@@ -2281,8 +2281,8 @@ msgstr "Modifiée : enregistrée lorsque vous choisissez une autre signature o
 msgid "Change…"
 msgstr "Modifier…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Modifier le calendrier nécessite votre autorisation : Fichier › Informations › Connecter le calendrier et les contacts"
@@ -5125,7 +5125,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
 msgstr ""
 
 #. interface
@@ -8100,8 +8100,8 @@ msgstr "Aucune connexion en cours"
 msgid "Nobody matches the search"
 msgstr "Personne ne correspond à la recherche"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Aucune personne invitée n'a d'adresse"
@@ -10749,8 +10749,8 @@ msgstr "Deuxième fuseau horaire"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Voir quand les autres personnes sont occupées nécessite votre autorisation : Fichier › Informations › Connecter le calendrier et les contacts"
@@ -12651,8 +12651,8 @@ msgstr "Le calendrier « {name} » est en lecture seule : son propriétair
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "Les modifications du calendrier n'ont pas pu être intégrées : {error}"
@@ -12687,8 +12687,8 @@ msgstr "La connexion du calendrier fonctionne"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "La connexion du calendrier fonctionne : ce qui a été envoyé est arrivé, et le serveur le conserve tel qu'envoyé."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "Le calendrier n'a pas pu être intégré : {error}"
@@ -12751,8 +12751,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "Les catégories n'ont pas pu être intégrées : {error}"
@@ -12818,8 +12818,8 @@ msgstr ""
 msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Les contacts n'ont pas pu être intégrés : {error}"
@@ -13006,8 +13006,8 @@ msgstr ""
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "Le lien est dans le Presse-papiers : envoyez-le à l'administrateur de votre organisation"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "La liste des calendriers n'a pas pu être intégrée : {error}"
@@ -13238,14 +13238,14 @@ msgstr ""
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "Les règles du serveur n'ont pas pu être lues : la tâche s'est arrêtée de façon inattendue"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "Les règles du serveur n'ont pas pu être reprises : {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Les règles envoyées n'ont pas pu être enregistrées : {error}"
@@ -13312,8 +13312,8 @@ msgstr "Le serveur n'a pas transmis 1 message de « {name} »"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "Le serveur n'a pas transmis {count} messages de « {name} »"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Le serveur n'a pas indiqué quand les autres personnes sont occupées"
@@ -13469,8 +13469,8 @@ msgstr ""
 msgid "The shared mailbox's e-mail address"
 msgstr "L'adresse e-mail de la boîte aux lettres partagée"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "La connexion du compte par lequel cette boîte aux lettres partagée est ouverte a été refusée : reconnectez-vous avec Envoyer/Recevoir"
@@ -13566,13 +13566,13 @@ msgstr ""
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr ""
 
@@ -13760,14 +13760,14 @@ msgstr "Ce compte n'a pas de connexion Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Ce compte n'est pas autorisé à modifier ses règles sur le serveur"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr ""
 
@@ -13825,8 +13825,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Cette version ne peut pas demander à un serveur quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
@@ -14249,8 +14249,8 @@ msgstr "Cette réunion ne figure pas encore ici dans votre calendrier. Vous pour
 msgid "This meeting was called off by its organizer."
 msgstr "Cette réunion a été annulée par son organisateur."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "Le calendrier de cette réunion est conservé sur cet ordinateur, qui ne peut pas savoir quand les autres personnes sont occupées : seul votre propre calendrier est affiché."
@@ -15665,8 +15665,8 @@ msgstr "Vous vous êtes connecté en tant que {signedIn}, et non {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "Vous avez accepté provisoirement cette réunion."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr ""
 
@@ -16591,6 +16591,11 @@ msgstr "elle est endommagée, ou trop grande pour être affichée"
 msgid "it is too large to show"
 msgstr "elle est trop grande pour être affichée"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -17180,6 +17185,11 @@ msgid "that event doesn't repeat"
 msgstr "cet événement n'est pas périodique"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -17300,6 +17310,11 @@ msgstr "le compte n'existe plus"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "le serveur du compte n'a pas de nom utilisable"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -17530,6 +17545,11 @@ msgid "the message can't hold that much text"
 msgstr "le message ne peut pas contenir autant de texte"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the message has no HTML signature"
 msgstr ""
@@ -17588,8 +17608,23 @@ msgid "the parent folder belongs to another account"
 msgstr "le dossier parent appartient à un autre compte"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 msgid "the places to replace are not places in the text"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
 msgstr ""
 
 #. what a command says
@@ -17654,7 +17689,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "le serveur a répondu à une commande qui n'a pas été envoyée"
@@ -17684,7 +17719,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "le serveur a demandé plus qu'un nom d'utilisateur et un mot de passe"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "le serveur a demandé plus que ce que la commande contenait"
@@ -17713,8 +17748,8 @@ msgstr "le serveur a fermé la connexion"
 msgid "the server continued a cancelled password authentication"
 msgstr "le serveur a poursuivi une authentification par mot de passe annulée"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "le serveur n'a pas pu être joint"
@@ -17766,6 +17801,11 @@ msgstr "le serveur n'accepte pas de mot de passe sur cette connexion"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "le serveur a terminé la commande trop tôt"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -17851,13 +17891,13 @@ msgid "the server sent nothing"
 msgstr "le serveur n'a rien envoyé"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "le serveur a envoyé trop de réponses à une commande"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "le serveur a envoyé trop de données en réponse à une commande"
@@ -17951,7 +17991,7 @@ msgid "the text can't be looked for on the server"
 msgstr "le texte ne peut pas être cherché sur le serveur"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "le texte contient un caractère qui ne peut pas être envoyé"
@@ -19052,8 +19092,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} modification en attente du serveur IMAP ne l'atteindra pas ; elle reste dans la copie de sauvegarde."
 msgstr[1] "{n} modifications en attente du serveur IMAP ne l'atteindront pas ; elles restent dans la copie de sauvegarde."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr ""
 

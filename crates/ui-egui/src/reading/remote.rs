@@ -146,6 +146,18 @@ pub struct RemotePictures {
 }
 
 impl RemotePictures {
+    /// Let go of the pictures from the web kept in memory (the window is out of sight,
+    /// [`crate::out_of_sight`]), and of what was counted of them for each message: they are asked
+    /// for again (from the host's own cache first) when their message is next shown. What is on
+    /// its way is not waited for, and not kept, as when the owner clears the pictures. What the
+    /// owner allowed stays allowed.
+    pub(crate) fn let_go(&mut self, ctx: &egui::Context) {
+        self.flying.clear();
+        self.waiting.clear();
+        self.spent.clear();
+        Pictures::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).let_go();
+    }
+
     fn spent(&self, message: Id) -> Spent {
         self.spent.iter().find(|(id, _)| *id == message).map(|(_, spent)| *spent).unwrap_or_default()
     }

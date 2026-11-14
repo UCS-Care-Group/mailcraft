@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<resources>
+    <string name="app_name" translatable="false">MailCraft</string>
+    <!-- Shown when the core could not start, so there is no catalogue to ask for the words. -->
+    <string name="start_failed">The mailbox could not be opened.</string>
+</resources>

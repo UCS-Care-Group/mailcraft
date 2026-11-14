@@ -7,27 +7,60 @@
 
 use std::collections::HashMap;
 
+pub mod ask;
+#[cfg(test)]
+mod ask_tests;
+pub mod auto_replies;
+#[cfg(test)]
+mod auto_replies_tests;
 pub mod calendar;
+pub mod calendar_plan;
+#[cfg(test)]
+mod calendar_plan_tests;
 #[cfg(test)]
 mod calendar_tests;
 pub mod favorites;
 #[cfg(test)]
 mod favorites_tests;
 pub mod fetch;
+pub mod fetch_flow;
+#[cfg(test)]
+mod fetch_flow_tests;
 #[cfg(test)]
 mod fetch_tests;
+pub mod free_busy;
+#[cfg(test)]
+mod free_busy_tests;
 pub mod jobs;
 #[cfg(test)]
 mod jobs_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
+#[cfg(test)]
+mod reset_tests;
+pub mod rules;
+#[cfg(test)]
+mod rules_tests;
+pub mod sending;
+#[cfg(test)]
+mod sending_tests;
+pub mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 
+pub use ask::{AskWindow, TasksQuestion};
+pub use auto_replies::{AutoRepliesDriver, RepliesAnswer, RepliesCame, RepliesFacts, RepliesLook, RepliesPlan, Trouble as RepliesTrouble};
 pub use calendar::{CalendarDriver, MARGIN_DAYS, MAX_ASKED, WIDE_AHEAD, WIDE_BEHIND, consent_wait};
+pub use calendar_plan::{AroundRefused, CalendarCame, CalendarFacts, CalendarLook, CalendarPlan, CalendarTaken, SharedPermission};
 pub use favorites::{FAVORITES_NOW_GRAPH, FavoritesDriver, NEEDS_APPROVAL, Note, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT, Step};
 pub use fetch::{BATCH as FETCH_BATCH, Came, FetchDriver, FetchProgress};
+pub use free_busy::FreeBusyDriver;
 pub use jobs::{Busy, JobKind, Start};
 pub use offline::{DAY_MS, THIN_BATCH, Thinned, Thinning};
+pub use rules::{RulesCame, RulesDriver, RulesFacts, RulesPlan};
+pub use sending::{GateStep, Pressed, SendingDriver};
+pub use tasks::{TasksCame, TasksDriver, TasksFacts};
 
 use mailcraft_model::Id;
 
@@ -46,6 +79,8 @@ pub struct Pacing {
 
 impl Pacing {
     /// The To Do job's: read every few minutes, a change goes after three quiet seconds.
+    /// The rules are kept as the to-dos are.
+    pub const RULES: Pacing = Pacing::TASKS;
     pub const TASKS: Pacing = Pacing { refresh_ms: 5.0 * 60_000.0, quiet_ms: 3_000.0, first_retry_ms: 30_000.0, longest_retry_ms: 15.0 * 60_000.0 };
 
     /// The calendar's: a change goes at once (it is on the server as soon as it is in Outlook), a
@@ -205,6 +240,13 @@ impl JobBook {
         self.forget_failures(account);
     }
 
+    /// Account removal: nothing of these accounts' look is kept.
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.checked.retain(|account, _| !gone.contains(account));
+        self.failures.retain(|account, _| !gone.contains(account));
+        self.waiting.retain(|account, _| !gone.contains(account));
+    }
+
     /// How many failures in a row `account` has.
     pub fn failures(&self, account: Id) -> u32 {
         self.failures.get(&account).map_or(0, |(n, _)| *n)
@@ -224,6 +266,11 @@ pub enum Permission {
     Declined,
     /// Asked, and no: why, in a few words.
     Refused(String),
+    /// Changing it was tried with the permission, and the server said no: the organisation keeps
+    /// it. Asking again wouldn't change that, so the owner isn't asked, and a change is still
+    /// handed to the server, which says so again. (Only the automatic replies keep it: to-dos and
+    /// rules take that answer as a [`Permission::Refused`].)
+    Denied,
     /// The provider no longer took the sign-in the job had (its refresh token's [`fingerprint`]),
     /// for mail either. Asking again is one way back; a new sign-in for mail is the other, and the
     /// next look runs a job again by itself.
@@ -240,6 +287,107 @@ impl Permission {
             _ => false,
         }
     }
+}
+
+/// Whether `account`'s permission is a question being asked, one that went away unanswered, or a no.
+fn answered_by_owner(perm: &HashMap<Id, Permission>, account: Id) -> bool {
+    matches!(perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_)))
+}
+
+/// A question that went away unanswered is not asked again by itself: when none is on screen
+/// (`still`), every account being asked about is `Declined`: which accounts that was, lowest first.
+fn unanswered(perm: &mut HashMap<Id, Permission>, still: bool) -> Vec<Id> {
+    if still {
+        return Vec::new();
+    }
+    let mut declined = Vec::new();
+    for (account, p) in perm.iter_mut().filter(|(_, p)| **p == Permission::Asking) {
+        *p = Permission::Declined;
+        declined.push(*account);
+    }
+    declined.sort_unstable();
+    declined
+}
+
+/// The account the owner is next to be asked about, the lowest first.
+fn to_ask(perm: &HashMap<Id, Permission>) -> Option<Id> {
+    perm.iter().filter(|(_, p)| **p == Permission::Needed).map(|(a, _)| *a).min()
+}
+
+/// How many changes wait per account, worked out for the mailbox as of one revision (every look
+/// asks; the work is done again only when the mailbox changed).
+#[derive(Debug, Default)]
+struct WaitingCache(Option<(u64, HashMap<Id, usize>)>);
+
+impl WaitingCache {
+    /// How many changes wait for `account` at revision `rev`: `count` works it out when not known.
+    fn get(&mut self, rev: u64, account: Id, count: impl FnOnce() -> usize) -> usize {
+        let (_, known) = match &mut self.0 {
+            Some(cache) if cache.0 == rev => cache,
+            other => other.insert((rev, HashMap::new())),
+        };
+        *known.entry(account).or_insert_with(count)
+    }
+}
+
+/// What a job's answer says of the owner's permission and the sign-in.
+#[derive(Clone, Copy)]
+struct Standing {
+    consent_needed: bool,
+    denied: bool,
+    sign_in_refused: bool,
+    new_tokens: bool,
+}
+
+/// Keep where `account`'s permission stands after a job answered with `came` (`what` names the
+/// job in the log, which never carries anything of the account); `read` says the job read or
+/// wrote with it. `settling`: the refusals left that are taken for the provider not having caught
+/// up. Whether a failure was noted for it (then the answer doesn't count as a success too).
+#[allow(clippy::too_many_arguments)]
+fn standing_in(
+    what: &str,
+    book: &mut JobBook,
+    perm: &mut HashMap<Id, Permission>,
+    settling_of: &mut HashMap<Id, u32>,
+    account: Id,
+    (started, given): (f64, u64),
+    came: Standing,
+    (denied_said, read): (impl FnOnce() -> String, bool),
+) -> bool {
+    let settling = settling_of.get(&account).copied().unwrap_or(0);
+    if !came.consent_needed {
+        settling_of.remove(&account);
+    }
+    if came.consent_needed && settling > 0 {
+        log::info!("{what}: refused just after the owner allowed them; trying again ({settling} more)");
+        settling_of.insert(account, settling - 1);
+        book.failed(account, started);
+        book.forget_checked(account);
+        return true;
+    }
+    if came.consent_needed {
+        log::info!("{what}: the sign-in doesn't cover them; the owner is to be asked");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::Needed);
+        }
+    } else if came.denied {
+        perm.insert(account, Permission::Refused(denied_said()));
+    } else if came.sign_in_refused && !came.new_tokens && settling == 0 {
+        // The refresh itself was refused, for mail too: never "not asked yet" with no way back
+        // (#520). (Not when the owner allowed it since the job began: that sign-in is newer.)
+        log::warn!("{what}: the sign-in was refused; waiting for a new one");
+        if !answered_by_owner(perm, account) {
+            perm.insert(account, Permission::SignInOver(given));
+        }
+    } else if came.sign_in_refused {
+        // A token just renewed was refused: the next look tries again, after the back-off.
+        log::warn!("{what}: the server refused the sign-in; trying again later");
+        book.failed(account, started);
+        return true;
+    } else if read {
+        perm.insert(account, Permission::Given);
+    }
+    false
 }
 
 /// A refresh token, told apart from another without being kept: whether the account has signed
@@ -264,4 +412,53 @@ pub struct Driver {
     pub favorites: FavoritesDriver,
     /// Messages fetched whole in the background and for the owner.
     pub fetch: FetchDriver,
+    /// Tasks kept in step with Microsoft To Do.
+    pub tasks: TasksDriver,
+    /// The rules kept on the server.
+    pub rules: RulesDriver,
+    /// The automatic replies kept in step with the mailbox's settings.
+    pub auto_replies: AutoRepliesDriver,
+    /// What was found out of other people's free and busy times.
+    pub free_busy: FreeBusyDriver,
+    /// What is marked as being sent, and the shared mailboxes whose Outbox waits for the
+    /// permission to send from them.
+    pub sending: SendingDriver,
+    /// The host turned automatic checking off (a host that starts jobs only when asked, a test).
+    /// A setting of the host, not of a mailbox: it outlives [`Driver::reset`].
+    auto_sync_off: bool,
+}
+
+impl Driver {
+    /// Another mailbox took the place of the open one: everything the driver remembered is the
+    /// old mailbox's (its accounts' ids may name other accounts here), so none of it is kept.
+    /// What the host set is not the mailbox's, and stays.
+    pub fn reset(&mut self) {
+        let auto_sync_off = self.auto_sync_off;
+        *self = Driver { auto_sync_off, ..Driver::default() };
+    }
+
+    /// Accounts were removed: nothing of theirs is kept, whatever job it was for (an account
+    /// that isn't there is nobody to ask about, and an answer that comes for it changes nothing).
+    pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
+        self.calendar.forget_accounts(gone);
+        self.favorites.forget_accounts(gone);
+        self.fetch.stuck.retain(|account, _| !gone.contains(account));
+        self.tasks.forget_accounts(gone);
+        self.rules.forget_accounts(gone);
+        self.auto_replies.forget_accounts(gone);
+        self.free_busy.forget_accounts(gone);
+        self.sending.forget_accounts(gone);
+    }
+
+    /// Whether jobs start by themselves: on unless the host turned it off ([`Driver::set_auto_sync`]).
+    pub fn auto_sync(&self) -> bool {
+        !self.auto_sync_off
+    }
+
+    /// The host says whether jobs start by themselves (every kind: the calendar's, the to-dos',
+    /// the rules', the automatic replies', and the Send/Receive the host starts on a clock). What
+    /// the owner asked for goes either way.
+    pub fn set_auto_sync(&mut self, on: bool) {
+        self.auto_sync_off = !on;
+    }
 }

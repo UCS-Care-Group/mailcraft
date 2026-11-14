@@ -4805,7 +4805,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         let before = rig.at("Design review");
 
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         let button = rig.app.hit.rect("calendarConnect", account).expect("the line is shown");
         // The calendar is all there, under the line.
@@ -4818,7 +4818,7 @@ mod tests {
         assert_eq!(rig.selected(), (None, None), "the click went to the button, not to the calendar under it");
 
         // Connected: the line goes.
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         assert_eq!(rig.at("Design review"), before);
@@ -6825,7 +6825,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7544,7 +7544,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
@@ -7709,10 +7709,10 @@ mod tests {
         assert_eq!(rig.selected(), (None, None));
         let _ = rig.app.execute("ui.cancelSignIn", json!({}));
         // A calendar that can't be read at all says so across the top, and the line keeps quiet.
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarExtras", account).is_none() && rig.app.hit.rect("calendarConnect", account).is_some());
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert_eq!(rig.at("Design review"), before, "the line takes nothing from the calendar");
         // With the extras there, the line goes.

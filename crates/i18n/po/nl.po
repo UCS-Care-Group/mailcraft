@@ -313,14 +313,14 @@ msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het kla
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Een agendawijziging kan nog niet worden verzonden en wordt opnieuw geprobeerd: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
 msgstr "Een wijziging van de agenda van een gedeeld postvak is geweigerd: dit account mag die niet bewerken. Er wordt nog één keer geprobeerd, en daarna wordt die teruggezet."
@@ -2405,8 +2405,8 @@ msgstr "Gewijzigd: wordt opgeslagen wanneer u een andere handtekening kiest of d
 msgid "Change…"
 msgstr "Wijzigen…"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Het wijzigen van de agenda vereist uw toestemming: Bestand › Info › Agenda en contactpersonen verbinden"
@@ -5387,9 +5387,8 @@ msgstr "Aanmelden met Google is niet geconfigureerd voor deze build. Gebruik een
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
-msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8499,8 +8498,8 @@ msgstr "Niemand meldt zich aan"
 msgid "Nobody matches the search"
 msgstr "Niemand komt overeen met de zoekopdracht"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Nobody with an address is invited"
 msgstr "Niemand met een adres is uitgenodigd"
@@ -11285,8 +11284,8 @@ msgstr "Tweede tijdzone"
 msgid "Security"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Zien wanneer andere personen bezet zijn, vereist uw toestemming: Bestand › Info › Agenda en contactpersonen verbinden"
@@ -13293,8 +13292,8 @@ msgstr "De agenda „{name}” kan alleen worden gelezen: de eigenaar heeft dit 
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar changes couldn't be taken in: {error}"
 msgstr "De agendawijzigingen konden niet worden opgehaald: {error}"
@@ -13329,8 +13328,8 @@ msgstr "De agendaverbinding werkt"
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "De agendaverbinding werkt: wat is verzonden, is aangekomen, en de server heeft het zoals het is verzonden."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The calendar couldn't be taken in: {error}"
 msgstr "De agenda kon niet worden opgehaald: {error}"
@@ -13407,8 +13406,8 @@ msgstr ""
 msgid "The calendars of the shared mailbox wait: {error}"
 msgstr "De agenda's van het gedeelde postvak wachten: {error}"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The categories couldn't be taken in: {error}"
 msgstr "De categorieën konden niet worden opgehaald: {error}"
@@ -13484,8 +13483,8 @@ msgstr "De contactpersoon {id} is twee keer genoemd."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "De contactpersonen konden niet worden opgehaald: {error}"
@@ -13681,8 +13680,8 @@ msgstr ""
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "De koppeling staat op het klembord: stuur deze naar de beheerder van uw organisatie"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "The list of calendars couldn't be taken in: {error}"
 msgstr "De lijst met agenda's kon niet worden opgehaald: {error}"
@@ -13922,14 +13921,14 @@ msgstr ""
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
 msgstr "De regels op de server konden niet worden gelezen: de taak stopte onverwacht"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules on the server couldn't be taken in: {error}"
 msgstr "De regels op de server konden niet worden overgenomen: {error}"
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "De verzonden regels konden niet worden vastgelegd: {error}"
@@ -14006,8 +14005,8 @@ msgstr "De server heeft 1 bericht uit \"{name}\" niet gegeven"
 msgid "The server didn't hand over {count} messages of \"{name}\""
 msgstr "De server heeft {count} berichten uit \"{name}\" niet gegeven"
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
@@ -14182,8 +14181,8 @@ msgstr "De agenda „{name}” van het gedeelde postvak toont alleen wanneer de 
 msgid "The shared mailbox's e-mail address"
 msgstr "Het e-mailadres van het gedeelde postvak"
 
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "De aanmelding van het account waarmee dit gedeelde postvak wordt geopend, is geweigerd: meld u opnieuw aan met Verzenden/ontvangen"
@@ -14287,14 +14286,14 @@ msgstr "De tekst is niet gevonden."
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr "De to-do's konden niet worden bijgehouden: het is onverwacht gestopt"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos couldn't be taken in: {error}"
 msgstr "De to-do's konden niet worden opgehaald: {error}"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "The to-dos sent couldn't be noted: {error}"
 msgstr "De verzonden to-do's konden niet worden genoteerd: {error}"
@@ -14496,14 +14495,14 @@ msgstr "Dit account heeft geen aanmelding bij Microsoft"
 msgid "This account is no longer in the mailbox."
 msgstr "Dit account staat niet meer in het postvak."
 
-#. interface
-#: crates/ui-egui/src/rule_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
 #, fuzzy
 msgid "This account may not change its rules on the server"
 msgstr "Dit account mag zijn regels op de server niet wijzigen"
 
-#. interface
-#: crates/ui-egui/src/task_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
 #, fuzzy
 msgid "This account may not use its to-dos through Microsoft Graph"
 msgstr "Dit account mag zijn to-do's niet via Microsoft Graph gebruiken"
@@ -14566,8 +14565,8 @@ msgstr ""
 msgid "This attachment is too large to preview."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
 msgstr "Deze build kan een server niet vragen wanneer andere personen bezet zijn: alleen uw eigen agenda wordt weergegeven."
@@ -15003,8 +15002,8 @@ msgstr "Deze vergadering staat hier nog niet in uw agenda. Deze kan worden beant
 msgid "This meeting was called off by its organizer."
 msgstr "Deze vergadering is afgezegd door de organisator."
 
-#. interface
-#: crates/ui-egui/src/scheduling.rs
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
 #, fuzzy
 msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
 msgstr "De agenda van deze vergadering wordt op deze computer bewaard. Die kan niet aangeven wanneer andere personen bezet zijn: alleen uw eigen agenda wordt weergegeven."
@@ -16502,8 +16501,8 @@ msgstr "U bent aangemeld als {signedIn}, niet als {typed}."
 msgid "You tentatively accepted this meeting."
 msgstr "U hebt deze vergadering voorlopig geaccepteerd."
 
-#. interface
-#: crates/ui-egui/src/send_receive.rs
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
 #, fuzzy
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "U werkt offline. Schakel Offline werken uit (Verzenden/ontvangen) om verbinding te maken."
@@ -17482,6 +17481,11 @@ msgstr "het is beschadigd, of groter dan kan worden weergegeven"
 msgid "it is too large to show"
 msgstr "het is te groot om weer te geven"
 
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "it is too long for the platform"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -18096,6 +18100,11 @@ msgid "that event doesn't repeat"
 msgstr "die gebeurtenis herhaalt zich niet"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "that is not a picture that can be shown"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
@@ -18225,6 +18234,11 @@ msgstr "het account is verdwenen"
 #, fuzzy
 msgid "the account's server has no usable name"
 msgstr "de server van het account heeft geen bruikbare naam"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the app's own code failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -18464,6 +18478,11 @@ msgid "the message can't hold that much text"
 msgstr "het bericht kan niet zoveel tekst bevatten"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the message could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the message has no HTML signature"
@@ -18524,10 +18543,25 @@ msgid "the parent folder belongs to another account"
 msgstr "de bovenliggende map hoort bij een ander account"
 
 #. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture could not be read"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/message.rs
+msgid "the picture is too large"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/rich/find.rs
 #, fuzzy
 msgid "the places to replace are not places in the text"
 msgstr "de te vervangen plaatsen zijn geen plaatsen in de tekst"
+
+#. what a command says
+#: crates/mobile/src/error.rs
+msgid "the platform refused or failed"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -18595,7 +18629,7 @@ msgid "the server and MailCraft found no encryption in common; often the server 
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server answered a command that wasn't sent"
 msgstr "de server antwoordde op een opdracht die niet was verzonden"
@@ -18625,7 +18659,7 @@ msgid "the server asked for more than a user name and password"
 msgstr "de server vroeg om meer dan een gebruikersnaam en wachtwoord"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server asked for more than the command had"
 msgstr "de server vroeg om meer dan de opdracht had"
@@ -18654,8 +18688,8 @@ msgstr "de server heeft de verbinding gesloten"
 msgid "the server continued a cancelled password authentication"
 msgstr "de server ging door met een geannuleerde wachtwoordverificatie"
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "de server kon niet worden bereikt"
@@ -18707,6 +18741,11 @@ msgstr "de server accepteert geen wachtwoord via deze verbinding"
 #, fuzzy
 msgid "the server ended the command early"
 msgstr "de server beëindigde de opdracht te vroeg"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/status.rs
+msgid "the server ended the session"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -18792,13 +18831,13 @@ msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "de server stuurde te veel antwoorden op één opdracht"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the server sent too much in answer to one command"
 msgstr "de server stuurde te veel als antwoord op één opdracht"
@@ -18893,7 +18932,7 @@ msgid "the text can't be looked for on the server"
 msgstr "naar de tekst kan niet op de server worden gezocht"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
 #, fuzzy
 msgid "the text has a character that can't be sent"
 msgstr "de tekst bevat een teken dat niet kan worden verzonden"
@@ -20043,8 +20082,8 @@ msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay 
 msgstr[0] "{n} wijziging die op de IMAP-server wacht, bereikt die niet; ze blijft in de reservekopie."
 msgstr[1] "{n} wijzigingen die op de IMAP-server wachten, bereiken die niet; ze blijven in de reservekopie."
 
-#. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
 msgstr "{n} wijzigingen van de agenda „{name}” worden hier aangehouden, niet verzonden: dit account mag die niet meer wijzigen. Ze worden verzonden als dat weer mag."
@@ -20833,6 +20872,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Google sign-in is open only to invited testers while Google reviews MailCraft. To join, email systems@ucscaregroup.co.uk."
+#~ msgstr "Aanmelden bij Google is alleen open voor uitgenodigde testgebruikers zolang Google MailCraft beoordeelt. Om deel te nemen, mailt u naar systems@ucscaregroup.co.uk."
 
 #, fuzzy
 #~ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"

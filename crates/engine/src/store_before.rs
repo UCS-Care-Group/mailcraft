@@ -84,7 +84,8 @@ pub fn keep_before_newer_format(path: &Path, writing: u32, version: &str) -> io:
     }
     if fs::hard_link(path, &kept).is_err() {
         let part = named(path, BEFORE, &format!("{version}.part")).ok_or_else(|| io::Error::other("no name"))?;
-        let copied = fs::copy(path, &part).and_then(|_| fs::File::open(&part)?.sync_all()).and_then(|()| fs::rename(&part, &kept));
+        let copied =
+            fs::copy(path, &part).and_then(|_| fs::OpenOptions::new().write(true).open(&part)?.sync_all()).and_then(|()| fs::rename(&part, &kept));
         if let Err(e) = copied {
             let _ = fs::remove_file(&part);
             return Err(e);

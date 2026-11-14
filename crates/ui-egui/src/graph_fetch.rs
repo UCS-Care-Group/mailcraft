@@ -19,8 +19,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::{compose, ews_mail, graph_mail, jmap_mail};
-use mailcraft_engine::sync_driver::fetch::{Came, apply_fetch as take_in_fetch, forward_of, forwarded, needs_whole, still_to_fetch, to_fetch};
+use mailcraft_engine::cmd::{ews_mail, graph_mail, jmap_mail};
+use mailcraft_engine::sync_driver::fetch::apply_fetch as take_in_fetch;
+use mailcraft_engine::sync_driver::fetch_flow::{FirstNote, NowNext, NowNote, Waiting};
 use mailcraft_engine::sync_driver::{FETCH_BATCH, FetchProgress};
 use mailcraft_model::sync::GraphFetchResult;
 use mailcraft_model::{AccountKind, Id};
@@ -51,20 +52,6 @@ pub struct Fetching {
     /// The owner's messages under way: which ones (one, or of a forward of several, #360), under
     /// which opening, what calls it off, and the answer to come.
     now: Option<(Vec<Id>, u64, Arc<AtomicBool>, Receiver<GraphFetchResult>)>,
-    /// What waits for those messages: a command, its params, the mailbox opening it was asked
-    /// under ([`mailcraft_engine::Session::openings`]), for a forward of several every message
-    /// fetched for it so far, and the messages it waits for (of those under way, it may wait for
-    /// some only: it took the place of a forward, or joined its batch).
-    then: Option<(String, Value, u64, Option<Vec<Id>>, Vec<Id>)>,
-    /// A command whose messages came while a form with changes that aren't saved was open (a
-    /// contact, a task, an appointment): it goes on once that form is closed, for its question
-    /// would take the form's place (#513). As [`Fetching::then`], with a forward's tried.
-    held: Option<(String, Value, u64, Option<Vec<Id>>)>,
-    /// While a forward of several runs again once messages came: those fetched for it already,
-    /// not asked for again ([`MailApp::fetch_first`]).
-    tried: Option<Vec<Id>>,
-    /// The message last asked for when it was opened (not asked again while it stays open).
-    opened: Option<Id>,
     pub(crate) cancel: Arc<AtomicBool>,
     /// For the status bar: how many are fetched of how many, while some aren't.
     pub(crate) progress: String,
@@ -73,7 +60,7 @@ pub struct Fetching {
 impl Fetching {
     /// Whether anything is being fetched, or a command whose messages came waits to go on.
     pub fn busy(&self) -> bool {
-        self.background.is_some() || self.now.is_some() || self.held.is_some()
+        self.background.is_some() || self.now.is_some()
     }
 
     /// Whether `message` is being fetched for the owner now.
@@ -89,7 +76,7 @@ impl Fetching {
         if let Some((_, _, cancel, _)) = self.now.take() {
             cancel.store(true, Ordering::Relaxed);
         }
-        (self.background, self.opened) = (None, None);
+        self.background = None;
         self.progress.clear();
     }
 }
@@ -128,101 +115,63 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
 }
 
 impl MailApp {
-    /// A command that needs its message whole waits for it to be fetched, and then runs. A forward
-    /// of several messages (#360) is judged first (as many as one message carries, none that
-    /// stands in for a message for good) and waits for each of them, an account's at a time and a
-    /// batch at a time, judged again as each batch comes; once none is left to fetch it runs.
+    /// A command that needs its message whole waits for it to be fetched, and then runs. What is
+    /// fetched, and for what the command waits, is the engine's to say
+    /// ([`mailcraft_engine::Session::fetch_first_plan`]); this hands the host the fetch.
     pub(crate) fn fetch_first(&mut self, id: &str, params: &Value) -> Option<Result<Value, String>> {
-        let tried = self.fetching.tried.take();
-        let forward = forwarded(&mut self.session, id, params);
-        let several = forward.as_ref().is_some_and(|(ids, _)| ids.len() > 1);
-        let messages = match &forward {
-            Some((ids, _)) if several => {
-                if let Err(e) = compose::forward_check(&self.session, ids, true) {
-                    return Some(Err(self.kept(e)));
-                }
-                still_to_fetch(&self.session, ids, tried.as_deref().unwrap_or_default())
-            }
-            Some((_, focus)) => to_fetch(&self.session, id, *focus).into_iter().collect(),
-            None => needs_whole(&self.session, id, params).into_iter().collect(),
+        let plan = match self.session.fetch_first_plan(id, params) {
+            Ok(plan) => plan?,
+            Err(e) => return Some(Err(self.kept(e))),
         };
-        let first = *messages.first()?;
-        let account = self.session.mailbox.message(first)?.account;
-        if !self.fetch_now(account, &messages) {
-            if self.jmap_refused.contains(&account) {
+        if !self.fetch_now(plan.account, &plan.messages) {
+            if self.jmap_refused.contains(&plan.account) {
                 return Some(Err(tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.").to_string()));
             }
             // Of several, the one that can't come is named, as the engine names it.
-            if several && let Err(e) = compose::forward_check(&self.session, &messages, false) {
+            if let Some(e) = self.session.fetch_unavailable(&plan) {
                 return Some(Err(self.kept(e)));
             }
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
-        // Named, for the selection may have moved on by the time they are here. Another command's
-        // `id`, if the call gave one, stays as it was, for the command to judge; a forward's
-        // messages are named by `ids` instead, as the engine took them, the one in focus last.
-        let mut then = params.as_object().cloned().unwrap_or_default();
-        match &forward {
-            Some((ids, focus)) => {
-                let named: Vec<Id> = ids.iter().copied().filter(|m| m != focus).chain([*focus]).collect();
-                then.remove("id");
-                then.insert("ids".into(), json!(named));
+        let first = plan.first;
+        let note = self.session.fetch_waiting(plan);
+        self.status(match note {
+            FirstNote::ForwardCalledOff => {
+                tl!("The forward of several messages that was waiting was called off: another download took its place.")
             }
-            None if then.get("id").is_none_or(Value::is_null) => {
-                then.insert("id".into(), json!(first));
-            }
-            None => {}
-        }
-        let tried = several.then(|| tried.unwrap_or_default());
-        let then = Value::Object(then);
-        // One command waits at a time: a forward of several still waiting in this mailbox is
-        // called off, and said to be, for its download can take a while (#360). The same forward
-        // asked for again goes on.
-        let called_off = self.fetching.then.as_ref().is_some_and(|(command, params, opening, waiting, _)| {
-            waiting.is_some() && *opening == self.session.openings() && forward_of(command, params).is_none_or(|f| forward_of(id, &then) != Some(f))
-        });
-        let waits = forward.map_or_else(|| vec![first], |(ids, _)| ids);
-        // So is one whose messages came and that waits for a form to be closed, and said to be.
-        let held_off = self.fetching.held.take().is_some_and(|(_, _, opening, _)| opening == self.session.openings());
-        self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried, waits));
-        self.status(if called_off {
-            tl!("The forward of several messages that was waiting was called off: another download took its place.")
-        } else if held_off {
-            tl!("What was waiting for the form to be closed was called off: another download took its place.")
-        } else if several {
-            tl!("Downloading the messages first…")
-        } else {
-            tl!("Downloading the message first…")
+            FirstNote::HeldCalledOff => tl!("What was waiting for the form to be closed was called off: another download took its place."),
+            FirstNote::Several => tl!("Downloading the messages first…"),
+            FirstNote::One => tl!("Downloading the message first…"),
         });
         Some(Ok(json!({"pending": "download", "message": first})))
     }
 
-    /// Run `command` again, whose messages came: at once, or, while a form with changes that
-    /// aren't saved is open, once it is closed ([`MailApp::run_held`]): what it asks (Unsaved
+    /// Run the command that waited, whose messages came: at once, or, while a form with changes
+    /// that aren't saved is open, once it is closed ([`MailApp::run_held`]): what it asks (Unsaved
     /// Message, a confirmation) would take the form's place, and what was typed in it with it
     /// (#513).
-    fn run_waited(&mut self, command: String, params: Value, opening: u64, tried: Option<Vec<Id>>) {
+    fn run_waited(&mut self, waiting: Waiting) {
         if matches!(&self.dialog, Some(crate::dialogs::Dialog::Form(form)) if form.changed()) {
-            self.fetching.held = Some((command, params, opening, tried));
+            self.session.fetch_hold(waiting);
             return;
         }
-        self.fetching.tried = tried;
+        let Waiting { command, params, tried, .. } = waiting;
+        self.session.fetch_running(tried);
         let _ = self.run(&command, params);
-        self.fetching.tried = None;
+        self.session.fetch_ran();
     }
 
     /// The command that waited for a form to be closed goes on, in the mailbox it was asked of.
     fn run_held(&mut self) {
-        let Some((command, params, opening, tried)) = self.fetching.held.take() else { return };
-        if opening == self.session.openings() {
-            self.run_waited(command, params, opening, tried);
+        if let Some(waiting) = self.session.fetch_take_held() {
+            self.run_waited(waiting);
         }
     }
 
     /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has
     /// come: one at a time, and a forward's can take a while.
     pub(crate) fn opened_after_batch(&self, message: Id) -> bool {
-        self.fetching.now.is_some() && self.fetching.opened != Some(message) && self.session.sel.messages == [message]
+        self.session.fetch_after_batch(message, self.fetching.now.is_some())
     }
 
     /// The engine's refusal `e`, kept to be said in the interface language ([`MailApp::run`]).
@@ -248,9 +197,7 @@ impl MailApp {
         // in the reading pane, if it was of it, is asked for again once these are here.
         if let Some((before, _, called_off, _)) = self.fetching.now.replace((messages.to_vec(), self.session.openings(), cancel, answer)) {
             called_off.store(true, Ordering::Relaxed);
-            if self.fetching.opened.is_some_and(|m| before.contains(&m) && !messages.contains(&m)) {
-                self.fetching.opened = None;
-            }
+            self.session.fetch_replaced(&before, messages);
         }
         true
     }
@@ -287,36 +234,20 @@ impl MailApp {
         self.run_held();
         self.poll_fetch_now();
         self.poll_fetch_background();
-        if !self.session.mailbox.accounts.iter().any(|a| fetched(self, a.kind)) {
+        let host_fetches = |kind| self.fetched_kind(kind);
+        if self.session.fetch_accounts(host_fetches).is_empty() {
             return;
         }
         // The message the reading pane shows, at once.
-        let shown = match self.session.sel.messages.as_slice() {
-            [one] => Some(*one),
-            _ => None,
-        };
-        if shown != self.fetching.opened {
-            let to_fetch =
-                shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id));
-            match to_fetch {
-                Some((_, m)) if self.opened_after_batch(m) => {}
-                Some((account, m)) => {
-                    self.fetching.opened = shown;
-                    self.fetch_now(account, &[m]);
-                }
-                None => self.fetching.opened = shown,
-            }
+        if let Some((account, m)) = self.session.fetch_shown(self.fetching.now.is_some()) {
+            self.fetch_now(account, &[m]);
         }
         // The background, a few at a time.
-        if self.fetching.background.is_some() || self.session.sync_progress.full_paused || self.session.driver.fetch.resting(now_ms()) {
+        let now = now_ms();
+        if self.fetching.background.is_some() || !self.session.fetch_background_due(now) {
             return;
         }
-        let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| fetched(self, a.kind)).map(|a| a.id).collect();
-        let now = now_ms();
-        for account in accounts {
-            if self.session.driver.fetch.account_waits(account, now) {
-                continue;
-            }
+        for account in self.session.fetch_background_accounts(|kind| self.fetched_kind(kind), now) {
             let Some(way) = way(self, account) else { continue };
             let cancel = Arc::new(AtomicBool::new(false));
             let Some(answer) = self.hand_over(account, way, &[], BATCH, cancel.clone()) else { continue };
@@ -328,6 +259,11 @@ impl MailApp {
         self.fetching.progress.clear();
     }
 
+    /// Whether the host fetches messages of accounts of this kind.
+    fn fetched_kind(&self, kind: AccountKind) -> bool {
+        fetched(self, kind)
+    }
+
     fn poll_fetch_now(&mut self) {
         let Some((_, opening, _, rx)) = &self.fetching.now else { return };
         let opening = *opening;
@@ -337,72 +273,21 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => GraphFetchResult { offline: true, ..Default::default() },
         };
         let messages = self.fetching.now.take().map(|(messages, ..)| messages).unwrap_or_default();
-        // Asked for in a mailbox that another has taken the place of: it is nobody's here (nor is
-        // a command that waits for it, below).
-        if opening != self.session.openings() {
-            return;
+        // What came is taken in, and what the command that waits does next is the engine's to say.
+        let answered = self.session.fetch_now_answered(&messages, opening, result);
+        if let Some(said) = answered.refused {
+            self.status(said);
         }
-        // What came is judged for the messages the command that waits waits for.
-        let judged: Vec<Id> = match &self.fetching.then {
-            Some((.., waits)) => messages.iter().copied().filter(|m| waits.contains(m)).collect(),
-            None => messages.clone(),
-        };
-        let came = Came::of(&self.session, &judged, &result);
-        // Whether the batch brought any of its messages: one cut short before it came to those
-        // the command waits for is asked for again, as for its own.
-        let brought = !Came::of(&self.session, &messages, &result).answered.is_empty();
-        self.session.driver.fetch.offline = result.offline;
-        let account = result.account;
-        let mut refused = if account != 0 { take_in_fetch(&mut self.session, result).err() } else { None };
-        if let Some(e) = &refused {
-            self.status(e.to_string());
-        }
-        let whole = |app: &MailApp, m: &Id| app.session.mailbox.message(*m).is_some_and(|m| !m.unfetched);
-        if let Some((command, params, opening, tried, waits)) = self.fetching.then.take() {
-            // Asked of a mailbox that another has taken the place of: the message it names is not
-            // this one's, whatever has that id here.
-            if opening != self.session.openings() {
-                return;
+        match answered.next {
+            NowNext::Nothing => {}
+            NowNext::Run(waiting) => self.run_waited(waiting),
+            NowNext::Stopped { command, error } => {
+                let said = self.kept(error);
+                self.say_refused(&command, &said);
             }
-            // A forward of several stops when what came wasn't taken in, saying why, and at the
-            // first, in the order asked, that its server didn't send or that came but wasn't kept
-            // here, and when a batch brought none of its messages; else it goes on with the rest, if
-            // there are any, and runs once none is left to fetch.
-            if let Some(mut tried) = tried {
-                // Those of this batch it waits for may have come by other means meanwhile (the
-                // background): then it goes on.
-                let here = !judged.is_empty() && judged.iter().all(|m| whole(self, m));
-                let not_kept = came.sent.iter().find(|m| self.session.mailbox.message(**m).is_some_and(|m| m.unfetched)).copied();
-                let at = |m: Id| judged.iter().position(|x| *x == m);
-                let stop = match (came.not_sent, not_kept) {
-                    // Not taken in as a whole: that is why, whatever it said of each.
-                    _ if refused.is_some() => refused.take(),
-                    (Some((m, gone)), k) if k.is_none_or(|k| at(m) < at(k)) => Some(compose::not_sent(&self.session, m, gone)),
-                    (_, Some(k)) => Some(compose::not_kept(&self.session, k)),
-                    _ if came.answered.is_empty() && self.session.driver.fetch.offline => compose::forward_check(&self.session, &judged, false).err(),
-                    _ => None,
-                };
-                if let Some(e) = stop {
-                    let said = self.kept(e);
-                    self.say_refused(&command, &said);
-                } else if !brought && !here {
-                    match came.why {
-                        Some(why) => self.status(why),
-                        None => self.status(tl!("The server didn't send the messages. Try again in a few minutes.")),
-                    }
-                } else {
-                    tried.extend(came.answered);
-                    self.run_waited(command, params, opening, Some(tried));
-                }
-            } else {
-                // Another command runs once its own message is here, whatever else of the batch
-                // it came in didn't come.
-                if waits.iter().all(|m| whole(self, m)) {
-                    self.run_waited(command, params, opening, None);
-                } else {
-                    self.status(tl!("This message isn't on this computer yet. It will download when you're online."));
-                }
-            }
+            NowNext::Note(NowNote::Why(why)) => self.status(why),
+            NowNext::Note(NowNote::NotSent) => self.status(tl!("The server didn't send the messages. Try again in a few minutes.")),
+            NowNext::Note(NowNote::NotHere) => self.status(tl!("This message isn't on this computer yet. It will download when you're online.")),
         }
     }
 
