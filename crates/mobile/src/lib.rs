@@ -28,8 +28,8 @@ pub mod blocks;
 mod core;
 mod error;
 mod events;
-mod links;
 mod keep;
+mod links;
 mod list;
 mod message;
 mod platform;
@@ -48,9 +48,9 @@ mod fake_tests;
 mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
+mod keep_tests;
 #[cfg(test)]
 mod links_tests;
-mod keep_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
