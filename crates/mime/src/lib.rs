@@ -103,7 +103,7 @@ pub fn write_placed(message: &Message, opts: &WriteOptions, marker: &str) -> Vec
 pub fn carries_place(header: &[u8], marker: &str) -> bool {
     !marker.is_empty() && header::split(header, true).0.0.iter().any(|f| f.name.eq_ignore_ascii_case(PLACE_HEADER) && f.value == marker)
 }
-pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
+pub use mbox::{MboxMessages, count_mbox, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use message::{Address, Attachment, Body, FlagStatus, Importance, Message, Timestamp};
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
