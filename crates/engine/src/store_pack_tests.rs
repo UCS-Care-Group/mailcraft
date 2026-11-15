@@ -121,10 +121,16 @@ fn a_block_written_again_after_its_pack_was_cut_short_is_named_where_it_is_now()
     let last = mb.messages.values().map(|m| pack::find(&dir, &Digest::of(&m.header_block.data)).unwrap()).max_by_key(|l| l.at).unwrap();
     fs::OpenOptions::new().write(true).open(&file).unwrap().set_len(last.at + 10).unwrap();
     assert!(fs::metadata(&file).unwrap().len() < bytes.len() as u64);
-    // Saved again, with the blocks in memory: the one past the end is written anew.
-    save(&path, &mb).unwrap();
+    // That message is changed, so its record is written again with its block in memory: the block
+    // is placed again, and must be named where it went.
+    let id = mb.messages.iter().find(|(_, m)| pack::find(&dir, &Digest::of(&m.header_block.data)) == Some(last)).map(|(id, _)| *id).unwrap();
+    let mut changed = mb.clone();
+    let mut m = Message::clone(changed.message(id).unwrap());
+    m.read = !m.read;
+    changed.messages.insert(id, Arc::new(m));
+    save(&path, &changed).unwrap();
     clear_cache();
-    assert_eq!(lines_of(&path), lines(&mb), "the block written again reads back");
+    assert_eq!(lines_of(&path), lines(&changed), "the block written again reads back");
 }
 
 /// #1399: the header block is the one part a save never refuses for, told by the field it is kept
