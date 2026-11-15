@@ -38,6 +38,13 @@ list (author, source, license) is in ATTRIBUTION.md.
   assets/fonts/OFL-SourceSans3.txt.
 - JetBrains Mono (assets/fonts/JetBrainsMono-Regular.ttf) — SIL Open Font License 1.1. See
   assets/fonts/OFL-JetBrainsMono.txt.
+- egui's built-in fonts, compiled in from the epaint_default_fonts crate
+  (https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts), whose fonts folder
+  carries each licence text: Ubuntu Light (Ubuntu Font Licence 1.0), Hack (MIT, with the
+  Bitstream Vera Licence for the glyphs from Bitstream Vera Sans Mono), Noto Emoji (SIL Open Font
+  License 1.1; Copyright 2013 Google Inc.) and emoji-icon-font (MIT).
+- No colour emoji face is bundled: the system's own (Segoe UI Emoji on Windows, Noto Color Emoji
+  or another on Linux) is read from its fonts folder when the program starts, as Segoe UI is.
 - All UI icons are drawn in code (crates/ui-egui/src/icons.rs) and the app icon is drawn in code
   (xtask/src/icon.rs); both are original work, MIT OR Apache-2.0.
 - The sample mailbox (crates/engine/src/sample.rs) is invented text about invented people,

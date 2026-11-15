@@ -68,7 +68,7 @@ pub fn parse_mailto(link: &str) -> Option<Mailto> {
 }
 
 /// `text` up to `max` bytes, cut where a character ends.
-fn cut(text: &str, max: usize) -> &str {
+pub(crate) fn cut(text: &str, max: usize) -> &str {
     if text.len() <= max {
         return text;
     }

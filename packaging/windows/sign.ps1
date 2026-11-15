@@ -5,9 +5,9 @@
 .DESCRIPTION
   Tries, in order:
     1. A code-signing certificate file:   WINDOWS_CERTIFICATE (base64 .pfx), WINDOWS_CERTIFICATE_PASSWORD
-    2. Azure Trusted Signing:             AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
-                                          AZURE_SIGNING_ENDPOINT (e.g. https://eus.codesigning.azure.net),
-                                          AZURE_SIGNING_ACCOUNT, AZURE_CERT_PROFILE
+    2. Azure Artifact Signing:            AZURE_SIGNING_ENDPOINT (e.g. https://neu.codesigning.azure.net),
+                                          AZURE_SIGNING_ACCOUNT, AZURE_CERT_PROFILE, with the Azure CLI
+                                          already signed in (`az login`; in CI, azure/login with OIDC)
   With neither, it prints a warning and leaves the files unsigned (exit code 0), so test builds
   still produce installers.
 
@@ -46,7 +46,7 @@ function Invoke-SignTool([string[]] $Arguments) {
 
 $Files = $Files | ForEach-Object { (Resolve-Path $_).Path }
 $haveCert = [bool]$env:WINDOWS_CERTIFICATE
-$azureVars = 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT', 'AZURE_CERT_PROFILE'
+$azureVars = 'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT', 'AZURE_CERT_PROFILE'
 $haveAzure = -not ($azureVars | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
 
 if (-not $haveCert -and -not $haveAzure) {
@@ -70,29 +70,35 @@ try {
     Invoke-SignTool ($signArgs + $Files)
   }
   else {
-    Write-Output "Signing with Azure Trusted Signing ($env:AZURE_SIGNING_ACCOUNT / $env:AZURE_CERT_PROFILE): $($Files -join ', ')"
-    # The dlib authenticates with DefaultAzureCredential, which reads AZURE_TENANT_ID,
-    # AZURE_CLIENT_ID and AZURE_CLIENT_SECRET from the environment.
+    Write-Output "Signing with Azure Artifact Signing ($env:AZURE_SIGNING_ACCOUNT / $env:AZURE_CERT_PROFILE): $($Files -join ', ')"
+    # The dlib signs in through the Azure CLI's session alone (ExcludeCredentials below): no client
+    # secret exists. In CI the session comes from azure/login with GitHub's OIDC token, which a
+    # federated credential accepts only for the `release` environment.
     # The signing client is a pinned NuGet package, checked against this sha256 before it is
-    # opened: it runs inside signtool with the Azure credentials in the environment.
-    # Microsoft.Trusted.Signing.Client 1.0.95: https://www.nuget.org/packages/Microsoft.Trusted.Signing.Client/1.0.95
-    $clientVersion = '1.0.95'
-    $clientSha256 = '3bfcf1e0a3cb42af1692f0a8ed45c15de070c2de86f28a59b2795d904d8a920f'
-    $pkg = Join-Path $tmp 'trusted-signing.zip'
-    Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.Trusted.Signing.Client/$clientVersion" -OutFile $pkg
+    # opened: it runs inside signtool with the Azure session.
+    # Microsoft.ArtifactSigning.Client 1.0.146: https://www.nuget.org/packages/Microsoft.ArtifactSigning.Client/1.0.146
+    $clientVersion = '1.0.146'
+    $clientSha256 = '7761e5d8f31e54b764da21d33cd8b0a2940e1b05526c7dfcb5e94b0431426f70'
+    $pkg = Join-Path $tmp 'artifact-signing.zip'
+    Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.ArtifactSigning.Client/$clientVersion" -OutFile $pkg
     $actual = (Get-FileHash -Algorithm SHA256 -Path $pkg).Hash.ToLowerInvariant()
     if ($actual -ne $clientSha256) {
-      throw "Microsoft.Trusted.Signing.Client $clientVersion has sha256 $actual, expected $clientSha256"
+      throw "Microsoft.ArtifactSigning.Client $clientVersion has sha256 $actual, expected $clientSha256"
     }
     Expand-Archive -Path $pkg -DestinationPath (Join-Path $tmp 'client') -Force
     $dlib = Get-ChildItem -Path (Join-Path $tmp 'client') -Recurse -Filter Azure.CodeSigning.Dlib.dll |
       Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
-    if (-not $dlib) { throw 'Azure.CodeSigning.Dlib.dll not found in Microsoft.Trusted.Signing.Client' }
+    if (-not $dlib) { throw 'Azure.CodeSigning.Dlib.dll not found in Microsoft.ArtifactSigning.Client' }
     $metadata = Join-Path $tmp 'metadata.json'
     @{
       Endpoint               = $env:AZURE_SIGNING_ENDPOINT
       CodeSigningAccountName = $env:AZURE_SIGNING_ACCOUNT
       CertificateProfileName = $env:AZURE_CERT_PROFILE
+      ExcludeCredentials     = @(
+        'EnvironmentCredential', 'ManagedIdentityCredential', 'WorkloadIdentityCredential',
+        'SharedTokenCacheCredential', 'VisualStudioCredential', 'VisualStudioCodeCredential',
+        'AzurePowerShellCredential', 'AzureDeveloperCliCredential', 'InteractiveBrowserCredential'
+      )
     } | ConvertTo-Json | Set-Content -Path $metadata -Encoding utf8
     $ts = if ($env:WINDOWS_TIMESTAMP_URL) { $env:WINDOWS_TIMESTAMP_URL } else { 'http://timestamp.acs.microsoft.com' }
     Invoke-SignTool ($common + @('/tr', $ts, '/dlib', $dlib.FullName, '/dmdf', $metadata) + $Files)

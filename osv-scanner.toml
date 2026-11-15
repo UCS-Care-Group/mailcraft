@@ -12,3 +12,11 @@ reason = "Unmaintained notice, not a vulnerability: zbus_names was merged into z
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0372"
 reason = "Unmaintained notice, not a vulnerability: zvariant_derive was merged into zbus 6; zbus 5 waits on accesskit/atspi and secret-service"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "rsa Marvin attack: a timing leak of a private key while it decrypts or signs; mailcraft-openpgp (rPGP 0.21) only verifies with public keys. This ignore must be removed or justified again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0387"
+reason = "crypto-bigint 0.5 timing on secret integers; mailcraft-openpgp (rPGP 0.21) only verifies with public keys. This ignore must be removed or justified again before MailCraft signs or decrypts with a key it holds (#30 parts 5 and 6)"

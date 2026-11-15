@@ -153,24 +153,44 @@ fn reads_the_key_again_on_a_new_connection() {
     assert_eq!(r.call("mailbox.inspect", json!({})).unwrap(), json!(1));
     assert_eq!(reads.load(Ordering::SeqCst), 2);
 
-    // The app quits mid-session (connection closed): the retry reads the key again.
+    // The app quits after an answer (the connection is closed): the next request goes on a new
+    // connection, which reads the key again; nothing was sent on the closed one.
     let challenges = Arc::new(AtomicUsize::new(0));
     let c = challenges.clone();
     let (port, seen) = fake_app(move |req| {
         if req["method"] == "auth.challenge" {
             return Some((prove(req, &format!("key-{}", c.fetch_add(1, Ordering::SeqCst))), false));
         }
-        if req["id"] == 2 { None } else { Some((json!({"ok": true, "result": 1}), false)) }
+        Some((json!({"ok": true, "result": 1}), req["id"] == 1))
     });
     let reads = Arc::new(AtomicUsize::new(0));
     let n = reads.clone();
     let finder: KeyFinder = Box::new(move |_| Ok(format!("key-{}", n.fetch_add(1, Ordering::SeqCst))));
     let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), finder).unwrap();
     r.call("mailbox.inspect", json!({})).unwrap();
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(r.call("mailbox.inspect", json!({})).unwrap(), json!(1));
+    let sent: Vec<Value> = seen.try_iter().collect();
+    let keys: Vec<&Value> = sent.iter().map(|v| &v["key"]).collect();
+    assert_eq!(keys, [&json!("key-0"), &json!("key-1")], "{sent:?}");
+}
+
+/// A request the app read and then went away from (no answer, the connection closed) may have
+/// run: it is not sent again, and the error says so (AU3-R2).
+#[test]
+fn a_request_without_an_answer_is_never_sent_twice() {
+    let (port, seen) = fake_app(|req| if req["method"] == "auth.challenge" { Some((prove(req, "k1"), false)) } else { None });
+    let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), fixed_key("k1")).unwrap();
+    let e = r.call("engine.execute", json!({"command": "mail.delete", "params": {"id": 7}})).unwrap_err();
+    assert!(e.contains("may have run") && e.contains("not sent again"), "{e}");
+    std::thread::sleep(Duration::from_millis(200));
+    let sent: Vec<Value> = seen.try_iter().collect();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert_eq!(sent[0]["method"], "engine.execute");
+    // The next request goes on a new connection, as ever.
     r.call("mailbox.inspect", json!({})).unwrap_err();
-    let keys: Vec<Value> = seen.try_iter().map(|v| v["key"].clone()).collect();
-    assert_eq!(keys.first(), Some(&json!("key-0")), "{keys:?}");
-    assert_eq!(keys.last(), Some(&json!("key-1")), "{keys:?}");
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(seen.try_iter().count(), 1);
 }
 
 #[test]
@@ -187,4 +207,35 @@ fn no_key_for_other_hosts_and_a_clear_error() {
     let e = r.call("mailbox.inspect", json!({})).unwrap_err();
     assert!(e.contains("not a loopback address") && e.contains("not sent"), "{e}");
     assert!(seen.recv_timeout(WAIT).unwrap().get("key").is_none());
+}
+
+/// An answer is read within a bound (AU3-R3): from a program that has not proved it holds the
+/// key, 1 MiB. Over it the connection is dropped, the error says why, and the request is not sent
+/// again.
+#[test]
+fn an_overlong_answer_drops_the_connection() {
+    let (port, seen) = fake_app(|_| Some((json!({"ok": true, "result": "x".repeat(2 << 20)}), false)));
+    let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), fixed_key("k1")).unwrap();
+    r.send_key = false;
+    let e = r.call("mailbox.inspect", json!({})).unwrap_err();
+    assert!(e.contains("too long"), "{e}");
+    assert!(r.conn.is_none());
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(seen.try_iter().count(), 1);
+    // Within the bound, as ever.
+    assert_eq!(read_line_within(&"x".repeat(1000)), Some(1001));
+}
+
+/// The length of what `read_reply` takes from a peer that sends `line`, when it takes it.
+fn read_line_within(line: &str) -> Option<usize> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let line = format!("{line}\n");
+    std::thread::spawn(move || {
+        if let Some(Ok(mut s)) = listener.incoming().next() {
+            let _ = s.write_all(line.as_bytes());
+        }
+    });
+    let stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    read_reply(&mut BufReader::new(stream), MAX_LINE).ok().map(|r| r.len())
 }

@@ -19,6 +19,8 @@ const MAX_CATEGORIES: usize = 500;
 const MAX_LABELS: usize = 400;
 /// Deepest nesting of cards followed (a 2.1 `AGENT` holds a card of its own).
 const MAX_DEPTH: usize = 8;
+/// Most bytes of keys (`KEY`) kept from one text, all its cards together.
+pub(crate) const MAX_KEY_BYTES: usize = 64 << 20;
 
 /// Parse one or many vCards (2.1, 3.0, 4.0). Never fails: junk gives an empty list, and a card
 /// with nothing in it is skipped. Ids are left 0.
@@ -26,13 +28,22 @@ const MAX_DEPTH: usize = 8;
 /// `FN` gives the display name; without one it stays empty and the model derives a name. A label
 /// comes from `TYPE` (`work`, `home`, `other`, and for phones `mobile`, `fax`, `pager`), or from the
 /// `X-ABLabel` of the property's group (`item1.X-ABLabel:Family`); it is empty when neither says
-/// anything. Photos, logos, sounds, keys and unknown properties are skipped.
+/// anything. An S/MIME certificate or OpenPGP public key (`KEY`) is kept as bytes when its bytes
+/// have the shape of one, and the address of one as an address, never fetched; secret key
+/// material is never kept (`crate::key`). A card with nothing but keys is skipped. Photos, logos,
+/// sounds and unknown properties are skipped.
 ///
 /// Work is bounded: at most 100 000 cards are read, 100 e-mail addresses, phone numbers, postal
-/// addresses and web sites per card, and what a line holds beyond 1 MiB is dropped.
+/// addresses and web sites per card, 32 keys of at most 64 KiB per card and 64 MiB of keys in all,
+/// and what a line holds beyond 1 MiB is dropped.
 ///
 /// A file's bytes go through [`parse_bytes`], which reads raw 8-bit values in their `CHARSET`.
 pub fn parse(text: &str) -> Vec<Contact> {
+    parse_keeping(text, MAX_KEY_BYTES)
+}
+
+/// [`parse`], keeping at most `key_room` bytes of keys.
+pub(crate) fn parse_keeping(text: &str, mut key_room: usize) -> Vec<Contact> {
     let mut lines = Lines::new(text);
     // The cards that are open, outermost first, and the finished ones with the order they began in.
     let mut open: Vec<Card> = Vec::new();
@@ -55,7 +66,7 @@ pub fn parse(text: &str) -> Vec<Contact> {
             ("END", _) if is_card => done.extend(open.pop().and_then(Card::finish)),
             ("BEGIN", Some(card)) => card.foreign = card.foreign.saturating_add(1),
             ("END", Some(card)) => card.foreign = card.foreign.saturating_sub(1),
-            (_, Some(card)) if card.foreign == 0 => card.apply(&line),
+            (_, Some(card)) if card.foreign == 0 => card.apply(&line, &mut key_room),
             _ => {}
         }
     }
@@ -94,7 +105,8 @@ struct Card {
 }
 
 impl Card {
-    fn apply(&mut self, line: &ContentLine) {
+    /// Take in one property; `key_room` is what keys may still take of the text's allowance.
+    fn apply(&mut self, line: &ContentLine, key_room: &mut usize) {
         let v21 = self.v21;
         let contact = &mut self.contact;
         // One line of text, decoded and unescaped.
@@ -171,6 +183,15 @@ impl Card {
                     .extend(split(&value, ',', MAX_CATEGORIES).into_iter().map(|c| single(&unescape(c))).filter(|c| !c.is_empty()).take(room));
             }
             "UID" if contact.uid.is_empty() => contact.uid = one(line),
+            "KEY" if contact.keys.len() < Contact::MAX_KEYS && *key_room > 0 => {
+                if let Some(key) = crate::key::read(line) {
+                    let cost = key.data.len().saturating_add(key.uri.len());
+                    if cost <= *key_room && !contact.keys.contains(&key) {
+                        *key_room = key_room.saturating_sub(cost);
+                        contact.keys.push(key);
+                    }
+                }
+            }
             "X-FAVORITE" | "X-MAILCRAFT-FAVORITE" => {
                 contact.favorite |= matches!(line.value.trim().to_ascii_uppercase().as_str(), "TRUE" | "YES" | "1")
             }
@@ -192,7 +213,11 @@ impl Card {
         contact.emails = emails.into_iter().map(|(group, e)| Labeled { label: label(&group, e.label), value: e.value }).collect();
         contact.phones = phones.into_iter().map(|(group, p)| Labeled { label: label(&group, p.label), value: p.value }).collect();
         contact.addresses = addresses.into_iter().map(|(group, a)| PostalAddress { label: label(&group, a.label.clone()), ..a }).collect();
-        (contact != Contact::default()).then_some((order, contact))
+        // Keys alone make no contact: a card of nothing but keys is skipped as an empty one is.
+        let keys = std::mem::take(&mut contact.keys);
+        let empty = contact == Contact::default();
+        contact.keys = keys;
+        (!empty).then_some((order, contact))
     }
 }
 

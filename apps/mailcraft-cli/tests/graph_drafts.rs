@@ -148,7 +148,7 @@ fn an_answer_stays_in_its_conversation() {
     let there = rig.drafts_there();
     assert_eq!(there.len(), 1);
     let state = rig.server.state();
-    let orig = state.mailbox.messages[&source].clone();
+    let orig = state.mailbox.messages.get(&source).unwrap().clone();
     assert_eq!(there[0].conversation_id(), orig.conversation_id(), "in its conversation");
     assert_eq!(there[0].in_reply_to, orig.internet_id);
     assert!(there[0].subject.eq_ignore_ascii_case("RE: Invoice 42"), "{}", there[0].subject);
@@ -194,7 +194,7 @@ fn a_forward_as_an_attachment_carries_the_message_and_not_its_files() {
     assert!(!state.requests.iter().any(|r| r.target.ends_with("/createForward")), "not made as a forward");
     assert!(state.requests.iter().any(|r| r.method == "POST" && r.target.starts_with("/v1.0/me/messages") && !r.target.contains("/attachments")));
     assert_eq!(there[0].subject, "FW: Invoice 42");
-    assert_eq!(state.mailbox.messages[&source].attachments.len(), 1, "the original keeps its file");
+    assert_eq!(state.mailbox.messages.get(&source).unwrap().attachments.len(), 1, "the original keeps its file");
 }
 
 #[test]

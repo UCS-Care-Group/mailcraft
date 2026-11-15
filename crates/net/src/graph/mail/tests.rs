@@ -121,7 +121,7 @@ fn folders_made_renamed_moved_and_deleted_here_are_so_there() {
         FolderChange::Rename { folder: 43, id: old.clone(), name: "New name".into() },
         FolderChange::Move { folder: 44, id: wanders.clone(), parent: inbox.clone() },
         FolderChange::Move { folder: 45, id: going.clone(), parent: deleted.clone() },
-        FolderChange::Delete { id: gone_for_good.clone() },
+        FolderChange::Delete { id: gone_for_good.clone(), shown: Default::default() },
     ];
     let result = run(&server, changes);
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -180,7 +180,7 @@ fn what_the_server_refuses_or_no_longer_has_is_said() {
             FolderChange::Rename { folder: 41, id: inbox.clone(), name: "Mail".into() },
             FolderChange::Rename { folder: 43, id: kept, name: "Renamed".into() },
             FolderChange::Rename { folder: 42, id: ghost.clone(), name: "Anything".into() },
-            FolderChange::Delete { id: ghost },
+            FolderChange::Delete { id: ghost, shown: Default::default() },
         ],
     );
     assert!(matches!(&result.changes[0].outcome, ChangeOutcome::Refused { why } if why.contains("server's own")), "{:?}", result.changes);
@@ -188,6 +188,46 @@ fn what_the_server_refuses_or_no_longer_has_is_said() {
     assert!(matches!(&result.changes[1].outcome, ChangeOutcome::Refused { why } if why.contains("may not")), "{:?}", result.changes);
     assert_eq!((&result.changes[2].outcome, &result.changes[3].outcome), (&ChangeOutcome::Gone, &ChangeOutcome::Gone));
     assert!(result.errors.is_empty() && result.listing.is_some_and(|l| l.complete));
+}
+
+#[test]
+fn a_folder_the_server_says_is_its_own_is_answered_so_and_the_run_goes_on() {
+    // #1069: RSS Feeds and the like, which no well-known name marks. The server's word is taken
+    // whatever the status it comes with. A bare 403 says no such thing (it may pass): a refusal,
+    // as is any other last word on a change, never a stopped run.
+    let server = StandIn::start().unwrap();
+    let mut state = server.state();
+    let deleted = state.well_known("deleteditems");
+    let rss = state.add_folder("RSS Feeds", None);
+    let feeds = state.add_folder("Feeds kept", Some(&deleted));
+    let kept = state.add_folder("Kept", None);
+    let odd = state.add_folder("Odd", None);
+    state.fail_next.push((format!("POST /v1.0/me/mailFolders/{rss}/move"), 500, "ErrorMoveDistinguishedFolder".into()));
+    state.fail_next.push((format!("DELETE /v1.0/me/mailFolders/{feeds}"), 400, "ErrorDeleteDistinguishedFolder".into()));
+    state.fail_next.push((format!("POST /v1.0/me/mailFolders/{kept}/move"), 403, "ErrorAccessDenied".into()));
+    state.fail_next.push((format!("POST /v1.0/me/mailFolders/{odd}/move"), 405, "MethodNotAllowed".into()));
+    drop(state);
+    let result = run(
+        &server,
+        vec![
+            FolderChange::Move { folder: 40, id: rss.clone(), parent: deleted.clone() },
+            FolderChange::Delete { id: feeds.clone(), shown: mailcraft_model::sync::Shown::of("Feeds kept", [feeds.as_str()], []) },
+            FolderChange::Move { folder: 42, id: kept, parent: deleted.clone() },
+            FolderChange::Move { folder: 43, id: odd, parent: deleted },
+        ],
+    );
+    let outcomes: Vec<&ChangeOutcome> = result.changes.iter().map(|done| &done.outcome).collect();
+    assert!(
+        matches!(
+            outcomes.as_slice(),
+            [ChangeOutcome::OwnFolder { .. }, ChangeOutcome::OwnFolder { .. }, ChangeOutcome::Refused { .. }, ChangeOutcome::Refused { .. }]
+        ),
+        "{outcomes:?}"
+    );
+    assert!(result.errors.is_empty() && result.listing.is_some_and(|l| l.complete), "{:?}", result.errors);
+    let state = server.state();
+    assert_eq!(state.folder_named("RSS Feeds").map(|f| f.parent.clone()), Some(state.well_known("msgfolderroot")));
+    assert!(state.folder_named("Feeds kept").is_some());
 }
 
 #[test]

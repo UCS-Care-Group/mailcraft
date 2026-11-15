@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! What a server's mailboxes are for: special-use flags (RFC 6154) first, well-known names second.
 
+use std::collections::HashMap;
+
 use mailcraft_model::FolderKind;
 use mailcraft_proto::imap::Mailbox;
 
@@ -78,10 +80,13 @@ pub(crate) fn plan<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)]) ->
         }
     };
     give(&|m| is_inbox(m).then_some(FolderKind::Inbox));
-    give(&|m| {
-        let name = remote_name(m);
-        tied.iter().find(|(remote, _)| *remote == name).map(|(_, kind)| *kind)
-    });
+    // Looked up by name, the first tie of a name being the one: thousands of mailboxes each
+    // searching thousands of ties would be millions of comparisons (#991).
+    let mut ties: HashMap<&str, FolderKind> = HashMap::with_capacity(tied.len());
+    for (remote, kind) in tied {
+        ties.entry(*remote).or_insert(*kind);
+    }
+    give(&|m| ties.get(remote_name(m).as_str()).copied());
     give(&kind_from_flags);
     give(&kind_from_name);
     // The Inbox first, then the other standard folders, then the rest, each group in the server's order.

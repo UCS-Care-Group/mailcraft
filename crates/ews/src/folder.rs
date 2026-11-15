@@ -33,6 +33,16 @@ pub enum DistinguishedFolder {
     JunkEmail,
     /// Outbox.
     Outbox,
+    /// Conversation History (`conversationhistory`), where a chat program files its talks.
+    ConversationHistory,
+    /// Sync Issues (`syncissues`), and the three folders in it.
+    SyncIssues,
+    /// Conflicts (`conflicts`), in Sync Issues.
+    Conflicts,
+    /// Local Failures (`localfailures`), in Sync Issues.
+    LocalFailures,
+    /// Server Failures (`serverfailures`), in Sync Issues.
+    ServerFailures,
 }
 
 impl DistinguishedFolder {
@@ -47,6 +57,11 @@ impl DistinguishedFolder {
             Self::DeletedItems => "deleteditems",
             Self::JunkEmail => "junkemail",
             Self::Outbox => "outbox",
+            Self::ConversationHistory => "conversationhistory",
+            Self::SyncIssues => "syncissues",
+            Self::Conflicts => "conflicts",
+            Self::LocalFailures => "localfailures",
+            Self::ServerFailures => "serverfailures",
         }
     }
 }

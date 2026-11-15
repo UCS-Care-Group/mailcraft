@@ -223,6 +223,21 @@ pub struct EwsFolderDeltas {
     /// removed when the run ends. Otherwise it is a delta and nothing is removed for not being in it.
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// Read afresh past mail folders that couldn't be read (#1108): the server ids of the folders
+    /// they lie in, empty for the top of the mail. A folder of the account that isn't in `changed`
+    /// is kept rather than removed while it lies directly in one of them, for it may be one of
+    /// those; everything else the list doesn't have is removed as for any read afresh.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unreadable_in: Vec<String>,
+    /// One of them lay where that couldn't be told either: a read afresh then removes nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unreadable_anywhere: bool,
+    /// The ids of the server's own folders (its distinguished ones: the Inbox and the other
+    /// special folders, Conversation History, Sync Issues and the like, #779), whether or not the
+    /// delta brings them: such a folder is never renamed, moved or deleted
+    /// ([`crate::Folder::server_owned`]). A folder that isn't in it keeps the mark it had.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub well_known: Vec<String>,
 }
 
 /// One page of a folder's changes (`SyncFolderItems`). The state to go on from is not here but in
@@ -442,11 +457,20 @@ impl EwsMailResult {
             return Err("has a sync state that can't be one");
         }
         if let Some(folders) = &self.folders {
-            if folders.changed.len() > MAX_LISTED_FOLDERS || folders.deleted.len() > MAX_LISTED_FOLDERS {
+            if folders.changed.len() > MAX_LISTED_FOLDERS
+                || folders.deleted.len() > MAX_LISTED_FOLDERS
+                || folders.well_known.len() > MAX_LISTED_FOLDERS
+                || folders.unreadable_in.len() > MAX_LISTED_FOLDERS
+            {
                 return Err(TOO_MANY);
             }
             let odd = |f: &GraphFolder| !id_ok(&f.id) || (!f.parent.is_empty() && !id_ok(&f.parent)) || f.name.len() > 4096;
-            if folders.changed.iter().any(odd) || !folders.deleted.iter().all(|id| id_ok(id)) {
+            let parent_ok = |id: &String| id.is_empty() || id_ok(id);
+            if folders.changed.iter().any(odd)
+                || !folders.deleted.iter().all(|id| id_ok(id))
+                || !folders.well_known.iter().all(|id| id_ok(id))
+                || !folders.unreadable_in.iter().all(parent_ok)
+            {
                 return Err(ODD_ID);
             }
         }
@@ -489,6 +513,9 @@ impl EwsMailResult {
             folders.changed.extend(more.changed);
             folders.deleted.extend(more.deleted);
             folders.afresh |= more.afresh;
+            folders.unreadable_in.extend(more.unreadable_in);
+            folders.unreadable_anywhere |= more.unreadable_anywhere;
+            folders.well_known.extend(more.well_known);
         }
         if !piece.hierarchy.is_empty() {
             self.hierarchy = piece.hierarchy;

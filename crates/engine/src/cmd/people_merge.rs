@@ -60,6 +60,8 @@ pub const MAX_CATEGORIES: usize = 500;
 /// Longest the notes' vCard line may be, in bytes, escapes and `NOTE:` included: the vCard
 /// reader's longest line, so that an export read back keeps all of them.
 pub const MAX_NOTES: usize = 1 << 20;
+/// Most places in imported files a merged contact remembers (`Contact::imported`).
+pub const MAX_IMPORT_KEYS: usize = 64;
 /// Characters of a value `people.findDuplicates` shows; a longer one is cut and marked.
 const SHOWN_CHARS: usize = 2000;
 
@@ -509,6 +511,33 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         }
     }
     out.favorite = contacts.iter().any(|c| c.favorite);
+    // (Where each came from in an imported file all stay known, so that importing the file again
+    // doesn't bring back one that was merged away.)
+    let mut keys: Vec<&str> = Vec::new();
+    for key in contacts.iter().flat_map(|c| c.imported.split_whitespace()) {
+        if keys.len() < MAX_IMPORT_KEYS && !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    out.imported = keys.join(" ");
+    // The certificates and keys of every contact merged, each once; as for the lists, more than a
+    // contact keeps is refused, never cut.
+    let had = out.keys.len();
+    for key in contacts.iter().skip(1).flat_map(|c| &c.keys) {
+        if !out.keys.contains(key) {
+            if out.keys.len() >= Contact::MAX_KEYS {
+                return Err(failed!(
+                    "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged.",
+                    max = Contact::MAX_KEYS,
+                    had
+                ));
+            }
+            out.keys.push(key.clone());
+        }
+    }
+    if out.imported_from.is_empty() {
+        out.imported_from = contacts.iter().map(|c| c.imported_from.as_str()).find(|f| !f.is_empty()).unwrap_or_default().to_string();
+    }
     if out.uid.trim().is_empty() {
         out.uid = contacts.iter().map(|c| c.uid.trim()).find(|u| !u.is_empty()).unwrap_or_default().to_string();
     }
@@ -533,7 +562,7 @@ fn size(c: &Contact, field: &str) -> usize {
 
 /// How long the notes' line of a vCard is, in bytes: `NOTE:`, and each backslash, comma,
 /// semicolon and line break written as two.
-fn notes_line(notes: &str) -> usize {
+pub fn notes_line(notes: &str) -> usize {
     let escaped = notes.chars().filter(|c| matches!(c, '\\' | ',' | ';' | '\n')).count();
     if notes.trim().is_empty() { 0 } else { notes.len().saturating_add(escaped).saturating_add(5) }
 }

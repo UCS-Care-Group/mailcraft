@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Finding an Exchange server's Exchange Web Services address from an e-mail address: the POX
-//! Autodiscover of [MS-OXDSCLI], as a state machine that the host drives.
+//! Autodiscover of [MS-OXDSCLI], at the places [MS-OXDISCO] lists, as a state machine that the
+//! host drives. `docs/autodiscover.md` says which of MS-OXDISCO's steps are taken, and specifies
+//! the alias step.
 //!
 //! The machine does no I/O. It says what to do next ([`Autodiscover::step`]): perform this
 //! HTTP request, look this SRV name up, ask the owner about this host, or here is the end of it
@@ -14,16 +16,24 @@
 //!
 //! - In this order, over HTTPS only: `https://<domain>/autodiscover/autodiscover.xml`, then
 //!   `https://autodiscover.<domain>/autodiscover/autodiscover.xml`, then the hosts of the
-//!   `_autodiscover._tcp.<domain>` SRV record. The plain-HTTP redirect step of the specification
-//!   is never taken.
+//!   `_autodiscover._tcp.<domain>` SRV record, then the alias step's hosts (those
+//!   `autodiscover.<domain>` is an alias of, at most two, asked about before the sign-in goes to
+//!   one). The plain-HTTP redirect step of MS-OXDISCO (§3.1.5.4) is never taken: the alias step
+//!   takes its place.
 //! - A redirect (HTTP 301, 302, 303, 307 or 308 with a `Location`, or an answer whose `Action` is
 //!   `redirectUrl` or `redirectAddr`) is followed one step at a time, at most
 //!   [`MAX_REDIRECTS`] in a row, and only to an `https://` address.
-//! - The user name and password (the [`Secret`] the machine was made with) go only to a host
-//!   inside the owner's own mail domain, or to one the owner agreed to when the machine asked
-//!   ([`Step::NeedsYes`], naming the host). That covers a redirect to another host, the host of
-//!   an SRV record, another mail domain named by `redirectAddr`, and the Exchange Web Services
-//!   address the answer gives, which is where the password goes next.
+//! - The user name and password (the [`Secret`] the machine was made with) go, in answer to a
+//!   host's own challenge, only to `autodiscover.<domain>` of the owner's own mail domain (or of
+//!   one the owner agreed to), to a host the domain's SRV record names, or to one the owner agreed
+//!   to when the machine asked ([`Step::NeedsYes`], naming the host). Any other host asks first,
+//!   inside the owner's domain too (AU3-V1: the domain's own name is often a web site run by
+//!   somebody else, and so may be any other name in it). Requests without the sign-in (the
+//!   address alone) go to the places above and to hosts in the domain a redirect names; one
+//!   outside it asks first. That covers a redirect to another host, the host of an SRV record,
+//!   another mail domain named by `redirectAddr`, and the Exchange Web Services address the
+//!   answer gives, which is where the password goes next: in the domain, it is taken without a
+//!   question from an answer that came from a host the sign-in may go to.
 //! - A mailbox the answer places in Exchange Online (a Microsoft 365 host: the redirect, the
 //!   address or the server) ends the search with [`Outcome::ExchangeOnline`] and nothing is
 //!   sent there: Exchange Online is a Microsoft account (ADR 0002), not an Exchange server account.
@@ -54,6 +64,8 @@ pub const MAX_REDIRECTS: u8 = 5;
 const MAX_REQUESTS: u8 = 16;
 /// Most hosts taken from an SRV record.
 const MAX_SRV_HOSTS: usize = 3;
+/// Most hosts taken from the alias of `autodiscover.<domain>`, after the SRV record's.
+const MAX_ALIAS_HOSTS: usize = 2;
 /// The largest answer read: Autodiscover answers weigh a few kilobytes.
 pub const MAX_ANSWER: usize = 256 * 1024;
 /// Longest address kept.
@@ -137,6 +149,14 @@ pub enum ConsentReason {
     OtherDomain,
     /// The answer gives an Exchange Web Services address on another host: the password would go there.
     MailServer,
+    /// A host in the owner's own domain that is not its Autodiscover host nor one its SRV record
+    /// names asks for the sign-in, or is named as the mail server by one: it may be a web site
+    /// rather than the organisation's mail (AU3-V1).
+    SignIn,
+    /// A host `autodiscover.<domain>` is an alias of, which its SRV record doesn't name, asks for
+    /// the sign-in, or is outside the domain and would be asked anything at all: the domain's DNS
+    /// points there, but an alias may be a web host's rather than the organisation's mail.
+    Alias,
 }
 
 /// A question for the owner: may the sign-in go to `host`? The host asks, naming it, and
@@ -352,7 +372,9 @@ enum Waiting {
 enum Pending {
     Request(String),
     Domain,
-    Settings(Discovered),
+    Settings(Discovered, bool),
+    /// The request to this address again, with the sign-in.
+    SignIn(String),
 }
 
 /// A place to ask.
@@ -372,6 +394,11 @@ pub struct Autodiscover {
     /// Mail domains and hosts the owner agreed to.
     domains: Vec<String>,
     hosts: Vec<String>,
+    /// The hosts the SRV record named, inside a domain the sign-in may go to.
+    srv_hosts: Vec<String>,
+    /// The hosts `autodiscover.<domain>` is an alias of, that the SRV record doesn't name: asked
+    /// about as that, never let in by it.
+    alias_hosts: Vec<String>,
     queue: VecDeque<Target>,
     waiting: Waiting,
     chain: u8,
@@ -401,6 +428,8 @@ impl Autodiscover {
             domain,
             domains: Vec::new(),
             hosts: Vec::new(),
+            srv_hosts: Vec::new(),
+            alias_hosts: Vec::new(),
             queue,
             waiting,
             chain: 0,
@@ -447,6 +476,30 @@ impl Autodiscover {
         is_within(host, &self.own) || self.domains.iter().any(|domain| is_within(host, domain)) || self.hosts.iter().any(|agreed| agreed == host)
     }
 
+    /// Whether the sign-in may go to `host` without asking, when it asks for it: the
+    /// Autodiscover host of the domain being asked about, of the owner's own or of one the owner
+    /// agreed to; a host the SRV record named; or one the owner agreed to (AU3-V1).
+    fn sign_in_allowed(&self, host: &str) -> bool {
+        let autodiscover_of = |domain: &str| host.strip_prefix("autodiscover.").is_some_and(|rest| rest == domain);
+        self.hosts.iter().any(|agreed| agreed == host)
+            || self.srv_hosts.iter().any(|named| named == host)
+            || autodiscover_of(&self.own)
+            || (self.allowed(&self.domain) && autodiscover_of(&self.domain))
+            || self.domains.iter().any(|domain| autodiscover_of(domain))
+    }
+
+    /// Why the owner is asked about `host`: as a host of the address's own domain when it is one,
+    /// else for `otherwise` (a domain the owner agreed to is not the address's own).
+    fn in_own_domain(&self, host: &str, otherwise: ConsentReason) -> ConsentReason {
+        if is_within(host, &self.own) { ConsentReason::SignIn } else { otherwise }
+    }
+
+    /// Why the owner is asked about `host` before it is asked anything or has the sign-in: as the
+    /// alias's host when that is how the search came to it, else as [`Self::in_own_domain`] says.
+    fn reason_for(&self, host: &str, otherwise: ConsentReason) -> ConsentReason {
+        if self.alias_hosts.iter().any(|alias| alias == host) { ConsentReason::Alias } else { self.in_own_domain(host, otherwise) }
+    }
+
     fn finish(&mut self, outcome: Outcome) {
         self.waiting = Waiting::Done(outcome);
     }
@@ -484,7 +537,8 @@ impl Autodiscover {
                         return self.finish(Outcome::ExchangeOnline);
                     }
                     if !self.allowed(&host) {
-                        self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::Redirect }, Pending::Request(url));
+                        let reason = self.reason_for(&host, ConsentReason::Redirect);
+                        self.waiting = Waiting::Consent(Consent { host, reason }, Pending::Request(url));
                         return;
                     }
                     match self.request_to(&url, false) {
@@ -553,12 +607,14 @@ impl Autodiscover {
                 .any(|piece| piece.split_whitespace().next().is_some_and(|have| have.eq_ignore_ascii_case(scheme)))
         };
         if offers("basic") {
-            match self.request_to(request.url(), true) {
-                Some(again) if self.requests < MAX_REQUESTS => {
-                    self.requests = self.requests.saturating_add(1);
-                    self.waiting = Waiting::Request(again);
+            match host_of(request.url()) {
+                Some(host) if self.sign_in_allowed(&host) => self.sign_in_to(request.url()),
+                // Another host in the domain asks for it: the owner says (AU3-V1).
+                Some(host) => {
+                    let reason = self.reason_for(&host, ConsentReason::Redirect);
+                    self.waiting = Waiting::Consent(Consent { host, reason }, Pending::SignIn(request.url().to_owned()))
                 }
-                _ => self.fail_step(Failure::Unreadable),
+                None => self.fail_step(Failure::Unreadable),
             }
         } else if offers("ntlm") {
             self.fail_step(Failure::SignInNtlmOnly);
@@ -570,14 +626,28 @@ impl Autodiscover {
         }
     }
 
+    /// The request to `url` again, with the sign-in.
+    fn sign_in_to(&mut self, url: &str) {
+        match self.request_to(url, true) {
+            Some(again) if self.requests < MAX_REQUESTS => {
+                self.requests = self.requests.saturating_add(1);
+                self.waiting = Waiting::Request(again);
+            }
+            _ => self.fail_step(Failure::Unreadable),
+        }
+    }
+
     fn judge(&mut self, url: &str, response: &HttpResponse) {
         match response.status() {
             200 => {
                 if response.body().len() > MAX_ANSWER {
                     return self.fail_step(Failure::Unreadable);
                 }
+                // (An answer from a host the sign-in may go to vouches for the mail server's
+                // host in the domain; one from any other host doesn't, AU3-V1.)
+                let vouched = host_of(url).is_some_and(|host| self.sign_in_allowed(&host));
                 match read_answer(response.body()) {
-                    Answer::Settings(found) => self.settings(found),
+                    Answer::Settings(found) => self.settings(found, vouched),
                     Answer::RedirectUrl(next) => self.follow(&next),
                     Answer::RedirectAddr(email) => self.restart(&email),
                     Answer::Refused => self.fail_step(Failure::ServerRefused),
@@ -628,7 +698,8 @@ impl Autodiscover {
     }
 
     /// The answer gave settings: Exchange Online, or the owner's say about each new host, or done.
-    fn settings(&mut self, found: Discovered) {
+    /// `vouched`: the answer came from a host the sign-in may go to without asking.
+    fn settings(&mut self, found: Discovered, vouched: bool) {
         if found.hosts().iter().any(|host| is_exchange_online(host)) {
             return self.finish(Outcome::ExchangeOnline);
         }
@@ -636,8 +707,12 @@ impl Autodiscover {
             return self.fail_step(Failure::NoExchangeAddress);
         }
         // The password goes to the addresses, not to the name of the mailbox's server.
-        match found.urls().into_iter().filter_map(host_of).find(|host| !self.allowed(host)) {
-            Some(host) => self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::MailServer }, Pending::Settings(found)),
+        let taken = |host: &String| if vouched { self.allowed(host) } else { self.sign_in_allowed(host) };
+        match found.urls().into_iter().filter_map(host_of).find(|host| !taken(host)) {
+            Some(host) => {
+                let reason = self.in_own_domain(&host, ConsentReason::MailServer);
+                self.waiting = Waiting::Consent(Consent { host, reason }, Pending::Settings(found, vouched));
+            }
             None => self.finish(Outcome::Found(found)),
         }
     }
@@ -647,6 +722,14 @@ impl Autodiscover {
     /// most three, and a port only if it is 443 or 1024 and above (the port of an SRV record
     /// names where the service listens: MS-OXDSCLI asks there).
     pub fn srv(&mut self, hosts: Option<Vec<(String, u16)>>) {
+        self.srv_and_aliases(hosts, Vec::new());
+    }
+
+    /// [`Self::srv`], with the hosts `autodiscover.<domain>` is an alias of besides: asked after
+    /// the SRV record's targets, at 443, at most two. An alias is not the SRV record's word: its
+    /// host has the sign-in, and its answer is believed, only after the owner's yes, in the domain
+    /// or out of it.
+    pub fn srv_and_aliases(&mut self, hosts: Option<Vec<(String, u16)>>, aliases: Vec<String>) {
         if !matches!(self.waiting, Waiting::Srv(_)) {
             return;
         }
@@ -660,8 +743,32 @@ impl Autodiscover {
                 named.push(target);
             }
         }
-        if named.is_empty() {
+        // (One in the domain may have the sign-in when it asks; one outside it is asked about
+        // before anything is sent there, and the owner's yes is for the sign-in too.)
+        for (host, _) in &named {
+            if self.allowed(host) && !self.srv_hosts.contains(host) && self.srv_hosts.len() < MAX_SRV_HOSTS.saturating_mul(4) {
+                self.srv_hosts.push(host.clone());
+            }
+        }
+        let mut aliased: Vec<String> = Vec::new();
+        for host in aliases {
+            let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+            // (Asked at 443: an SRV target of the same host at another port is another place.)
+            if is_name(&host) && !named.iter().any(|(h, p)| *h == host && *p == 443) && !aliased.contains(&host) && aliased.len() < MAX_ALIAS_HOSTS {
+                aliased.push(host);
+            }
+        }
+        if named.is_empty() && aliased.is_empty() {
             return self.fail_step(Failure::Unreachable);
+        }
+        // (A host the SRV record names at another port is the record's, and asked about as that.)
+        for host in aliased.iter().filter(|host| !named.iter().any(|(named, _)| named == *host)) {
+            if !self.alias_hosts.contains(host) && self.alias_hosts.len() < MAX_ALIAS_HOSTS.saturating_mul(4) {
+                self.alias_hosts.push(host.clone());
+            }
+        }
+        for host in aliased.into_iter().rev() {
+            self.queue.push_front(Target::Url(format!("https://{host}/autodiscover/autodiscover.xml")));
         }
         for (host, port) in named.into_iter().rev() {
             let port = if port == 443 { String::new() } else { format!(":{port}") };
@@ -679,12 +786,13 @@ impl Autodiscover {
         };
         match consent.reason {
             ConsentReason::OtherDomain => self.domains.push(consent.host),
-            ConsentReason::Redirect | ConsentReason::MailServer => self.hosts.push(consent.host),
+            ConsentReason::Redirect | ConsentReason::MailServer | ConsentReason::SignIn | ConsentReason::Alias => self.hosts.push(consent.host),
         }
         match pending {
             Pending::Request(url) => self.queue.push_front(Target::Url(url)),
             Pending::Domain => {}
-            Pending::Settings(found) => self.settings(found),
+            Pending::Settings(found, vouched) => self.settings(found, vouched),
+            Pending::SignIn(url) => self.sign_in_to(&url),
         }
     }
 

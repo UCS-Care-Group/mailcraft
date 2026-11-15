@@ -66,6 +66,24 @@ fn the_date_is_in_the_interface_language_and_its_clock() {
     assert_eq!(date_time_text(&s, "iso", s.now()).unwrap(), "2026-10-14");
 }
 
+/// English in Britain writes the day first (#978); a French interface there keeps French's.
+#[test]
+fn the_date_is_written_the_way_of_the_region() {
+    let mut s = session();
+    s.date_region = Some("GB".into());
+    s.prefs.twelve_hour = false;
+    assert_eq!(date_time_text(&s, "long", s.now()).unwrap(), "Wednesday 14 October 2026");
+    assert_eq!(date_time_text(&s, "longDate", s.now()).unwrap(), "14 October 2026");
+    assert_eq!(date_time_text(&s, "medium", s.now()).unwrap(), "14 Oct 2026");
+    assert_eq!(date_time_text(&s, "numericTime", s.now()).unwrap(), "14/10/2026 16:05");
+    assert_eq!(date_time_text(&s, "monthYear", s.now()).unwrap(), "October 2026");
+    s.interface_language = Lang::French;
+    assert_eq!(date_time_text(&s, "longDate", s.now()).unwrap(), "14 octobre 2026");
+    s.interface_language = Lang::English;
+    s.date_region = Some("US".into());
+    assert_eq!(date_time_text(&s, "numeric", s.now()).unwrap(), "10/14/2026");
+}
+
 #[test]
 fn the_date_goes_in_at_the_caret_and_over_a_selection() {
     let mut s = writing("Seen on . Thanks");

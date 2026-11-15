@@ -11,31 +11,46 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+pub mod digital_signature;
 mod ews_server;
+pub mod gmail;
+pub mod headers;
 mod jmap_server;
 mod junk;
-mod load_limit;
+pub mod load_limit;
 mod mailbox;
 mod message;
+pub mod messages;
+#[cfg(test)]
+mod messages_tests;
+mod note;
 mod offline;
 pub mod pictures;
 pub mod pop;
+pub mod protected;
 pub mod provider;
+pub mod public_keys;
 pub mod remote;
 pub mod remote_rules;
 pub mod remote_tasks;
+pub mod report;
+#[cfg(test)]
+mod report_tests;
 pub mod rich;
 mod rule;
 pub mod search;
 pub mod sender_warnings;
+pub mod shown;
 pub mod signature;
 pub mod sync;
 mod task;
 pub mod thread_index;
+pub mod unsubscribe;
 pub mod update;
 pub mod words;
 pub mod zoned;
@@ -47,22 +62,27 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, Labeled, PostalAddress};
+pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
-pub use jmap_server::JmapServer;
+pub use gmail::{GmailCategory, is_gmail_host};
+pub use headers::{HeaderBlock, HeaderLine};
+pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
-    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder,
-    FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, MAX_FOLDER_DEPTH, MAX_RULES, MAX_SHARED, MOVED_INTO_OUTBOX,
-    MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, Security, Server, ServerFavorites, ServerFolder,
-    preset_category_color,
+    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_NOT_DELETED_YET,
+    FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, ImapStatus, MAX_FOLDER_DEPTH, MAX_FOLDERS,
+    MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider,
+    ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, MAX_ORIGINALS, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, ORIGINAL_PATIENCE, ORIGINAL_TRIES, Original, PREVIEW_CHARS, RETURNED_LISTINGS, normalize_subject, size_label, size_label_in,
+    text_hash,
 };
+pub use messages::Messages;
+pub use note::{JournalEntry, Note};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
@@ -142,21 +162,39 @@ pub(crate) mod b64 {
 #[cfg(test)]
 mod account_categories_tests;
 #[cfg(test)]
+mod account_color_tests;
+#[cfg(test)]
 mod account_order_tests;
+#[cfg(test)]
+mod auth_results_tests;
 #[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]
+mod contact_key_tests;
+#[cfg(test)]
+mod gmail_labels_tests;
+#[cfg(test)]
+mod gmail_tests;
+#[cfg(test)]
+mod headers_tests;
+#[cfg(test)]
 mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
+mod load_limit_tests;
+#[cfg(test)]
 mod mailbox_tests;
+#[cfg(test)]
+mod original_tests;
 #[cfg(test)]
 mod pictures_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod public_keys_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]
@@ -175,6 +213,12 @@ mod search_suggest_tests;
 mod search_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
+#[cfg(test)]
+mod shown_tests;
+#[cfg(test)]
+mod snooze_tests;
+#[cfg(test)]
+mod unsubscribe_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 
@@ -195,3 +239,5 @@ mod tests {
         assert!(!contains_ci("Quarterly", "report"));
     }
 }
+#[cfg(test)]
+mod address_tests;

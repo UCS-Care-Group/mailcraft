@@ -107,6 +107,8 @@ impl Rig {
             let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
             request.account.incoming = Some(Server { host: "127.0.0.1".into(), port: closed, security: Security::None });
         }
+        // (The fake IMAP server on this computer stands in for Microsoft's: only a test may say so.)
+        let _loopback = mailcraft_net::graph::standin::allow_loopback_tokens();
         let result = mailcraft_net::sync(&request);
         assert_eq!(result.errors.is_empty(), !offline, "{:?}", result.errors);
         apply_sync(&mut self.s, result).unwrap()

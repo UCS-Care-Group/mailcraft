@@ -46,8 +46,8 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     let exchange = a.session.mailbox.account(id).unwrap();
     let key = MailApp::secret_key("password", exchange);
     assert_eq!(key, "password:ada@exchange.example|ews=https://mail.example.org:444/EWS/Exchange.asmx|user=");
-    // Another server, another address or another user name is another key; the trusted
-    // certificate is no part of it; and it is not an IMAP account's.
+    // Another server, another address, another user name or a certificate trusted besides the
+    // system's (AU3-02) is another key; and it is not an IMAP account's.
     let other = |change: &dyn Fn(&mut Account)| {
         let mut account = exchange.clone();
         change(&mut account);
@@ -56,7 +56,10 @@ fn an_exchange_accounts_secret_is_kept_under_its_address_and_its_servers_address
     assert_ne!(other(&|x| x.ews.as_mut().unwrap().url = "https://elsewhere.example/EWS/Exchange.asmx".into()), key);
     assert_ne!(other(&|x| x.email = "bo@exchange.example".into()), key);
     assert_ne!(other(&|x| x.ews.as_mut().unwrap().username = "CORP\\ada".into()), key, "a password is for one user name");
-    assert_eq!(other(&|x| x.ews.as_mut().unwrap().trusted = "ab".repeat(32)), key);
+    let pinned = other(&|x| x.ews.as_mut().unwrap().trusted = "ab".repeat(32));
+    assert_ne!(pinned, key, "a newly pinned account never inherits the password");
+    assert_ne!(other(&|x| x.ews.as_mut().unwrap().trusted = "cd".repeat(32)), pinned);
+    assert_eq!(other(&|x| x.ews.as_mut().unwrap().trusted = "AB".repeat(32)), pinned, "a fingerprint in either case is the same");
     assert_ne!(MailApp::secret_key("refresh", exchange), key);
     assert!(!MailApp::secret_key("password", a.session.mailbox.account(imap).unwrap()).contains("ews="));
     // One that has no server settings gets a key that no server's is.

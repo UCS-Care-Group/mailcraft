@@ -343,8 +343,12 @@ fn only_a_microsoft_account_can_be_chosen_and_removing_it_asks_again() {
 
 #[test]
 fn an_agent_cannot_answer_for_the_owner() {
-    use crate::agent::{Access, Class, access};
-    assert_eq!(access("tasks.sendLocal"), Some(Access::Owner(Class::Send)));
+    // Not even with everything allowed in advance (`mcp --allow send`, H4): the answer is the
+    // owner's own, in the window.
+    use crate::agent::{Access, Class, Verdict, access, check};
+    assert_eq!(access("tasks.sendLocal"), Some(Access::Never));
+    let (s, a) = session();
+    assert!(matches!(check(&s, "tasks.sendLocal", &json!({"account": a}), &Class::ALL), Verdict::Refuse(_)));
 }
 
 #[test]

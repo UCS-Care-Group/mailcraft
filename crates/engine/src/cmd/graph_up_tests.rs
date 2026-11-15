@@ -11,12 +11,12 @@ use super::*;
 use crate::cmd::graph_mail::{apply_graph_mail, graph_mail_request};
 
 /// Friday 2027-01-15 08:00 UTC.
-const NOW: i64 = 1_800_000_000;
+pub(crate) const NOW: i64 = 1_800_000_000;
 
 /// A session with a Microsoft account whose Inbox, Archive and Deleted Items the server has, a
 /// message in its Inbox the server has said things of, and a local account: the session, the
 /// account, the message and the local account's folder.
-fn setup() -> (Session, Id, Id, Id) {
+pub(crate) fn setup() -> (Session, Id, Id, Id) {
     let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     for (kind, id) in [(FolderKind::Inbox, "F-in"), (FolderKind::Archive, "F-ar"), (FolderKind::Deleted, "F-de")] {
@@ -132,7 +132,7 @@ fn a_move_out_of_the_account_waits_for_the_whole_message_and_the_save() {
     s.mailbox.message_mut(m).unwrap().unfetched = true;
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
     let moved = s.mailbox.message(m).unwrap();
-    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into(), left: false }));
+    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into(), left: false, listing: false }));
     assert!(moved.server.is_none() && moved.folder == kept);
     // Fetched first of all, whatever its size.
     assert_eq!(super::super::graph_down::fetch_queue(&s.mailbox, account, 5, s.now()), ["M-1"]);
@@ -568,4 +568,10 @@ fn a_message_the_server_wouldnt_give_is_passed_over_in_the_background_but_still_
     // Opened, it is.
     assert_eq!(graph_fetch_request(&s, account, Some(m), 1).unwrap().ids, ["M-1"]);
     assert!(s.mailbox.message(m).unwrap().unfetched);
+    // Given at last, in its own account: Exchange's stamp is its server's word, read here (#781).
+    let mime = b"From: boss@example.org\r\nX-MS-Exchange-Organization-AuthAs: Internal\r\n\r\nAll of it.\r\n".to_vec();
+    let fetched = vec![mailcraft_model::sync::GraphFetched { id: "M-1".into(), mime }];
+    apply_graph_fetch(&mut s, GraphFetchResult { account, email: "owner@example.org".into(), fetched, ..Default::default() }).unwrap();
+    let here = s.mailbox.message(m).unwrap();
+    assert!(!here.unfetched && here.fresh_stamps && here.headers.len() == 1, "{:?}", here.headers);
 }

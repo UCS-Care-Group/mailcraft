@@ -28,6 +28,7 @@
 //! sign-in left waiting in the browser. Once the new mailbox is kept, the rest of it waits for
 //! the runs in line: its own run is called off in turn and goes on after them (#274).
 
+use mailcraft_engine::sync_driver::Pressed;
 use mailcraft_model::sync::SharedRefusal;
 use mailcraft_model::{Account, AccountKind, Directory, FolderKind, Id};
 use serde_json::{Value, json};
@@ -79,7 +80,7 @@ impl MailApp {
         let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
         let address = owner.email.clone();
         let kept = self.tokens.get(&owner.id).or(self.graph_tokens.get(&owner.id)).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &address)).unwrap_or_default();
+        let refresh = kept.or_else(|| self.remembered("refresh", owner.id)).unwrap_or_default();
         if refresh.is_empty() {
             // Being added: the owner's own sign-in comes first, by itself.
             if self.shared_checking.contains(&account) {
@@ -95,7 +96,7 @@ impl MailApp {
         let mut mail = mailcraft_engine::cmd::graph_mail::graph_mail_request(&self.session, account).map_err(|e| e.to_string())?;
         // Its Outbox waits for the owner's permission (#70): a run nobody asked for leaves it
         // there, and asks Microsoft nothing about it.
-        if quiet && self.shared_send_waits.contains(&account) {
+        if quiet && self.session.shared_send_waits(account) {
             mail.sends.clear();
         }
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
@@ -121,8 +122,13 @@ impl MailApp {
         if self.offline() {
             return Err(crate::send_receive::said());
         }
-        let Some(graph) = &self.services.graph else { return Err(tl!("This build can't connect to Microsoft").to_string()) };
+        if self.services.graph.is_none() {
+            return Err(tl!("This build can't connect to Microsoft").to_string());
+        }
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        // What it sends is marked so, on disk, before it leaves (AU3-26).
+        let opening = self.session.openings();
+        let rx = self.hand_graph(account, ask)?;
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
@@ -130,10 +136,10 @@ impl MailApp {
         // (And whether its mail may be sent from it now.)
         if !quiet {
             self.shared_refused.remove(&account);
-            self.shared_send_waits.remove(&account);
+            self.session.driver.sending.allowed(account);
         }
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, false, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, opening, rx));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true, "shared": true}))
     }
@@ -148,9 +154,11 @@ impl MailApp {
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
-        if let (Some(tokens), Some((owner, address))) = (result.tokens.take(), owner.as_ref()) {
+        // (Only the owner's own sign-in: somebody else's is neither kept nor remembered, AU3-10.)
+        let tokens = result.tokens.take().filter(|tokens| owner.as_ref().is_some_and(|(owner, _)| !self.signed_in_as_other(*owner, tokens)));
+        if let (Some(tokens), Some((owner, _))) = (tokens, owner.as_ref()) {
             if !tokens.refresh.is_empty() {
-                self.remember("refresh", address, &tokens.refresh);
+                self.remember("refresh", *owner, &tokens.refresh);
                 if let Some(kept) = self.tokens.get_mut(owner) {
                     kept.refresh = tokens.refresh.clone();
                 }
@@ -199,18 +207,17 @@ impl MailApp {
         // Mail waits to go from it, and sending from shared mailboxes isn't allowed yet (#70):
         // asked about when the owner asked for the run or pressed Send in it, else said. Either
         // way it waits for the owner: no run starts again for it by itself.
-        if result.send_consent_needed && self.session.mailbox.account(account).is_some() {
-            self.shared_send_waits.insert(account);
-            let pressed = self.shared_send_pressed.remove(&account);
+        let missing = if result.send_consent_needed { self.session.shared_send_missing(account) } else { None };
+        if let Some(pressed) = missing {
             if (quiet && !pressed) || asking || self.dialog.is_some() || !self.ask_shared_send(account) {
                 errors.push(
                     tl!("Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive.")
                         .to_string(),
                 );
             }
-        } else if self.outbox_waiting(account) == 0 {
-            // (What was pressed Send on is gone.)
-            self.shared_send_pressed.remove(&account);
+        } else {
+            // (What was pressed Send on is gone once the Outbox is empty.)
+            self.session.shared_send_none_waits(account);
         }
         errors.dedup();
         // Being added: kept when its Inbox was read, else removed again with the reason (S1).
@@ -242,27 +249,17 @@ impl MailApp {
         } else if !result.consent_needed {
             self.session.sync_status.clear();
         }
-        self.note_sync_problems(account, &errors, true);
+        self.note_problems_from("shared", account, &errors, None, true);
         self.note_pushed(account);
-    }
-
-    /// How many messages in the Outbox of `account` wait to be sent (not held).
-    fn outbox_waiting(&self, account: Id) -> usize {
-        let mb = &self.session.mailbox;
-        mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
     }
 
     /// The owner pressed Send on `message` (#70). From a shared mailbox that may not be sent from
     /// yet, the window asks at once; otherwise the run that takes it out asks if it finds so,
     /// though that run starts by itself.
     pub(crate) fn shared_send_pressed_in(&mut self, message: Id) {
-        let Some(account) = self.session.mailbox.message(message).map(|m| m.account) else { return };
-        if !self.session.mailbox.account(account).is_some_and(Account::is_shared) {
-            return;
-        }
-        if !self.shared_send_waits.contains(&account) {
-            self.shared_send_pressed.insert(account);
-        } else if self.dialog.is_none() {
+        if let Pressed::Ask(account) = self.session.shared_send_pressed_in(message)
+            && self.dialog.is_none()
+        {
             self.ask_shared_send(account);
         }
     }
@@ -285,14 +282,13 @@ impl MailApp {
     /// mailbox is read now; without, why not is said (and one being added isn't kept).
     pub(crate) fn shared_signed_in(&mut self, shared: Id, owner: Id, answer: Result<Tokens, String>) {
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
         let refused = match answer {
             // The owner picks who signs in on the page: it has to be the account it is opened
             // through. Somebody else's tokens are neither used nor remembered (#103).
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => Some(self.status_msg.as_ref().map(|(said, _)| said.clone()).unwrap_or_default()),
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", owner, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&owner) {
                         kept.refresh = tokens.refresh.clone();
                     }
@@ -376,23 +372,22 @@ impl MailApp {
         use crate::approval::NO_BROWSER;
         use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
         self.session.sync_status.clear();
-        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
         let why = match answer {
             // (Somebody else's tokens are neither used nor remembered, #103.)
             Ok(tokens) if self.signed_in_as_other(owner, &tokens) => return,
             Ok(tokens) => {
                 if !tokens.refresh.is_empty() {
-                    self.remember("refresh", &address, &tokens.refresh);
+                    self.remember("refresh", owner, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&owner) {
                         kept.refresh = tokens.refresh.clone();
                     }
                 }
                 self.graph_tokens.insert(shared, tokens);
                 // (Allowed: what waits goes now, a meeting's answer too.)
-                self.shared_send_waits.remove(&shared);
-                if self.calendar.send_waits.remove(&shared) {
+                self.session.driver.sending.allowed(shared);
+                if self.session.driver.calendar.send_waits.remove(&shared) {
                     self.calendar_connected(shared);
-                    self.calendar.due = true;
+                    self.session.driver.calendar.due = true;
                 }
                 if let Err(e) = self.start_sync(&json!({"account": shared})) {
                     self.status(e);
@@ -411,7 +406,7 @@ impl MailApp {
         };
         let _ = self.execute("sync.holdSends", json!({"account": shared, "why": why}));
         // (Held, it waits for Send Again, not for permission.)
-        self.shared_send_waits.remove(&shared);
+        self.session.driver.sending.allowed(shared);
         if why == "approval" {
             // What to do next (#124): an administrator approves once, for everybody.
             let _ = self.run("ui.approvalHelp", json!({"account": owner}));
@@ -436,13 +431,13 @@ impl MailApp {
             return;
         }
         self.finish_shared_check(shared, Ok(()));
-        if over || self.sync_queue.is_empty() {
+        if over || self.session.driver.round.queue.is_empty() {
             return;
         }
         let quiet = self.graph_rx.as_ref().is_some_and(|(_, quiet, ..)| *quiet);
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-        if !self.sync_queue.iter().any(|(a, _)| *a == shared) {
-            self.sync_queue.push_back((shared, quiet));
+        if !self.session.driver.round.queue.iter().any(|(a, _)| *a == shared) {
+            self.session.driver.round.queue.push_back((shared, quiet));
         }
     }
 
@@ -509,9 +504,9 @@ impl MailApp {
         };
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some((whose, quiet)) = whose
-            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+            && !self.session.driver.round.queue.iter().any(|(a, _)| *a == whose)
         {
-            self.sync_queue.push_front((whose, quiet));
+            self.session.driver.round.queue.push_front((whose, quiet));
         }
     }
 

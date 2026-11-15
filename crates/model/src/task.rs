@@ -53,6 +53,9 @@ pub struct Task {
     /// #632 reads and so neither sends it nor offers it, until the to-do is changed there.
     #[serde(skip_serializing_if = "is_false")]
     pub kept_here: bool,
+    /// The key of the item of a .pst file it was brought in from.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub imported: String,
 }
 
 fn is_false(b: &bool) -> bool {

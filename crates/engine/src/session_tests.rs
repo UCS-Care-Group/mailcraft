@@ -83,24 +83,31 @@ fn the_clock_and_the_week_follow_the_language_unless_chosen() {
     use mailcraft_i18n::Lang;
     use mailcraft_time::Weekday;
     let mut fresh = Prefs::default();
-    fresh.follow_language(Lang::English);
+    fresh.follow_conventions(Lang::English.conventions());
     assert_eq!((fresh.twelve_hour, fresh.week_start), (true, Weekday::Sun), "English as it always was");
-    fresh.follow_language(Lang::French);
+    fresh.follow_conventions(Lang::French.conventions());
     assert_eq!((fresh.twelve_hour, fresh.week_start), (false, Weekday::Mon), "French's own");
-    fresh.follow_language(Lang::English);
+    fresh.follow_conventions(Lang::English.conventions());
     assert_eq!((fresh.twelve_hour, fresh.week_start), (true, Weekday::Sun), "and back");
+    // English in Britain and in India (#978).
+    fresh.follow_conventions(Lang::English.conventions_in(Some("GB")));
+    assert_eq!((fresh.twelve_hour, fresh.week_start), (false, Weekday::Mon), "British");
+    fresh.follow_conventions(Lang::English.conventions_in(Some("IN")));
+    assert_eq!((fresh.twelve_hour, fresh.week_start), (true, Weekday::Sun), "Indian");
     // Saved before the choice was kept: what differs from the old defaults was chosen.
     let mut old: Prefs = serde_json::from_value(json!({"twelveHour": false})).unwrap();
-    old.follow_language(Lang::French);
-    old.follow_language(Lang::English);
+    old.follow_conventions(Lang::French.conventions());
+    old.follow_conventions(Lang::English.conventions());
     assert_eq!((old.twelve_hour, old.week_start), (false, Weekday::Sun));
     let mut old: Prefs = serde_json::from_value(json!({"weekStart": "Mon"})).unwrap();
-    old.follow_language(Lang::English);
+    old.follow_conventions(Lang::English.conventions());
     assert_eq!((old.twelve_hour, old.week_start), (true, Weekday::Mon));
     // Chosen in Options: kept whatever the language, and saved.
     let mut s = Session::empty();
     s.run("file.options", &json!({"twelveHour": true, "weekStart": "sun"})).unwrap();
-    s.prefs.follow_language(Lang::French);
+    s.prefs.follow_conventions(Lang::French.conventions());
+    assert_eq!((s.prefs.twelve_hour, s.prefs.week_start), (true, Weekday::Sun));
+    s.prefs.follow_conventions(Lang::English.conventions_in(Some("GB")));
     assert_eq!((s.prefs.twelve_hour, s.prefs.week_start), (true, Weekday::Sun));
     let saved: Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(saved, s.prefs);

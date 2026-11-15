@@ -1,1 +1,0 @@
-- An agent that asks to forward or delete a calendar item and also names a message no longer has your question show that message: it names the item that will be forwarded or deleted ([#553](https://github.com/GITHUB_REPOSITORY/issues/553)).

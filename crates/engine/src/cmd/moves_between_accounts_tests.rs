@@ -267,6 +267,36 @@ fn mail_moves_between_two_microsoft_accounts_of_ones_own() {
     assert!(matches!(asked.as_slice(), [mailcraft_model::sync::MessageChange::MovedOut { id, .. }] if id == "AAkA7"), "{asked:?}");
 }
 
+/// Moved back from a shared mailbox by an undo, a message leaves the stamps it has there behind:
+/// they are that mailbox's server's word, and would vouch for it in the owner's own (#781).
+#[test]
+fn a_move_between_microsoft_mailboxes_undone_leaves_the_second_servers_stamps_behind() {
+    const TEAM: &str = "team@example.org";
+    let mut s = Session::empty();
+    let mine = microsoft(&mut s, OWNER);
+    let other = s.mailbox.add_shared_mailbox(mine, TEAM).unwrap();
+    let folders = vec![GraphFolder { id: "in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let listing =
+        GraphMailResult { account: other, email: TEAM.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
+    apply_graph_mail(&mut s, listing).unwrap();
+    let (inbox, theirs) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap());
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
+    placed(&mut s, other, TEAM, &[made("AAkB1")]);
+    let change = graph_mail_request(&s, mine).unwrap().messages.remove(0);
+    microsoft_answered(&mut s, mine, change, MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() }, false);
+    let stamp = (mailcraft_model::auth_results::AUTH_AS.to_string(), "Internal".to_string());
+    let here = s.mailbox.message_mut(m).unwrap();
+    assert!(here.moving_out.is_none(), "{:?}", here.moving_out);
+    here.headers = vec![stamp];
+    s.run("edit.undo", &json!({})).unwrap();
+    let back = s.mailbox.message(m).unwrap();
+    assert_eq!((back.account, back.headers.len()), (mine, 0));
+    assert!(s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { account, message, .. } if *account == mine && *message == m)));
+}
+
 #[test]
 fn a_refused_move_from_this_computer_goes_back_to_its_folder() {
     let (mut s, _, kept) = imap();
@@ -576,7 +606,7 @@ fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
 fn put(asked: &SyncRequest, message: Id, uid: u32, uid_validity: u32) -> Placed {
     let place = asked.places.iter().find(|p| p.message.id == message).unwrap();
     let flags = RemoteFlags { draft: false, ..RemoteFlags::of(&place.message, 0) };
-    Placed { message, to_folder: place.to_folder, uid, uid_validity, flags }
+    Placed { message, to_folder: place.to_folder, uid, uid_validity, flags, original: place.message.original.is_some() }
 }
 
 #[test]
@@ -1811,13 +1841,15 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let fetch = crate::cmd::graph_down::fetch_queue_passing_over(&s.mailbox, ms, 10, 1_800_000_000, &Default::default());
     assert_eq!(fetch, ["R1"]);
     assert!(sync_request(&s, a).unwrap().places.is_empty());
-    let mime = b"Message-ID: <rota@example.org>\r\nFrom: boss@example.org\r\nSubject: Rota\r\n\r\nThe rota, all of it.\r\n".to_vec();
+    let mime = b"Message-ID: <rota@example.org>\r\nFrom: boss@example.org\r\nSubject: Rota\r\nX-MS-Exchange-Organization-AuthAs: Internal\r\n\r\nThe rota, all of it.\r\n".to_vec();
     let fetched = vec![mailcraft_model::sync::GraphFetched { id: "R1".into(), mime }];
     let result = mailcraft_model::sync::GraphFetchResult { account: ms, email: OWNER.into(), fetched, ..Default::default() };
     crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
     // Whole: Gmail is given it, and once Gmail has it, Microsoft's original goes.
     let asked = sync_request(&s, a).unwrap();
     assert_eq!(asked.places.iter().map(|p| p.message.body.text.as_str()).collect::<Vec<_>>(), ["The rota, all of it."]);
+    // Microsoft's word that it came from inside the organisation stays behind (#781).
+    assert!(asked.places.iter().all(|p| p.message.headers.is_empty()), "{:?}", asked.places[0].message.headers);
     apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, rota, 40, 7)], ..Default::default() }).unwrap();
     assert_eq!(at(&s, rota), (a, gmail, 40));
     let changes = graph_mail_request(&s, ms).unwrap().messages;

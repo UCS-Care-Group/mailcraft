@@ -17,21 +17,27 @@ mailcraft-cli — MailCraft from the command line
 USAGE:
   mailcraft-cli info <mailbox>                  accounts and counts (JSON)
   mailcraft-cli folders <mailbox>               the folder tree with counts (JSON)
-  mailcraft-cli list <mailbox> [--folder PATH] [--query Q] [--limit N]
-                                                messages, newest first (JSON)
+  mailcraft-cli list <mailbox> [--folder FOLDER] [--query Q] [--limit N]
+                                                messages, newest first (JSON); FOLDER is an id,
+                                                a kind (inbox, sent, drafts, deleted, junk,
+                                                archive, outbox) in any language of the mailbox,
+                                                or a path such as Inbox/Projects
   mailcraft-cli show <mailbox> <id>             one message in full (JSON)
-  mailcraft-cli import <mailbox> <file>... [--folder PATH]
+  mailcraft-cli import <mailbox> <file>... [--folder FOLDER]
                                                 bring .eml, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli import-pst <mailbox> <file.pst> [--dry-run] [--under PATH]
-                                                preview: the mail of a .pst file
-                                                into a new folder named after the file on this
-                                                computer (or under the local folder PATH); the
+                                                the mail, contacts, calendar, tasks, notes and
+                                                journal of a .pst file;
+                                                mail into a new folder named after the file on this
+                                                computer (or under the local folder PATH),
+                                                contacts into the computer's contacts, each marked
+                                                as imported from the file; the
                                                 file's password, when it has one, is read from
                                                 MAILCRAFT_PST_PASSWORD. Prints the import report
                                                 (JSON) and saves the mailbox (not with --dry-run);
                                                 a second import skips what is already there
-  mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
+  mailcraft-cli export <mailbox> <out> [--folder FOLDER] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
                                                 .mailcraft (everything, in one file)
@@ -72,7 +78,7 @@ fn open(path: &str) -> Result<Session, String> {
     if let Some(notice) = opened.notice() {
         eprintln!("warning: {path}: {notice}");
     }
-    let mut s = Session::new(opened.mailbox);
+    let mut s = trusting(Session::new(opened.mailbox));
     s.path = Some(path.into());
     // The steps every opening takes (#793): mail put back empty is fetched again before a
     // command can move it.
@@ -85,14 +91,21 @@ fn open_or_new(path: &str) -> Result<Session, String> {
     if std::path::Path::new(path).exists() {
         return open(path);
     }
-    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
     s.path = Some(path.into());
     Ok(s)
 }
 
 fn sample() -> Session {
     let now = mailcraft_time::now();
-    Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)))
+    trusting(Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now))))
+}
+
+/// `s` with the certification authorities this computer trusts for mail (#30), as the window
+/// has them: a Digital signature is checked here as there.
+fn trusting(mut s: Session) -> Session {
+    s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -275,10 +288,11 @@ fn parse_cmd(text: &str) -> Result<(String, Value), String> {
     }
 }
 
-/// Go to the folder `--folder` names (a path such as `Inbox/Projects`), when given.
+/// Go to the folder `--folder` names, when given: an id, a standard folder's kind (`sent`,
+/// `inbox`…) in any language of the mailbox, or a path such as `Inbox/Projects` (#1200).
 fn go_to_folder(s: &mut Session, args: &[String]) -> Result<(), Failure> {
-    if let Some(path) = arg_value(args, "--folder") {
-        s.run("folder.select", &json!({"path": path}))?;
+    if let Some(folder) = arg_value(args, "--folder") {
+        s.run("folder.select", &json!({"folder": folder}))?;
     }
     Ok(())
 }
@@ -354,21 +368,33 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let (mailbox, file) = (pos.first().ok_or_else(missing)?, pos.get(1).ok_or_else(missing)?);
             let dry = rest.iter().any(|a| a == "--dry-run");
             let mut s = open_or_new(mailbox)?;
-            let mut params = json!({"path": file, "dryRun": dry});
+            let mut params = json!({});
             if let Some(under) = arg_value(&rest, "--under") {
                 s.run("folder.select", &json!({"path": under}))?;
                 params["places"] = json!({"mail": s.view.folder});
             }
             // The file's password from the environment, never the command line.
-            if let Ok(password) = std::env::var("MAILCRAFT_PST_PASSWORD") {
-                params["password"] = json!(password);
-            }
-            let report = s.run("file.importPst", &params).map_err(|e| format!("{file}: {e}"))?;
-            print_json(&report)?;
+            let password = std::env::var("MAILCRAFT_PST_PASSWORD").ok();
+            // A batch at a time, as the window does (#815): attachments go to the mailbox's
+            // content folder as they are read, so a large file doesn't fill the memory.
+            // An import into a mailbox file that isn't there yet, and doesn't end in a saved one,
+            // leaves no content folder behind.
+            let new_file = !std::path::Path::new(mailbox).exists();
+            let undo = |e: String| {
+                if new_file {
+                    mailcraft_engine::store::remove_unwritten(std::path::Path::new(mailbox));
+                }
+                e
+            };
+            let report = mailcraft_engine::import_pst::run_staged(&mut s, file, password, dry, &params).map_err(|e| undo(format!("{file}: {e}")))?;
+            // (The import is kept, or its content taken away, whether or not the report could be
+            // written out: a closed pipe doesn't skip the save.)
+            let printed = print_json(&report);
             if !dry {
-                s.run("file.save", &json!({"path": mailbox}))?;
+                s.run("file.save", &json!({"path": mailbox})).map_err(|e| undo(e.to_string()))?;
                 eprintln!("wrote {mailbox}");
             }
+            printed?;
             Ok(())
         }
         "export" => {
@@ -392,7 +418,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match mailcraft_engine::io::Format::from_extension(input) {
                 Some(mailcraft_engine::io::Format::Mailbox) => open(input)?,
                 _ => {
-                    let mut s = Session::new(Mailbox::with_local_account("", ""));
+                    let mut s = trusting(Session::new(Mailbox::with_local_account("", "")));
                     s.run("file.import", &json!({"path": input})).map_err(|e| format!("{input}: {e}"))?;
                     s
                 }
@@ -409,7 +435,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let mut s = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                 (Some(f), _) => open(&f)?,
                 (None, true) => sample(),
-                (None, false) => Session::new(Mailbox::with_local_account("", "")),
+                (None, false) => trusting(Session::new(Mailbox::with_local_account("", ""))),
             };
             let print = rest.iter().any(|a| a == "--print");
             let mut i = 0;
@@ -548,16 +574,26 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let address = pos.first().ok_or_else(missing)?;
             let mut s = Session::empty();
             // From the address alone first; a domain nobody here knows is asked about (only the
-            // domain goes out, never the mailbox name).
+            // domain goes out, never the mailbox name): its mail exchangers, and the servers its
+            // own records name (#1063).
             let mut found = s.run("account.preset", &json!({"email": address}))?;
             if found["known"] != true
                 && !rest.iter().any(|a| a == "--offline")
                 && let Some((_, domain)) = address.rsplit_once('@')
             {
-                match mailcraft_net::lookup_mx(domain) {
-                    Ok(mx) => {
-                        found = s.run("account.preset", &json!({"email": address, "mx": mx}))?;
-                        found["mx"] = json!(mx);
+                match mailcraft_net::discover(domain) {
+                    Ok(discovered) => {
+                        let server = |server: &mailcraft_model::provider::FoundServer| json!({"host": server.server.host, "port": server.server.port, "security": server.server.security.code(), "via": server.via.code()});
+                        let mut params = json!({"email": address, "mx": discovered.exchangers});
+                        if discovered.incoming.is_some() || discovered.outgoing.is_some() {
+                            params["found"] = json!({
+                                "incoming": discovered.incoming.as_ref().map(server),
+                                "outgoing": discovered.outgoing.as_ref().map(server),
+                                "username": discovered.username,
+                            });
+                        }
+                        found = s.run("account.preset", &params)?;
+                        found["mx"] = json!(discovered.exchangers);
                     }
                     Err(e) => eprintln!("detect: couldn't look up {domain}: {e}"),
                 }
@@ -591,7 +627,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                         (Some(f), _) => open(&f)?,
                         (None, true) => sample(),
-                        (None, false) => Session::empty(),
+                        (None, false) => trusting(Session::empty()),
                     };
                     Box::new(mailcraft_mcp::Headless::new(session, allow.clone()))
                 }
@@ -619,11 +655,23 @@ fn main() -> ExitCode {
 }
 
 #[cfg(test)]
+mod folder_kinds_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     fn strings(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// A session of the command line (and of the MCP server it runs) has the system's
+    /// authorities for mail handed in, as the window's has (#30): read, whether any were found.
+    #[test]
+    fn a_session_has_the_systems_authorities_for_mail() {
+        assert!(sample().trust_anchors_read().is_some());
+        assert!(trusting(Session::empty()).trust_anchors_read().is_some());
+        assert!(Session::empty().trust_anchors_read().is_none(), "the engine reads none itself");
     }
 
     #[test]

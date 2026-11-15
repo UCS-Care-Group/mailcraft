@@ -61,8 +61,16 @@ impl Headless {
                 r
             }
             Verdict::Ask(class, what) => {
-                let asked = matches!(agent::classify(&self.session, id, params), agent::Access::Asked(_));
-                Err(agent::needs_owner(id, class, asked, &what))
+                let access = agent::classify(&self.session, id, params);
+                let asked = matches!(access, agent::Access::Asked(_));
+                // Every class the call needs, so that one `--allow` covers it (#473).
+                let first = match access {
+                    agent::Access::Owner(c) | agent::Access::Asked(c) => c,
+                    _ => class,
+                };
+                let mut classes = vec![first];
+                classes.extend(agent::also(&self.session, id, params, first));
+                Err(agent::needs_owner_for(id, &classes, asked, &what))
             }
             Verdict::Refuse(why) => Err(why),
         }
@@ -97,9 +105,13 @@ impl Backend for Headless {
 #[cfg(test)]
 mod files_tests;
 #[cfg(test)]
+mod framing_tests;
+#[cfg(test)]
 mod gate_tests;
 #[cfg(test)]
 mod hidden_text_tests;
+#[cfg(test)]
+mod server_tests;
 #[cfg(test)]
 mod shared_window_tests;
 #[cfg(test)]

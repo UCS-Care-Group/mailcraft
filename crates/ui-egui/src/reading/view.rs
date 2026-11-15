@@ -26,7 +26,7 @@ use mailcraft_model::Message;
 use super::Place;
 use super::colors::Paper;
 use super::images::{self, Picture, Pictures, Remote};
-use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, cut};
+use super::layout::{Glue, ItemKind, Laid, PIECE_CHARS, PlaceholderItem, TextItem, TextLink, cut};
 use super::remote::Access;
 use super::select::{self, Action};
 use crate::MailApp;
@@ -180,6 +180,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
+                image_padding: block.image_padding,
                 line: block.line,
             });
             cuts.push((n > 0).then_some(glue));
@@ -233,6 +234,9 @@ struct Key {
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
+    /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
+    /// came, or turned out not to be had.
+    fonts: u64,
 }
 
 struct Entry {
@@ -280,6 +284,12 @@ fn same_body(a: &Message, b: &Message) -> bool {
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())
+    }
+
+    /// Let go of every body laid out, and the messages they were laid out from (the window is out
+    /// of sight, [`crate::out_of_sight`]): each is laid out again when it is next shown.
+    pub fn let_go(ctx: &egui::Context) {
+        Store::of(ctx).lock().unwrap_or_else(|e| e.into_inner()).entries.clear();
     }
 
     /// The entry for `message` shown at `place`, parsing its body when it is not known yet
@@ -486,11 +496,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
+        fonts: {
+            // What the fonts' threads brought is taken in first (#600).
+            super::fonts::tick(&ctx);
+            super::fonts::generation(&ctx)
+        },
     };
     if entry.key == Some(key) {
         entry.next = None;
-    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, ..old } == key) {
-        // Only the pictures changed: what is shown stays until the new layout is whole.
+    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, ..old } == key) {
+        // Only the pictures or the message's fonts changed: what is shown stays until the new
+        // layout is whole.
         if entry.next.as_ref().is_none_or(|(next, _)| *next != key) {
             entry.next = Some((
                 key,
@@ -716,9 +732,9 @@ pub fn paint(
                     marks.text(&mut galley, part);
                 }
                 if !flagged.is_empty() {
-                    for (range, url) in &text.links {
-                        if super::warnings::is_mismatched(url, flagged) {
-                            for r in char_rects(&galley, range) {
+                    for link in &text.links {
+                        if super::warnings::is_mismatched(&link.url, flagged) {
+                            for r in char_rects(&galley, &link.range) {
                                 painter.rect_stroke(
                                     r.translate(at.to_vec2()).expand(1.5),
                                     2.0,
@@ -729,7 +745,8 @@ pub fn paint(
                         }
                     }
                 }
-                painter.galley(at, galley, t.text);
+                painter.galley(at, Arc::clone(&galley), t.text);
+                paint_link_underlines(&painter, at, &galley, &text.links);
             }
             ItemKind::Picture(picture) => {
                 let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
@@ -903,10 +920,41 @@ fn char_rects(galley: &egui::Galley, range: &std::ops::Range<usize>) -> Vec<Rect
     out
 }
 
+/// Draw each link just below its glyphs' baseline. egui's underline follows the bottom of
+/// the line box, which includes the extra spacing of a message's line height.
+pub(super) fn paint_link_underlines(painter: &egui::Painter, at: egui::Pos2, galley: &egui::Galley, links: &[TextLink]) {
+    let mut links = links.iter().peekable();
+    let mut row_start = 0;
+    for row in &galley.rows {
+        if links.peek().is_none() {
+            break;
+        }
+        let row_end = row_start + row.glyphs.len();
+        let origin = at + row.pos.to_vec2();
+        let visible = painter.clip_rect().intersects(row.rect().translate(at.to_vec2()));
+        while let Some(link) = links.peek().filter(|link| link.range.start < row_end) {
+            let from = link.range.start.saturating_sub(row_start);
+            let to = link.range.end.min(row_end).saturating_sub(row_start);
+            if visible
+                && let Some(glyphs) = row.glyphs.get(from..to)
+                && let (Some(first), Some(last)) = (glyphs.first(), glyphs.last())
+            {
+                let y = glyphs.iter().map(|g| g.pos.y + (g.font_face_height * 0.10).max(1.0)).fold(0.0, f32::max);
+                painter.line_segment([origin + vec2(first.pos.x, y), origin + vec2(last.max_x(), y)], Stroke::new(1.0, link.ink));
+            }
+            if link.range.end > row_end {
+                break;
+            }
+            links.next();
+        }
+        row_start = row_end + usize::from(row.ends_with_newline);
+    }
+}
+
 /// The link of a laid-out text that a point (from the text's origin) is on.
 pub fn link_under(text: &TextItem, galley: &egui::Galley, point: egui::Vec2) -> Option<Arc<str>> {
     let index = char_at(galley, point)?;
-    text.links.iter().find(|(range, _)| range.contains(&index)).map(|(_, url)| url.clone())
+    text.links.iter().find(|link| link.range.contains(&index)).map(|link| Arc::clone(&link.url))
 }
 
 /// A list bullet: a disc, a ring or a square by the depth of the list, as in a browser.

@@ -15,7 +15,12 @@ mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
 mailcraft-link = { workspace = true }
+# A name from a certificate or a token is cleaned as every incoming name is (`key_holders`, #30).
+mailcraft-names = { workspace = true }
 image = { workspace = true }
+# A private scratch directory for the optional local attachment renderer.
+tempfile = { workspace = true }
+mailcraft-host = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }
@@ -23,6 +28,8 @@ mailcraft-control-key = { workspace = true }
 mailcraft-net = { workspace = true }
 # Exchange server accounts (#252): the requests and the readers of the answers; the HTTPS is `mailcraft-net`'s.
 mailcraft-ews = { workspace = true }
+# OpenPGP keys kept in GnuPG (#30): the conversation with gpg-agent; finding and opening its socket is `gpg_agent.rs`.
+mailcraft-assuan = { workspace = true }
 # `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
@@ -36,6 +43,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
+# The Graph run's seams, which the flow tests go through with a renewal of their own.
+mailcraft-host = { workspace = true, features = ["test-support"] }
 # The tests run the whole way of a calendar change, and of reading Outlook's Favorites, against
 # a stand-in for Microsoft Graph that takes only what the documented service takes
 # (`mailcraft_net::graph::standin`).
@@ -66,6 +75,10 @@ fmv-macos-events = "=0.1.0"
 muda = { version = "0.21.2", default-features = false }
 # The macOS keychain (the owner's login keychain), for the credential store below.
 apple-native-keyring-store = { version = "1", features = ["keychain"] }
+# S/MIME keys in the owner's keychains (`key_holders/macos_keychain.rs`, #30): identities, their keys'
+# signing and decrypting, and `.p12` import, through the crate's safe API. MIT OR Apache-2.0,
+# already in the tree (the system's TLS verifier's and the keychain store's); no default features.
+security-framework = { version = "3.7", default-features = false }
 # Desktop alerts through the UserNotifications framework (`alerts.rs`), through the generated
 # bindings' safe calls only. objc2, its Foundation and block2 are already in the tree (the GUI
 # stack's); the UserNotifications bindings are the same project's (MIT, Zlib or Apache-2.0).
@@ -92,6 +105,8 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 ] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+# Native tray/menu-bar icon, using the existing MailCraft artwork; no GTK dependency on Unix.
+tray-icon = { version = "0.26", default-features = false }
 # A password or sign-in the owner asks to be remembered goes to the operating system's credential
 # store (Windows Credential Manager, the macOS keychain), never to a file of ours. keyring-core is
 # the keyring crate's API: keyring 4 is only a wrapper over it and the stores named here, and its
@@ -99,6 +114,10 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 keyring-core = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# Legacy Windows Recent Items shortcuts encode paths in the system ANSI code page.
+encoding_rs = { workspace = true }
+# Enumerate local fixed volumes without starting a shell or probing mapped drives.
+sysinfo = { version = "0.40.1", default-features = false, features = ["disk"] }
 # Windows Credential Manager, for the credential store above.
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy
@@ -106,9 +125,40 @@ windows-native-keyring-store = "1.1"
 winreg = "0.56"
 # Desktop alerts as toasts (`alerts.rs`): Windows.UI.Notifications and the XML they are made of.
 # Already in the tree (the GUI stack's), the same version; only these features are added.
-windows = { version = "0.62", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
+# S/MIME keys in the owner's certificate store (`key_holders/windows_store.rs`, #30): the Windows
+# Runtime's certificate and key classes, which the crate projects as safe calls (the CryptoAPI and
+# CNG functions would need unsafe). The same crate and version, with these features added.
+windows = { version = "0.62", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Data_Xml_Dom",
+    "UI_Notifications",
+    # Whether the system plays animations (`system_motion.rs`, #1183).
+    "UI_ViewManagement",
+    "Security_Cryptography",
+    "Security_Cryptography_Certificates",
+    "Security_Cryptography_Core",
+    "Storage_Streams",
+] }
+# A `.p12` goes to the Windows Runtime's import as base64 text (`key_holders/windows_store.rs`).
+base64 = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+# Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
+# Already part of winit's X11 backend; the pure Rust connector performs authentication too.
+x11rb = { version = "0.13", default-features = false }
+# S/MIME keys on PKCS#11 tokens (`key_holders/pkcs11.rs`, #30): smartcards through OpenSC and what
+# p11-kit's proxy gathers. Apache-2.0 (the Parsec project's); loading the module and calling it
+# are its unsafe, behind a safe API. Under it: cryptoki-sys (Apache-2.0), libloading (ISC) and
+# secrecy (Apache-2.0 OR MIT), which clears the PIN it is handed.
+cryptoki = "0.12.1"
+# Checking a token's signature against its certificate when the key was paired with it only
+# through a public-key object (`key_holders/pkcs11.rs`): RustCrypto's verifiers (Apache-2.0 OR
+# MIT), public keys only, the versions and features the S/MIME checker uses.
+rsa = { version = "0.10", default-features = false, features = ["encoding", "pkcs1v15"] }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
+p384 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc"] }
+sha2 = { version = "0.11", default-features = false, features = ["oid"] }
 # On Linux and FreeBSD the store is the desktop's Secret Service (GNOME Keyring, KWallet,
 # KeePassXC…), spoken to over D-Bus. These features keep it pure Rust: zbus rather than libdbus,
 # so neither building nor installing needs a system library, and the secret travels to the
@@ -128,6 +178,8 @@ arboard = { version = "3.7", default-features = false, features = ["wayland-data
 winit = { version = "0.30", default-features = false, features = ["wayland", "x11", "wayland-csd-adwaita-notitle"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))'.dependencies]
+# StatusNotifierItem and its menu over D-Bus, without GTK or a second GUI event loop.
+ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
 # "Use system setting" follows the desktop's light or dark preference, which winit doesn't report
 # on these systems: read from the XDG desktop portal's settings over the session's D-Bus, and
 # followed as it changes (`desktop_theme.rs`, #73). Already in the tree (accesskit's, the Secret
@@ -135,6 +187,11 @@ winit = { version = "0.30", default-features = false, features = ["wayland", "x1
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The owner's S/MIME certificates as the system's store holds them (`key_holders`, #30), read with
+# RustCrypto's X.509 reader (Apache-2.0 OR MIT), the same on every system; and a PIN the owner
+# types for a token, overwritten when it is let go of (`zeroize`, already in the tree).
+x509-cert = { version = "0.3", default-features = false, features = ["std"] }
+zeroize = "1"
 # The control server's random key (the operating system's source, as the sign-in's); also signs a
 # release in the update test (`update_flow`).
 ring = { workspace = true }

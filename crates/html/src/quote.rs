@@ -7,14 +7,23 @@
 //! attributes that lay out and dress text, tables and pictures, by list. Nothing that runs, embeds
 //! another document, sends a form or sets a style for the whole message is carried, nor anything
 //! the sender hid, nor a picture too small to see. Pictures in the message (`cid:`) and ordinary
-//! pictures on the web stay: the recipient's program decides whether to fetch those.
+//! pictures on the web stay: the recipient's program decides whether to fetch those. A picture
+//! written into the message (`data:`) is left out by [`quotable`]; [`quotable_with_pictures`]
+//! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
+//! part of its own, and refers to it by the Content-ID the caller gives it (#602).
 
-use crate::blocks::{css_of, picture_url};
+use crate::blocks::{css_of, left_out, picture_url};
+use crate::data::{self, Budget, MAX_DATA_TEXT, Picture};
 use crate::entities::{escape, unescape};
 use crate::sheet::Sheet;
 use crate::style::{self, Css};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{MAX_INPUT, is_embedded, is_safe_url, truncate};
+
+/// What is given a picture written into the message being quoted, with its type (`image/png`,
+/// `image/jpeg`, `image/gif` or `image/webp`) and its bytes: the Content-ID it goes out under, or
+/// `None` to leave it out.
+pub type WrittenPicture<'w> = dyn FnMut(&str, &Picture) -> Option<String> + 'w;
 
 /// Deepest elements may nest in what is written; tags opened deeper are left out, their text kept.
 const MAX_DEPTH: usize = 128;
@@ -201,18 +210,54 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// than a limit keeps its text and loses its tags. Takes any string, never panics, reads at most
 /// [`MAX_INPUT`] bytes and is linear in them.
 pub fn quotable(html: &str) -> String {
-    let mut q = Quoter::default();
-    let html = truncate(html, MAX_INPUT);
+    quote(html, None)
+}
+
+/// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
+/// own: each that the reading pane would show (a PNG, JPEG, GIF or WebP by its own bytes, within
+/// [`MAX_DATA_PICTURES`](crate::MAX_DATA_PICTURES), [`MAX_DATA_PICTURE_BYTES`](crate::MAX_DATA_PICTURE_BYTES)
+/// and [`MAX_DATA_PICTURES_BYTES`](crate::MAX_DATA_PICTURES_BYTES), and not hidden) is given to
+/// `written`, and its `<img>` refers to it by the Content-ID `written` answers (`cid:…`); the
+/// others are left out. As in the reading pane, the pictures' text is not counted against
+/// [`MAX_INPUT`]: the rest of the message is read as far as it would be without them. A picture
+/// given to `written` may still be left out of what is written (one before a `<body>` that comes
+/// later, which counts against the caps all the same, as in the reading pane): the caller keeps
+/// only those the result refers to.
+pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>) -> String {
+    quote(html, Some(written))
+}
+
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
+    let carrying = written.is_some();
+    let html = truncate(html, if carrying { MAX_INPUT.saturating_add(MAX_DATA_TEXT) } else { MAX_INPUT });
+    let mut q = Quoter { written, ..Quoter::default() };
     // The message's style sheets are read to see what the sender hid with them; they are not
     // carried.
     let mut sheet = Sheet::read(html);
     let mut opened = 0usize;
-    for mut token in Tokenizer::new(html) {
+    let mut tokens = Tokenizer::new(html);
+    // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
+    let mut pictures = 0usize;
+    while let Some(mut token) = tokens.next() {
         if let Token::Open(tag) = &mut token {
             if let Some(sheet) = &mut sheet {
                 sheet.apply(opened, tag);
             }
             opened = opened.saturating_add(1);
+            if carrying
+                && tag.name == "img"
+                && let Some(src) = tag.raw_attr("src").filter(|src| data::is_data(src))
+            {
+                pictures = pictures.saturating_add(src.len());
+            }
+        }
+        let over = tokens.pos().saturating_sub(pictures).saturating_sub(MAX_INPUT);
+        if over > 0 {
+            // The rest of the text that ends past the input read, as if the input ended there.
+            if let Token::Text(text) = token {
+                q.token(Token::Text(truncate(text, text.len().saturating_sub(over))));
+            }
+            break;
         }
         q.token(token);
     }
@@ -220,7 +265,11 @@ pub fn quotable(html: &str) -> String {
 }
 
 #[derive(Default)]
-struct Quoter {
+struct Quoter<'a, 'w> {
+    /// Where the pictures written into the message go, when they are carried.
+    written: Option<&'a mut WrittenPicture<'w>>,
+    /// What those pictures have taken so far.
+    budget: Budget,
     out: String,
     /// Kept elements open in what is written, outermost first.
     open: Vec<&'static str>,
@@ -238,14 +287,16 @@ struct Skip {
     nested: usize,
 }
 
-impl Quoter {
+impl Quoter<'_, '_> {
     fn token(&mut self, token: Token<'_>) {
         if let Token::Open(tag) = &token
             && tag.name == "body"
         {
             // What is before the body is the head, or out of place: only the body is carried.
             if !self.body {
-                *self = Quoter { body: true, ..Quoter::default() };
+                // (Where the pictures go, and what they took, stay.)
+                let (written, budget) = (self.written.take(), std::mem::take(&mut self.budget));
+                *self = Quoter { body: true, written, budget, ..Quoter::default() };
             }
             return;
         }
@@ -316,7 +367,7 @@ impl Quoter {
         }
         let Some(kept) = kept else { return };
         let picture = if kept == "img" {
-            match picture_kept(tag) {
+            match self.picture(tag) {
                 Some(src) => Some(src),
                 None => return,
             }
@@ -352,6 +403,23 @@ impl Quoter {
         if !void {
             self.open.push(kept);
         }
+    }
+
+    /// A picture's address as it is carried, when it is carried at all: [`picture_kept`]'s, or for
+    /// a picture written into the message that the reading pane would show, the Content-ID it
+    /// goes out under, when there is somewhere for it to go. One too small to see is left out
+    /// before it is read, as in the reading pane, and takes nothing of the caps.
+    fn picture(&mut self, tag: &Tag<'_>) -> Option<String> {
+        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_kept(tag) };
+        let written = self.written.as_mut()?;
+        if left_out(tag, &css_of(tag)) {
+            return None;
+        }
+        let (kept, bytes) = data::picture(&src, true, &mut self.budget);
+        let bytes = bytes?;
+        let mime = kept.strip_prefix("data:").unwrap_or_default();
+        let cid = written(mime, &bytes)?;
+        Some(format!("cid:{cid}"))
     }
 
     fn close_tag(&mut self, name: &str) {
@@ -518,3 +586,5 @@ fn risky_style(style: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod written_tests;

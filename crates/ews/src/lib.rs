@@ -54,6 +54,8 @@ pub mod client;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod compose;
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+mod delete_check;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod error;
@@ -99,11 +101,17 @@ pub mod standin_ntlm;
 pub mod standin_write;
 
 #[cfg(test)]
+mod delete_check_tests;
+#[cfg(test)]
+mod exchange2010_tests;
+#[cfg(test)]
 mod hostile_tests;
 #[cfg(test)]
 mod items_tests;
 #[cfg(test)]
 mod mail_tests;
+#[cfg(test)]
+mod own_folders_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -121,7 +129,7 @@ pub use error::{Error, PolicyReason, ResponseClass, ResponseCode};
 pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder};
 pub use hierarchy::{HierarchyPage, SyncFolderHierarchy};
 pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, Secret, TransportError};
-pub use items::{GetItemMime, ItemsPage, Shape, SyncFolderItems};
+pub use items::{GetItemMime, GetItemRecipients, ItemsPage, Recipients, Shape, SyncFolderItems};
 pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
 pub use run::{failed_run, fetch_messages, sync_mail};

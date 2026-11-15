@@ -5,6 +5,7 @@
 //!
 //! The hosts and addresses are invented.
 
+use mailcraft_model::auth_results::MAX_AUTH_AS;
 use mailcraft_model::{Account, AccountKind, Address, Message, Security, Server};
 
 use crate::reading::remote::vouched;
@@ -30,6 +31,18 @@ fn message(headers: &[&str]) -> Message {
 
 const PASS: &str = "dmarc=pass header.from=shop.example";
 
+/// `m` as Exchange Online delivers mail from outside: its verdicts (`results`, with Exchange's
+/// own id) above the hop where it took the mail in, and its word that the mail came in.
+fn taken_in(mut m: Message, results: &[&str]) -> Message {
+    let mut headers: Vec<(String, String)> =
+        results.iter().map(|value| ("Authentication-Results".to_string(), format!("mx.microsoft.com 1; {value}"))).collect();
+    headers.push(("Received".into(), "from mail.shop.example (192.0.2.1) by A1.mail.protection.outlook.com (10.0.0.1)".into()));
+    headers.append(&mut m.headers);
+    headers.push(("X-MS-Exchange-Organization-MessageDirectionality".into(), "Incoming".into()));
+    m.headers = headers;
+    m
+}
+
 #[test]
 fn gmail_vouches_with_its_own_id() {
     let gmail = imap("imap.gmail.com");
@@ -47,14 +60,21 @@ fn a_forged_google_id_is_nothing_on_another_account() {
     assert!(!vouched(None, &forged));
 }
 
+/// AU3-V5: on Exchange Online only the verdict Exchange writes with its own id above the hop
+/// where it took the mail in counts; a header with no id, or below that hop, is the sender's.
 #[test]
-fn no_id_counts_for_a_microsoft_account_alone() {
-    let bare = message(&["spf=pass smtp.mailfrom=shop.example; dmarc=pass action=none header.from=shop.example; compauth=pass reason=100"]);
-    assert!(vouched(Some(&account(AccountKind::Microsoft, "")), &bare));
-    assert!(vouched(Some(&imap("outlook.office365.com")), &bare));
-    assert!(vouched(Some(&imap("outlook.office.com")), &bare));
-    assert!(!vouched(Some(&imap("imap.lumen.example")), &bare));
-    assert!(!vouched(Some(&imap("imap.gmail.com")), &bare));
+fn exchange_onlines_own_verdict_counts_for_a_microsoft_account_alone() {
+    let verdict = "spf=pass smtp.mailfrom=shop.example; dmarc=pass action=none header.from=shop.example; compauth=pass reason=100";
+    let exchange = taken_in(message(&[]), &[verdict]);
+    assert!(vouched(Some(&account(AccountKind::Microsoft, "")), &exchange));
+    assert!(vouched(Some(&imap("outlook.office365.com")), &exchange));
+    assert!(vouched(Some(&imap("outlook.office.com")), &exchange));
+    assert!(!vouched(Some(&imap("imap.lumen.example")), &exchange));
+    assert!(!vouched(Some(&imap("imap.gmail.com")), &exchange));
+    // No id, and no hop of Exchange's: what the sender wrote.
+    let bare = message(&[verdict]);
+    assert!(!vouched(Some(&account(AccountKind::Microsoft, "")), &bare));
+    assert!(!vouched(Some(&imap("outlook.office365.com")), &bare));
 }
 
 #[test]
@@ -243,12 +263,12 @@ fn the_servers_dmarc_verdict_is_never_overruled_by_a_signature() {
     assert!(!stacked(&format!("mx.lumen.example; spf=pass (open{}", " x".repeat(10))));
     assert!(stacked("mx.other.example; dmarc=fail header.from=news.shop.example"));
     assert!(stacked("mx.lumen.example; spf=pass smtp.mailfrom=news.shop.example"));
-    // A header with no authserv-id on a Microsoft account follows the same rule (Exchange Online
-    // itself always writes `dmarc` and `compauth`).
+    // Exchange Online's own header follows the same rule (Exchange itself always writes `dmarc`
+    // and `compauth`).
     let microsoft = account(AccountKind::Microsoft, "");
     let exchange = |rest: &str| {
-        let m = Message { from: Address::new("Shop", "news@shop.example"), ..message(&[rest]) };
-        vouched(Some(&microsoft), &m)
+        let m = Message { from: Address::new("Shop", "news@shop.example"), ..message(&[]) };
+        vouched(Some(&microsoft), &taken_in(m, &[rest]))
     };
     assert!(exchange("spf=pass smtp.mailfrom=shop.example; dkim=pass (signature was verified) header.d=shop.example"));
     assert!(!exchange(
@@ -315,8 +335,8 @@ fn mail_imported_from_a_file_is_never_vouched_for() {
     // The same with a UID on the server (IMAP), or a server's own record of it (Graph).
     file.uid = 12;
     assert!(vouched(Some(&lumen), &file));
-    file.uid = 0;
-    file.server = Some(mailcraft_model::sync::ServerMessage::default());
+    let mut file = taken_in(message(&[]), &["dmarc=pass header.from=shop.example"]);
+    (file.uid, file.server) = (0, Some(mailcraft_model::sync::ServerMessage::default()));
     assert!(vouched(Some(&account(AccountKind::Microsoft, "")), &file));
     // (A Microsoft account's mail from a file is just as much the file's.)
     (file.uid, file.server) = (0, None);
@@ -348,8 +368,71 @@ fn what_the_server_copied_from_the_sender_is_never_its_verdict() {
         let kept = m.headers.iter().find(|(name, _)| name == "Authentication-Results").map(|(_, value)| value.as_str());
         assert_eq!(kept, Some(results.as_str()));
     }
-    // The same through a Microsoft account, which believes a header with no id.
+    // The same through a Microsoft account, in Exchange Online's own header.
     let microsoft = account(AccountKind::Microsoft, "");
     let m = delivered("spf=pass smtp.mailfrom==?us-ascii?q?x=3B_dmarc=3Dpass_header.from=3Dvictim.example_x?=@sender.example");
+    let copied = m.headers.first().map(|(_, value)| value.clone()).unwrap_or_default();
+    let m = taken_in(Message { headers: Vec::new(), ..m }, &[&copied]);
     assert!(!vouched(Some(&microsoft), &m));
+}
+
+/// Mail between colleagues on Exchange Online gets no DMARC verdict (`dmarc=none`, or no
+/// `Authentication-Results` at all), but Exchange's own stamp that it came from inside the
+/// organisation, which a sender outside can't write, stands for one: for the account's own
+/// domain alone.
+#[test]
+fn exchange_online_vouches_for_mail_from_inside_the_organisation() {
+    let colleague = |stamps: &[&str], results: &[&str]| {
+        let mut m = message(results);
+        m.from = Address::new("Colleague", "anna@lumen.example");
+        m.headers.extend(stamps.iter().map(|v| ("X-MS-Exchange-Organization-AuthAs".to_string(), v.to_string())));
+        m.fresh_stamps = true;
+        m
+    };
+    let none = "dkim=none (message not signed) header.d=none;dmarc=none action=none header.from=lumen.example;";
+    let mut work = account(AccountKind::Microsoft, "");
+    work.email = "owner@lumen.example".into();
+    assert!(vouched(Some(&work), &colleague(&["Internal"], &[none])));
+    assert!(vouched(Some(&work), &colleague(&[" internal "], &[])));
+    let mut office_imap = imap("outlook.office365.com");
+    office_imap.email = work.email.clone();
+    assert!(vouched(Some(&office_imap), &colleague(&["Internal"], &[])));
+    // Mail from outside, a mixed stamp, or none at all.
+    assert!(!vouched(Some(&work), &colleague(&["Anonymous"], &[none])));
+    assert!(!vouched(Some(&work), &colleague(&["Internal", "Anonymous"], &[])));
+    assert!(!vouched(Some(&work), &colleague(&[], &[none])));
+    // As many stamps as the reader keeps may hide one more, which may have been Exchange's.
+    let many = |n: usize| vec!["Internal"; n];
+    assert!(vouched(Some(&work), &colleague(&many(MAX_AUTH_AS - 1), &[])));
+    assert!(!vouched(Some(&work), &colleague(&many(MAX_AUTH_AS), &[])));
+    // The server's own failed check, as Exchange writes it for mail it took in, wins over the
+    // stamp; one in mail sent inside, which Exchange gives none, is the sender's.
+    let failed = "spf=fail smtp.mailfrom=lumen.example; dmarc=fail action=quarantine header.from=lumen.example;";
+    assert!(!vouched(Some(&work), &taken_in(colleague(&["Internal"], &[]), &[failed])));
+    assert!(vouched(Some(&work), &colleague(&["Internal"], &[failed])));
+    // And so does one that may be hidden past what is read of the server's word.
+    let long = format!("{}{failed}", "x=y (padding) ; ".repeat(400));
+    assert!(!vouched(Some(&work), &taken_in(colleague(&["Internal"], &[]), &[&long])));
+    // Another domain, though Exchange calls it internal (a partner's connector).
+    let mut partner = colleague(&["Internal"], &[]);
+    partner.from = Address::new("Partner", "bo@partner.example");
+    assert!(!vouched(Some(&work), &partner));
+    partner.from = Address::new("Lookalike", "anna@lumen.example.evil.example");
+    assert!(!vouched(Some(&work), &partner));
+    // A name under the organisation's domain is the organisation's.
+    partner.from = Address::new("Colleague", "anna@ee.lumen.example");
+    assert!(vouched(Some(&work), &partner));
+    // Not on Exchange Online, a consumer address (anybody's domain), or mail from a file.
+    let mut lumen = imap("imap.lumen.example");
+    lumen.email = work.email.clone();
+    assert!(!vouched(Some(&lumen), &colleague(&["Internal"], &[])));
+    let mut consumer = account(AccountKind::Microsoft, "");
+    consumer.email = "owner@outlook.com".into();
+    let mut stranger = colleague(&["Internal"], &[]);
+    stranger.from = Address::new("Stranger", "someone@outlook.com");
+    assert!(!vouched(Some(&consumer), &stranger));
+    let mut file = colleague(&["Internal"], &[]);
+    (file.uid, file.server) = (0, None);
+    assert!(!vouched(Some(&work), &file));
+    assert!(!vouched(None, &colleague(&["Internal"], &[])));
 }

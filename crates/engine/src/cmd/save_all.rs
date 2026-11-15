@@ -62,7 +62,6 @@ fn into_folder(s: &Session, id: Id, listed: &[(usize, String)], _folder: &str) -
 /// Each file written into `folder`, which must be there already, under a name nothing there has.
 #[cfg(not(target_arch = "wasm32"))]
 fn into_folder(s: &Session, id: Id, listed: &[(usize, String)], folder: &str) -> CmdResult {
-    use std::io::Write;
     let dir = std::path::Path::new(folder);
     if !dir.is_dir() {
         return Err(fail(format!("{folder}: not a folder")));
@@ -74,10 +73,10 @@ fn into_folder(s: &Session, id: Id, listed: &[(usize, String)], folder: &str) ->
         for n in 1..=MAX_TRIES {
             let candidate = numbered(name, n);
             let path = dir.join(&candidate);
-            // Created only if nothing is there: never over another file, nor through a link.
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-                Ok(mut f) => {
-                    f.write_all(&bytes).map_err(|e| fail(format!("{}: {e}", path.display())))?;
+            // Created only if nothing is there: never over another file, nor through a link; and
+            // from mail, so marked as a browser marks a download.
+            match crate::mark::write_new_from_mail(&path, &bytes) {
+                Ok(()) => {
                     written = Some((candidate, path));
                     break;
                 }
@@ -88,8 +87,6 @@ fn into_folder(s: &Session, id: Id, listed: &[(usize, String)], folder: &str) ->
         let Some((saved, path)) = written else {
             return Err(saved_so_far(&files, failed!("{name} couldn't be saved: the folder has too many files of that name", name)));
         };
-        // A file from mail: marked as a browser marks a download.
-        crate::mark::mark_from_internet(&path);
         files.push(json!({"index": index, "name": saved, "path": path.to_string_lossy(), "bytes": bytes.len()}));
     }
     Ok(json!({"saved": files.len(), "path": folder, "files": files}))

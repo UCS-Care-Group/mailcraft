@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Exchange server account of Add Account (#252, E7): an explicit choice. There is no
-//! detection from an address.
+//! The Exchange server account of Add Account (#252, E7): chosen by the owner, or found from the
+//! address's domain when the DNS names a host for its Autodiscover (an SRV record
+//! `_autodiscover._tcp.<domain>`, or `autodiscover.<domain>` an alias of a host called
+//! `autodiscover` too) that is neither Microsoft's nor one that serves IMAP settings. Finding it
+//! asks the DNS about the domain alone; none of those hosts is asked anything. The owner is then
+//! asked whether it is an Exchange server or IMAP (`Page::ExchangeOrImap`), for some hosters of
+//! IMAP mail publish Autodiscover too; the Exchange page says what was found and still offers IMAP.
 //!
 //! The owner gives an address and a password, and may open Server settings to type the server's
 //! address and the name to sign in with. **Nothing is sent until Connect.** Then the host
@@ -58,6 +63,14 @@ pub(super) struct Exchange {
     pub(super) review: Id,
     /// The look at that certificate has been handed to the host.
     started: bool,
+    /// The page was opened because the domain's DNS names an Autodiscover host: it says so, and
+    /// offers IMAP instead.
+    pub(super) found: bool,
+    /// The hosts the domain's DNS names for Autodiscover, as the last look found them: shown in
+    /// Server settings.
+    pub(super) hosts: Vec<String>,
+    /// The DNS has been asked from this page (Search again), and what it said is in `hosts`.
+    pub(super) looked: bool,
 }
 
 impl Exchange {
@@ -79,6 +92,17 @@ impl Drop for Exchange {
 pub(crate) fn grouped(fingerprint: &str) -> String {
     let pairs: Vec<&str> = (0..fingerprint.len() / 2).filter_map(|i| fingerprint.get(i * 2..i * 2 + 2)).collect();
     pairs.chunks(16).map(|line| line.join(":")).collect::<Vec<_>>().join("\n")
+}
+
+/// A host's name as the owner is asked about it: whole when it fits, else its end, which holds
+/// the domain it is in, with what is cut off in front (H5).
+pub(crate) fn host_shown(host: &str, most: usize) -> String {
+    let count = host.chars().count();
+    if count <= most {
+        return host.to_string();
+    }
+    let end: String = host.chars().skip(count.saturating_sub(most.saturating_sub(1))).collect();
+    format!("…{end}")
 }
 
 /// A moment as a date for the certificate page.
@@ -149,6 +173,92 @@ impl AccountSetup {
         self.note.clear();
         (self.settings_open, self.guessed) = (false, false);
         self.go(Page::Exchange);
+    }
+
+    /// The domain's Autodiscover records name a host that isn't Microsoft's: the owner is asked
+    /// whether it is an Exchange server or IMAP, for some hosters of IMAP mail publish
+    /// Autodiscover too. Nothing is sent to any server for it.
+    pub(super) fn exchange_or_imap(&mut self, hosts: Vec<String>) {
+        self.forget_password();
+        self.exchange = Exchange::default();
+        (self.exchange.found, self.exchange.hosts) = (true, hosts);
+        self.picked = false;
+        self.go(Page::ExchangeOrImap);
+    }
+
+    /// The owner says the server the domain's Autodiscover records name is an Exchange server:
+    /// its page, saying what was found. Back returns to the question, and IMAP is offered still.
+    pub(super) fn exchange_found(&mut self, hosts: Vec<String>) {
+        self.forget_password();
+        self.exchange_page_from();
+        self.picked = false;
+        self.exchange.found = true;
+        self.exchange.hosts = hosts;
+    }
+
+    /// Search again: ask the DNS once more for the hosts the domain names for Autodiscover. Only
+    /// the domain is asked about; nothing goes to the hosts.
+    fn exchange_look_again(&mut self, app: &mut MailApp) {
+        let Some(domain) = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()) else {
+            self.error = self.not_an_address();
+            return;
+        };
+        if app.offline() {
+            self.error = crate::send_receive::said();
+            return;
+        }
+        match app.services.lookup_autodiscover.as_ref() {
+            Some(lookup) => {
+                self.error.clear();
+                self.autodiscover = Some(lookup(domain));
+            }
+            None => self.error = tl!("This build can't look anything up. Type the server's address in Server settings.").to_string(),
+        }
+    }
+
+    /// What the DNS said to Search again, once it has.
+    pub(super) fn poll_look_again(&mut self) {
+        let hosts = match self.autodiscover.as_ref().map(Receiver::try_recv) {
+            Some(Err(TryRecvError::Empty)) | None => return,
+            Some(Ok(Ok(hosts))) => hosts,
+            Some(Ok(Err(_)) | Err(TryRecvError::Disconnected)) => {
+                self.autodiscover = None;
+                self.error = tl!("Your domain's DNS couldn't be asked. Check the network connection and search again.").to_string();
+                return;
+            }
+        };
+        self.autodiscover = None;
+        self.exchange.looked = true;
+        match provider::by_autodiscover(&hosts) {
+            // Microsoft's: nothing is sent, and the page that says it is a Microsoft account.
+            // What was found before is no longer said, should the owner come back to this page.
+            provider::Autodiscover::Microsoft => {
+                (self.exchange.hosts, self.exchange.found) = (hosts, false);
+                self.forget_password();
+                self.go(Page::ExchangeOnline);
+            }
+            provider::Autodiscover::Exchange => {
+                self.exchange.hosts = hosts;
+                self.exchange.found = true;
+            }
+            // (The page was still opened for what the DNS said before: IMAP stays one click away.)
+            provider::Autodiscover::Nothing => self.exchange.hosts.clear(),
+        }
+    }
+
+    /// It isn't an Exchange server after all: the servers the domain's own records name (#1063),
+    /// or else those guessed from the domain, as they were before anything was found, with the
+    /// page that says where they came from.
+    fn imap_instead(&mut self, app: &mut MailApp) {
+        self.forget_password();
+        if self.preset_command(None, None).is_none() {
+            self.error = self.not_an_address();
+            return;
+        }
+        self.exchange = Exchange::default();
+        self.picked = false;
+        // (What the domain's own records name, when the lookup found them (#1063); else the guess.)
+        self.imap_from_discovered(app);
     }
 
     /// What keeps the page's fields from being used, in the interface language; nothing when they can.
@@ -227,6 +337,10 @@ impl AccountSetup {
     /// File › Info asks again about a certificate of this account's server that changed: look at
     /// the certificate alone (no sign-in is sent) and ask.
     pub(super) fn review_certificate(app: &MailApp, id: Id) -> Option<AccountSetup> {
+        // (Not for a mailbox whose servers nobody has confirmed: the look connects to its server.)
+        if app.unconfirmed {
+            return None;
+        }
         let a = app.session.mailbox.account(id).filter(|a| a.kind == AccountKind::Exchange && !a.email.is_empty())?;
         let mut w = AccountSetup::blank(Page::ExchangeChecking);
         w.email = line(&a.email, LINE);
@@ -259,8 +373,22 @@ impl AccountSetup {
             (Page::Exchange, Action::Go) => self.exchange_connect(app),
             (Page::Exchange, Action::Back) => {
                 self.forget_password();
-                self.go(Page::Choose);
+                // Opened from the question of what the found server is: back to it, while the DNS
+                // still names one (after a Search again that found none, the question would say
+                // what is no longer so).
+                self.go(if self.exchange.found && !self.exchange.hosts.is_empty() { Page::ExchangeOrImap } else { self.origin() });
             }
+            (Page::ExchangeOrImap, Action::Pick(Kind::Exchange)) => {
+                let hosts = std::mem::take(&mut self.exchange.hosts);
+                self.exchange_found(hosts);
+            }
+            (Page::ExchangeOrImap, Action::Imap) => self.imap_instead(app),
+            (Page::ExchangeOrImap, Action::Back) => {
+                self.exchange = Exchange::default();
+                self.go(Page::Address);
+            }
+            (Page::Exchange, Action::Imap) => self.imap_instead(app),
+            (Page::Exchange, Action::LookAgain) => self.exchange_look_again(app),
             (Page::ExchangeChecking, Action::Back) => {
                 self.exchange_stop();
                 if self.exchange.review != 0 {
@@ -284,7 +412,15 @@ impl AccountSetup {
                 self.pick(app, Kind::Microsoft365);
             }
             (Page::ExchangeOnline, Action::Back) => self.go(Page::Exchange),
-            (Page::Exchange | Page::ExchangeChecking | Page::ExchangeConsent | Page::ExchangeCertificate | Page::ExchangeOnline, _) => {}
+            (
+                Page::ExchangeOrImap
+                | Page::Exchange
+                | Page::ExchangeChecking
+                | Page::ExchangeConsent
+                | Page::ExchangeCertificate
+                | Page::ExchangeOnline,
+                _,
+            ) => {}
             _ => return None,
         }
         Some(self.done)
@@ -443,7 +579,7 @@ impl AccountSetup {
             Ok(Some(id)) => {
                 let password = self.password.take();
                 if !password.is_empty() {
-                    app.remember("password", &email, &password);
+                    app.remember("password", id, &password);
                     app.adopt_password(id, password);
                 }
                 if matches!(signed_in_with, "basic" | "ntlm") {
@@ -464,19 +600,76 @@ impl AccountSetup {
 
     // ---- the pages ----
 
-    /// The address, the password, and Server settings.
-    pub(super) fn exchange_form(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
+    /// The domain's Autodiscover records name a host: an Exchange server, or IMAP? Two tiles, side
+    /// by side, neither the default.
+    pub(super) fn exchange_or_imap_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
+        let mut action = None;
+        let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()).unwrap_or_default();
         page(ui, &t, |ui| {
-            heading(ui, tl!("Exchange server account"), &t);
+            heading(ui, tl!("An Exchange server or IMAP?"), &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
             note(
                 ui,
-                tl!(
-                    "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
+                &fmt(
+                    tl!(
+                        "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
+                    ),
+                    &[("domain", &shown(&domain, 80))],
                 ),
                 t.text,
             );
+            ui.add_space(4.0);
+            let gap = ui.spacing().item_spacing.x;
+            let half = ((ui.available_width() - gap) / 2.0).max(40.0);
+            ui.horizontal(|ui| {
+                if super::tile(ui, Kind::Exchange, half, &t).clicked() {
+                    action = Some(Action::Pick(Kind::Exchange));
+                }
+                if super::tile(ui, Kind::Other, half, &t).clicked() {
+                    action = Some(Action::Imap);
+                }
+            });
+            problem(ui, &self.error);
+        });
+        strip(ui, self.page, |ui| {
+            if button(ui, tl!("Back"), false, true).clicked() {
+                action = Some(Action::Back);
+            }
+        });
+        action
+    }
+
+    /// The address, the password, and Server settings.
+    pub(super) fn exchange_form(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
+        let t = pass.t;
+        let (mut imap, mut look_again) = (false, false);
+        let can_look = app.services.lookup_autodiscover.is_some() && !app.offline();
+        let looking = self.autodiscover.is_some();
+        page(ui, &t, |ui| {
+            heading(ui, tl!("Exchange server account"), &t);
+            note(ui, &shown(self.email.trim(), 120), t.text_dim);
+            if self.exchange.found && !self.exchange.hosts.is_empty() {
+                let domain = address(&self.email).map(|(_, domain)| domain.to_ascii_lowercase()).unwrap_or_default();
+                note(
+                    ui,
+                    &fmt(
+                        tl!(
+                            "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+                        ),
+                        &[("domain", &shown(&domain, 80))],
+                    ),
+                    t.text,
+                );
+            } else {
+                note(
+                    ui,
+                    tl!(
+                        "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
+                    ),
+                    t.text,
+                );
+            }
             self.password_field(ui, pass, app.secret_watch(), "");
             note(ui, kept_where(app), t.text_dim);
             ui.add_space(2.0);
@@ -506,7 +699,40 @@ impl AccountSetup {
                         tl!("DOMAIN\\user or you@example.org; empty for your address"),
                         LINE,
                     );
+                    // Where the domain's DNS says automatic setup is: what the search asks first
+                    // after the domain's own two places, each only after the owner's yes when it
+                    // is outside the domain.
+                    caption(ui, tl!("Automatic setup (Autodiscover)"), &t);
+                    if looking {
+                        note(ui, tl!("Asking your domain's DNS…"), t.text_dim);
+                    } else if self.exchange.hosts.is_empty() {
+                        let none = if self.exchange.looked || self.exchange.found {
+                            tl!("Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address.")
+                        } else {
+                            tl!("MailCraft tries the usual places for your address.")
+                        };
+                        note(ui, none, t.text_dim);
+                    } else {
+                        for host in self.exchange.hosts.iter().take(4) {
+                            let url = format!("https://{}/autodiscover/autodiscover.xml", host_shown(host, 90));
+                            ui.label(RichText::new(url).color(t.text).monospace());
+                        }
+                        note(
+                            ui,
+                            tl!("Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."),
+                            t.text_dim,
+                        );
+                    }
+                    if can_look && button(ui, tl!("Search again"), false, !looking).clicked() {
+                        look_again = true;
+                    }
                 });
+            }
+            if self.exchange.found {
+                ui.add_space(4.0);
+                if button(ui, tl!("Not an Exchange server? Set it up with IMAP"), false, true).clicked() {
+                    imap = true;
+                }
             }
         });
         problem(ui, &self.error);
@@ -516,7 +742,15 @@ impl AccountSetup {
             go = button(ui, tl!("Connect"), true, ready).clicked();
             back = button(ui, tl!("Back"), false, true).clicked();
         });
-        if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
+        if imap {
+            Some(Action::Imap)
+        } else if look_again {
+            Some(Action::LookAgain)
+        } else if back {
+            Some(Action::Back)
+        } else {
+            (ready && (go || pass.submit)).then_some(Action::Go)
+        }
     }
 
     /// The host is searching for the server and trying the account.
@@ -535,7 +769,7 @@ impl AccountSetup {
     pub(super) fn exchange_consent(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
         let t = pass.t;
         let (host, reason) = self.exchange.consent.clone().unwrap_or((String::new(), EwsConsentReason::Redirect));
-        let host = shown(&host, 120);
+        let host = host_shown(&host, 120);
         let why = match reason {
             EwsConsentReason::Redirect => {
                 tl!("The search for your Exchange server was sent on to {host}, which isn't in your address's own domain.")
@@ -546,6 +780,12 @@ impl AccountSetup {
             EwsConsentReason::MailServer => {
                 tl!("The settings the server gave name {host}, which isn't in your address's own domain, as the mail server.")
             }
+            EwsConsentReason::SignIn => tl!(
+                "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
+            ),
+            EwsConsentReason::Alias => tl!(
+                "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
+            ),
         };
         page(ui, &t, |ui| {
             heading(ui, tl!("Send your sign-in to another server?"), &t);

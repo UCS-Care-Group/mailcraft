@@ -755,6 +755,10 @@ pub struct Event {
     /// Its server keeps files with it, which are not kept here.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub has_attachments: bool,
+    /// The key of the item of a .pst file it was brought in from: a second import adds it again
+    /// only if it is gone.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub imported: String,
 }
 
 impl Event {

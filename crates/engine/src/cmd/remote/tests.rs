@@ -2971,3 +2971,63 @@ fn what_is_only_on_this_computer_says_so_and_can_be_moved_to_the_account() {
     assert!(super::only_here(&alone.mailbox).is_empty());
     assert!(refused(&mut alone, "calendar.moveToAccount", json!({})).starts_with("No account's server keeps a calendar here yet"));
 }
+
+/// #1050: a download puts the owner's own events that an earlier `.ics` import left in a
+/// server's calendar into one on this computer, and nothing that is on its way to the server.
+#[test]
+fn a_download_rehomes_only_strays_never_what_is_on_its_way_to_the_server() {
+    let (mut s, account, _, _, server) = served();
+    let october_again = |extra: Vec<RemoteEvent>| {
+        let mut events = vec![remote("e-1", "Budget review", at(2026, 10, 12, 13, 0), 60), remote("e-2", "Dentist", at(2026, 10, 13, 18, 0), 30)];
+        events.extend(extra);
+        october(account, events)
+    };
+    let in_server = |s: &Session, id: Id| s.mailbox.event(id).map(|e| e.calendar) == Some(server);
+    let creating = |s: &Session, id: Id| s.mailbox.event_changes.iter().any(|change| change.event == id && change.kind == EventChangeKind::Create);
+
+    // (a) A new appointment in the account's calendar, with a download before it is sent.
+    let made = run(&mut s, "calendar.new", json!({"title": "Planning", "start": "2026-10-20T10:00", "end": "2026-10-20T11:00", "calendar": server}));
+    let made = made["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.event(made).unwrap().origin.account, account);
+    // (d) One of the mailbox's own moved into the account's calendar, not sent yet either.
+    let local = s.mailbox.calendars.iter().find(|c| c.origin.is_local()).map(|c| c.id).unwrap();
+    let mine = run(&mut s, "calendar.new", json!({"title": "Haircut", "start": "2026-10-21T10:00", "end": "2026-10-21T11:00", "calendar": local}));
+    let mine = mine["id"].as_u64().unwrap();
+    run(&mut s, "calendar.edit", json!({"id": mine, "calendar": server}));
+    assert!(creating(&s, made) && creating(&s, mine));
+    // (c) A stray: the owner's own, in the server's calendar, that nothing will ever send.
+    let hour = |day: u8, hour: u8| (clock(2026, 10, day, hour, 0), clock(2026, 10, day, hour + 1, 0));
+    let (start, end) = hour(16, 10);
+    let stray = s.mailbox.add_event(Event { title: "Grocery delivery".into(), calendar: server, start, end, ..Default::default() }).unwrap();
+    let changes = s.mailbox.event_changes.clone();
+    let (tasks, contacts) = (s.mailbox.tasks.clone(), s.mailbox.contacts.clone());
+
+    apply_events(&mut s, &october_again(vec![])).unwrap();
+    assert!(in_server(&s, made) && in_server(&s, mine), "what is on its way stays in the account's calendar");
+    assert_eq!(s.mailbox.event_changes, changes, "and is still to be sent, as it was");
+    let home = s.mailbox.event(stray).unwrap().calendar;
+    assert!(home != server && s.mailbox.calendar(home).is_some_and(|c| c.origin.is_local()));
+    assert!(super::stays_here(&s.mailbox, stray) && s.mailbox.event(stray).unwrap().origin.is_local());
+    // Only events: to-dos and contacts are as they were.
+    assert!(s.mailbox.tasks == tasks && s.mailbox.contacts == contacts);
+
+    // (b) Once the server has them and a download shows them, they stay where they are too.
+    push_done(&mut s, account);
+    let there: Vec<RemoteEvent> = [made, mine]
+        .iter()
+        .filter_map(|id| s.mailbox.event(*id))
+        .map(|e| RemoteEvent {
+            id: e.origin.id.clone(),
+            change_key: "ck-new".into(),
+            title: e.title.clone(),
+            start: e.start.to_timestamp(-240),
+            end: e.end.to_timestamp(-240),
+            ..Default::default()
+        })
+        .collect();
+    assert!(there.len() == 2 && there.iter().all(|e| !e.id.is_empty()));
+    apply_events(&mut s, &october_again(there)).unwrap();
+    assert!(in_server(&s, made) && in_server(&s, mine));
+    assert!([made, mine].iter().all(|id| s.mailbox.event(*id).is_some_and(|e| e.origin.account == account && !e.origin.id.is_empty())));
+    assert!(!creating(&s, made) && !creating(&s, mine));
+}

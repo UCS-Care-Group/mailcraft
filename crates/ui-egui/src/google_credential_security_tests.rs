@@ -20,7 +20,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(&self, key: &str, value: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.to_string(), value.to_string());
         Ok(())
     }
@@ -31,7 +31,8 @@ impl SecretStore for Store {
 
 fn app(store: &Store) -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app.services.secrets = Some(Arc::new(store.clone()));
     app
 }
@@ -128,9 +129,9 @@ fn google_security_only_passwords_and_refresh_tokens_may_reach_the_store() {
     assert!(store.0.lock().unwrap().values().all(|v| v != &access));
 
     // Even if a future caller passes the wrong kind, the storage boundary fails closed.
-    a.remember("access", "one@example.org", "do-not-persist-an-access-token");
-    a.remember("bearer", "one@example.org", "also-not-allowed");
-    assert!(a.remembered("access", "one@example.org").is_none());
+    a.remember("access", a.account_at("one@example.org").map_or(0, |x| x.id), "do-not-persist-an-access-token");
+    a.remember("bearer", a.account_at("one@example.org").map_or(0, |x| x.id), "also-not-allowed");
+    assert!(a.remembered("access", a.account_at("one@example.org").map_or(0, |x| x.id)).is_none());
     assert!(store.0.lock().unwrap().keys().all(|key| key.starts_with("refresh:")));
     assert!(!store.0.lock().unwrap().values().any(|value| value.contains("do-not-persist")));
 
@@ -500,10 +501,8 @@ impl SecretStore for RejectStore {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, _: &str, value: &str) -> Result<(), String> {
-        // OS keychains can echo an attempted credential in their error message. No code
-        // should copy the store's text into a status, log or diagnostics.
-        Err(format!("the system rejected the secret: {value}"))
+    fn set(&self, _: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
+        Err(mailcraft_host::SecretError::Refused)
     }
     fn delete(&self, _: &str) {}
 }
@@ -564,7 +563,7 @@ impl SecretStore for RecordingStore {
         self.calls.lock().unwrap().push("get");
         self.store.get(key)
     }
-    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    fn set(&self, key: &str, value: &str) -> Result<(), mailcraft_host::SecretError> {
         self.calls.lock().unwrap().push("set");
         self.store.set(key, value)
     }

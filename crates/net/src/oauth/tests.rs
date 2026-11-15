@@ -281,14 +281,14 @@ fn sign_in_to(endpoints: &Endpoints, hint: &str, open: &dyn Fn(&str)) -> Result<
 
 fn auth(result: Result<Tokens, NetError>) -> String {
     match result {
-        Err(NetError::Proto(ProtoError::Auth(why))) => why,
+        Err(NetError::Proto(ProtoError::Auth(why))) => why.to_string(),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
 
 fn protocol(result: Result<Tokens, NetError>) -> String {
     match result {
-        Err(NetError::Proto(ProtoError::Protocol(why))) => why,
+        Err(NetError::Proto(ProtoError::Protocol(why))) => why.to_string(),
         other => panic!("expected an answer that makes no sense, got {other:?}"),
     }
 }
@@ -1164,7 +1164,7 @@ fn settings_that_cannot_work_are_refused_before_anything_happens() {
     let (open, browser) = browser_asking(&["GET /?code=the-code&state={state}"]);
     let cancel = AtomicBool::new(false);
     let config = |result: Result<Tokens, NetError>| match result {
-        Err(NetError::Config(why)) => why,
+        Err(NetError::Config(why)) => why.to_string(),
         other => panic!("expected the settings to be refused, got {other:?}"),
     };
 
@@ -1184,7 +1184,10 @@ fn settings_that_cannot_work_are_refused_before_anything_happens() {
     for tenant in ["../../evil", "common/../x", "a b", "evil.example.org/x?", "ten#ant", "é", ".", "-a", "a..b", "a\r\nb", &"a".repeat(300)] {
         let astray = OAuth { tenant: tenant.into(), ..oauth() };
         let why = config(sign_in(&astray, "", &open, &cancel));
-        assert!(why.contains("can't be a Microsoft tenant") && !why.contains('\r') && why.len() < 200, "{tenant:?}: {why}");
+        assert!(
+            why.to_string().contains("can't be a Microsoft tenant") && !why.to_string().contains('\r') && why.to_string().len() < 200,
+            "{tenant:?}: {why}"
+        );
         assert_eq!(config(refresh(&astray, "re-fresh")), why);
         // Even when the endpoints come from elsewhere.
         assert_eq!(config(sign_in_at(&endpoints_of(&server), &astray, "", &open, &cancel)), why);
@@ -1203,7 +1206,7 @@ fn settings_that_cannot_work_are_refused_before_anything_happens() {
         let endpoints =
             Endpoints { authorize: authorize.into(), token: token.into(), scope: "mail".into(), consent: "more".into(), lesser: String::new() };
         let why = config(sign_in_at(&endpoints, &oauth(), "", &open, &cancel));
-        assert!(why.starts_with("the server's address "), "{why}");
+        assert!(why.to_string().starts_with("the server's address "), "{why}");
         if !Url::parse(token).is_ok_and(|url| url.secure) {
             assert_eq!(config(refresh_at(&endpoints, &oauth(), "re-fresh")), why);
             assert_eq!(config(refresh_for_at(&endpoints, &oauth(), "re-fresh", Resource::Graph)), why);
@@ -1922,7 +1925,7 @@ fn how_a_sign_in_ended_is_told_apart() {
     // The organisation's door is shut for another reason: its own words, and no approval is offered.
     for number in [50_105, 53_003, 7_000_112] {
         let end = came_back(&format!("error=access_denied&error_description=AADSTS{number}%3A+Not+for+you."));
-        assert_eq!(end, SignInEnd::Other(NetError::Proto(ProtoError::Auth(format!("AADSTS{number}: Not for you.")))));
+        assert_eq!(end, SignInEnd::Other(NetError::Proto(ProtoError::Auth(format!("AADSTS{number}: Not for you.").into()))));
     }
     // (Shut, and an administrator's yes would not open it: said as shut.)
     let both = came_back("error=access_denied&error_description=AADSTS53003%3A+Blocked.+AADSTS90094%3A+Admin+consent.");

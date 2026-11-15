@@ -20,6 +20,8 @@
 use mailcraft_model::{FolderKind, Id, Mailbox, Task};
 use serde_json::{Value, json};
 
+pub mod bind;
+
 use crate::cmd::compose::{LEAVING, draft_gone};
 use crate::{Session, p};
 
@@ -140,12 +142,21 @@ const SAFE: &[&str] = &[
     "mail.delete",
     "mail.archive",
     "mail.move",
+    // Snoozing is filing, like a move (#949): into the Snoozed folder, and back by itself.
+    "mail.snooze",
+    "mail.unsnooze",
+    "mail.returnDue",
+    // Moving between Gmail's categories is a move, and asks what a move asks (#911): the messages
+    // named (`NEEDS_IDS`).
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.markRead",
     "mail.markUnread",
     "mail.toggleRead",
     "mail.markAllRead",
     "mail.flag",
+    // How a message can be unsubscribed from ("send": true is asked about, `classify`).
+    "mail.unsubscribe",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -160,6 +171,12 @@ const SAFE: &[&str] = &[
     "mail.saveAllAttachments",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
+    // Downloads a signed or encrypted message's own bytes again from its own server (#30).
+    "mail.checkAgain",
+    // What checking a message's Digital signature found, read only (#30 R23).
+    "mail.digitalSignature",
+    // The Public keys kept, listed (never their bytes, never a key marked Verified): #30.
+    "keys.list",
     "mail.new",
     "mail.reply",
     "mail.replyAll",
@@ -237,7 +254,9 @@ const SAFE: &[&str] = &[
     "view.people",
     "view.tasks",
     "view.readingPane",
+    "view.gmailCategories",
     "view.folderPane",
+    "view.navigationBar",
     "view.conversations",
     "view.sort",
     "view.columns",
@@ -341,6 +360,10 @@ const SAFE: &[&str] = &[
     "tasks.select",
     "tasks.get",
     "tasks.list",
+    "notes.list",
+    "notes.get",
+    "journal.list",
+    "journal.get",
     "tasks.arrange",
     "tasks.categorize",
     "tasks.fromMessage",
@@ -370,7 +393,9 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",
+    "ui.animations",
     "ui.accent",
+    "ui.darkStyle",
     "ui.lightMessages",
     "ui.language",
     "ui.interfaceSize",
@@ -406,9 +431,9 @@ const SEND: &[&str] = &[
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
-    // The owner's yes to sending the tasks that exist only here to a Microsoft account's To Do.
-    "tasks.sendLocal",
     "ui.downloadPictures",
+    // Unsubscribes from a list: one click reaches its server, by mail writes to it.
+    "ui.unsubscribe",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -419,6 +444,9 @@ const DELETE: &[&str] = &[
     "mail.removeAttachment",
     "folder.delete",
     "folder.empty",
+    // Copies only this computer has, of mail its server has (#1401): undo brings them back, but
+    // they are gone from the mailbox. A preview only counts.
+    "mail.removeImportedDuplicates",
     "calendar.removeCalendar",
     // Local contacts, tasks, events and categories have no Deleted Items to come back from, and
     // undo is short-lived (what a server has been told of events and tasks clears it).
@@ -496,6 +524,9 @@ const SETTINGS: &[&str] = &[
     "junk.add",
     "junk.remove",
     "junk.list",
+    // The Public keys that Digital signatures are checked with, and later mail encrypted to (#30).
+    "keys.import",
+    "keys.remove",
     "signature.set",
     "signature.remove",
     "signature.rename",
@@ -513,11 +544,13 @@ const SETTINGS: &[&str] = &[
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
     "ui.desktopAlerts",
+    "ui.closeToTray",
     "ui.repliesInWindow",
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
     "ui.dismissSettingsNotice",
+    "ui.dismissSoftwareNotice",
 ];
 
 const NEVER: &[&str] = &[
@@ -569,9 +602,13 @@ const NEVER: &[&str] = &[
     "ui.copySelection",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
+    "ui.previewAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
+    // The owner's own answer to sending the tasks that exist only here to an account's To Do
+    // (#632): an agent never gives it, asked or not.
+    "tasks.sendLocal",
     // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
     "ui.removeAllData",
     // Another program (the file manager) started on the owner's screen, as for an attachment
@@ -583,6 +620,15 @@ const NEVER: &[&str] = &[
     // installed-app registration value, even when granted account/settings commands.
     "ui.googleClientId",
     "ui.googleClientSecret",
+    // The owner's own keys (#30 R12, R13): imported, removed and looked for in the window only,
+    // through a file picker and a passphrase typed there; and a key marked Verified only by the
+    // owner, in the dialog that shows its fingerprint (R6, R23).
+    "ui.importPrivateKey",
+    "ui.removePrivateKey",
+    "ui.refreshOwnKeys",
+    "ui.importPublicKey",
+    "ui.verifyKey",
+    "ui.markKeyVerified",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
@@ -632,6 +678,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
+    ("keys.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.save", "path", FileUse::Refused),
     ("file.saveAs", "path", FileUse::Refused),
     ("file.exportMessage", "path", FileUse::Writes { ext: "eml" }),
@@ -715,6 +762,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
         "ui.closeWindow" if unsaved(params) => return Access::Asked(Class::Delete),
         "file.new" | "file.open" if owner_writing_any(s) || unsaved(params) => return Access::Asked(Class::Mailbox),
+        "mail.removeImportedDuplicates" if p::bool(params, "preview") == Some(true) => return Access::Safe,
         _ => {}
     }
     if base != Access::Safe {
@@ -737,6 +785,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
+        "mail.unsubscribe" if sends => Access::Owner(Class::Send),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
         // away. When the owner wrote in it, the window asks them every time either way, saved or
@@ -995,6 +1044,9 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",
+    "mail.snooze",
+    "mail.unsnooze",
+    "mail.setGmailCategory",
     "mail.copy",
     "mail.archive",
     "mail.junk",
@@ -1029,6 +1081,18 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
 /// all it asks for (what it would do may have changed while the question was up).
 pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Class) -> Verdict {
     verdict(s, id, params, allow, Some(yes))
+}
+
+/// What a call classed `class` needs besides it, which the question about `class` names and a yes
+/// to it covers: an undo or redo that puts back the accounts (or a change that writes to people)
+/// and takes away messages, drafts, contacts or the like needs Delete too, as `edit.undo` refuses
+/// to take messages without it (#473). Asked about as one question, so that the owner's yes lets
+/// it run.
+pub fn also(s: &Session, id: &str, _params: &Value, class: Class) -> Vec<Class> {
+    match id {
+        "edit.undo" | "edit.redo" if class != Class::Delete && s.undo_deletes(id == "edit.redo") => vec![Class::Delete],
+        _ => Vec::new(),
+    }
 }
 
 fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<Class>) -> Verdict {
@@ -1067,12 +1131,29 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
-    match classify(s, id, params) {
+    let access = classify(s, id, params);
+    // What else the call needs besides its class (#473); a yes to the question about the class
+    // covers it, since the question names it.
+    let more: Vec<Class> = match access {
+        Access::Owner(c) | Access::Asked(c) => also(s, id, params, c),
+        _ => Vec::new(),
+    };
+    let rest = |c: Class| yes == Some(c) || more.iter().all(|m| allow.contains(m) || yes == Some(*m));
+    match access {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
-        Access::Owner(c) if allow.contains(&c) || yes == Some(c) => Verdict::Run,
+        Access::Owner(c) if (allow.contains(&c) || yes == Some(c)) && rest(c) => Verdict::Run,
         Access::Asked(c) if yes == Some(c) => Verdict::Run,
         Access::Owner(c) | Access::Asked(c) => {
+            // The class allowed already, the question is about what else it needs.
+            let c = match access {
+                Access::Owner(_) if allow.contains(&c) => more.iter().copied().find(|m| !allow.contains(m)).unwrap_or(c),
+                _ => c,
+            };
+            // A question says what it is about, and the yes reaches that alone (`bind`).
+            if bind::object(id).is_none() {
+                return Verdict::Refuse(format!("`{id}` isn't available to agents: what it acts on can't be shown to the owner"));
+            }
             let what = describe(s, id, params);
             if what.chars().count() > MAX_QUESTION {
                 return Verdict::Refuse(format!(
@@ -1091,16 +1172,21 @@ pub const MAX_QUESTION: usize = 900;
 /// The refusal when nobody can be asked (headless); `asked`: the owner is asked every time
 /// ([`Access::Asked`]), and no `--allow` covers it.
 pub fn needs_owner(id: &str, class: Class, asked: bool, what: &str) -> String {
-    if asked || !Class::ALL.contains(&class) {
+    needs_owner_for(id, &[class], asked, what)
+}
+
+/// [`needs_owner`] for a call that needs more than one class ([`also`]): all of them are named,
+/// so that one start of the server with `--allow` covers it.
+pub fn needs_owner_for(id: &str, classes: &[Class], asked: bool, what: &str) -> String {
+    let why = classes.iter().map(|c| c.what()).collect::<Vec<_>>().join("; ");
+    if asked || classes.iter().any(|c| !Class::ALL.contains(c)) {
         return format!(
-            "`{id}` needs the owner ({}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it",
-            class.what()
+            "`{id}` needs the owner ({why}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it"
         );
     }
+    let names = classes.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(",");
     format!(
-        "`{id}` needs the owner ({}): it would {what}. Only the owner can let an agent do this, by starting the server with `mailcraft-cli mcp --allow {}`",
-        class.what(),
-        class.as_str()
+        "`{id}` needs the owner ({why}): it would {what}. Only the owner can let an agent do this, by starting the server with `mailcraft-cli mcp --allow {names}`"
     )
 }
 
@@ -1224,6 +1310,44 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     let label = s.registry.get(id).map(|c| c.label).unwrap_or(id);
     let st = |k: &str| p::str(params, k).unwrap_or("");
     match id {
+        "keys.import" => {
+            let to = match p::str(params, "address") {
+                Some(a) => format!("for {}", quoted(&clip(a, 80))),
+                None => "for every address the keys name".to_string(),
+            };
+            // What the file holds, read as the import would read it (the addresses come from the
+            // keys: data, never instructions).
+            let what = match crate::cmd::keys::preview(s, params) {
+                Some(found) if !found.is_empty() => {
+                    let named: Vec<String> = found
+                        .iter()
+                        .map(|(address, format, fingerprint)| {
+                            let fp = crate::digital_signature::fingerprint_digits(fingerprint);
+                            let tail = fp.get(fp.len().saturating_sub(16)..).unwrap_or(&fp);
+                            format!("{} ({format} key …{tail})", quoted(&clip(address, 80)))
+                        })
+                        .collect();
+                    format!(" ({})", some(&named, 3))
+                }
+                Some(_) => " (none of its keys is for an address)".to_string(),
+                None => String::new(),
+            };
+            format!(
+                "import Public keys from a file {to}{what}: Digital signatures from those addresses are then checked with them (they are never marked Verified)"
+            )
+        }
+        "keys.remove" => {
+            let wanted = crate::digital_signature::fingerprint_digits(st("fingerprint"));
+            let address = st("address").trim().to_lowercase();
+            let verified = !wanted.is_empty()
+                && s.mailbox
+                    .public_keys
+                    .of(&address)
+                    .iter()
+                    .any(|k| k.verified && crate::digital_signature::fingerprint_digits(&k.fingerprint) == wanted);
+            let marked = if verified { " (you marked it Verified)" } else { "" };
+            format!("remove the Public key {} kept for {}{marked}", quoted(&clip(st("fingerprint"), 100)), quoted(&clip(st("address"), 80)))
+        }
         "compose.send" => match s.compose_named(params) {
             Some(c) => {
                 let to: Vec<String> =
@@ -1248,8 +1372,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 Some(f) if !is_outbox(&s.mailbox, f.id) => {
                     format!("{verb} {} onto the server of {}, into {}", messages_text(s, &ids), account(f.account), quoted(&f.name))
                 }
-                // An IMAP account's holds what is put there (#607).
-                Some(f) if s.mailbox.is_imap_outbox(f.id) => {
+                // An IMAP account's holds what is put there (#607), and so does a JMAP account's
+                // what is moved there (#1074).
+                Some(f) if s.mailbox.holds_what_is_moved_in(f.id) => {
                     format!("{verb} {} into the Outbox of {}, held there unsent until Send Again", messages_text(s, &ids), account(f.account))
                 }
                 _ => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
@@ -1264,9 +1389,20 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "folder.empty" | "folder.delete" => {
             let f = p::id_strict(params, "id").map(|f| f.unwrap_or(s.view.folder)).unwrap_or_default();
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
-            let n = s.mailbox.count(f);
+            // Every message that goes with it, those in the folders under it too.
+            let n = if id == "folder.empty" { crate::cmd::folder::emptied(s, f).len() } else { crate::cmd::folder::deleted_with(s, f).len() };
             let verb = if id == "folder.empty" { "permanently empty" } else { "permanently delete the folder" };
             format!("{verb} {name} and the {} in it", plural(n, "{n} message", "{n} messages"))
+        }
+        // (#1401) Counted now: a different count on the yes is another question.
+        "mail.removeImportedDuplicates" => {
+            let folder = p::id_strict(params, "folder").ok().flatten();
+            let n = crate::cmd::imported_dupes::twins(&s.mailbox, folder).remove.len();
+            let where_ = folder.and_then(|f| s.mailbox.folder(f)).map_or_else(|| "every folder".to_string(), |f| quoted(&f.name));
+            format!(
+                "remove {} that only this computer has, beside the same mail from its server in {where_} (the server's copies are not touched, and nothing is sent)",
+                plural(n, "{n} message", "{n} messages")
+            )
         }
         "account.setAutomaticReplies" => {
             let account = p::id(params, "account")
@@ -1285,6 +1421,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
         "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, id, params), clip(st("response"), 20)),
+        "mail.unsubscribe" | "ui.unsubscribe" => {
+            // Each by the key its command reads: what is approved is what is done.
+            let key = if id == "ui.unsubscribe" { "message" } else { "id" };
+            let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
+            let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
+            format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+        }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);
             let to = if who.is_empty() {
@@ -1358,32 +1501,40 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };
             let verb = if redo { "redo" } else { "undo" };
+            // Everything the step does that is asked about, in one sentence (#473): what it puts
+            // back, the messages it takes away, and the drafts.
             let drafts = s.undo_drafts(redo);
-            if let Some(first) = drafts.first().and_then(|d| s.mailbox.message(*d)) {
-                let which = match drafts.len() {
-                    1 if !first.subject.trim().is_empty() => format!("the draft {}", quoted(&first.subject)),
-                    1 => "a draft".to_string(),
-                    n => format!("{n} drafts"),
-                };
-                return format!(
-                    "{verb} {}, which also takes away {which} in Drafts or puts back an earlier version, and anything written in it since may be lost",
-                    quoted(label.unwrap_or("the last change"))
-                );
-            }
+            let others: Vec<Id> = s.undo_taken(redo).into_iter().filter(|m| !drafts.contains(m)).collect();
             let what = match s.undo_reverts(redo) {
-                Some(Class::Accounts) => "the accounts",
+                Some(Class::Accounts) => Some("the accounts"),
                 Some(Class::Send) => {
-                    "a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do"
+                    Some("a change to a meeting or to a task in a shared list, which other people see, or to the tasks in an account's To Do")
                 }
-                // Accounts and Send above are the stronger effects and say so first; this is
-                // the Delete class, whose cause here is mail the undo takes away (#473).
-                Some(Class::Delete) if s.undo_takes_mail(redo) => {
-                    return format!("{verb} {}, which also takes away messages", quoted(label.unwrap_or("the last change")));
-                }
-                Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
-                _ => "the rules, signatures or Safe and Blocked Senders",
+                // What Delete is for is said below.
+                Some(Class::Delete) => None,
+                _ => Some("the rules, signatures or Safe and Blocked Senders"),
             };
-            format!("{verb} {}, which also puts {what} back as they were", quoted(label.unwrap_or("the last change")))
+            let mut does: Vec<String> = what.map(|w| format!("puts {w} back as they were")).into_iter().collect();
+            if s.undo_removes_items(redo) {
+                // Gone for good: they don't go to Deleted Items.
+                does.push("takes away contacts, events, tasks, calendars or categories made since, for good".to_string());
+            }
+            if !others.is_empty() {
+                does.push(format!("takes away {}", messages_text(s, &others)));
+            }
+            if !drafts.is_empty() {
+                let subject = drafts.first().and_then(|d| s.mailbox.message(*d)).map(|m| m.subject.as_str()).filter(|t| !t.trim().is_empty());
+                let which = match (drafts.len(), subject) {
+                    (1, Some(t)) => format!("the draft {}", quoted(t)),
+                    (1, None) => "a draft".to_string(),
+                    (n, _) => format!("{n} drafts"),
+                };
+                does.push(format!("takes away {which} in Drafts or puts back an earlier version, and anything written in it since may be lost"));
+            }
+            if does.is_empty() {
+                does.push("puts the rules, signatures or Safe and Blocked Senders back as they were".to_string());
+            }
+            format!("{verb} {}, which also {}", quoted(label.unwrap_or("the last change")), does.join("; it also "))
         }
         "rules.add" => rule_text(s, params),
         "rules.fromMessage" => match crate::cmd::rules::rule_from_message(s, params) {

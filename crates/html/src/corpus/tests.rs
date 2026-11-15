@@ -99,9 +99,9 @@ fn addresses(blocks: &[Block]) -> Vec<String> {
     for b in flat(blocks) {
         if let BlockKind::Image { src, link, .. } = &b.kind {
             out.push(src.clone());
-            out.extend(link.clone());
+            out.extend(link.as_deref().map(str::to_string));
         }
-        out.extend(b.spans.iter().filter_map(|s| s.link.clone()));
+        out.extend(b.spans.iter().filter_map(|s| s.link.as_deref().map(str::to_string)));
     }
     out.sort();
     out.dedup();
@@ -622,7 +622,7 @@ fn nothing_remote_or_active_survives() {
         assert!(!text.contains(never), "{never:?} is shown");
     }
     // The only addresses left are the pictures' (which are never loaded) and two links that may be followed.
-    let links: Vec<String> = flat(&blocks).iter().flat_map(|b| &b.spans).filter_map(|s| s.link.clone()).collect();
+    let links: Vec<String> = flat(&blocks).iter().flat_map(|b| &b.spans).filter_map(|s| s.link.as_deref().map(str::to_string)).collect();
     assert_eq!(links, ["https://evil.example/click", "mailto:someone@elsewhere.example"]);
     let pictures: Vec<&str> = images(&blocks)
         .iter()
@@ -847,10 +847,11 @@ fn dependencies(krate: &str) -> Vec<String> {
 fn this_crate_has_no_way_to_fetch_anything() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let why = "a new dependency: can it reach the network?";
-    assert_eq!(dependencies("mailcraft-html"), ["mailcraft-link", "mailcraft-names", "proptest", "serde"], "{why}");
+    assert_eq!(dependencies("mailcraft-html"), ["mailcraft-link", "mailcraft-names", "proptest", "serde", "serde_json"], "{why}");
     // `mailcraft-link` only reads an address and `mailcraft-names` only cleans text, and neither
-    // brings in a crate that could fetch. (`proptest` is a dev-dependency in each manifest; the
-    // lock lists both kinds alike.)
+    // brings in a crate that could fetch. (`proptest` is a dev-dependency in each manifest, and
+    // `serde_json` one here, to weigh what the blocks come to written out; the lock lists both
+    // kinds alike.)
     assert_eq!(dependencies("mailcraft-link"), ["mailcraft-names", "proptest"], "{why}");
     assert_eq!(dependencies("mailcraft-names"), ["proptest"], "{why}");
     let mut files = vec![root.join("src")];

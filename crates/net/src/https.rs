@@ -97,7 +97,7 @@ pub fn send(request: &Request<'_>) -> Result<Response, NetError> {
     if !url.secure {
         return http::request(&url, &http_request).map(response);
     }
-    let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason })?;
+    let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason: reason.into() })?;
     match http::request_with(&url, &http_request, Some(config)) {
         Ok(reply) => Ok(response(reply)),
         // A handshake that stopped at the certificate says which, and why; any other failure is the usual one.
@@ -155,7 +155,7 @@ impl Connection {
         if !url.secure {
             return Ok(Connection { stream: http::connect(&url, PATIENCE)?, url, open: true });
         }
-        let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason })?;
+        let (config, verifier) = crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: url.host.clone(), reason: reason.into() })?;
         match http::connect_with(&url, PATIENCE, Some(config)) {
             Ok(stream) => Ok(Connection { stream, url, open: true }),
             Err(error @ NetError::Tls { .. }) => Err(verifier.take_problem().map_or(error, |problem| NetError::Certificate(Box::new(problem)))),

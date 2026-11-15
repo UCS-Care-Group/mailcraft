@@ -19,27 +19,26 @@ mod several_tests;
 #[cfg(test)]
 mod tests;
 
-const LABEL_W: f32 = 62.0;
+const MIN_LABEL_WIDTH: f32 = 62.0;
 
 /// One labelled single-line field. Returns the new text when it was edited.
-fn field(ui: &mut Ui, label: &str, text: &str, hint: &str, focus: bool) -> Option<String> {
-    let at = line(ui, label, 0.0);
+fn field(ui: &mut Ui, label: &str, text: &str, label_width: f32) -> Option<String> {
+    let at = line(ui, label, label_width, 0.0);
     let mut buf = text.to_string();
-    let resp = crate::text_menu::field(ui.put(at, line_edit(&mut buf, ui.scope_id().with(("compose", label)), hint, at.width())));
-    if focus {
-        resp.request_focus();
-    }
+    let resp = crate::text_menu::field(ui.put(at, line_edit(&mut buf, ui.scope_id().with(("compose", label)), "", at.width())));
     resp.changed().then_some(buf)
 }
 
 /// A labelled line, with the rule under it; where its text goes. `right` is room kept free at
 /// the line's right end for something drawn there (the Bcc link).
-fn line(ui: &mut Ui, label: &str, right: f32) -> Rect {
+fn line(ui: &mut Ui, label: &str, label_width: f32, right: f32) -> Rect {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-    ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, label, regular(12.0), t.text_dim);
+    let end = r.max.x - 12.0 - right;
+    let start = (r.min.x + 16.0 + label_width).min(end);
+    paint_clipped(ui.painter(), pos2(r.min.x + 16.0, r.center().y), (start - r.min.x - 24.0).max(0.0), label, regular(12.0), t.text_dim);
     ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
-    Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 3.0), pos2(r.max.x - 12.0 - right, r.max.y - 3.0))
+    Rect::from_min_max(pos2(start, r.min.y + 3.0), pos2(end, r.max.y - 3.0))
 }
 
 /// The text of a labelled line, `width` wide.
@@ -143,15 +142,21 @@ fn bcc_link(app: &MailApp) -> bool {
     app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.bcc_shown()
 }
 
+/// The Bcc link's hit area, including room on either side of its translated label.
+fn bcc_width(ui: &Ui) -> f32 {
+    let text = ui.painter().layout_no_wrap(tl!("Bcc").to_owned(), regular(11.5), egui::Color32::PLACEHOLDER).size().x;
+    (text + 12.0).max(40.0).min(((ui.available_width() - 28.0) / 2.0).max(0.0))
+}
+
 /// A recipient line, with the recipient suggestions under it ([`recipient_line`]).
-fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text: &str, hint: &str, focus: bool) {
+fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text: &str, label_width: f32, focus: bool) {
     let id = ui.scope_id().with(("compose", label));
     // The Bcc link sits at the right end of the To line: a click there is for it, so the line's
     // text stops short of it (a long To line was otherwise impossible to click at its end).
-    let right = if key == "to" && bcc_link(app) { 44.0 } else { 0.0 };
-    let at = line(ui, label, right);
+    let right = if key == "to" && bcc_link(app) { bcc_width(ui) + 4.0 } else { 0.0 };
+    let at = line(ui, label, label_width, right);
     let mut buf = text.to_string();
-    let edit = line_edit(&mut buf, id, hint, at.width());
+    let edit = line_edit(&mut buf, id, tl!("Names or addresses, separated by ;"), at.width());
     let layout = egui::Layout::centered_and_justified(egui::Direction::TopDown);
     let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, true)).inner;
     if focus {
@@ -295,11 +300,15 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     });
 }
 
-/// What the message is and its actions, over its lines in the reading pane: Send, Attach, Save
-/// draft, Discard, and at the right Close and Pop Out.
+/// What the message is and its actions, over its lines in the reading pane. The actions use
+/// icons when their labels don't fit, and the status can have a line below them.
 fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
+    use crate::widgets::{icon_button, icon_text_button, icon_text_width, primary_button, primary_button_width};
+
+    const ACTION_ICON: f32 = 16.0;
+    const WINDOW_ICON: f32 = 14.0;
+    const GAP: f32 = 6.0;
     let t = Tokens::get(ui.ctx());
-    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
     let title = match c.mode {
         ComposeMode::New => tl!("New message"),
         ComposeMode::Reply => tl!("Reply"),
@@ -307,48 +316,75 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         ComposeMode::Forward => tl!("Forward"),
         ComposeMode::Draft => tl!("Draft"),
     };
-    let mut actions =
-        ui.new_child(egui::UiBuilder::new().max_rect(bar.shrink2(vec2(12.0, 8.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    {
-        let ui = &mut actions;
-        ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
-        let sc = crate::widgets::shortcut_text(app, "compose.send");
-        if crate::widgets::primary_button(ui, tl!("Send"), true).on_hover_text(format!("{} ({sc})", tl!("Send"))).clicked() {
-            let _ = app.run("compose.send", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "attach", tl!("Attach"), true).clicked() {
-            let _ = app.run("ui.attach", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "saveDraft", tl!("Save draft"), c.dirty || !c.draft).clicked() {
-            let _ = app.run("compose.saveDraft", json!({}));
-        }
-        if crate::widgets::icon_text_button(ui, "discard", tl!("Discard"), true).clicked() {
-            let _ = app.run("compose.discard", json!({}));
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // In the reading pane: Close, and Pop Out at the top right, which moves the message
-            // into a window of its own (#286).
-            if window.is_none() {
-                if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
-                    let _ = app.run("compose.close", json!({}));
+    let state = if c.dirty {
+        tl!("Not saved")
+    } else if c.draft {
+        tl!("Saved to Drafts")
+    } else {
+        ""
+    };
+    let status = if state.is_empty() { title.to_string() } else { format!("{title}  {state}") };
+    let tools = [
+        ("attach", tl!("Attach"), "ui.attach", true),
+        ("saveDraft", tl!("Save draft"), "compose.saveDraft", c.dirty || !c.draft),
+        ("discard", tl!("Discard"), "compose.discard", true),
+    ];
+    let send = tl!("Send");
+    let bar = egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 9)).show(ui, |ui| {
+        let room = ui.available_width();
+        ui.set_min_width(room);
+        ui.spacing_mut().item_spacing = vec2(GAP, 4.0);
+        let send_width = primary_button_width(ui, send);
+        let status_width = ui.painter().layout_no_wrap(status.clone(), regular(11.5), t.text_dim).size().x;
+        let right_width = status_width + GAP + if window.is_none() { 2.0 * (WINDOW_ICON + 8.0 + GAP) } else { 0.0 };
+        let recent_width = if app.services.recent_attachments.is_some() { crate::recent_attachments::ARROW + 8.0 + GAP } else { 0.0 };
+        let labeled_width = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum::<f32>() + recent_width;
+        let labeled = send_width + labeled_width + right_width <= room;
+        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + recent_width + right_width > room;
+
+        let actions = |app: &mut MailApp, ui: &mut Ui| {
+            let shortcut = crate::widgets::shortcut_text(app, "compose.send");
+            if primary_button(ui, send, true).on_hover_text(format!("{send} ({shortcut})")).clicked() {
+                let _ = app.run("compose.send", json!({}));
+            }
+            for (icon, label, command, enabled) in tools {
+                let button = if labeled { icon_text_button(ui, icon, label, enabled) } else { icon_button(ui, icon, label, ACTION_ICON, enabled) };
+                button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
+                if enabled && button.clicked() {
+                    let _ = app.run(command, json!({}));
                 }
-                let pop = crate::widgets::icon_button(ui, "popOut", tl!("Pop Out"), 14.0, true);
-                app.hit.add("composePopOut", 0, pop.rect);
-                if pop.clicked() {
-                    let _ = app.run("compose.popOut", json!({}));
+                if command == "ui.attach" && app.services.recent_attachments.is_some() {
+                    crate::recent_attachments::arrow(ui, app);
                 }
             }
-            let state = if c.dirty {
-                tl!("Not saved")
-            } else if c.draft {
-                tl!("Saved to Drafts")
-            } else {
-                ""
-            };
-            ui.label(egui::RichText::new(format!("{title}  {state}")).font(regular(11.5)).color(t.text_dim));
-        });
-    }
-    ui.painter().line_segment([pos2(bar.min.x, bar.max.y), pos2(bar.max.x, bar.max.y)], Stroke::new(1.0, t.border));
+        };
+        let details = |app: &mut MailApp, ui: &mut Ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if window.is_none() {
+                    if icon_button(ui, "close", tl!("Close"), WINDOW_ICON, true).clicked() {
+                        let _ = app.run("compose.close", json!({}));
+                    }
+                    let pop = icon_button(ui, "popOut", tl!("Pop Out"), WINDOW_ICON, true);
+                    app.hit.add("composePopOut", 0, pop.rect);
+                    if pop.clicked() {
+                        let _ = app.run("compose.popOut", json!({}));
+                    }
+                }
+                ui.add(egui::Label::new(egui::RichText::new(&status).font(regular(11.5)).color(t.text_dim)).truncate()).on_hover_text(&status);
+            });
+        };
+        if stacked {
+            ui.horizontal_wrapped(|ui| actions(app, ui));
+            ui.horizontal(|ui| details(app, ui));
+        } else {
+            ui.horizontal(|ui| {
+                actions(app, ui);
+                details(app, ui);
+            });
+        }
+    });
+    let r = bar.response.rect;
+    ui.painter().line_segment([pos2(r.min.x, r.max.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, t.border));
 }
 
 /// Send, beside the lines of a message in a window of its own, as tall as To and Cc.
@@ -375,12 +411,23 @@ fn send_beside(app: &mut MailApp, ui: &mut Ui) {
 fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
     let t = Tokens::get(ui.ctx());
     let top = ui.cursor().min.y;
+    let [from, to, cc, bcc, reply_to, subject] = [tl!("From"), tl!("To"), tl!("Cc"), tl!("Bcc"), tl!("Reply to"), tl!("Subject")];
+    let bcc_width = bcc_width(ui);
+    let reserved = if bcc_link(app) { bcc_width + 4.0 } else { 0.0 };
+    // In a narrow pane the translated labels yield space to the address fields.
+    let label_limit = ((ui.available_width() - 28.0 - reserved) / 2.0).max(0.0);
+    let label_width = [from, to, cc, bcc, reply_to, subject]
+        .into_iter()
+        .map(|label| ui.painter().layout_no_wrap(label.to_owned(), regular(12.0), t.text_dim).size().x + 8.0)
+        .fold(MIN_LABEL_WIDTH, f32::max)
+        .min(label_limit);
     // From, when there is a choice.
     if app.session.mailbox.accounts.len() > 1 {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-        ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, tl!("From"), regular(12.0), t.text_dim);
+        paint_clipped(ui.painter(), pos2(r.min.x + 16.0, r.center().y), (label_width - 8.0).max(0.0), from, regular(12.0), t.text_dim);
         let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
-        let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
+        let end = r.max.x - 12.0;
+        let pick = Rect::from_min_max(pos2((r.min.x + 16.0 + label_width).min(end), r.min.y + 4.0), pos2(end, r.max.y - 4.0));
         let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
@@ -398,29 +445,29 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         });
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
     }
-    let hint = tl!("Names or addresses, separated by ;");
-    for (key, label, text, show) in
-        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.bcc_shown())]
-    {
+    for (key, label, text, show) in [("to", to, &c.to, true), ("cc", cc, &c.cc, true), ("bcc", bcc, &c.bcc, !c.bcc.is_empty() || app.bcc_shown())] {
         if !show {
             continue;
         }
-        recipient_field(app, ui, key, tl!(label), text, hint, key == "to" && focus_to);
+        recipient_field(app, ui, key, label, text, label_width, key == "to" && focus_to);
     }
     // (Shown once Direct Replies To has set it.)
     if !c.reply_to.is_empty() {
-        recipient_field(app, ui, "replyTo", tl!("Reply to"), &c.reply_to, hint, false);
+        recipient_field(app, ui, "replyTo", reply_to, &c.reply_to, label_width, false);
     }
-    if let Some(new) = field(ui, tl!("Subject"), &c.subject, "", false) {
+    if let Some(new) = field(ui, subject, &c.subject, label_width) {
         let _ = app.execute("compose.set", json!({"subject": new}));
     }
     if bcc_link(app) {
         // A quiet way to get the Bcc line.
         let last = ui.min_rect();
-        let br =
-            Rect::from_min_size(pos2(last.max.x - 52.0, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }), vec2(40.0, 22.0));
+        let br = Rect::from_min_size(
+            pos2(last.max.x - 12.0 - bcc_width, top + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }),
+            vec2(bcc_width, 22.0),
+        );
         let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
-        ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
+        let color = if resp.hovered() { t.accent_text } else { t.text_dim };
+        ui.painter().with_clip_rect(br).text(br.center(), Align2::CENTER_CENTER, bcc, regular(11.5), color);
         if resp.clicked()
             && let Some(id) = app.session.compose_id()
         {
@@ -445,13 +492,25 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
-    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
-        Some(m) => m,
+    // The last few signatures shown (one a window being written; at least one for each window
+    // open, so that none misses every frame), under one key: not one entry in
+    // egui's memory for every signature ever shown.
+    type Kept = Vec<(egui::Id, std::sync::Arc<mailcraft_model::Message>)>;
+    const KEPT: usize = 4;
+    let key = egui::Id::unique("mailcraft-compose-signature");
+    let this = egui::Id::unique(&html);
+    let known = ctx.data(|d| d.get_temp::<Kept>(key)).unwrap_or_default();
+    let message = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, m)) => m.clone(),
         None => {
             // As it is sent: cleaned.
             let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
-            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            let mut known = known;
+            if known.len() >= KEPT.max(app.windows.len().saturating_add(2)) {
+                known.remove(0);
+            }
+            known.push((this, m.clone()));
+            ctx.data_mut(|d| d.insert_temp(key, known));
             m
         }
     };

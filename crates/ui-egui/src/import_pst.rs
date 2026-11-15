@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! File › Open & Export › Import a .pst File (#815, preview: mail only so far): the owner picks a
+//! File › Open & Export › Import a .pst File (#815): the owner picks a
 //! file, gives its password when it has one and says where its mail goes (a new folder named after
 //! the file, or under a folder on this computer); the file is read off the window's thread and its
 //! mail comes in a batch at a time (`file.importPst` with `staged`), so that Cancel keeps what is in
@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
 
 use egui::{RichText, Ui, vec2};
 use mailcraft_engine::import_pst::{Event, Job, Progress, Staged};
@@ -21,8 +22,15 @@ pub const WIDTH: f32 = 520.0;
 /// Most folders offered to import under, and most left-out items listed.
 const LISTED: usize = 500;
 const LEFT_OUT_SHOWN: usize = 50;
-/// Most events taken in a frame, so that a fast reader doesn't hold the window.
-const EVENTS_PER_FRAME: usize = 4;
+/// How long a turn of the window's logic may spend putting batches in while the window is being
+/// painted, so that a fast reader doesn't hold it (at least one batch goes in a turn).
+const BUDGET_SHOWN: Duration = Duration::from_millis(8);
+/// And while it isn't (hidden, minimised, on another desktop): nothing is painted then, so a turn
+/// may take longer, and each is a quarter of a second or more apart.
+const BUDGET_HIDDEN: Duration = Duration::from_millis(150);
+/// Most events taken in a turn where there is no clock (the browser).
+#[cfg(target_arch = "wasm32")]
+const EVENTS_NO_CLOCK: usize = 4;
 
 /// What the host is asked to do off the window's thread: read the file at `path`
 /// ([`mailcraft_engine::import_pst::read_path`]) and send what it reads. The window shows
@@ -50,6 +58,8 @@ pub struct ImportPst {
     wrong_password: bool,
     /// `None`: a new folder named after the file; else under this folder on this computer.
     under: Option<u64>,
+    /// `None`: a new calendar named after the file; else this calendar on this computer.
+    calendar: Option<u64>,
     phase: Phase,
     progress: Arc<Progress>,
     /// The mailbox this was opened over: another one opened since stops the import.
@@ -58,6 +68,9 @@ pub struct ImportPst {
     failed: Option<String>,
     /// Batches that went in.
     batches: usize,
+    /// Whether the window was painted since the last turn of `pump`: when it wasn't, nothing is
+    /// shown and the turn may be longer.
+    painted: bool,
 }
 
 impl Drop for ImportPst {
@@ -85,11 +98,13 @@ impl ImportPst {
             password: String::new(),
             wrong_password: false,
             under: None,
+            calendar: None,
             phase: Phase::Choose,
             progress: Arc::default(),
             opening: app.session.openings(),
             failed: None,
             batches: 0,
+            painted: true,
         }
     }
 
@@ -113,10 +128,17 @@ impl ImportPst {
     }
 
     fn places(&self) -> Value {
-        match self.under {
-            Some(id) => json!({"mail": id}),
-            None => json!({"mail": "new"}),
-        }
+        let mail = self.under.map_or(json!("new"), |id| json!(id));
+        let calendar = self.calendar.map_or(json!("new"), |id| json!(id));
+        json!({"mail": mail, "calendar": calendar})
+    }
+
+    /// Calendars on this computer the file's calendar items can go into.
+    fn local_calendars(app: &MailApp) -> Vec<(u64, String)> {
+        let mut out: Vec<(u64, String)> =
+            app.session.mailbox.calendars.iter().filter(|c| c.origin.is_local()).map(|c| (c.id, c.name.clone())).take(LISTED).collect();
+        out.sort_by_key(|c| c.1.to_lowercase());
+        out
     }
 
     /// Folders on this computer the mail can go under (never an Outbox), by path.
@@ -164,14 +186,42 @@ impl ImportPst {
         self.phase = Phase::Importing(rx);
     }
 
-    /// Hand what has arrived to the engine, a batch at a time.
-    fn poll(&mut self, app: &mut MailApp) {
+    /// Hand what has arrived to the engine, a batch at a time, for as long as the turn's budget
+    /// allows. Called from the window's logic, which the toolkit runs even when no frame is painted
+    /// (the window hidden, minimised or on another desktop: #815), so the reading goes on there.
+    pub fn pump(&mut self, app: &mut MailApp, ctx: &egui::Context) {
+        if !self.is_importing() {
+            return;
+        }
+        let budget = if self.painted { BUDGET_SHOWN } else { BUDGET_HIDDEN };
+        self.painted = false;
+        self.poll(app, budget);
+        if self.is_importing() {
+            // A turn with nothing painted asks for the next one itself.
+            crate::software::repaint_after(ctx, Duration::from_millis(100));
+        }
+    }
+
+    fn poll(&mut self, app: &mut MailApp, budget: Duration) {
         if self.opening != app.session.openings() {
             self.progress.cancel();
             self.phase = Phase::Done(Err(tl!("Another mailbox was opened: the import stopped.").to_string()));
             return;
         }
-        for _ in 0..EVENTS_PER_FRAME {
+        #[cfg(not(target_arch = "wasm32"))]
+        let started = std::time::Instant::now();
+        #[cfg(target_arch = "wasm32")]
+        let _ = budget;
+        let mut taken = 0usize;
+        loop {
+            #[cfg(not(target_arch = "wasm32"))]
+            let over = taken > 0 && started.elapsed() >= budget;
+            #[cfg(target_arch = "wasm32")]
+            let over = taken >= EVENTS_NO_CLOCK;
+            if over {
+                return;
+            }
+            taken += 1;
             let Phase::Importing(rx) = &self.phase else { return };
             let event = match rx.try_recv() {
                 Ok(e) => e,
@@ -227,7 +277,7 @@ impl ImportPst {
 
     fn contents(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
-        self.poll(app);
+        self.painted = true;
         match &self.phase {
             Phase::Choose => self.choose(app, ui, enter, &t),
             Phase::Importing(_) => {
@@ -293,12 +343,35 @@ impl ImportPst {
             });
         });
         ui.add_space(6.0);
-        ui.label(
-            RichText::new(tl!(
-                "Preview: only the mail is brought in for now. Calendar items, contacts, tasks and notes are counted in the report and left for a later version. A report is written beside your mailbox."
-            ))
-            .color(t.text_dim),
-        );
+        ui.label(RichText::new(tl!("Put the contacts")).strong());
+        ui.label(tl!("Into your contacts on this computer, each marked as imported from the file."));
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Put the calendar items")).strong());
+        let calendars = Self::local_calendars(app);
+        ui.radio_value(&mut self.calendar, None, tl!("In a new calendar named after the file on this computer"));
+        ui.horizontal(|ui| {
+            let mut picked = self.calendar.is_some();
+            if ui.add_enabled(!calendars.is_empty(), egui::RadioButton::new(picked, tl!("In this calendar:"))).clicked() && !picked {
+                picked = true;
+                self.calendar = calendars.first().map(|c| c.0);
+            }
+            ui.add_enabled_ui(picked && !calendars.is_empty(), |ui| {
+                let shown = self.calendar.and_then(|id| calendars.iter().find(|c| c.0 == id)).map_or(String::new(), |c| c.1.clone());
+                egui::ComboBox::from_id_salt("pstCalendar").width(240.0).selected_text(shown).show_ui(ui, |ui| {
+                    for (id, name) in &calendars {
+                        ui.selectable_value(&mut self.calendar, Some(*id), name.as_str());
+                    }
+                });
+            });
+        });
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Put the tasks")).strong());
+        ui.label(tl!("Into your to-do list on this computer. Nothing is sent to anybody."));
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("Keep the notes and journal entries")).strong());
+        ui.label(tl!("On this computer. They have no views of their own yet."));
+        ui.add_space(6.0);
+        ui.label(RichText::new(tl!("A report is written beside your mailbox.")).color(t.text_dim));
         let can = ready && !(matches!(self.look, Ok((true, _))) && self.password.is_empty());
         let (ok, cancel) = buttons(ui, tl!("Import"), can);
         if cancel {
@@ -312,11 +385,11 @@ impl ImportPst {
 
     fn importing(&self, ui: &mut Ui, t: &Tokens) {
         use std::sync::atomic::Ordering::Relaxed;
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        crate::software::repaint_after(ui.ctx(), std::time::Duration::from_millis(100));
         let p = &self.progress;
         let (done, total) = (p.done.load(Relaxed), p.total.load(Relaxed));
         ui.horizontal(|ui| {
-            ui.add(egui::Spinner::new());
+            crate::software::spinner(ui, ui.spacing().interact_size.y, None);
             let folder = p.folder();
             ui.add(
                 egui::Label::new(crate::i18n::fmt(
@@ -350,25 +423,46 @@ impl ImportPst {
 fn done_page(ui: &mut Ui, r: &Value, t: &Tokens) {
     let n = |k: &str| r.get(k).and_then(Value::as_u64).unwrap_or(0);
     let folder = r.get("name").and_then(Value::as_str).unwrap_or_default();
+    let only_mail = ["contacts", "lists", "events", "tasks", "stickyNotes", "journalEntries"].iter().all(|k| n(k) == 0);
     if r.get("cancelled").and_then(Value::as_bool) == Some(true) {
         ui.label(RichText::new(tl!("Stopped before the end. Import the file again to bring the rest.")).strong());
     }
     ui.label(
         RichText::new(crate::i18n::fmt(
             tl!("{added} brought in, of {found} found."),
-            &[("added", &tln!(n("added"), "{n} message", "{n} messages")), ("found", &tln!(n("found"), "{n} item", "{n} items"))],
+            &[
+                ("added", &if only_mail { tln!(n("added"), "{n} message", "{n} messages") } else { tln!(n("added"), "{n} item", "{n} items") }),
+                ("found", &tln!(n("found"), "{n} item", "{n} items")),
+            ],
         ))
         .strong(),
     );
+    // (With contacts among them, what the items are is said line by line.)
+    for (count, line) in [
+        (if only_mail { 0 } else { n("messages") }, tln!(n("messages"), "{n} message", "{n} messages")),
+        (n("contacts"), tln!(n("contacts"), "{n} contact", "{n} contacts")),
+        (
+            n("lists"),
+            tln!(
+                n("lists"),
+                "{n} distribution list, kept as a contact listing its members",
+                "{n} distribution lists, kept as contacts listing their members"
+            ),
+        ),
+        (n("events"), tln!(n("events"), "{n} calendar item", "{n} calendar items")),
+        (n("tasks"), tln!(n("tasks"), "{n} task", "{n} tasks")),
+        (n("stickyNotes"), tln!(n("stickyNotes"), "{n} note", "{n} notes")),
+        (n("journalEntries"), tln!(n("journalEntries"), "{n} journal entry", "{n} journal entries")),
+    ] {
+        if count > 0 {
+            ui.label(line);
+        }
+    }
     if !folder.is_empty() {
         ui.label(crate::i18n::fmt(tl!("In {folder}"), &[("folder", folder)]));
     }
     for (count, line) in [
         (n("already"), tln!(n("already"), "{n} was here already", "{n} were here already")),
-        (
-            n("later"),
-            tln!(n("later"), "{n} item isn't mail and is left for a later version", "{n} items aren't mail and are left for a later version"),
-        ),
         (n("leftOut"), tln!(n("leftOut"), "{n} item couldn't be read and is left out", "{n} items couldn't be read and are left out")),
     ] {
         if count > 0 {

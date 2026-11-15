@@ -369,3 +369,31 @@ fn a_meeting_request_in_a_shared_mailboxs_inbox_is_answered_in_its_calendar_and_
     let said = s.run("calendar.invitation", &json!({"message": early})).unwrap();
     assert_eq!((said["answerable"].as_bool(), said["blocked"].as_str()), (Some(false), Some("calendar")));
 }
+
+#[test]
+fn any_change_to_a_meeting_in_a_shared_mailbox_waits_for_sending_from_it() {
+    // AU3-V2: a new title for a meeting with people invited is an update the server sends them,
+    // as the shared mailbox: it is told apart from a change to an appointment of nobody else's.
+    let (mut s, _, shared) = editable();
+    let start = NOW + 10_800;
+    let meeting = RemoteEvent {
+        organizer: Some(mailcraft_model::Address::new("Support", SHARED)),
+        attendees: vec![mailcraft_model::Attendee { address: mailcraft_model::Address::new("Bo Marsh", "bo@example.org"), ..Default::default() }],
+        is_organizer: Some(true),
+        ..event("e-3", "Planning", start)
+    };
+    let plain = event("e-4", "Focus time", start + 7_200);
+    apply_events(&mut s, &download(shared, SHARED, "", vec![event("e-1", "Stand-up", NOW + 3_600), meeting, plain])).unwrap();
+    let id = |s: &Session, title: &str| s.mailbox.events.values().find(|e| e.title == title).map(|e| e.id).unwrap();
+    let (planning, focus) = (id(&s, "Planning"), id(&s, "Focus time"));
+    s.run("calendar.edit", &json!({"id": planning, "title": "Planning (moved room)", "send": true})).unwrap();
+    s.run("calendar.edit", &json!({"id": focus, "title": "Deep work"})).unwrap();
+    let upload = crate::cmd::remote::event_upload(&s, shared).unwrap();
+    let said: Vec<(Id, bool)> = upload.ops.iter().map(|op| (op.event, op.mails_others())).collect();
+    assert_eq!(said, vec![(planning, true), (focus, false)], "{upload:?}");
+    // A deletion of the meeting may write to them too.
+    s.mailbox.event_changes.clear();
+    s.run("calendar.delete", &json!({"id": planning, "send": true})).unwrap();
+    let upload = crate::cmd::remote::event_upload(&s, shared).unwrap();
+    assert!(!upload.ops.is_empty() && upload.ops.iter().all(mailcraft_model::remote::EventOp::mails_others), "{upload:?}");
+}

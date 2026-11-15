@@ -75,7 +75,7 @@ fn window() -> Window {
     s.run("folder.select", &json!({"id": inbox})).unwrap();
     let mut app = MailApp::new(s, Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1400.0, 900.0)).build_ui_state(
             |ui, app: &mut MailApp| {
@@ -131,7 +131,7 @@ fn cautions_are_amber_and_external_alone_is_only_a_tag() {
     let link = open(&mut harness, "Link");
     assert!(says(&harness, "A link goes somewhere else."));
     assert!(says(&harness, "goes to parcel-track.example"));
-    let m = harness.state().session.mailbox.messages[&link].clone();
+    let m = harness.state().session.mailbox.messages.get(&link).unwrap().clone();
     let flagged = super::warnings::mismatched(harness.state_mut(), &m);
     assert_eq!(flagged, ["https://parcel-track.example/x"]);
     assert!(super::warnings::is_mismatched(" https://Parcel-Track.example/x", &flagged));
@@ -161,7 +161,7 @@ fn a_caution_is_dismissed_with_its_cross_and_stays_gone() {
     assert!(harness.state().hit.rect("senderWarnings", odd).is_none());
     assert!(harness.state().hit.rect("senderWarningsCollapsed", odd).is_none());
     assert!(!says(&harness, "Be careful with this message."));
-    assert_eq!(harness.state().session.mailbox.messages[&odd].warnings_dismissed, ["external", "lookalikeSender"]);
+    assert_eq!(harness.state().session.mailbox.messages.get(&odd).unwrap().warnings_dismissed, ["external", "lookalikeSender"]);
     assert!(harness.state().hit.rect("externalTag", odd).is_some());
     // Another message still has its banner.
     let link = open(&mut harness, "Link");

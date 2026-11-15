@@ -12,5 +12,8 @@ test-writer = []
 [lints]
 workspace = true
 
+[dependencies]
+mailcraft-charset = { workspace = true }
+
 [dev-dependencies]
 proptest = { workspace = true }

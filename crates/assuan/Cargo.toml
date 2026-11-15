@@ -1,0 +1,16 @@
+[package]
+name = "mailcraft-assuan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "An Assuan client and gpg-agent's operations over any Read + Write stream, with a bounded canonical S-expression reader; no sockets"
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

@@ -422,7 +422,7 @@ pub(super) fn push_rules_at(base: &str, token: &str, upload: &RulesUpload) -> Ru
             status => {
                 done.result = RuleResult::Refused;
                 done.error = match super::refusal(Doing::Rules, &reply, &[token, sent], mailcraft_time::now()) {
-                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why,
+                    NetError::Proto(mailcraft_proto::ProtoError::Rejected(why)) => why.to_string(),
                     e => e.to_string(),
                 };
                 if done.error.is_empty() {

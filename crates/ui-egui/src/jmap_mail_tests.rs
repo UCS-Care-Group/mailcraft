@@ -23,13 +23,14 @@ use crate::{SecretStore, Services};
 const NOW: i64 = 1_791_993_600;
 const SESSION: &str = "https://jmap.example.org/jmap/session";
 
-type Jobs = Arc<Mutex<Vec<(JmapJob, mpsc::Sender<JmapMailResult>)>>>;
+pub(super) type Jobs = Arc<Mutex<Vec<(JmapJob, mpsc::Sender<JmapMailResult>)>>>;
 
 /// A window with JMAP accounts at these addresses, and a host that keeps every job. No round
 /// starts by itself unless a test says so.
-fn window(addresses: &[&str]) -> (MailApp, Vec<Id>, Jobs) {
+pub(super) fn window(addresses: &[&str]) -> (MailApp, Vec<Id>, Jobs) {
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let jobs: Jobs = Default::default();
     let kept = jobs.clone();
     app.services.jmap = Some(Box::new(move |job: JmapJob| {
@@ -54,7 +55,7 @@ impl SecretStore for Recording {
     fn get(&self, _: &str) -> Option<String> {
         None
     }
-    fn set(&self, key: &str, _: &str) -> Result<(), String> {
+    fn set(&self, key: &str, _: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().push(key.to_string());
         Ok(())
     }
@@ -62,7 +63,7 @@ impl SecretStore for Recording {
 }
 
 /// The jobs the host was handed so far, taken.
-fn taken(jobs: &Jobs) -> Vec<(JmapJob, mpsc::Sender<JmapMailResult>)> {
+pub(super) fn taken(jobs: &Jobs) -> Vec<(JmapJob, mpsc::Sender<JmapMailResult>)> {
     std::mem::take(&mut *jobs.lock().unwrap())
 }
 
@@ -102,7 +103,7 @@ fn whole(job: &JmapFetchJob) -> GraphFetchResult {
 }
 
 /// The last piece of a run, as the host sends it.
-fn last(job: &JmapJob, how: JmapMailResult) -> JmapMailResult {
+pub(super) fn last(job: &JmapJob, how: JmapMailResult) -> JmapMailResult {
     JmapMailResult { account: job.request.account, email: job.request.email.clone(), ..how }
 }
 
@@ -150,7 +151,8 @@ fn a_password_turned_down_is_forgotten_and_a_round_by_itself_leaves_the_account_
     assert!(app.has_sync_problems());
     assert!(!app.passwords.contains_key(&ada) && !app.can_sync_quietly(ada));
     // A round by itself: left out, nothing asked.
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 5);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 5;
     app.auto_sync();
     app.auto_sync();
     assert!(taken(&jobs).is_empty() && app.dialog.is_none());
@@ -165,7 +167,8 @@ fn a_host_that_holds_an_account_s_credential_runs_it_by_itself_with_no_secret() 
     // The host holds Ada's; Bo's, at a server the host has nothing to do with, is the owner's.
     app.services.jmap_host_credentials = Some(Box::new(|a: &mailcraft_model::Account| a.email == "ada@example.org"));
     assert!(app.can_sync_quietly(ada) && !app.can_sync_quietly(bo));
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 5);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 5;
     // The first frame lines the round up, the next starts it.
     app.auto_sync();
     app.auto_sync();
@@ -192,7 +195,8 @@ fn a_host_credential_turned_down_keeps_rounds_by_themselves_away_until_the_owner
     tx.send(last(&job, JmapMailResult { auth_refused: true, ..Default::default() })).unwrap();
     app.poll_sync();
     assert!(!app.can_sync_quietly(ada));
-    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 5);
+    app.session.driver.set_auto_sync(true);
+    app.session.prefs.sync_minutes = 5;
     app.auto_sync();
     app.auto_sync();
     assert!(taken(&jobs).is_empty() && app.dialog.is_none());
@@ -254,13 +258,13 @@ fn a_run_under_way_when_another_mailbox_is_opened_brings_nothing_into_it() {
     let other = json!({"email": "ada@example.org", "kind": "jmap", "jmap": {"session": SESSION}});
     let other = app.execute("account.add", other).unwrap()["id"].as_u64().unwrap();
     assert!(app.passwords.is_empty(), "what was typed for the mailbox before is gone with it");
-    // What the run still brings was for the mailbox before: none of it is taken in, the run is
-    // called off and ends.
+    // What the run still brings was for the mailbox before: the run was called off with it, and
+    // none of what it still brings is taken in (AU3-21: the window may no longer listen).
     let inbox = GraphFolder { id: "M1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() };
     let listing = Some(FolderListing { folders: vec![inbox], complete: true });
     let session = job.request.session.clone();
-    tx.send(JmapMailResult { partial: true, listing, session: session.clone(), ..last(&job, JmapMailResult::default()) }).unwrap();
-    tx.send(last(&job, JmapMailResult { whole: true, session, ..Default::default() })).unwrap();
+    let _ = tx.send(JmapMailResult { partial: true, listing, session: session.clone(), ..last(&job, JmapMailResult::default()) });
+    let _ = tx.send(last(&job, JmapMailResult { whole: true, session, ..Default::default() }));
     app.poll_sync();
     assert!(job.cancel.load(Ordering::Relaxed));
     assert!(!app.syncing());

@@ -17,7 +17,11 @@ columns and the date in its Date column:
 | 2026-11-04 | minor | #795: what changed in this document |
 ```
 
-The status line at the top of the document is still edited in the document itself.
+A pull request leaves the status line at the top of the document (**Last updated** and
+**Change**) alone, so that two pull requests touching the same document never conflict there.
+The release pull request sets it when it joins the fragments in. For each document that gets
+fragments, **Last updated** becomes the newest fragment's date, and **Change** becomes the
+largest kind among them (`major` over `minor` over `patch`).
 
 `cargo xtask docs-log` shows each document with its fragments joined into the table where their
 dates go (the tables run newest first, so as a rule at the top), and changes nothing; `cargo xtask ci` checks that every fragment names a

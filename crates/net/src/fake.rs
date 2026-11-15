@@ -5,13 +5,37 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+
+/// Stops a fake server's listening thread when the fake is dropped, so a test run doesn't keep
+/// one thread per fake it ever started (FreeBSD allows a process 1,500).
+struct Stop {
+    port: u16,
+    flag: Arc<AtomicBool>,
+}
+
+impl Stop {
+    fn new(port: u16) -> (Stop, Arc<AtomicBool>) {
+        let flag = Arc::new(AtomicBool::new(false));
+        (Stop { port, flag: flag.clone() }, flag)
+    }
+}
+
+impl Drop for Stop {
+    fn drop(&mut self) {
+        self.flag.store(true, Ordering::SeqCst);
+        // Wake the listener's `accept`, which then sees the flag and returns.
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
 
 /// A fake web server (a token endpoint, a name server that answers over HTTP): each request is
 /// answered with bytes of the test's choosing, and kept for the test to look at.
 pub(crate) struct FakeHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -23,8 +47,12 @@ impl FakeHttp {
         let port = listener.local_addr().unwrap().port();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let kept = requests.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for (n, mut stream) in listener.incoming().flatten().enumerate() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let (mut request, mut length) = (String::new(), 0usize);
                 loop {
@@ -48,7 +76,7 @@ impl FakeHttp {
                 let _ = stream.write_all(&answer);
             }
         });
-        FakeHttp { port, requests }
+        FakeHttp { port, _stop: stop, requests }
     }
 
     /// Answer every request with the same bytes.
@@ -86,6 +114,7 @@ pub(crate) enum Kept {
 /// own and is read request after request. It counts the connections it took.
 pub(crate) struct FakeKeptHttp {
     pub(crate) port: u16,
+    _stop: Stop,
     connections: Arc<Mutex<usize>>,
     requests: Arc<Mutex<Vec<String>>>,
 }
@@ -99,8 +128,12 @@ impl FakeKeptHttp {
         let (connections, requests) = (Arc::new(Mutex::new(0usize)), Arc::new(Mutex::new(Vec::new())));
         let (counted, kept) = (connections.clone(), requests.clone());
         let answer = Arc::new(answer);
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for mut stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let connection = {
                     let mut count = counted.lock().unwrap();
                     *count += 1;
@@ -132,7 +165,7 @@ impl FakeKeptHttp {
                 });
             }
         });
-        FakeKeptHttp { port, connections, requests }
+        FakeKeptHttp { port, _stop: stop, connections, requests }
     }
 
     /// `http://127.0.0.1:{port}{path}`.
@@ -266,6 +299,8 @@ pub(crate) struct ImapWorld {
     pub(crate) sasl_ir: bool,
     /// Offer the password-based PLAIN mechanism.
     pub(crate) plain: bool,
+    /// Say a password isn't taken on this connection (`LOGINDISABLED`, RFC 3501 §6.2.3).
+    pub(crate) login_disabled: bool,
     /// A real TLS server for STARTTLS tests; none keeps the existing broken-handshake peer.
     pub(crate) starttls_upgrade: Option<StartTls>,
     pub(crate) mailboxes: Vec<FakeMailbox>,
@@ -305,8 +340,35 @@ pub(crate) struct ImapWorld {
     /// adds a label and leaves the message in it; a move to `\Trash` takes the message out of
     /// every other mailbox; and a message expunged from a label is still in `\All`.
     pub(crate) gmail: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and the word Gmail's search
+    /// finds it by after `category:` (`social`) of each message that is in one of Gmail's
+    /// categories other than Primary. Such a server answers `UID SEARCH UID <set> UNDELETED
+    /// X-GM-RAW "category:…"` and gives each message an `X-GM-MSGID` (its UID plus [`GMAIL_IDS`]).
+    pub(crate) gmail_categories: Vec<(String, u32, String)>,
+    /// Gmail's search finds messages marked as deleted too, `UNDELETED` or not.
+    pub(crate) gmail_finds_deleted: bool,
+    /// For a server that behaves as Gmail does: the mailbox, the UID and what goes between the
+    /// parentheses of `X-GM-LABELS (…)` for each message that has labels (#1153), as it stands, so
+    /// that a test can write anything there; a message not named has `X-GM-LABELS ()`.
+    pub(crate) gmail_labels: Vec<(String, u32, String)>,
+    /// Don't know STATUS: answer BAD to it, as a very old server would.
+    pub(crate) no_status: bool,
+    /// Know IDLE (RFC 2177), and say so. While a client idles, every line in `idle_events` is
+    /// sent to it, once, as the server's own news (`* 3 EXISTS`).
+    pub(crate) idle: bool,
+    pub(crate) idle_events: Vec<String>,
+    /// End the next IDLE the way a server may on its own (the tagged OK), after this many polls
+    /// of 20 ms; `None` for never.
+    pub(crate) idle_ends_after: Option<usize>,
+    /// Hang up on an idling client, once, after this many polls of 20 ms.
+    pub(crate) idle_hangs_up_after: Option<usize>,
+    /// How many clients are idling now, and how many IDLE commands have been taken in all.
+    pub(crate) idling: usize,
+    pub(crate) idles: usize,
     /// The mailboxes subscribed to.
     pub(crate) subscribed: Vec<String>,
+    /// Personal IMAP namespace `(prefix, delimiter)` to advertise via `NAMESPACE`.
+    pub(crate) namespace: Option<(String, String)>,
     /// Every line received.
     pub(crate) log: Vec<String>,
     pub(crate) connections: usize,
@@ -322,7 +384,10 @@ impl ImapWorld {
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}")
+        let idle = if self.idle { " IDLE" } else { "" };
+        let namespace = if self.namespace.is_some() { " NAMESPACE" } else { "" };
+        let no_login = if self.login_disabled { " LOGINDISABLED" } else { "" };
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}{idle}{namespace}{no_login}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -365,6 +430,7 @@ pub(crate) struct SmtpWorld {
 /// A fake server and its state.
 pub(crate) struct Fake<W> {
     pub(crate) port: u16,
+    _stop: Stop,
     world: Arc<Mutex<W>>,
 }
 
@@ -378,13 +444,22 @@ impl<W: Send + 'static> Fake<W> {
         let port = listener.local_addr().unwrap().port();
         let world = Arc::new(Mutex::new(world));
         let shared = world.clone();
+        let (stop, halt) = Stop::new(port);
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
+                if halt.load(Ordering::SeqCst) {
+                    return;
+                }
                 let shared = shared.clone();
                 std::thread::spawn(move || serve(stream, shared));
             }
         });
-        Fake { port, world }
+        Fake { port, _stop: stop, world }
+    }
+
+    /// The state itself, for a thread of the test's own to change.
+    pub(crate) fn world_handle(&self) -> Arc<Mutex<W>> {
+        self.world.clone()
     }
 
     /// The server's state, to set up or to look at.
@@ -488,7 +563,11 @@ fn quote(name: &str) -> String {
     format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+/// What a server that behaves as Gmail does adds to a message's UID for its `X-GM-MSGID`.
+pub(crate) const GMAIL_IDS: u64 = 1_500_000_000_000_000_000;
+
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
+    let socket = stream.try_clone().ok();
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
     let mut secured = false;
     let greeting = {
@@ -536,6 +615,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
         }
         match verb.to_ascii_uppercase().as_str() {
             "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
+            "NAMESPACE" => {
+                if let Some((prefix, delimiter)) = &world.namespace {
+                    reply.extend(format!("* NAMESPACE ((\"{prefix}\" \"{delimiter}\")) NIL NIL\r\n{tag} OK done\r\n").bytes());
+                } else {
+                    reply.extend(format!("{tag} BAD not offered\r\n").bytes());
+                }
+            }
             "STARTTLS" if world.offer_starttls => {
                 let upgrade = world.starttls_upgrade.clone();
                 drop(world);
@@ -642,6 +728,86 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
             }
+            // The server tells of changes until the client says DONE (RFC 2177).
+            "IDLE" if world.idle && open.is_some() => {
+                world.idles += 1;
+                world.idling += 1;
+                drop(world);
+                if reader.get_mut().write_all(b"+ idling\r\n").is_err() {
+                    return;
+                }
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(Some(Duration::from_millis(20)));
+                }
+                let mut polls = 0usize;
+                let ended = loop {
+                    let news: Vec<String> = std::mem::take(&mut shared.lock().unwrap().idle_events);
+                    for line in news {
+                        if reader.get_mut().write_all(format!("{line}\r\n").as_bytes()).is_err() {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                    polls += 1;
+                    if shared.lock().unwrap().idle_hangs_up_after.is_some_and(|after| polls > after) {
+                        let mut world = shared.lock().unwrap();
+                        world.idle_hangs_up_after = None;
+                        world.idling -= 1;
+                        return;
+                    }
+                    if shared.lock().unwrap().idle_ends_after.is_some_and(|after| polls > after) {
+                        shared.lock().unwrap().idle_ends_after = None;
+                        break "by itself";
+                    }
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                        Ok(_) => {
+                            shared.lock().unwrap().log.push(line.trim_end().to_string());
+                            if line.trim().eq_ignore_ascii_case("DONE") {
+                                break "by the client";
+                            }
+                        }
+                        Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                        Err(_) => {
+                            shared.lock().unwrap().idling -= 1;
+                            return;
+                        }
+                    }
+                };
+                if let Some(socket) = &socket {
+                    let _ = socket.set_read_timeout(None);
+                }
+                shared.lock().unwrap().idling -= 1;
+                let _ = ended;
+                if reader.get_mut().write_all(format!("{tag} OK IDLE terminated\r\n").as_bytes()).is_err() {
+                    return;
+                }
+                continue;
+            }
+            // What a mailbox holds, without opening it (RFC 3501 §6.3.10).
+            "STATUS" if !world.no_status => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                match world.mailboxes.iter().find(|m| m.raw == name && !m.flags.contains("\\Noselect")) {
+                    Some(mailbox) => {
+                        let next = mailbox.next_uid.max(mailbox.messages.iter().map(|m| m.uid).max().unwrap_or(0) + 1);
+                        let unseen = mailbox.messages.iter().filter(|m| !m.has("\\Seen")).count();
+                        reply.extend(
+                            format!(
+                                "* STATUS {} (MESSAGES {} UIDNEXT {next} UIDVALIDITY {} UNSEEN {unseen})\r\n{tag} OK done\r\n",
+                                quote(&mailbox.raw),
+                                mailbox.messages.len(),
+                                mailbox.uid_validity
+                            )
+                            .bytes(),
+                        );
+                    }
+                    None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
+                }
+            }
             "CREATE" => {
                 let name = words(args).into_iter().next().unwrap_or_default();
                 if name.is_empty() || world.mailboxes.iter().any(|m| m.raw.eq_ignore_ascii_case(&name)) {
@@ -706,11 +872,27 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
-            // `UID SEARCH UNDELETED HEADER <field> <text>`: the one search asked of a server.
+            // `UID SEARCH UNDELETED HEADER <field> <text>`, and Gmail's `UID SEARCH UID <set>
+            // UNDELETED X-GM-RAW "category:…"`: the searches asked of a server.
             "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
                 let said = words(args);
                 let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                let gmail_raw = said.len() == 6 && asked(1, "UID") && asked(3, "UNDELETED") && asked(4, "X-GM-RAW");
                 match open.and_then(|i| world.mailboxes.get(i)) {
+                    _ if gmail_raw && !world.gmail => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    Some(mailbox) if gmail_raw => match said[5].to_ascii_lowercase().strip_prefix("category:") {
+                        Some(wanted) => {
+                            let found: String = mailbox
+                                .messages
+                                .iter()
+                                .filter(|m| (world.gmail_finds_deleted || !m.has("\\Deleted")) && in_set(&said[2], m.uid))
+                                .filter(|m| world.gmail_categories.iter().any(|(at, uid, c)| *at == mailbox.raw && *uid == m.uid && *c == wanted))
+                                .map(|m| format!(" {}", m.uid))
+                                .collect();
+                            reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                        }
+                        None => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    },
                     _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
                     None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
                     Some(mailbox) => {
@@ -811,6 +993,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (whole, header) = (items.contains("BODY.PEEK[]"), items.contains("BODY.PEEK[HEADER]"));
                 let mut refused = !fetch.eq_ignore_ascii_case("FETCH");
                 let messages = open.and_then(|i| world.mailboxes.get(i)).map_or(&[][..], |m| &m.messages[..]);
+                let open_raw = open.and_then(|i| world.mailboxes.get(i)).map_or("", |m| m.raw.as_str());
                 for (index, message) in messages.iter().enumerate().filter(|(_, m)| in_set(set, m.uid)) {
                     let (seq, uid, flags) = (index + 1, message.uid, &message.flags);
                     if whole && world.hang_up_at_uid == Some(uid) {
@@ -841,6 +1024,15 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
                         reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
+                    } else if world.gmail && (items.contains("X-GM-MSGID") || items.contains("X-GM-LABELS")) {
+                        let id = if items.contains("X-GM-MSGID") { format!(" X-GM-MSGID {}", GMAIL_IDS + u64::from(uid)) } else { String::new() };
+                        let labels = if items.contains("X-GM-LABELS") {
+                            let said = world.gmail_labels.iter().find(|(at, u, _)| at == open_raw && *u == uid).map_or("", |(_, _, l)| l.as_str());
+                            format!(" X-GM-LABELS ({said})")
+                        } else {
+                            String::new()
+                        };
+                        reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid}{id}{labels})\r\n").bytes());
                     } else {
                         reply.extend(format!("* {seq} FETCH (FLAGS ({flags}) UID {uid})\r\n").bytes());
                     }

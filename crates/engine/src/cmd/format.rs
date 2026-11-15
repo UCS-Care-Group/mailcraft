@@ -23,7 +23,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.select", "Select Text", "Message", select).pure().params(r#"{"from": number, "to"?: number} (to: the caret, default from)"#).when_writing(needs_doc),
         CommandSpec::new("compose.type", "Type", "Message", type_text)
             .pure()
-            .params(r#"{"text": string} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there)"#)
+            .params(r#"{"text": string, "autoList"?: bool} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there). "autoList" (the keyboard's, with a space): when the paragraph so far is `* `, `- `, `1. ` or `1) ` in an HTML message and File › Options has Automatic bulleted and numbered lists on, it becomes a list item without the marker, an undo step of its own"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.delete", "Delete Text", "Message", delete)
             .pure()
@@ -60,7 +60,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
-            .params(r#"{"value": "Arial"|"Calibri"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
+            .params(r#"{"value": "Arial"|"Calibri"|"Courier New"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
             .when_writing(needs_html),
         CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
@@ -185,6 +185,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 fn type_text(s: &mut Session, v: &Value) -> CmdResult {
     let text = p::req_str(v, "text")?.to_string();
     edit(s, &json!({}), |b| b.type_text(&text))?;
+    // Lists as you type (#973): only after a space, in HTML, when the owner leaves them on.
+    if text == " " && p::bool(v, "autoList").unwrap_or(false) && s.prefs.auto_lists && matches!(s.doc(), Some((_, false))) {
+        edit(s, &json!({}), |b| b.auto_list())?;
+    }
     Ok(state(s))
 }
 
@@ -320,9 +324,11 @@ fn symbol(s: &mut Session, v: &Value) -> CmdResult {
 fn font(s: &mut Session, v: &Value) -> CmdResult {
     let value = match v.get("value") {
         Some(Value::Null) => None,
-        Some(_) => {
-            Some(p::str(v, "value").and_then(Font::parse).ok_or_else(|| bad("`value` is Arial, Calibri, Georgia, Verdana or System, or null"))?)
-        }
+        Some(_) => Some(
+            p::str(v, "value")
+                .and_then(Font::parse)
+                .ok_or_else(|| bad("`value` is Arial, Calibri, Courier New, Georgia, Verdana or System, or null"))?,
+        ),
         None => return Err(bad("`value` (a font, or null) is required")),
     };
     edit(s, v, |b| b.format(Format::Font(value)))?;
@@ -398,7 +404,7 @@ fn clipboard(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         return Err(fail("nothing is selected in the message"));
     }
     let part = d.body.text().slice(sel.start(), sel.end()).map_err(model)?;
-    let html = (!d.plain).then(|| mailcraft_mime::rich::to_html(&part));
+    let html = (!d.plain).then(|| mailcraft_mime_model::rich::to_html(&part));
     Ok(json!({"text": part.to_plain(), "html": html}))
 }
 
@@ -432,7 +438,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let from_html = match html {
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
-            let rich = mailcraft_mime::rich::from_html(html);
+            let rich = mailcraft_mime_model::rich::from_html(html);
             Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
         }
         None => None,

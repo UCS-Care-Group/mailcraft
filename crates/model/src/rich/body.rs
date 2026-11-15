@@ -250,6 +250,34 @@ impl RichBody {
         Ok(())
     }
 
+    /// After a space typed at the caret (#973): a paragraph that holds only `* ` or `- ` before
+    /// the caret becomes a bulleted list item, `1. ` or `1) ` a numbered one, and the typed marker
+    /// goes, as an undo step of its own (Undo puts the marker back as text). Nothing for a list item
+    /// or anything else typed. Whether it changed.
+    pub fn auto_list(&mut self) -> Result<bool, ModelError> {
+        let sel = self.selection;
+        if !sel.is_empty() || self.text.list_at(sel.head) != ListKind::None {
+            return Ok(false);
+        }
+        let Some((start, _)) = self.text.paragraph_span(sel.head) else { return Ok(false) };
+        if !(2..=3).contains(&sel.head.saturating_sub(start)) {
+            return Ok(false);
+        }
+        let kind = match self.text.slice(start, sel.head)?.text().as_str() {
+            "* " | "- " => ListKind::Bullet,
+            "1. " | "1) " => ListKind::Numbered,
+            _ => return Ok(false),
+        };
+        self.edit(false, |t, s| {
+            t.delete(start, sel.head)?;
+            t.set_list(start, start, kind)?;
+            *s = Selection::caret(start);
+            Ok(())
+        })?;
+        self.typing = None;
+        Ok(true)
+    }
+
     /// Put a pasted document over the selection.
     pub fn paste(&mut self, fragment: &RichText) -> Result<(), ModelError> {
         let sel = self.selection;

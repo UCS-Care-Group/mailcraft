@@ -5,9 +5,12 @@
 use std::io::{ErrorKind, Read, Write};
 
 use crate::{MAX_LINE, MAX_LITERAL, ProtoError};
+use mailcraft_i18n::said;
 
 /// How much is asked of the stream in one read.
 const CHUNK: usize = 16 * 1024;
+/// Most bytes of one over-long untagged line read past ([`Wire::read_line_or_skip`]).
+const MAX_SKIPPED: usize = 4 * 1024 * 1024;
 /// Reads interrupted in a row before giving up.
 const MAX_INTERRUPTS: u32 = 1_000;
 
@@ -20,14 +23,15 @@ pub(crate) struct Wire<S> {
 }
 
 fn closed() -> ProtoError {
-    ProtoError::Io("the server closed the connection".into())
+    ProtoError::Io(said!("the server closed the connection"))
 }
 
 fn io_error(e: &std::io::Error) -> ProtoError {
     match e.kind() {
-        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io("the server took too long to answer".into()),
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io(said!("the server took too long to answer")),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => closed(),
-        _ => ProtoError::Io(crate::tidy(&e.to_string())),
+        // The system's own words, as it said them.
+        _ => ProtoError::Io(crate::tidy(&e.to_string()).into()),
     }
 }
 
@@ -67,12 +71,70 @@ impl<S: Read + Write> Wire<S> {
 
     /// The next line without its line ending (CRLF, or a bare LF).
     pub(crate) fn read_line(&mut self) -> Result<Vec<u8>, ProtoError> {
+        self.next_line(false)?.ok_or_else(too_long)
+    }
+
+    /// The next line, or `None` for an untagged one (`* …`) longer than [`MAX_LINE`], which is
+    /// read past to its end (at most [`MAX_SKIPPED`] bytes of it) so that the session goes on.
+    /// Any other line that long is an error, as for [`Wire::read_line`].
+    pub(crate) fn read_line_or_skip(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        self.next_line(true)
+    }
+
+    fn next_line(&mut self, skip: bool) -> Result<Option<Vec<u8>>, ProtoError> {
         // How much of the pending bytes has been searched for a line feed already.
         let mut scanned = 0usize;
+        // Bytes of an over-long line dropped so far, when one is being read past.
+        let mut skipped: Option<usize> = None;
         loop {
             let pending = self.buf.get(self.start..).unwrap_or(&[]);
             if let Some(i) = pending.get(scanned..).and_then(|rest| rest.iter().position(|b| *b == b'\n')) {
                 let end = scanned.saturating_add(i);
+                let line = pending.get(..end).unwrap_or(&[]);
+                let line = line.strip_suffix(b"\r").unwrap_or(line);
+                let line = if skipped.is_some() {
+                    None
+                } else if line.len() > MAX_LINE {
+                    if !(skip && line.starts_with(b"* ")) {
+                        return Err(too_long());
+                    }
+                    None
+                } else {
+                    Some(line.to_vec())
+                };
+                self.start = self.start.saturating_add(end).saturating_add(1);
+                return Ok(line);
+            }
+            scanned = pending.len();
+            // The limit is on the line itself; a CR may still come on top.
+            if scanned > MAX_LINE + 1 {
+                let dropped = match skipped {
+                    Some(n) => n,
+                    None if skip && pending.starts_with(b"* ") => 0,
+                    None => return Err(too_long()),
+                };
+                let dropped = dropped.saturating_add(scanned);
+                if dropped > MAX_SKIPPED {
+                    return Err(too_long());
+                }
+                skipped = Some(dropped);
+                self.start = self.buf.len();
+                scanned = 0;
+            }
+            // Each round reads at least one byte, so this ends at the line feed, the cap or the end of the stream.
+            self.fill()?;
+        }
+    }
+
+    /// The next line if one arrives before the stream's own read timeout, `None` when the stream
+    /// had nothing for that long (IDLE waits like this, a second at a time, so that its owner can
+    /// look at the clock and at whether it was told to stop). Bytes of a line that came so far are
+    /// kept for the next call. A line over [`MAX_LINE`] is an error, as for [`Wire::read_line`].
+    pub(crate) fn poll_line(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        let mut interrupts = 0;
+        loop {
+            let pending = self.buf.get(self.start..).unwrap_or(&[]);
+            if let Some(end) = pending.iter().position(|b| *b == b'\n') {
                 let line = pending.get(..end).unwrap_or(&[]);
                 let line = line.strip_suffix(b"\r").unwrap_or(line);
                 if line.len() > MAX_LINE {
@@ -80,22 +142,32 @@ impl<S: Read + Write> Wire<S> {
                 }
                 let line = line.to_vec();
                 self.start = self.start.saturating_add(end).saturating_add(1);
-                return Ok(line);
+                return Ok(Some(line));
             }
-            scanned = pending.len();
             // The limit is on the line itself; a CR may still come on top.
-            if scanned > MAX_LINE + 1 {
+            if pending.len() > MAX_LINE + 1 {
                 return Err(too_long());
             }
-            // Each round reads at least one byte, so this ends at the line feed, the cap or the end of the stream.
-            self.fill()?;
+            if self.start > 0 {
+                self.buf.drain(..self.start.min(self.buf.len()));
+                self.start = 0;
+            }
+            let mut tmp = vec![0u8; CHUNK];
+            match self.stream.read(&mut tmp) {
+                Ok(0) => return Err(closed()),
+                // A stream that claims more than the buffer holds is lying.
+                Ok(n) => self.buf.extend_from_slice(tmp.get(..n.min(tmp.len())).unwrap_or(&[])),
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => return Ok(None),
+                Err(e) if e.kind() == ErrorKind::Interrupted && interrupts < MAX_INTERRUPTS => interrupts += 1,
+                Err(e) => return Err(io_error(&e)),
+            }
         }
     }
 
     /// Exactly `n` bytes (at most [`MAX_LITERAL`]).
     pub(crate) fn read_block(&mut self, n: usize) -> Result<Vec<u8>, ProtoError> {
         if n > MAX_LITERAL {
-            return Err(ProtoError::Protocol(format!("the server sent {n} bytes in one piece, more than MailCraft accepts")));
+            return Err(ProtoError::Protocol(said!("the server sent {n} bytes in one piece, more than MailCraft accepts", n)));
         }
         // The size is the server's word: memory is taken as the bytes arrive.
         let mut out = Vec::with_capacity(n.min(CHUNK));
@@ -132,7 +204,7 @@ impl<S: Read + Write> Wire<S> {
 }
 
 fn too_long() -> ProtoError {
-    ProtoError::Protocol(format!("the server sent a line longer than {} KB", MAX_LINE / 1024))
+    ProtoError::Protocol(said!("the server sent a line longer than {kb} KB", kb = MAX_LINE / 1024))
 }
 
 /// One read of at least one byte; the end of the stream is an error.
@@ -171,7 +243,7 @@ mod tests {
     fn the_end_of_the_stream_is_an_error() {
         let mut s = Script::new("no line ending");
         let mut w = Wire::new(&mut s);
-        assert_eq!(w.read_line(), Err(ProtoError::Io("the server closed the connection".into())));
+        assert_eq!(w.read_line(), Err(ProtoError::Io(said!("the server closed the connection"))));
         let mut s = Script::new("short");
         assert!(matches!(Wire::new(&mut s).read_block(10), Err(ProtoError::Io(_))));
     }
@@ -193,7 +265,7 @@ mod tests {
     #[test]
     fn stream_errors_become_connection_problems() {
         let mut w = Wire::new(Broken(ErrorKind::TimedOut));
-        assert_eq!(w.read_line(), Err(ProtoError::Io("the server took too long to answer".into())));
+        assert_eq!(w.read_line(), Err(ProtoError::Io(said!("the server took too long to answer"))));
         assert!(matches!(w.write(b"x"), Err(ProtoError::Io(_))));
         // A stream that is interrupted for ever hangs neither the reader nor the writer.
         assert!(matches!(Wire::new(Broken(ErrorKind::Interrupted)).read_line(), Err(ProtoError::Io(_))));

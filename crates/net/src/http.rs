@@ -67,7 +67,7 @@ impl Url {
     /// [`Url::parse`] for an address of up to `max` bytes: one a server sent to be followed (the
     /// next page of a list) carries more than one written here.
     pub(crate) fn parse_within(text: &str, max: usize) -> Result<Url, NetError> {
-        let bad = |why: &str| NetError::Config(format!("the server's address {why}"));
+        let bad = |why: &str| NetError::Config(format!("the server's address {why}").into());
         let text = text.trim();
         if text.is_empty() || text.len() > max || !text.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(bad("isn't one"));
@@ -251,7 +251,7 @@ pub(crate) fn closed() -> NetError {
 
 /// Whether an error of [`exchange`] says that the server hung up (or never took the request).
 pub(crate) fn is_closed(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == CLOSED)
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why.to_string() == CLOSED)
 }
 
 /// What an answer that didn't come in its time is called.
@@ -265,12 +265,12 @@ fn too_slow() -> NetError {
 
 /// Whether an error of [`read_reply`] says that the answer didn't come in the time it had.
 pub(crate) fn is_too_slow(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == TOO_SLOW)
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why.to_string() == TOO_SLOW)
 }
 
 /// Whether an error of [`read_reply`] says that the answer is longer than was asked for.
 pub(crate) fn is_too_long(error: &NetError) -> bool {
-    matches!(error, NetError::Proto(ProtoError::Protocol(why)) if why.starts_with(TOO_LONG))
+    matches!(error, NetError::Proto(ProtoError::Protocol(why)) if why.to_string().starts_with(TOO_LONG))
 }
 
 fn io_problem(e: &std::io::Error) -> NetError {
@@ -608,7 +608,7 @@ impl<R: Read> Reader<'_, R> {
             let pending = self.pending();
             let piece = pending.get(..left.min(pending.len())).unwrap_or(&[]);
             let taken = piece.len();
-            sink.write_all(piece).map_err(|e| NetError::Config(format!("the download couldn't be written: {}", tidy(&e.to_string()))))?;
+            sink.write_all(piece).map_err(|e| NetError::Config(format!("the download couldn't be written: {}", tidy(&e.to_string())).into()))?;
             self.start = self.start.saturating_add(taken);
             written = written.saturating_add(u64::try_from(taken).unwrap_or(u64::MAX));
         }
@@ -817,7 +817,7 @@ mod tests {
 
     fn protocol(result: Result<Answer, NetError>) -> String {
         match result {
-            Err(NetError::Proto(ProtoError::Protocol(why))) => why,
+            Err(NetError::Proto(ProtoError::Protocol(why))) => why.to_string(),
             other => panic!("expected an answer that makes no sense, got {other:?}"),
         }
     }
@@ -1047,7 +1047,7 @@ mod tests {
         let body = "x".repeat(MAX_BODY + 1);
         let reply = |answer: &str, max: usize| read_reply(&mut answer.as_bytes(), Instant::now(), SOON, max);
         let too_long = |result: Result<Reply, NetError>| match result {
-            Err(NetError::Proto(ProtoError::Protocol(why))) => why,
+            Err(NetError::Proto(ProtoError::Protocol(why))) => why.to_string(),
             other => panic!("expected an answer that is too long, got {:?}", other.map(|reply| reply.body.len())),
         };
         // By its length, in chunks, and up to the end of the stream.
@@ -1077,8 +1077,8 @@ mod tests {
         assert_eq!(ask(size).unwrap().body.len(), size);
         assert_eq!(ask(usize::MAX).unwrap().body.len(), size, "within the ceiling");
         // Everyone else still has their own limit.
-        assert!(matches!(ask(16 * 1024 * 1024), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 16384 KB")));
-        assert!(matches!(ask(MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 64 KB")));
+        assert!(matches!(ask(16 * 1024 * 1024), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 16384 KB")));
+        assert!(matches!(ask(MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB")));
     }
 
     #[test]
@@ -1122,7 +1122,9 @@ mod tests {
         assert!(!sent.contains("Bad Name") && !sent.contains("\r\n: y"), "{sent}");
 
         // No more comes back than was asked for, or than anyone may ask for.
-        assert!(matches!(ask("GET", None, MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.contains("longer than 64 KB")));
+        assert!(
+            matches!(ask("GET", None, MAX_BODY), Err(NetError::Proto(ProtoError::Protocol(why))) if why.to_string().contains("longer than 64 KB"))
+        );
         assert_eq!(ask("PATCH", Some(""), usize::MAX).unwrap().body.len(), 3 * MAX_BODY);
         // A body of nothing still says its length; no body says nothing of one.
         assert!(server.request(2).starts_with("PATCH ") && server.request(2).contains("Content-Length: 0\r\n"));

@@ -503,3 +503,37 @@ proptest::proptest! {
         }
     }
 }
+
+/// AU3-14: one pane for each look the lists give, the default first; every look found.
+#[test]
+fn envs_find_every_look_the_lists_tell_apart() {
+    assert_eq!(envs(&[]), (vec![Env::default()], true));
+    let lists: Vec<String> = ["(max-width: 600px)", "(prefers-color-scheme: dark)", "(min-width: 37.5em) and (max-width: 40em)", "print"]
+        .iter()
+        .map(|l| l.to_string())
+        .collect();
+    let (found, every) = envs(&lists);
+    assert!(every);
+    assert_eq!(found[0], Env::default());
+    let looks: Vec<Vec<bool>> = found.iter().map(|env| verdicts(&lists, env)).collect();
+    // Each once, and every one a pane of some width and theme can have.
+    for (i, look) in looks.iter().enumerate() {
+        assert!(!looks[..i].contains(look));
+    }
+    for width in (0..2_000).step_by(7) {
+        for dark in [false, true] {
+            assert!(looks.contains(&verdicts(&lists, &at(width as f32, dark))), "{width} {dark}");
+        }
+    }
+    assert!(found.len() <= MAX_ENVS);
+    // Many lengths give at most so many panes, and say that not every look was found.
+    let many: Vec<String> = (0..400).map(|i| format!("(max-width: {}px)", 100 + i)).collect();
+    let (found, every) = envs(&many);
+    assert_eq!(found.len(), MAX_ENVS);
+    assert!(!every);
+    // One look more than are tried is said too.
+    let over: Vec<String> = (0..MAX_ENVS).map(|i| format!("(min-width: {}px)", 100 + 50 * i)).collect();
+    assert!(!envs(&over).1);
+    let under: Vec<String> = (0..MAX_ENVS / 2 - 1).map(|i| format!("(min-width: {}px)", 100 + 50 * i)).collect();
+    assert!(envs(&under).1);
+}

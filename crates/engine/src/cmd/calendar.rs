@@ -119,7 +119,7 @@ fn kept_by(s: &Session, e: &Event) -> Option<String> {
 }
 
 /// Whether a calendar is one that an account's server keeps.
-fn served(s: &Session, calendar: Id) -> bool {
+pub(crate) fn served(s: &Session, calendar: Id) -> bool {
     s.mailbox.calendar(calendar).is_some_and(|c| remote::keeper(&s.mailbox, &c.origin).is_some())
 }
 
@@ -215,7 +215,7 @@ pub fn current_calendar(s: &Session) -> Id {
 
 /// A calendar of the mailbox's own, for what is not to be on a server (a meeting nobody is to be
 /// invited to yet): the first there is, or a new one that says where it lives.
-fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
+pub(crate) fn own_calendar_or_new(s: &mut Session) -> Result<Id, CmdError> {
     match own_calendar(s) {
         0 => {
             if s.mailbox.calendars.len() >= 200 {
@@ -451,6 +451,11 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         e.online = None;
     }
     meeting::online_fits(s, &e, None)?;
+    // Its categories take the spelling of its calendar's account's list; a new name joins it.
+    if p::strings(v, "categories").is_some() {
+        let account = s.mailbox.event_account(&e);
+        e.categories = super::category::spelled_all(s, account, &e.categories, &[], account)?;
+    }
     let id = s.mailbox.add_event(e)?;
     // In a calendar that a server keeps: the server is to have it too.
     remote::note_created(s, id)?;
@@ -546,10 +551,21 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
         let (from, to, at) = (series.instants(&here), (instant(one.start), instant(one.end)), was.instants(&here));
         one.set_instants(at.0.saturating_add(to.0.saturating_sub(from.0)), at.1.saturating_add(to.1.saturating_sub(from.1)), &here);
     }
+    // What is the organizer's to say and the mail to those invited are refused before a full
+    // list of categories is: neither depends on the categories, so a change of anything else is
+    // checked first. The categories are spelled after that, and before whether the day changes
+    // at all is seen: that is seen with its final categories.
+    let besides = kept && Event { categories: was.categories.clone(), ..one.clone() } != was;
+    let asked = if besides { Some(may_change(s, v, &was, &one)?) } else { None };
+    spell_categories(s, v, &mut one, series)?;
     if one == was {
         return Ok(json!({"id": series.id}));
     }
-    let send = if kept { may_change(s, v, &was, &one)? } else { false };
+    let send = match asked {
+        Some(send) => send,
+        None if kept => may_change(s, v, &was, &one)?,
+        None => false,
+    };
     s.mailbox.event_mut(series.id)?.exceptions.push(day);
     let id = s.mailbox.add_event(one)?;
     if kept {
@@ -624,6 +640,17 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     (people > 0 && seen).then_some(Mail::Update(people))
 }
 
+/// The categories `v` gives the event `before` becomes as `e` take the spelling of the list of
+/// the account of the calendar it ends up in, as for a new one; a new name joins that list. Done
+/// after the other refusals, so that a full list isn't what a call that fails anyway is told.
+fn spell_categories(s: &mut Session, v: &Value, e: &mut Event, before: &Event) -> Result<(), CmdError> {
+    if p::strings(v, "categories").is_some() {
+        let (account, was) = (s.mailbox.event_account(e), s.mailbox.event_account(before));
+        e.categories = super::category::spelled_all(s, account, &e.categories, &before.categories, was)?;
+    }
+    Ok(())
+}
+
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let before = changing(s, v)?;
     let id = before.id;
@@ -645,6 +672,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         // ([`remote::note_moved`]). Anything else stays where it is, and is told why.
         if moved {
             meeting::movable(s, &before, &e, who)?;
+            spell_categories(s, v, &mut e, &before)?;
             *s.mailbox.event_mut(id)? = e;
             remote::note_moved(s, id, &before)?;
             return Ok(json!({"id": id, "moved": true}));
@@ -659,6 +687,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
             e.organizer = s.mailbox.calendar(e.calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address()).or(e.organizer);
         }
     }
+    spell_categories(s, v, &mut e, &before)?;
     *s.mailbox.event_mut(id)? = e;
     match kept {
         Some(_) => changed(s, &before)?,

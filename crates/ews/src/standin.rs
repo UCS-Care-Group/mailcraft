@@ -64,6 +64,7 @@ const DISTINGUISHED: &[&str] = &[
     "conflicts",
     "localfailures",
     "serverfailures",
+    "conversationhistory",
 ];
 /// Operations of the service that change a mailbox.
 const WRITES: &[&str] = &[
@@ -197,6 +198,30 @@ pub struct State {
     /// (`folder:FolderClass` among the additional properties), as Grommunio does: its Default
     /// shape leaves it out (E8).
     pub class_only_when_asked: bool,
+    /// Distinguished names this server's schema lacks (an older or another server's): a request
+    /// that names one is a schema fault (`ErrorSchemaValidation`, HTTP 500), as for any name the
+    /// schema hasn't.
+    pub unknown_names: Vec<String>,
+    /// Every `GetFolder` that names one of these distinguished names is answered with this HTTP
+    /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
+    /// a client does when only that request is refused.
+    pub refuse_names: Option<(Vec<String>, u16)>,
+    /// The server behaves as an organisation's own Exchange 2010 SP3 does (#1349): it knows no
+    /// version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`, a fault, HTTP 500); its
+    /// schema has neither `item:Preview` nor `item:Flag` (a schema fault, HTTP 500, when
+    /// `SyncFolderItems` names them); its `SyncFolderItems` won't give the recipients
+    /// (`ErrorInvalidPropertyForOperation`), which `GetItem` gives; and it changes an item only when
+    /// `UpdateItem` names it with its change key (`ErrorChangeKeyRequiredForWriteOperations`, even
+    /// with `AlwaysOverwrite`).
+    pub exchange2010: bool,
+    /// With [`State::exchange2010`]: the server takes any version a request names, so that what it
+    /// does with the properties and the change keys is seen apart from the version.
+    pub takes_any_version: bool,
+    /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
+    /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
+    pub lists_no_recipients: bool,
+    /// The versions every request asked for, in order.
+    pub versions: Vec<String>,
 }
 
 impl Default for State {
@@ -264,6 +289,12 @@ impl Default for State {
             outgoing: Vec::new(),
             deletes: Vec::new(),
             class_only_when_asked: false,
+            unknown_names: Vec::new(),
+            refuse_names: None,
+            exchange2010: false,
+            takes_any_version: false,
+            lists_no_recipients: false,
+            versions: Vec::new(),
         }
     }
 }
@@ -381,7 +412,7 @@ impl State {
                 Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
                 Check::empty(one)?;
                 let id = Check::attribute(one, "Id")?;
-                if !DISTINGUISHED.contains(&id) {
+                if !DISTINGUISHED.contains(&id) || self.unknown_names.iter().any(|name| name == id) {
                     return Err(invalid(format!("{id} is no distinguished folder")));
                 }
                 out.push(self.folder(id, true).cloned());
@@ -407,7 +438,12 @@ impl State {
         let version = header.child("RequestServerVersion").ok_or_else(|| invalid("a RequestServerVersion is needed"))?;
         Check::is(version, TYPES, "RequestServerVersion", &["Version"])?;
         Check::empty(version)?;
-        if !Version::NAMES.contains(&Check::attribute(version, "Version")?) {
+        let asked_version = Check::attribute(version, "Version")?;
+        self.versions.push(asked_version.to_owned());
+        // (Exchange 2010 knows the versions up to its own, the first five names.)
+        let known =
+            if self.exchange2010 && !self.takes_any_version { Version::NAMES.get(..5).unwrap_or_default() } else { Version::NAMES.as_slice() };
+        if !known.contains(&asked_version) {
             return Err(Refusal { code: "ErrorInvalidServerVersion", why: "no such version of the schema".into() });
         }
         let body = Check::required(&root, parts.get(1).copied().flatten(), "Body")?;
@@ -516,6 +552,13 @@ impl State {
         Ok((200, first, response("GetFolder", &messages)))
     }
 
+    /// The status [`State::refuse_names`] answers `request` with, when it names one of them.
+    fn refused_name(&self, request: &HttpRequest) -> Option<u16> {
+        let (names, status) = self.refuse_names.as_ref()?;
+        let body = String::from_utf8_lossy(request.body());
+        (body.contains("GetFolder") && names.iter().any(|name| body.contains(&format!("Id=\"{name}\"")))).then_some(*status)
+    }
+
     fn respond(&mut self, request: &HttpRequest) -> HttpResponse {
         let mut asked = Asked { body: String::from_utf8_lossy(request.body()).into_owned(), ..Asked::default() };
         let authorized = request.field("authorization") == Some(self.authorization.as_str());
@@ -525,6 +568,9 @@ impl State {
         } else if !authorized {
             asked.status = 401;
             HttpResponse::new(401, Vec::new())
+        } else if let Some(status) = self.refused_name(request) {
+            asked.status = status;
+            HttpResponse::new(status, Vec::new())
         } else {
             let (status, code, body) = match self.answer(&mut asked, request) {
                 Ok(done) => done,

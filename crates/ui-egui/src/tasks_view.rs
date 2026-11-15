@@ -281,6 +281,7 @@ fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
     egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));
@@ -366,7 +367,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, lists: &Lists) {
         Heading::Category(i) => names.get(i as usize).map_or_else(String::new, |n| one_line(n, 200)),
         Heading::NoCategory => tl!("No category").to_string(),
     };
-    show_rows(ui, &lists.layout, reveal, label, |ui, id, copy, rect| task_row(app, ui, id, copy, rect, today, labelled));
+    show_rows(ui, &lists.layout, reveal, app.overlay_scroll_bars, label, |ui, id, copy, rect| task_row(app, ui, id, copy, rect, today, labelled));
 }
 
 /// The field above the list: type a title, press Enter, and the task exists.
@@ -900,7 +901,7 @@ mod tests {
         assert_eq!(shown_title(&Task { title: " \n\t ".into(), ..Default::default() }), "(no title)");
         assert_eq!(shown_title(&Task { title: "Call\nLin\u{0}".into(), ..Default::default() }), "Call Lin");
         // However long a title in a file is, a row lays out a bounded piece of it.
-        assert_eq!(shown_title(&Task { title: "t".repeat(1_000_000), ..Default::default() }).chars().count(), 301);
+        assert_eq!(shown_title(&Task { title: "t".repeat(1_000_000), ..Default::default() }).chars().count(), 300);
         assert_eq!(importance_label(Importance::High), "High");
         for filter in TaskFilter::ALL {
             assert!(icons::NAMES.contains(&filter_icon(filter)), "{filter:?}");

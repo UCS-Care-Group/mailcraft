@@ -93,7 +93,7 @@ fn one_odd_answer_does_not_clear_the_mark() {
 fn a_deletion_queued_for_a_folder_marked_earlier_is_dropped_though_one_listing_says_false() {
     let (mut s, account) = session();
     take(&mut s, account, server(true));
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into(), shown: Default::default() });
     take(&mut s, account, server(false));
     assert!(flagged(&s, account, "co"));
     assert!(s.mailbox.queued.is_empty());
@@ -104,8 +104,8 @@ fn a_deletion_queued_for_a_folder_marked_earlier_is_dropped_though_one_listing_s
 fn a_deletion_queued_for_a_folder_that_is_the_servers_own_is_dropped() {
     let (mut s, account) = session();
     take(&mut s, account, server(false));
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into() });
-    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "co".into(), shown: Default::default() });
+    s.mailbox.queued.push(Queued::DeleteFolder { account, id: "pr".into(), shown: Default::default() });
     take(&mut s, account, server(true));
     let left: Vec<&str> = s
         .mailbox

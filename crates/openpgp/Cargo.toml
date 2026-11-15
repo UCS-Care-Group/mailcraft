@@ -1,0 +1,29 @@
+[package]
+name = "mailcraft-openpgp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft OpenPGP checking: PGP/MIME and inline Digital signatures, attached Public keys and Autocrypt headers; no I/O of its own"
+
+[lints]
+workspace = true
+
+[dependencies]
+pgp = { workspace = true }
+thiserror = { workspace = true }
+mailcraft-names = { workspace = true }
+# rPGP's generation of RustCrypto (the workspace's `sha2` is 0.11, for S/MIME).
+sha2 = { version = "0.10", default-features = false }
+sha3 = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Random numbers in the browser, which rPGP's dependencies ask for even when it only checks.
+pgp = { workspace = true, features = ["wasm"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+# Keys and signatures made in the tests, from a seed: the random numbers rPGP 0.21 takes.
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+sha1 = { workspace = true }
+ed25519-dalek = { workspace = true }
+rsa = { version = "0.9", default-features = false }

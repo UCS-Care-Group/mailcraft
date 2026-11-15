@@ -50,11 +50,10 @@ pub enum MeetingDialog {
     Search(Box<share::SearchCalendar>),
 }
 
-/// A name from outside, for a label: one line, not too long, never empty.
+/// A name from outside, for a label, as a name is shown (#454): the address when the name shows
+/// nothing, at most 80 characters, never empty.
 fn shown_name(name: &str, email: &str) -> String {
-    let text = if name.trim().is_empty() { email.trim() } else { name.trim() };
-    let text = kit::shown(text, 80);
-    if text.is_empty() { tl!("Somebody").to_string() } else { text }
+    [name, email].into_iter().map(|text| kit::shown(text, 80)).find(|text| !text.is_empty()).unwrap_or_else(|| tl!("Somebody").to_string())
 }
 
 /// `Thursday, October 15, 2026 10:00 AM – 11:00 AM`.
@@ -751,5 +750,7 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
     Some(Ok(json!({"event": event, "url": url})))
 }
 
+#[cfg(test)]
+mod names_tests;
 #[cfg(test)]
 mod tests;

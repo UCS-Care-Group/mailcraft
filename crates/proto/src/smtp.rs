@@ -8,6 +8,7 @@ use mailcraft_charset::base64::STANDARD;
 
 use crate::line::Wire;
 use crate::{ProtoError, Secrets, for_trace, tidy, xoauth2};
+use mailcraft_i18n::{Arg, Text, said};
 
 /// Most lines one reply may have.
 const MAX_REPLY_LINES: usize = 256;
@@ -115,7 +116,7 @@ impl<S: Read + Write> Smtp<S> {
         }
         // Anything after the go-ahead was slipped in before encryption started (RFC 3207 §6).
         if self.wire.has_pending() {
-            return Err(ProtoError::Protocol("the server sent data before the secure connection started".into()));
+            return Err(ProtoError::Protocol(said!("the server sent data before the secure connection started")));
         }
         Ok(self.wire.into_inner())
     }
@@ -123,7 +124,7 @@ impl<S: Read + Write> Smtp<S> {
     /// AUTH PLAIN when offered, else AUTH LOGIN. 535 and friends → `ProtoError::Auth`.
     pub fn auth(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
         if user.contains('\0') || password.contains('\0') {
-            return Err(ProtoError::Auth("the user name or password has a character that can't be sent".into()));
+            return Err(ProtoError::Auth(said!("the user name or password has a character that can't be sent")));
         }
         self.secrets.add(password);
         if self.ext.auth_plain {
@@ -156,7 +157,7 @@ impl<S: Read + Write> Smtp<S> {
             let reply = self.secret_command(&encoded, "***")?;
             return self.signed_in(&reply);
         }
-        Err(ProtoError::Auth("the server offers no way to sign in with a password".into()))
+        Err(ProtoError::Auth(said!("the server offers no way to sign in with a password")))
     }
 
     /// AUTH XOAUTH2: an OAuth access token in place of a password. A server that doesn't offer
@@ -164,7 +165,7 @@ impl<S: Read + Write> Smtp<S> {
     pub fn auth_xoauth2(&mut self, user: &str, token: &str) -> Result<(), ProtoError> {
         let payload = xoauth2(user, token)?;
         if !self.ext.auth_xoauth2 {
-            return Err(ProtoError::Auth("the server offers no way to sign in with an access token".into()));
+            return Err(ProtoError::Auth(said!("the server offers no way to sign in with an access token")));
         }
         self.secrets.add(token);
         self.secrets.add(&payload);
@@ -189,7 +190,7 @@ impl<S: Read + Write> Smtp<S> {
                     235 => Ok(()),
                     334 => {
                         let _ = self.command("*");
-                        Err(ProtoError::Auth("the server asked for more than a user name and access token".into()))
+                        Err(ProtoError::Auth(said!("the server asked for more than a user name and access token")))
                     }
                     _ => Err(self.sign_in_failed(&verdict)),
                 }
@@ -205,10 +206,10 @@ impl<S: Read + Write> Smtp<S> {
             return Err(bad_address(from));
         }
         if recipients.is_empty() {
-            return Err(ProtoError::Protocol("the message has no recipients".into()));
+            return Err(ProtoError::Protocol(said!("the message has no recipients")));
         }
         if recipients.len() > MAX_RECIPIENTS {
-            return Err(ProtoError::Protocol("the message has too many recipients".into()));
+            return Err(ProtoError::Protocol(said!("the message has too many recipients")));
         }
         if let Some(bad) = recipients.iter().find(|r| !is_address(r)) {
             return Err(bad_address(bad));
@@ -229,7 +230,10 @@ impl<S: Read + Write> Smtp<S> {
             let reply = self.command(&format!("RCPT TO:<{rcpt}>"))?;
             if reply.class() != 2 {
                 let refused = match self.refused(&reply) {
-                    ProtoError::Rejected(text) => ProtoError::Rejected(format!("{rcpt}: {text}")),
+                    // (The address, then what the server said of it: no words of MailCraft's to say.)
+                    ProtoError::Rejected(text) => {
+                        ProtoError::Rejected(Text::new("{rcpt}: {text}", vec![("rcpt", Arg::Plain(rcpt.to_string())), ("text", Arg::said(text))]))
+                    }
                     other => other,
                 };
                 return Err(self.give_up(refused));
@@ -294,7 +298,7 @@ impl<S: Read + Write> Smtp<S> {
             let more = match (code, rest.chars().next()) {
                 (Some(code), Some('-')) if n == 0 || code == reply.code => true,
                 (Some(code), Some(' ') | None) if n == 0 || code == reply.code => false,
-                _ => return Err(ProtoError::Protocol(format!("\"{}\" is not an SMTP reply", tidy(&self.secrets.hide(&line))))),
+                _ => return Err(ProtoError::Protocol(said!("\"{line}\" is not an SMTP reply", line = tidy(&self.secrets.hide(&line))))),
             };
             reply.code = code.unwrap_or(0);
             reply.lines.push(rest.get(1..).unwrap_or("").to_string());
@@ -302,14 +306,14 @@ impl<S: Read + Write> Smtp<S> {
                 return Ok(reply);
             }
         }
-        Err(ProtoError::Protocol("the server's reply has too many lines".into()))
+        Err(ProtoError::Protocol(said!("the server's reply has too many lines")))
     }
 
     /// The error for a reply that isn't the one hoped for.
     fn refused(&self, reply: &Reply) -> ProtoError {
         // Hidden before it is shortened: a secret cut in half would no longer be recognised.
         let text = tidy(&self.secrets.hide(&reply.text()));
-        if matches!(reply.class(), 4 | 5) { ProtoError::Rejected(text) } else { ProtoError::Protocol(text) }
+        if matches!(reply.class(), 4 | 5) { ProtoError::Rejected(text.into()) } else { ProtoError::Protocol(text.into()) }
     }
 
     fn sign_in_failed(&mut self, reply: &Reply) -> ProtoError {
@@ -325,7 +329,7 @@ impl<S: Read + Write> Smtp<S> {
             334 => {
                 // Another question we have no answer to: cancel the exchange (RFC 4954 §4).
                 let _ = self.command("*");
-                Err(ProtoError::Auth("the server asked for more than a user name and password".into()))
+                Err(ProtoError::Auth(said!("the server asked for more than a user name and password")))
             }
             _ => Err(self.sign_in_failed(reply)),
         }
@@ -370,7 +374,7 @@ fn is_address(s: &str) -> bool {
 }
 
 fn bad_address(address: &str) -> ProtoError {
-    ProtoError::Protocol(format!("\"{}\" can't be used as an address", tidy(address)))
+    ProtoError::Protocol(said!("\"{address}\" can't be used as an address", address = tidy(address)))
 }
 
 /// The message as DATA wants it: every line ending CRLF, a leading dot doubled, the closing

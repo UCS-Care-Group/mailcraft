@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use mailcraft_jmap_types as wire;
 use serde_json::{Map, Value};
 
 use crate::error::BuildError;
@@ -79,12 +80,9 @@ impl ResultReference {
         &self.path
     }
 
-    fn to_json(&self) -> Value {
-        let mut object = Map::new();
-        object.insert("resultOf".to_owned(), Value::String(self.result_of.text.clone()));
-        object.insert("name".to_owned(), Value::String(self.name.clone()));
-        object.insert("path".to_owned(), Value::String(self.path.clone()));
-        Value::Object(object)
+    fn to_json(&self) -> Result<Value, BuildError> {
+        let reference = wire::ResultReference { result_of: self.result_of.text.clone(), name: self.name.clone(), path: self.path.clone() };
+        serde_json::to_value(reference).map_err(|_| BuildError::Serialisation)
     }
 }
 
@@ -205,7 +203,7 @@ impl ApiRequest {
             if arguments.contains_key(name) || arguments.contains_key(&key) {
                 return Err(BuildError::DuplicateArgument);
             }
-            arguments.insert(key, reference.to_json());
+            arguments.insert(key, reference.to_json()?);
         }
         let duplicated = arguments.keys().any(|key| key.strip_prefix('#').is_some_and(|plain| !plain.is_empty() && arguments.contains_key(plain)));
         if duplicated {
@@ -250,21 +248,15 @@ impl ApiRequest {
         if self.calls.is_empty() {
             return Err(BuildError::NoCalls);
         }
-        let mut object = Map::new();
-        object.insert("using".to_owned(), Value::Array(self.using.iter().cloned().map(Value::String).collect()));
-        let calls = self
-            .calls
-            .iter()
-            .map(|call| {
-                Value::Array(vec![Value::String(call.method.clone()), Value::Object(call.arguments.clone()), Value::String(call.id.text.clone())])
-            })
-            .collect();
-        object.insert("methodCalls".to_owned(), Value::Array(calls));
-        if let Some(created) = &self.created_ids {
-            let map = created.iter().map(|(key, value)| (key.as_str().to_owned(), Value::String(value.as_str().to_owned()))).collect();
-            object.insert("createdIds".to_owned(), Value::Object(map));
-        }
-        serde_json::to_vec(&Value::Object(object)).map_err(|_| BuildError::Serialisation)
+        let request = wire::Request {
+            using: self.using.clone(),
+            method_calls: self.calls.iter().map(|call| wire::Invocation(call.method.clone(), call.arguments.clone(), call.id.text.clone())).collect(),
+            created_ids: self
+                .created_ids
+                .as_ref()
+                .map(|created| created.iter().map(|(key, value)| (key.as_str().to_owned(), value.as_str().to_owned())).collect()),
+        };
+        serde_json::to_vec(&request).map_err(|_| BuildError::Serialisation)
     }
 }
 

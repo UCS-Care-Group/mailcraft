@@ -185,14 +185,20 @@ pub(crate) fn by_parts(m: &mailcraft_model::Message) -> bool {
 /// letting its parts go again, never moves it in the list (#575 review). A message whose server
 /// has said goes by that ([`server_answer`]): a meeting invitation's own calendar part isn't a
 /// file, a calendar file attached to a mail is, as the target has it. Any other goes only by its
-/// list of parts, never by a part's bytes or the HTML; the price there: no calendar part counts,
-/// so a plain `.ics` file sorts with the messages without files, and every inline picture with a
-/// `Content-ID` is taken to be one the HTML shows, as the attachment list takes it while the
-/// HTML is kept outside memory.
+/// list of parts and their declared types, never by a part's bytes or the HTML; the price there:
+/// no calendar part counts, so a plain `.ics` file sorts with the messages without files; an
+/// inline part with a `Content-ID` that says it is a picture is taken to be one the HTML shows,
+/// as the attachment list takes it while the HTML is kept outside memory, and any other inline
+/// part with one (Apple Mail's PDF in place, #575 review) is a file, as the list shows it. So a
+/// picture the HTML doesn't show, or one whose bytes aren't a picture, sorts without files while
+/// its row wears the paperclip; a part said to be some other type whose bytes are a picture the
+/// HTML shows sorts with files while its row has none.
 pub fn sorts_with_files(m: &mailcraft_model::Message) -> bool {
     server_answer(m).unwrap_or_else(|| {
         (m.unfetched && m.attachments_on_server)
-            || m.attachments.iter().any(|a| !crate::session::is_calendar_part(a) && !(a.inline && !a.content_id.is_empty()))
+            || m.attachments.iter().any(|a| {
+                !crate::session::is_calendar_part(a) && !(a.inline && !a.content_id.is_empty() && mailcraft_model::shown::declares_picture(a))
+            })
     })
 }
 

@@ -131,10 +131,16 @@ fn read_marks_alone_leave_the_list_and_the_counts_standing_put_right() {
     s.run("mail.select", &json!({"id": other})).unwrap();
     assert!(s.mailbox.message(other).unwrap().read);
     assert_eq!(s.list_builds(), builds, "opening a message: the list stands");
-    // A flag is more than a read mark: built again.
+    // A flag changes nothing the list is built from (unfiltered): it stands too.
     s.run("mail.flag", &json!({"id": id})).unwrap();
+    let rows = s.rows();
+    assert_eq!(s.list_builds(), builds, "a flag: the list stands");
+    assert_eq!(*rows, crate::list::rows(&s), "and is the list built again");
+    drop(rows);
+    // A pin moves the message to the top: built again.
+    s.run("mail.pin", &json!({"id": id})).unwrap();
     let _ = s.rows();
-    assert_eq!(s.list_builds(), builds + 1, "a flag: built again");
+    assert_eq!(s.list_builds(), builds + 1, "a pin: built again");
     // Under a filter the list depends on the read state: built again.
     s.run("view.filter", &json!({"value": "unread"})).unwrap();
     let rows = s.rows();
@@ -194,4 +200,142 @@ fn counts_built_as_a_command_runs_are_not_carried_through_its_read_marks() {
         assert_eq!(counts.account(account).unread, s.mailbox.messages.values().filter(|m| m.account == account && !m.read).count(), "{step}");
     }
     assert!(!s.mailbox.message(other).unwrap().read, "redone: unread again");
+}
+
+/// Selecting is a reading command (no copy of the mailbox is taken for it), and the message it
+/// opens is marked read once it is done: the list stands, the counts follow, the mailbox is to be
+/// saved, and no step of the history is made. A range or a selection that fails marks nothing.
+#[test]
+fn a_selection_marks_what_it_opens_read_after_it_without_a_step() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let inbox = s.mailbox.inbox().unwrap();
+    let rows = s.rows();
+    let unread: Vec<_> = rows.iter().filter(|r| r.unread > 0 && r.members.len() == 1).map(|r| r.id).collect();
+    assert!(unread.len() >= 2, "the sample's Inbox has unread mail");
+    drop(rows);
+    let (builds, steps, unread_before) = (s.list_builds(), s.history.len(), s.folder_counts().unread(inbox));
+    s.dirty = false;
+
+    // A selection that fails changes nothing.
+    assert!(s.run("mail.select", &json!({"id": unread[0], "copy": 99})).is_err());
+    assert!(!s.mailbox.message(unread[0]).unwrap().read);
+    assert!(!s.dirty);
+
+    s.run("mail.select", &json!({"id": unread[0]})).unwrap();
+    assert!(s.mailbox.message(unread[0]).unwrap().read, "opened: read");
+    assert!(s.dirty, "and to be saved");
+    assert_eq!(s.history.len(), steps, "no step of the history");
+    assert_eq!(s.folder_counts().unread(inbox), unread_before - 1);
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+    assert_eq!(s.rows().iter().find(|r| r.id == unread[0]).map(|r| r.unread), Some(0));
+    assert_eq!(s.list_builds(), builds, "the list stands");
+
+    // A Shift+click over unread mail marks none of it: more than one is selected.
+    s.run("mail.select", &json!({"id": unread[1], "range": true})).unwrap();
+    assert!(s.sel.messages.len() > 1);
+    assert!(!s.mailbox.message(unread[1]).unwrap().read, "a range opens nothing");
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+
+    // An arrow key that lands on an unread message marks it read the same way.
+    s.run("mail.select", &json!({"id": unread[1]})).unwrap();
+    assert!(s.mailbox.message(unread[1]).unwrap().read);
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+    assert_eq!(s.history.len(), steps);
+
+    // Under the Unread filter the list is built again, and the message opened stays in it (#428).
+    s.run("mail.markUnread", &json!({"ids": [unread[0], unread[1]]})).unwrap();
+    s.run("view.filter", &json!({"value": "unread"})).unwrap();
+    s.run("mail.select", &json!({"id": unread[0]})).unwrap();
+    assert!(s.mailbox.message(unread[0]).unwrap().read);
+    assert!(s.rows().iter().any(|r| r.id == unread[0]), "kept while it is selected");
+    assert_eq!(s.folder_counts().unread(inbox), s.mailbox.unread_count(inbox));
+}
+
+/// A change of any kind (a flag, a move, a delete, mail coming, Undo and Redo) leaves the counts
+/// brought in step with it what counting again over every message would make them, and doesn't
+/// count again over every message for it.
+#[test]
+fn counts_brought_in_step_with_a_change_are_those_counted_again() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let inbox = s.mailbox.inbox().unwrap();
+    let account = s.mailbox.folder(inbox).unwrap().account;
+    let archive = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Archive).unwrap();
+    let ids: Vec<_> = s.mailbox.messages_in(inbox).map(|m| m.id).take(6).collect();
+    assert!(ids.len() >= 6, "the sample's Inbox has mail");
+    let check = |s: &mut Session, what: &str| {
+        let kept = s.folder_counts();
+        assert_eq!(*kept, FolderCounts::of(&s.mailbox), "after {what}");
+        let rows = s.rows();
+        assert_eq!(*rows, crate::list::rows(s), "the list after {what} is the list built again");
+    };
+    check(&mut s, "nothing");
+    let steps: Vec<(&str, serde_json::Value)> = vec![
+        ("mail.flag", json!({"id": ids[0]})),
+        ("mail.toggleFlag", json!({"id": ids[1]})),
+        ("mail.pin", json!({"id": ids[1]})),
+        ("mail.markRead", json!({"ids": [ids[1], ids[2]]})),
+        ("mail.markUnread", json!({"id": ids[1]})),
+        ("mail.move", json!({"ids": [ids[2], ids[3]], "folder": archive})),
+        ("mail.delete", json!({"id": ids[4]})),
+        ("mail.deletePermanently", json!({"id": ids[5]})),
+        ("edit.undo", json!({})),
+        ("edit.undo", json!({})),
+        ("edit.redo", json!({})),
+        ("mail.move", json!({"id": ids[0], "folder": 999_999})),
+    ];
+    for (command, params) in steps {
+        let rows = s.rows();
+        drop(rows);
+        let _ = s.folder_counts();
+        let _ = s.run(command, &params);
+        check(&mut s, command);
+    }
+    // Mail coming into the Inbox, as a run brings it: counted in step too.
+    let mut m = (**s.mailbox.messages.get(&ids[0]).unwrap()).clone();
+    m.subject = "Arrived".into();
+    m.read = false;
+    let _ = s.folder_counts();
+    s.mailbox.add_message(m).unwrap();
+    // (Only the counts notice a change made outside a command, by the number of messages.)
+    assert_eq!(*s.folder_counts(), FolderCounts::of(&s.mailbox), "after a message added outside a command");
+}
+
+/// Counts of a mailbox that changed outside a command under the same revision (mail arriving
+/// before the window notes it) aren't carried through the next command: they would leave out
+/// what came. The message count beside the revision tells them apart, as for
+/// [`Session::folder_counts`].
+#[test]
+fn counts_of_a_mailbox_changed_outside_a_command_are_counted_again_after_the_next() {
+    for command in ["mail.flag", "mail.markRead", "mail.move"] {
+        let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+        let inbox = s.mailbox.inbox().unwrap();
+        let account = s.mailbox.folder(inbox).unwrap().account;
+        let archive = s.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Archive).unwrap();
+        let id = s.mailbox.messages_in(inbox).find(|m| !m.read).map(|m| m.id).unwrap();
+        let mut m = (**s.mailbox.messages.get(&id).unwrap()).clone();
+        m.subject = "Arrived".into();
+        m.read = false;
+        let _ = s.folder_counts();
+        s.mailbox.add_message(m).unwrap();
+        let params = if command == "mail.move" { json!({"id": id, "folder": archive}) } else { json!({"id": id}) };
+        s.run(command, &params).unwrap();
+        assert_eq!(*s.folder_counts(), FolderCounts::of(&s.mailbox), "after `{command}`");
+    }
+}
+
+/// A message an agent's selection opens is marked read off the light path: the mark moves the
+/// revision on, so that a save of the revision before it never counts the mark as saved.
+#[test]
+fn a_read_mark_off_the_light_path_moves_the_revision_on() {
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    s.prefs.mark_read_on_open = true;
+    let inbox = s.mailbox.inbox().unwrap();
+    let id = s.mailbox.messages_in(inbox).find(|m| !m.read && !m.draft).map(|m| m.id).unwrap();
+    s.dirty = false;
+    let before = s.rev();
+    s.agent = Some(Vec::new());
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    s.agent = None;
+    assert!(s.mailbox.message(id).unwrap().read);
+    assert!(s.dirty && s.rev() != before);
 }

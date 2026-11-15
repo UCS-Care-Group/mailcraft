@@ -828,6 +828,10 @@ pub struct EventOp {
     /// For a meeting that is forwarded: who to (with `comment` for them to read).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub to: Vec<Address>,
+    /// The event is a meeting: people are invited to it (before the change or after), whoever
+    /// organizes it. A server may write to them for any change of it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub meeting: bool,
 }
 
 impl EventOp {
@@ -845,14 +849,16 @@ impl EventOp {
         self.to = recipients(std::mem::take(&mut self.to));
     }
 
-    /// Whether the server sends mail to other people for this change (#70): an answer that is
-    /// sent, a meeting called off, a meeting forwarded, and a meeting made or changed with
-    /// people invited. From a shared mailbox that is sending from it.
+    /// Whether the server may send mail to other people for this change (#70): an answer that is
+    /// sent, a meeting forwarded, and any change to a meeting, whatever of it changes (a new
+    /// title or time is an update to the people invited, AU3-V2), a meeting called off or
+    /// deleted included. From a shared mailbox that is sending from it.
     pub fn mails_others(&self) -> bool {
+        let invited = self.meeting || self.fields.attendees.as_ref().is_some_and(|who| !who.is_empty());
         match self.kind {
             EventChangeKind::Respond | EventChangeKind::Forward => self.send,
-            EventChangeKind::Delete => self.cancel,
-            EventChangeKind::Create | EventChangeKind::Update => self.fields.attendees.as_ref().is_some_and(|who| !who.is_empty()),
+            EventChangeKind::Delete => self.cancel || invited,
+            EventChangeKind::Create | EventChangeKind::Update => invited,
         }
     }
 

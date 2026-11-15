@@ -155,7 +155,8 @@ fn a_message_from_before_goes_by_its_parts_until_its_server_says() {
         thin_message(mb.message_mut(id).unwrap(), "Preview".into());
     }
     assert_eq!(keys(&mb), before);
-    for (id, mime, _) in MAIL {
+    // (Only the three let go of are fetched again: one already whole is not asked for.)
+    for (id, mime, _) in MAIL.into_iter().filter(|(id, ..)| *id != "AAkI4") {
         assert!(take_fetched(&mut mb, &mut index, account, id, mime));
     }
     assert_eq!(keys(&mb), before);
@@ -168,7 +169,8 @@ fn a_message_from_before_goes_by_its_parts_until_its_server_says() {
     assert_eq!(refetch_unreadable(&mut mb), 3);
     assert!(mb.message(invitation).unwrap().unfetched);
     assert_eq!(keys(&mb), before);
-    for (id, mime, _) in MAIL {
+    // (Only the three let go of are fetched again: one already whole is not asked for.)
+    for (id, mime, _) in MAIL.into_iter().filter(|(id, ..)| *id != "AAkI4") {
         assert!(take_fetched(&mut mb, &mut index, account, id, mime));
     }
     assert_eq!(keys(&mb), before);
@@ -401,6 +403,9 @@ fn one_of_two_files_removed_here_leaves_the_paperclip() {
     // The other removed too, the server's copy fetched again, then the second removal undone:
     // the one file is back, and what its parts said with it.
     s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    s.mailbox.message_mut(pdf).unwrap().subject.push(char::REPLACEMENT_CHARACTER);
+    s.mailbox.redecoded = false;
+    assert_eq!(refetch_unreadable(&mut s.mailbox), 1);
     assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", TWO_PDFS));
     assert_eq!(s.mailbox.message(pdf).unwrap().attachments_changed_here, None);
     s.run("edit.undo", &json!({})).unwrap();

@@ -197,3 +197,30 @@ fn a_shared_mailbox_s_mail_is_never_sorted() {
     mb.accounts[0].shared_of = None;
     assert!(mb.sort_junk(id));
 }
+
+/// AU3-12: a safe sender's address in `From:` is the sender's word. Mail in the server's Junk
+/// E-mail whose own server says it failed DMARC (or SPF) for that domain stays there; the same
+/// address with mail the server passed, or says nothing of, moves to the Inbox.
+#[test]
+fn a_safe_senders_address_takes_mail_out_of_junk_only_when_its_server_finds_no_failure() {
+    let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@lumen.example");
+    let account = mb.accounts[0].id;
+    mb.accounts[0].kind = AccountKind::Imap;
+    mb.accounts[0].incoming = Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls });
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();
+    mb.junk_lists_mut(account).add(JunkList::Safe, "friend@bank.example");
+    let mut arrived = |results: Option<&str>| {
+        let mut m = Message { folder: junk, from: Address::new("Friend", "friend@bank.example"), uid: 7, subject: "Hi".into(), ..Default::default() };
+        m.headers = results.map(|value| vec![("Authentication-Results".to_string(), value.to_string())]).unwrap_or_default();
+        mb.add_message(m).unwrap()
+    };
+    let dmarc = arrived(Some("mx.lumen.example; spf=fail smtp.mailfrom=attacker.example; dmarc=fail header.from=bank.example"));
+    let spf = arrived(Some("mx.lumen.example; spf=fail smtp.mailfrom=bank.example"));
+    let passed = arrived(Some("mx.lumen.example; spf=pass smtp.mailfrom=bank.example; dmarc=pass header.from=bank.example"));
+    let silent = arrived(None);
+    for (id, moves) in [(dmarc, false), (spf, false), (passed, true), (silent, true)] {
+        assert_eq!(mb.sort_junk(id), moves, "{id}");
+        assert_eq!(mb.message(id).unwrap().folder, if moves { inbox } else { junk });
+    }
+}

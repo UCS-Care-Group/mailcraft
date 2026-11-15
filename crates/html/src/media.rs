@@ -80,6 +80,80 @@ pub fn verdicts(lists: &[String], env: &Env) -> Vec<bool> {
     lists.iter().map(|list| test(list, env).holds).collect()
 }
 
+/// Most looks of one message that [`envs`] tells apart.
+pub const MAX_ENVS: usize = 16;
+
+/// Most widths [`envs`] tries.
+const MAX_WIDTHS: usize = 128;
+
+/// A pane for each look the media lists `lists` ([`crate::media_lists`]) give a message, that is
+/// for each set of [`verdicts`] some pane width and theme gives them, at most [`MAX_ENVS`]: a wide
+/// light pane's first ([`Env::default`]), a wide dark one's next, then the widths the lists' own
+/// lengths tell apart, narrowest first, light and dark. What a message shows in any pane is what
+/// it shows in one of these when the flag that comes with them is set; when it is not, the
+/// message has more looks than these (or names more widths than are tried), and a check of
+/// every look must say it could not make one.
+pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
+    let mut out = vec![Env::default()];
+    if lists.is_empty() {
+        return (out, true);
+    }
+    let mut widths: Vec<u16> = Vec::new();
+    for list in lists {
+        thresholds(list, &mut widths);
+        if widths.len() >= MAX_WIDTHS {
+            break;
+        }
+    }
+    let mut every = widths.len() < MAX_WIDTHS;
+    widths.truncate(MAX_WIDTHS);
+    widths.push(0);
+    widths.sort_unstable();
+    widths.dedup();
+    let mut seen = vec![verdicts(lists, &Env::default())];
+    let candidates = std::iter::once(Env { width: WIDEST, dark: true })
+        .chain(widths.iter().flat_map(|width| [false, true].map(|dark| Env { width: *width, dark })));
+    for env in candidates {
+        let said = verdicts(lists, &env);
+        if !seen.contains(&said) {
+            if out.len() >= MAX_ENVS {
+                every = false;
+                break;
+            }
+            seen.push(said);
+            out.push(env);
+        }
+    }
+    (out, every)
+}
+
+/// The widths around each length a list's width features name, where a verdict may turn.
+fn thresholds(list: &str, widths: &mut Vec<u16>) {
+    let lower = list.to_ascii_lowercase();
+    let mut rest = lower.as_str();
+    let mut features = 0usize;
+    while let Some(open) = rest.find('(') {
+        features += 1;
+        if features > MAX_QUERIES * MAX_FEATURES || widths.len() >= MAX_WIDTHS {
+            return;
+        }
+        let after = rest.get(open + 1..).unwrap_or("");
+        let close = after.find(')').unwrap_or(after.len());
+        let inner = after.get(..close).unwrap_or("");
+        rest = after.get(close..).unwrap_or("");
+        let Some((name, value)) = inner.split_once(':') else { continue };
+        if !name.trim().ends_with("width") {
+            continue;
+        }
+        let Some(px) = length(value) else { continue };
+        let px = px.min(MAX_WIDTH);
+        let (low, high) = (px.floor(), px.ceil());
+        for w in [low - 1.0, low, high, high + 1.0] {
+            widths.push(w.clamp(0.0, MAX_WIDTH) as u16);
+        }
+    }
+}
+
 /// What a media query list came to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Verdict {

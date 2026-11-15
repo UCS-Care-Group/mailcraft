@@ -31,7 +31,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
     save(&path, &mb).unwrap();
     clear_cache();
     // The record the mailbox file keeps has none of it, and names the content file.
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(!String::from_utf8_lossy(&record.json).contains(NEEDLE));
     assert_eq!(record.parts.hidden.map(|p| p.r.len), Some(long_hidden().len() as u64));
     assert!(blob_file(&path, long_hidden().as_bytes()).is_file());
@@ -82,7 +82,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
 #[test]
 fn a_short_hidden_text_stays_in_the_record_and_old_files_load() {
     let (mb, id) = with_hidden("a short preheader");
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(record.parts.hidden.is_none() && String::from_utf8_lossy(&record.json).contains("a short preheader"));
     let tmp = Temp::new("hidden-inline");
     let path = tmp.file();
@@ -267,4 +267,38 @@ fn a_hidden_file_that_goes_after_the_open_leaves_the_body_readable() {
     assert!(load_all(&path, &mut all).is_ok());
     assert_eq!(all.message(id).unwrap().body.text, mb.message(id).unwrap().body.text);
     assert!(all.message(id).unwrap().hidden_text.is_empty());
+}
+
+/// AU3-15: while a body is kept outside memory, a file with a `Content-ID` that is no picture is
+/// listed all the same (and found by `has:attachment`, and saved with the rest); only a picture
+/// is taken to be one the body shows until the body is read.
+#[test]
+fn a_file_that_is_no_picture_is_listed_while_the_body_is_kept_outside() {
+    let html = format!("<html><body>{}</body></html>", "<p>Quarterly notes, nothing shown here.</p>".repeat(80));
+    let eml = format!(
+        "From: a@a.example\r\nTo: b@b.example\r\nSubject: kept\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=B\r\n\r\n\
+         --B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n\
+         --B\r\nContent-Type: application/zip; name=tool.zip\r\nContent-Disposition: attachment; filename=tool.zip\r\nContent-ID: <t9@a.example>\r\nContent-Transfer-Encoding: base64\r\n\r\nUEsDBHYyNw==\r\n--B--\r\n"
+    );
+    let parsed = mailcraft_mime_model::parse(eml.as_bytes());
+    let mut mb = mailbox(24);
+    let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    let mut m = Message::clone(mb.message(id).unwrap());
+    (m.body.html, m.attachments) = (parsed.body.html.clone(), parsed.attachments.clone());
+    assert!(m.attachments[0].inline, "a part with a Content-ID in multipart/related");
+    let query = mailcraft_model::search::Query::parse("has:attachment");
+    assert!(m.has_attachments() && query.matches(&m, 0));
+    mb.messages.insert(id, Arc::new(m));
+    let tmp = Temp::new("kept-cid");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.body_is_kept() && m.body.html.is_none());
+    assert_eq!(m.listed_attachments().count(), 1);
+    assert!(m.has_attachments() && query.matches(m, 0));
+    assert!(s.run("mail.saveAllAttachments", &serde_json::json!({"id": id, "path": tmp.0.to_string_lossy()})).is_ok());
+    let _ = s.load_for_display(id);
+    assert_eq!(s.mailbox.message(id).unwrap().listed_attachments().count(), 1);
 }
