@@ -16,7 +16,7 @@
 //! index entry of that same store, so that "remove all my data" can find every one.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -211,6 +211,8 @@ struct Inner {
     notice_checked: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
+    /// How many rounds have ended: the round under way is known by the count before it ends.
+    finished_rounds: u64,
 }
 
 pub(crate) struct SyncHost {
@@ -226,6 +228,12 @@ pub(crate) struct SyncHost {
     notify_mail: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
+    /// A round to call off at the next wake (its `finished_rounds` plus one; 0 for none): a
+    /// `background_sync` dropped while it waits asks for it, never blocking where it is dropped.
+    stop_asked: AtomicU64,
+    /// The tests' own refusal of every sign-in handed over (never set outside a test: nothing does).
+    #[cfg(test)]
+    pub(crate) refuse_adopt: AtomicBool,
 }
 
 /// Writes the mailbox before a send goes out.
@@ -246,6 +254,9 @@ impl SyncHost {
             notify_mail: AtomicBool::new(true),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
+            stop_asked: AtomicU64::new(0),
+            #[cfg(test)]
+            refuse_adopt: AtomicBool::new(false),
         }
     }
 
@@ -260,6 +271,11 @@ impl SyncHost {
 
     pub(crate) fn set_remember(&self, on: bool) {
         self.remember.store(on, Ordering::Relaxed);
+    }
+
+    /// Whether sign-ins are kept in the credential store (the owner's choice).
+    pub(crate) fn remembers(&self) -> bool {
+        self.remember.load(Ordering::Relaxed)
     }
 
     pub(crate) fn set_notify_mail(&self, on: bool) {
@@ -284,6 +300,10 @@ impl SyncHost {
 
     /// The tokens of a sign-in the app made, taken in: refused when they are somebody else's.
     pub(crate) fn adopt(&self, session: &mut Session, account: u64, tokens: Tokens) -> Adopted {
+        #[cfg(test)]
+        if self.refuse_adopt.load(Ordering::Relaxed) {
+            return Adopted::Refused;
+        }
         let mut inner = self.lock();
         let secrets = self.host.platform().secrets();
         let ctx = self.context(session, secrets.as_deref());
@@ -295,6 +315,21 @@ impl SyncHost {
         drop(inner);
         self.pacer.poke();
         adopted
+    }
+
+    /// The account's refresh token as Send/Receive finds it: this session's first, then the
+    /// credential store's when the owner lets sign-ins be remembered.
+    pub(crate) fn refresh_for(&self, session: &Session, account: u64) -> Option<String> {
+        let inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        inner.sr.refresh_for(session, &ctx, account)
+    }
+
+    /// A refresh token a check of a permission was renewed to, for the session's sign-in of
+    /// `account` (only in place of the one the check began with).
+    pub(crate) fn take_renewed(&self, session: &Session, account: u64, renewed: &mailcraft_host::signin::Renewed) {
+        self.lock().sr.take_renewed(session, account, renewed);
     }
 
     /// Put what the host wrote to the credential store into the index of names.
@@ -552,14 +587,39 @@ impl SyncHost {
         if !inner.active && inner.run_mark.is_none() {
             return inner.last_summary.clone().unwrap_or(SyncSummary { finished: true, ..Default::default() });
         }
+        self.stop_locked(&mut inner, session)
+    }
+
+    fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
         inner.sr.stop(session);
         session.driver.round.queue.clear();
-        self.finish_round(&mut inner, session, false)
+        self.finish_round(inner, session, false)
+    }
+
+    /// The round under way (or the next, when none is): what [`SyncHost::stop_later`] is given.
+    pub(crate) fn round(&self) -> u64 {
+        self.lock().finished_rounds
+    }
+
+    /// Call `round` off at the next wake of the driver, if it is still under way then (a round
+    /// that has ended, and any after it, are left alone). Never waits: for a `Drop`. A request for
+    /// an older round never replaces one for a newer that is still waiting (the newer is the one
+    /// that may still be under way).
+    pub(crate) fn stop_later(&self, round: u64) {
+        self.stop_asked.fetch_max(round.saturating_add(1), Ordering::AcqRel);
+        self.pacer.poke();
     }
 
     /// One wake of the driver, on the session's thread.
     pub(crate) fn tick(&self, session: &mut Session) {
         let mut inner = self.lock();
+        if let Some(round) = self.stop_asked.swap(0, Ordering::AcqRel).checked_sub(1)
+            && round == inner.finished_rounds
+            && (inner.active || inner.run_mark.is_some())
+        {
+            self.stop_locked(&mut inner, session);
+            return;
+        }
         self.tick_locked(&mut inner, session);
     }
 
@@ -684,6 +744,7 @@ impl SyncHost {
         };
         inner.active = false;
         inner.ran = false;
+        inner.finished_rounds = inner.finished_rounds.wrapping_add(1);
         inner.idle_mark = None;
         inner.last_progress = None;
         inner.last_summary = Some(summary.clone());

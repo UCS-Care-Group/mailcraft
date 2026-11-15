@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -35,7 +35,7 @@ Output is always UTF-8.
 | **TLS** | rustls, certificates checked by the operating system's verifier (#501) | Certificate and host name verified; on Windows and macOS a missing intermediate is fetched by the system, on Linux and FreeBSD the system's certificate store is used; unencrypted connections refused except to loopback; a missing STARTTLS offer is an error |
 | POP3 | not yet, tracked in [#437](https://github.com/UCS-Care-Group/mailcraft/issues/437) | An account is IMAP or, for Microsoft, Graph; Add Account says so for a POP port or host name (#402) |
 | **JMAP** (RFC 8620, 8621) | two-way | In the browser build, over `fetch`: the mailboxes, the newest messages of each with their marks (read, flagged, answered, forwarded) and messages fetched whole; changes up with `Email/set` (the four marks as keywords, moves between the server's mailboxes, deletes; [#1074](https://github.com/UCS-Care-Group/mailcraft/issues/1074)); mail sent through the server (an upload, then `Email/import` and `EmailSubmission/set` in one request, the Bcc recipients in the envelope only); the changes of folders don't go up yet ([jmap.md](jmap.md), [#226](https://github.com/UCS-Care-Group/mailcraft/issues/226)) |
-| Exchange (EWS, MAPI), CalDAV, CardDAV | no | Gap #5. Exchange Web Services, used for Outlook's Favorites in 0.2.x, is gone |
+| Exchange Web Services, MAPI, CalDAV, CardDAV | partly | Gap #5. Exchange Web Services is there for an organisation's own Exchange server, for mail only (#252, [exchange-servers.md](exchange-servers.md)); MAPI, CalDAV and CardDAV are not (`crates/dav` holds bounded documents, no server connection) |
 
 In daily use on one Microsoft 365 mailbox through Graph; otherwise tested against in-process fake
 IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against other real servers (gap #1).
@@ -44,6 +44,11 @@ IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against oth
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | #1376: `.mailcraft`: header blocks packed in a few `headers-<n>.pack` files in the content folder, not one file each |
+| 2026-11-13 | minor | HS: `.mailcraft` in format 4, a message's header block beside it with its other content; format 3 still read |
+| 2026-11-13 | minor | #276: IMAP: STATUS (pipelined) and IDLE on the Inbox are used |
+| 2026-11-11 | minor | #1074 part 2: JMAP: mail sent with an upload, `Email/import` and `EmailSubmission/set`; two-way |
+| 2026-11-11 | minor | #1074 part 1: JMAP: changes up with `Email/set` (marks, moves, deletes) |
 | 2026-11-11 | minor | #815 part 5: `.pst` files: notes, journal entries and HTML kept in rich text; no longer a preview |
 | 2026-11-11 | minor | #815 part 4: `.pst` calendar items and tasks import (preview) |
 | 2026-11-10 | minor | #815: `.pst` mail whose body is rich text alone comes in as its text, the rich text kept as an attachment |

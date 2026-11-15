@@ -24,8 +24,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 private val Gutter = 16.dp
@@ -37,9 +39,10 @@ internal fun SettingsScreen(
     texts: Texts,
     page: SettingsPage?,
     data: ShellData,
+    actions: ShellActions,
     onOpen: (SettingsPage) -> Unit,
     onBack: () -> Unit,
-    onLanguage: (String) -> Unit,
+    onAddAccount: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -62,7 +65,10 @@ internal fun SettingsScreen(
         Column(modifier = Modifier.padding(padding).verticalScroll(rememberScrollState())) {
             when (page) {
                 null -> SettingsRows(texts, data, onOpen)
-                SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, onLanguage)
+                SettingsPage.Accounts ->
+                    AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
+                SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
+                SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -78,7 +84,9 @@ internal fun SettingsScreen(
 private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -> Unit) {
     SettingsPage.entries.forEach { entry ->
         val summary = when (entry) {
+            SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
+            SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
             SettingsPage.About -> data.version
             else -> texts.t("Pending development")
         }
@@ -103,20 +111,51 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
     }
 }
 
+/** What the Accounts row says: how many accounts there are. */
+private fun accountsSummary(texts: Texts, count: Int): String =
+    if (count == 0) texts.t("No account yet") else texts.tn(count.toULong(), "{n} account", "{n} accounts")
+
 /** What the language row says: the language chosen in its own name, or that the system's is used. */
 private fun languageName(texts: Texts, chosen: String): String =
     LANGUAGES.firstOrNull { it.tag == chosen }?.nativeName ?: texts.t("System default")
 
 @Composable
 private fun LanguagePage(texts: Texts, chosen: String, onLanguage: (String) -> Unit) {
-    LanguageRow(texts.t("System default"), selected = chosen.isEmpty()) { onLanguage("") }
+    ChoiceRow(texts.t("System default"), selected = chosen.isEmpty()) { onLanguage("") }
     LANGUAGES.forEach { language ->
-        LanguageRow(language.nativeName, selected = language.tag == chosen) { onLanguage(language.tag) }
+        ChoiceRow(language.nativeName, selected = language.tag == chosen) { onLanguage(language.tag) }
     }
 }
 
 @Composable
-private fun LanguageRow(name: String, selected: Boolean, onClick: () -> Unit) {
+private fun SwipePage(texts: Texts, config: SwipeConfig, onSwipe: (SwipeConfig) -> Unit) {
+    // A row's swipe from its start runs `start`: rightwards in a left-to-right language, leftwards
+    // in a right-to-left one, so the headings name the way the finger goes.
+    val ltr = LocalLayoutDirection.current == LayoutDirection.Ltr
+    val right = texts.t("Swipe to the right")
+    val left = texts.t("Swipe to the left")
+    Text(
+        if (ltr) right else left,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    SwipeAction.entries.forEach { action ->
+        ChoiceRow(action.label(texts), selected = action == config.start) { onSwipe(config.copy(start = action)) }
+    }
+    Text(
+        if (ltr) left else right,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    SwipeAction.entries.forEach { action ->
+        ChoiceRow(action.label(texts), selected = action == config.end) { onSwipe(config.copy(end = action)) }
+    }
+}
+
+@Composable
+private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
