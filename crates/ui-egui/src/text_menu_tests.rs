@@ -439,6 +439,31 @@ fn switching_to_format_text_keeps_the_subject_for_ribbon_paste() {
 }
 
 #[test]
+fn the_classic_font_size_menu_keeps_the_subject_for_ribbon_paste() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    settle(&mut h, 4);
+    let at = subject_line(&h).center();
+    click(&mut h, at, PointerButton::Primary);
+    keys(&mut h, Modifiers::COMMAND, Key::A);
+    let size = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("fontSize")).unwrap().center();
+    click(&mut h, size, PointerButton::Primary);
+    settle(&mut h, 4);
+    let choice = h.get_by_label("✓ 36").rect().center();
+    assert!(choice.y > h.state().hit.rect_in(0, "ribbonBand", 0).unwrap().bottom());
+    click(&mut h, choice, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(h.state().session.compose.as_ref().unwrap().body.typing_style().size, Some(36));
+    let paste = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("edit.paste")).unwrap().center();
+    click(&mut h, paste, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(subject(&h), "replacement");
+    assert_eq!(plain(&h), "draft text");
+}
+
+#[test]
 fn the_classic_composer_ribbon_only_uses_the_clipboard_while_its_body_is_visible() {
     let board = Board::holding("replacement");
     let mut h = writing("draft text", Some(&board));
