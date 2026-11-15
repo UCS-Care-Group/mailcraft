@@ -475,9 +475,30 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
                     let _ = app.run("ui.downloadPicturesAutomatically", json!({"value": true}));
                 }
             }
-            // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
-            // server doesn't vouch for, so it is not offered there.
-            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
+            // Remembering a sender does nothing for what is in Junk E-mail, so it is not offered
+            // there. Where the server doesn't vouch for the address the option is shown greyed out
+            // with the reason, and the domain's is left out (#1347).
+            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m)) else { return };
+            if !vouched(app.session.mailbox.account(m.account), m) {
+                // The bar already says a remembered sender is asked first: nothing more to say.
+                if sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email) {
+                    return;
+                }
+                let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
+                let why = crate::i18n::fmt(
+                    tl!("Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."),
+                    &[("sender", &short(&from, 60))],
+                );
+                // Not registered with `app.hit`: there is nothing to click. Greyed, with a few
+                // words after it that say why without pointing at it, and the whole reason when
+                // either is pointed at (#1386).
+                let shown = |ui: &mut Ui, text: egui::RichText, why: &str| {
+                    ui.add(egui::Label::new(text).sense(Sense::hover()).selectable(false)).on_hover_text(why);
+                };
+                shown(ui, egui::RichText::new(label).font(semibold(11.5)).color(t.text_disabled), &why);
+                shown(ui, egui::RichText::new(tl!("(the server didn't confirm the sender)")).font(regular(11.5)).color(t.text_dim), &why);
+                return;
+            }
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
             let always = action(ui, label, tl!("Remembered in the settings; File › Options lists the senders and takes them off again."));
             if place == Place::Pane {
@@ -619,7 +640,11 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.clearPictureCache" => clear(app),
         // The other commands of a message that is being read: its selected text, and the
         // meeting it carries.
-        _ => return super::select::ui_command(app, id, p).or_else(|| super::invitation::ui_command(app, id, p)),
+        _ => {
+            return super::select::ui_command(app, id, p)
+                .or_else(|| super::invitation::ui_command(app, id, p))
+                .or_else(|| super::unsubscribe::ui_command(app, id, p));
+        }
     })
 }
 

@@ -194,7 +194,7 @@ impl MailApp {
             self.session.send_run_answered(account);
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, quiet));
+                self.session.driver.round.queue.push_front((whose, quiet));
             }
             if std::mem::take(&mut self.sync_refused) {
                 // Turned down: the next Send/Receive asks for it again, and no round by itself goes

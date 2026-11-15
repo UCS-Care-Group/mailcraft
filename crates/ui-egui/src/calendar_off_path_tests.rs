@@ -86,7 +86,7 @@ fn frames(app: &mut MailApp, calendar_at: f64) -> bool {
 fn a_second_mailboxes_mail_starts_before_the_first_ones_calendar_download_ends() {
     let (mut app, owner, shared, jobs, held) = window();
     // (No new round of its own while the test looks.)
-    app.last_auto_sync = crate::now_ms();
+    app.session.driver.round.last_auto = crate::now_ms();
     app.execute("ui.sync", json!({})).unwrap();
     // The whole round, with the calendar's looks in between: the calendar waits for the round.
     let started_in_round = frames(&mut app, mailcraft_time::now() as f64 * 1_000.0);
@@ -136,10 +136,10 @@ fn the_calendar_download_waits_for_the_round_and_a_round_waits_for_a_calendar_jo
     assert!(app.calendar_tick_at(true, 1_000.0));
     assert_eq!(jobs.lock().unwrap()[0], (owner, false, true));
     // A round the window starts by itself waits its turn for that account, and goes on after.
-    app.sync_queue.push_back((owner, true));
-    app.inbox_queue.push_back((owner, true));
+    app.session.driver.round.queue.push_back((owner, true));
+    app.session.driver.round.inbox_queue.push_back((owner, true));
     app.auto_sync();
-    assert_eq!((app.inbox_queue.len(), app.sync_queue.len()), (1, 1), "the Inbox pass and the run wait");
+    assert_eq!((app.session.driver.round.inbox_queue.len(), app.session.driver.round.queue.len()), (1, 1), "the Inbox pass and the run wait");
     assert_eq!(jobs.lock().unwrap().len(), 1);
     let (answer, req) = held.lock().unwrap().take().unwrap();
     answer
