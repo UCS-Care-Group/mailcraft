@@ -43,6 +43,8 @@
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
 //! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
+//! `{"host": {"pictures": true}}` lets pictures on the web be downloaded, each a drawn stand-in
+//! (nothing is fetched), so that the pictures bar offers what it does in the app.
 //! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
@@ -832,6 +834,14 @@ fn main() {
                 host.told(said);
                 // In front or not, for desktop alerts about new mail.
                 harness.input_mut().focused = !host.unfocused;
+            }
+            // Pictures on the web can be downloaded: each is a drawn stand-in (nothing is fetched).
+            if said.get("pictures").is_some() {
+                harness.state_mut().services.pictures = Some(Box::new(|address: String| {
+                    let (tx, rx) = channel();
+                    let _ = tx.send(Ok(stand_in_picture(&address)));
+                    rx
+                }));
             }
             // Every Microsoft account's To Do works (the question about the local tasks follows).
             if said.get("tasksWork").is_some() {

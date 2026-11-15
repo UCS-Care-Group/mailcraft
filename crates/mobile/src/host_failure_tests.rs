@@ -92,6 +92,9 @@ fn a_platform_that_throws_gets_stand_ins_and_no_panic() {
     assert!(mailcraft_host::SecretStore::get(&store, "password:a@example.org").is_none());
     assert!(mailcraft_host::SecretStore::set(&store, "password:a@example.org", "x").is_err());
     mailcraft_host::SecretStore::delete(&store, "password:a@example.org");
+    // The fallible ones say the store failed, rather than "nothing there" or "removed".
+    assert!(mailcraft_host::SecretStore::read(&store, "password:a@example.org").is_err());
+    assert!(mailcraft_host::SecretStore::remove(&store, "password:a@example.org").is_err());
     assert_eq!(mailcraft_host::SecretStore::take_trouble(&store), Some(mailcraft_host::StoreTrouble::Unavailable));
 }
 

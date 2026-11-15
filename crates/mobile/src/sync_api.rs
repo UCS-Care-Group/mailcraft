@@ -10,30 +10,19 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use mailcraft_engine::sync_driver::{ClientIds, effective_oauth};
 use mailcraft_host::sync::Adopted;
 use mailcraft_i18n::Lang;
-use mailcraft_model::{AccountKind, OAuth, OAuthProvider};
+use mailcraft_model::AccountKind;
 
 use crate::core::CancelOnDrop;
 use crate::queue::Queue;
-use crate::sign_in::{self, Ended};
 use crate::sync::{SyncAnswer, SyncStatus, SyncSummary, Wake};
-use crate::{Core, CoreError, RedirectKind};
+use crate::{Core, CoreError, SignInOutcome, SignInsForgotten};
 
 /// The shortest and the longest time a background sync is given (the system gives a worker some
 /// minutes; a `0` or a day is a mistake).
 const LEAST_BUDGET_MS: u64 = 500;
 const MOST_BUDGET_MS: u64 = 10 * 60 * 1000;
-
-/// Ends a sign-in's claim on the core when the call ends or is dropped.
-struct Open(Arc<AtomicBool>);
-
-impl Drop for Open {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
 
 #[uniffi::export]
 impl Core {
@@ -106,55 +95,69 @@ impl Core {
     }
 
     /// Remove every sign-in the core kept (from the credential store and from memory), for
-    /// "remove all my data". Returns how many entries were looked for.
-    pub async fn forget_sign_ins(&self) -> Result<u64, CoreError> {
+    /// "remove all my data". Says how many entries were looked for, and when the list of the
+    /// sign-ins kept was damaged (and set aside) that older ones may still be in the store (the
+    /// app shows those words, then calls [`Core::sign_ins_notice_shown`]); an error says that
+    /// some are still in the store (calling it again tries again).
+    pub async fn forget_sign_ins(&self) -> Result<SignInsForgotten, CoreError> {
         let sync = self.sync.clone();
-        self.call(move |session| Ok(u64::try_from(sync.forget_sign_ins(session)).unwrap_or(u64::MAX))).await
+        self.call(move |session| match sync.forget_sign_ins(session) {
+            Ok(forgotten) => Ok(SignInsForgotten {
+                looked_for: u64::try_from(forgotten.count).unwrap_or(u64::MAX),
+                may_remain: forgotten.some_may_remain.then(|| crate::core::may_remain(session.interface_language)),
+            }),
+            Err(reason) => Err(CoreError::Failed { reason }),
+        })
+        .await
     }
 
-    /// Sign `account` (a Microsoft account) in on the provider's page. Opens the page through
-    /// [`crate::Platform::open_sign_in_page`] and waits for the app to hand over the address the
-    /// system opened it with ([`Core::sign_in_redirect`]); dropping the call (or `shutdown`)
-    /// calls the sign-in off. On success the sign-in is kept for the session and, when the owner
-    /// lets it be, in the credential store; refused when it is somebody else's. Run `sync_now`
-    /// after it.
+    /// The app has shown the owner the words that older sign-ins may remain
+    /// (`DataRemoved::SignInsMayRemain`, `SignInsForgotten::may_remain`): later removals don't
+    /// say it again. Until it is called they all do, after a restart too, so that a notice whose
+    /// answer was lost on its way to the window is never lost with it.
+    pub async fn sign_ins_notice_shown(&self) -> Result<(), CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |_| {
+            sync.notice_given();
+            Ok(())
+        })
+        .await
+    }
+
+    /// Sign `account` (a Microsoft account) in again on the provider's page, its address as the
+    /// page's hint. The same sign-in as Add Account's ([`Core::sign_in_microsoft`]): one at a time,
+    /// the page opened through [`crate::Platform::open_sign_in_page`], the address the system
+    /// opened the app with handed over by [`Core::hand_back_redirect`], called off by
+    /// [`Core::cancel_sign_in`], by dropping the call or by `shutdown`. On success the sign-in is
+    /// kept for the session and, when the owner lets it be, in the credential store; refused when
+    /// it is somebody else's. Run `sync_now` after it.
     pub async fn sign_in(&self, account: u64) -> Result<(), CoreError> {
         let lang = self.lang();
-        if self.signing_in.swap(true, Ordering::AcqRel) {
-            return Err(fail(lang, words("A sign-in is already open.")));
-        }
-        let _open = Open(self.signing_in.clone());
-        let scheme = match self.platform.redirect() {
-            Ok(RedirectKind::CustomScheme { scheme }) => scheme,
-            Ok(RedirectKind::Loopback) | Err(_) => return Err(fail(lang, words("Signing in isn't available on this phone."))),
-        };
-        let ids_account = account;
-        let (oauth, address) = self
+        let address = self
             .call(move |session| {
-                let Some(a) = session.mailbox.account(ids_account) else {
+                let Some(a) = session.mailbox.account(account) else {
                     return Err(fail(lang, words("That account is gone.")));
                 };
                 if a.kind != AccountKind::Microsoft || a.is_shared() {
                     return Err(fail(lang, words("Only a Microsoft account signs in on the phone for now.")));
                 }
-                let oauth = a.oauth.clone().unwrap_or(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
-                let oauth = effective_oauth(oauth, &ClientIds { microsoft_built_in: crate::sync::MS_CLIENT_ID, ..Default::default() });
-                Ok((oauth, a.email.clone()))
+                Ok(a.email.clone())
             })
             .await?;
-        if oauth.client_id.is_empty() {
-            return Err(fail(lang, words("This build has no application id to sign in with.")));
-        }
-        let tokens = self.page_sign_in(oauth, address, scheme).await?;
+        let tokens = match self.account_sign_in(mailcraft_host::signin::hint_of(&address)).await? {
+            Ok((_, tokens)) => tokens,
+            Err(SignInOutcome::Cancelled) => return Err(CoreError::Cancelled),
+            Err(SignInOutcome::NoBrowser) => return Err(fail(lang, words("The sign-in page couldn't be opened."))),
+            Err(SignInOutcome::NeedsApproval) => {
+                return Err(fail(lang, words("Your organisation has to approve MailCraft before you can sign in. Ask an administrator.")));
+            }
+            Err(SignInOutcome::Declined | SignInOutcome::OrganisationBlocks) => return Err(fail(lang, words("The sign-in was declined."))),
+            Err(SignInOutcome::TimedOut) => return Err(fail(lang, words("Nothing came back from the sign-in page in time."))),
+            Err(SignInOutcome::Failed { .. } | SignInOutcome::SignedIn { .. }) => {
+                return Err(fail(lang, words("The sign-in didn't work. Try again.")));
+            }
+        };
         self.adopt_tokens(account, tokens).await
-    }
-
-    /// The app hands over the address the system opened it with after the provider's page (a
-    /// custom-scheme link). Taken only while a [`Core::sign_in`] waits, and only the first; it is
-    /// read strictly there, and anything wrong with it ends the sign-in in an error that says
-    /// nothing of it. Returns whether it was taken.
-    pub fn sign_in_redirect(&self, address: String) -> bool {
-        self.redirects.deliver(&address)
     }
 }
 
@@ -165,58 +168,21 @@ impl Core {
         let lang = self.lang();
         let sync = self.sync.clone();
         let adopted = self.call(move |session| Ok(sync.adopt(session, account, tokens))).await?;
-        match adopted {
-            Adopted::Kept => Ok(()),
-            Adopted::WrongPerson => Err(fail(lang, words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."))),
-            Adopted::Refused => Err(fail(lang, words("The account can't be signed in now."))),
+        match adopt_refusal(lang, adopted) {
+            None => Ok(()),
+            Some(reason) => Err(CoreError::Failed { reason }),
         }
     }
+}
 
-    /// The page, on a thread of its own (it waits for the owner), its end as a reply.
-    pub(crate) async fn page_sign_in(&self, oauth: OAuth, address: String, scheme: String) -> Result<mailcraft_model::sync::Tokens, CoreError> {
-        self.page_sign_in_at(oauth, address, scheme, None).await
-    }
-
-    pub(crate) async fn page_sign_in_at(
-        &self,
-        oauth: OAuth,
-        address: String,
-        scheme: String,
-        endpoints: Option<mailcraft_net::oauth::Endpoints>,
-    ) -> Result<mailcraft_model::sync::Tokens, CoreError> {
-        type Reply = Result<mailcraft_model::sync::Tokens, CoreError>;
-        let lang = self.lang();
-        let reply = Queue::<Reply>::new();
-        let cancel = Arc::new(AtomicBool::new(false));
-        let _guard = CancelOnDrop(cancel.clone());
-        let (redirects, platform, out) = (self.redirects.clone(), self.platform.clone(), reply.clone());
-        redirects.arm();
-        let thread_cancel = cancel.clone();
-        let spawned = std::thread::Builder::new().name("mailcraft-sign-in".to_string()).spawn(move || {
-            let page_failed = Arc::new(AtomicBool::new(false));
-            let (opened_flag, opened_cancel) = (page_failed.clone(), thread_cancel.clone());
-            let open = |url: &str| {
-                if platform.open_sign_in_page(url.to_string()).is_err() {
-                    // Nothing was opened, so nothing will come back: no waiting for it.
-                    opened_flag.store(true, Ordering::Release);
-                    opened_cancel.store(true, Ordering::Release);
-                }
-            };
-            let done = sign_in::run(&oauth, &address, &scheme, &open, &redirects, &thread_cancel, endpoints.as_ref());
-            redirects.disarm();
-            out.push(match done {
-                Ok(tokens) => Ok(tokens),
-                Err(_) if page_failed.load(Ordering::Acquire) => Err(fail(lang, words("The sign-in page couldn't be opened."))),
-                Err(Ended::Cancelled) => Err(CoreError::Cancelled),
-                Err(Ended::Said(said)) => Err(fail(lang, said)),
-            });
-        });
-        if spawned.is_err() {
-            self.redirects.disarm();
-            return Err(fail(lang, words("The sign-in couldn't be started.")));
-        }
-        reply.next().await.unwrap_or(Err(CoreError::Cancelled))
-    }
+/// Why Send/Receive didn't take a sign-in, in the interface language; nothing when it took it.
+pub(crate) fn adopt_refusal(lang: Lang, adopted: Adopted) -> Option<String> {
+    let text = match adopted {
+        Adopted::Kept => return None,
+        Adopted::WrongPerson => words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."),
+        Adopted::Refused => words("The account can't be signed in now."),
+    };
+    Some(lang.t(text).to_string())
 }
 
 /// Marks a sentence for the catalogue (`cargo xtask i18n` gathers what is passed to it); the
