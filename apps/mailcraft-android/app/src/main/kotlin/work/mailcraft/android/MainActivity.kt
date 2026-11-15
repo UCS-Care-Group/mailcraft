@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -45,19 +46,27 @@ import uniffi.mailcraft_mobile.Core
  * Android 12 and before.
  */
 class MainActivity : AppCompatActivity() {
-    /** A calendar file another app opened with us, waiting for the window to take it in. */
-    private val handedOver = mutableStateOf<IcsRead?>(null)
+    /** What outlives this window when Android makes it again: a file handed over, the calendar's editor. */
+    private val window: WindowModel by lazy { ViewModelProvider(this)[WindowModel::class.java] }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handedOver.value = readIcs(contentResolver, intent).takeIf { it !is IcsRead.NotOurs }
+        // The intent this window is for from now on, so that a window made again reads this one.
+        setIntent(intent)
+        takeHandedOver(intent)
+    }
+
+    /** Reads the calendar file [intent] carries, if it carries one, off the main thread. */
+    private fun takeHandedOver(intent: Intent) {
+        val resolver = applicationContext.contentResolver
+        window.handoff.take { readIcs(resolver, intent) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) {
-            handedOver.value = readIcs(contentResolver, intent).takeIf { it !is IcsRead.NotOurs }
-        }
+        // A new window reads what it was opened with; a window made again after the app was put away
+        // reads it again only when the file it carried was never taken in.
+        if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
@@ -82,7 +91,8 @@ class MainActivity : AppCompatActivity() {
                 DeviceDateSettings {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         var chosen by remember { mutableStateOf(LanguageChoice.current()) }
-                        Root(started, version, chosen, handedOver.value, { handedOver.value = null }) {
+                        val handedOver by window.handoff.file.collectAsState()
+                        Root(started, version, chosen, handedOver, window.handoff::handled, window) {
                             chosen = it
                             LanguageChoice.choose(it)
                         }
@@ -100,12 +110,13 @@ internal fun Root(
     chosenLanguage: String,
     handedOver: IcsRead? = null,
     onHandled: () -> Unit = {},
+    window: WindowModel? = null,
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
         is Phase.Ready -> {
             val ready = started.value
-            CoreShell(ready.core, ready.hub, version, chosenLanguage, handedOver, onHandled, onLanguage)
+            CoreShell(ready.core, ready.hub, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
         }
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
@@ -144,6 +155,7 @@ private fun CoreShell(
     chosenLanguage: String,
     handedOver: IcsRead?,
     onHandled: () -> Unit,
+    window: WindowModel?,
     onLanguage: (String) -> Unit,
 ) {
     val texts = remember(core) { CoreTexts(core) }
@@ -164,7 +176,7 @@ private fun CoreShell(
         shownFolder[0] = folder?.id
         value = loadMail(core, outlined, folder)
     }
-    val calendar = rememberCalendar(core, texts)
+    val calendar = rememberCalendar(core, texts, window)
     val calendarState by calendar.state.collectAsState()
     // The calendar is read again when the mailbox changed (a sync, an account, a command of its own).
     LaunchedEffect(calendar, reload, LocalMessageZone.current) { calendar.refresh() }
@@ -213,13 +225,21 @@ private fun CoreShell(
 }
 
 /**
- * The Calendar tab's controller for this window. Its dates are the phone's zone and language
- * ([DeviceDateSettings]); the core shows its calendar in the phone's zone by itself.
+ * The Calendar tab's controller. Its dates are the phone's zone and language ([DeviceDateSettings]);
+ * the core shows its calendar in the phone's zone by itself. The [window]'s controller outlives the
+ * window, so that an event being written survives the phone being turned; without one (a preview)
+ * it lives as long as the composition.
  */
 @Composable
-private fun rememberCalendar(core: Core, texts: Texts): CalendarController {
+private fun rememberCalendar(core: Core, texts: Texts, window: WindowModel?): CalendarController {
     val zone by rememberUpdatedState(LocalMessageZone.current)
     val locale by rememberUpdatedState(LocalMessageLocale.current)
+    if (window != null) {
+        // Plain fields the controller reads when it needs them; the first read has them already.
+        window.zone = zone
+        window.locale = locale
+        return remember(window, core) { window.calendar(core, texts) }
+    }
     val scope = rememberCoroutineScope()
     return remember(core, texts) {
         CalendarController(
