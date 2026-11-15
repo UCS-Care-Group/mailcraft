@@ -49,7 +49,8 @@ internal class MailListActions(
     /** The rows on screen are these, first to last. */
     val onRange: (Int, Int) -> Unit,
     val onTriage: (Triage, InboxRow) -> Unit,
-    val onUndo: () -> Unit,
+    /** Undo the change of the command the notice says (its [ListNotice.Done.command]). */
+    val onUndo: (Int) -> Unit,
     val onNoticeShown: (Int) -> Unit,
 ) {
     companion object {
@@ -204,7 +205,8 @@ private fun NoticeEffect(texts: Texts, event: NoticeEvent?, host: SnackbarHostSt
             actionLabel = if (shown.notice.undoable) texts.t("Undo") else null,
             duration = if (shown.notice.undoable) SnackbarDuration.Long else SnackbarDuration.Short,
         )
-        if (result == SnackbarResult.ActionPerformed) actions.onUndo()
+        val done = shown.notice as? ListNotice.Done
+        if (result == SnackbarResult.ActionPerformed && done != null) actions.onUndo(done.command)
         actions.onNoticeShown(shown.seq)
     }
 }

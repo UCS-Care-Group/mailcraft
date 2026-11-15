@@ -21,6 +21,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -40,6 +41,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import uniffi.mailcraft_mobile.Core
 
 /**
  * The one window. An AppCompat activity, because that is what carries the per-app language to
@@ -127,9 +129,7 @@ private fun CoreShell(
     // announced, a synchronisation's among them). The list reads its own pages again on a revision
     // (`MailListController.handle`), only those on screen.
     val reload by hub.reloads.collectAsState()
-    val outlined by produceState<Outlined?>(null, core, reload) {
-        value = Outlined(loadOutline(core))
-    }
+    val (outlined, retryOutline) = rememberOutline(core, reload)
     val categories by produceState(emptyList<CategoryItem>(), list, reload) { value = list.categories() }
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
@@ -149,7 +149,7 @@ private fun CoreShell(
     val accountsUi by controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
     val mailActions = remember(list, scope) {
-        mailListActions(list, scope) { change -> query = change(query) }
+        mailListActions(list, scope, retryOutline) { change -> query = change(query) }
     }
     AppShell(
         texts = texts,
@@ -184,6 +184,19 @@ private fun CoreShell(
     )
 }
 
+/**
+ * The mailbox's outline, read when [reload] moves on, and what reads it again when it could not be read
+ * (a pull to refresh: without an outline the list has no query of its own to refresh).
+ */
+@Composable
+private fun rememberOutline(core: Core, reload: Int): Pair<Outlined?, () -> Unit> {
+    var tries by remember { mutableIntStateOf(0) }
+    val outlined by produceState<Outlined?>(null, core, reload, tries) {
+        value = Outlined(loadOutline(core))
+    }
+    return outlined to { if (outlined?.let { it.outline == null } == true) tries++ }
+}
+
 /** The time now, read again every [TICK_MILLIS] together with what the device says of the network. */
 @Composable
 private fun rememberTicks(list: MailListController): Long {
@@ -202,6 +215,8 @@ private fun rememberTicks(list: MailListController): Long {
 private fun mailListActions(
     controller: MailListController,
     scope: CoroutineScope,
+    /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
+    retryOutline: () -> Unit,
     change: ((MailQuery) -> MailQuery) -> Unit,
 ) = MailListActions(
     onSearch = { text -> change { it.copy(search = text.trim()) } },
@@ -209,10 +224,13 @@ private fun mailListActions(
     onFilter = { filter -> change { it.copy(filter = filter) } },
     onConversations = { on -> change { it.copy(conversations = on) } },
     onSplit = { code -> change { it.copy(split = code) } },
-    onRefresh = { scope.launch { controller.refresh() } },
+    onRefresh = {
+        retryOutline()
+        scope.launch { controller.refresh() }
+    },
     onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
-    onUndo = { scope.launch { controller.undo() } },
+    onUndo = { command -> scope.launch { controller.undo(command) } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },
 )
 

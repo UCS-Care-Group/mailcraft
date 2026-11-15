@@ -172,7 +172,7 @@ class MailListControllerTest {
         val notice = c.ui.value.notice?.notice
         assertTrue(notice is ListNotice.Done && notice.undoable && notice.count == 1)
         assertEquals(4, c.ui.value.snapshot.total)
-        c.undo()
+        c.undo((notice as ListNotice.Done).command)
         assertEquals("edit.undo", source.commands.last().first)
         assertEquals(5, c.ui.value.snapshot.total)
     }
@@ -273,6 +273,41 @@ class MailListControllerTest {
         assertEquals(listOf("mail.markRead", "mail.delete"), source.commands.map { it.first })
         val notice = c.ui.value.notice?.notice
         assertTrue(notice is ListNotice.Done && notice.triage == Triage.Delete)
+    }
+
+    @Test
+    fun anUndoOfferedForAnEarlierChangeNeverTakesBackALaterOne() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        c.triage(Triage.Delete, listOf(FakeMailSource.row(1)))
+        val offered = c.ui.value.notice?.notice as ListNotice.Done
+        // Another change is made before the owner presses that notice's Undo.
+        c.triage(Triage.MarkRead(true), listOf(FakeMailSource.row(2)))
+        c.undo(offered.command)
+        assertTrue(source.commands.none { it.first == "edit.undo" })
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
+    }
+
+    @Test
+    fun aRowCommandWhileAnotherQueryLoadsNamesTheMessagesOfTheRowsOnScreen() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        val shown = inbox.copy(conversations = true)
+        c.show(shown)
+        val long = FakeMailSource.row(2, members = 3).let { it.copy(memberIds = it.memberIds.take(2)) }
+        source.memberLists = mapOf(2uL to listOf(200uL, 201uL, 202uL))
+        // A search in the same folder is on its way (its first page, the second window asked for, waits):
+        // the rows on screen are still the last query's.
+        source.waitCall = 1
+        source.gate = CompletableDeferred()
+        val searching = launch(start = CoroutineStart.UNDISPATCHED) { c.show(shown.copy(search = "x")) }
+        assertEquals("x", c.ui.value.query?.search)
+        c.triage(Triage.Delete, listOf(long))
+        assertEquals(listOf(shown), source.memberQueries)
+        source.gate?.complete(Unit)
+        searching.join()
+        assertEquals("x", c.ui.value.rowsOf?.search)
     }
 
     @Test
@@ -419,7 +454,7 @@ class MailListControllerTest {
         assertTrue(said is ListNotice.Said && said.message == "There is no account to send and receive.")
         assertEquals(false, c.ui.value.refreshing)
         // A round that starts needs no word; one that can't be asked for says it did not work.
-        c.noticeShown(c.ui.value.notice!!.seq)
+        c.noticeShown(checkNotNull(c.ui.value.notice).seq)
         source.refreshOutcome = RefreshOutcome.Started
         c.refresh()
         assertNull(c.ui.value.notice)
@@ -451,10 +486,11 @@ class MailListControllerTest {
         val first = c.ui.value.notice
         c.refresh()
         val second = c.ui.value.notice
-        assertTrue(first != null && second != null && first.seq != second.seq)
-        c.noticeShown(first!!.seq)
+        val (older, newer) = checkNotNull(first) to checkNotNull(second)
+        assertTrue(older.seq != newer.seq)
+        c.noticeShown(older.seq)
         assertNotNull(c.ui.value.notice)
-        c.noticeShown(second!!.seq)
+        c.noticeShown(newer.seq)
         assertNull(c.ui.value.notice)
     }
 

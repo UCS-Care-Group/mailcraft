@@ -93,14 +93,17 @@ internal class MailListController(
         if (mine != generation.get()) return
         if (first == null) {
             // A reload of this list that brought its rows meanwhile is kept; else the list is unreadable.
-            if (freshFor != mine) state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty) }
+            if (freshFor != mine) {
+                state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty, rowsOf = query) }
+            }
             return
         }
         val snapshot = ListSnapshot.Empty.with(first) ?: ListSnapshot.Empty
         // A reload of this same list may have brought a newer revision while the first page was on
         // its way: that one stays.
         state.update {
-            it.copy(load = LoadState.Ready, snapshot = if (it.snapshot.rev > first.rev) it.snapshot else snapshot)
+            val newer = it.snapshot.rev > first.rev
+            it.copy(load = LoadState.Ready, snapshot = if (newer) it.snapshot else snapshot, rowsOf = query)
         }
         // The screen may have reported rows further down while the first page was on its way.
         showRange(visible.first, visible.last)
@@ -133,7 +136,8 @@ internal class MailListController(
                 if (failed) pause(RETRY_MILLIS * rounds)
                 val windows = source.pages(query, left)
                 val got = windows.values.filterNotNull().takeIf { mine == generation.get() }.orEmpty()
-                state.update { ui -> got.fold(ui) { acc, w -> acc.merged(w) } }
+                // (Pages of the query the rows on screen are of: never another's under them.)
+                state.update { ui -> if (ui.rowsOf != query) ui else got.fold(ui) { acc, w -> acc.merged(w) } }
                 failed = windows.values.any { it == null }
                 rounds++
             }
@@ -166,7 +170,9 @@ internal class MailListController(
         val fresh = windows.filter { it.rev == newest }
         val first = ListSnapshot(newest, fresh.first().total).with(fresh.first()) ?: return
         val snapshot = fresh.drop(1).fold(first) { acc, w -> acc.with(w) ?: acc }
-        state.update { if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot) else it }
+        state.update {
+            if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot, rowsOf = query) else it
+        }
         freshFor = mine
         // The owner may have scrolled while the pages were read: what is on screen now is filled in.
         showRange(visible.first, visible.last)
@@ -213,7 +219,8 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
-        val query = state.value.query
+        // (The rows were read for this query, which a query on its way may not have yet.)
+        val query = state.value.rowsOf
         val (count, mine) = commandLock.withLock {
             val done = query?.let { source.focusedRun(triage, it, rows) }
             done to (if (done != null) commands.incrementAndGet() else commands.get())
@@ -225,15 +232,19 @@ internal class MailListController(
         // counting the messages it took, unless another command came after it.
         when {
             count == null -> notify(ListNotice.Failed)
-            triage.destructive && mine == commands.get() -> notify(ListNotice.Done(triage, count))
+            triage.destructive && mine == commands.get() -> notify(ListNotice.Done(triage, count, mine))
             else -> Unit
         }
     }
 
-    /** Takes back the last change. */
-    suspend fun undo() {
+    /**
+     * Takes back the change of the notice whose [command] it was, when that change is still the last:
+     * once another command was made, an undo would take back that one instead, and nothing is done.
+     */
+    suspend fun undo(command: Int) {
         val undone = commandLock.withLock {
-            source.run("edit.undo", "{}").also { commands.incrementAndGet() }
+            // (Looked at with the lock held: a command that was being made when Undo was pressed is made by now.)
+            command == commands.get() && source.run("edit.undo", "{}").also { commands.incrementAndGet() }
         }
         if (!undone) notify(ListNotice.Failed)
         reload()
@@ -333,5 +344,7 @@ internal fun MailListUi.switchedTo(query: MailQuery, sameFolder: Boolean): MailL
         load = if (keep) load else LoadState.Loading,
         snapshot = if (sameFolder) snapshot else ListSnapshot.Empty,
         tabs = if (sameFolder) tabs else emptyList(),
+        // (No rows are no other query's.)
+        rowsOf = if (sameFolder) rowsOf else query,
     )
 }
