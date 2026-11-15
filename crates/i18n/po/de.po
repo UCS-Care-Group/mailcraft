@@ -451,6 +451,12 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Eine Besprechungsserie mit ausgelassenen Tagen kann von hier aus nicht in den Kalender des Servers übernommen werden: Alle Eingeladenen würden für jeden ausgelassenen Tag eine Absage erhalten. Behalten Sie sie in einem Kalender auf diesem Computer, oder legen Sie sie ohne die ausgelassenen Tage neu an."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr "Eine Nachricht mit der Bitte um Abmeldung geht von {from} an {to}, über Ihren Postausgang."
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -1234,6 +1240,12 @@ msgid "An item that repeats can't be taken to another calendar this way. Hold Ct
 msgstr "Ein Serienelement kann so nicht in einen anderen Kalender gebracht werden. Halten Sie Strg gedrückt, um dieses Vorkommen dorthin zu kopieren, oder verwenden Sie „In Kalender verschieben“ in seinem Menü für die ganze Serie."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "An unsubscribe is already on its way."
+msgstr "Eine Abmeldung ist bereits unterwegs."
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
@@ -1604,6 +1616,12 @@ msgstr "Nicht heruntergeladene Bilder noch einmal anfordern."
 #, fuzzy
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Den Server des Kontos jetzt nach dem Kalender rund um diese Besprechung fragen."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr "Die Liste bitten, Ihnen keine E-Mails mehr zu senden. MailCraft fragt vorher und sagt, wie."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2018,6 +2036,11 @@ msgstr "Kalender nach vorne bringen"
 #, fuzzy
 msgid "Bring in"
 msgstr "Einlesen"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -4936,6 +4959,12 @@ msgstr "Von"
 msgid "From Sender"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "Von einer Mailingliste."
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6041,6 +6070,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "Sie geht an den Server, sobald MailCraft die Regeln des Servers ändern darf (Datei › Informationen › Erneut fragen); bis dahin läuft sie auf diesem Computer, solange MailCraft geöffnet ist."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "Sie geht mit dem nächsten Senden/Empfangen hinaus; die Liste trägt Sie dann aus."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6163,6 +6198,12 @@ msgstr "Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
 #: crates/ui-egui/src/dialogs.rs
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr "Betreff: „{subject}“. Text: „{body}“."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -6963,6 +7004,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft sendet {host} die Adresse, die diese Liste zum Abmelden angegeben hat und die Sie ihr gegenüber erkennbar machen kann, und sonst nichts: keine Cookies, keine Anmeldung. Wie jede Verbindung zeigt sie außerdem Ihre Internetadresse."
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
 msgstr ""
@@ -7271,7 +7318,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Nachricht"
@@ -8313,6 +8360,11 @@ msgid "No preview helper is available for this attachment."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 msgid "No recent searches"
 msgstr ""
@@ -8552,6 +8604,12 @@ msgstr "Nicht jetzt: Sie wird beim Beenden von MailCraft installiert."
 #, fuzzy
 msgid "Not saved"
 msgstr "Nicht gespeichert"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Not unsubscribed."
+msgstr "Nicht abgemeldet."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8883,6 +8941,12 @@ msgstr ""
 msgid "Only a meeting you organize has Find a Time"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr "Von hier wird nur eine Abmeldung per E-Mail gesendet: Ein Klick und eine Webseite laufen über das Fenster."
+
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 msgid "Only confirm if you know these servers."
@@ -9131,6 +9195,12 @@ msgid "Open the message"
 msgstr "Nachricht öffnen"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Open the page"
+msgstr "Seite öffnen"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Open the page again"
@@ -9377,6 +9447,12 @@ msgstr ""
 #: crates/engine/src/cmd/mail.rs
 msgid "Page Up"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "Seite geöffnet."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -9982,6 +10058,11 @@ msgid "Recent Searches"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Recent mail"
@@ -10418,6 +10499,12 @@ msgstr "Antworten anfordern"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Request a Read Receipt"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "Anfrage in Ihrem Postausgang."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -11206,7 +11293,7 @@ msgid "Select a meeting first"
 msgstr "Wählen Sie zuerst eine Besprechung aus"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "Wählen Sie zuerst eine Nachricht aus"
@@ -11229,7 +11316,7 @@ msgid "Select the message before previewing its attachment."
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "Senden"
@@ -13499,6 +13586,18 @@ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-i
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server didn't take the request: {why}."
+msgstr "Der Server der Liste hat die Anfrage nicht angenommen: {why}."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr "Der Server der Liste hat die Anfrage angenommen. Es kann einige Tage dauern, bis keine E-Mails mehr kommen."
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "The local program receives the selected attachment and runs with your permissions."
 msgstr ""
@@ -14106,7 +14205,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "Das Fenster ist noch nicht geöffnet."
@@ -14260,6 +14359,12 @@ msgstr ""
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "Dieses Konto speichert seine Regeln nicht auf seinem Server"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "Dieses Konto sendet keine E-Mails aus MailCraft und kann sich daher nicht per E-Mail abmelden."
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -14441,6 +14546,12 @@ msgstr ""
 #, fuzzy
 msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "Dieser Build kann sich bei dieser Art von Konto nicht anmelden. Verwenden Sie die Desktop-App."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "Diese Version kann sich nicht mit einem Klick abmelden."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -14698,6 +14809,18 @@ msgid "This link goes somewhere other than its text says."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "Diese Liste meldet auf ihrer eigenen Seite bei {host} ab. Sie öffnet sich in Ihrem Browser: Ein Besuch verrät der Liste, dass diese Adresse gelesen wird."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "Die Seite dieser Liste kann nicht geöffnet werden."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "This mailbox is in Microsoft 365"
 msgstr ""
@@ -14819,11 +14942,23 @@ msgstr "Diese Nachricht sagt keine Besprechung ab."
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Diese Nachricht schlägt keine andere Zeit für eine Besprechung vor."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "Diese Nachricht sagt nicht, wie man sich abmeldet."
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "Diese Nachricht wird heruntergeladen, sobald die Nachrichten da sind, die gerade heruntergeladen werden."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "Diese Nachricht hat eine Warnung zu ihrem Absender: Verschieben Sie sie nach Junk-E-Mail, statt sich abzumelden."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -14841,6 +14976,12 @@ msgstr "Diese Nachricht hat Bilder im Web. Dieser Build kann sie nicht herunterl
 #: crates/ui-egui/src/reading.rs
 msgid "This message hasn't been sent."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Diese Nachricht ist im Ordner Junk-E-Mail: löschen Sie sie, statt sich abzumelden."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15298,7 +15439,7 @@ msgid "Try Signing In Again"
 msgstr "Erneut anmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Erneut versuchen"
@@ -15463,6 +15604,30 @@ msgstr "Nicht gespeicherte Änderungen"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Nicht gespeicherte Nachricht"
+
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe"
+msgstr "Abmelden"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "Melden Sie sich auf der Seite der Liste in Ihrem Browser ab."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribed."
+msgstr "Abgemeldet."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing…"
+msgstr "Abmeldung läuft…"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -16276,6 +16441,12 @@ msgstr ""
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "Ihr Mailserver bestätigt nicht, dass diese Nachricht von ihrem Absender kommt, daher wird ihr Abmeldelink nicht verwendet."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -17711,7 +17882,7 @@ msgid "select a conversation in conversation view first"
 msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "wählen Sie zuerst eine Nachricht aus"
@@ -17825,6 +17996,12 @@ msgid "that message isn't held"
 msgstr "diese Nachricht wird nicht zurückgehalten"
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "that message isn't here"
+msgstr "diese Nachricht ist nicht hier"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "that was only looked at, not read in full"
 msgstr ""
@@ -17885,7 +18062,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "Das Konto hat keinen Benutzernamen und keine E-Mail-Adresse für die Anmeldung"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "das Konto ist nicht mehr vorhanden"
@@ -18217,6 +18394,12 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "das vorgeschlagene Ende liegt nicht nach dem vorgeschlagenen Beginn"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "the request was lost"
+msgstr "die Anfrage ist verloren gegangen"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -18775,7 +18958,7 @@ msgid "this account has no Drafts folder"
 msgstr "dieses Konto hat keinen Ordner „Entwürfe“"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "dieses Konto hat keinen Ordner „Postausgang“"
