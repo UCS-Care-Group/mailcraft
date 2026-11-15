@@ -64,6 +64,22 @@ internal class ShellData(
 /** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
 internal enum class OutlineStatus { Loading, Failed, Ready }
 
+/** The list the Mail tab shows: an outline read with no folder to show has no list to wait for. */
+internal fun shownMail(outlineRead: Boolean, folder: FolderItem?, ui: MailListUi): MailListUi =
+    if (outlineRead && folder == null) ui.copy(load = LoadState.Failed) else ui
+
+internal fun outlineStatus(outlineRead: Boolean, outline: MailboxOutline?): OutlineStatus = when {
+    !outlineRead -> OutlineStatus.Loading
+    outline == null -> OutlineStatus.Failed
+    else -> OutlineStatus.Ready
+}
+
+/** What the Calendar tab draws and does, as plain values. */
+internal class CalendarPane(
+    val state: CalendarUiState,
+    val actions: CalendarActions,
+)
+
 /** What the shell asks of the app. */
 internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
@@ -89,10 +105,20 @@ internal fun AppShell(
     texts: Texts,
     data: ShellData,
     actions: ShellActions,
+    /** The Calendar tab, when there is a core to read it from. */
+    calendar: CalendarPane? = null,
     initialNav: NavState = NavState(),
     initialDrawer: DrawerValue = DrawerValue.Closed,
+    /** A tab something outside asked for (an .ics file was opened): the shell goes to it, then says so. */
+    requestTab: Tab? = null,
+    onTabRequested: () -> Unit = {},
 ) {
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
+    LaunchedEffect(requestTab) {
+        // (Add Account is left alone: a sign-in may be waiting there; the tab's notice stays for later.)
+        requestTab?.let { if (!nav.adding) nav = nav.select(it) }
+        if (requestTab != null) onTabRequested()
+    }
     val drawer = rememberDrawerState(initialDrawer)
     val scope = rememberCoroutineScope()
     val back = nav.back()
@@ -138,6 +164,7 @@ internal fun AppShell(
                 texts = texts,
                 data = data,
                 actions = actions,
+                calendar = calendar,
                 nav = nav,
                 onNav = { nav = it },
                 onLeaveAdd = leaveAdd,
@@ -154,6 +181,7 @@ private fun ShellScreen(
     texts: Texts,
     data: ShellData,
     actions: ShellActions,
+    calendar: CalendarPane?,
     nav: NavState,
     onNav: (NavState) -> Unit,
     onLeaveAdd: () -> Unit,
@@ -186,6 +214,8 @@ private fun ShellScreen(
                 } else {
                     MailTab(texts, data, actions, modifier, expanded)
                 }
+                Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
+                    ?: Centered(texts.t("Pending development"), modifier)
                 else -> Centered(texts.t("Pending development"), modifier)
             }
         }
