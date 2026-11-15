@@ -1049,7 +1049,11 @@ pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
         }
     }
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
-    if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
+    // (`ui.openWindow` opens only the event it names: a message's window leaves alone what was
+    // said of the appointment opened last, #1152.)
+    let named = if command == "ui.openWindow" { params.get("event") } else { params.get("event").or(params.get("id")) };
+    let event = named.and_then(Value::as_u64).or(app.session.sel.event.filter(|_| command != "ui.openWindow"));
+    if opening && let Some(event) = event {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");
         let day = params.get("occurrence").and_then(Value::as_str).and_then(mailcraft_time::Date::parse_iso).filter(|_| one);
         app.session.driver.calendar.opened = params.get("scope").is_some().then_some((event, day));
@@ -1115,7 +1119,10 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     }
     let opening = id == "ui.openWindow";
     // `id` read as the command reads it (#553): named wrongly, nothing is asked and the command refuses it.
-    let named = if opening { params.get("event").and_then(Value::as_u64) } else { mailcraft_engine::p::id_strict(params, "id").ok()? };
+    // A window is asked about only when it is an appointment's: `ui.openWindow` opens the event it
+    // names and never the one selected, so a message's, a draft's or a new item's window asks
+    // nothing about an occurrence left selected (by a reminder that was opened, #1152).
+    let named = if opening { Some(params.get("event").and_then(Value::as_u64)?) } else { mailcraft_engine::p::id_strict(params, "id").ok()? };
     let e = mb.event(named.or(app.session.sel.event)?)?;
     // 1. Just this one, or the entire series? Asked of the occurrence that is selected (the
     // grid selects the one it acts on); nothing is asked about what is the same for both.
