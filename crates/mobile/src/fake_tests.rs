@@ -172,6 +172,11 @@ impl Platform for FakePlatform {
         Err(HostError::Unsupported)
     }
 
+    fn open_link(&self, url: String) -> Result<(), HostError> {
+        self.opened.lock().unwrap().push(url);
+        Ok(())
+    }
+
     fn now(&self) -> Result<i64, HostError> {
         Ok(now())
     }

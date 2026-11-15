@@ -28,7 +28,14 @@ fn run(server: &StandIn, links: Vec<GraphLink>, cancel: &AtomicBool) -> Vec<Grap
 fn links_after(pieces: &[GraphMailResult], mut links: Vec<GraphLink>) -> Vec<GraphLink> {
     for page in pieces.iter().flat_map(|p| &p.pages) {
         links.retain(|l| l.folder != page.folder);
-        links.push(GraphLink { folder: page.folder.clone(), link: page.link.clone(), caught_up: page.caught_up, counts: page.counts });
+        links.push(GraphLink {
+            folder: page.folder.clone(),
+            link: page.link.clone(),
+            caught_up: page.caught_up,
+            counts: page.counts,
+            afresh: false,
+            ..Default::default()
+        });
     }
     links
 }
@@ -496,4 +503,30 @@ fn a_listing_that_leaves_a_recipient_or_the_end_of_its_subject_out_says_it_cut_t
     let cut = read(&long, serde_json::json!([]));
     assert!(cut.cut && cut.subject.chars().count() == 998);
     assert!(!read(&"a".repeat(998), serde_json::json!([])).cut, "a subject that fits is whole");
+}
+
+#[test]
+fn a_device_that_takes_less_passes_a_larger_message_over_and_keeps_the_batch_within_its_room() {
+    // A phone (MB3.17): each message within `most_bytes`, the batch within `most_total`.
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 4, NOW);
+    let big = format!("From: avery@example.org\r\nTo: owner@example.org\r\nSubject: Large\r\n\r\n{}\r\n", "x".repeat(64 * 1024));
+    server.state().mailbox.update(&ids[1], |m| m.mime = Some(big.clone()));
+    let mut request = fetch_request(&ids);
+    request.most_bytes = 16 * 1024;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.too_large, [ids[1].clone()]);
+    assert_eq!(got.failed, [ids[1].clone()], "named as passed over too, so the background leaves it");
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str(), ids[2].as_str(), ids[3].as_str()]);
+    assert!(got.errors.is_empty() && !got.offline, "{:?}", got.errors);
+    assert!(got.fetched.iter().all(|f| f.mime.len() <= 16 * 1024));
+
+    // The batch's room: once it is used up, the rest wait (neither fetched nor failed).
+    let first = got.fetched[0].mime.len() as u64;
+    let mut request = fetch_request(&[ids[0].clone(), ids[2].clone(), ids[3].clone()]);
+    request.most_total = first + 1;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str()]);
+    assert!(got.failed.is_empty() && got.too_large.is_empty() && got.errors.is_empty(), "{got:?}");
 }

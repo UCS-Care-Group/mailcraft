@@ -399,7 +399,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.ews_run_cut.remove(&account);
     }
     if result.whole && !result.partial && !run_cut {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        graph_down::sweep(&mut s.mailbox, account, None, &mut down);
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);

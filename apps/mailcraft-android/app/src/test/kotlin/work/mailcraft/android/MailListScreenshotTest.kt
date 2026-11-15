@@ -13,8 +13,6 @@ import com.android.resources.NightMode
 import org.junit.Rule
 import org.junit.Test
 
-private const val TOLERANCE = 0.1
-
 /** What the list screens show, apart from the shell around them. */
 private object ListShots {
     private val accounts = listOf(AccountItem(1u, "Ada Example", "ada@example.org", emptyList()))
