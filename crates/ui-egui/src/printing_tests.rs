@@ -98,6 +98,14 @@ fn without_a_printer_the_pdf_opens_in_the_viewer() {
     h.state_mut().run("file.print", json!({})).unwrap();
     settle(&mut h);
     press(&mut h, "printGo");
+    // The PDF is made off the window thread: wait (bounded) for the viewer to be asked.
+    for _ in 0..400 {
+        if !opened.lock().unwrap().is_empty() {
+            break;
+        }
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
     assert_eq!(*opened.lock().unwrap(), ["Your October invoice is ready.pdf"]);
 }
 
