@@ -141,3 +141,15 @@ fn only_a_dav_error_with_the_precondition_is_an_invalid_token() {
         assert_eq!(classify(&HttpResponse::new(403, body.as_bytes().to_vec()), 0), Verdict::Forbidden, "{body}");
     }
 }
+
+#[test]
+fn civil_seconds_is_checked_at_the_extremes() {
+    for year in [i64::MIN, i64::MIN + 1, i64::MAX, i64::MAX - 1, i64::MAX / 2, i64::MIN / 2] {
+        for month in [1, 2, 3, 12] {
+            let _ = civil_seconds(year, month, 31, i64::MAX);
+            let _ = civil_seconds(year, month, 1, i64::MIN);
+        }
+    }
+    assert_eq!(civil_seconds(i64::MIN, 6, 1, 0), None);
+    assert_eq!(civil_seconds(1970, 1, 1, 5), Some(5));
+}

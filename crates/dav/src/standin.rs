@@ -596,20 +596,26 @@ fn duration(value: &str) -> Option<i64> {
 /// is judged conservatively: its span is widened by fourteen hours either way.
 fn overlaps(body: &str, start: i64, end: Option<i64>) -> bool {
     let mut inside = false;
-    let (mut dtstart, mut dtend, mut dur, mut zoned) = (None, None, None, false);
+    let (mut dtstart, mut dtend, mut dur, mut zoned, mut rrule) = (None, None, None, false, None::<Option<i64>>);
     for line in body.lines() {
-        if line == "BEGIN:VEVENT" {
+        if line.eq_ignore_ascii_case("BEGIN:VEVENT") {
             inside = true;
-        } else if line == "END:VEVENT" {
+        } else if line.eq_ignore_ascii_case("END:VEVENT") {
             break;
-        } else if inside && !line.starts_with(' ') {
+        } else if inside && !line.starts_with([' ', '\t']) {
             let Some((head, value)) = line.split_once(':') else { continue };
-            let name = head.split(';').next().unwrap_or("");
-            zoned |= matches!(name, "DTSTART" | "DTEND") && head.contains("TZID=");
-            match name {
+            let name = head.split(';').next().unwrap_or("").to_ascii_uppercase();
+            zoned |= matches!(name.as_str(), "DTSTART" | "DTEND") && head.to_ascii_uppercase().contains("TZID=");
+            match name.as_str() {
                 "DTSTART" => dtstart = stamp(value.trim()),
                 "DTEND" | "DUE" => dtend = stamp(value.trim()).map(|t| t.0),
-                "DURATION" => dur = duration(value.trim()),
+                "DURATION" => dur = duration(&value.trim().to_ascii_uppercase()),
+                // Conservative expansion: a rule with UNTIL ends there; one without (or with only a
+                // COUNT) is taken as running for ever.
+                "RRULE" => {
+                    let until = value.split(';').find_map(|p| p.trim().to_ascii_uppercase().strip_prefix("UNTIL=").map(str::to_owned));
+                    rrule = Some(until.and_then(|u| stamp(&u)).map(|t| t.0));
+                }
                 _ => {}
             }
         }
@@ -618,10 +624,26 @@ fn overlaps(body: &str, start: i64, end: Option<i64>) -> bool {
     let e0 = dtend.or_else(|| dur.and_then(|d| s0.checked_add(d))).or(if date_only { s0.checked_add(86_400) } else { None });
     let slack = if zoned { 14 * 3_600 } else { 0 };
     let (s0, e0) = (s0.saturating_sub(slack), e0.map(|e| e.saturating_add(slack)));
+    if let Some(last) = rrule {
+        // The series runs from its first start to the end of its last occurrence (UNTIL, plus the
+        // length of one occurrence), or for ever.
+        let length = e0.map_or(0, |e| e.saturating_sub(s0).max(0));
+        return end.is_none_or(|e| s0 < e) && last.is_none_or(|u| u.saturating_add(length).saturating_add(slack) > start);
+    }
     match e0 {
         Some(e0) if e0 > s0 => end.is_none_or(|e| s0 < e) && e0 > start,
         _ => end.is_none_or(|e| s0 < e) && s0 >= start,
     }
+}
+
+/// Whether the object holds a `VEVENT`.
+fn has_event(body: &str) -> bool {
+    body.lines().any(|l| l.eq_ignore_ascii_case("BEGIN:VEVENT"))
+}
+
+/// A UTC date-time (`YYYYMMDDTHHMMSSZ`), the only form a `time-range` takes (RFC 4791 §9.9).
+fn utc(value: &str) -> Option<i64> {
+    if value.len() == 16 && value.ends_with('Z') { stamp(value).map(|t| t.0) } else { None }
 }
 
 fn report(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> HttpResponse {
@@ -681,11 +703,11 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
         let bounds = match range {
             None => None,
             Some(r) => {
-                let a = r.attribute("start").and_then(stamp);
-                let b = r.attribute("end").map(stamp);
+                let a = r.attribute("start").and_then(utc);
+                let b = r.attribute("end").map(utc);
                 match (a, b) {
-                    (Some((a, _)), None) => Some((a, None)),
-                    (Some((a, _)), Some(Some((b, _)))) => Some((a, Some(b))),
+                    (Some(a), None) => Some((a, None)),
+                    (Some(a), Some(Some(b))) => Some((a, Some(b))),
                     _ => {
                         violations.push("time-range with a start or end that is not a UTC date-time".into());
                         return HttpResponse::new(400, Vec::new());
@@ -694,7 +716,12 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
             }
         };
         for (n, m) in coll.members.iter().filter(|_| depth == "1" && events) {
-            if bounds.is_none_or(|(a, b)| overlaps(&m.body, a, b)) {
+            let fits = match (inner.is_some(), bounds) {
+                (true, Some((a, b))) => overlaps(&m.body, a, b),
+                (true, None) => has_event(&m.body),
+                (false, _) => true,
+            };
+            if fits {
                 out.push_str(&response_for(s, layout, &Res::Member(coll, n, m), &want));
             }
         }

@@ -460,3 +460,46 @@ fn a_propfind_without_a_body_is_an_allprop() {
 fn a_user_name_with_a_colon_makes_no_stand_in() {
     assert!(StandIn::new("https://dav.example.org", "a:b", "pw").is_err());
 }
+
+#[test]
+fn calendar_query_expands_series_conservatively_and_returns_only_events() {
+    let (s, e) = server();
+    let ev = |extra: &str| {
+        format!(
+            "BEGIN:VCALENDAR\r\nbegin:vevent\r\nUID:r\r\ndtstart:20200105T100000Z\r\ndtend:20200105T110000Z\r\n{extra}end:vevent\r\nEND:VCALENDAR\r\n"
+        )
+    };
+    s.put_directly("work", "plain.ics", &ev("")).unwrap();
+    s.put_directly("work", "forever.ics", &ev("RRULE:FREQ=WEEKLY\r\n")).unwrap();
+    s.put_directly("work", "counted.ics", &ev("RRULE:FREQ=WEEKLY;COUNT=3\r\n")).unwrap();
+    s.put_directly("work", "ended.ics", &ev("RRULE:FREQ=WEEKLY;UNTIL=20201231T000000Z\r\n")).unwrap();
+    s.put_directly("work", "running.ics", &ev("RRULE:FREQ=WEEKLY;UNTIL=20270601T000000Z\r\n")).unwrap();
+    s.put_directly("work", "todo.ics", "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDTSTART:20260601T100000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+        .unwrap();
+    let mut found = query(&s, &e, "20260101T000000Z", "20270101T000000Z");
+    found.sort();
+    assert_eq!(found, ["counted.ics", "forever.ics", "running.ics"], "ended and plain are before the range, the to-do is no event");
+    // With no time range, a VEVENT filter still returns only events.
+    let c = s.collection_url("work");
+    let body = "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"vevent\"/></c:comp-filter></c:filter></c:calendar-query>";
+    let r = raw(&s, Method::Report, &c, &[("Content-Type", "application/xml"), ("Depth", "1")], body);
+    assert!(!String::from_utf8_lossy(r.body()).contains("todo.ics"));
+    assert!(String::from_utf8_lossy(r.body()).contains("plain.ics"));
+}
+
+#[test]
+fn a_time_range_must_be_utc() {
+    let (s, _) = server();
+    let c = s.collection_url("work");
+    for range in [
+        "start=\"20260101\"",
+        "start=\"20260101T000000\"",
+        "start=\"20260101T000000Z\" end=\"20270101T000000\"",
+        "start=\"20260101T000000Z\" end=\"20270101\"",
+    ] {
+        let body = format!(
+            "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:time-range {range}/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>"
+        );
+        assert_eq!(raw(&s, Method::Report, &c, &[("Content-Type", "application/xml"), ("Depth", "1")], &body).status(), 400, "{range}");
+    }
+}

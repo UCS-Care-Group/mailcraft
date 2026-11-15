@@ -124,10 +124,10 @@ pub(crate) fn civil_seconds(year: i64, month: i64, day: i64, clock: i64) -> Opti
     // Days from civil (Howard Hinnant's algorithm, public domain).
     let y = if month <= 2 { year.checked_sub(1)? } else { year };
     let era = y.div_euclid(400);
-    let yoe = y - era * 400;
+    let yoe = y.checked_sub(era.checked_mul(400)?)?;
     let mp = (month + 9) % 12;
     let doy = (153 * mp + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let doe = yoe.checked_mul(365)?.checked_add(yoe / 4)?.checked_sub(yoe / 100)?.checked_add(doy)?;
     let days = era.checked_mul(146_097)?.checked_add(doe)?.checked_sub(719_468)?;
     days.checked_mul(86_400)?.checked_add(clock)
 }

@@ -134,3 +134,23 @@ fn foreign_addresses_are_data_only() {
     assert!(TrustedOrigin::from_account_settings("http://127.0.0.1:8080").is_ok());
     assert!(TrustedOrigin::from_account_settings("https://u@dav.example.org").is_err());
 }
+
+#[test]
+fn a_member_never_has_an_empty_segment_and_the_collection_is_never_a_member() {
+    let o = o();
+    for url in ["/cal/owner/work//", "/cal/owner/work//a.ics", "/cal/owner/work/sub//a.ics", "/cal/owner/work/", "/cal/owner/work"] {
+        assert!(!o.is_within(BASE, url), "{url}");
+    }
+    assert!(o.is_within(BASE, "/cal/owner/work/a.ics"));
+    assert!(o.is_within(BASE, "/cal/owner/work/sub/"));
+    assert!(!o.is_within("https://dav.example.org/cal/", "/cal//"));
+}
+
+#[test]
+fn loopback_is_foreign_only_to_a_loopback_origin() {
+    assert_eq!(o().foreign("http://127.0.0.1:8/x"), None);
+    assert_eq!(o().foreign("http://localhost/x"), None);
+    let local = Origin::parse("http://127.0.0.1:9000").unwrap();
+    assert_eq!(local.foreign("http://127.0.0.1:8/x").as_deref(), Some("http://127.0.0.1:8/x"));
+    assert_eq!(local.foreign("http://remote.example.net/x"), None);
+}

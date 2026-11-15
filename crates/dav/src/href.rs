@@ -172,7 +172,7 @@ impl Origin {
     }
 
     /// An absolute address on **another** origin, normalised, for data only (discovery decides
-    /// whether a host may be used at all). `https`, or loopback `http`; never a credentialed
+    /// whether a host may be used at all). `https`, or loopback `http` only when this origin is loopback too; never a credentialed
     /// request from this crate. None for anything else, including addresses on this origin.
     pub fn foreign(&self, href: &str) -> Option<String> {
         let href = href.trim_matches([' ', '\t', '\r', '\n']);
@@ -180,7 +180,7 @@ impl Origin {
             return None;
         }
         let other = Origin::parse(href).ok()?;
-        if &other == self || !(other.secure() || other.is_loopback()) {
+        if &other == self || !(other.secure() || (other.is_loopback() && self.is_loopback())) {
             return None;
         }
         other.resolve(&other.base(), href).ok()
@@ -225,7 +225,21 @@ impl Origin {
     pub fn is_within(&self, collection: &str, url: &str) -> bool {
         let (Ok(c), Ok(u)) = (self.path(collection), self.path(url)) else { return false };
         let c = if c.ends_with('/') { c } else { format!("{c}/") };
-        u.len() > c.len() && u.starts_with(&c)
+        let Some(rest) = u.strip_prefix(c.as_str()) else { return false };
+        // A member has a name; an empty segment (`/cal//`) is the collection to a server that
+        // merges slashes, so it is refused (a trailing slash after a name is allowed).
+        let mut parts = rest.split('/').peekable();
+        let mut named = false;
+        while let Some(part) = parts.next() {
+            if part.is_empty() {
+                if parts.peek().is_some() {
+                    return false;
+                }
+            } else {
+                named = true;
+            }
+        }
+        named
     }
 }
 
