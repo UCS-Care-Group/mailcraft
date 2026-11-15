@@ -29,6 +29,7 @@ mod core;
 mod error;
 mod events;
 mod keep;
+mod limits;
 mod message;
 mod platform;
 mod queries;
@@ -49,6 +50,8 @@ mod junk_tests;
 #[cfg(test)]
 mod keep_tests;
 #[cfg(test)]
+mod limits_tests;
+#[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
 mod queue_tests;
@@ -65,6 +68,7 @@ pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
+pub use limits::{DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};

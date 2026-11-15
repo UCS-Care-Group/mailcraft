@@ -993,3 +993,17 @@ fn a_renewal_and_a_removal_sent_at_once_are_applied_one_after_the_other() {
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
     assert_eq!(rig.secrets_kept(), 0);
 }
+
+#[test]
+fn an_account_added_on_the_phone_keeps_a_month_and_fetches_whole_only_up_to_a_megabyte() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let (keep, size, limits) = block_on(rig.core.call(move |s| {
+        let a = s.mailbox.account(account).ok_or(CoreError::Internal)?;
+        Ok((a.keep_offline, a.download_in_full, s.mailbox.device_limits))
+    }))
+    .unwrap();
+    assert_eq!((keep, size), (mailcraft_model::KeepOffline::Month1, mailcraft_model::DownloadInFull::UpTo1Mb));
+    assert_eq!(limits.map(|l| l.storage), Some(mailcraft_model::PHONE_STORAGE));
+}

@@ -179,7 +179,8 @@ impl Core {
         let host = mailcraft_host::init(native.clone())?;
         // What the device can spare caps what the session keeps of mail content: the lowest of the
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
-        let budget_id = enter_budget(host.platform().memory_budget());
+        let device_budget = host.platform().memory_budget();
+        let budget_id = enter_budget(device_budget);
         let events = Queue::new();
         let sink = EventSink { queue: events.clone() };
         let keep = match dir {
@@ -208,6 +209,9 @@ impl Core {
                 // choice dropped); the next save writes what they changed.
                 let _ = mailcraft_engine::cmd::file::after_opening(&mut session);
             }
+            // A phone keeps less than a computer: a mailbox from before the phone's own limits is
+            // moved to them, once (MB3.16).
+            crate::limits::settle(&mut session, device_budget);
             // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
             // left at that default follows the zone, one it chose stays. Asked before either change.
             let default_date = session.view.date == session.today();

@@ -263,6 +263,7 @@ impl Core {
         // One job on the session's thread: the sign-in is kept, the account is added and
         // Send/Receive takes the sign-in, or none of it. A call dropped (or a core shut down) before
         // the job runs keeps nothing, and a job that runs needs nobody waiting for it to finish.
+        let settings = crate::limits::DownloadSettings::default();
         let (platform, sync, for_call, lang) = (self.native.clone(), self.sync.clone(), address.clone(), self.lang());
         let added = self
             .call(move |s| {
@@ -291,7 +292,17 @@ impl Core {
                     Some(id) => id,
                     None => {
                         let made = s.run("account.add", &new_account).map_err(CoreError::from);
-                        match made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)) {
+                        // The phone keeps what the owner chose of a new account's mail (MB3.16).
+                        let made = made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)).and_then(|id| {
+                            match crate::limits::apply_to(s, id, settings) {
+                                Ok(()) => Ok(id),
+                                Err(e) => {
+                                    let _ = s.run("account.remove", &json!({"id": id}));
+                                    Err(CoreError::from(e))
+                                }
+                            }
+                        });
+                        match made {
                             Ok(id) => id,
                             Err(error) => {
                                 // (Nothing is kept of a sign-in that made no account.)

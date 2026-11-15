@@ -629,6 +629,8 @@ impl GraphSwitch {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DownloadInFull {
+    /// The phone's default (MB3.16): a message of more than 1 MB is fetched only when it is opened.
+    UpTo1Mb,
     #[default]
     UpTo10Mb,
     UpTo25Mb,
@@ -644,6 +646,7 @@ impl DownloadInFull {
     /// The largest message fetched in the background, in bytes; `None` for no limit.
     pub fn limit(self) -> Option<u64> {
         match self {
+            DownloadInFull::UpTo1Mb => Some(1 << 20),
             DownloadInFull::UpTo10Mb => Some(10 << 20),
             DownloadInFull::UpTo25Mb => Some(25 << 20),
             DownloadInFull::UpTo50Mb => Some(50 << 20),
@@ -1245,6 +1248,12 @@ pub struct Mailbox {
     /// collected from Digitally signed mail, contact or not.
     #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
     pub public_keys: crate::public_keys::PublicKeys,
+    /// The limits of a device that can't hold a whole mailbox (a phone, MB3.16): how much mail
+    /// it keeps on its disk and in memory, and that mail older than an account's mail to keep
+    /// offline isn't listed at all ([`crate::DeviceLimits`]). `None` on a computer: everything
+    /// is as it always was.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient_or_default")]
+    pub device_limits: Option<crate::DeviceLimits>,
     next_id: Id,
 }
 
@@ -1284,6 +1293,7 @@ impl Default for Mailbox {
             redecoded: false,
             unhollowed: false,
             public_keys: Default::default(),
+            device_limits: None,
             next_id: 1,
         }
     }
@@ -1521,6 +1531,14 @@ impl Mailbox {
     /// (#143: it has none of its own). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+    }
+
+    /// The earliest received time of `account`'s mail that is listed from its server at `now`:
+    /// on a device with limits (a phone, MB3.16), the start of its mail to keep offline, so that
+    /// older mail isn't listed at all; `None` (everything) on a computer and for a window of All.
+    pub fn listed_since(&self, account: Id, now: crate::time::Timestamp) -> Option<crate::time::Timestamp> {
+        self.device_limits?;
+        self.keep_offline_of(account).since(now)
     }
 
     /// The colour a new account is given (#893): the first of [`PALETTE`] no account has yet, and
