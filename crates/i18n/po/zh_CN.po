@@ -545,8 +545,9 @@ msgstr "端口是 1 到 65535 之间的数字"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "A preview may omit some content from the original file."
-msgstr ""
+msgstr "预览可能无法显示原始文件中的全部内容。"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1676,8 +1677,9 @@ msgstr "再次下载该发件人的图片之前先询问"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Ask before previewing this type of file"
-msgstr ""
+msgstr "预览此类文件前先询问"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2865,8 +2867,9 @@ msgstr "清除搜索 (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Click to select {name}; double-click to open it"
-msgstr ""
+msgstr "单击选择 {name}，双击打开。"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -8882,8 +8885,9 @@ msgstr "没有可用于预览此附件的辅助程序。"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "No preview is available for this attachment."
-msgstr ""
+msgstr "无法预览此附件。"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -10364,8 +10368,9 @@ msgstr "预览附件"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview File"
-msgstr ""
+msgstr "预览文件"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -10387,8 +10392,9 @@ msgstr "使用本地 PhotoCraft 预览附件"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview files only when you trust the sender."
-msgstr ""
+msgstr "仅预览来自可信发件人的文件。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10852,10 +10858,13 @@ msgstr "移除"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
+"移除\n"
+"附件"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
@@ -11277,8 +11286,9 @@ msgstr "“重新启动以更新”必须由用户亲自点击。"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Restore attachment preview warnings"
-msgstr ""
+msgstr "恢复附件预览警告"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -11569,10 +11579,13 @@ msgstr "保存并关闭"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
+"保存所有\n"
+"附件"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -11696,8 +11709,9 @@ msgstr "保存到文件"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Save to Computer"
-msgstr ""
+msgstr "保存到电脑"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12570,10 +12584,13 @@ msgstr "显示"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Message"
 msgstr ""
+"显示\n"
+"邮件"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12630,8 +12647,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Show Message"
-msgstr ""
+msgstr "显示邮件"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

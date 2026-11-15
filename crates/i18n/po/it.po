@@ -527,8 +527,9 @@ msgstr "Una porta è un numero da 1 a 65535"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "A preview may omit some content from the original file."
-msgstr ""
+msgstr "L’anteprima potrebbe non mostrare tutto il contenuto del file originale."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1618,8 +1619,9 @@ msgstr "Chiedi di nuovo prima di scaricare le immagini di questo mittente"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Ask before previewing this type of file"
-msgstr ""
+msgstr "Chiedi conferma prima di visualizzare l’anteprima di questo tipo di file"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2724,8 +2726,9 @@ msgstr "Cancella ricerca (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Click to select {name}; double-click to open it"
-msgstr ""
+msgstr "Fai clic per selezionare {name}. Fai doppio clic per aprirlo."
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -8489,8 +8492,9 @@ msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "No preview is available for this attachment."
-msgstr ""
+msgstr "Non è disponibile un’anteprima per questo allegato."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -9900,8 +9904,9 @@ msgstr "Anteprima allegato"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview File"
-msgstr ""
+msgstr "Anteprima file"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -9920,8 +9925,9 @@ msgstr "Visualizza gli allegati in anteprima con PhotoCraft locale"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview files only when you trust the sender."
-msgstr ""
+msgstr "Visualizza l’anteprima solo dei file che provengono da mittenti attendibili."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10357,10 +10363,13 @@ msgstr "Rimuovi"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
+"Rimuovi\n"
+"allegato"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
@@ -10757,8 +10766,9 @@ msgstr "Solo il proprietario può fare clic su Riavvia per aggiornare."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Restore attachment preview warnings"
-msgstr ""
+msgstr "Ripristina gli avvisi per le anteprime degli allegati"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -11044,15 +11054,19 @@ msgstr "Salva e chiudi"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
+"Salva tutti\n"
+"gli allegati"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Save All Attachments"
-msgstr ""
+msgstr "Salva tutti gli allegati"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -11166,8 +11180,9 @@ msgstr "Salva ed esporta"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Save to Computer"
-msgstr ""
+msgstr "Salva sul computer"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12000,10 +12015,13 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Message"
 msgstr ""
+"Mostra\n"
+"messaggio"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12059,8 +12077,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Show Message"
-msgstr ""
+msgstr "Mostra messaggio"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

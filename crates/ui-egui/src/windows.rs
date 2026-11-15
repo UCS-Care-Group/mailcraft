@@ -1296,11 +1296,13 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
             // window, apart from the same message in the reading pane.
             let scope = app.hit.scope(id);
             crate::attachment_preview::follow_message(app, id, Some(m.id));
-            if !crate::ribbon::show_attachment_window(app, ui, id, m.id) {
+            if crate::ribbon::show_attachment_window(app, ui, id, m.id) {
+                close = actions(app, ui, &m, own_keys, false);
+            } else {
                 egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
                     .resizable(false)
                     .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
-                    .show(ui, |ui| close = actions(app, ui, &m, own_keys));
+                    .show(ui, |ui| close = actions(app, ui, &m, own_keys, true));
             }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
@@ -1356,9 +1358,9 @@ enum Action {
     Read,
 }
 
-/// The row of actions on a message in a window of its own. `true` when the window is to close:
-/// the message was deleted from it.
-fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> bool {
+/// A message window's action keys and, when visible, its toolbar. Returns `true` if the action
+/// deleted the message and the window should close.
+fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool, toolbar: bool) -> bool {
     let flagged = m.flag == FlagStatus::Flagged;
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
@@ -1383,23 +1385,25 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
             }
         }
     }
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-        for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
-            if n == 3 || n == 4 {
-                ui.add_space(8.0);
+    if toolbar {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+            for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
+                if n == 3 || n == 4 {
+                    ui.add_space(8.0);
+                }
+                let key = crate::widgets::shortcut_text(app, command);
+                let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
+                let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
+                if !own_keys {
+                    app.hit.add(kind, m.id, button.rect);
+                }
+                if button.clicked() {
+                    asked = Some(*action);
+                }
             }
-            let key = crate::widgets::shortcut_text(app, command);
-            let tip = if key.is_empty() { tl!(label).to_string() } else { format!("{} ({key})", tl!(label)) };
-            let button = crate::widgets::icon_text_button(ui, icon, tl!(label), true).on_hover_text(tip);
-            if !own_keys {
-                app.hit.add(kind, m.id, button.rect);
-            }
-            if button.clicked() {
-                asked = Some(*action);
-            }
-        }
-    });
+        });
+    }
     let Some(action) = asked else { return false };
     let ctx = ui.ctx().clone();
     // What a window of the system starts in the main window is looked at there.
@@ -1455,6 +1459,9 @@ fn hit_kind(command: &str) -> &'static str {
         _ => "windowDelete",
     }
 }
+
+#[cfg(test)]
+mod attachment_shortcuts_tests;
 
 #[cfg(test)]
 mod tests {
