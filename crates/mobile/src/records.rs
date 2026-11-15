@@ -12,6 +12,9 @@ pub struct AccountRecord {
     pub name: String,
     pub email: String,
     pub display_name: String,
+    /// `microsoft`, `imap`, `local`, `jmap`, `exchange` or `other`. The phone app v1 shows
+    /// `microsoft` accounts only.
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -57,6 +60,9 @@ pub struct MessageRow {
     pub categories: Vec<String>,
     /// Messages the row stands for (1 outside a conversation).
     pub members: u32,
+    /// The ids of those messages (the first 200 at most), newest first, so that a command on the row
+    /// names them and never depends on the session's own view of the list.
+    pub member_ids: Vec<u64>,
     /// The heading above the row when it starts a group (`Today`, `Last Week`), in English: the
     /// app translates it with `t`, unless `group_is_category` says it is a name the owner chose.
     pub group: Option<String>,
@@ -218,6 +224,57 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+}
+
+/// What a window of the message list is asked for: where, how filtered, in which of the Inbox
+/// split's tabs, with or without conversations, and under which search.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ListQuery {
+    pub folder: u64,
+    /// `all`, `unread`, `flagged`, `attachments` or `toMe`.
+    pub filter: String,
+    /// The code of one of the Inbox split's tabs (`primary`, `social`…), from [`InboxSplit`];
+    /// empty for the whole folder.
+    pub split: String,
+    /// One row for each conversation (its newest message), instead of one for each message.
+    pub conversations: bool,
+    /// Text to find in what is on this phone (sender, subject and preview); empty for none.
+    pub search: String,
+    /// A search looks through every account's mail, not the folder alone.
+    pub everywhere: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SplitTab {
+    /// `primary`, `social`, `promotions`, `updates` or `forums`.
+    pub code: String,
+    /// Its name in English: the app translates it with `t`.
+    pub name: String,
+    pub unread: u32,
+    pub total: u32,
+}
+
+/// The row of tabs over an Inbox that its server divides (Gmail's categories): empty `tabs` for
+/// any other folder, and for an Inbox that has nothing to sort.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct InboxSplit {
+    pub rev: u64,
+    pub folder: u64,
+    pub tabs: Vec<SplitTab>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryRecord {
+    pub name: String,
+    /// The category's colour, `0xRRGGBB`.
+    pub color: u32,
+}
+
+/// The categories the mail of an account can be given, with their colours.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CategoryList {
+    pub rev: u64,
+    pub categories: Vec<CategoryRecord>,
 }
 
 /// What "remove account and data" came to (`Core::delete_local_data`).

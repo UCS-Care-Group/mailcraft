@@ -47,6 +47,14 @@ MailCraft follows the architecture and conventions of [WordCraft](https://github
 - **Installing:** every release is on the [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases) with its checksums: a Windows installer (`.msi`) and portable zip for x64, x86 and ARM64; `.AppImage`, `.deb`, `.rpm`, `.flatpak` and `.tar.gz` for Linux on x86_64 and aarch64; a macOS disk image for Apple silicon and Intel; a FreeBSD tarball; a static site for the browser. The builds are not signed yet, so Windows and macOS ask before running them. One window per mailbox: starting MailCraft again, or opening a message file or a `mailto:` link, goes to the window that is already open. See [docs/releasing.md](docs/releasing.md) for what has been built and tested so far.
 - **Agents:** a CLI, a JSON control channel and an MCP server expose every command; the same registry drives the ribbon and the keyboard.
 
+## Security
+
+- **Signatures checked:** an S/MIME or OpenPGP Digital signature is checked where the message is read, with one of four results in a bar above it (verified; valid but the signer not verified; changed after signing; can't be checked) and a seal on the row. S/MIME trusts the system's certification authorities for mail, never the set trusted for web sites, with RFC 5280's path rules; MD5, SHA-1 and RSA keys under 2048 bits are refused. Revocation is not checked yet.
+- **Your own keys stay where the system keeps them:** File › Options › Security lists your certificates and keys from the Windows certificate store, the macOS keychain, PKCS#11 tokens (Linux and FreeBSD) and GnuPG through gpg-agent (OpenPGP smartcards included), so MailCraft never sees the PIN or the private key.
+- **Not yet:** signing and encrypting the mail you send, and opening encrypted mail, are being built ([#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)). A PKCS#11 key that asks for its PIN at every use (a PIV card's signing key) is refused for now.
+- **Everywhere:** every connection that carries mail or a sign-in is TLS or STARTTLS, never a silent downgrade; passwords and sign-in tokens live in memory or the system's credential store, never in MailCraft's files or logs; nothing in a message runs.
+- What MailCraft defends against and how: [docs/threat-model.md](docs/threat-model.md); what it sends anywhere: [PRIVACY.md](PRIVACY.md); reporting a vulnerability: [SECURITY.md](SECURITY.md).
+
 ## Google accounts on the desktop
 
 Use **Send / Receive → Add Account → Sign in with Google**. App-password setup is a separate

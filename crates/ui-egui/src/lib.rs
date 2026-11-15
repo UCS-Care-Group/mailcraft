@@ -177,6 +177,7 @@ pub mod platform;
 mod platform_tests;
 mod problem_log;
 pub mod reading;
+mod recent_attachments;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
@@ -278,6 +279,8 @@ pub use unconfirmed::ConfirmedMailbox;
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// The Windows host reads the local Recent Items folder on a worker, only when asked by the owner.
+    pub recent_attachments: Option<recent_attachments::Loader>,
     /// Desktop: the icon and application id of the main window, which every other window of the
     /// system (reminders, messages) takes too.
     pub window_identity: Option<windows::WindowIdentity>,
@@ -476,6 +479,11 @@ pub struct Services {
     /// window no longer wants it, and the host asks nothing more for it.
     /// Absent in the browser and the tests: senders keep their initials.
     pub sender_images: Option<Box<dyn Fn(String, std::sync::Weak<()>) -> Receiver<Result<Vec<u8>, String>>>>,
+    /// Desktop: RFC 8058's one-click unsubscribe, `POST`ed to the `https:` address a message
+    /// gave, on a background thread, as the owner asked (`mailcraft_net::pictures::unsubscribe`:
+    /// public hosts only, no redirect, size and time capped). The answer, or why there is none,
+    /// arrives through the channel. Absent in the browser and the tests: one click isn't offered.
+    pub unsubscribe: Option<Box<dyn Fn(String) -> Receiver<Result<(), String>>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -1054,7 +1062,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"zh_CN"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"zh_CN"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1312,6 +1320,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Appointment Window",
         "Window",
         r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Find a Time page), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for Find a Time} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
+    ),
+    (
+        "ui.unsubscribe",
+        "Unsubscribe",
+        "Message",
+        r#"{"message"?: number (default: the selected message)} — as its List-Unsubscribe headers say, after the owner's yes: one click posts to the list's server (desktop), by mail puts the request in the Outbox (`mail.unsubscribe`), a web page opens in the browser; answers {"message", "way", "started"? (oneClick: the answer comes later, on the bar above the message), "sent"? (mail), "url"? (page)}. Refused for mail its server doesn't vouch for, or with a sender warning"#,
     ),
     (
         "ui.downloadPictures",
@@ -1746,6 +1760,8 @@ pub struct MailApp {
     pub(crate) windows: windows::Windows,
     /// Pictures from the web: which messages may show them, and the ones on their way.
     pub(crate) remote_pictures: reading::RemotePictures,
+    /// The one-click unsubscribe on its way, and what came of the last one (#1207).
+    pub(crate) unsubscribing: reading::unsubscribe::Unsubscribing,
     /// The pictures of the senders in the message list, as far as they have come.
     pub(crate) sender_images: sender_images::SenderImages,
     /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
@@ -1925,6 +1941,7 @@ impl MailApp {
             refused: None,
             windows: Default::default(),
             remote_pictures: Default::default(),
+            unsubscribing: Default::default(),
             sender_images: Default::default(),
             out_of_sight: Default::default(),
             text_selection: Default::default(),
@@ -5518,6 +5535,14 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
             let said = i18n::fmt(tl!("Imported {what} into the new folder {name}"), &[("what", &what), ("name", name)]);
             let stopped = v.get("stopped").and_then(Value::as_bool) == Some(true);
+            // What was there already (#1401).
+            let said = match n("duplicates").filter(|c| *c > 0) {
+                Some(c) => i18n::fmt(
+                    tl!("{said}; {already}"),
+                    &[("said", &said), ("already", &tln!(c, "{n} message was already here", "{n} messages were already here"))],
+                ),
+                None => said,
+            };
             Some(match (left, stopped) {
                 (0, false) => said,
                 (left, _) => {
@@ -5542,10 +5567,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                     parts.push(said(c));
                 }
             }
-            let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
-            // the account from there, it is put on the server (#451). Drafts stay in their own
-            // mailbox, this computer's.
+            // What the folder held already was left out (#1401): said, and alone when nothing
+            // else came in.
+            let already = n("already").filter(|c| *c > 0).map(|c| tln!(c, "{n} message was already here", "{n} messages were already here"));
+            if parts.is_empty() {
+                return already.map(|already| i18n::fmt(tl!("Nothing new imported: {already}"), &[("already", &already)]));
+            }
+            let what = match &already {
+                Some(already) => i18n::fmt(tl!("{what} ({already})"), &[("what", &parts.join(", ")), ("already", already)]),
+                None => parts.join(", "),
+            };
+            // Mail meant for an account a server keeps went to a local folder (R3 spec S30,
+            // #1401); moved into a Microsoft or an IMAP account from there, it is put on the
+            // server (#451). Drafts stay in their own mailbox, this computer's.
             let local = v.get("local").and_then(Value::as_bool) == Some(true);
             if local && v.get("drafts").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
@@ -5554,10 +5588,17 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 ));
             }
             if local {
-                return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
-                    &[("what", &what)],
-                ));
+                return Some(match v.get("account").and_then(Value::as_str) {
+                    Some("microsoft") | None => i18n::fmt(
+                        tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
+                        &[("what", &what)],
+                    ),
+                    Some("imap") => i18n::fmt(
+                        tl!("Imported {what} into the local folder Imported: move it into the account to put it on its server"),
+                        &[("what", &what)],
+                    ),
+                    Some(_) => i18n::fmt(tl!("Imported {what} into the local folder Imported, on this computer"), &[("what", &what)]),
+                });
             }
             if let Some(c) = n("stoppedAfter") {
                 let count = tln!(c, "{n} message", "{n} messages");
@@ -5570,6 +5611,24 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         }
         "people.fromMessage" if v.get("existing").and_then(Value::as_bool) == Some(true) => Some(tl!("Already in your contacts").to_string()),
         "folder.empty" => n("removed").map(|c| tln!(c, "{n} message removed", "{n} messages removed")),
+        // Copies only this computer had of mail its server has (#1401).
+        "mail.removeImportedDuplicates" => Some({
+            let said = match (n("removed").unwrap_or(0), v.get("preview").and_then(Value::as_bool) == Some(true)) {
+                (0, _) => tl!("No copies on this computer of mail its server has were found").to_string(),
+                (c, true) => tln!(
+                    c,
+                    "{n} copy on this computer of mail its server has would be removed",
+                    "{n} copies on this computer of mail its server has would be removed"
+                ),
+                (c, false) => {
+                    tln!(c, "{n} copy on this computer of mail its server has removed", "{n} copies on this computer of mail its server has removed")
+                }
+            };
+            match n("kept").filter(|c| *c > 0) {
+                Some(c) => format!("{said}; {}", tln!(c, "{n} kept because it differs", "{n} kept because they differ")),
+                None => said,
+            }
+        }),
         // An appointment that goes into another calendar of its account is made there first, and
         // taken out of the one it was in once that is done: said, as it takes a moment.
         "calendar.edit" if v.get("moved").and_then(Value::as_bool) == Some(true) => {
