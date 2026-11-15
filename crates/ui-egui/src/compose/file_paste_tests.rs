@@ -154,8 +154,18 @@ fn what_cant_be_attached_is_said_and_the_rest_goes_in() {
     let board = Files::default();
     let mut h = writing(&board);
     let gone = folder.0.join("gone.pdf");
-    *board.0.borrow_mut() = vec![gone, folder.0.clone(), folder.file("ok.txt", b"ok")];
-    h.event(Event::Paste(String::new()));
+    let ok = folder.file("ok.txt", b"ok");
+    // (The names beside the files, as a file manager leaves them: what attaches on every system.)
+    let names = format!(
+        "{}
+{}
+{}",
+        gone.display(),
+        folder.0.display(),
+        ok.display()
+    );
+    *board.0.borrow_mut() = vec![gone, folder.0.clone(), ok];
+    h.event(Event::Paste(names));
     h.run_steps(2);
     assert_eq!(attached(&h), vec![("ok.txt".to_string(), b"ok".to_vec())]);
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
@@ -267,10 +277,41 @@ fn the_status_line_names_the_files_a_paste_attached() {
     let board = Files::default();
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
-    h.event(Event::Paste(String::new()));
+    h.event(Event::Paste("report.pdf".into()));
     h.run_steps(2);
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
     assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
+}
+
+/// A paste with no text, with files alone on the clipboard, is Explorer's: it attaches them, and
+/// says so, on Windows.
+#[test]
+#[cfg(windows)]
+fn an_empty_paste_of_files_attaches_and_says_so_on_windows() {
+    let folder = Folder::new("empty-win");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
+    h.event(Event::Paste(String::new()));
+    h.run_steps(2);
+    assert_eq!(attached(&h), vec![("report.pdf".to_string(), b"one".to_vec())]);
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
+    assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
+}
+
+/// ...and elsewhere it attaches nothing, and says nothing of an attachment.
+#[test]
+#[cfg(not(windows))]
+fn an_empty_paste_of_files_attaches_nothing_and_says_nothing_here() {
+    let folder = Folder::new("empty-here");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("report.pdf", b"one")];
+    h.event(Event::Paste(String::new()));
+    h.run_steps(2);
+    assert!(attached(&h).is_empty());
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
+    assert!(!said.contains("Attached"), "{said}");
 }
 
 /// Files alone on the clipboard, with no text, are Explorer's: attached on Windows only (#807). Where
