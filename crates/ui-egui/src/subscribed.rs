@@ -78,6 +78,12 @@ impl Subscribed {
         self.next_ask = 0.0;
     }
 
+    /// Let go of every address held in memory (Remove MailCraft's Data).
+    pub(crate) fn forget_addresses(&mut self) {
+        self.addresses.clear();
+        self.again = None;
+    }
+
     /// No address is held in memory (tests).
     #[cfg(test)]
     pub(crate) fn addresses_are_empty(&self) -> bool {

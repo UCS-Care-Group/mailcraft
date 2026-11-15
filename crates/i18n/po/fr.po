@@ -18736,12 +18736,6 @@ msgid "the mailbox couldn't be saved first, so it stays open ({e})"
 msgstr "la boîte aux lettres n'a pas pu être enregistrée au préalable ; elle reste donc ouverte ({e})"
 
 #. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "the mailbox has no calendar"
-msgstr "la boîte aux lettres n'a pas de calendrier"
-
-#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "the mailbox has no folders"
@@ -21187,6 +21181,10 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "the mailbox has no calendar"
+#~ msgstr "la boîte aux lettres n'a pas de calendrier"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

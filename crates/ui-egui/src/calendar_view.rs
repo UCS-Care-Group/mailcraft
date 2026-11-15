@@ -372,6 +372,17 @@ impl Slot {
     }
 }
 
+/// `params` for a new item, without the calendar of the block it was picked in when that is a copy
+/// of a calendar on the web (nothing new goes into one): it goes where the ribbon's New goes.
+pub(crate) fn aimed(app: &MailApp, mut params: Value) -> Value {
+    let subscribed =
+        params.get("calendar").and_then(Value::as_u64).is_some_and(|id| app.session.mailbox.calendar(id).is_some_and(|c| c.is_subscribed()));
+    if let (true, Some(fields)) = (subscribed, params.as_object_mut()) {
+        fields.remove("calendar");
+    }
+    params
+}
+
 fn load_slot(ctx: &egui::Context) -> Option<Slot> {
     ctx.data(|d| d.get_temp(egui::Id::unique(SLOT_ID)))
 }
@@ -2254,7 +2265,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
 /// selected), two open a new appointment for it. `pick` is the slot under the pointer.
 fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick: impl Fn() -> Slot) {
     if opens(resp) {
-        let _ = app.run("ui.openWindow", pick().form());
+        let _ = app.run("ui.openWindow", aimed(app, pick().form()));
         *slot = None;
     } else if resp.clicked() {
         let _ = app.run("calendar.select", json!({"id": null}));
@@ -2277,9 +2288,12 @@ fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick
         resp.context_menu(|ui| {
             ui.set_min_width(200.0);
             use crate::widgets::mi;
-            mi(ui, app, "New Appointment", "ui.openWindow", picked.form_for(Kind::Appointment));
-            mi(ui, app, "New Meeting", "ui.openWindow", picked.form_for(Kind::Meeting));
-            mi(ui, app, "New All Day Event", "ui.openWindow", picked.form_for(Kind::AllDay));
+            let form = aimed(app, picked.form_for(Kind::Appointment));
+            mi(ui, app, "New Appointment", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::Meeting));
+            mi(ui, app, "New Meeting", "ui.openWindow", form);
+            let form = aimed(app, picked.form_for(Kind::AllDay));
+            mi(ui, app, "New All Day Event", "ui.openWindow", form);
         });
     }
 }
@@ -2292,12 +2306,12 @@ fn finish_entry(app: &mut MailApp, slot: &mut Option<Slot>, entry: Entry) {
         Entry::Make(title) => {
             if let Some(picked) = slot.take() {
                 // The new appointment is selected in the slot's place.
-                let _ = app.run("calendar.new", picked.appointment(&title));
+                let _ = app.run("calendar.new", aimed(app, picked.appointment(&title)));
             }
         }
         Entry::Form => {
             if let Some(picked) = slot.take() {
-                let _ = app.run("ui.openWindow", picked.form());
+                let _ = app.run("ui.openWindow", aimed(app, picked.form()));
             }
         }
     }

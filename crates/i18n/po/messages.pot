@@ -16586,11 +16586,6 @@ msgid "the mailbox couldn't be saved first, so it stays open ({e})"
 msgstr ""
 
 #. what a command says
-#: crates/model/src/mailbox.rs
-msgid "the mailbox has no calendar"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/io.rs
 msgid "the mailbox has no folders"
 msgstr ""

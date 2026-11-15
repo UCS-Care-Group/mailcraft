@@ -3156,13 +3156,23 @@ impl Mailbox {
 
     pub fn default_calendar(&self) -> Option<Id> {
         // (A copy of a calendar on the web is read-only: never where an event goes unasked.)
-        self.calendars.iter().find(|c| !c.is_subscribed()).or(self.calendars.first()).map(|c| c.id)
+        self.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id)
+    }
+
+    /// [`Self::default_calendar`], and a calendar of the mailbox's own made when there is none.
+    fn default_calendar_or_new(&mut self) -> Id {
+        if let Some(id) = self.default_calendar() {
+            return id;
+        }
+        let id = self.alloc_id();
+        self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
+        id
     }
 
     /// Add an event; without a (known) calendar it goes to the default one.
     pub fn add_event(&mut self, mut e: Event) -> Result<Id, ModelError> {
         if self.calendar(e.calendar).is_none() {
-            e.calendar = self.default_calendar().ok_or_else(|| invalid("the mailbox has no calendar"))?;
+            e.calendar = self.default_calendar_or_new();
         }
         if e.id == 0 || self.events.contains_key(&e.id) {
             e.id = self.alloc_id();
@@ -3796,12 +3806,11 @@ impl Mailbox {
         if dropped > 0 {
             fixed.push(format!("{dropped} change(s) waiting for the mail server dropped"));
         }
-        if self.calendars.is_empty() && !self.events.is_empty() {
-            let id = self.alloc_id();
-            self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
-        }
-        if let Some(default) = self.default_calendar() {
-            let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        if (self.calendars.is_empty() && !self.events.is_empty()) || self.events.values().any(|e| !known.contains(&e.calendar)) {
+            // (Orphans go to a calendar of the mailbox's own, made when there is none: never to one
+            // that is a copy of a calendar on the web.)
+            let default = self.default_calendar_or_new();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
             }

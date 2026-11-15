@@ -337,3 +337,19 @@ fn a_subscribed_calendar_is_read_only_in_the_view_and_working_in_it_is_not_taken
     let own = app.session.mailbox.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id).unwrap();
     assert!(!crate::calendar_view::read_only(&app, own));
 }
+
+#[test]
+fn a_new_item_picked_in_a_subscribed_calendars_block_goes_where_the_ribbons_new_goes() {
+    let (mut app, _, _) = window(None, false);
+    let id = subscribe(&mut app);
+    let own = app.session.mailbox.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id).unwrap();
+    let aimed = crate::calendar_view::aimed(&app, json!({"title": "Dentist", "calendar": id}));
+    assert!(aimed.get("calendar").is_none(), "{aimed}");
+    // And what that makes is in a calendar of the owner's own.
+    let made = app.execute("calendar.new", aimed).unwrap();
+    let event = app.session.mailbox.event(made["id"].as_u64().unwrap()).unwrap();
+    assert!(app.session.mailbox.calendar(event.calendar).is_some_and(|c| !c.is_subscribed()));
+    // An own calendar's block is kept as it was.
+    let kept = crate::calendar_view::aimed(&app, json!({"title": "Dentist", "calendar": own}));
+    assert_eq!(kept["calendar"], json!(own));
+}

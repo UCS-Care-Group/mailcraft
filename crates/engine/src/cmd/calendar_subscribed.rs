@@ -40,8 +40,6 @@ const MAX_NOTE: usize = 100_000;
 const MAX_CATEGORIES: usize = 50;
 /// How much of a file is looked at for its header (its name).
 const HEAD: usize = 64 * 1024;
-/// How much of the end of a file is looked at for `END:VCALENDAR` (trailing blank lines allowed).
-const TAIL: usize = 1024;
 /// Most events and to-dos `mailcraft_ical` reads from one file.
 const READER_LIMIT: usize = 20_000;
 
@@ -208,13 +206,12 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
 /// start.
 fn is_calendar(text: &str) -> bool {
     const BEGIN: &[u8] = b"BEGIN:VCALENDAR";
-    const END: &[u8] = b"END:VCALENDAR";
-    let bytes = text.as_bytes();
-    let head = bytes.get(..HEAD.min(bytes.len())).unwrap_or(&[]);
-    // A file that stops short (a connection that dropped) has no end: it is not taken in, and
-    // the events held stay.
-    let tail = bytes.get(bytes.len().saturating_sub(TAIL)..).unwrap_or(&[]);
-    head.windows(BEGIN.len()).any(|w| w.eq_ignore_ascii_case(BEGIN)) && tail.windows(END.len()).any(|w| w.eq_ignore_ascii_case(END))
+    let head = text.as_bytes().get(..HEAD.min(text.len())).unwrap_or(&[]);
+    // A file that stops short (a connection that dropped) has no end: it is not taken in, and the
+    // events held stay. The end is the file's last line that has anything on it, not a text a
+    // description happens to hold.
+    let last = text.trim_end().rsplit(['\n', '\r']).next().unwrap_or("").trim();
+    head.windows(BEGIN.len()).any(|w| w.eq_ignore_ascii_case(BEGIN)) && last.eq_ignore_ascii_case("END:VCALENDAR")
 }
 
 /// The name a file gives its calendar (`X-WR-CALNAME`, which is no standard but what calendar

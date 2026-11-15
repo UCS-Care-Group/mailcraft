@@ -18803,12 +18803,6 @@ msgid "the mailbox couldn't be saved first, so it stays open ({e})"
 msgstr "non è stato possibile salvare prima la cassetta postale, quindi resta aperta ({e})"
 
 #. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "the mailbox has no calendar"
-msgstr "la cassetta postale non ha un calendario"
-
-#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "the mailbox has no folders"
@@ -21255,6 +21249,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "the mailbox has no calendar"
+#~ msgstr "la cassetta postale non ha un calendario"
 
 #~ msgid "Browse This PC…"
 #~ msgstr "Sfoglia questo PC…"

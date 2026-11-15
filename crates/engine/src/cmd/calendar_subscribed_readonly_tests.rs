@@ -74,10 +74,17 @@ fn params(calendar: Id, event: Id) -> Vec<Value> {
 
 #[test]
 fn no_command_puts_an_event_into_a_subscribed_calendar_or_changes_one_there() {
-    let mut s = session();
-    let (calendar, event) = subscribed(&mut s);
-    // (An own event too, so that a copy or a move has something to take across.)
-    let own = s.run("calendar.new", &json!({"title": "Dentist", "start": "2026-11-20T10:00"})).unwrap()["id"].as_u64().unwrap();
+    // A fresh session for every try, so that no command works on what another left: the feed's
+    // event selected, its calendar the one being worked in, and an event of the owner's own.
+    let fresh = || {
+        let mut s = session();
+        let (calendar, event) = subscribed(&mut s);
+        let own = s.run("calendar.new", &json!({"title": "Dentist", "start": "2026-11-20T10:00"})).unwrap()["id"].as_u64().unwrap();
+        s.run("calendar.setCurrent", &json!({"id": calendar})).unwrap();
+        s.run("calendar.select", &json!({"id": event})).unwrap();
+        (s, calendar, event, own)
+    };
+    let (s, calendar, event, own) = fresh();
     let before = held(&s);
     // What a refresh, the owner's choice of a name and interval, and the calendar's being shown
     // are for: not events, and the refresh is the one way in.
@@ -90,15 +97,19 @@ fn no_command_puts_an_event_into_a_subscribed_calendar_or_changes_one_there() {
         "calendar.showCalendar",
     ];
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).filter(|id| !id.starts_with("file.") && !mine.contains(id)).collect();
+    let mut shapes = vec![json!({}), json!({"calendar": calendar}), json!({"id": event, "calendar": calendar}), json!({"id": calendar})];
+    shapes.extend(params(calendar, event));
+    shapes.extend(params(calendar, own));
     let mut tried = 0;
     for id in ids {
-        for p in params(calendar, event).into_iter().chain(params(calendar, own)) {
-            let _ = s.run(id, &p);
+        for p in &shapes {
+            let (mut s, ..) = fresh();
+            let _ = s.run(id, p);
             tried += 1;
             assert_eq!(held(&s), before, "{id} {p}");
         }
     }
-    assert!(tried > 1_000, "the sweep ran {tried} calls");
+    assert!(tried > 3_000, "the sweep ran {tried} calls");
 }
 
 #[test]
@@ -236,4 +247,45 @@ fn a_file_that_stops_short_is_not_taken_in() {
     // And the marks of what wasn't taken are not kept.
     let sub = s.mailbox.calendar(calendar).unwrap().subscription.as_ref().unwrap();
     assert!(sub.etag.is_empty() && sub.last_modified.is_empty());
+}
+
+#[test]
+fn undo_and_redo_still_take_back_the_colour_and_visibility_a_subscribed_calendar_was_given() {
+    let mut s = session();
+    let (calendar, event) = subscribed(&mut s);
+    let (color, visible) = {
+        let c = s.mailbox.calendar(calendar).unwrap();
+        (c.shown_color(), c.visible)
+    };
+    s.run("calendar.color", &json!({"id": calendar, "color": "#112233"})).unwrap();
+    let painted = s.mailbox.calendar(calendar).unwrap().shown_color();
+    assert_ne!(painted, color);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.calendar(calendar).unwrap().shown_color(), color, "the colour came back");
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.calendar(calendar).unwrap().shown_color(), painted);
+
+    s.run("calendar.showCalendar", &json!({"id": calendar, "value": !visible})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.calendar(calendar).unwrap().visible, visible, "it is shown as it was");
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.calendar(calendar).unwrap().visible, !visible);
+    // The subscription and the feed's events were never the undo's.
+    assert!(s.mailbox.calendar(calendar).unwrap().is_subscribed() && s.mailbox.event(event).is_some());
+}
+
+#[test]
+fn a_file_ends_with_its_last_line_not_with_a_text_a_note_holds() {
+    let mut s = session();
+    let (calendar, _) = subscribed(&mut s);
+    // Pages of blank lines after the end don't make it a file that stopped short.
+    let padded = format!("{}{}", feed(&[("a@example.org", "Padded")]), "\r\n".repeat(3_000));
+    came(&mut s, calendar, &padded);
+    assert!(s.mailbox.events.values().any(|e| e.title == "Padded"));
+    // A file cut inside a note that says END:VCALENDAR is cut, not whole.
+    let cut = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:z\r\nSUMMARY:Cut\r\nDTSTART:20261114T150000Z\r\nDESCRIPTION:see END:VCALENDAR";
+    let outcome = json!({"kind": "changed", "text": cut, "etag": "", "lastModified": ""});
+    let said = s.run("sync.applySubscription", &json!({"calendar": calendar, "outcome": outcome})).unwrap();
+    assert!(said["failure"].is_string(), "{said}");
+    assert!(s.mailbox.events.values().any(|e| e.title == "Padded") && s.mailbox.events.values().all(|e| e.title != "Cut"));
 }
