@@ -106,13 +106,29 @@ pub struct Tray {
     signals: Arc<Signals>,
     hidden: bool,
     can_hide: bool,
+    /// A start at sign-in with Close to system tray on: the window goes to the tray once the tray
+    /// is there, if it comes before this moment; otherwise it stays as it opened (minimized).
+    start_hidden: Option<std::time::Instant>,
+    /// A start at sign-in: the window is minimized on its first frame (a window can't be built
+    /// minimized).
+    minimize: bool,
 }
+
+/// How long a start at sign-in waits for the desktop's tray before leaving the window minimized.
+const TRAY_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl Tray {
     /// Called on the GUI thread after eframe has created its window and event loop.
     pub fn new(ctx: &Context, can_hide: bool) -> Self {
         let signals = Arc::new(Signals { pending: AtomicU8::new(0), online: AtomicBool::new(false), ctx: ctx.clone() });
-        Self { backend: None, signals, hidden: false, can_hide }
+        Self { backend: None, signals, hidden: false, can_hide, start_hidden: None, minimize: false }
+    }
+
+    /// Started at sign-in ([`crate::autostart::BACKGROUND`]): go to the tray as soon as it is there.
+    pub fn start_hidden(mut self) -> Self {
+        self.start_hidden = std::time::Instant::now().checked_add(TRAY_WAIT);
+        self.minimize = true;
+        self
     }
 
     pub fn available(&self) -> bool {
@@ -133,6 +149,9 @@ impl Tray {
     /// notification, another launch, an unsaved-work question) restore a hidden window too.
     pub fn pump(&mut self, ctx: &Context, app: &mut MailApp) {
         self.configure(app.ui.close_to_tray, backend::Backend::start);
+        if std::mem::take(&mut self.minimize) {
+            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+        }
         if let Some(backend) = &mut self.backend {
             backend.poll();
         }
@@ -151,6 +170,22 @@ impl Tray {
         }
         if pending & (SHOW | QUIT) != 0 || app.quit_requested || self.hidden && (focus || !self.available() || !app.ui.close_to_tray) {
             self.show(ctx);
+            self.start_hidden = None;
+        }
+        self.hide_at_start(ctx, app, focus, std::time::Instant::now());
+    }
+
+    /// The one hide of a start at sign-in: only with the option on and a tray to come back from,
+    /// never after the owner has brought the window up, and never once the wait is over.
+    fn hide_at_start(&mut self, ctx: &Context, app: &MailApp, focus: bool, now: std::time::Instant) {
+        let Some(until) = self.start_hidden else { return };
+        if focus || !app.ui.close_to_tray || now >= until {
+            self.start_hidden = None;
+        } else if self.available() {
+            self.start_hidden = None;
+            hide(ctx);
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
 
