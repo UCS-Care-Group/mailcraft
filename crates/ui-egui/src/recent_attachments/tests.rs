@@ -78,5 +78,8 @@ fn recent_file_menu_is_hidden_from_captures_and_attaches_to_the_composer() {
     testing::click(&mut h, entries[0], PointerButton::Primary, 1);
     let message = h.state().session.composing_by_id(compose).unwrap();
     assert_eq!(message.attachments.len(), 1);
+    // The comma may be replaced on some platforms; the rest of the name is kept.
+    let attached = &message.attachments[0].name;
+    assert!(attached.starts_with("Q1") && attached.ends_with(" report.txt"), "{attached}");
     assert_eq!(message.attachments[0].data.as_slice(), b"recent file");
 }

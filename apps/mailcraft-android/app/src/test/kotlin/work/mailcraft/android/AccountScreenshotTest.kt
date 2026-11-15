@@ -122,6 +122,4 @@ class AccountScreenshotTest {
     fun noAccountMailDark100() = shoot("mail_no_account_dark_100", true, 1f) { AccountShots.NoAccountMail() }
 }
 
-// The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
-private const val TOLERANCE = 0.1
 private const val TALL = 5200
