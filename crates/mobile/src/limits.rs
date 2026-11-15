@@ -122,3 +122,39 @@ pub(crate) fn set_storage(session: &mut Session, megabytes: u64) -> Result<(), m
     let bytes = megabytes.saturating_mul(1 << 20).clamp(MIN_STORAGE, MAX_STORAGE);
     session.run("account.deviceLimits", &serde_json::json!({"storage": bytes})).map(|_| ())
 }
+
+/// Messages one step of keeping within the limits thins or takes off the phone: a mailbox moved
+/// to the limits from years of headers gets there in a few steps, none holding the session long.
+pub(crate) const TRIM_BATCH: u64 = 5_000;
+/// How often the limits are looked at again while nothing asks for it.
+pub(crate) const TRIM_EVERY: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// When the mailbox was last kept within the phone's limits.
+#[derive(Debug, Default)]
+pub(crate) struct Trimming {
+    /// Due at the next wake: limits changed, a round ended, or more was left.
+    pub(crate) due: bool,
+    at: Option<std::time::Instant>,
+}
+
+impl Trimming {
+    /// One step, when one is due: `account.trimDevice` a batch at a time. True when more is left.
+    pub(crate) fn step(&mut self, session: &mut Session) -> bool {
+        let stale = self.at.is_none_or(|at| at.elapsed() >= TRIM_EVERY);
+        if !(self.due || stale) || session.mailbox.device_limits.is_none() {
+            return false;
+        }
+        (self.due, self.at) = (false, Some(std::time::Instant::now()));
+        match session.run("account.trimDevice", &serde_json::json!({"most": TRIM_BATCH})) {
+            Ok(said) if said.get("left").and_then(serde_json::Value::as_u64).unwrap_or(0) > 0 => {
+                self.due = true;
+                true
+            }
+            Ok(_) => false,
+            Err(e) => {
+                log::warn!("phone: the mailbox couldn't be kept within its limits: {e}");
+                false
+            }
+        }
+    }
+}

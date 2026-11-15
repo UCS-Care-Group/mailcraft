@@ -476,6 +476,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.keepOffline",
     // Device limits (MB3.16): what a phone keeps; the server keeps it all.
     "account.deviceLimits",
+    "account.trimDevice",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
     "ui.automaticRepliesSignIn",

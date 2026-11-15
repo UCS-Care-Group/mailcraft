@@ -211,6 +211,8 @@ struct Inner {
     notice_checked: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
+    /// Keeping the mailbox within the phone's limits (MB3.16).
+    trim: crate::limits::Trimming,
 }
 
 pub(crate) struct SyncHost {
@@ -623,9 +625,23 @@ impl SyncHost {
         self.busy.store(working, Ordering::Relaxed);
         if working {
             self.progress(inner, session);
-        } else if inner.active || inner.run_mark.is_some() {
-            self.finish_round(inner, session, true);
+        } else {
+            if inner.active || inner.run_mark.is_some() {
+                self.finish_round(inner, session, true);
+                // What a round brought may take the mailbox past the phone's limits.
+                inner.trim.due = true;
+            }
+            // Between runs, never during one: a run's pages name the messages they change.
+            if inner.trim.step(session) {
+                self.pacer.poke();
+            }
         }
+    }
+
+    /// Keep the mailbox within the phone's limits at the next wake (they were changed).
+    pub(crate) fn trim_soon(&self) {
+        self.lock().trim.due = true;
+        self.pacer.poke();
     }
 
     fn took(&self, inner: &mut Inner, taken: Taken) {

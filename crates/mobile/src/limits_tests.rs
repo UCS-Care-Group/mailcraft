@@ -63,3 +63,53 @@ fn every_window_goes_both_ways() {
         assert_eq!(KeepOffline::from(KeepWindow::from(k)), k);
     }
 }
+
+/// A phone's mailbox with a Microsoft account whose Inbox the server has, holding mail received
+/// `days_ago`; the account.
+fn with_mail(days_ago: &[i64]) -> Session {
+    use mailcraft_model::sync::ServerMessage;
+    use mailcraft_model::{FolderKind, Message, ServerFolder};
+    let (mut s, account) = before_the_limits();
+    s.prefs.sync_minutes = 0;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "in".into(), ..Default::default() });
+    let now = s.now();
+    for (n, d) in days_ago.iter().enumerate() {
+        let server = ServerMessage { id: format!("M{n}"), folder: "in".into(), ..Default::default() };
+        let m =
+            Message { account, folder: inbox, received: now - d * 86_400, subject: format!("{d} days"), server: Some(server), ..Default::default() };
+        s.mailbox.add_message(m).unwrap();
+    }
+    s
+}
+
+#[test]
+fn a_phone_opened_with_years_of_headers_is_thinned_to_its_window_between_runs() {
+    let platform = crate::fake_tests::FakePlatform::new();
+    let core = crate::Core::start_with(platform, || with_mail(&[1, 10, 100, 1000]), mailcraft_host::sync::SendReceive::new()).unwrap();
+    let sync = core.sync.clone();
+    let subjects = crate::fake_tests::block_on(core.call(move |s| {
+        sync.tick(s);
+        let mut left: Vec<String> = s.mailbox.messages.values().map(|m| m.subject.clone()).collect();
+        left.sort();
+        Ok(left)
+    }))
+    .unwrap();
+    assert_eq!(subjects, ["1 days", "10 days"], "the month is kept; what is older left the phone");
+}
+
+#[test]
+fn a_trimming_step_is_due_once_and_again_when_asked() {
+    let mut s = with_mail(&[100]);
+    settle(&mut s, None);
+    let mut t = crate::limits::Trimming::default();
+    assert!(!t.step(&mut s), "nothing more is left");
+    assert!(s.mailbox.messages.is_empty());
+    let mut more = with_mail(&[100]);
+    settle(&mut more, None);
+    assert!(!t.step(&mut more), "not due again so soon");
+    assert_eq!(more.mailbox.messages.len(), 1);
+    t.due = true;
+    t.step(&mut more);
+    assert!(more.mailbox.messages.is_empty());
+}

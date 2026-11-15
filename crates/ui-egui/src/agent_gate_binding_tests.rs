@@ -155,6 +155,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.thinOffline", r#"{"account": $account}"#, Setup::None),
     ("account.deviceLimits", r#"{"storage": 1073741824}"#, Setup::None),
+    ("account.trimDevice", "{}", Setup::None),
     ("ui.keepOffline", "{}", Setup::None),
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),

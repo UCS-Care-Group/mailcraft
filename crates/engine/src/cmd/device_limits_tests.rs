@@ -107,3 +107,84 @@ fn a_longer_window_on_a_phone_lists_the_folders_afresh_and_a_shorter_one_does_no
     crate::cmd::graph_down::take_page(&mut s.mailbox, &mut index, account, &page, &mut Default::default());
     assert!(!relisting(&s));
 }
+
+const DAY: i64 = 86_400;
+
+/// A message of `account` in `folder` (the server's "in" unless it is another), received
+/// `days_ago`, with `body` bytes of text; its id.
+fn add(s: &mut Session, account: u64, folder: u64, days_ago: i64, body: usize) -> u64 {
+    use mailcraft_model::sync::ServerMessage;
+    use mailcraft_model::{Body, Message};
+    let server_folder = s.mailbox.folder(folder).and_then(|f| f.server.as_ref()).map_or("in".to_string(), |f| f.id.clone());
+    let server = ServerMessage { id: format!("M{}", s.mailbox.messages.len() + 1), folder: server_folder, ..Default::default() };
+    let body = Body { text: "x".repeat(body), html: None };
+    s.mailbox.add_message(Message { account, folder, received: NOW - days_ago * DAY, server: Some(server), body, ..Default::default() }).unwrap()
+}
+
+#[test]
+fn mail_older_than_the_window_leaves_a_phone_but_never_what_the_server_lacks() {
+    use mailcraft_model::FolderKind;
+    let (mut s, account, inbox) = graph_session();
+    let recent = add(&mut s, account, inbox, 2, 10);
+    let old = add(&mut s, account, inbox, 60, 10);
+    let read_here = add(&mut s, account, inbox, 60, 10);
+    s.mailbox.message_mut(read_here).unwrap().read = true; // the server still has it unread
+    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    let outbox = s.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
+    let draft = add(&mut s, account, drafts, 60, 10);
+    let waiting = add(&mut s, account, outbox, 60, 10);
+    let mut unsent = mailcraft_model::Message { account, folder: inbox, received: NOW - 90 * DAY, ..Default::default() };
+    unsent.subject = "only here".into();
+    let unsent = s.mailbox.add_message(unsent).unwrap();
+    // A computer keeps it all.
+    let said = s.run("account.trimDevice", &json!({})).unwrap();
+    assert_eq!(said["dropped"], 0);
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    let said = s.run("account.trimDevice", &json!({})).unwrap();
+    assert_eq!((said["dropped"].clone(), said["thinned"].clone()), (json!(1), json!(0)));
+    assert!(s.mailbox.message(old).is_none());
+    for kept in [recent, read_here, draft, waiting, unsent] {
+        assert!(s.mailbox.message(kept).is_some(), "{kept}");
+    }
+    // Nothing goes to the server for it.
+    assert!(s.mailbox.queued.is_empty());
+    assert_eq!(crate::cmd::graph_up::message_changes(&s, account, 100).0.len(), 1, "only the read state waits to go");
+}
+
+#[test]
+fn past_the_cap_of_messages_the_oldest_leave() {
+    let (mut s, account, inbox) = graph_session();
+    s.run("account.edit", &json!({"id": account, "keepOffline": "all"})).unwrap();
+    s.run("account.deviceLimits", &json!({"messages": 2000})).unwrap();
+    let ids: Vec<u64> = (0..2003).map(|n| add(&mut s, account, inbox, 2003 - n, 0)).collect();
+    let said = s.run("account.trimDevice", &json!({"most": 2})).unwrap();
+    assert_eq!((said["dropped"].clone(), said["left"].clone()), (json!(2), json!(1)), "a batch at a time");
+    s.run("account.trimDevice", &json!({})).unwrap();
+    assert!(ids[..3].iter().all(|id| s.mailbox.message(*id).is_none()), "the three oldest");
+    assert!(ids[3..].iter().all(|id| s.mailbox.message(*id).is_some()));
+    assert_eq!(s.mailbox.messages.len(), 2000);
+}
+
+#[test]
+fn past_the_cap_of_storage_the_oldest_go_back_to_their_headers_first() {
+    let (mut s, account, inbox) = graph_session();
+    s.run("account.deviceLimits", &json!({"storage": MIN_STORAGE})).unwrap();
+    let mb = 1 << 20;
+    let ids: Vec<u64> = [20, 15, 10, 5].iter().map(|d| add(&mut s, account, inbox, *d, 20 * mb)).collect();
+    let said = s.run("account.trimDevice", &json!({})).unwrap();
+    assert_eq!((said["thinned"].clone(), said["dropped"].clone()), (json!(2), json!(0)));
+    assert!(said["bytes"].as_u64().unwrap() <= MIN_STORAGE);
+    let len = |id: u64| s.mailbox.message(id).unwrap().body.text.len();
+    assert!(len(ids[0]) < 1000 && len(ids[1]) < 1000, "the two oldest are headers and preview");
+    assert_eq!((len(ids[2]), len(ids[3])), (20 * mb, 20 * mb));
+}
+
+#[test]
+fn the_message_shown_never_leaves() {
+    let (mut s, account, inbox) = graph_session();
+    let old = add(&mut s, account, inbox, 60, 10);
+    s.sel.messages = vec![old];
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    s.run("account.trimDevice", &json!({})).unwrap();
+    assert!(s.mailbox.message(old).is_some());
+}
