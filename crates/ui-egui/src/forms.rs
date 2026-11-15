@@ -6286,7 +6286,7 @@ pub(crate) mod rules {
                 // For regex patterns, check the raw text (not trimmed) against the 1000 char limit
                 // A pattern's text is not trimmed: a long alternation like a@x.example|b@...|ca...
                 // must be refused whole if over 1000 chars, not cut to something that might still
-                // compile but match differently.
+                // compile but match differently. MAX_PATTERN_LENGTH counts characters, not bytes.
                 if c.op == Op::Matches { mailcraft_model::regex_is_ok(&c.text) } else { mailcraft_model::regex_is_ok(trimmed) }
             });
             let acts = self.acts.iter().all(|a| match a.kind {

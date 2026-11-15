@@ -173,8 +173,14 @@ fn text(v: &Value, kind: &str) -> Result<String, CmdError> {
     let trimmed = t.trim();
     if trimmed.is_empty() {
         Err(bad("a condition needs a non-empty value"))
-    } else if kind != "matches" && trimmed.len() > mailcraft_model::MAX_TEXT_LENGTH {
-        Err(bad(format!("the value is too long (max {} characters)", mailcraft_model::MAX_TEXT_LENGTH)))
+    } else if kind != "matches" {
+        // Check character count, not byte count
+        let char_count = trimmed.chars().count();
+        if char_count > mailcraft_model::MAX_TEXT_LENGTH {
+            Err(bad(format!("the value is too long (max {} characters)", mailcraft_model::MAX_TEXT_LENGTH)))
+        } else {
+            Ok(t)
+        }
     } else {
         Ok(t)
     }

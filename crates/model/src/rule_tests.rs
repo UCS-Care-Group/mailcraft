@@ -117,6 +117,25 @@ fn rules_round_trip_as_json() {
 }
 
 #[test]
+fn pattern_round_trip_preserves_matcher() {
+    // A pattern that compiles on one build should compile on another
+    // and still match correctly after round-trip through JSON
+    let pattern_str = "invoice";
+    let original = Pattern::new(pattern_str.to_string()).unwrap();
+    
+    // Serialize and deserialize
+    let json = serde_json::to_string(&original).unwrap();
+    let deserialized: Pattern = serde_json::from_str(&json).unwrap();
+    
+    // The text should be preserved
+    assert_eq!(deserialized.as_str(), pattern_str);
+    
+    // The matcher should still work
+    assert!(deserialized.is_match("Your INVOICE"));
+    assert!(!deserialized.is_match("No match here"));
+}
+
+#[test]
 fn invalid_pattern_deserializes_to_empty_matcher() {
     // A pattern that doesn't compile (e.g., from a desktop build with full regex features
     // being loaded in a CLI build with limited features) becomes a rule that matches nothing.
@@ -150,4 +169,24 @@ fn clean_condition_text_trims_and_caps() {
     // Empty after trim becomes empty
     assert_eq!(clean_condition_text("   "), "");
     assert_eq!(clean_condition_text(""), "");
+}
+
+#[test]
+fn clean_condition_text_handles_multibyte_chars() {
+    // 199 'a' chars followed by 'é' (2 bytes) = 201 chars
+    // Should cut to exactly 200 chars, not panic
+    let text = "a".repeat(199) + "é";
+    let cleaned = clean_condition_text(&text);
+    assert_eq!(cleaned.chars().count(), 200);
+    assert_eq!(cleaned.len(), 201); // 199 a's + é = 201 bytes
+    
+    // Greek characters - each is multiple bytes
+    let greek = "α".repeat(250);
+    let cleaned = clean_condition_text(&greek);
+    assert_eq!(cleaned.chars().count(), 200);
+    
+    // Chinese characters
+    let chinese = "中".repeat(250);
+    let cleaned = clean_condition_text(&chinese);
+    assert_eq!(cleaned.chars().count(), 200);
 }

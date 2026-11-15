@@ -20,23 +20,21 @@ use std::sync::Arc;
 
 use crate::{Id, Importance, Message, contains_ci, starts_with_ci};
 
-/// Maximum length of a regex pattern that can be used in a rule.
-/// Counted in bytes, not characters, to prevent DoS attacks with multi-byte characters.
+/// Maximum length of a regex pattern that can be used in a rule (counted in characters, not bytes).
 pub const MAX_PATTERN_LENGTH: usize = 1000;
 
-/// Maximum length of text for contains/starts-with conditions.
+/// Maximum length of text for contains/starts-with conditions (counted in characters).
 pub const MAX_TEXT_LENGTH: usize = 200;
 
-/// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH.
+/// Clean text for a condition: trim whitespace, cap at MAX_TEXT_LENGTH (characters, not bytes).
 pub fn clean_condition_text(text: &str) -> String {
     let trimmed = text.trim();
-    if trimmed.len() > MAX_TEXT_LENGTH {
-        // Cut at char boundary, not byte index
-        let mut end = MAX_TEXT_LENGTH;
-        while end > 0 && !trimmed.is_char_boundary(end) {
-            end -= 1;
-        }
-        trimmed[..end].to_string()
+    // Count characters, not bytes
+    let char_count = trimmed.chars().count();
+    if char_count > MAX_TEXT_LENGTH {
+        // Take only the first MAX_TEXT_LENGTH characters
+        let end_byte = trimmed.char_indices().nth(MAX_TEXT_LENGTH).map(|(idx, _)| idx).unwrap_or(trimmed.len());
+        trimmed[..end_byte].to_string()
     } else {
         trimmed.to_string()
     }
@@ -54,7 +52,8 @@ pub struct Pattern {
 impl Pattern {
     /// Try to compile a pattern, refusing if it's too long or invalid.
     pub fn new(pattern: String) -> Option<Pattern> {
-        if pattern.len() > MAX_PATTERN_LENGTH {
+        // Count characters, not bytes
+        if pattern.chars().count() > MAX_PATTERN_LENGTH {
             return None;
         }
         let regex = regex::RegexBuilder::new(&pattern).case_insensitive(true).size_limit(1 << 20).build().ok()?;
@@ -63,7 +62,8 @@ impl Pattern {
 
     /// Check if the pattern is valid (can be compiled) and not too long.
     pub fn is_valid(pattern: &str) -> bool {
-        if pattern.len() > MAX_PATTERN_LENGTH {
+        // Count characters, not bytes
+        if pattern.chars().count() > MAX_PATTERN_LENGTH {
             return false;
         }
         regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build().is_ok()
