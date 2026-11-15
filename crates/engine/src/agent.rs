@@ -962,16 +962,16 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
         // rules.edit judges the rule as it would be after the edit.
         "rules.edit" => {
             // Build the rule as it would be after the edit, then check if it would be on the server and delete.
-            crate::cmd::rules::rule_from_params(s, params).is_ok_and(|mut r| {
-                // Apply the edits from params if an existing rule is named
-                if let Some(existing) = named() {
-                    r.id = existing.id;
-                    r.account = existing.account;
-                    r.keep = existing.keep;
-                    r.server = existing.server.clone();
+            if let Some(existing) = p::id(params, "id").and_then(|_| named()) {
+                // Apply edits to the existing rule
+                match crate::cmd::rules::rule_for_edit(s, existing, params) {
+                    Ok(r) => there(&r) && deletes(&r),
+                    Err(_) => false,
                 }
-                there(&r) && deletes(&r)
-            })
+            } else {
+                // No existing rule or no id - cannot edit
+                false
+            }
         }
         _ => false,
     }
@@ -992,16 +992,19 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, one_account(&r)).is_some()),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| rule_onto_server(s, &r, one_account(&r)).is_some()),
         // rules.edit judges the rule as it would be after the edit.
-        "rules.edit" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|mut r| {
-            // Apply the edits from params if an existing rule is named
-            if let Some(existing) = mb.rules.iter().find(|x| x.id == p::id(params, "id").unwrap_or_default()) {
-                r.id = existing.id;
-                r.account = existing.account;
-                r.keep = existing.keep;
-                r.server = existing.server.clone();
+        "rules.edit" => {
+            let id = p::id(params, "id");
+            if let Some(existing) = id.and_then(|id| mb.rules.iter().find(|x| x.id == id)) {
+                // Apply edits to the existing rule
+                match crate::cmd::rules::rule_for_edit(s, existing, params) {
+                    Ok(r) => rule_onto_server(s, &r, one_account(&r)).is_some(),
+                    Err(_) => false,
+                }
+            } else {
+                // No existing rule or no id - cannot edit
+                false
             }
-            rule_onto_server(s, &r, one_account(&r)).is_some()
-        }),
+        },
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             p::id(params, "id")

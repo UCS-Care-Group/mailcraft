@@ -275,6 +275,40 @@ pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
     server_cannot(&s.mailbox, &rule, account)
 }
 
+/// The rule `v` describes for `rules.edit`, starting with `existing` and applying any params.
+/// This is like `edit()` but without mutating the session's mailbox: for questions an agent is
+/// asking about what the rule would be after the edit.
+pub(crate) fn rule_for_edit(s: &Session, existing: &Rule, v: &Value) -> Result<Rule, CmdError> {
+    let mut rule = existing.clone();
+
+    // Update fields from params if present
+    if let Some(name) = v.get("name").and_then(Value::as_str) {
+        rule.name = clean_name(name).ok_or_else(|| bad("`name` is empty"))?;
+    }
+
+    if let Some(conds) = v.get("conditions").and_then(Value::as_array) {
+        let conds: Vec<Condition> = conds.iter().take(20).map(condition).collect::<Result<Vec<_>, _>>()?;
+        if conds.is_empty() {
+            return Err(bad("conditions must have at least one condition"));
+        }
+        rule.conditions = conds;
+    }
+
+    if let Some(acts) = v.get("actions").and_then(Value::as_array) {
+        let acts: Vec<Action> = acts.iter().take(20).map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?;
+        if acts.is_empty() {
+            return Err(bad("actions must have at least one action"));
+        }
+        rule.actions = acts;
+    }
+
+    if let Some(_stop) = v.get("stop") {
+        rule.stop = p::opt_bool(v, "stop")?.unwrap_or(rule.stop);
+    }
+
+    Ok(rule)
+}
+
 fn add(s: &mut Session, v: &Value) -> CmdResult {
     let mut rule = rule_from_params(s, v)?;
     if s.mailbox.rules.len() >= MAX_RULES {

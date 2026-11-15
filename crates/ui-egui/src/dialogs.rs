@@ -1396,7 +1396,7 @@ pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, height: Optio
         .default_width(width)
         .min_width(width)
         .max_width(width);
-    let builder = if let Some(h) = height { builder.default_height(h).min_height(h) } else { builder.default_height(500.0).min_height(400.0) };
+    let builder = if let Some(h) = height { builder.default_height(h).min_height(h) } else { builder };
     builder.show(ctx, |ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         add(ui);

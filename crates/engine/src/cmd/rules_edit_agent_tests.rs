@@ -223,3 +223,101 @@ fn rules_edit_server_rule_with_unknown_parts_refused() {
     let err = result.unwrap_err().to_string();
     assert!(err.contains("parts the server knows"), "Error should mention server parts: {}", err);
 }
+
+/// Tests for agent questions with partial params (P1 issue fix).
+/// Rules.edit accepts any subset of name/conditions/actions, but agent questions
+/// should build the rule correctly by starting with the existing rule and overlaying params.
+#[cfg(test)]
+mod partial_params_tests {
+    use mailcraft_model::{Action, Condition, FolderKind, Keep, Rule};
+    use serde_json::json;
+
+    use crate::Session;
+
+    const EMAIL: &str = "owner@example.org";
+
+    fn session_with_microsoft_account() -> (Session, u64) {
+        let mut s = Session::empty();
+        let added = s.run("account.add", &json!({"email": EMAIL, "kind": "microsoft"})).unwrap();
+        let account = added["id"].as_u64().unwrap();
+        (s, account)
+    }
+
+    /// Test agent question for rules.edit with only actions param (no name/conditions)
+    #[test]
+    fn rules_edit_agent_question_only_actions() {
+        let (mut s, account) = session_with_microsoft_account();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
+        let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+        s.mailbox.folder_mut(deleted).unwrap().server =
+            Some(mailcraft_model::ServerFolder { id: "del".into(), name: "Deleted Items".into(), ..Default::default() });
+
+        // Add a server rule with existing name/conditions
+        let rule = Rule {
+            id: 1,
+            name: "Server Rule".to_string(),
+            account,
+            conditions: vec![Condition::FromContains("test@example.com".to_string())],
+            actions: vec![Action::MarkRead],
+            enabled: true,
+            stop: false,
+            keep: Keep::Server,
+            server: Some(mailcraft_model::ServerRule { id: "rule-1".to_string(), sequence: 1, ..Default::default() }),
+            ..Default::default()
+        };
+        s.mailbox.rules.push(rule);
+
+        // Edit with only actions - this should work
+        let result = s.run(
+            "rules.edit",
+            &json!({
+                "id": 1,
+                "actions": [{"type": "moveTo", "value": deleted}]
+            }),
+        );
+
+        assert!(result.is_ok(), "rules.edit failed: {:?}", result);
+        let r = s.mailbox.rules.iter().find(|x| x.id == 1).unwrap();
+        assert_eq!(r.actions.len(), 1);
+        assert!(matches!(r.actions[0], Action::MoveTo(_)));
+        // Rule is still on server
+        assert_eq!(r.keep, Keep::Server);
+    }
+
+    /// Test agent question for rules.edit with only server param
+    #[test]
+    fn rules_edit_agent_question_only_server() {
+        let (mut s, account) = session_with_microsoft_account();
+        let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "in".into(), name: "Inbox".into(), ..Default::default() });
+
+        // Add a rule on this computer
+        let rule_id = {
+            let made = s.run("rules.add", &json!({
+                "name": "Local Rule",
+                "account": account,
+                "conditions": [{"type": "fromContains", "value": "test@example.com"}],
+                "actions": [{"type": "markRead"}],
+                "server": false
+            })).unwrap();
+            made["id"].as_u64().unwrap()
+        };
+
+        // Edit with only server: true - should move to server
+        let result = s.run(
+            "rules.edit",
+            &json!({
+                "id": rule_id,
+                "server": true
+            }),
+        );
+
+        assert!(result.is_ok(), "rules.edit failed: {:?}", result);
+        let r = s.mailbox.rules.iter().find(|x| x.id == rule_id).unwrap();
+        assert_eq!(r.keep, Keep::Server);
+        // Original name/conditions preserved
+        assert_eq!(r.name, "Local Rule");
+        assert_eq!(r.conditions.len(), 1);
+    }
+}

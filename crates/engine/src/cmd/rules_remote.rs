@@ -117,13 +117,20 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
     let mine = || mailbox.rules.iter().filter(move |r| r.account == account);
     for rule in mine().filter(|r| r.changed_here() && !r.read_only()) {
         let Some(server) = rule.server.as_ref() else { continue };
+        // For rules with unknown parts, don't send body (only enabled/sequence)
+        // For known rules, send body with the full rule
+        let body = if rule.known() {
+            Some(remote_of(mailbox, account, rule, server.sequence))
+        } else {
+            None
+        };
         ops.push(RuleOp {
             kind: RuleOpKind::Update,
             rule: rule.id,
             id: server.id.clone(),
             enabled: (rule.enabled != server.synced_enabled).then_some(rule.enabled),
             sequence: (server.sequence != server.synced_sequence).then_some(server.sequence),
-            body: None,
+            body,
         });
     }
     // After every rule the server has.
