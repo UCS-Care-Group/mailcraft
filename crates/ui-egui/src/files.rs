@@ -67,7 +67,7 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
         // The message named (a Save As that waited for its download names it), else the selected,
         // by the name the command gives it.
         "file.exportMessage" => {
-            let message = params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.message(id)).or_else(|| s.focused_message());
+            let message = params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.message(id)).or_else(|| s.reading_message());
             message.map_or_else(|| clean("message", "eml"), mailcraft_engine::cmd::file::eml_name)
         }
         "file.exportFolder" => clean(&s.mailbox.folder(s.view.folder).map(|f| f.name.clone()).unwrap_or_default(), "mbox"),
@@ -80,7 +80,7 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
         "ui.reportProblem" if crate::report_problem::saves_file(params) => crate::report_problem::file_name(app),
         "mail.saveAttachment" => {
             let index = params.get("index").and_then(Value::as_u64)? as usize;
-            let id = params.get("id").and_then(Value::as_u64).or(s.sel.focus())?;
+            let id = params.get("id").and_then(Value::as_u64).or(s.reading())?;
             // Only the file's own name, cleaned: a message can name its attachment anything.
             mailcraft_engine::opening::save_name(&s.mailbox.message(id)?.attachments.get(index)?.name)
         }
@@ -121,7 +121,7 @@ pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<R
     // (Of the message named, which a window of its own names whatever is selected; one with no
     // files to save says so without a folder being asked for.)
     let has_files = || {
-        let named = params.get("id").and_then(Value::as_u64).or(app.session.sel.focus());
+        let named = params.get("id").and_then(Value::as_u64).or(app.session.reading());
         named.and_then(|m| app.session.mailbox.message(m)).is_some_and(|m| m.listed_attachments().next().is_some())
     };
     if id == "mail.saveAllAttachments" && params.get("path").is_none() && has_files() {

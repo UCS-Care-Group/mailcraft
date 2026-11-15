@@ -64,7 +64,8 @@ impl MoveItems {
     /// Move Items (`copy` false) or Copy Items for the messages selected; `None` when none is, or
     /// there is no account to list.
     pub fn open(app: &MailApp, copy: bool) -> Option<MoveItems> {
-        if app.session.sel.messages.is_empty() {
+        // A collapsed group's row stands for no message (#929), so there is nothing to move.
+        if app.session.sel.messages.is_empty() || app.session.on_collapsed_group() {
             return None;
         }
         // The account Home › Move lists: the folder in view's, else the default one.

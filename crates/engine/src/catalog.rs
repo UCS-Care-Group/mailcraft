@@ -146,7 +146,7 @@ View|Arrangement|Message Preview|view.previewLines
 View|Arrangement|Arrange By|view.sort
 View|Arrangement|Reverse Sort|view.reverseSort
 View|Arrangement|Add Columns|view.columns
-View|Arrangement|Expand/Collapse Groups|view.groups
+View|Arrangement|Expand/Collapse Groups|view.collapseAllGroups
 View|Arrangement|Single Line|view.oneLine
 View|Layout|Folder Pane|view.folderPane
 View|Layout|Reading Pane|view.readingPane

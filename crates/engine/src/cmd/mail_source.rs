@@ -22,7 +22,7 @@ pub const MAX_SOURCE: usize = 1 << 20;
 /// `mail.viewSource`.
 pub(super) fn view_source(s: &mut Session, v: &Value) -> CmdResult {
     p::only(v, &["id"])?;
-    let id = p::id_strict(v, "id")?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::id_strict(v, "id")?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.messages.get(&id).ok_or_else(|| failed!("no message with id {id}", id))?;
     // Every header line, the block kept outside memory read in (HS).
     let m = s.with_header_block(m.clone());

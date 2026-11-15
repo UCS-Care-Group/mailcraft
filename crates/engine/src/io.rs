@@ -439,7 +439,8 @@ pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Messag
 fn show_opened(s: &mut Session, id: Id) {
     s.list_due();
     s.sel.messages = vec![id];
-    s.show_selected();
+    // Asked for from outside the list, so a collapsed group opens for it (#929).
+    s.show_selected(true);
 }
 
 /// How many messages a file of mail holds, as [`import`] would take them, without reading them
@@ -604,8 +605,9 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.list_due();
                 s.sel.messages = vec![*last];
                 // Selected, it is in the list (#485): its folder's, whole, if the list in view
-                // leaves it out.
-                s.show_selected();
+                // leaves it out, and in sight: asked for from outside the list, a collapsed group
+                // opens for it (#929).
+                s.show_selected(true);
             }
             Ok(json!({
                 "format": format_name,

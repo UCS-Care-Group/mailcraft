@@ -314,9 +314,9 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
 
 /// Handle an owner's script request, which still requires an explicit menu in Junk.
 pub(crate) fn command(app: &mut MailApp, params: &Value) -> Result<Value, String> {
-    let id = params.get("id").and_then(Value::as_u64).or_else(|| app.session.sel.focus()).ok_or_else(|| Error::Invalid.text())?;
+    let id = params.get("id").and_then(Value::as_u64).or_else(|| app.session.reading()).ok_or_else(|| Error::Invalid.text())?;
     let index = params.get("index").and_then(Value::as_u64).and_then(|i| usize::try_from(i).ok()).ok_or_else(|| Error::Invalid.text())?;
-    if app.session.sel.focus() != Some(id) || app.session.sel.messages.len() != 1 {
+    if app.session.reading() != Some(id) || app.session.sel.messages.len() != 1 {
         return Err(tl!("Select the message before previewing its attachment.").into());
     }
     if in_junk(app, id) {

@@ -4755,7 +4755,7 @@ pub(crate) mod rules {
             f.choose(&s.mailbox, account_in_view(s));
             f.reset();
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
-                f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
+                f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.reading()));
             }
             f
         }

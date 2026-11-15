@@ -116,7 +116,7 @@ fn an_account_that_goes_leaves_every_account_shown() {
 fn another_mailbox_starts_on_every_account() {
     let (mut s, work, ..) = session();
     run(&mut s, "view.peopleAccount", json!({"value": work}));
-    s.replace_mailbox(crate::sample::mailbox(NOW, 0));
+    s.replace_mailbox(crate::sample::mailbox(NOW, 0), None);
     assert_eq!(s.view.people_account, AccountChoice::All);
 }
 

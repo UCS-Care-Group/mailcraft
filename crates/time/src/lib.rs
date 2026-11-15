@@ -417,8 +417,9 @@ pub fn local_offset_minutes(ts: Timestamp) -> i32 {
     Zone::system().offset_at(ts)
 }
 
-/// How a message list groups by date, newest group first.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// How a message list groups by date, newest group first: the order compares that way, within
+/// the months and the years too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DateGroup {
     Future,
     Today,
@@ -430,6 +431,41 @@ pub enum DateGroup {
     ThreeWeeksAgo,
     LastMonth,
     Older,
+    /// With older mail by month and year (#929): a month of this year before last month, and
+    /// then each year before this one, newest first.
+    Month(u8),
+    Year(i32),
+}
+
+impl Ord for DateGroup {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // (By kind in the order they are listed, and the latest month or year of two first.)
+        let rank = |g: &DateGroup| match g {
+            DateGroup::Future => 0u8,
+            DateGroup::Today => 1,
+            DateGroup::Yesterday => 2,
+            DateGroup::ThisWeek(_) => 3,
+            DateGroup::LastWeek => 4,
+            DateGroup::TwoWeeksAgo => 5,
+            DateGroup::ThreeWeeksAgo => 6,
+            DateGroup::LastMonth => 7,
+            DateGroup::Older => 8,
+            DateGroup::Month(_) => 9,
+            DateGroup::Year(_) => 10,
+        };
+        rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
+            (DateGroup::ThisWeek(a), DateGroup::ThisWeek(b)) => a.cmp(b),
+            (DateGroup::Month(a), DateGroup::Month(b)) => b.cmp(a),
+            (DateGroup::Year(a), DateGroup::Year(b)) => b.cmp(a),
+            _ => std::cmp::Ordering::Equal,
+        })
+    }
+}
+
+impl PartialOrd for DateGroup {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl DateGroup {
@@ -457,6 +493,26 @@ impl DateGroup {
         }
     }
 
+    /// [`DateGroup::of`], with `Older` split by month and year (#929): the months of this year
+    /// before last month, then the years before.
+    pub fn of_by_month(day: Date, today: Date, first: Weekday) -> DateGroup {
+        match DateGroup::of(day, today, first) {
+            DateGroup::Older if day.year == today.year => DateGroup::Month(day.month),
+            DateGroup::Older => DateGroup::Year(day.year),
+            group => group,
+        }
+    }
+
+    /// The heading of the group, in English: a year by its number.
+    pub fn heading(self) -> String {
+        match self {
+            DateGroup::Year(year) => year.to_string(),
+            group => group.label().to_string(),
+        }
+    }
+
+    /// The heading of a group that has a fixed one, in English (a year's is its number: see
+    /// [`DateGroup::heading`]).
     pub fn label(self) -> &'static str {
         match self {
             DateGroup::Future => "Upcoming",
@@ -467,7 +523,8 @@ impl DateGroup {
             DateGroup::TwoWeeksAgo => "Two Weeks Ago",
             DateGroup::ThreeWeeksAgo => "Three Weeks Ago",
             DateGroup::LastMonth => "Last Month",
-            DateGroup::Older => "Older",
+            DateGroup::Older | DateGroup::Year(_) => "Older",
+            DateGroup::Month(month) => month_name(month),
         }
     }
 }
@@ -511,6 +568,9 @@ pub fn duration_label(minutes: i64) -> String {
         format!("{d} day{}", if d == 1 { "" } else { "s" })
     }
 }
+
+#[cfg(test)]
+mod date_group_tests;
 
 #[cfg(test)]
 mod tests {

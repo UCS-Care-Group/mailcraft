@@ -323,7 +323,7 @@ fn what_was_remembered_for_a_mailbox_that_is_no_longer_open_goes_too() {
     a.remember("refresh", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented-refresh-token");
     assert_eq!(store.0.lock().unwrap().len(), 1);
     // Another mailbox takes its place; the entry is still in the store.
-    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     // The settings file names the entry and holds nothing secret.
     let saved = serde_json::to_string(&a.ui).unwrap();
     assert!(saved.contains("avery@mail.example") && !saved.contains("invented-refresh-token"));
@@ -339,7 +339,7 @@ fn turning_remembering_off_forgets_the_entries_of_other_mailboxes_too() {
     a.ui.remember_sign_in = true;
     a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
     a.remember("password", a.account_at("avery@mail.example").map_or(0, |x| x.id), "invented");
-    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
     a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
     assert!(store.0.lock().unwrap().is_empty());
     assert!(a.ui.remembered_keys.is_empty());

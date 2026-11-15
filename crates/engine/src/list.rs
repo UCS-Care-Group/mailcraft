@@ -44,6 +44,16 @@ pub struct Row {
     /// For a conversation's row: it is open, and its messages are listed under it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub open: bool,
+    /// For a group the owner collapsed (#929): this row stands for the whole group, shown as its
+    /// heading alone, and this is how many rows of the list it stands for, as [`listed`] counts
+    /// them, so that the list's count doesn't change when a group collapses. `members` are all of
+    /// the group's messages, so that the heading can say how many and the list can tell what the
+    /// group hides; a conversation's messages in other folders are its row's `others` and are
+    /// counted no more here than they are in the list. The row itself is the switch that expands the group again and stands for no
+    /// message, its own included: no command acts on it ([`Session::acting_on`]), and nothing
+    /// the group hides stays selected ([`Session::drop_folded_selection`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folded: Option<usize>,
 }
 
 impl Row {
@@ -59,6 +69,7 @@ impl Row {
             copy,
             under: None,
             open: false,
+            folded: None,
         }
     }
 
@@ -104,17 +115,34 @@ enum Heading {
 impl Heading {
     fn label(&self) -> String {
         match self {
-            Heading::Date(d) => d.label().to_string(),
+            Heading::Date(d) => d.heading(),
             Heading::Words(w) => w.clone(),
         }
     }
 }
 
+/// The heading of the group message `id` is under, as the list in view writes it, or nothing
+/// where that message is in no group (#929): arranged by subject or by size the rows after
+/// Pinned have no heading of their own, and the heading above them is another group's. This is
+/// the message's own heading; a row listed under an open conversation is shown under that
+/// conversation's instead, which is the caller's to resolve.
+pub(crate) fn heading_of(s: &Session, id: Id) -> Option<String> {
+    let m = s.mailbox.message(id)?;
+    heading(s, m, s.today()).as_ref().map(Heading::label)
+}
+
 fn heading(s: &Session, m: &Message, today: Date) -> Option<Heading> {
     match s.view.sort {
-        SortBy::Date if !m.pinned => Some(Heading::Date(DateGroup::of(s.local(when(m)).date, today, s.prefs.week_start))),
+        SortBy::Date if !m.pinned => Some(Heading::Date(date_group(s, m, today))),
         _ => group_label(s, m).map(Heading::Words),
     }
+}
+
+/// The date group of `m` seen from `today`: with older mail by month and year when the owner
+/// chose that (#929).
+fn date_group(s: &Session, m: &Message, today: Date) -> DateGroup {
+    let day = s.local(when(m)).date;
+    if s.prefs.older_by_month { DateGroup::of_by_month(day, today, s.prefs.week_start) } else { DateGroup::of(day, today, s.prefs.week_start) }
 }
 
 fn group_label(s: &Session, m: &Message) -> Option<String> {
@@ -122,7 +150,7 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
         return Some("Pinned".into());
     }
     match s.view.sort {
-        SortBy::Date => Some(DateGroup::of(s.local(when(m)).date, s.today(), s.prefs.week_start).label().to_string()),
+        SortBy::Date => Some(date_group(s, m, s.today()).heading()),
         SortBy::From => Some(m.from.display().to_string()),
         SortBy::Importance => Some(
             match m.importance {
@@ -373,16 +401,71 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         let direct = out.len() == shown.len() && out.iter().zip(&shown).all(|(r, m)| r.id == m.id);
         let mut last: Option<Heading> = None;
         let today = s.today();
+        // Where the rows go on without a heading after a group (arranged by subject or size, the
+        // rows after Pinned): no group goes on there (#929).
+        let mut no_heading = HashSet::new();
         for (i, row) in out.iter_mut().enumerate().filter(|(_, r)| r.under.is_none()) {
             let m = if direct { shown.get(i).copied() } else { mb.message(row.id) };
             let heading = m.and_then(|m| heading(s, m, today));
             if heading != last {
                 row.group = heading.as_ref().map(Heading::label);
+                if heading.is_none() {
+                    no_heading.insert(i);
+                }
                 last = heading;
             }
         }
+        // The groups the owner collapsed in this folder, while nothing is searched for (#929).
+        // Arranged by categories nothing folds today either way, because those headings come from
+        // `by_category` and not from `heading`, so `folded` finds none to fold; the arrangement is
+        // named here all the same, where `collapse` and `can_collapse_all` name it, so that a
+        // change to how those rows are built can't quietly start folding a list in which a message
+        // is listed under each of its categories.
+        if Query::parse(&s.view.search).is_empty() && s.view.sort != SortBy::Categories && s.prefs.collapsed_in(s.view.folder).next().is_some() {
+            out = folded(s, out, &no_heading);
+        }
     }
     (out, kept_only, unfetched)
+}
+
+/// `rows` with each group the owner collapsed in the folder in view as one row (#929): its first
+/// row, standing for every message of the group ([`Row::folded`]).
+/// `no_heading` are the rows (by their place in `rows`) where the list goes on without a heading.
+fn folded(s: &Session, rows: Vec<Row>, no_heading: &HashSet<usize>) -> Vec<Row> {
+    let mut out: Vec<Row> = Vec::with_capacity(rows.len());
+    // Whether the rows now are of a collapsed group, whose first row is the last of `out`.
+    let mut folding = false;
+    for (i, row) in rows.into_iter().enumerate() {
+        if no_heading.contains(&i) {
+            folding = false;
+        }
+        if let Some(group) = &row.group {
+            folding = s.prefs.is_collapsed(s.view.folder, group);
+            if folding {
+                // A conversation's messages under it come with it (they are its members). The
+                // rows it stands for are counted as `listed` counts them: a message's second row
+                // (under a second category) not again.
+                let listed = usize::from(row.copy == 0);
+                out.push(Row { folded: Some(listed), open: false, under: None, copy: 0, ..row });
+                continue;
+            }
+        }
+        match out.last_mut() {
+            Some(head) if folding => {
+                // (A message listed under its open conversation is one of that row's members.)
+                if row.under.is_none() {
+                    head.members.extend(row.members);
+                    head.others.extend(row.others);
+                    head.unread = head.unread.saturating_add(row.unread);
+                    if row.copy == 0 {
+                        head.folded = head.folded.map(|n| n + 1);
+                    }
+                }
+            }
+            _ => out.push(row),
+        }
+    }
+    out
 }
 
 /// `shown` in the order of a sort by name or size (From, Subject, Size): pinned first, ids
@@ -566,7 +649,8 @@ pub fn position_of(rows: &[Row], id: Id, copy: u16) -> Option<usize> {
 }
 
 /// How many messages (or conversations) the list shows: one listed under several categories
-/// counts once, and the messages listed under an open conversation are its row's.
+/// counts once, and the messages listed under an open conversation are its row's. A collapsed
+/// group (#929) counts what it stands for, as it did open.
 pub fn listed(rows: &[Row]) -> usize {
-    rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).count()
+    rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.folded.unwrap_or(1)).sum()
 }

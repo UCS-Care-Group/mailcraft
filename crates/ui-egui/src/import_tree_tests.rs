@@ -171,7 +171,7 @@ fn an_answer_after_the_mailbox_was_swapped_is_dropped() {
     h.run_steps(4);
     click(&mut h, "Import");
     let other = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0).mailbox;
-    h.state_mut().session.replace_mailbox(other);
+    h.state_mut().session.replace_mailbox(other, None);
     let after_swap = fingerprint(&h);
     jobs.lock().unwrap()[1].2.send(Ok(parsed(false))).unwrap();
     h.run_steps(4);

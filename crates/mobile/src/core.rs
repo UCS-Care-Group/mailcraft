@@ -460,7 +460,7 @@ impl Core {
             // be gone, and a mailbox kept in memory would be written back by the next save. The
             // fresh one counts as saved, so nothing is written until the owner changes something;
             // the names of sign-ins still in the store are kept by `sync` for the retry.
-            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+            session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""), None);
             if let Some(keep) = &keep {
                 keep.reset(session);
             }

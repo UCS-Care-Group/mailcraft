@@ -592,7 +592,7 @@ fn an_agents_question_goes_with_the_mailbox_it_was_asked_about() {
     let ids = row_ids(&mut w, newer);
     let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": ids}));
     let other = mailcraft_engine::sample::mailbox(w.state().session.now(), 0);
-    w.state_mut().session.replace_mailbox(other);
+    w.state_mut().session.replace_mailbox(other, None);
     crate::agent_gate::answer(w.state_mut(), true);
     assert_eq!(answer.try_recv().unwrap()["ok"], false);
     assert!(w.state().session.mailbox.message(newer).is_some() && w.state().session.mailbox.message(older).is_some());

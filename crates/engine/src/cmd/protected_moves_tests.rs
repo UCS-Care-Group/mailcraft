@@ -428,7 +428,7 @@ fn another_mailbox_forgets_what_was_asked_and_said() {
     s.want_original(id);
     let m = s.mailbox.message(id).cloned().unwrap();
     assert!(s.held_notice(&m).is_some());
-    s.replace_mailbox(mailcraft_model::Mailbox::default());
+    s.replace_mailbox(mailcraft_model::Mailbox::default(), None);
     assert!(s.lost_originals.lock().unwrap().is_empty());
     assert!(s.first_told_held(id, crate::session::Held::Asked));
     let _ = std::fs::remove_dir_all(&dir);

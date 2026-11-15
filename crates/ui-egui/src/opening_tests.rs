@@ -654,7 +654,7 @@ fn what_comes_late_for_a_mailbox_is_dropped_once_another_has_taken_its_place() {
     app.check_parts_later(missing_rx, 0, true);
     app.take_bodies_later(rx);
     // File › Open of another mailbox (here, one that names the same content) before the look is over.
-    app.session.replace_mailbox(mb);
+    app.session.replace_mailbox(mb, None);
     missing_tx.send(mailcraft_engine::Missing { count: 2, refs: vec![r] }).unwrap();
     tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None, hidden: None }]).unwrap();
     let mut h = harness(app);

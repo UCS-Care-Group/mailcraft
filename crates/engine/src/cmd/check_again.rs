@@ -176,7 +176,7 @@ pub(crate) fn ask_source(source: Option<(Id, bool)>, m: &mut Message) -> bool {
 
 /// Enabled for a message selected that can be checked again ([`why_not`]).
 pub(crate) fn needs_checkable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| match s.sel.focus().and_then(|id| s.mailbox.message(id)) {
+    needs_message(s).or_else(|| match s.reading().and_then(|id| s.mailbox.message(id)) {
         Some(m) => why_not(&s.mailbox, m),
         None => Some("select a message first"),
     })
@@ -184,7 +184,7 @@ pub(crate) fn needs_checkable(s: &Session) -> Option<&'static str> {
 
 /// `mail.checkAgain`: mark the message to have the bytes it came as downloaded again.
 pub(crate) fn check_again(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let id = p::message_strict(v)?.or(s.reading()).ok_or_else(|| fail("select a message first"))?;
     // Its text in memory, for armour at the start of a line to be seen.
     let _ = s.load_where(id, |_| false);
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;

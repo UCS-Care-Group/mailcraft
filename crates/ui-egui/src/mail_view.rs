@@ -157,7 +157,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // Enter on a selected draft goes on writing it (#651). Only a new press that is the main
     // window's, with nothing focused: not a text field's, nor a dialog's.
     if !composing && app.session.sel.messages.len() == 1 {
-        let draft = app.session.sel.focus().and_then(|id| app.session.mailbox.messages.get(&id)).is_some_and(|m| m.draft);
+        let draft = app.session.reading().and_then(|id| app.session.mailbox.messages.get(&id)).is_some_and(|m| m.draft);
         if draft && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
             let _ = app.run("mail.editDraft", json!({}));
         }
@@ -213,6 +213,56 @@ fn group_name(group: &str, category: bool) -> &str {
         tl!("No category")
     } else {
         tl!(group)
+    }
+}
+
+/// A group's heading on the list (#929): a chevron that shows whether the group is open, its
+/// name, and for a collapsed group how many messages it has. The heading is the switch for its
+/// group and nothing else: a click anywhere on it turns it over, by the pointer or from the
+/// keyboard, and it selects no message. A collapsed group's row is drawn selected while the
+/// keyboard is on it, which is what Right expands.
+#[allow(clippy::too_many_arguments)]
+fn group_heading(app: &mut MailApp, ui: &mut Ui, row: &Row, group: &str, gr: Rect, drawn: &Drawn, focus: Option<(Id, u16)>, t: &Tokens) {
+    let name = group_name(group, row.category);
+    // A heading is a switch only where the groups collapse (#929): with them turned off, under
+    // categories (a message is listed under each of its own) and during a search, a click would
+    // send a command the engine refuses, so the heading is drawn and left alone. Pinned and
+    // "No category" carry no category of their own and would otherwise look clickable there.
+    if row.category || !app.session.groups_collapse() {
+        paint_clipped(ui.painter(), pos2(gr.min.x + 16.0, gr.center().y + 3.0), gr.width() - 22.0, name, semibold(GROUP_TEXT), t.group_label);
+        return;
+    }
+    // (Collapsed, it says how many messages it has: `folded` counts the list's rows.)
+    let label = match row.folded.map(|_| row.members.len()) {
+        Some(n) => crate::i18n::fmt(&tln!(n, "{name} ({n} message)", "{name} ({n} messages)"), &[("name", name), ("n", &n.to_string())]),
+        None => name.to_string(),
+    };
+    let resp = ui.interact(gr, ui.scope_id().with(("group_heading", row.id, row.copy)), Sense::click());
+    let folded = row.folded.is_some();
+    if folded && drawn.shows(row) {
+        ui.painter().rect_filled(gr, 4.0, if focus == Some((row.id, row.copy)) { t.selection } else { t.selection_unfocused });
+    } else if resp.hovered() {
+        // A heading is the switch for its group whether the group is open or collapsed (#929),
+        // so it lights under the pointer either way.
+        ui.painter().rect_filled(gr, 4.0, t.hover);
+    }
+    // Reached with Tab or the arrow keys (Enter or Space turns it over): where the keyboard is.
+    if resp.has_focus() {
+        ui.painter().rect_stroke(gr, 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
+    let c = pos2(gr.min.x + 8.0, gr.center().y + 2.0);
+    crate::nav::chevron(ui.painter(), c, 3.5, !folded, t.group_label);
+    paint_clipped(ui.painter(), pos2(gr.min.x + 16.0, gr.center().y + 3.0), gr.width() - 22.0, &label, semibold(GROUP_TEXT), t.group_label);
+    app.hit.add("groupHeading", row.id, gr);
+    // For a screen reader: the group, and whether it is open.
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(!folded));
+    // A heading is the switch for its group and nothing else (#929): a click anywhere on it, by
+    // the pointer or from the keyboard and a screen reader, turns it over. A double-click, as
+    // classic Outlook has it, turns it over once: the second press of it is left alone.
+    if resp.clicked() && !resp.double_clicked() {
+        let id = if folded { "view.expandGroup" } else { "view.collapseGroup" };
+        let _ = app.run(id, json!({"group": group}));
     }
 }
 
@@ -576,7 +626,10 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             y += GROUP_H;
         }
         tops.push(y);
-        y += row_h;
+        // A collapsed group is its heading alone (#929).
+        if row.folded.is_none() {
+            y += row_h;
+        }
     }
     let rows_end = y;
     let total = y + below;
@@ -625,7 +678,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             && let (Some(top), Some(row)) = (tops.get(i).copied(), rows.get(i))
         {
             let above = if row.group.is_some() { GROUP_H } else { 0.0 };
-            let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
+            let below = if row.folded.is_some() { 0.0 } else { row_h };
+            let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + below));
             ui.scroll_to_rect(rect, None);
         }
         // Only the rows in view are laid out.
@@ -638,17 +692,12 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             if let Some(group) = &row.group {
                 // Text on the list itself: no bar, no box.
                 let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                paint_clipped(
-                    ui.painter(),
-                    pos2(gr.min.x + 16.0, gr.center().y + 3.0),
-                    gr.width() - 22.0,
-                    group_name(group, row.category),
-                    semibold(GROUP_TEXT),
-                    t.group_label,
-                );
+                group_heading(app, ui, row, group, gr, &drawn, focus, &t);
             }
-            let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &drawn, focus);
+            if row.folded.is_none() {
+                let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
+                message_row(app, ui, row, rect, &drawn, focus);
+            }
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));

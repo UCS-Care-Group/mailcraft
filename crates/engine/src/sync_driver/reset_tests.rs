@@ -74,7 +74,7 @@ fn another_mailbox_takes_the_place_with_a_driver_that_remembers_nothing() {
     global(&mut session.driver);
     busy_for(&mut session.driver, 7);
     assert_ne!(format!("{:?}", session.driver), format!("{:?}", Driver::default()), "the test fills it");
-    session.replace_mailbox(Mailbox::with_local_account("", ""));
+    session.replace_mailbox(Mailbox::with_local_account("", ""), None);
     assert_eq!(format!("{:?}", session.driver), format!("{:?}", Driver::default()));
 }
 
@@ -83,10 +83,10 @@ fn what_the_host_set_is_not_the_mailboxs_and_stays() {
     let mut session = Session::new(Mailbox::with_local_account("", ""));
     assert!(session.driver.auto_sync());
     session.driver.set_auto_sync(false);
-    session.replace_mailbox(Mailbox::with_local_account("", ""));
+    session.replace_mailbox(Mailbox::with_local_account("", ""), None);
     assert!(!session.driver.auto_sync());
     session.driver.set_auto_sync(true);
-    session.replace_mailbox(Mailbox::with_local_account("", ""));
+    session.replace_mailbox(Mailbox::with_local_account("", ""), None);
     assert!(session.driver.auto_sync());
 }
 

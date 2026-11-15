@@ -103,7 +103,7 @@ pub(crate) fn before_run(app: &MailApp, id: &str, params: &Value) -> Result<(), 
 /// The message being written of the draft `mail.editDraft` with `params` would open, when it is
 /// being written already.
 fn being_written(app: &MailApp, params: &Value) -> Option<u64> {
-    let draft = mailcraft_engine::p::id(params, "id").or_else(|| app.session.sel.focus())?;
+    let draft = mailcraft_engine::p::id(params, "id").or_else(|| app.session.reading())?;
     Some(app.session.all_composing().find(|c| c.draft == Some(draft))?.id)
 }
 
