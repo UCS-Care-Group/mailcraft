@@ -109,3 +109,92 @@ fn repair_drops_bookmarks_for_missing_messages() {
     assert!(mb.bookmarks.contains_key(&1));
     assert!(!mb.bookmarks.contains_key(&2));
 }
+
+#[test]
+fn bookmark_strips_invisible_format_characters() {
+    let raw_name = "Invoice\u{202E}txt.exe\u{200B}\u{FEFF}";
+    let raw_quote = "Hello\u{200F}World\u{202A}!";
+    let bm = Bookmark::new(1, 10, raw_name, raw_quote, 0, Timestamp::default());
+    assert_eq!(bm.name, "Invoicetxt.exe");
+    assert_eq!(bm.quote, "HelloWorld!");
+}
+
+#[test]
+fn repair_recleans_bookmarks_normalises_id_drops_zero_and_advances_next_id() {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(crate::Account::default());
+    let folder = mb.inbox().unwrap();
+    let mid = mb.add_message(crate::Message { folder, account, ..Default::default() }).unwrap();
+
+    // Serialize mailbox and patch in a stale nextId (2) alongside corrupted bookmark entries:
+    // key 11 with mismatched id 7 and control/format chars, plus invalid key 0.
+    let mut json_val = serde_json::to_value(&mb).unwrap();
+    json_val["nextId"] = serde_json::json!(2);
+    json_val["bookmarks"] = serde_json::json!({
+        "0": {
+            "id": 0,
+            "message": mid,
+            "name": "Zero",
+            "quote": "zero",
+            "offset": 0,
+            "created": 100
+        },
+        "11": {
+            "id": 7,
+            "message": mid,
+            "name": "Bad\u{202E}\x07Name",
+            "quote": "Quote\u{200B}\x00Body",
+            "offset": 5,
+            "created": 100
+        }
+    });
+    let mut mb: Mailbox = serde_json::from_value(json_val).unwrap();
+
+    let fixed = mb.repair();
+    assert!(fixed.iter().any(|f| f.contains("bookmarks tidied")), "{fixed:?}");
+    assert!(!mb.bookmarks.contains_key(&0));
+    let repaired = mb.bookmarks.get(&11).unwrap();
+    assert_eq!(repaired.id, 11);
+    assert_eq!(repaired.name, "BadName");
+    assert_eq!(repaired.quote, "QuoteBody");
+    assert!(mb.alloc_id() > 11, "next allocated id must be > 11");
+}
+
+#[test]
+fn cascading_deletes_drop_bookmarks_on_all_paths() {
+    let mut mb = Mailbox::default();
+    let a1 = mb.add_account(crate::Account { email: "a1@example.org".into(), ..Default::default() });
+    let a2 = mb.add_account(crate::Account { email: "a2@example.org".into(), ..Default::default() });
+    let inbox1 = mb.folder_of_kind(a1, crate::FolderKind::Inbox).unwrap();
+    let custom1 = mb.add_folder(a1, None, "Temp").unwrap();
+    let inbox2 = mb.folder_of_kind(a2, crate::FolderKind::Inbox).unwrap();
+
+    let m_bulk = mb.add_message(crate::Message { folder: inbox1, account: a1, ..Default::default() }).unwrap();
+    let m_folder = mb.add_message(crate::Message { folder: custom1, account: a1, ..Default::default() }).unwrap();
+    let m_acct = mb.add_message(crate::Message { folder: inbox1, account: a1, ..Default::default() }).unwrap();
+    let m_keep = mb.add_message(crate::Message { folder: inbox2, account: a2, ..Default::default() }).unwrap();
+
+    for (i, &mid) in [m_bulk, m_folder, m_acct, m_keep].iter().enumerate() {
+        let id = (i as u64) + 10;
+        mb.add_bookmark(Bookmark::new(id, mid, &format!("Mark {id}"), "q", 0, 1));
+    }
+    assert_eq!(mb.bookmarks().len(), 4);
+
+    // 1. Bulk permanent delete (also used by Empty Deleted Items)
+    mb.remove_messages(&[m_bulk]).unwrap();
+    assert!(mb.bookmarks_for_message(m_bulk).is_empty());
+    assert_eq!(mb.bookmarks().len(), 3);
+
+    // 2. Delete folder (first moves to Deleted Items; second permanently deletes it and its messages)
+    assert!(!mb.delete_folder(custom1).unwrap());
+    assert_eq!(mb.bookmarks_for_message(m_folder).len(), 1);
+    assert!(mb.delete_folder(custom1).unwrap());
+    assert!(mb.bookmarks_for_message(m_folder).is_empty());
+    assert_eq!(mb.bookmarks().len(), 2);
+
+    // 3. Remove account
+    mb.remove_account(a1).unwrap();
+    assert!(mb.bookmarks_for_message(m_acct).is_empty());
+    assert_eq!(mb.bookmarks().len(), 1);
+    assert_eq!(mb.bookmarks_for_message(m_keep).len(), 1);
+}

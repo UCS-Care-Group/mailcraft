@@ -433,6 +433,7 @@ pub fn sweep(mb: &mut Mailbox, account: Id, since: Option<Timestamp>, down: &mut
     }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));
+    mb.prune_bookmarks();
     down.removed += before - mb.messages.len();
     // What was put back after a refused copy and is still there once every folder was read (or
     // passed over, its counts the same): one run nearer to being the server's message as any other.

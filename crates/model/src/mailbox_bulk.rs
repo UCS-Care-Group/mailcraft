@@ -217,6 +217,9 @@ impl Mailbox {
         for t in self.tasks.values_mut().filter(|t| t.message.is_some_and(|m| r.gone.contains(&m))) {
             Arc::make_mut(t).message = None;
         }
+        if !self.bookmarks.is_empty() && !r.gone.is_empty() {
+            self.bookmarks.retain(|_, b| !r.gone.contains(&b.message));
+        }
     }
 }
 

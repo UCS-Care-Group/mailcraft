@@ -46,6 +46,8 @@ pub enum Object {
     Calendar,
     /// A category.
     Category,
+    /// A bookmark.
+    Bookmark,
     /// An account: the one named, or the first of a kind.
     Account,
     /// A rule.
@@ -100,6 +102,7 @@ pub fn object(id: &str) -> Option<Object> {
         _ if id.starts_with("calendar.") && !CALENDARS.contains(&id) => Event,
         _ if CALENDARS.contains(&id) => Calendar,
         "category.remove" | "category.rename" => Category,
+        "bookmark.remove" => Bookmark,
         "account.setAutomaticReplies"
         | "account.add"
         | "account.edit"

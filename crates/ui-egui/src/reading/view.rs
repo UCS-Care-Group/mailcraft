@@ -549,58 +549,26 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     drop(pictures);
     let mut state = app.text_selection.state(place);
 
-    // Scroll to and highlight bookmark if jumping to one in this message (#951).
+    // Scroll to and highlight bookmark if jumping to one in this exact place (#951).
     let mut bookmark_scroll = None;
-    if matches!(place, Place::Pane | Place::Window(_))
-        && let Some((bm_msg, bm_quote, bm_offset)) = &app.bookmark_target
-        && *bm_msg == message.id
+    let clear_bookmark_target = if let Some(target) = &app.bookmark_target
+        && target.place == place
     {
-        let mut target_rect = None;
-        let mut target_range = None;
-        if !bm_quote.trim().is_empty() {
-            // Find by quote text first
-            let q = bm_quote.trim();
-            for (seg_idx, &item_idx) in entry.laid.segs.iter().enumerate() {
-                if let Some(super::layout::Item { rect, kind: super::layout::ItemKind::Text(text), .. }) = entry.laid.items.get(item_idx as usize)
-                    && let Some(byte_idx) = text.job.text.find(q)
-                {
-                    let char_start = text.job.text.get(..byte_idx).map_or(0, |s| s.chars().count());
-                    let char_len = q.chars().count();
-                    target_rect = Some(*rect);
-                    target_range = Some((
-                        super::select::Point { seg: seg_idx, at: char_start },
-                        super::select::Point { seg: seg_idx, at: char_start.saturating_add(char_len) },
-                    ));
-                    break;
-                }
+        if target.message != message.id {
+            true
+        } else {
+            let jump = super::select::find_bookmark_target(&entry.laid, &target.quote, target.offset);
+            bookmark_scroll = jump.scroll;
+            if let (Some((p1, p2)), Some(st)) = (jump.range, state.as_deref_mut()) {
+                st.select_body_range(p1, p2);
             }
+            jump.resolved || entry.laid.done
         }
-        // Fall back to offset if quote is empty or the full layout is done without matching it
-        if target_rect.is_none() && (bm_quote.trim().is_empty() || entry.laid.done) {
-            let mut chars_seen = 0;
-            for (seg_idx, &item_idx) in entry.laid.segs.iter().enumerate() {
-                if let Some(super::layout::Item { rect, kind: super::layout::ItemKind::Text(text), .. }) = entry.laid.items.get(item_idx as usize) {
-                    let count = text.chars as usize;
-                    if *bm_offset >= chars_seen && *bm_offset < chars_seen.saturating_add(count) {
-                        let at = bm_offset.saturating_sub(chars_seen);
-                        target_rect = Some(*rect);
-                        target_range = Some((
-                            super::select::Point { seg: seg_idx, at },
-                            super::select::Point { seg: seg_idx, at: at.saturating_add(20).min(count) },
-                        ));
-                        break;
-                    }
-                    chars_seen = chars_seen.saturating_add(count);
-                }
-            }
-        }
-        bookmark_scroll = target_rect;
-        if let (Some((p1, p2)), Some(st)) = (target_range, state.as_deref_mut()) {
-            st.select_body_range(p1, p2);
-        }
-        if target_rect.is_some() || entry.laid.done {
-            app.bookmark_target = None;
-        }
+    } else {
+        false
+    };
+    if clear_bookmark_target {
+        app.bookmark_target = None;
     }
 
     // A copy that waited for the layout to be whole is due now.
@@ -864,7 +832,8 @@ pub fn paint(
             state.set_menu_link(link.clone());
         }
         let on_link = state.menu_link();
-        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref()));
+        let can_bookmark = state.can_bookmark();
+        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref(), can_bookmark));
     }
     // While a drag selects, nothing pops up under it; nor over a menu, which opens right where
     // the pointer is.

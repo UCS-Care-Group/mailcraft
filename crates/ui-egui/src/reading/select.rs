@@ -621,6 +621,12 @@ impl PlaceState {
         self.extending = false;
     }
 
+    /// Whether bookmarks are offered for the message currently shown at this place.
+    /// `None` hides the item (quote / signature preview); `Some(false)` disables it (e.g. `.eml` file).
+    pub(super) fn can_bookmark(&self) -> Option<bool> {
+        matches!(self.place, Place::Pane | Place::Window(_)).then_some(self.message != 0)
+    }
+
     /// Do to the selection what the pointer did in the text of `zone`: a drag selects from where
     /// it went down, with Shift it moves the end of what is selected; two clicks take a word and
     /// three a paragraph as the button goes down, and a drag from there goes on by words or
@@ -837,12 +843,15 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
         Action::SelectAll => app.run("ui.selectAllInMessage", params(place)),
         Action::CopyLink(url) => app.run("ui.copyLinkAddress", json!({"url": &*url})),
         Action::AddBookmark => {
-            let quote = app.ctx.as_ref().and_then(|ctx| app.text_selection.state(place).and_then(|s| selected_text(ctx, s))).unwrap_or_default();
-            let mid = match place {
-                Place::Window(id) => id,
-                _ => app.session.sel.focus().unwrap_or(0),
+            if !matches!(place, Place::Pane | Place::Window(_)) {
+                return;
+            }
+            let Some(mid) = app.text_selection.state(place).map(|s| s.message).filter(|&id| id != 0) else {
+                return;
             };
-            app.run("bookmark.add", json!({"id": mid, "quote": quote}))
+            let (quote, offset) =
+                app.ctx.as_ref().and_then(|ctx| app.text_selection.state(place).and_then(|s| selected_quote_and_offset(ctx, s))).unwrap_or_default();
+            app.run("bookmark.add", json!({"id": mid, "quote": quote, "offset": offset}))
         }
     };
 }
@@ -953,9 +962,9 @@ impl Marks {
     }
 }
 
-/// The items of a text's menu: Copy, and for the body Select All and, on a link, Copy Link
-/// Address. What was chosen.
-pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>) -> Option<Action> {
+/// The items of a text's menu: Copy, and for the body Select All, Add Bookmark (when applicable)
+/// and, on a link, Copy Link Address. What was chosen.
+pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>, can_bookmark: Option<bool>) -> Option<Action> {
     let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| crate::text_menu::menu_item(ui, enabled, label, key).clicked();
     let mut chosen = None;
     if item(ui, can_copy, "Copy", "Mod+C") {
@@ -964,9 +973,9 @@ pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<st
     if body && item(ui, true, "Select All", "Mod+A") {
         chosen = Some(Action::SelectAll);
     }
-    if can_copy {
+    if can_copy && let Some(allowed) = can_bookmark {
         ui.separator();
-        if item(ui, true, "Add Bookmark", "") {
+        if item(ui, allowed, "Add Bookmark", "") {
             chosen = Some(Action::AddBookmark);
         }
     }
@@ -1049,6 +1058,7 @@ pub(super) fn header(app: &mut MailApp, ui: &Ui, place: Place, mut fields: Field
         state.header = header;
     }
     let marks = selected.map(|_| Marks::new(ui, &t));
+    let can_bookmark = app.text_selection.state(place).and_then(|s| s.can_bookmark());
     let mut action = None;
     for (seg, field) in shown.iter().enumerate() {
         let mut galley = field.galley.clone();
@@ -1062,7 +1072,7 @@ pub(super) fn header(app: &mut MailApp, ui: &Ui, place: Place, mut fields: Field
             ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
         }
         field.response.context_menu(|ui| {
-            if let Some(chosen) = menu(ui, selected.is_some(), false, None) {
+            if let Some(chosen) = menu(ui, selected.is_some(), false, None, can_bookmark) {
                 action = Some(chosen);
             }
         });
@@ -1118,6 +1128,213 @@ fn selected_text(ctx: &egui::Context, state: &PlaceState) -> Option<String> {
         })
         .unwrap_or_else(|| Some(String::new())),
     }
+}
+
+/// Selected text at `state`, plus its character offset from the start of the laid-out body's
+/// joined plain text (`0` for header selections). Returns `None` if reaching past a partial layout.
+pub(super) fn selected_quote_and_offset(ctx: &egui::Context, state: &PlaceState) -> Option<(String, usize)> {
+    let Some(selection) = &state.selection else { return Some((String::new(), 0)) };
+    match selection.zone {
+        Zone::Header => {
+            let header = state.header.as_slice();
+            let quote = range(header, selection).map(|(lo, hi)| copied(header, lo, hi)).unwrap_or_default();
+            Some((quote, 0))
+        }
+        Zone::Body => super::view::with_laid(ctx, state.place, state.message, |laid| {
+            if !laid.done && selection.anchor.max(selection.head).seg >= laid.count() {
+                return None;
+            }
+            Some(
+                range(laid, selection)
+                    .map(|(lo, hi)| {
+                        let raw = copied(laid, lo, hi);
+                        let offset = char_offset_in_body(laid, lo, &raw);
+                        (raw, offset)
+                    })
+                    .unwrap_or_default(),
+            )
+        })
+        .unwrap_or_else(|| Some((String::new(), 0))),
+    }
+}
+
+/// One laid-out segment inside [`body_joined`]'s plain-text coordinate space.
+struct BodySpan {
+    seg: usize,
+    lead_bytes: usize,
+    text_bytes: usize,
+    end_bytes: usize,
+    rect: Rect,
+    is_text: bool,
+    char_count: usize,
+}
+
+/// Join every laid-out body segment into plain text using the exact same rules as [`copied`],
+/// returning the joined string and per-segment byte spans.
+fn body_joined(laid: &Laid) -> (String, Vec<BodySpan>) {
+    let mut out = String::new();
+    let mut spans = Vec::new();
+    let mut first = true;
+    for seg in 0..laid.count() {
+        let Some(item) = laid.segment(seg) else { continue };
+        match &item.kind {
+            ItemKind::Text(text) if !text.job.text.is_empty() => {
+                if !first {
+                    text.join.write(&mut out);
+                }
+                let lead_bytes = out.len();
+                out.push_str(&text.lead);
+                let text_bytes = out.len();
+                out.push_str(&text.job.text);
+                let end_bytes = out.len();
+                spans.push(BodySpan { seg, lead_bytes, text_bytes, end_bytes, rect: item.rect, is_text: true, char_count: text.chars as usize });
+                first = false;
+            }
+            ItemKind::Placeholder(stand_in) if stand_in.described && !stand_in.label.is_empty() => {
+                if !first {
+                    stand_in.join.write(&mut out);
+                }
+                let lead_bytes = out.len();
+                out.push_str(&stand_in.label);
+                let end_bytes = out.len();
+                spans.push(BodySpan { seg, lead_bytes, text_bytes: lead_bytes, end_bytes, rect: item.rect, is_text: false, char_count: 1 });
+                first = false;
+            }
+            _ => {}
+        }
+    }
+    (out, spans)
+}
+
+fn byte_at_char(text: &str, ch: usize) -> usize {
+    if ch == 0 {
+        return 0;
+    }
+    text.char_indices().nth(ch).map_or(text.len(), |(b, _)| b)
+}
+
+/// Character offset in [`body_joined`] corresponding to the first character of `copied(laid, lo, _)`,
+/// adjusted for any leading whitespace trimmed from `raw_quote` when saved as a bookmark quote.
+fn char_offset_in_body(laid: &Laid, lo: Point, raw_quote: &str) -> usize {
+    let (joined, spans) = body_joined(laid);
+    let mut start_byte = None;
+    for span in &spans {
+        if span.seg > lo.seg {
+            start_byte = Some(span.lead_bytes);
+            break;
+        }
+        if span.seg == lo.seg && lo.at < span.char_count {
+            let b = if lo.at == 0 {
+                span.lead_bytes
+            } else if span.is_text {
+                span.text_bytes.saturating_add(byte_at_char(joined.get(span.text_bytes..span.end_bytes).unwrap_or(""), lo.at))
+            } else {
+                span.text_bytes
+            };
+            start_byte = Some(b);
+            break;
+        }
+    }
+    let start_byte = start_byte.unwrap_or(joined.len());
+    let base_chars = joined.get(..start_byte).map_or(0, |s| s.chars().count());
+    let leading_ws = if raw_quote.trim().is_empty() { 0 } else { raw_quote.chars().take_while(|c| c.is_whitespace()).count() };
+    base_chars.saturating_add(leading_ws)
+}
+
+/// Result of resolving a bookmark against a laid-out message body.
+pub(super) struct BookmarkJump {
+    pub scroll: Option<Rect>,
+    pub range: Option<(Point, Point)>,
+    /// True when the result is final (confirmed best match or layout finished); false if more
+    /// layout frames could produce a closer occurrence.
+    pub resolved: bool,
+}
+
+fn byte_range_to_body_jump(joined: &str, spans: &[BodySpan], byte_start: usize, byte_end: usize) -> (Option<Rect>, Option<(Point, Point)>) {
+    let Some(lo_span) = spans.iter().find(|s| s.end_bytes > byte_start) else {
+        return (None, None);
+    };
+    let lo_at = if lo_span.is_text && byte_start > lo_span.text_bytes {
+        joined.get(lo_span.text_bytes..byte_start).map_or(0, |s| s.chars().count()).min(lo_span.char_count)
+    } else {
+        0
+    };
+    let lo = Point { seg: lo_span.seg, at: lo_at };
+    let hi_span = spans.iter().rfind(|s| s.lead_bytes < byte_end).unwrap_or(lo_span);
+    let hi_at = if hi_span.is_text {
+        let clamped_end = byte_end.clamp(hi_span.text_bytes, hi_span.end_bytes);
+        joined.get(hi_span.text_bytes..clamped_end).map_or(0, |s| s.chars().count()).min(hi_span.char_count)
+    } else if byte_end > hi_span.lead_bytes {
+        1
+    } else {
+        0
+    };
+    let hi = Point { seg: hi_span.seg, at: hi_at };
+    let range = (lo < hi).then_some((lo, hi));
+    (Some(lo_span.rect), range)
+}
+
+/// Resolve a bookmark's `quote` and character `offset` against `laid`.
+///
+/// Matches `quote` across the joined body plain text (including across multiple paragraphs or cells)
+/// and picks the occurrence closest to `offset`. Falls back to `offset` when `quote` is empty or
+/// absent after `laid.done`; returns `None` scroll/range when `offset == 0` too (e.g. header-only quotes).
+pub(super) fn find_bookmark_target(laid: &Laid, quote: &str, offset: usize) -> BookmarkJump {
+    let (joined, spans) = body_joined(laid);
+    let total_chars = joined.chars().count();
+    let q = quote.trim();
+
+    if !q.is_empty() {
+        let mut best: Option<(usize, usize)> = None; // (dist, byte_start)
+        let mut cursor_byte = 0usize;
+        let mut cursor_char = 0usize;
+        for (byte_start, _) in joined.match_indices(q) {
+            if let Some(slice) = joined.get(cursor_byte..byte_start) {
+                cursor_char = cursor_char.saturating_add(slice.chars().count());
+                cursor_byte = byte_start;
+            }
+            let dist = cursor_char.abs_diff(offset);
+            if best.is_none_or(|(best_dist, _)| dist < best_dist) {
+                best = Some((dist, byte_start));
+            }
+        }
+        if let Some((best_dist, byte_start)) = best {
+            let can_improve = !laid.done && (total_chars < offset || best_dist > total_chars.saturating_sub(offset));
+            if !can_improve {
+                let (scroll, range) = byte_range_to_body_jump(&joined, &spans, byte_start, byte_start.saturating_add(q.len()));
+                return BookmarkJump { scroll, range, resolved: true };
+            }
+            return BookmarkJump { scroll: None, range: None, resolved: false };
+        }
+        if !laid.done {
+            return BookmarkJump { scroll: None, range: None, resolved: false };
+        }
+    }
+
+    // Quote is empty or wasn't found in the laid-out body (e.g. header-only quote).
+    if offset == 0 {
+        return BookmarkJump { scroll: None, range: None, resolved: true };
+    }
+    if !laid.done && offset >= total_chars {
+        return BookmarkJump { scroll: None, range: None, resolved: false };
+    }
+    if spans.is_empty() || total_chars == 0 {
+        return BookmarkJump { scroll: None, range: None, resolved: laid.done };
+    }
+    let clamped_offset = offset.min(total_chars.saturating_sub(1));
+    let target_byte = byte_at_char(&joined, clamped_offset);
+    let Some(span) = spans.iter().find(|s| s.end_bytes > target_byte).or_else(|| spans.last()) else {
+        return BookmarkJump { scroll: None, range: None, resolved: true };
+    };
+    let at = if span.is_text {
+        let clamped_in = target_byte.clamp(span.text_bytes, span.end_bytes);
+        joined.get(span.text_bytes..clamped_in).map_or(0, |s| s.chars().count()).min(span.char_count)
+    } else {
+        0
+    };
+    let hi_at = at.saturating_add(20).min(span.char_count);
+    let range = (at < hi_at).then_some((Point { seg: span.seg, at }, Point { seg: span.seg, at: hi_at }));
+    BookmarkJump { scroll: Some(span.rect), range, resolved: true }
 }
 
 /// What is selected at `place`, once it has settled (no button is down), goes to the primary

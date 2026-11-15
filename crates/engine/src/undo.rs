@@ -326,6 +326,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
+    out.prune_bookmarks();
     (out, said.lines(lang))
 }
 

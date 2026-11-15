@@ -23,6 +23,8 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
+#[cfg(test)]
+mod bookmark_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
@@ -102,6 +104,15 @@ pub enum Place {
     Quote,
     /// File › Signatures: a sample reply with the signature, as a recipient sees it.
     Preview,
+}
+
+/// Pending bookmark jump target scoped to a reading place (#951).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BookmarkTarget {
+    pub place: Place,
+    pub message: mailcraft_model::Id,
+    pub quote: String,
+    pub offset: usize,
 }
 
 /// A message that is not in the mailbox (a message file opened without being filed, #515) in

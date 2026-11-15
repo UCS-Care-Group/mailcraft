@@ -1483,6 +1483,7 @@ impl Mailbox {
         self.account_order.retain(|a| !going.contains(a));
         self.folders.retain(|f| !going.contains(&f.account));
         self.messages.retain(|_, m| !going.contains(&m.account));
+        self.prune_bookmarks();
         self.pending.retain(|p| !going.contains(&p.account()));
         self.event_changes.retain(|change| !going.contains(&change.account));
         self.event_checks.retain(|check| !going.contains(&check.account));
@@ -1885,6 +1886,7 @@ impl Mailbox {
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
+        self.prune_bookmarks();
         for list in &mut self.favorites_from_server {
             list.folders.retain(|folder| !gone.contains(folder));
         }
@@ -2094,6 +2096,8 @@ impl Mailbox {
                 }
                 self.folders.retain(|f| !gone.contains(&f.id));
                 self.messages.retain(|_, m| !gone.contains(&m.folder));
+                self.prune_bookmarks();
+                self.prune_bookmarks();
                 for list in &mut self.favorites_from_server {
                     list.folders.retain(|folder| !gone.contains(folder));
                 }
@@ -2938,6 +2942,18 @@ impl Mailbox {
         self.bookmarks.get(&id)
     }
 
+    /// Look up an existing bookmark for the same message, quote and offset.
+    pub fn find_bookmark(&self, message_id: Id, quote: &str, offset: usize) -> Option<&crate::Bookmark> {
+        self.bookmarks.values().find(|b| b.message == message_id && b.quote == quote && b.offset == offset)
+    }
+
+    /// Drop any bookmarks whose message is no longer in the mailbox.
+    pub fn prune_bookmarks(&mut self) {
+        if !self.bookmarks.is_empty() {
+            self.bookmarks.retain(|_, b| self.messages.contains_key(&b.message));
+        }
+    }
+
     /// Bookmarks that belong to message `id`, sorted by offset.
     pub fn bookmarks_for_message(&self, message_id: Id) -> Vec<crate::Bookmark> {
         let mut list: Vec<crate::Bookmark> = self.bookmarks.values().filter(|b| b.message == message_id).cloned().collect();
@@ -3582,6 +3598,7 @@ impl Mailbox {
             .chain(self.tasks.keys())
             .chain(self.notes.keys())
             .chain(self.journal.keys())
+            .chain(self.bookmarks.keys())
             .copied()
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))
@@ -3906,18 +3923,33 @@ impl Mailbox {
         if called_off > 0 {
             fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
         }
-        // Bookmarks: drop bookmarks pointing to non-existent messages and cap at MAX_BOOKMARKS.
+        // Bookmarks: drop invalid keys and bookmarks pointing to non-existent messages,
+        // normalise id to map key, re-clean name/quote/offset, and cap at MAX_BOOKMARKS.
         let msg_ids: HashSet<Id> = self.messages.keys().copied().collect();
-        let initial_bookmarks = self.bookmarks.len();
-        self.bookmarks.retain(|id, b| sane(id) && msg_ids.contains(&b.message));
+        let mut bookmarks_tidied = false;
+        self.bookmarks.retain(|id, b| {
+            let keep = *id != 0 && sane(id) && msg_ids.contains(&b.message);
+            if !keep {
+                bookmarks_tidied = true;
+            }
+            keep
+        });
         while self.bookmarks.len() > crate::MAX_BOOKMARKS {
             if let Some(first_key) = self.bookmarks.keys().next().copied() {
                 self.bookmarks.remove(&first_key);
+                bookmarks_tidied = true;
             } else {
                 break;
             }
         }
-        if self.bookmarks.len() != initial_bookmarks {
+        for (id, b) in &mut self.bookmarks {
+            let cleaned = crate::Bookmark::new(*id, b.message, &b.name, &b.quote, b.offset, b.created);
+            if *b != cleaned {
+                *b = cleaned;
+                bookmarks_tidied = true;
+            }
+        }
+        if bookmarks_tidied {
             fixed.push("bookmarks tidied".into());
         }
         self.next_id = self.next_id.max(1);

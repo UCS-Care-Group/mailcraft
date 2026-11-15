@@ -1569,9 +1569,12 @@ pub(crate) fn bookmarks_menu(ui: &mut Ui, app: &mut MailApp) {
     ui.separator();
 
     let marks = if enabled {
-        let conversation_ids = app.session.mailbox.conversation(mid);
-        let ids = if conversation_ids.is_empty() { vec![mid] } else { conversation_ids };
-        app.session.mailbox.bookmarks_for_messages(&ids)
+        let conversation_ids = app.session.conversation(mid);
+        if conversation_ids.is_empty() {
+            app.session.mailbox.bookmarks_for_message(mid)
+        } else {
+            app.session.mailbox.bookmarks_for_messages(&conversation_ids)
+        }
     } else {
         Vec::new()
     };

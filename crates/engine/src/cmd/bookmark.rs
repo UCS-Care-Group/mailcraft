@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Local bookmarks in messages and conversations (#951).
 
-use mailcraft_model::{Bookmark, MAX_BOOKMARK_NAME, MAX_BOOKMARK_OFFSET};
+use mailcraft_model::bookmark::clean_text;
+use mailcraft_model::{Bookmark, MAX_BOOKMARK_NAME, MAX_BOOKMARK_OFFSET, MAX_BOOKMARK_QUOTE};
 use serde_json::{Value, json};
 
 use super::{done, fail, needs_message};
@@ -11,7 +12,7 @@ use crate::{CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("bookmark.add", "Add Bookmark", "Home › Tags", add)
-            .params(r#"{"id"?: number (message id, default focused), "name"?: string, "quote"?: string, "offset"?: number} — adds a local mark to a message or paragraph"#)
+            .params(r#"{"id"?: number (message id, default focused), "name"?: string, "quote"?: string, "offset"?: number (character offset in body plain text)} — adds a local mark to a message or character offset"#)
             .selection(needs_message),
         CommandSpec::new("bookmark.remove", "Remove Bookmark", "Home › Tags", remove)
             .params(r#"{"id": number} — removes the bookmark by its unique id"#),
@@ -28,19 +29,23 @@ pub fn specs() -> Vec<CommandSpec> {
 fn add(s: &mut Session, v: &Value) -> CmdResult {
     let message_id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let message = s.mailbox.message(message_id).ok_or_else(|| fail(format!("no message with id {message_id}")))?;
-    let mut name = p::str(v, "name").unwrap_or_default().trim().to_string();
+    let raw_name = p::str(v, "name").unwrap_or_default();
     let quote = p::str(v, "quote").unwrap_or_default();
     let offset = p::i64(v, "offset").map_or(0, |n| n.clamp(0, MAX_BOOKMARK_OFFSET as i64) as usize);
 
-    if name.is_empty() {
-        if quote.trim().is_empty() {
-            // Default to message subject, sanitized through standard control-char filter and trimmed
-            let subject_clean: String = message.subject.chars().filter(|c| !c.is_control()).take(MAX_BOOKMARK_NAME).collect();
-            name = subject_clean.trim().to_string();
-        } else {
-            let first_line = quote.lines().next().unwrap_or("").trim();
-            name = first_line.chars().take(40).collect();
-        }
+    let cleaned_name = clean_text(raw_name, MAX_BOOKMARK_NAME);
+    let cleaned_quote = clean_text(quote, MAX_BOOKMARK_QUOTE);
+    let effective_name =
+        if cleaned_name.is_empty() && cleaned_quote.is_empty() { clean_text(&message.subject, MAX_BOOKMARK_NAME) } else { cleaned_name };
+
+    if let Some(existing) = s.mailbox.find_bookmark(message_id, &cleaned_quote, offset) {
+        return Ok(json!({
+            "id": existing.id,
+            "message": existing.message,
+            "name": existing.name,
+            "quote": existing.quote,
+            "offset": existing.offset
+        }));
     }
 
     if s.mailbox.bookmarks().len() >= mailcraft_model::MAX_BOOKMARKS {
@@ -50,7 +55,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     let now = s.now();
     let id = s.mailbox.alloc_id();
 
-    let bookmark = Bookmark::new(id, message_id, &name, quote, offset, now);
+    let bookmark = Bookmark::new(id, message_id, &effective_name, quote, offset, now);
     if !s.mailbox.add_bookmark(bookmark.clone()) {
         return Err(fail("too many bookmarks"));
     }
@@ -76,9 +81,8 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     let conversation = p::bool(v, "conversation").unwrap_or(false);
 
     let bookmarks = if conversation {
-        let conversation_ids = s.mailbox.conversation(message_id);
-        let ids = if conversation_ids.is_empty() { vec![message_id] } else { conversation_ids };
-        s.mailbox.bookmarks_for_messages(&ids)
+        let conversation_ids = s.conversation(message_id);
+        if conversation_ids.is_empty() { s.mailbox.bookmarks_for_message(message_id) } else { s.mailbox.bookmarks_for_messages(&conversation_ids) }
     } else {
         s.mailbox.bookmarks_for_message(message_id)
     };
@@ -109,9 +113,14 @@ fn jump(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.message(message_id).is_none() {
         return Err(fail(format!("message {message_id} no longer exists")));
     }
-    // Select the message if not already focused
-    if s.sel.focus() != Some(message_id) {
-        s.run("mail.select", &json!({ "id": message_id }))?;
+    // Select the message if not already uniquely selected, or if it sits outside the current view.
+    let in_view = !s.in_list(&[message_id]).is_empty();
+    if s.sel.focus() != Some(message_id) || s.sel.messages.len() != 1 || !in_view {
+        let mut args = json!({ "id": message_id });
+        if !in_view {
+            args["elsewhere"] = json!(true);
+        }
+        s.run("mail.select", &args)?;
     }
     Ok(json!({
         "id": id,

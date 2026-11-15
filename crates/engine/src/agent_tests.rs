@@ -75,15 +75,21 @@ fn agents_are_asked_before_deleting_contacts_tasks_events_and_categories() {
     let c = s.mailbox.add_contact(Contact { display_name: "Ada Example".into(), ..Default::default() });
     let t = s.mailbox.add_task(Task { title: "Pay the invoice".into(), ..Default::default() });
     let e = *s.mailbox.events.keys().next().unwrap();
+    let mid = *s.mailbox.messages.keys().next().unwrap();
+    let bid = s.mailbox.alloc_id();
+    s.mailbox.add_bookmark(mailcraft_model::Bookmark::new(bid, mid, "Clause Seven", "Payment", 12, 0));
     for (id, params) in [
         ("people.delete", json!({"id": c})),
         ("tasks.delete", json!({"id": t})),
         ("calendar.delete", json!({"id": e})),
         ("category.remove", json!({"name": "Red"})),
+        ("bookmark.remove", json!({"id": bid})),
     ] {
         assert!(matches!(check(&s, id, &params, &[]), Verdict::Ask(Class::Delete, _)), "{id}");
+        assert!(matches!(check(&s, id, &params, &[Class::Send]), Verdict::Ask(Class::Delete, _)), "{id}");
         assert_eq!(check(&s, id, &params, &[Class::Delete]), Verdict::Run, "{id}");
     }
+    assert!(describe(&s, "bookmark.remove", &json!({"id": bid})).contains("Clause Seven"));
     let d = describe(&s, "people.delete", &json!({"id": c}));
     assert!(d.contains("Ada Example") && d.contains("permanently"), "{d}");
     assert!(describe(&s, "tasks.delete", &json!({"id": t})).contains("Pay the invoice"));

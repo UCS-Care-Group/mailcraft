@@ -378,7 +378,6 @@ const SAFE: &[&str] = &[
     "category.rename",
     "category.list",
     "bookmark.add",
-    "bookmark.remove",
     "bookmark.list",
     "bookmark.jump",
     "account.list",
@@ -470,6 +469,7 @@ const DELETE: &[&str] = &[
     "people.merge",
     "tasks.delete",
     "category.remove",
+    "bookmark.remove",
     "compose.discard",
     "ui.closeWindow",
 ];
@@ -1543,6 +1543,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
             let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
             format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
+        }
+        "bookmark.remove" => {
+            let b = p::id_strict(params, "id").ok().flatten().and_then(|b| s.mailbox.bookmark(b));
+            format!(
+                "delete the bookmark {}",
+                b.map(|b| if b.name.is_empty() { format!("#{}", b.id) } else { quoted(&b.name) }).unwrap_or_else(|| "(none)".to_string())
+            )
         }
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))

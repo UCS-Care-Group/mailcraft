@@ -1779,8 +1779,8 @@ pub struct MailApp {
     pub(crate) out_of_sight: out_of_sight::OutOfSight,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
-    /// Pending jump to a bookmark in the reading pane: (message_id, quote, offset).
-    pub(crate) bookmark_target: Option<(Id, String, usize)>,
+    /// Pending jump to a bookmark in a reading surface.
+    pub(crate) bookmark_target: Option<reading::BookmarkTarget>,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
     /// it went: an appointment window whose save had to ask first learns from it what came of
     /// the question once it is answered.
@@ -2319,13 +2319,20 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
-        // Jump to bookmark (#951): remember target quote/offset for the reading pane.
-        if let (Ok(jumped), "bookmark.jump") = (&r, id)
-            && let Some(mid) = jumped.get("message").and_then(Value::as_u64)
-        {
-            let quote = jumped.get("quote").and_then(Value::as_str).unwrap_or_default().to_string();
-            let offset = jumped.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
-            self.bookmark_target = Some((mid, quote, offset));
+        // Jump to bookmark (#951): remember target place/quote/offset when the reading pane is open.
+        if let (Ok(jumped), "bookmark.jump") = (&r, id) {
+            if self.session.view.reading_pane == mailcraft_engine::Pane::Off {
+                self.bookmark_target = None;
+            } else if let Some(mid) = jumped.get("message").and_then(Value::as_u64) {
+                let quote = jumped.get("quote").and_then(Value::as_str).unwrap_or_default().to_string();
+                let offset = jumped.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
+                self.bookmark_target = Some(reading::BookmarkTarget { place: reading::Place::Pane, message: mid, quote, offset });
+            }
+        } else if matches!(id, "mail.select" | "file.open" | "file.new") && r.is_ok() {
+            self.bookmark_target = None;
+        }
+        if self.session.view.reading_pane == mailcraft_engine::Pane::Off {
+            self.bookmark_target = None;
         }
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)
@@ -3549,6 +3556,7 @@ impl MailApp {
             agent_gate::forget(self);
             // The automatic replies' jobs and what waits to go up are the old mailbox's too.
             self.auto_replies_forget_if_replaced();
+            self.bookmark_target = None;
             self.passwords.clear();
             self.sync_password = None;
             self.secret_cache.clear();
