@@ -64,6 +64,16 @@ internal class ShellData(
 /** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
 internal enum class OutlineStatus { Loading, Failed, Ready }
 
+/** The list the Mail tab shows: an outline read with no folder to show has no list to wait for. */
+internal fun shownMail(outlineRead: Boolean, folder: FolderItem?, ui: MailListUi): MailListUi =
+    if (outlineRead && folder == null) ui.copy(load = LoadState.Failed) else ui
+
+internal fun outlineStatus(outlineRead: Boolean, outline: MailboxOutline?): OutlineStatus = when {
+    !outlineRead -> OutlineStatus.Loading
+    outline == null -> OutlineStatus.Failed
+    else -> OutlineStatus.Ready
+}
+
 /** What the Calendar tab draws and does, as plain values. */
 internal class CalendarPane(
     val state: CalendarUiState,

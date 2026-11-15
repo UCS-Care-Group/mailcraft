@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -270,6 +271,7 @@ private fun SwitchRow(label: String, value: Boolean, enabled: Boolean, onChange:
     Row(
         modifier = Modifier.fillMaxWidth()
             .toggleable(value = value, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .minimumInteractiveComponentSize()
             .padding(vertical = Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {

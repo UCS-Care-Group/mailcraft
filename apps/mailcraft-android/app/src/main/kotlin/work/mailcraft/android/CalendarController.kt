@@ -144,7 +144,7 @@ internal sealed interface Outcome {
 internal data class OpenedEvent(val event: EventDetailModel, val times: Moments?)
 
 /** A timed time of a series has its own start and end from the core, or it is no longer there. */
-private fun OpenedEvent.hasItsTime(): Boolean = times != null || !event.repeats || event.allDay
+internal fun OpenedEvent.hasItsTime(): Boolean = times != null || !event.repeats || event.allDay
 
 /** What the controller needs of the core; a fake in the tests. */
 internal interface CalendarBackend {
@@ -419,9 +419,12 @@ internal class CalendarController(
         val got = backend.detail(page.event.id, page.occurrence)
         // The owner may have left the page while it was read again.
         if (from != visit) return
-        _state.update {
-            it.copy(page = if (got == null || !got.hasItsTime()) CalendarPage.Browse else page.copy(event = got.event, times = got.times))
+        val shown = if (got == null || !got.hasItsTime()) {
+            CalendarPage.Browse
+        } else {
+            page.copy(event = got.event, times = got.times)
         }
+        _state.update { it.copy(page = shown) }
     }
 
     /** Says [note] to the owner. */

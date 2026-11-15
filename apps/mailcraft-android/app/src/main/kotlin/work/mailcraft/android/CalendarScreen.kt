@@ -442,33 +442,39 @@ private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Lo
                     .clickable { actions.onOpen(p.event) }
                     .padding(Bar),
             ) {
-                val title = p.event.title.ifBlank { texts.t("(No title)") }
-                val line = timeLine(texts, p.event, date, locale)
-                val time = if (p.event.cancelled) "$line, ${texts.t("Cancelled")}" else line
-                val struck = if (p.event.cancelled) TextDecoration.LineThrough else null
-                if (height < ShortBlock) {
-                    // A block too short for two lines keeps both in one.
-                    Text(
-                        "$title, $time",
-                        textDecoration = struck,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                } else {
-                    Text(
-                        title,
-                        textDecoration = struck,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(time, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                }
+                DayBlockText(texts, p.event, date, locale, height)
             }
         }
+    }
+}
+
+/** The words in a block of the day view; a cancelled one adds "Cancelled" and a line through. */
+@Composable
+private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale: Locale, height: Dp) {
+    val title = e.title.ifBlank { texts.t("(No title)") }
+    val line = timeLine(texts, e, date, locale)
+    val time = if (e.cancelled) "$line, ${texts.t("Cancelled")}" else line
+    val struck = if (e.cancelled) TextDecoration.LineThrough else null
+    if (height < ShortBlock) {
+        // A block too short for two lines keeps both in one.
+        Text(
+            "$title, $time",
+            textDecoration = struck,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    } else {
+        Text(
+            title,
+            textDecoration = struck,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(time, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
