@@ -67,7 +67,7 @@ fn exchange(id: u64, email: &str, trusted: &str) -> Account {
         kind: AccountKind::Exchange,
         email: email.into(),
         name: email.into(),
-        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new() }),
+        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new(), parents: false }),
         ..Default::default()
     }
 }
@@ -351,8 +351,7 @@ fn the_certificate_look_waits_for_the_servers_to_be_confirmed() {
 #[test]
 fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
     let allowed: &[(&str, &str, usize)] = &[
-        // (lib.rs: the wrapper, its one call to the host's name and the use for forgetting.)
-        ("lib.rs", "legacy_secret_key(", 3),
+        ("lib.rs", "legacy_secret_key(", 2),
         ("secret_read.rs", "legacy_secret_key(", 1),
         ("lib.rs", "secret_cache.get(", 2),
         ("secret_read.rs", "secret_cache.contains_key(", 2),

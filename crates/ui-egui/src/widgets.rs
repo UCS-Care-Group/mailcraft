@@ -219,6 +219,47 @@ pub fn mi_check(ui: &mut Ui, app: &mut MailApp, label: &str, checked: bool, id: 
     }
 }
 
+/// Where scroll bars float over what they scroll (a Mac's): the handle, a little wider while the
+/// pointer is on it, and how far it keeps from the list's right edge.
+const OVERLAY_HANDLE: f32 = 7.0;
+const OVERLAY_HANDLE_HOVERED: f32 = 9.0;
+const OVERLAY_MARGIN: f32 = 2.0;
+/// Clearance for a control beside the widest overlay thumb.
+pub(crate) const OVERLAY_SCROLL_INSET: f32 = OVERLAY_HANDLE_HOVERED + OVERLAY_MARGIN;
+
+/// The colour of the scroll bar's handle and arrows: half way from the list to its text.
+pub(crate) fn scroll_ink(t: &Tokens) -> Color32 {
+    t.surface.lerp_to_gamma(t.text, 0.53)
+}
+
+/// The list's scroll bar where scroll bars float over what they scroll, as a Mac's do: a slim
+/// rounded handle over the rows' right end, there while the list is scrolled or the pointer is
+/// over it and gone when it is left alone, with no lane and no arrows.
+pub(crate) fn overlay_scroll_style(ui: &mut Ui, t: &Tokens) {
+    let style = ui.style_mut();
+    style.spacing.scroll = egui::style::ScrollStyle {
+        bar_width: OVERLAY_HANDLE_HOVERED,
+        floating_width: OVERLAY_HANDLE,
+        bar_inner_margin: 0.0,
+        bar_outer_margin: OVERLAY_MARGIN,
+        handle_min_length: 24.0,
+        foreground_color: false,
+        dormant_background_opacity: 0.0,
+        active_background_opacity: 0.0,
+        interact_background_opacity: 0.0,
+        dormant_handle_opacity: 0.0,
+        active_handle_opacity: 0.85,
+        interact_handle_opacity: 1.0,
+        ..egui::style::ScrollStyle::floating()
+    };
+    let ink = scroll_ink(t);
+    let round = egui::CornerRadius::same(5);
+    let widgets = &mut style.visuals.widgets;
+    (widgets.inactive.bg_fill, widgets.inactive.corner_radius) = (ink, round);
+    (widgets.hovered.bg_fill, widgets.hovered.corner_radius) = (ink.lerp_to_gamma(t.text, 0.35), round);
+    (widgets.active.bg_fill, widgets.active.corner_radius) = (ink.lerp_to_gamma(t.text, 0.6), round);
+}
+
 /// A bare icon button (pane toolbars, the title bar). `true` on the frame it is clicked.
 pub fn icon_button(ui: &mut Ui, icon: &str, tip: &str, size: f32, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
@@ -258,8 +299,7 @@ pub fn icon_text_button(ui: &mut Ui, icon: &str, label: &str, enabled: bool) -> 
 /// A filled button in the app colour (Send, Save, the default answer of a dialog).
 pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let w = text_w(ui, label, 12.5).max(44.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w + 26.0, 26.0), if enabled { Sense::click() } else { Sense::hover() });
+    let (r, resp) = ui.allocate_exact_size(vec2(primary_button_width(ui, label), 26.0), if enabled { Sense::click() } else { Sense::hover() });
     let fill = if !enabled {
         t.pressed
     } else if resp.hovered() {
@@ -272,6 +312,11 @@ pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     // (Named for screen readers, as a button.)
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     resp
+}
+
+/// How wide a filled button is with this label.
+pub(crate) fn primary_button_width(ui: &Ui, label: &str) -> f32 {
+    text_w(ui, label, 12.5).max(44.0) + 26.0
 }
 
 /// A button with an outline, for what leaves a dialog without committing anything (Close).
@@ -315,6 +360,42 @@ pub fn category_chip(ui: &Ui, left_center: egui::Pos2, name: &str, color: Color3
     ui.painter().rect_filled(r, 8.0, t.data_fill(color));
     ui.painter().rect_stroke(r, 8.0, Stroke::new(1.0, t.data_edge(color)), egui::StrokeKind::Inside);
     ui.painter().text(r.center(), Align2::CENTER_CENTER, name, regular(10.5), t.text);
+    w
+}
+
+/// The longest a Gmail label's tag is drawn, its text cut with an ellipsis past it.
+pub const LABEL_TAG_MAX: f32 = 140.0;
+
+/// The laid-out name of a Gmail label's tag (#1153): one line, cut at `max_width` with an
+/// ellipsis.
+pub fn label_tag_text(p: &egui::Painter, name: &str, size: f32, max_width: f32) -> std::sync::Arc<egui::Galley> {
+    let t = Tokens::get(p.ctx());
+    let mut job = egui::text::LayoutJob::single_section(
+        name.to_string(),
+        egui::text::TextFormat { font_id: regular(size), color: t.text, ..Default::default() },
+    );
+    job.wrap = egui::text::TextWrapping { max_width: max_width.max(8.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    p.layout_job(job)
+}
+
+/// How wide a Gmail label's tag is with `text` in it.
+pub fn label_tag_width(text: &egui::Galley) -> f32 {
+    text.size().x + 15.0
+}
+
+/// A Gmail label (#1153), drawn as a luggage tag: pointed at its left with a hole, in the
+/// window's own neutral colours, so that it is never taken for one of the owner's categories
+/// (rounded and in their colour) or for Gmail's inbox category (a tab or a folder). Its left
+/// middle at `left_center`; returns its width.
+pub fn paint_label_tag(p: &egui::Painter, left_center: egui::Pos2, text: std::sync::Arc<egui::Galley>, height: f32) -> f32 {
+    let t = Tokens::get(p.ctx());
+    let w = label_tag_width(&text);
+    let (x, y, half) = (left_center.x, left_center.y, height / 2.0);
+    let points = vec![pos2(x, y), pos2(x + 6.0, y - half), pos2(x + w, y - half), pos2(x + w, y + half), pos2(x + 6.0, y + half)];
+    p.add(egui::Shape::convex_polygon(points, t.pressed, Stroke::new(1.0, t.border_strong)));
+    p.circle_filled(pos2(x + 5.5, y), 1.4, t.text_dim);
+    let size = text.size();
+    p.galley(pos2(x + 10.0, y - size.y / 2.0), text, t.text);
     w
 }
 

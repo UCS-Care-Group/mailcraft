@@ -3493,8 +3493,14 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
 /// The local zone's offset at an instant, as the session's clock has it.
 pub(crate) fn offset_of(s: &Session) -> impl Fn(Timestamp) -> i32 + use<> {
     // The zone the calendar is shown in, which is the one the mailbox's times are by.
-    let (fixed, zone) = (s.clock.offset, s.zone());
-    move |instant| fixed.unwrap_or_else(|| zone.offset_at(instant))
+    // Where the system names no zone, the phone's offset stands in, as in `Session::offset_at`.
+    let (fixed, zone, fallback) = (s.clock.offset, s.zone(), s.fallback_offset.clone());
+    move |instant| {
+        fixed.unwrap_or_else(|| match &fallback {
+            Some(phone) if zone.is_local() => phone(instant).clamp(-18 * 60, 18 * 60),
+            _ => zone.offset_at(instant),
+        })
+    }
 }
 
 /// Take in the events a host downloaded ([`merge_events`]), with times in the session's zone.
@@ -3944,3 +3950,6 @@ mod shared_calendar_tests;
 
 #[cfg(test)]
 mod cross_move_tests;
+
+#[cfg(test)]
+mod fallback_offset_tests;

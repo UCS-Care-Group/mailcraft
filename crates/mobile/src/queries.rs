@@ -7,11 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use mailcraft_engine::Session;
 use mailcraft_engine::cmd::calendar::occurrences;
-use mailcraft_engine::{Filter, Session};
 use mailcraft_model::{Address, Contact, Event, FolderKind, Id, Importance, Message, Task};
 use mailcraft_time::Date;
-use serde_json::Value;
 
 use crate::records::{
     AccountRecord, AddressRecord, CalendarRange, EventRecord, FolderList, FolderRecord, MessageRow, MessageWindow, PeopleWindow, PersonRecord,
@@ -26,15 +25,15 @@ use crate::{Core, CoreError};
 /// (two lists would merge); a task whose list has a longer one is left out of the lists.
 const MAX_LIST_ID: usize = 1024;
 
-fn bad(message: &str) -> CoreError {
+pub(crate) fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
 }
 
-fn rgb(c: mailcraft_model::Rgb) -> u32 {
+pub(crate) fn rgb(c: mailcraft_model::Rgb) -> u32 {
     (u32::from(c.0) << 16) | (u32::from(c.1) << 8) | u32::from(c.2)
 }
 
-fn code<T: serde::Serialize>(v: &T) -> String {
+pub(crate) fn code<T: serde::Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
@@ -62,7 +61,16 @@ fn event_record(s: &Session, e: &Event, start: String, end: String) -> EventReco
         meeting: e.is_meeting(),
         cancelled: e.cancelled,
         categories: categories(&e.categories),
+        invited: e.origin.guest,
+        answer: my_answer(s, e),
     }
+}
+
+/// What the owner has answered to a meeting somebody else organizes: the response of the
+/// attendee that is one of the mailbox's own addresses (`none` when there isn't one).
+pub(crate) fn my_answer(s: &Session, e: &Event) -> String {
+    let mine = |a: &mailcraft_model::Attendee| s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.address.email));
+    code(&e.attendees.iter().find(|a| mine(a)).map_or(mailcraft_model::Response::None, |a| a.response))
 }
 
 fn events_between(s: &Session, from: Date, to: Date) -> Vec<EventRecord> {
@@ -88,7 +96,31 @@ fn task_record(t: &Task) -> TaskRecord {
     }
 }
 
-fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> MessageRow {
+/// The preview of the message of `r`: from a copy with its body read back when the mailbox kept it
+/// on disk (outside what the session holds in memory), without changing the mailbox. A body that
+/// can't be read leaves the preview empty and the row as it is.
+///
+/// A body kept on disk that is over [`MAX_PREVIEW_READ`] (by the length the store names for it) is
+/// not read at all: a phone must not allocate a whole body for each of up to 200 rows.
+fn preview_of(s: &Session, m: &Message) -> String {
+    if m.kept.as_deref().is_some_and(|k| kept_len(k) > MAX_PREVIEW_READ) {
+        return String::new();
+    }
+    s.loaded_message_where(m.id, |_| false).map(|loaded| mailcraft_engine::list::preview(&loaded, MAX_PREVIEW)).unwrap_or_default()
+}
+
+/// The most a body kept on disk may be for its row's preview to be read from it: 256 KiB, the
+/// text, the HTML and the hidden words together.
+// ponytail: the upgrade is a verified prefix read from the store (the engine would have to say
+// how a prefix is checked against the SHA-256 of the whole), so a long body still has a preview.
+pub(crate) const MAX_PREVIEW_READ: u64 = 256 * 1024;
+
+/// How many bytes reading back what is kept of a body would bring in, by the lengths the store names.
+fn kept_len(k: &mailcraft_model::KeptBody) -> u64 {
+    [k.text, k.html, k.hidden].into_iter().flatten().fold(0u64, |n, r| n.saturating_add(r.len))
+}
+
+pub(crate) fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> MessageRow {
     MessageRow {
         id: m.id,
         account: m.account,
@@ -96,9 +128,9 @@ fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> Mes
         from_name: text::clip(&m.from.name, MAX_NAME),
         from_address: text::clip(&m.from.email, MAX_ADDRESS),
         subject: text::clip(&m.subject, MAX_SUBJECT),
-        preview: mailcraft_engine::list::preview(m, MAX_PREVIEW),
+        preview: preview_of(s, m),
         when: mailcraft_engine::list::when(m),
-        unread: unread > 0,
+        unread: r.unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
         has_attachments: m.attachments.iter().any(|a| !a.inline),
         important: m.importance == Importance::High,
@@ -107,8 +139,10 @@ fn row(m: &Message, members: usize, unread: usize, group: Option<String>) -> Mes
         draft: m.draft,
         pinned: m.pinned,
         categories: categories(&m.categories),
-        members: text::count_of(members),
-        group: group.map(|g| text::clip(&g, MAX_NAME)),
+        members: text::count_of(r.members.len()),
+        member_ids: r.members.iter().copied().take(text::MAX_ROW_MEMBERS).collect(),
+        group_is_category: r.group.is_some() && r.category,
+        group: r.group.as_deref().map(|g| text::clip(g, MAX_NAME)),
     }
 }
 
@@ -124,7 +158,7 @@ fn person(c: &Contact) -> PersonRecord {
     }
 }
 
-fn date_of(s: &str) -> Result<Date, CoreError> {
+pub(crate) fn date_of(s: &str) -> Result<Date, CoreError> {
     Date::parse_iso(s).ok_or_else(|| bad("a date is written YYYY-MM-DD"))
 }
 
@@ -176,34 +210,10 @@ impl Core {
     /// `count` rows (1 to 200) from row `offset`. It reads the list without leaving the view
     /// changed: the folder in view, its filter, its search, the selection and the list kept for it are as they were.
     pub async fn messages(&self, folder: u64, filter: String, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
-        let filter: Filter = serde_json::from_value(Value::String(filter)).map_err(|_| bad("that filter is not known"))?;
+        let query =
+            crate::records::ListQuery { folder, filter, split: String::new(), conversations: false, search: String::new(), everywhere: false };
         let count = text::window(count);
-        self.call(move |s| {
-            if s.mailbox.folder(folder).is_none() {
-                return Err(bad("there is no such folder"));
-            }
-            // The list is built by the engine's non-mutating path, over a view made for this
-            // query alone: `Session::rows` would also move the selection's stays and the list
-            // cache of the folder in view.
-            let saved = s.view.clone();
-            s.view.folder = folder;
-            s.view.filter = filter;
-            s.view.search.clear();
-            s.view.gmail = None;
-            s.view.scope = mailcraft_engine::Scope::Folder;
-            s.view.open.clear();
-            let rows = mailcraft_engine::list::rows(s);
-            s.view = saved;
-            let start = usize::try_from(offset).unwrap_or(usize::MAX);
-            let window = rows
-                .iter()
-                .skip(start)
-                .take(count)
-                .filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, r.members.len(), r.unread, r.group.clone())))
-                .collect();
-            Ok(MessageWindow { rev: s.rev(), folder, total: text::count_of(rows.len()), offset, rows: window })
-        })
-        .await
+        self.call(move |s| crate::list::window(s, &query, None, offset, count)).await
     }
 
     /// What happens on the days `from` to `to` (`YYYY-MM-DD`, at most 100 days) in the calendars
@@ -220,7 +230,12 @@ impl Core {
     /// `search` (any case; empty for everyone).
     pub async fn people(&self, search: String, offset: u32, count: u32) -> Result<PeopleWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (What waits for the session thread is held to a size: a longer search could not name anybody.)
+        let clipped = text::clip(&search, MAX_NAME);
+        // (The caller's own string would otherwise live as long as the call waits.)
+        drop(search);
+        let search = clipped;
+        self.call_holding(search.len(), move |s| {
             let needle = search.trim().to_lowercase();
             let hit = |c: &Contact| {
                 needle.is_empty()
@@ -263,7 +278,11 @@ impl Core {
     /// due date, those with none last; completed ones only when `completed` is set.
     pub async fn tasks(&self, account: u64, list: String, completed: bool, offset: u32, count: u32) -> Result<TaskWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| {
+        // (No list has an id longer than this, `task_lists` leaves such tasks out: nothing to match.)
+        if list.len() > MAX_LIST_ID {
+            return Err(bad("there is no such list"));
+        }
+        self.call_holding(list.len(), move |s| {
             let mut found: Vec<&Task> = s
                 .mailbox
                 .tasks

@@ -159,12 +159,20 @@ impl Platform for Phone {
         Err(HostError::Unsupported)
     }
 
+    fn open_link(&self, _: String) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+
     fn now(&self) -> Result<i64, HostError> {
         Ok(now())
     }
 
     fn utc_offset_minutes(&self, _: i64) -> Result<i32, HostError> {
         Ok(0)
+    }
+
+    fn time_zone_name(&self) -> Result<String, HostError> {
+        Err(HostError::Unsupported)
     }
 
     fn memory_budget(&self) -> Result<Option<u64>, HostError> {
@@ -201,21 +209,23 @@ impl Rig {
     /// Microsoft's page comes back with `tail` after the redirect address (`{state}` filled in).
     fn page_comes_back_with(&self, tail: &'static str) {
         *self.phone.on_page.lock().unwrap() = Box::new(move |core, asked| {
-            let address = format!("{SCHEME}:/oauth2redirect{}", tail.replace("{state}", &asked["state"]));
+            let address = format!("{SCHEME}://oauth2redirect{}", tail.replace("{state}", &asked["state"]));
             assert!(core.hand_back_redirect(address), "a sign-in was waiting for it");
         });
     }
 
     fn sign_in(&self, hint: &str) -> SignInOutcome {
-        block_on(self.core.sign_in_microsoft(hint.to_string())).unwrap()
+        block_on(self.core.sign_in_microsoft(hint.to_string(), Default::default())).unwrap()
     }
 
     fn secret(&self, key: &str) -> Option<String> {
         self.phone.secrets.kept.lock().unwrap().iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
     }
 
+    /// The sign-ins kept (Send/Receive's own entries, the index of the names it wrote among them,
+    /// are no sign-in).
     fn secrets_kept(&self) -> usize {
-        self.phone.secrets.kept.lock().unwrap().len()
+        self.phone.secrets.kept.lock().unwrap().iter().filter(|(k, _)| !k.starts_with("mailcraft:")).count()
     }
 
     fn accounts(&self) -> Vec<(u64, String)> {
@@ -258,13 +268,13 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     // The page was sent where the system brings the app back to, for what a Graph account takes
     // and nothing that is asked for by itself.
     let page = query_of(&rig.phone.pages.lock().unwrap()[0]);
-    assert_eq!(page["redirect_uri"], format!("{SCHEME}:/oauth2redirect"));
+    assert_eq!(page["redirect_uri"], format!("{SCHEME}://oauth2redirect"));
     assert_eq!(page["login_hint"], ADA);
     assert!(page["scope"].contains("Mail.ReadWrite") && !page["scope"].contains("Tasks") && !page["scope"].contains("Shared"));
     // The code went to the token endpoint once, with the verifier whose hash the page was shown.
     assert_eq!(server.asked(), 1);
     // The next hand-back finds nobody waiting.
-    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=x&state=y")));
+    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=x&state=y")));
 }
 
 #[test]
@@ -305,13 +315,13 @@ fn another_program_naming_our_scheme_is_not_believed() {
     let server = good_server();
     let rig = Rig::new(&server);
     // Nobody waits: an address is dropped.
-    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=c&state=s")));
+    assert!(!rig.core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=c&state=s")));
     assert!(!rig.core.hand_back_redirect(String::new()));
     // An address from another scheme, or of any size, while a sign-in waits, ends it and trades nothing.
     for address in [
         "http://localhost/?code=c&state={state}".to_string(),
         "org.example.other:/oauth2redirect?code=c&state={state}".to_string(),
-        format!("{SCHEME}:/oauth2redirect?code={}&state={{state}}", "a".repeat(1 << 20)),
+        format!("{SCHEME}://oauth2redirect?code={}&state={{state}}", "a".repeat(1 << 20)),
         "\u{0}".to_string(),
     ] {
         let template = address.clone();
@@ -332,8 +342,8 @@ fn only_the_first_address_is_taken() {
     let rig = Rig::new(&server);
     *rig.phone.on_page.lock().unwrap() = Box::new(|core, asked| {
         let state = &asked["state"];
-        assert!(core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=the-code&state={state}")));
-        assert!(!core.hand_back_redirect(format!("{SCHEME}:/oauth2redirect?code=evil&state={state}")));
+        assert!(core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=the-code&state={state}")));
+        assert!(!core.hand_back_redirect(format!("{SCHEME}://oauth2redirect?code=evil&state={state}")));
     });
     assert!(matches!(rig.sign_in(""), SignInOutcome::SignedIn { .. }));
     let form = server.forms.lock().unwrap()[0].clone();
@@ -519,8 +529,8 @@ fn what_a_sign_in_covers_is_asked_of_microsoft_with_the_stored_token_and_never_o
     // The server can't be told: unknown, and nothing is concluded.
     point(&rig, &TokenServer::start(|_| (500, "{}".to_string())));
     assert_eq!(ask(&rig, Permission::Tasks), PermissionState::Unknown);
-    // Nothing kept: sign in.
-    rig.phone.secrets.kept.lock().unwrap().clear();
+    // Nothing kept, in the store or for the session: sign in.
+    block_on(rig.core.forget_sign_ins()).unwrap();
     assert_eq!(ask(&rig, Permission::Tasks), PermissionState::SignInNeeded);
     assert_eq!(rig.phone.pages.lock().unwrap().len(), pages);
 }
@@ -540,6 +550,16 @@ fn removing_an_account_removes_its_mail_and_its_sign_in_and_nothing_else() {
     assert_eq!(rig.secret("refresh:someone@else.example|graph").as_deref(), Some("theirs"));
     // Gone: removing it again is an error, not a panic.
     assert!(matches!(block_on(rig.core.remove_account(account)), Err(CoreError::Failed { .. })));
+}
+
+#[test]
+fn a_sign_in_the_store_won_t_remove_is_said_and_the_account_stays_removed() {
+    let rig = Rig::new(&good_server());
+    let account = signed_in(&rig);
+    rig.phone.secrets.stuck.store(true, Ordering::Relaxed);
+    let removed = block_on(rig.core.remove_account(account));
+    assert!(matches!(&removed, Err(CoreError::Failed { reason }) if reason.contains("removed")), "{removed:?}");
+    assert!(rig.accounts().is_empty());
 }
 
 #[test]
@@ -591,4 +611,431 @@ fn a_new_refresh_token_in_a_check_replaces_the_kept_one_only_when_it_is_the_acco
     point(&TokenServer::start(|_| (200, tokens_for("bob@lumen.example", "Bob", "bobs-refresh-token"))));
     assert_eq!(block_on(rig.core.permission_state(account, Permission::SharedMail)).unwrap(), PermissionState::Allowed);
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("rotated-refresh-token"));
+}
+
+/// A server whose token answer comes after `remove` ran on the mailbox: the account is removed while
+/// a check is on its way, and the answer renews the stored sign-in.
+fn server_removing(account: Arc<Mutex<Option<(Arc<Core>, u64)>>>) -> TokenServer {
+    TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token")
+            && let Some((core, id)) = account.lock().unwrap().take()
+        {
+            block_on(core.remove_account(id)).unwrap();
+        }
+        (200, tokens_for(ADA, "Ada", "rotated-refresh-token"))
+    })
+}
+
+#[test]
+fn a_check_for_a_removed_account_leaves_a_sign_in_another_account_with_its_address_still_owns() {
+    let slot = Arc::new(Mutex::new(None));
+    let rig = Rig::new(&server_removing(slot.clone()));
+    let account = signed_in(&rig);
+    // Another account of the same address (a mailbox from a file may have two).
+    let other = block_on(rig.core.call(|s| {
+        let mut twin = s.mailbox.accounts.iter().find(|a| a.kind == mailcraft_model::AccountKind::Microsoft).cloned().ok_or(CoreError::Internal)?;
+        twin.id = twin.id.saturating_add(1000);
+        let id = twin.id;
+        s.mailbox.accounts.push(twin);
+        Ok(id)
+    }))
+    .unwrap();
+    assert_ne!(other, account);
+    let before = rig.secret("refresh:ada@lumen.example|graph");
+    assert!(before.is_some());
+    *slot.lock().unwrap() = Some((rig.core.clone(), account));
+    // (The check's own server is the one the rig was started with.)
+    block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
+    assert_eq!(rig.accounts().iter().map(|(id, _)| *id).collect::<Vec<_>>(), vec![other]);
+    // (Its sign-in is left as it was: the check was the removed account's, and renews nothing for another.)
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), before, "the other account's sign-in was deleted");
+}
+
+#[test]
+fn a_check_for_a_removed_account_takes_back_what_it_renewed_when_nobody_else_has_the_address() {
+    let slot = Arc::new(Mutex::new(None));
+    let rig = Rig::new(&server_removing(slot.clone()));
+    let account = signed_in(&rig);
+    *slot.lock().unwrap() = Some((rig.core.clone(), account));
+    block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap();
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+}
+
+/// Polls `fut` (without waiting on a waker: the core's calls are polled again every few
+/// milliseconds) until `until` holds, then drops it unfinished, as an app's cancelled coroutine does.
+fn drop_when<F: std::future::Future>(fut: F, until: impl Fn() -> bool) {
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    let mut fut = std::pin::pin!(fut);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !until() {
+        assert!(fut.as_mut().poll(&mut cx).is_pending(), "the call ended before it could be dropped");
+        assert!(std::time::Instant::now() < deadline, "the call never got there");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// Holds the session's thread until the sender is dropped or sent to.
+fn hold_session(core: &Arc<Core>) -> std::sync::mpsc::Sender<()> {
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let (started, running) = std::sync::mpsc::channel::<()>();
+    let core = core.clone();
+    std::thread::spawn(move || {
+        let _ = block_on(core.call(move |_| {
+            let _ = started.send(());
+            let _ = held.recv();
+            Ok(())
+        }));
+    });
+    running.recv().unwrap();
+    release
+}
+
+#[test]
+fn a_sign_in_dropped_before_its_account_is_in_keeps_no_sign_in_and_makes_no_account() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.page_comes_back_with(CODE_BACK);
+    // The session is busy when the page comes back: the account waits for it.
+    let release = hold_session(&rig.core);
+    drop_when(rig.core.sign_in_microsoft(String::new(), Default::default()), || server.asked() == 1);
+    // (A moment for anything the dropped call might still do on its own.)
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert_eq!(rig.secrets_kept(), 0, "a sign-in was kept for no account");
+    drop(release);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert_eq!((rig.secrets_kept(), rig.accounts().len()), (0, 0));
+    // The place is given up: the next sign-in goes through.
+    assert!(matches!(rig.sign_in(""), SignInOutcome::SignedIn { .. }));
+}
+
+#[test]
+fn a_check_dropped_while_its_account_is_removed_never_puts_its_sign_in_back() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let answered = Arc::new(AtomicBool::new(false));
+    let told = answered.clone();
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            // Microsoft's answer is held until the test lets it go.
+            let _ = wait.lock().unwrap().recv();
+            told.store(true, Ordering::Release);
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    // The check is on its way to Microsoft; the app's coroutine is cancelled.
+    drop_when(rig.core.permission_state(account, Permission::Tasks), || server.asked() > asked);
+    block_on(rig.core.remove_account(account)).unwrap();
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    // Microsoft's renewed sign-in arrives after the removal.
+    answer.send(()).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !answered.load(Ordering::Acquire) {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None, "the removed account's sign-in came back");
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn signing_an_account_in_again_is_the_same_one_sign_in_as_add_accounts() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    // Its page has the account's address as the hint, and the redirect is handed back the one way.
+    rig.page_comes_back_with(CODE_BACK);
+    block_on(rig.core.sign_in(account)).unwrap();
+    assert_eq!(query_of(rig.phone.pages.lock().unwrap().last().unwrap())["login_hint"], ADA);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    // One at a time: while one is open the other is refused, and the open one is left as it is.
+    let place = rig.core.signins.begin().unwrap();
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.sign_in(""), SignInOutcome::Failed { reason: "a sign-in is already open".to_string() });
+    drop(place);
+    // Called off the one way too.
+    let core = rig.core.clone();
+    *rig.phone.on_page.lock().unwrap() = Box::new(move |_, _| core.cancel_sign_in());
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Cancelled)));
+    // An account that isn't there, or isn't Microsoft's, opens nothing.
+    let pages = rig.phone.pages.lock().unwrap().len();
+    assert!(matches!(block_on(rig.core.sign_in(account + 99)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.phone.pages.lock().unwrap().len(), pages);
+}
+
+#[test]
+fn signing_an_account_in_again_as_somebody_else_keeps_nothing() {
+    let rig = Rig::new(&good_server());
+    let account = signed_in(&rig);
+    let other = TokenServer::start(|_| (200, tokens_for("bob@lumen.example", "Bob", "bobs-refresh-token")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", other.port), format!("http://127.0.0.1:{0}/token", other.port)));
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(block_on(rig.core.sign_in(account)), Err(CoreError::Failed { .. })));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    assert!(rig.secret("refresh:bob@lumen.example|graph").is_none());
+}
+
+#[test]
+fn no_sign_in_begins_once_the_core_is_shut_down() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.page_comes_back_with(CODE_BACK);
+    rig.core.shutdown();
+    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new(), Default::default())), Err(CoreError::Cancelled)));
+    assert!(rig.phone.pages.lock().unwrap().is_empty());
+}
+
+#[test]
+fn with_sign_ins_not_remembered_add_account_keeps_nothing_in_the_store() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    assert_eq!(rig.secrets_kept(), 0);
+    // A permission given then writes nothing either.
+    rig.page_comes_back_with(CODE_BACK);
+    assert_eq!(block_on(rig.core.grant_permission(account, Permission::Tasks)).unwrap(), PermissionOutcome::Granted);
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn a_check_held_across_forgetting_the_sign_ins_never_puts_one_back() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner removes every sign-in while Microsoft's answer is on its way; the account stays.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    answer.send(()).unwrap();
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    assert_eq!(rig.accounts().len(), 1);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None, "a forgotten sign-in came back");
+}
+
+#[test]
+fn an_older_checks_renewal_never_replaces_a_newer_sign_in() {
+    let point = |rig: &Rig, s: &TokenServer| {
+        *rig.core.signins.server.lock().unwrap() =
+            Some((format!("http://127.0.0.1:{0}/authorize", s.port), format!("http://127.0.0.1:{0}/token", s.port)));
+    };
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    // The check's Microsoft, which holds its answer until the test lets it go.
+    let holding = TokenServer::start(move |_| {
+        let _ = wait.lock().unwrap().recv();
+        (200, tokens_for(ADA, "Ada", "rotated-from-the-old-one"))
+    });
+    let rig = Rig::new(&TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "first-sign-in"))));
+    let account = signed_in(&rig);
+    point(&rig, &holding);
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while holding.asked() == 0 {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner signs the account in again while the check's answer is on its way.
+    let newer = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "newer-sign-in")));
+    point(&rig, &newer);
+    assert_eq!(signed_in(&rig), account);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("newer-sign-in"));
+    answer.send(()).unwrap();
+    check.join().unwrap().unwrap();
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("newer-sign-in"), "an older answer replaced a newer sign-in");
+}
+
+#[test]
+fn with_sign_ins_not_remembered_a_check_uses_the_sessions_sign_in() {
+    // Microsoft answers only for the token the sign-in gave, then for the one it rotated that to.
+    let server = TokenServer::start(|form| {
+        let asked = percent_decoded(form);
+        if asked.contains("grant_type=authorization_code") {
+            (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+        } else if asked.contains("refresh_token=refresh-token-1") || asked.contains("refresh_token=rotated-in-memory") {
+            (200, tokens_for(ADA, "Ada", "rotated-in-memory"))
+        } else {
+            (400, r#"{"error":"invalid_grant","error_description":"AADSTS70000: expired"}"#.to_string())
+        }
+    });
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    assert_eq!(rig.secrets_kept(), 0);
+    // Right after the sign-in the check is not "sign in again": the sign-in is in memory.
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::Allowed);
+    // The token Microsoft rotated it to is the session's now, and nothing went to the store.
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::SharedMail)).unwrap(), PermissionState::Allowed);
+    assert!(percent_decoded(server.forms.lock().unwrap().last().unwrap()).contains("refresh_token=rotated-in-memory"));
+    assert_eq!(rig.secrets_kept(), 0);
+    // Forgotten: now it is.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::SignInNeeded);
+}
+
+#[test]
+fn add_account_whose_sign_in_send_receive_refuses_says_so_and_leaves_nothing() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    // No account half-added, no credential stored for it.
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secrets_kept(), 0);
+    // An account the owner has, signed in again and refused: it stays, with the sign-in it had.
+    rig.core.sync.refuse_adopt.store(false, Ordering::Relaxed);
+    let account = signed_in(&rig);
+    let newer = TokenServer::start(|_| (200, tokens_for(ADA, "Ada Lumen", "refresh-token-2")));
+    *rig.core.signins.server.lock().unwrap() =
+        Some((format!("http://127.0.0.1:{0}/authorize", newer.port), format!("http://127.0.0.1:{0}/token", newer.port)));
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+}
+
+#[test]
+fn a_refused_add_account_puts_back_the_phones_storage_cap() {
+    let rig = Rig::new(&good_server());
+    let cap = |rig: &Rig| block_on(rig.core.call(|s| Ok(s.mailbox.device_limits.map(|l| l.storage)))).unwrap();
+    block_on(rig.core.call(|s| crate::limits::set_storage(s, 5 << 10).map_err(CoreError::from))).unwrap();
+    let before = cap(&rig);
+    assert_eq!(before, Some(5 << 30));
+    // The new account's own choice (the least the phone takes) is the mailbox's cap while it is
+    // being set up; a sign-in Send/Receive refuses leaves what the owner had.
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert!(rig.accounts().is_empty());
+    assert_eq!(cap(&rig), before);
+}
+
+#[test]
+fn a_refused_add_account_puts_back_only_the_refresh_token() {
+    let rig = Rig::new(&good_server());
+    // Something else kept under the address (a password) is not the sign-in's to take.
+    rig.phone.secrets.kept.lock().unwrap().push(("password:ada@lumen.example|graph".to_string(), "kept-elsewhere".to_string()));
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    assert_eq!(rig.secret("password:ada@lumen.example|graph").as_deref(), Some("kept-elsewhere"));
+}
+
+#[test]
+fn with_sign_ins_not_remembered_a_late_renewal_never_brings_back_a_forgotten_session_sign_in() {
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    rig.core.set_remember_sign_ins(false);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The owner forgets the sign-ins while the answer is on its way.
+    block_on(rig.core.forget_sign_ins()).unwrap();
+    answer.send(()).unwrap();
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    // The renewal found no session sign-in to replace, so there still is none.
+    let asked = server.asked();
+    assert_eq!(block_on(rig.core.permission_state(account, Permission::Tasks)).unwrap(), PermissionState::SignInNeeded);
+    assert_eq!(server.asked(), asked, "a forgotten sign-in was used");
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn a_renewal_and_a_removal_sent_at_once_are_applied_one_after_the_other() {
+    // Every writer of a sign-in runs on the session's thread: a check's renewal and a removal that
+    // arrive together wait for it in turn, and neither sees the other half done.
+    let (answer, wait) = std::sync::mpsc::channel::<()>();
+    let wait = Mutex::new(wait);
+    let answered = Arc::new(AtomicBool::new(false));
+    let told = answered.clone();
+    let server = TokenServer::start(move |form| {
+        if percent_decoded(form).contains("grant_type=refresh_token") {
+            let _ = wait.lock().unwrap().recv();
+            told.store(true, Ordering::Release);
+            return (200, tokens_for(ADA, "Ada", "rotated-refresh-token"));
+        }
+        (200, tokens_for(ADA, "Ada Lumen", "refresh-token-1"))
+    });
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let asked = server.asked();
+    let core = rig.core.clone();
+    let check = std::thread::spawn(move || block_on(core.permission_state(account, Permission::Tasks)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while server.asked() == asked {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // The session's thread is held while both writers arrive: the renewal first, then the removal.
+    let release = hold_session(&rig.core);
+    answer.send(()).unwrap();
+    while !answered.load(Ordering::Acquire) {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let core = rig.core.clone();
+    let removal = std::thread::spawn(move || block_on(core.remove_account(account)));
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Nothing is written while the thread is held.
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
+    drop(release);
+    assert_eq!(check.join().unwrap().unwrap(), PermissionState::Allowed);
+    removal.join().unwrap().unwrap();
+    // The renewal was kept, then the removal took it: no account and no sign-in.
+    assert!(rig.accounts().is_empty());
+    assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
+    assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn an_account_added_on_the_phone_keeps_a_month_and_fetches_whole_only_up_to_a_megabyte() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let (keep, size, limits) = block_on(rig.core.call(move |s| {
+        let a = s.mailbox.account(account).ok_or(CoreError::Internal)?;
+        Ok((a.keep_offline, a.download_in_full, s.mailbox.device_limits))
+    }))
+    .unwrap();
+    assert_eq!((keep, size), (mailcraft_model::KeepOffline::Month1, mailcraft_model::DownloadInFull::UpTo1Mb));
+    assert_eq!(limits.map(|l| l.storage), Some(mailcraft_model::PHONE_STORAGE));
 }

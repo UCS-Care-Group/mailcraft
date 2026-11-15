@@ -3,7 +3,7 @@
 //! Request a Read Receipt: the message being written asks for one, to its sender, by every way it
 //! goes; it is kept with its draft; and a request in mail that comes in is never taken up.
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -53,7 +53,7 @@ fn the_message_sent_asks_its_sender_for_the_receipt() {
     let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
     let sent = s.loaded_message(id).unwrap();
     assert!(sent.read_receipt);
-    let mime = String::from_utf8(mailcraft_mime::write(&sent, &WriteOptions::default())).unwrap();
+    let mime = String::from_utf8(mailcraft_mime_model::write(&sent, &WriteOptions::default())).unwrap();
     let line = mime.lines().find(|l| l.starts_with("Disposition-Notification-To: ")).unwrap_or_default();
     assert!(!sent.from.email.is_empty() && line.contains(&sent.from.email), "{mime}");
     assert_eq!(mime.matches("Disposition-Notification-To").count(), 1);
@@ -66,7 +66,7 @@ fn a_message_that_asks_for_none_carries_none() {
     let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
     let sent = s.loaded_message(id).unwrap();
     assert!(!sent.read_receipt);
-    let mime = String::from_utf8(mailcraft_mime::write(&sent, &WriteOptions::default())).unwrap();
+    let mime = String::from_utf8(mailcraft_mime_model::write(&sent, &WriteOptions::default())).unwrap();
     assert!(!mime.contains("Disposition-Notification-To"), "{mime}");
 }
 
@@ -104,7 +104,7 @@ fn a_draft_from_a_server_asks_for_one_by_its_header() {
 fn a_request_in_mail_that_comes_in_is_never_taken_up() {
     let raw =
         b"From: Bea <bea@example.org>\r\nTo: owner@example.org\r\nSubject: Read me\r\nDisposition-Notification-To: bea@example.org\r\n\r\nHello\r\n";
-    let m = mailcraft_mime::parse(raw);
+    let m = mailcraft_mime_model::parse(raw);
     assert!(!m.read_receipt, "nothing is set by what a sender asks");
     // A reply to it doesn't ask for one either.
     let mut s = session();

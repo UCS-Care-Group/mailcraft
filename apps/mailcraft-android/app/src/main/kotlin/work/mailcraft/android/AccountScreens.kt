@@ -1,16 +1,24 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @file:Suppress("MaxLineLength")
 
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +50,7 @@ import androidx.compose.ui.window.Dialog
 private val Gutter = 16.dp
 private val Gap = 12.dp
 private val Spinner = 28.dp
+private val ChipGap = 8.dp
 
 /** Add Account: Microsoft first. Its three faces are the form, the wait, and what to do when an administrator has to approve. */
 @Composable
@@ -86,14 +96,38 @@ private fun AddAccountForm(texts: Texts, state: AddAccountState.Form, actions: A
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
     )
+    KeepOnPhone(texts, state.keep, actions)
     state.notice?.let { NoticeCard(it.text(texts)) }
     Button(onClick = actions.onSignIn, modifier = Modifier.fillMaxWidth()) {
         Text(texts.t("Sign in with Microsoft"))
     }
 }
 
+/** What the phone keeps of the new account's mail: the defaults chosen, so the owner can just go on. */
 @Composable
-private fun NoticeCard(text: String) {
+private fun KeepOnPhone(texts: Texts, keep: KeepChoice, actions: AccountActions) {
+    Text(texts.t("Mail on this phone"), style = MaterialTheme.typography.titleSmall)
+    Text(
+        texts.t("Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(texts.t("Keep mail from the last"), style = MaterialTheme.typography.bodyLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(ChipGap)) {
+        KeepSpan.entries.forEach { span ->
+            FilterChip(selected = keep.span == span, onClick = { actions.onKeepSpan(span) }, label = { Text(span.label(texts)) })
+        }
+    }
+    Text(texts.t("Space for mail, at most"), style = MaterialTheme.typography.bodyLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(ChipGap)) {
+        KeepChoice.STORAGE_STEPS.forEach { mb ->
+            FilterChip(selected = keep.storageMb == mb, onClick = { actions.onStorage(mb) }, label = { Text(KeepChoice.storageLabel(texts, mb)) })
+        }
+    }
+}
+
+@Composable
+internal fun NoticeCard(text: String) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
         Text(
             text,
@@ -210,5 +244,40 @@ private fun PermissionRow(
             PermissionStatus.SignInNeeded -> TextButton(onClick = onSignInAgain) { Text(texts.t("Sign in again")) }
             else -> Unit
         }
+    }
+}
+
+/** [content] under what is wrong with keeping the mailbox, or with a sign-in the system cut short. */
+@Composable
+internal fun WithAppNotices(
+    texts: Texts,
+    ui: AccountsUi,
+    actions: AccountActions,
+    onRestart: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val notices = ui.savingOff || ui.saveFailed || ui.interrupted != null
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (notices) {
+            Column(modifier = Modifier.statusBarsPadding().padding(horizontal = Gutter, vertical = Gap)) {
+                if (ui.savingOff) {
+                    NoticeCard(texts.t("MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."))
+                }
+                if (ui.saveFailed) {
+                    NoticeCard(texts.t("MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."))
+                    TextButton(onClick = actions.onRetrySave) { Text(texts.t("Retry")) }
+                }
+                if (ui.interrupted != null) {
+                    NoticeCard(texts.t("Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."))
+                    Row {
+                        TextButton(onClick = { actions.onRestartInterrupted(); onRestart() }) { Text(texts.t("Sign in again")) }
+                        TextButton(onClick = actions.onDismissInterrupted) { Text(texts.t("Not now")) }
+                    }
+                }
+            }
+        }
+        // (The notices took the status bar's room: the screen below is not padded for it twice.)
+        val below = if (notices) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier
+        Box(modifier = Modifier.weight(1f).then(below)) { content() }
     }
 }

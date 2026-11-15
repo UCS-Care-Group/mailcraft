@@ -65,3 +65,10 @@ fn the_licence_page_must_claim_what_ships_and_nothing_else() {
     let less = "androidx.core:core:1.0\tApache\n";
     assert_eq!(check_licence_page(less, page).len(), 1);
 }
+
+#[test]
+fn finds_banned_subgroups_in_the_tree() {
+    let tree = "+--- com.google.firebase.tools:helper:1\n|    \\--- com.google.android.gms.ads:ads-lite:2 -> 3\n+--- com.google.firebasefoo:x:1\n";
+    let found = banned_in_tree(tree);
+    assert_eq!(found, vec!["com.google.firebase.tools:helper:1", "com.google.android.gms.ads:ads-lite:2"]);
+}

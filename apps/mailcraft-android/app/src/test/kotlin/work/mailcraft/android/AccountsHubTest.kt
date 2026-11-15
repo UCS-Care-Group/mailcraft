@@ -11,12 +11,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.Event
+import uniffi.mailcraft_mobile.StorageNotice
+import uniffi.mailcraft_mobile.SyncAnswer
 
 private class HubApi(val gate: CompletableDeferred<Unit>) : AccountsApi {
-    override suspend fun signIn(email: String): SignInResult {
+    override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
         gate.await()
         return SignInResult.SignedIn(7u, "ada@example.org", "Ada Example")
     }
@@ -35,15 +41,13 @@ private class HubApi(val gate: CompletableDeferred<Unit>) : AccountsApi {
 /** The account work lives in the application's scope: a window that goes away takes none of it with it. */
 class AccountsHubTest {
     private val app = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
-    private var restores = 0
     private var kept = 0
     private val gate = CompletableDeferred<Unit>()
     private val hub = AccountsHub(
         api = HubApi(gate),
         texts = EnglishTexts,
         scope = app,
-        restore = { restores++ },
-        keep = { kept++ },
+        save = { kept++ },
         copy = {},
     )
 
@@ -68,12 +72,99 @@ class AccountsHubTest {
     }
 
     @Test
-    fun theKeptMailboxIsOpenedOnceWhateverTheWindowsDo() {
-        assertEquals(1, restores)
-        assertTrue(hub.restored.value)
-        // Windows come and go and read the same state; none opens the mailbox again.
-        repeat(3) { hub.showing(listOf(AccountItem(7u, "Ada Example", "ada@example.org", emptyList()))) }
-        assertEquals(1, restores)
+    fun aRevisionTheCoreAnnouncesHasTheMailboxReadAgain() {
+        // A synchronisation that ends after the window read the outline changes the revision: the
+        // window reads the outline, and with it the folder's messages, again.
+        val before = hub.reloads.value
+        hub.handle(Event.RevChanged(42u))
+        hub.handle(Event.RevChanged(43u))
+        assertEquals(before + 2, hub.reloads.value)
+        // Events that are not the mailbox's change nothing.
+        hub.handle(Event.SyncProgress(7u, "mail", 1u, 2u))
+        assertEquals(before + 2, hub.reloads.value)
+    }
+
+    @Test
+    fun aFailedSaveIsShownTriedAgainByItselfAndClearedWhenItWorks() {
+        val pauses = mutableListOf<Long>()
+        var failures = 2
+        var saves = 0
+        val saving = AccountsHub(
+            api = HubApi(CompletableDeferred()),
+            texts = EnglishTexts,
+            scope = app,
+            save = {
+                saves++
+                if (failures-- > 0) throw CoreException.Failed("disk full")
+            },
+            copy = {},
+            retryAfter = listOf(1L, 2L),
+            pause = { pauses.add(it) },
+        )
+        // The core says a save failed (it tries again too): the notice is up, and the hub tries.
+        saving.handle(Event.SaveFailed("disk full"))
+        // (Unconfined: the retries ran at once, the first two failing, the third working.)
+        assertEquals(3, saves)
+        assertEquals(listOf(1L, 2L, 2L), pauses)
+        assertFalse(saving.controller.ui.value.saveFailed)
+    }
+
+    @Test
+    fun theRetryOfTheNoticeSavesThroughTheCoreAndSaysWhetherItWorked() = runBlocking {
+        var fail = true
+        val saving = AccountsHub(
+            api = HubApi(CompletableDeferred()),
+            texts = EnglishTexts,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+            save = { if (fail) throw CoreException.Failed("disk full") },
+            copy = {},
+            pause = { kotlinx.coroutines.awaitCancellation() },
+        )
+        assertFalse(saving.saveNow())
+        assertTrue(saving.controller.ui.value.saveFailed)
+        fail = false
+        assertTrue(saving.saveNow())
+        assertFalse(saving.controller.ui.value.saveFailed)
+    }
+
+    @Test
+    fun aSaveThatFailsAfterSavingWasTurnedOffLeavesThatNoticeAlone() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val saving = AccountsHub(
+            api = HubApi(CompletableDeferred()),
+            texts = EnglishTexts,
+            scope = app,
+            save = {
+                gate.await()
+                throw CoreException.Failed("nothing is saved")
+            },
+            copy = {},
+        )
+        val save = app.launch { saving.saveNow() }
+        // The file turns out to be unkeepable while that save runs.
+        saving.handle(Event.StorageNotice(StorageNotice.NOT_KEPT, ""))
+        gate.complete(Unit)
+        save.join()
+        assertTrue(saving.controller.ui.value.savingOff)
+        assertFalse(saving.controller.ui.value.saveFailed)
+    }
+
+    @Test
+    fun aMailboxThatCouldNotBeKeptAsideIsNeverSavedOver() = runBlocking {
+        var saves = 0
+        val saving = AccountsHub(
+            api = HubApi(CompletableDeferred()),
+            texts = EnglishTexts,
+            scope = app,
+            save = { saves++ },
+            copy = {},
+        )
+        saving.handle(Event.StorageNotice(StorageNotice.NOT_KEPT, ""))
+        assertTrue(saving.controller.ui.value.savingOff)
+        assertFalse(saving.saveNow())
+        saving.handle(Event.SaveFailed("nothing is saved"))
+        assertEquals(0, saves)
+        assertFalse(saving.controller.ui.value.saveFailed)
     }
 
     @Test
@@ -99,5 +190,61 @@ class AccountsHubTest {
     @Test
     fun theApplicationsScopeIsAJobNoWindowOwns() {
         assertTrue(app.coroutineContext[Job]?.isActive == true)
+    }
+
+    @Test
+    fun syncNowSpinsUntilTheCoreSaysTheRoundIsOver() {
+        var asked = 0
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = {
+                asked++
+                SyncAnswer(started = true, message = "")
+            },
+        )
+        hub.syncNow()
+        assertTrue(hub.syncing.value)
+        // A second pull while the round runs asks for nothing more.
+        hub.syncNow()
+        assertEquals(1, asked)
+        hub.handle(Event.SyncFinished(newMail = 0u, finished = true))
+        assertFalse(hub.syncing.value)
+        assertEquals(null, hub.syncNotice.value)
+    }
+
+    @Test
+    fun aSyncThatDoesNotStartSaysWhyAndStopsSpinning() {
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { SyncAnswer(started = false, message = "You're working offline.") },
+        )
+        hub.syncNow()
+        assertFalse(hub.syncing.value)
+        assertEquals("You're working offline.", hub.syncNotice.value)
+        hub.syncNoticeShown()
+        assertEquals(null, hub.syncNotice.value)
+    }
+
+    @Test
+    fun aCoreThatFailsToStartASyncIsSaidInWordsAndNeverACrash() {
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { throw CoreException.Cancelled() },
+        )
+        hub.syncNow()
+        assertFalse(hub.syncing.value)
+        assertEquals("Send/Receive couldn't start. Try again.", hub.syncNotice.value)
     }
 }

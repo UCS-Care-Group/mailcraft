@@ -33,10 +33,24 @@ class OpenedFilesTest {
     @Test
     fun aLongNameKeepsItsExtension() {
         val name = safeFileName("x".repeat(500) + ".pdf")
-        assertEquals(100, name.length)
+        assertEquals(255, name.length)
         assertTrue(name.endsWith(".pdf"))
-        assertEquals(100, safeFileName("y".repeat(500)).length)
-        assertEquals(100, safeFileName("z".repeat(200) + "." + "e".repeat(50)).length)
+        assertEquals(255, safeFileName("y".repeat(500)).length)
+        assertEquals(255, safeFileName("z".repeat(300) + "." + "e".repeat(50)).length)
+    }
+
+    @Test
+    fun aLongNameIsBoundedByUtf8BytesAtACodePointBoundary() {
+        val name = safeFileName("界".repeat(96) + ".pdf")
+        assertTrue(name.toByteArray(Charsets.UTF_8).size <= 255)
+        assertTrue(name.endsWith(".pdf"))
+        assertTrue(name.startsWith("界"))
+        // Four-byte code points are never split into a lone surrogate.
+        val emoji = safeFileName("\uD83D\uDE00".repeat(100) + ".txt")
+        assertTrue(emoji.toByteArray(Charsets.UTF_8).size <= 255)
+        assertTrue(emoji.endsWith(".txt"))
+        assertEquals(emoji, String(emoji.toByteArray(Charsets.UTF_8), Charsets.UTF_8))
+        assertFalse(emoji.contains('\uFFFD'))
     }
 
     @Test
@@ -63,6 +77,21 @@ class OpenedFilesTest {
     }
 
     @Test
+    fun onlyOldCopiesAreCleared() {
+        val root = tmp.newFolder("attachments2")
+        val old = File(root, "old").apply { mkdirs() }
+        File(old, "a.txt").writeText("x")
+        val recent = File(root, "recent").apply { mkdirs() }
+        File(recent, "b.txt").writeText("y")
+        old.setLastModified(1_000L)
+        recent.setLastModified(1_000_000L)
+        clearOlderThan(root, maxAgeMillis = 100_000L, now = 1_050_000L)
+        assertFalse(old.exists())
+        assertTrue(File(recent, "b.txt").exists())
+        clearOlderThan(File(root, "missing"), 1L, 1L)
+    }
+
+    @Test
     fun savingWritesTheBytes() {
         val out = ByteArrayOutputStream()
         assertTrue(SaveToFiles.write({ out }, byteArrayOf(1, 2, 3)))
@@ -76,6 +105,7 @@ class OpenedFilesTest {
             override fun write(b: Int) = throw IOException("full")
         }
         assertFalse(SaveToFiles.write({ failing }, byteArrayOf(1)))
+        assertFalse(SaveToFiles.write({ throw SecurityException("revoked") }, byteArrayOf(1)))
     }
 
     @Suppress("ThrowsCount")

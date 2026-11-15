@@ -29,6 +29,8 @@ pub const SESSION_RESPONSE_LIMIT: usize = 4 * 1024 * 1024;
 pub const API_RESPONSE_LIMIT: usize = 32 * 1024 * 1024;
 /// The most a downloaded blob may weigh, in octets.
 pub const DOWNLOAD_RESPONSE_LIMIT: usize = 256 * 1024 * 1024;
+/// The most the answer to an upload may weigh, in octets: a small JSON object (RFC 8620 §6.1).
+pub const UPLOAD_RESPONSE_LIMIT: usize = 64 * 1024;
 /// The most of an error response's body that is read for a problem details object, in octets.
 pub const PROBLEM_BODY_LIMIT: usize = 64 * 1024;
 /// The longest header field value the response keeps; longer ones are dropped.
@@ -62,6 +64,8 @@ pub enum RequestKind {
     Api,
     /// Downloading a blob (RFC 8620 §6.2).
     Download,
+    /// Uploading a blob (RFC 8620 §6.1): a `POST` of the octets, answered with a small JSON object.
+    Upload,
 }
 
 impl RequestKind {
@@ -71,12 +75,13 @@ impl RequestKind {
             Self::Session => SESSION_RESPONSE_LIMIT,
             Self::Api => API_RESPONSE_LIMIT,
             Self::Download => DOWNLOAD_RESPONSE_LIMIT,
+            Self::Upload => UPLOAD_RESPONSE_LIMIT,
         }
     }
 
     /// Whether a successful answer must be `application/json`.
     pub fn expects_json(self) -> bool {
-        matches!(self, Self::Session | Self::Api)
+        matches!(self, Self::Session | Self::Api | Self::Upload)
     }
 }
 
@@ -124,6 +129,17 @@ impl HttpRequest {
 
     pub(crate) fn with_json_body(mut self, body: Vec<u8>) -> Self {
         self.fields.push(("Content-Type", FieldValue::Plain("application/json".to_owned())));
+        self.body = body;
+        self
+    }
+
+    /// The octets of an upload as the body, sent as `media_type` (RFC 8620 §6.1). A media type that is not
+    /// plain printable ASCII (a space, a line break, anything that could end the field early) is sent as
+    /// `application/octet-stream` instead.
+    pub(crate) fn with_octets(mut self, media_type: &str, body: Vec<u8>) -> Self {
+        let plain = !media_type.is_empty() && media_type.len() <= 127 && media_type.bytes().all(|b| (0x21..=0x7E).contains(&b));
+        let media_type = if plain { media_type } else { "application/octet-stream" };
+        self.fields.push(("Content-Type", FieldValue::Plain(media_type.to_owned())));
         self.body = body;
         self
     }

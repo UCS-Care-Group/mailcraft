@@ -41,7 +41,8 @@ fn credentials(secret: &str) -> Credentials {
 /// own (as the browser runs it as a task), handing every piece to the window as it comes.
 fn window(server: &StandIn) -> (MailApp, Id) {
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let there = server.clone();
     app.services.jmap = Some(Box::new(move |job: JmapJob| {
         let (tx, rx) = mpsc::channel();

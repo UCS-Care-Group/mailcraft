@@ -11,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -87,8 +88,11 @@ class SecretFilesTest {
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
         file.writeBytes(ByteArray(0))
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
+        s.takeTrouble()
         file.writeBytes(ByteArray(MAX_FILE_PLUS))
         assertThrows(HostException.Failed::class.java) { s.get("refresh:a@example.org") }
+        assertEquals(TroubleKind.UNAVAILABLE, s.takeTrouble())
+        assertNull(s.takeTrouble())
     }
 
     @Test
@@ -133,6 +137,37 @@ class SecretFilesTest {
         s.set("b", "2")
         s.clear()
         assertNull(s.get("a"))
+    }
+
+    @Test
+    fun leftoverTemporaryFilesAreSweptAtStart() {
+        val dir = File(tmp.root, "secrets").apply { mkdirs() }
+        val stray = File(dir, "abc.tmp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        store(dir = dir)
+        assertFalse(stray.exists())
+    }
+
+    @Test
+    fun aSealerThatThrowsAtRuntimeIsUnavailableNotACrash() {
+        val broken = SecretFiles(File(tmp.root, "y"), AesGcmSealer { throw IllegalStateException("provider") })
+        assertThrows(HostException.Failed::class.java) { broken.set("k", "v") }
+        assertEquals(TroubleKind.UNAVAILABLE, broken.takeTrouble())
+    }
+
+    @Test
+    fun aFileThatCannotBeReadIsStoreTroubleNotAMissingSecret() {
+        val dir = File(tmp.root, "secrets")
+        val s = store(dir = dir)
+        s.set("k", "v")
+        val file = dir.listFiles { f -> f.name.endsWith(".sec") }.orEmpty().single()
+        file.setReadable(false, false)
+        try {
+            assumeFalse("running as a user that ignores file modes", file.canRead())
+            assertThrows(HostException::class.java) { s.get("k") }
+            assertEquals(TroubleKind.UNAVAILABLE, s.takeTrouble())
+        } finally {
+            file.setReadable(true, false)
+        }
     }
 
     private companion object {

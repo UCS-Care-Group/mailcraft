@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{OAuth, OAuthProvider};
 use mailcraft_net::oauth::{
-    CustomScheme, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy, refresh_for_at, refresh_graph_shared_at, refresh_graph_shared_send_at,
+    CustomScheme, DEFAULT_REDIRECT_HOST, Handback, RedirectStrategy, refresh_for_at, refresh_graph_shared_at, refresh_graph_shared_send_at,
     refresh_graph_tasks_at, sign_in_ending_via, sign_in_for_permission_at,
 };
 
@@ -30,8 +30,8 @@ use mailcraft_net::oauth::{
 pub use mailcraft_net::NetError;
 pub use mailcraft_net::oauth::{Ending, Endpoints, FavoritesRefusal, Permission, Resource, admin_consent_url, permission_endpoints};
 
-use crate::keys::microsoft_secret_key;
-use crate::{Platform, Redirect, SecretStore};
+use crate::secrets::{SecretError, microsoft_secret_key};
+use crate::{Platform, Redirect};
 
 /// The application (client) id this build presents to Microsoft's page: the project's own
 /// registration, an identifier and not a secret (`MAILCRAFT_MS_CLIENT_ID` in `.cargo/config.toml`).
@@ -84,7 +84,7 @@ pub fn tenant_of(email: &str) -> String {
 /// strategy).
 #[derive(Default)]
 pub struct SignIns {
-    slot: Mutex<Option<Sender<String>>>,
+    slot: Arc<Mutex<Option<Sender<String>>>>,
     /// The cancel flag of the sign-in that is open; one at a time.
     open: Mutex<Option<Arc<AtomicBool>>>,
 }
@@ -111,6 +111,33 @@ impl Drop for Place<'_> {
     }
 }
 
+/// Arms the redirect's slot of a [`SignIns`]; see [`SignIns::armer`].
+#[derive(Clone)]
+pub struct Armer {
+    slot: Arc<Mutex<Option<Sender<String>>>>,
+}
+
+impl Armer {
+    /// Open the slot again unless `cancel` is set, checked under the slot's lock, which [`Place`]'s drop
+    /// takes after setting it: a sign-in that was called off never leaves a sender for a later one.
+    pub fn arm_unless(&self, cancel: &AtomicBool) -> Option<Receiver<String>> {
+        let mut slot = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
+        if cancel.load(Ordering::Acquire) {
+            return None;
+        }
+        let (tx, rx) = mpsc::channel();
+        *slot = Some(tx);
+        Some(rx)
+    }
+
+    /// Open the slot again: the receiver gets the next address delivered.
+    pub fn arm(&self) -> Receiver<String> {
+        let (tx, rx) = mpsc::channel();
+        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
+        rx
+    }
+}
+
 impl SignIns {
     /// Take the place of the one sign-in; none when one is open.
     pub fn begin(&self) -> Option<Place<'_>> {
@@ -132,9 +159,13 @@ impl SignIns {
 
     /// Arm the redirect's slot: the receiver gets the first address delivered.
     pub fn arm(&self) -> Receiver<String> {
-        let (tx, rx) = mpsc::channel();
-        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
-        rx
+        self.armer().arm()
+    }
+
+    /// A handle that arms the slot again from the sign-in's own thread: a sign-in that tries again
+    /// (without the optional consent Microsoft refused) is sent back by a second redirect.
+    pub fn armer(&self) -> Armer {
+        Armer { slot: self.slot.clone() }
     }
 
     /// Whether the address was taken by a sign-in that waits for it.
@@ -196,7 +227,15 @@ pub fn redirect_scheme(platform: &dyn Platform) -> Option<String> {
 
 /// Run a sign-in on the page, waiting for the address on `landed` (taken: the wait holds it) as long as the owner takes
 /// (five minutes at most) and not past `cancel`. Blocks.
-pub fn page(platform: &dyn Platform, landed: Receiver<String>, endpoints: &Endpoints, hint: &str, why: Why, cancel: &AtomicBool) -> Page {
+pub fn page(
+    platform: &dyn Platform,
+    landed: Receiver<String>,
+    armer: &Armer,
+    endpoints: &Endpoints,
+    hint: &str,
+    why: Why,
+    cancel: &AtomicBool,
+) -> Page {
     let Some(oauth) = client_oauth() else { return Page::Unable("this build of MailCraft has no Microsoft sign-in set up") };
     let Some(scheme) = redirect_scheme(platform) else { return Page::Unable("this phone can't take a sign-in back through the app's own address") };
     let no_browser = AtomicBool::new(false);
@@ -207,19 +246,32 @@ pub fn page(platform: &dyn Platform, landed: Receiver<String>, endpoints: &Endpo
             cancel.store(true, Ordering::Release);
         }
     };
-    let handback = move |flag: &AtomicBool, patience: Duration| wait_for(&landed, flag, patience);
+    // (An address that came is answered by the next wait's own receiver, armed at once: a sign-in
+    // that tries again is sent back to the app a second time.)
+    let landed = Mutex::new(landed);
+    let armer = armer.clone();
+    let handback = move |flag: &AtomicBool, patience: Duration| {
+        let mut landed = landed.lock().unwrap_or_else(PoisonError::into_inner);
+        let address = wait_for(&landed, flag, patience)?;
+        // (Called off meanwhile: the slot is left as the next sign-in finds it.)
+        *landed = armer.arm_unless(flag).ok_or(NetError::SignInCancelled)?;
+        Ok(address)
+    };
     let handback: &Handback = &handback;
-    let via = match CustomScheme::new(&scheme, DEFAULT_REDIRECT_PATH, handback) {
+    let via = match CustomScheme::with_host_only(&scheme, DEFAULT_REDIRECT_HOST, handback) {
         Ok(custom) => RedirectStrategy::CustomScheme(custom),
         Err(_) => return Page::Unable("this app's sign-in address is not one Microsoft's page can come back to"),
     };
     match why {
         Why::Account => match sign_in_ending_via(endpoints, &oauth, hint, &open, cancel, &via) {
+            // (Called off while the tokens were being traded: the owner's Cancel stands.)
+            Ok(_) if cancel.load(Ordering::Acquire) => Page::Ended(Ending::Cancelled),
             Ok(tokens) => Page::Tokens(tokens),
             Err(_) if no_browser.load(Ordering::Acquire) => Page::NoBrowser,
             Err(end) => Page::Ended(end),
         },
         Why::Permission => match sign_in_for_permission_at(endpoints, &oauth, hint, &open, cancel, &via) {
+            Ok(_) if cancel.load(Ordering::Acquire) => Page::Refused(FavoritesRefusal::Other(NetError::SignInCancelled)),
             Ok(tokens) => Page::Tokens(tokens),
             Err(_) if no_browser.load(Ordering::Acquire) => Page::NoBrowser,
             Err(refusal) => Page::Refused(refusal),
@@ -236,13 +288,37 @@ pub fn keep_refresh(platform: &dyn Platform, email: &str, refresh: &str) -> Resu
     store.set(&microsoft_secret_key("refresh", email), refresh).map_err(|_| "MailCraft couldn't keep your sign-in in this phone's secure store")
 }
 
+/// The refresh token kept for the account at `email`, when there is one.
+pub fn kept_refresh(platform: &dyn Platform, email: &str) -> Option<String> {
+    platform.secrets()?.get(&microsoft_secret_key("refresh", email))
+}
+
+/// Put back what [`kept_refresh`] gave before a sign-in that was refused replaced it: `before`
+/// again, or no refresh token when none was kept. Only the refresh token is touched: anything else
+/// kept for the account stays as it was.
+pub fn restore_refresh(platform: &dyn Platform, email: &str, before: Option<&str>) {
+    let Some(store) = platform.secrets() else { return };
+    let key = microsoft_secret_key("refresh", email);
+    match before {
+        // (A store that refuses keeps no refresh token rather than one that was refused.)
+        Some(before) if store.set(&key, before).is_ok() => {}
+        _ => store.delete(&key),
+    }
+}
+
 /// Take back every sign-in kept for the account at `email`.
-pub fn forget(platform: &dyn Platform, email: &str) {
-    if let Some(store) = platform.secrets() {
-        for kind in ["refresh", "password"] {
-            store.delete(&microsoft_secret_key(kind, email));
+pub fn forget(platform: &dyn Platform, email: &str) -> Result<(), SecretError> {
+    let Some(store) = platform.secrets() else { return Ok(()) };
+    let mut first = Ok(());
+    // (Every kind is tried, a refusal of one or not: the first refusal is what is said.)
+    for kind in ["refresh", "password"] {
+        if let Err(error) = store.remove(&microsoft_secret_key(kind, email))
+            && first.is_ok()
+        {
+            first = Err(error);
         }
     }
+    first
 }
 
 /// Whether an account's sign-in covers a permission.
@@ -257,43 +333,78 @@ pub enum Standing {
     Unknown,
 }
 
-/// Keep the refresh token Microsoft sent with an answer, when it is the account's own: the old
-/// one is replaced by the one Microsoft rotated it to, so a stored sign-in doesn't age out.
-fn renewed(store: &dyn SecretStore, email: &str, tokens: &Tokens) {
-    if !tokens.refresh.is_empty() && !tokens.someone_else(email, "") {
-        // (A store that refuses leaves the old token, which is good until Microsoft says otherwise.)
-        let _ = store.set(&microsoft_secret_key("refresh", email), &tokens.refresh);
+/// A refresh token Microsoft rotated the stored one to in the answer to a check, the account's
+/// own. It is not kept by the check: the caller keeps it ([`Renewed::keep`]) where it can first
+/// make sure the account is still there, so that an answer arriving after the account was removed
+/// never puts its sign-in back. Its `Debug` says nothing of either token.
+pub struct Renewed {
+    pub(crate) token: String,
+    /// The token the check began with: the new one replaces that one only.
+    pub(crate) from: String,
+}
+
+impl std::fmt::Debug for Renewed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Renewed(…)")
     }
 }
 
-/// Whether the sign-in kept for `email` covers `permission`, asked of Microsoft with the stored
-/// refresh token (nothing is opened and the owner is not asked). `mail` and `graph` are the
-/// token endpoints for mail and for Graph. A new refresh token in an answer is kept. Blocks.
-pub fn permission_standing(platform: &dyn Platform, email: &str, permission: Permission, mail: &Endpoints, graph: &Endpoints) -> Standing {
-    let Some(oauth) = client_oauth() else { return Standing::Unknown };
-    let Some(store) = platform.secrets() else { return Standing::SignInNeeded };
-    let Some(refresh) = store.get(&microsoft_secret_key("refresh", email)) else { return Standing::SignInNeeded };
+impl Renewed {
+    /// Keep it as the sign-in of the account at `email`, in place of the one the check began
+    /// with, and only while that one is still the one kept: a sign-in forgotten meanwhile, or
+    /// replaced by a newer sign-in, is never written over by an older answer. A store that refuses
+    /// leaves the old token, which is good until Microsoft says otherwise.
+    pub fn keep(&self, platform: &dyn Platform, email: &str) {
+        let Some(store) = platform.secrets() else { return };
+        let key = microsoft_secret_key("refresh", email);
+        // A look, then a write, with no lock between them: what serialises them is the caller.
+        // Every writer of a sign-in (a sign-in, a permission given, a renewal, a removal,
+        // forgetting the sign-ins) runs on the session's thread (the phone's `Core::call`), one job
+        // after another, so nothing writes this entry between the look and the write.
+        if store.get(&key).as_deref() == Some(self.from.as_str()) {
+            let _ = store.set(&key, &self.token);
+        }
+    }
+}
+
+/// What a check of a stored sign-in came to: where the permission stands, and the refresh token
+/// Microsoft rotated the stored one to, when it sent one that is the account's own.
+#[derive(Debug)]
+pub struct Checked {
+    pub standing: Standing,
+    pub renewed: Option<Renewed>,
+}
+
+/// The refresh token of an answer, when it is the account's own.
+pub(crate) fn renewed(email: &str, tokens: &Tokens, from: &str) -> Option<Renewed> {
+    (!tokens.refresh.is_empty() && !tokens.someone_else(email, "")).then(|| Renewed { token: tokens.refresh.clone(), from: from.to_string() })
+}
+
+/// Whether the sign-in of `email` covers `permission`, asked of Microsoft with `refresh`, the
+/// account's refresh token as Send/Receive finds it (this session's first, then the credential
+/// store's: [`crate::sync::SendReceive::refresh_for`]), so that a sign-in the owner doesn't let be
+/// remembered is checked too. Nothing is opened and the owner is not asked. `mail` and `graph` are
+/// the token endpoints for mail and for Graph. Nothing is written: a new refresh token in an
+/// answer is given back for the caller to keep. Blocks.
+pub fn permission_standing(refresh: Option<&str>, email: &str, permission: Permission, mail: &Endpoints, graph: &Endpoints) -> Checked {
+    let only = |standing| Checked { standing, renewed: None };
+    let Some(oauth) = client_oauth() else { return only(Standing::Unknown) };
+    let Some(refresh) = refresh.filter(|r| !r.is_empty()) else { return only(Standing::SignInNeeded) };
     let asked = match permission {
-        Permission::Tasks => refresh_graph_tasks_at(graph, (mail, Resource::GraphMail), &oauth, &refresh).map(|g| g.tokens),
-        Permission::SharedMail => refresh_graph_shared_at(mail, &oauth, &refresh).map(|g| g.tokens),
-        Permission::SharedSend => refresh_graph_shared_send_at(mail, &oauth, &refresh).map(|g| g.tokens),
+        Permission::Tasks => refresh_graph_tasks_at(graph, (mail, Resource::GraphMail), &oauth, refresh).map(|g| g.tokens),
+        Permission::SharedMail => refresh_graph_shared_at(mail, &oauth, refresh).map(|g| g.tokens),
+        Permission::SharedSend => refresh_graph_shared_send_at(mail, &oauth, refresh).map(|g| g.tokens),
     };
     match asked {
-        Ok(tokens) => {
-            renewed(store.as_ref(), email, &tokens);
-            Standing::Allowed
-        }
-        Err(e) if e.is_consent_needed() => Standing::NotAllowed,
+        Ok(tokens) => Checked { standing: Standing::Allowed, renewed: renewed(email, &tokens, refresh) },
+        Err(e) if e.is_consent_needed() => only(Standing::NotAllowed),
         // "No longer good": for this permission only, or for the whole sign-in?
-        Err(e) if e.is_refused_sign_in() => match refresh_for_at(mail, &oauth, &refresh, Resource::GraphMail) {
-            Ok(tokens) => {
-                renewed(store.as_ref(), email, &tokens);
-                Standing::NotAllowed
-            }
-            Err(e) if e.is_refused_sign_in() => Standing::SignInNeeded,
-            Err(_) => Standing::Unknown,
+        Err(e) if e.is_refused_sign_in() => match refresh_for_at(mail, &oauth, refresh, Resource::GraphMail) {
+            Ok(tokens) => Checked { standing: Standing::NotAllowed, renewed: renewed(email, &tokens, refresh) },
+            Err(e) if e.is_refused_sign_in() => only(Standing::SignInNeeded),
+            Err(_) => only(Standing::Unknown),
         },
-        Err(_) => Standing::Unknown,
+        Err(_) => only(Standing::Unknown),
     }
 }
 

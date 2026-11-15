@@ -4,10 +4,17 @@ package work.mailcraft.android
 
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
+import uniffi.mailcraft_mobile.StorageNotice
+import uniffi.mailcraft_mobile.SyncAnswer
 
 /**
  * The one reader of the core's event stream. The stream has a single consumer, so it is read here,
@@ -39,29 +46,52 @@ internal class EventDispatcher {
 
 /**
  * What the account screens need that must outlive the window: the controller (a sign-in that waits
- * for the owner in the browser, a grant, a removal) and the mailbox's first opening. It is made
- * once, with the application's scope, so a rotation, a dark-mode or language switch, or the
- * system reclaiming the activity while Microsoft's page is in front, doesn't cancel the sign-in
- * and lose what the owner just did there. The windows only read [controller]'s state.
+ * for the owner in the browser, a grant, a removal) and what the screens are told of the mailbox's
+ * storage. It is made once, with the application's scope, so a rotation, a dark-mode or language
+ * switch, or the system reclaiming the activity while Microsoft's page is in front, doesn't cancel
+ * the sign-in and lose what the owner just did there. The windows only read [controller]'s state.
  *
- * [restore] opens what was kept and runs once, here; [keep] keeps the mailbox as it is now.
+ * The mailbox is the core's to keep (`Core.open`): it opens it, saves it a few seconds after a
+ * change and when it ends, and says when a save failed or the file couldn't be read. [save] asks it
+ * to save now (it throws [CoreException] when it couldn't); a failed save is tried again by itself,
+ * after [retryAfter] each time (the last one repeated), until one works, and [pause] waits between.
+ *
+ * [syncNow] is Send/Receive on the owner's word (the mail list's pull to refresh): [sync] starts a
+ * round and says whether it did; [syncing] is true from the ask until the core says the round is
+ * over, and [syncNotice] is why one didn't start, in the owner's language.
  */
+@Suppress("LongParameterList")
 internal class AccountsHub(
     api: AccountsApi,
-    texts: Texts,
-    scope: CoroutineScope,
-    restore: suspend () -> Unit,
-    private val keep: suspend () -> Unit,
+    private val texts: Texts,
+    private val scope: CoroutineScope,
+    private val save: suspend () -> Unit,
     copy: (String) -> Unit,
+    private val retryAfter: List<Long> = DEFAULT_RETRY,
+    private val pause: suspend (Long) -> Unit = { delay(it) },
+    private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
 ) {
-    /** True once the kept mailbox was opened (or there was none). */
-    val restored = MutableStateFlow(false)
+    private val syncingNow = MutableStateFlow(false)
+    private val notice = MutableStateFlow<String?>(null)
 
-    /** Bumped when the mailbox's accounts changed: the outline is read again. */
+    /** True while a Send/Receive the owner asked for is under way (the pull-to-refresh spinner). */
+    val syncing: StateFlow<Boolean> = syncingNow.asStateFlow()
+
+    /** Why the last Send/Receive the owner asked for didn't start; null when it did. */
+    val syncNotice: StateFlow<String?> = notice.asStateFlow()
+
+    /** Bumped when the mailbox changed (its accounts, or a revision the core announced): the outline is read again. */
     val reloads = MutableStateFlow(0)
 
     @Volatile
     private var shown: List<AccountItem> = emptyList()
+
+    /** True while nothing can be saved this run (the file could be neither read nor kept aside). */
+    @Volatile
+    private var savingOff = false
+
+    private val guard = Any()
+    private var retrying: Job? = null
 
     val controller = AccountsController(
         api = api,
@@ -69,30 +99,104 @@ internal class AccountsHub(
         texts = texts,
         accounts = { shown },
         changed = {
-            keep()
+            saveNow()
             reloads.update { it + 1 }
         },
         copy = copy,
+        retrySave = { saveNow() },
     )
-
-    init {
-        scope.launch {
-            restore()
-            restored.value = true
-        }
-    }
 
     /** The accounts as the window has them now. */
     fun showing(accounts: List<AccountItem>) {
         shown = accounts
     }
 
-    /** Takes the events that are the account screens' (a permission question, a sign-in that is over). */
+    /**
+     * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
+     * changes nothing; the round's end comes as the core's `SyncFinished`.
+     */
+    fun syncNow() {
+        if (!syncingNow.compareAndSet(expect = false, update = true)) return
+        notice.value = null
+        scope.launch {
+            val answer = try {
+                sync()
+            } catch (_: CoreException) {
+                SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
+            }
+            if (!answer.started) {
+                notice.value = answer.message.ifEmpty { null }
+                syncingNow.value = false
+            }
+        }
+    }
+
+    /** The owner has read why Send/Receive didn't start. */
+    fun syncNoticeShown() {
+        notice.value = null
+    }
+
+    /** Saves the mailbox now; true when it is on disk. A failure is shown, and tried again by itself. */
+    suspend fun saveNow(): Boolean {
+        if (savingOff) return false
+        val saved = try {
+            save()
+            true
+        } catch (_: CoreException) {
+            false
+        }
+        // (Saving may have been turned off while it ran: that notice stands, and nothing is retried.)
+        if (savingOff) return false
+        controller.setSaveFailed(!saved)
+        if (!saved) retryLater()
+        return saved
+    }
+
+    private fun retryLater() = synchronized(guard) {
+        if (retrying?.isActive == true) return@synchronized
+        retrying = scope.launch {
+            var tries = 0
+            do {
+                pause(retryAfter.getOrElse(tries) { retryAfter.lastOrNull() ?: 0L })
+                tries++
+            } while (!savingOff && !trySave())
+        }
+    }
+
+    /** One save from the retry loop: true when it worked. */
+    private suspend fun trySave(): Boolean {
+        val saved = try {
+            save()
+            true
+        } catch (_: CoreException) {
+            false
+        }
+        if (saved) controller.setSaveFailed(false)
+        return saved
+    }
+
+    /** Takes the events that are the account screens' and the mailbox's: a question, a sign-in over, a save. */
     fun handle(event: Event) {
         when (event) {
             is Event.PermissionQuestion -> controller.askFor(event.account, PermissionKind.of(event.permission))
             is Event.SignInNeeded -> controller.signInNeeded(event.account)
+            // (Synchronisation and every other change: what the window shows is read again.)
+            is Event.RevChanged -> reloads.update { it + 1 }
+            is Event.SyncFinished -> syncingNow.value = false
+            is Event.SaveFailed -> if (!savingOff) {
+                controller.setSaveFailed(true)
+                retryLater()
+            }
+            is Event.StorageNotice -> if (event.notice == StorageNotice.NOT_KEPT) {
+                savingOff = true
+                controller.setSaveFailed(false)
+                controller.setSavingOff(true)
+            }
             else -> Unit
         }
+    }
+
+    private companion object {
+        val DEFAULT_RETRY = listOf(10_000L, 60_000L)
     }
 }

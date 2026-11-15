@@ -6,6 +6,8 @@ package work.mailcraft.android
 
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.DownloadSettings
+import uniffi.mailcraft_mobile.KeepWindow
 import uniffi.mailcraft_mobile.Permission
 import uniffi.mailcraft_mobile.PermissionOutcome
 import uniffi.mailcraft_mobile.PermissionState
@@ -50,6 +52,56 @@ internal enum class PermissionKind {
             Permission.SHARED_MAIL -> SharedMail
             Permission.SHARED_SEND -> SharedSend
         }
+    }
+}
+
+/** How far back a new account's mail is kept on the phone, in the steps Add Account offers. */
+internal enum class KeepSpan {
+    Week1,
+    Weeks2,
+    Month1,
+    Months3,
+    Months6,
+    Months12,
+    ;
+
+    fun label(texts: Texts): String = when (this) {
+        Week1 -> texts.t("1 week")
+        Weeks2 -> texts.t("2 weeks")
+        Month1 -> texts.t("1 month")
+        Months3 -> texts.t("3 months")
+        Months6 -> texts.t("6 months")
+        Months12 -> texts.t("12 months")
+    }
+
+    fun toCore(): KeepWindow = when (this) {
+        Week1 -> KeepWindow.WEEK1
+        Weeks2 -> KeepWindow.WEEKS2
+        Month1 -> KeepWindow.MONTH1
+        Months3 -> KeepWindow.MONTHS3
+        Months6 -> KeepWindow.MONTHS6
+        Months12 -> KeepWindow.MONTHS12
+    }
+}
+
+/** What the phone keeps of a new account's mail, chosen in Add Account: the core's defaults until the owner changes them. */
+internal data class KeepChoice(val span: KeepSpan = KeepSpan.Month1, val storageMb: Long = DEFAULT_STORAGE_MB) {
+    fun toCore(): DownloadSettings = DownloadSettings(span.toCore(), storageMb.toULong())
+
+    companion object {
+        const val DEFAULT_STORAGE_MB = 500L
+        private const val MB_PER_GB = 1024L
+
+        /** The space for mail Add Account offers, in megabytes. */
+        val STORAGE_STEPS = listOf(250L, DEFAULT_STORAGE_MB, 1024L, 2048L, 5120L)
+
+        /** A space in words: 500 MB, 2 GB. */
+        fun storageLabel(texts: Texts, megabytes: Long): String =
+            if (megabytes >= MB_PER_GB && megabytes % MB_PER_GB == 0L) {
+                texts.t("{n} GB").replace("{n}", (megabytes / MB_PER_GB).toString())
+            } else {
+                texts.t("{n} MB").replace("{n}", megabytes.toString())
+            }
     }
 }
 
@@ -104,7 +156,8 @@ internal sealed interface GrantResult {
 
 /** What the screens ask of the core about accounts: one seam, so that they run without the library. */
 internal interface AccountsApi {
-    suspend fun signIn(email: String): SignInResult
+    /** Signs in to add an account; [keep] is what the phone keeps of a new account's mail. */
+    suspend fun signIn(email: String, keep: KeepChoice): SignInResult
 
     suspend fun grant(account: ULong, permission: PermissionKind): GrantResult
 
@@ -121,9 +174,12 @@ internal interface AccountsApi {
 
 /** [AccountsApi] over the Rust core. What it hands the screens carries no token: the core keeps those. */
 internal class CoreAccounts(private val core: Core, private val handback: SignInHandback) : AccountsApi {
-    override suspend fun signIn(email: String): SignInResult =
-        try {
-            when (val outcome = core.signInMicrosoft(email)) {
+    override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
+        // (If the system closes the app while the page is open, the next start knows this was under way.)
+        // One at a time: a second is refused here and leaves the first's hand-back as it is.
+        val ticket = handback.begin(email) ?: return SignInResult.Failed("")
+        return try {
+            when (val outcome = core.signInMicrosoft(email, keep.toCore())) {
                 is SignInOutcome.SignedIn -> SignInResult.SignedIn(outcome.account, outcome.email, outcome.name)
                 is SignInOutcome.NeedsApproval -> SignInResult.NeedsApproval
                 is SignInOutcome.Declined -> SignInResult.Declined
@@ -136,11 +192,13 @@ internal class CoreAccounts(private val core: Core, private val handback: SignIn
         } catch (_: CoreException) {
             SignInResult.Failed("")
         } finally {
-            handback.disarm()
+            handback.end(ticket)
         }
+    }
 
-    override suspend fun grant(account: ULong, permission: PermissionKind): GrantResult =
-        try {
+    override suspend fun grant(account: ULong, permission: PermissionKind): GrantResult {
+        val ticket = handback.begin() ?: return GrantResult.Failed("")
+        return try {
             when (val outcome = core.grantPermission(account, permission.toCore())) {
                 is PermissionOutcome.Granted -> GrantResult.Granted
                 is PermissionOutcome.NeedsApproval -> GrantResult.NeedsApproval
@@ -155,8 +213,9 @@ internal class CoreAccounts(private val core: Core, private val handback: SignIn
         } catch (_: CoreException) {
             GrantResult.Failed("")
         } finally {
-            handback.disarm()
+            handback.end(ticket)
         }
+    }
 
     override suspend fun status(account: ULong, permission: PermissionKind): PermissionStatus =
         try {
@@ -216,28 +275,28 @@ internal sealed interface Notice {
 /** What the Add Account screen is showing. */
 internal sealed interface AddAccountState {
     /** The form: the address typed (it is only a hint for Microsoft's page), and why the last try ended. */
-    data class Form(val email: String = "", val notice: Notice? = null) : AddAccountState
+    data class Form(val email: String = "", val notice: Notice? = null, val keep: KeepChoice = KeepChoice()) : AddAccountState
 
     /** Microsoft's page is open in the browser and the app waits for it. */
-    data class Waiting(val email: String) : AddAccountState
+    data class Waiting(val email: String, val keep: KeepChoice = KeepChoice()) : AddAccountState
 
     /** An administrator has to approve MailCraft first: what to do next. */
-    data class Approval(val email: String, val link: String?, val copied: Boolean = false) : AddAccountState
+    data class Approval(val email: String, val link: String?, val copied: Boolean = false, val keep: KeepChoice = KeepChoice()) : AddAccountState
 
     /** An account is in: the screen closes. */
     data class Done(val account: ULong) : AddAccountState
 }
 
 /** The screen after a sign-in ended with [result]; [link] is the page for an administrator. */
-internal fun afterSignIn(email: String, result: SignInResult, link: String?): AddAccountState = when (result) {
+internal fun afterSignIn(email: String, result: SignInResult, link: String?, keep: KeepChoice = KeepChoice()): AddAccountState = when (result) {
     is SignInResult.SignedIn -> AddAccountState.Done(result.account)
-    SignInResult.NeedsApproval -> AddAccountState.Approval(email, link)
-    SignInResult.Declined -> AddAccountState.Form(email, Notice.Declined)
-    SignInResult.TimedOut -> AddAccountState.Form(email, Notice.TimedOut)
-    SignInResult.Cancelled -> AddAccountState.Form(email, Notice.Cancelled)
-    SignInResult.OrganisationBlocks -> AddAccountState.Form(email, Notice.OrganisationBlocks)
-    SignInResult.NoBrowser -> AddAccountState.Form(email, Notice.NoBrowser)
-    is SignInResult.Failed -> AddAccountState.Form(email, Notice.Failed(result.reason))
+    SignInResult.NeedsApproval -> AddAccountState.Approval(email, link, keep = keep)
+    SignInResult.Declined -> AddAccountState.Form(email, Notice.Declined, keep)
+    SignInResult.TimedOut -> AddAccountState.Form(email, Notice.TimedOut, keep)
+    SignInResult.Cancelled -> AddAccountState.Form(email, Notice.Cancelled, keep)
+    SignInResult.OrganisationBlocks -> AddAccountState.Form(email, Notice.OrganisationBlocks, keep)
+    SignInResult.NoBrowser -> AddAccountState.Form(email, Notice.NoBrowser, keep)
+    is SignInResult.Failed -> AddAccountState.Form(email, Notice.Failed(result.reason), keep)
 }
 
 /** What the owner is told when asking for a permission ended with [result]; null for a yes or a call off. */
@@ -297,12 +356,23 @@ internal data class AccountsUi(
     val question: QuestionState? = null,
     /** The account the owner is asked to confirm removing. */
     val removing: AccountItem? = null,
+    /** The last try at removing it failed: the account is still there. */
+    val removeFailed: Boolean = false,
+    /** The kept mailbox could be neither read nor put aside, so nothing is saved this session. */
+    val savingOff: Boolean = false,
+    /** The last save failed: the latest changes are in memory only, and the app tries again. */
+    val saveFailed: Boolean = false,
+    /** A sign-in was lost to the system closing the app: the address it was for ("" if unknown). */
+    val interrupted: String? = null,
 )
 
 /** What the account screens ask of the app: one entry for each thing the owner can do there. */
 @Suppress("LongParameterList")
 internal class AccountActions(
     val onEmail: (String) -> Unit = {},
+    /** How far back, and how much space, the phone keeps of the new account's mail. */
+    val onKeepSpan: (KeepSpan) -> Unit = {},
+    val onStorage: (Long) -> Unit = {},
     val onSignIn: () -> Unit = {},
     val onCancelSignIn: () -> Unit = {},
     val onCopyMessage: (String) -> Unit = {},
@@ -319,4 +389,9 @@ internal class AccountActions(
     val onRemoveCancel: () -> Unit = {},
     /** The Accounts page is on screen with these accounts: where each permission stands is asked. */
     val onShown: (List<AccountItem>) -> Unit = {},
+    /** The interrupted sign-in is tried again: Add Account opens with its address. */
+    val onRestartInterrupted: () -> Unit = {},
+    val onDismissInterrupted: () -> Unit = {},
+    /** Tries the failed save of the mailbox again now. */
+    val onRetrySave: () -> Unit = {},
 )
