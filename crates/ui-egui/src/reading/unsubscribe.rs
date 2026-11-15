@@ -231,21 +231,27 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
     }
 }
 
-/// The messages a `ui.unsubscribeMany` is about: `ids`, else the selected ones.
-fn chosen(app: &MailApp, p: &Value) -> Vec<u64> {
-    match p.get("ids").and_then(Value::as_array) {
-        Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
-        None => app.session.sel.messages.clone(),
+/// The messages a `ui.unsubscribeMany` is about: `ids`, else (absent or `null`) the selected
+/// ones. Named wrongly, refused: never read as the selection, which the question didn't pin.
+fn chosen(app: &MailApp, p: &Value) -> Result<Vec<u64>, String> {
+    let wrong = || "`ids` lists messages' ids".to_string();
+    match p.get("ids") {
+        None | Some(Value::Null) => Ok(app.session.sel.messages.clone()),
+        Some(Value::Array(ids)) => ids.iter().map(|id| id.as_u64().ok_or_else(wrong)).collect(),
+        Some(_) => Err(wrong()),
     }
 }
 
 /// The question asked before `ui.unsubscribeMany`: how many lists, which way each goes, and
-/// that a web page is opened one message at a time. `None` when none of them says how.
+/// that a web page is opened one message at a time. `None` when none of them says how, or the
+/// messages are named wrongly.
 pub(crate) fn question_many(app: &MailApp, p: &Value) -> Option<crate::dialogs::Question> {
+    // Each sender by its newest message, as `mail.unsubscribeMany` takes it.
+    let mut found: Vec<&Message> = chosen(app, p).ok()?.iter().filter_map(|id| app.session.mailbox.messages.get(id).map(|m| &**m)).collect();
+    found.sort_by_key(|m| std::cmp::Reverse(m.date));
     let mut seen = std::collections::HashSet::new();
     let (mut click, mut mail, mut pages) = (0usize, 0usize, 0usize);
-    for id in chosen(app, p) {
-        let Some(m) = app.session.mailbox.messages.get(&id) else { continue };
+    for m in found {
         if !seen.insert(m.from.email.trim().to_lowercase()) {
             continue;
         }
@@ -259,14 +265,31 @@ pub(crate) fn question_many(app: &MailApp, p: &Value) -> Option<crate::dialogs::
     if click + mail + pages == 0 {
         return None;
     }
-    let n = |count: usize| count.to_string();
-    let text = crate::i18n::fmt(
-        tl!(
-            "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-        ),
-        &[("lists", &n(click + mail + pages)), ("click", &n(click)), ("mail", &n(mail)), ("pages", &n(pages))],
-    );
-    Some(crate::dialogs::Question::new(tl!("Unsubscribe"), text, tl!("Unsubscribe"), Value::Null))
+    let n = |count: usize| count as u64;
+    let mut said = vec![tln!(n(click + mail + pages), "Unsubscribe from {n} list.", "Unsubscribe from {n} lists.")];
+    if click > 0 {
+        said.push(tln!(
+            n(click),
+            "{n} in one click: its server is sent the address it gave, nothing else.",
+            "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+        ));
+    }
+    if mail > 0 {
+        said.push(tln!(
+            n(mail),
+            "{n} by a message from your account through your Outbox, with the subject and text the list gave.",
+            "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+        ));
+    }
+    if pages > 0 {
+        said.push(tln!(
+            n(pages),
+            "{n} unsubscribes on its own page: open its message to do it there.",
+            "{n} unsubscribe on their own page: open each of those messages to do it there."
+        ));
+    }
+    said.push(tl!("Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out.").to_string());
+    Some(crate::dialogs::Question::new(tl!("Unsubscribe"), said.join(" "), tl!("Unsubscribe"), Value::Null))
 }
 
 /// `ui.unsubscribeMany`: each sender of the messages once, as the engine says
@@ -278,7 +301,7 @@ fn many(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     if app.unsubscribing.busy() {
         return Err(tl!("An unsubscribe is already on its way.").to_string());
     }
-    let ids = chosen(app, p);
+    let ids = chosen(app, p)?;
     if ids.is_empty() {
         return Err(tl!("Select a message first").to_string());
     }
@@ -286,7 +309,10 @@ fn many(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let (mut click, mut mail, mut pages) = (0usize, 0usize, 0usize);
     for sender in told.get("senders").and_then(Value::as_array).into_iter().flatten() {
         let Some(id) = sender.get("message").and_then(Value::as_u64) else { continue };
+        // Without a host to post with (the browser build), one click is a page, as the question
+        // counted it: left to its message's bar, which opens it.
         match sender.get("way").and_then(Value::as_str) {
+            Some("oneClick") if app.services.unsubscribe.is_none() => pages += 1,
             Some("oneClick") if app.unsubscribing.waiting.len() < MAX_KEPT => {
                 let url = sender.get("url").and_then(Value::as_str).unwrap_or_default().to_string();
                 app.unsubscribing.said.remove(&id);

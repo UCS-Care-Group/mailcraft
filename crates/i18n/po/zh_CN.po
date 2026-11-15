@@ -7284,6 +7284,12 @@ msgid "Mail to keep offline:"
 msgstr "要保留以供离线使用的邮件："
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "您的服务器不担保的邮件、垃圾邮件中的邮件或发件人带有警告的邮件将被排除。"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail, calendar, people and tasks, written from scratch in Rust."
@@ -16711,8 +16717,9 @@ msgstr "从所选邮件退订"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-msgstr "从 {lists} 个列表退订：{click} 个一键退订（每个列表的服务器只会收到它提供的地址，不发送其他内容，逐个进行），{mail} 个通过你的账户经发件箱发送邮件退订。{pages} 个需在其自己的页面上退订：请逐一打开这些邮件，在那里退订。你的邮件服务器无法证实的邮件、垃圾邮件中的邮件，以及发件人有警告的邮件，都会被略过。"
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "退订 {n} 个列表。"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21223,6 +21230,13 @@ msgid "{n} body or attachment is missing from the mailbox's content folder, or d
 msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
 msgstr[0] "邮箱内容文件夹中有 {n} 个邮件正文或附件缺失或损坏。"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
+msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+msgstr[0] "{n} 个通过您的账户经发件箱各发一封邮件，使用各列表给出的主题和正文。"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -21365,6 +21379,13 @@ msgstr[0] "已合并 {n} 组联系人。"
 msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] "{n}小时"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} 个一键退订：每个列表的服务器只会收到它给出的地址，逐个进行。"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -21829,6 +21850,13 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "服务器上有 {n} 封未读邮件"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} 个需在其自己的网页上退订：请逐一打开这些邮件在那里操作。"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -22056,6 +22084,10 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+#~ msgstr "从 {lists} 个列表退订：{click} 个一键退订（每个列表的服务器只会收到它提供的地址，不发送其他内容，逐个进行），{mail} 个通过你的账户经发件箱发送邮件退订。{pages} 个需在其自己的页面上退订：请逐一打开这些邮件，在那里退订。你的邮件服务器无法证实的邮件、垃圾邮件中的邮件，以及发件人有警告的邮件，都会被略过。"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

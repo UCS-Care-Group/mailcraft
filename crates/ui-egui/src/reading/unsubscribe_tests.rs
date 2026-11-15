@@ -205,3 +205,84 @@ fn a_selection_unsubscribes_each_list_once_one_click_at_a_time() {
     // The page is its message's to open, on its own bar.
     assert_eq!(app.unsubscribing.said.get(&page), None);
 }
+
+/// A host that keeps each one-click unsubscribe waiting for its answer; the addresses asked, and
+/// the senders of the answers to come.
+type Held = (Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<mpsc::Sender<Result<(), String>>>>>);
+fn held_host(app: &mut MailApp) -> Held {
+    let (asked, answers) = (Arc::new(Mutex::new(Vec::new())), Arc::new(Mutex::new(Vec::new())));
+    let (kept, senders) = (asked.clone(), answers.clone());
+    app.services.unsubscribe = Some(Box::new(move |url: String| {
+        let (tx, rx) = mpsc::channel();
+        kept.lock().unwrap().push(url);
+        senders.lock().unwrap().push(tx);
+        rx
+    }));
+    (asked, answers)
+}
+
+#[test]
+fn the_next_list_is_asked_only_once_the_one_before_has_answered() {
+    let (mut app, first) = list_app(&ONE_CLICK);
+    let second = add(&mut app, "deals@shop.example", "<https://shop.example/leave>");
+    let (asked, answers) = held_host(&mut app);
+    app.execute("ui.unsubscribeMany", json!({"ids": [first, second]})).unwrap();
+    for _ in 0..4 {
+        poll(&mut app);
+    }
+    assert_eq!(asked.lock().unwrap().len(), 1, "the second waits while the first has no answer");
+    answers.lock().unwrap()[0].send(Ok(())).unwrap();
+    poll(&mut app);
+    assert_eq!(asked.lock().unwrap().len(), 2);
+}
+
+/// A message from `from` in the Inbox, `ago` seconds old, vouched for, with `headers` besides.
+fn add_at(app: &mut MailApp, from: &str, ago: i64, headers: &[(&str, &str)]) -> u64 {
+    let inbox = app.session.mailbox.inbox().unwrap();
+    let domain = from.rsplit_once('@').map_or("", |(_, d)| d);
+    let mut all = vec![("Authentication-Results".to_string(), format!("mx.example.org; dmarc=pass header.from={domain}"))];
+    all.extend(headers.iter().map(|(h, v)| ((*h).to_string(), (*v).to_string())));
+    let m = Message {
+        folder: inbox,
+        from: Address::new("", from),
+        subject: format!("{ago}"),
+        uid: 3,
+        date: NOW - ago,
+        headers: all,
+        ..Message::default()
+    };
+    app.session.mailbox.add_message(m).unwrap()
+}
+
+#[test]
+fn the_question_counts_each_sender_by_the_message_that_goes() {
+    let (mut app, _) = list_app(&[]);
+    // Named first, the older message says nothing; the newer one, which goes, unsubscribes by mail.
+    let old = add_at(&mut app, "deals@shop.example", 9_000, &[]);
+    let new = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example>")]);
+    let q = super::question_many(&app, &json!({"ids": [old, new]})).unwrap();
+    assert!(q.text.starts_with("Unsubscribe from 1 list.") && q.text.contains("1 by a message from your account"), "{}", q.text);
+    assert!(!q.text.contains("1 lists"), "{}", q.text);
+}
+
+#[test]
+fn messages_named_wrongly_are_refused_not_taken_for_the_selection() {
+    let (mut app, id) = list_app(&ONE_CLICK);
+    app.session.sel.messages = vec![id];
+    for ids in [json!("all"), json!([id, "x"]), json!({"id": id})] {
+        assert!(super::question_many(&app, &json!({"ids": ids})).is_none(), "{ids}");
+        assert!(app.execute("ui.unsubscribeMany", json!({"ids": ids})).is_err(), "{ids}");
+    }
+    assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none());
+}
+
+#[test]
+fn without_a_host_one_click_is_left_to_its_page() {
+    let (mut app, id) = list_app(&ONE_CLICK);
+    let q = super::question_many(&app, &json!({"ids": [id]})).unwrap();
+    assert!(q.text.contains("1 unsubscribes on its own page"), "{}", q.text);
+    let said = app.execute("ui.unsubscribeMany", json!({"ids": [id]})).unwrap();
+    assert_eq!((said["oneClick"].as_u64(), said["pages"].as_u64()), (Some(0), Some(1)));
+    assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none());
+    assert_eq!(app.unsubscribing.said.get(&id), None, "its bar still offers the page");
+}

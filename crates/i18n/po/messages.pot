@@ -6092,6 +6092,11 @@ msgid "Mail to keep offline:"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Mail, calendar, people and tasks, written from scratch in Rust."
 msgstr ""
@@ -13983,8 +13988,10 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-msgstr ""
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -17790,6 +17797,13 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
+msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+msgstr[0] ""
+msgstr[1] ""
+
 #. what a command says
 #: crates/model/src/message.rs
 msgid "{n} byte"
@@ -17932,6 +17946,13 @@ msgstr[1] ""
 #: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
 msgid "{n} hour"
 msgid_plural "{n} hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -18398,6 +18419,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/folder_properties.rs
 msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
 msgstr[0] ""
 msgstr[1] ""
 
