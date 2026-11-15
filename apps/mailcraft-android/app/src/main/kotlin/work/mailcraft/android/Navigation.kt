@@ -53,15 +53,22 @@ internal data class NavState(
     val tab: Tab = Tab.Mail,
     val settings: Boolean = false,
     val page: SettingsPage? = null,
+    /** Add Account is open over wherever the owner was. */
+    val adding: Boolean = false,
 ) {
     fun select(tab: Tab): NavState = NavState(tab = tab)
 
-    fun openSettings(): NavState = copy(settings = true, page = null)
+    fun openSettings(): NavState = copy(settings = true, page = null, adding = false)
 
-    fun openPage(page: SettingsPage): NavState = copy(settings = true, page = page)
+    fun openPage(page: SettingsPage): NavState = copy(settings = true, page = page, adding = false)
+
+    fun openAddAccount(): NavState = copy(adding = true)
+
+    fun leaveAddAccount(): NavState = copy(adding = false)
 
     /** One step back, or null when there is nothing to go back to (the system leaves the app). */
     fun back(): NavState? = when {
+        adding -> copy(adding = false)
         page != null -> copy(page = null)
         settings -> copy(settings = false)
         else -> null
@@ -70,17 +77,21 @@ internal data class NavState(
     companion object {
         /** Saved across a change of configuration or the process's death; what can't be read is the start. */
         val Saver: Saver<NavState, Any> = listSaver(
-            save = { listOf(it.tab.ordinal, it.settings, it.page?.ordinal ?: NONE) },
+            save = { listOf(it.tab.ordinal, it.settings, it.page?.ordinal ?: NONE, it.adding) },
             restore = { fromSaved(it) },
         )
 
         private const val NONE = -1
 
+        /** Where [NavState.adding] is in the saved list; what was saved before it existed has no such part. */
+        private const val ADDING_AT = 3
+
         internal fun fromSaved(saved: List<Any?>): NavState {
             val tab = (saved.getOrNull(0) as? Int)?.let { Tab.entries.getOrNull(it) } ?: Tab.Mail
             val settings = saved.getOrNull(1) as? Boolean ?: false
             val page = (saved.getOrNull(2) as? Int)?.let { SettingsPage.entries.getOrNull(it) }
-            return NavState(tab = tab, settings = settings || page != null, page = page)
+            val adding = saved.getOrNull(ADDING_AT) as? Boolean ?: false
+            return NavState(tab = tab, settings = settings || page != null, page = page, adding = adding)
         }
     }
 }

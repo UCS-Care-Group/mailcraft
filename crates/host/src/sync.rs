@@ -292,6 +292,20 @@ impl SendReceive {
         Adopted::Kept
     }
 
+    /// Take in a refresh token Microsoft rotated this session's to in the answer to a check of a
+    /// permission ([`crate::signin::permission_standing`]): it replaces the session's only while
+    /// that is still the one the check began with, so that a sign-in made, or forgotten, meanwhile
+    /// is never written over by an older answer. Nothing is written to the credential store here.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn take_renewed(&mut self, session: &Session, account: Id, renewed: &crate::signin::Renewed) {
+        self.follow_opening(session);
+        if let Some(kept) = self.tokens.get_mut(&account)
+            && kept.refresh == renewed.from
+        {
+            kept.refresh.clone_from(&renewed.token);
+        }
+    }
+
     /// Start a round for `accounts` now, the owner having asked for it. Refused (false) while
     /// Work Offline is on or the mailbox is unconfirmed or its data removed.
     pub fn start_round(&mut self, session: &mut Session, ctx: &Context, accounts: &[Id]) -> bool {
@@ -357,8 +371,10 @@ impl SendReceive {
         a.kind == AccountKind::Microsoft && !a.is_shared() && self.refresh_for(session, ctx, account).is_some()
     }
 
-    /// The account's refresh token: this session's, else the credential store's.
-    pub(crate) fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
+    /// The account's refresh token: this session's, else the credential store's (only when the
+    /// owner lets sign-ins be remembered). Nothing while the mailbox is unconfirmed or its data
+    /// removed.
+    pub fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
         if ctx.held() {
             return None;
         }
