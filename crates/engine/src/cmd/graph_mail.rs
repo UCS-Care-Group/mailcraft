@@ -266,7 +266,7 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
     let shared = shared_mailbox(s, account)?;
-    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none() })
+    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none(), ..Default::default() })
 }
 
 /// Take in messages fetched whole. Not an undo step.

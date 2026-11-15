@@ -450,3 +450,29 @@ mod inbox_pass {
         assert!(last.partial && last.inbox_pass && !last.errors.is_empty() && last.pages.is_empty());
     }
 }
+
+#[test]
+fn a_device_that_takes_less_passes_a_larger_message_over_and_keeps_the_batch_within_its_room() {
+    // A phone (MB3.17): each message within `most_bytes`, the batch within `most_total`.
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 4, NOW);
+    let big = format!("From: avery@example.org\r\nTo: owner@example.org\r\nSubject: Large\r\n\r\n{}\r\n", "x".repeat(64 * 1024));
+    server.state().mailbox.update(&ids[1], |m| m.mime = Some(big.clone()));
+    let mut request = fetch_request(&ids);
+    request.most_bytes = 16 * 1024;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.too_large, [ids[1].clone()]);
+    assert_eq!(got.failed, [ids[1].clone()], "named as passed over too, so the background leaves it");
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str(), ids[2].as_str(), ids[3].as_str()]);
+    assert!(got.errors.is_empty() && !got.offline, "{:?}", got.errors);
+    assert!(got.fetched.iter().all(|f| f.mime.len() <= 16 * 1024));
+
+    // The batch's room: once it is used up, the rest wait (neither fetched nor failed).
+    let first = got.fetched[0].mime.len() as u64;
+    let mut request = fetch_request(&[ids[0].clone(), ids[2].clone(), ids[3].clone()]);
+    request.most_total = first + 1;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str()]);
+    assert!(got.failed.is_empty() && got.too_large.is_empty() && got.errors.is_empty(), "{got:?}");
+}

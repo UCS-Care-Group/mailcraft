@@ -61,18 +61,36 @@ pub(crate) fn fetch_messages_with(
         }
     };
     let mut in_a_row = 0usize;
+    // A device that can't hold the largest messages asks for less (MB3.17): each message, and
+    // the batch together.
+    let most = usize::try_from(request.most_bytes).ok().filter(|n| *n > 0).map_or(MAX_MIME, |n| n.min(MAX_MIME));
+    let most_total = usize::try_from(request.most_total).ok().filter(|n| *n > 0).unwrap_or(usize::MAX);
+    let mut brought = 0usize;
     for id in request.ids.iter().take(100) {
-        if cancel.load(Ordering::Relaxed) {
+        if cancel.load(Ordering::Relaxed) || brought >= most_total {
             break;
         }
         let Some(id) = id_of(id) else { continue };
         let url = graph.url(&graph.mail_path(&format!("/messages/{}/$value", http::encode(&id))));
-        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, FETCH_TIMEOUT, MAX_MIME) {
+        // (No more than the batch has room for, nor than one message may be.)
+        let room = most.min(most_total.saturating_sub(brought));
+        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, FETCH_TIMEOUT, room) {
             Ok(reply) => reply,
             // Busy, or no way through: the rest wait.
             Err(e) if e.is_unreachable() || matches!(e, NetError::Busy { .. }) => {
                 stop(&mut out, &e);
                 break;
+            }
+            // Larger than this device takes: passed over, and not held against the rest (it is
+            // the message, not the request). Larger than the batch's room alone waits for the next.
+            Err(e) if http::is_too_long(&e) => {
+                if room < most {
+                    break;
+                }
+                log::info!("graph mail: a message is larger than this device takes whole; it waits until it is opened");
+                out.too_large.push(id.clone());
+                out.failed.push(id);
+                continue;
             }
             // This message's answer couldn't be taken (too large, garbled): passed over.
             Err(e) => {
@@ -89,6 +107,7 @@ pub(crate) fn fetch_messages_with(
         match reply.status {
             200 => {
                 in_a_row = 0;
+                brought = brought.saturating_add(reply.body.len());
                 out.fetched.push(GraphFetched { id, mime: reply.body });
             }
             404 => {
