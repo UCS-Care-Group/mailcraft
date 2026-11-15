@@ -471,8 +471,11 @@ impl Core {
         // One job: the account goes and, when no other account has its address, so does its sign-in,
         // whatever becomes of the caller (a shutdown between two calls would leave the credential).
         let platform = self.native.clone();
+        let sync = self.sync.clone();
         self.call(move |s| {
             s.run("account.remove", &json!({"id": account})).map_err(CoreError::from)?;
+            // What was being fetched for it is called off, and nothing it brings is taken in.
+            sync.cancel_fetches(Some(account));
             // (Nothing else of the account's is held under its address: a mailbox with another account
             // of the same address keeps it.)
             let still = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));

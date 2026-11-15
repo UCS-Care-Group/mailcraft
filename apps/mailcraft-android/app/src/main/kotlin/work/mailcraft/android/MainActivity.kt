@@ -152,9 +152,7 @@ private fun CoreShell(
     window: WindowModel?,
     onLanguage: (String) -> Unit,
 ) {
-    val core = opened.core
-    val hub = opened.hub
-    val list = opened.mail
+    val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
@@ -172,7 +170,6 @@ private fun CoreShell(
     val outline = outlined?.outline
     val folder = chosenFolder(outline, query.folder)
     val accounts = outline?.accounts.orEmpty()
-
     val now = rememberTicks(list)
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
     val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
@@ -181,9 +178,9 @@ private fun CoreShell(
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
     }
-    val controller = hub.controller
-    val accountsUi by controller.ui.collectAsState()
+    val accountsUi by hub.controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
+    val (readingUi, readingActions) = rememberReading(core, list, scope)
     val mailActions = remember(list, scope, hub) {
         mailListActions(list, scope, retryOutline, hub::syncNow) { change -> query = change(query) }
     }
@@ -201,20 +198,38 @@ private fun CoreShell(
             categories = categories,
             nowMillis = now,
             swipe = swipe,
+            reading = readingUi,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
-            accounts = controller.actions(),
+            accounts = hub.controller.actions(),
             mail = mailActions,
             onSwipe = {
                 swipe = it
                 prefs.save(it)
             },
+            reading = readingActions,
         ),
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
+}
+
+/**
+ * The message being read is this window's own; marking it read goes through the list, which makes the
+ * owner's commands in turn, so that an undo it offers is never taken by the mark.
+ */
+@Composable
+private fun rememberReading(
+    core: Core,
+    list: MailListController,
+    scope: CoroutineScope,
+): Pair<ReadingUi, ReadingActions> {
+    val reading = remember(core, list) { ReadingController(CoreReadSource(core, list::markRead), scope) }
+    val links = remember(core) { CoreLinks(core) }
+    val ui by reading.ui.collectAsState()
+    return ui to ReadingActions(onOpen = reading::open, onClose = reading::close, onLink = links::open)
 }
 
 /**

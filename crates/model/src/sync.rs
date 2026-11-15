@@ -474,6 +474,15 @@ pub struct GraphFetchRequest {
     /// Nobody is waiting: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// The most bytes one message may come as: one larger is passed over, named in
+    /// [`GraphFetchResult::too_large`]. 0 is the host's own cap (160 MB); a phone asks for less
+    /// (MB3.17).
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_bytes: u64,
+    /// The most bytes the batch brings together: once past it, the messages not asked for yet
+    /// wait for the next batch (they are neither fetched nor failed). 0: no cap of its own.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub most_total: u64,
 }
 
 /// What fetching brought: each message's MIME as it came, and what the server no longer has.
@@ -498,6 +507,10 @@ pub struct GraphFetchResult {
     /// up the rest. Opening one still asks for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<String>,
+    /// Of `failed`, those larger than the request's [`GraphFetchRequest::most_bytes`] (or the
+    /// host's own cap): they wait until the owner opens them on a device that takes them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub too_large: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
     /// The server could not be reached: whatever wasn't fetched waits until it can.
