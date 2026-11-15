@@ -90,10 +90,20 @@ fn failure_error(lang: mailcraft_i18n::Lang, why: FetchFailure) -> CoreError {
     CoreError::Failed { reason: crate::fetch::failure_words(lang, why) }
 }
 
+/// [`attachment_file`], for the mailbox that was open when the message was asked for: another
+/// mailbox has a message of that number too, and it is not this one.
+pub(crate) fn attachment_in(s: &Session, id: Id, index: u32, opening: u64) -> Result<AttachmentFile, CoreError> {
+    if s.openings() != opening {
+        return Err(CoreError::Cancelled);
+    }
+    attachment_file(s, id, index)
+}
+
 /// What the first part of `fetch_attachment` found.
 enum First {
     Ready(AttachmentFile),
-    Wait(crate::fetch::MessageWaiter),
+    /// What to wait on, and the opening of the mailbox it was asked in.
+    Wait(crate::fetch::MessageWaiter, u64),
 }
 
 #[uniffi::export]
@@ -118,15 +128,16 @@ impl Core {
         let first = self
             .call(move |s| match sync.wait_for(s, id)? {
                 None => attachment_file(s, id, index).map(First::Ready),
-                Some(waiter) => Ok(First::Wait(waiter)),
+                Some(waiter) => Ok(First::Wait(waiter, s.openings())),
             })
             .await?;
-        let waiter = match first {
+        let (waiter, opening) = match first {
             First::Ready(file) => return Ok(file),
-            First::Wait(waiter) => waiter,
+            First::Wait(waiter, opening) => (waiter, opening),
         };
         match waiter.next().await {
-            Some(Ok(())) => self.call(move |s| attachment_file(s, id, index)).await,
+            // (Another mailbox may be open by now: its message of that number is not this one.)
+            Some(Ok(())) => self.call(move |s| attachment_in(s, id, index, opening)).await,
             Some(Err(why)) => Err(failure_error(lang, why)),
             None => Err(CoreError::Cancelled),
         }

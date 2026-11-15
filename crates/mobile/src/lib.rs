@@ -47,6 +47,8 @@ mod accounts_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
+mod fetch_review_tests;
+#[cfg(test)]
 mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;

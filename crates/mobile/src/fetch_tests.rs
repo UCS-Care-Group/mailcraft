@@ -23,10 +23,10 @@ use crate::fake_tests::{FakePlatform, block_on, now};
 use crate::fetch::{Answer, BACKGROUND_BATCH, BACKGROUND_TOTAL, FetchDone, FetchRunner, OPEN_MOST_BYTES, Work, bounded, room_for_more};
 use crate::{AttachmentVerdict, Core, CoreError, Event, FetchFailure, NetworkKind, OpenState};
 
-const EMAIL: &str = "owner@example.org";
+pub(crate) const EMAIL: &str = "owner@example.org";
 const DAY: i64 = 86_400;
 
-fn message(id: &str, subject: &str, received: i64, folder: &str) -> GraphMessage {
+pub(crate) fn message(id: &str, subject: &str, received: i64, folder: &str) -> GraphMessage {
     GraphMessage {
         server: ServerMessage { id: id.into(), folder: folder.into(), ..Default::default() },
         subject: subject.into(),
@@ -39,7 +39,7 @@ fn message(id: &str, subject: &str, received: i64, folder: &str) -> GraphMessage
 
 /// A session at [`now`] with one Microsoft account whose Inbox has three messages of this week,
 /// as headers and previews (what a delta brings).
-fn session() -> Session {
+pub(crate) fn session() -> Session {
     let mut s = Session::at(Mailbox::with_local_account("", ""), now(), 0);
     s.run("account.add", &json!({"email": EMAIL, "kind": "microsoft"})).unwrap();
     s.prefs.sync_minutes = 0;
@@ -71,7 +71,7 @@ fn session() -> Session {
 }
 
 /// A message's MIME as the server would give it.
-fn mime(subject: &str, body: &str) -> Vec<u8> {
+pub(crate) fn mime(subject: &str, body: &str) -> Vec<u8> {
     format!("From: Ada Lovelace <ada@example.org>\r\nTo: {EMAIL}\r\nSubject: {subject}\r\nContent-Type: text/plain\r\n\r\n{body}\r\n").into_bytes()
 }
 
@@ -85,29 +85,29 @@ fn with_attachment(name: &str) -> Vec<u8> {
 
 /// What the fake runner was asked: whether with a token held or a renewal, and the work.
 #[derive(Debug, Clone)]
-enum Asked {
+pub(crate) enum Asked {
     Fetch { held: bool, refresh: String, request: GraphFetchRequest },
     Search { next: String },
 }
 
 /// How the fake server answers a fetch.
-type Serve = dyn Fn(&GraphFetchRequest) -> GraphFetchResult + Send + Sync;
+pub(crate) type Serve = dyn Fn(&GraphFetchRequest) -> GraphFetchResult + Send + Sync;
 /// What it finds for a search (the query, the next page asked for).
-type Find = dyn Fn(&str, &str) -> GraphSearchResult + Send + Sync;
+pub(crate) type Find = dyn Fn(&str, &str) -> GraphSearchResult + Send + Sync;
 
-struct Fake {
-    asked: Arc<Mutex<Vec<Asked>>>,
+pub(crate) struct Fake {
+    pub(crate) asked: Arc<Mutex<Vec<Asked>>>,
     /// Held shut, every job waits until it is opened (ten seconds at most).
     gate: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl Fake {
-    fn release(&self) {
+    pub(crate) fn release(&self) {
         *self.gate.0.lock().unwrap() = true;
         self.gate.1.notify_all();
     }
 
-    fn fetches(&self) -> Vec<(bool, String, GraphFetchRequest)> {
+    pub(crate) fn fetches(&self) -> Vec<(bool, String, GraphFetchRequest)> {
         self.asked
             .lock()
             .unwrap()
@@ -121,7 +121,7 @@ impl Fake {
 }
 
 /// A runner that answers as `serve` and `found` say, after the gate is open.
-fn runner(serve: Arc<Serve>, found: Arc<Find>, open: bool) -> (FetchRunner, Fake) {
+pub(crate) fn runner(serve: Arc<Serve>, found: Arc<Find>, open: bool) -> (FetchRunner, Fake) {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let gate = Arc::new((Mutex::new(open), Condvar::new()));
     let (log, held_gate) = (asked.clone(), gate.clone());
@@ -166,7 +166,7 @@ fn runner(serve: Arc<Serve>, found: Arc<Find>, open: bool) -> (FetchRunner, Fake
 }
 
 /// Each message asked for, whole, with a body of its own.
-fn whole(request: &GraphFetchRequest) -> GraphFetchResult {
+pub(crate) fn whole(request: &GraphFetchRequest) -> GraphFetchResult {
     GraphFetchResult {
         account: request.account,
         email: request.email.clone(),
@@ -179,13 +179,13 @@ fn whole(request: &GraphFetchRequest) -> GraphFetchResult {
     }
 }
 
-fn nothing_found() -> Arc<Find> {
+pub(crate) fn nothing_found() -> Arc<Find> {
     Arc::new(|_, _| GraphSearchResult::default())
 }
 
 /// A core over [`session`], its account signed in by a refresh token kept in the store, its jobs
 /// run by `run`. No background fetch unless `background`.
-fn core_with(run: FetchRunner, background: bool) -> (Arc<Core>, Arc<FakePlatform>, u64) {
+pub(crate) fn core_with(run: FetchRunner, background: bool) -> (Arc<Core>, Arc<FakePlatform>, u64) {
     let platform = FakePlatform::new();
     let core = Core::start(platform.clone(), session).unwrap();
     core.sync.set_fetch_runner(run);
@@ -206,18 +206,18 @@ fn core_with(run: FetchRunner, background: bool) -> (Arc<Core>, Arc<FakePlatform
     (core, platform, account)
 }
 
-fn id_of(core: &Core, server: &str) -> u64 {
+pub(crate) fn id_of(core: &Core, server: &str) -> u64 {
     let server = server.to_string();
     block_on(core.call(move |s| Ok(s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|sv| sv.id == server)).map(|m| m.id))))
         .unwrap()
         .unwrap()
 }
 
-fn is_whole(core: &Core, id: u64) -> bool {
+pub(crate) fn is_whole(core: &Core, id: u64) -> bool {
     block_on(core.call(move |s| Ok(s.mailbox.message(id).is_some_and(|m| !m.unfetched)))).unwrap()
 }
 
-fn drain(core: &Core) -> Vec<Event> {
+pub(crate) fn drain(core: &Core) -> Vec<Event> {
     let mut out = Vec::new();
     let mut cx = Context::from_waker(Waker::noop());
     loop {
@@ -230,7 +230,7 @@ fn drain(core: &Core) -> Vec<Event> {
 }
 
 /// Events until one matches (ten seconds at most).
-fn until(core: &Core, what: impl Fn(&Event) -> bool) -> Vec<Event> {
+pub(crate) fn until(core: &Core, what: impl Fn(&Event) -> bool) -> Vec<Event> {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut all = Vec::new();
     loop {
@@ -244,7 +244,7 @@ fn until(core: &Core, what: impl Fn(&Event) -> bool) -> Vec<Event> {
 }
 
 /// Waits a bounded time for `f` to hold.
-fn eventually(what: &str, f: impl Fn() -> bool) {
+pub(crate) fn eventually(what: &str, f: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !f() {
         assert!(Instant::now() < deadline, "{what} never happened");

@@ -31,6 +31,9 @@ const MAX_MIME: usize = 160 * 1024 * 1024;
 // What is asked for is what comes: a body is never cut to less than this (#175).
 const _: () = assert!(MAX_MIME <= http::MAX_LARGE_BODY);
 /// How long one message may take to come.
+/// What an error answer's body may add to a message's room (Graph's are a kilobyte or so): the
+/// reader's limit applies to every body, and an error's must not read as a message too large.
+const ERROR_BODY_ROOM: usize = 64 * 1024;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(300);
 /// Messages refused one after another before the batch stops: by then it is likely the request,
 /// not the messages.
@@ -74,7 +77,8 @@ pub(crate) fn fetch_messages_with(
         let url = graph.url(&graph.mail_path(&format!("/messages/{}/$value", http::encode(&id))));
         // (No more than the batch has room for, nor than one message may be.)
         let room = most.min(most_total.saturating_sub(brought));
-        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, FETCH_TIMEOUT, room) {
+        let ask = room.saturating_add(ERROR_BODY_ROOM).min(http::MAX_LARGE_BODY);
+        let reply = match graph.call(Kind::Read, &url, "GET", &[], None, FETCH_TIMEOUT, ask) {
             Ok(reply) => reply,
             // Busy, or no way through: the rest wait.
             Err(e) if e.is_unreachable() || matches!(e, NetError::Busy { .. }) => {
@@ -104,6 +108,17 @@ pub(crate) fn fetch_messages_with(
                 continue;
             }
         };
+        // A message longer than its room, which only the error allowance let be read: the same as
+        // one the reader refused.
+        if reply.status == 200 && reply.body.len() > room {
+            if room < most {
+                break;
+            }
+            log::info!("graph mail: a message is larger than this device takes whole; it waits until it is opened");
+            out.too_large.push(id.clone());
+            out.failed.push(id);
+            continue;
+        }
         match reply.status {
             200 => {
                 in_a_row = 0;

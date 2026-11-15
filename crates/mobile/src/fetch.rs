@@ -217,6 +217,8 @@ pub(crate) struct Fetching {
     ticket: u64,
     /// The last message that couldn't come, and why (what `open` says when it ends at once).
     last_failure: Option<(Id, FetchFailure)>,
+    /// `shutdown` has called everything off: nothing waits for a job after that.
+    closed: bool,
 }
 
 impl Fetching {
@@ -341,6 +343,10 @@ impl SyncHost {
             OpenState::Fetching => {}
         }
         let mut inner = self.lock();
+        // (`shutdown` called the waiters off under this lock: one added after it would wait for ever.)
+        if inner.fetch.closed {
+            return Err(CoreError::Cancelled);
+        }
         if inner.fetch.waiters.len() >= MOST_WAITERS {
             return Err(CoreError::Failed { reason: "too many calls are waiting; try again in a moment".to_string() });
         }
@@ -392,8 +398,11 @@ impl SyncHost {
 
     /// Put `want` in the queue; when it is full, the oldest is called off (the owner has moved on).
     fn want(&self, inner: &mut Inner, want: Want) {
-        if inner.fetch.wanted.len() >= QUEUE
-            && let Some(old) = inner.fetch.wanted.pop_front()
+        // (An account's own: another account's jobs are not called off for it.)
+        let account = want.account();
+        if inner.fetch.wanted.iter().filter(|w| w.account() == account).count() >= QUEUE
+            && let Some(at) = inner.fetch.wanted.iter().position(|w| w.account() == account)
+            && let Some(old) = inner.fetch.wanted.remove(at)
         {
             self.called_off(inner, old);
         }
@@ -433,6 +442,9 @@ impl SyncHost {
     /// taken in.
     pub(crate) fn cancel_fetches(&self, account: Option<Id>) {
         let mut inner = self.lock();
+        if account.is_none() {
+            inner.fetch.closed = true;
+        }
         self.cancel_locked(&mut inner, account);
     }
 
@@ -540,7 +552,7 @@ impl SyncHost {
         }
         // Only on a connection that isn't paid by the byte, and not while the owner saves data
         // (PRIVACY.md): what is opened comes on any connection.
-        let unmetered = matches!(self.host.platform().network(), NetworkState::Unknown | NetworkState::Online { metered: false, data_saving: false });
+        let unmetered = matches!(self.host.platform().network(), NetworkState::Online { metered: false, data_saving: false });
         let now = self.now_ms();
         if !unmetered || !session.fetch_background_due(now) || !room_for_more(session) {
             return;
@@ -752,6 +764,8 @@ impl SyncHost {
                 continue;
             }
             if let Some(m) = here.get(id) {
+                // (Kept for the session as what it brought is: the limits may not trim it away.)
+                session.keep_for_now([*m]);
                 answer.messages.push(*m);
                 continue;
             }
