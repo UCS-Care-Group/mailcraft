@@ -99,6 +99,11 @@ impl HitMap {
         self.scope
     }
 
+    /// Whether a control of one of these kinds in the current window is at `pos`.
+    pub(crate) fn contains(&self, kinds: &[&str], pos: egui::Pos2) -> bool {
+        self.items.iter().any(|(kind, _, rect, window)| *window == self.scope && kinds.contains(kind) && rect.contains(pos))
+    }
+
     /// Where `kind` with `id` is: in the main window when it is there, else in a window of its own.
     pub fn rect(&self, kind: &str, id: u64) -> Option<egui::Rect> {
         let found = |main: bool| self.items.iter().find(|(k, i, _, w)| *k == kind && *i == id && (*w == 0) == main);

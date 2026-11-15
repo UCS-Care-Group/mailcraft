@@ -36,14 +36,15 @@ fn each_font_menu_stands_for_the_command_its_entries_run() {
 
 #[test]
 fn in_a_plain_text_message_the_font_menus_are_greyed_like_bold() {
+    let ctx = egui::Context::default();
     for tab in ["Message", "Format Text"] {
         for (plain, want) in [(true, false), (false, true)] {
             let app = writing(plain);
             let described = describe_tab(&app, tab);
             let item = |key: &str| described.items().find(|i| i.key == key).cloned().unwrap_or_else(|| panic!("{tab}: no {key}"));
-            assert_eq!(usable(&app, &item("format.bold")), want, "{tab}, plain {plain}: Bold");
+            assert_eq!(usable(&app, &ctx, &item("format.bold")), want, "{tab}, plain {plain}: Bold");
             for key in ["font", "fontSize", "fontColor", "highlight"] {
-                assert_eq!(usable(&app, &item(key)), want, "{tab}, plain {plain}: {key}");
+                assert_eq!(usable(&app, &ctx, &item(key)), want, "{tab}, plain {plain}: {key}");
             }
         }
     }

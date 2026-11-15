@@ -92,8 +92,8 @@ pub(crate) fn packed_rows(group: &Group) -> impl Iterator<Item = Vec<&Item>> {
     group.classic_rows.iter().map(|row| row.iter().filter_map(|key| group.items.iter().find(|item| item.key == *key)).collect())
 }
 
-pub(crate) fn show_label(group: &Group, stage: Stage, item: &Item) -> bool {
-    stage != Stage::Icons && !(group.title == "Clipboard" && stage == Stage::Full && item.size == Size::Small)
+pub(crate) fn show_label(stage: Stage) -> bool {
+    stage != Stage::Icons
 }
 
 /// How wide each stage of a group is, with the divider after it: `text(string, size)` measures a
@@ -123,10 +123,9 @@ pub(crate) fn group_widths(group: &Group, text: &dyn Fn(&str, f32) -> f32) -> [f
         for cell in &cells {
             content += match cell {
                 Cell::Big(item) => big_width(tl!(item.label).split('\n').map(|l| text(l, 11.5)).fold(0.0, f32::max), drops(item)),
-                Cell::Column(items) => items
-                    .iter()
-                    .map(|item| small_width(show_label(group, stage, item).then(|| text(&item.name(), 11.5)), drops(item)))
-                    .fold(0.0, f32::max),
+                Cell::Column(items) => {
+                    items.iter().map(|item| small_width(show_label(stage).then(|| text(&item.name(), 11.5)), drops(item))).fold(0.0, f32::max)
+                }
             };
         }
         content += CELL_GAP * cells.len().saturating_sub(1) as f32;

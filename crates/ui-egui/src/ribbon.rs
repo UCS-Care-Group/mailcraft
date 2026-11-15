@@ -170,9 +170,9 @@ impl Menu {
 
 /// Whether a control can be used now: its command can run, or the command its menu stands for
 /// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
-pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
+pub(crate) fn usable(app: &MailApp, ctx: &egui::Context, item: &Item) -> bool {
     match (&item.command, item.menu) {
-        (Some((command, _)), _) => crate::text_menu::compose_clipboard_enabled(app, command).unwrap_or_else(|| app.enabled(command)),
+        (Some((command, _)), _) => crate::text_menu::compose_clipboard_enabled(app, ctx, command).unwrap_or_else(|| app.enabled(command)),
         (None, Some(menu)) => menu_usable(app, menu),
         (None, None) => true,
     }
@@ -1692,7 +1692,7 @@ pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
 /// when it is on.
 fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
     let Some((id, params)) = &item.command else { return };
-    let (key, enabled) = (shortcut_text(app, id), usable(app, item));
+    let (key, enabled) = (shortcut_text(app, id), usable(app, ui.ctx(), item));
     let mut button = egui::Button::new(item.name()).selected(item.checked).min_size(vec2(190.0, 0.0));
     if !key.is_empty() {
         button = button.shortcut_text(key);
@@ -1706,6 +1706,13 @@ fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
 fn run_ribbon_command(app: &mut MailApp, ui: &Ui, command: &str, params: &Value) {
     if !crate::text_menu::compose_clipboard(app, ui.ctx(), command) {
         let _ = app.run(command, params.clone());
+    }
+}
+
+/// Record the menu's bounds so a click in it leaves a composer header's selection in place.
+fn ribbon_popup(app: &mut MailApp, response: &egui::Response, contents: impl FnOnce(&mut Ui, &mut MailApp)) {
+    if let Some(popup) = egui::Popup::menu(response).show(|ui| contents(ui, app)) {
+        app.hit.add("ribbonPopup", 0, popup.response.rect);
     }
 }
 
@@ -1884,7 +1891,7 @@ pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
     let id = ui.scope_id().with(("ribbon", item.key));
-    let on = usable(app, item);
+    let on = usable(app, ui.ctx(), item);
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
     // (A control still to be built takes no clicks and no keyboard.)
@@ -1913,7 +1920,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         drop_mark(ui, drop_rect.center(), ink);
         let main = menu_tooltip(app, main, item, on);
         if on {
-            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+            ribbon_popup(app, &main, |ui, app| drop_menu(ui, app, b));
         }
         return;
     };
@@ -1934,7 +1941,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
     if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
-        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+        ribbon_popup(app, &drop, |ui, app| drop_menu(ui, app, b));
     }
 }
 
@@ -1983,7 +1990,7 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
         bg(ui, rect, &resp, false, t);
         icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(ICON, ICON)), "more", t.icon, t.accent);
         let resp = resp.on_hover_text(tl!("More commands"));
-        egui::Popup::menu(&resp).show(|ui| {
+        ribbon_popup(app, &resp, |ui, app| {
             ui.set_min_width(200.0);
             let mut before: Option<u8> = None;
             for b in &more {
@@ -2020,14 +2027,14 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
     let label = tl!(item.label);
     match (&item.command, item.menu) {
         (_, Some(Menu::RecentAttachments)) => {
-            let on = usable(app, item);
+            let on = usable(app, ui.ctx(), item);
             let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             classic_recent_attachments(app, &resp, on);
         }
         (Some((command, params)), _) => {
-            let on = usable(app, item);
+            let on = usable(app, ui.ctx(), item);
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
@@ -2037,7 +2044,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             }
         }
         (None, Some(menu)) => {
-            let on = usable(app, item);
+            let on = usable(app, ui.ctx(), item);
             let (resp, text) = big_frame(ui, item.icon, label, on, false, true);
             let resp = menu_tooltip(app, resp, item, on);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
@@ -2062,7 +2069,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
 fn classic_small(app: &mut MailApp, ui: &mut Ui, item: &Item, labelled: bool, width: Option<f32>) {
     let name = item.name();
     let label = labelled.then_some(name.as_str());
-    let on = usable(app, item) && !item.pending;
+    let on = usable(app, ui.ctx(), item) && !item.pending;
     let menu = fit::drops(item);
     let resp = match width {
         Some(width) => widgets::small_frame_with_width(ui, item.icon, label, on, item.checked, menu, width),
@@ -2110,9 +2117,13 @@ fn classic_picker(app: &mut MailApp, ui: &mut Ui, item: &Item, menu: Menu, width
             Some(None) => tl!("Default").to_owned(),
             None => String::new(),
         },
-        _ => look.size.flatten().map_or_else(|| "—".to_owned(), |size| size.to_string()),
+        _ => match look.size {
+            Some(Some(size)) => size.to_string(),
+            Some(None) => format!("{:.0}", crate::compose::editor::BASE_SIZE * 3.0 / 4.0),
+            None => "—".to_owned(),
+        },
     };
-    let on = usable(app, item);
+    let on = usable(app, ui.ctx(), item);
     let t = Tokens::get(ui.ctx());
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 22.0), if on { Sense::click() } else { Sense::hover() });
     let field = rect.shrink2(vec2(0.0, 1.0));
@@ -2153,7 +2164,7 @@ fn classic_cells(app: &mut MailApp, ui: &mut Ui, group: &Group, items: &[&Item],
             Cell::Big(item) => classic_big(app, ui, item),
             Cell::Column(column) => stack(ui, |ui| {
                 for item in column {
-                    let labelled = fit::show_label(group, stage, item);
+                    let labelled = fit::show_label(stage);
                     classic_small(app, ui, item, labelled, None);
                 }
             }),
@@ -2215,7 +2226,7 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
         // The group as it normally looks; as small buttons when even that is wider than the window.
         let room = ui.ctx().content_rect().width() - 24.0;
         let open = if widths.get(i).is_some_and(|w| w[0] - fit::GROUP_TAIL <= room) { Stage::Full } else { Stage::Small };
-        egui::Popup::menu(&resp).show(|ui| {
+        ribbon_popup(app, &resp, |ui, app| {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing = vec2(1.0, 1.0);
                 classic_cells(app, ui, group_of, &items, open);
@@ -2230,11 +2241,14 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
         bg(ui, rect, &resp, false, t);
         icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(ICON, ICON)), "more", t.icon, t.accent);
         let resp = resp.on_hover_text(tl!("More commands"));
-        egui::Popup::menu(&resp).show(|ui| {
+        ribbon_popup(app, &resp, |ui, app| {
             ui.set_min_width(200.0);
             for i in &plan.behind {
                 if let Some(group_of) = groups.get(*i) {
-                    ui.menu_button(tl!(group_of.title), |ui| group_entries(ui, app, group_of));
+                    ui.menu_button(tl!(group_of.title), |ui| {
+                        group_entries(ui, app, group_of);
+                        app.hit.add("ribbonPopup", 0, ui.min_rect());
+                    });
                 }
             }
         });
