@@ -23,7 +23,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     let _ = a.execute("ui.dismissReminder", json!({"all": true}));
     a
 }
@@ -394,6 +394,30 @@ fn a_selection_that_is_refused_lets_go_of_nothing() {
         assert!(pane(&a).is_some(), "{params}: in the reading pane");
         assert!(a.session.mailbox == before, "{params}: nothing was saved");
         assert_eq!(a.session.sel.messages, vec![first], "{params}");
+    }
+}
+
+#[test]
+fn opening_a_message_from_elsewhere_stops_when_the_selection_is_refused() {
+    // A task's or a contact's message opens in Mail by selecting it. Where the draft being written
+    // can't be saved the select is refused, and the window stays where it was: in Tasks, the
+    // selection as it was, no scrolling to a selection that did not move. Where it can, it opens.
+    for saves in [true, false] {
+        let (mut a, first, second) = continued();
+        typed(&mut a);
+        a.run("view.tasks", json!({})).unwrap();
+        a.ui.backstage = true;
+        if !saves {
+            let d = folder(&a, FolderKind::Drafts);
+            a.session.mailbox.folders.iter_mut().find(|f| f.id == d).unwrap().kind = FolderKind::Custom;
+        }
+        a.reveal_selection = false;
+        a.open_in_mail(second);
+        let (module, selected) = (a.session.view.module, a.session.sel.messages.clone());
+        assert_eq!(module == mailcraft_engine::Module::Mail, saves, "saves: {saves}: Mail in front");
+        assert_eq!(selected, vec![if saves { second } else { first }], "saves: {saves}");
+        assert_eq!((a.reveal_selection, a.ui.backstage), (saves, !saves), "saves: {saves}: scrolled, File closed");
+        assert_eq!(pane(&a).is_some(), !saves, "saves: {saves}: the message still being written");
     }
 }
 
