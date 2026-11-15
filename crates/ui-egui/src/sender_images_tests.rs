@@ -310,6 +310,8 @@ fn back_online_only_who_is_on_screen_then_is_asked_for() {
     }
     people(&mut app, &ctx, std::slice::from_ref(&lin));
     assert!(asked.lock().unwrap().is_empty());
+    // Nor does the window repaint, frame after frame, for whoever it can't ask about.
+    assert!(!ctx.requested_repaint_last_pass());
     app.session.prefs.offline = false;
     for _ in 0..4 {
         people(&mut app, &ctx, std::slice::from_ref(&lin));

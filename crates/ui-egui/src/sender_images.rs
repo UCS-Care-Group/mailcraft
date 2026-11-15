@@ -216,9 +216,11 @@ fn key(who: &Address) -> Option<String> {
 /// to be looked up is noted, and asked for at the next frame.
 fn look(app: &mut MailApp, ctx: &egui::Context, address: String) -> Option<egui::TextureHandle> {
     let frame = images::frame(ctx);
+    let offline = app.offline();
     let state = &mut app.sender_images;
     let Some((look, used)) = state.looks.get_mut(&address) else {
-        if state.wanted.len() < MAX_WANTED && !state.wanted.contains(&address) {
+        // Working offline nobody is asked, so nothing waits for its turn or repaints for it.
+        if !offline && state.wanted.len() < MAX_WANTED && !state.wanted.contains(&address) {
             state.wanted.push(address);
             // With every place taken, the 250 ms repaint of `tick` comes back for it.
             if state.flying < AT_A_TIME {
