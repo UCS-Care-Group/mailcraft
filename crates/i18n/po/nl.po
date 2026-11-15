@@ -7528,7 +7528,7 @@ msgstr "Door ze te verplaatsen komen ze in de agenda van uw account, waar Outloo
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Mozilla's ISP database names {hosts} as the mail server of {domain}, which isn't in your address's own domain."
-msgstr "De ISP-d database van Mozilla noemt {hosts} als de mailserver van {domain}, en dat zit niet in het eigen domein van uw adres."
+msgstr "De ISP database van Mozilla noemt {hosts} als de mailserver van {domain}, en dat zit niet in het eigen domein van uw adres."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13057,7 +13057,7 @@ msgstr "Het domein {domain} noemt een server voor de automatische instelling van
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
-msgstr "Het domein {domain} noemt een server voor de automatische instelling (Autodiscover). Op die manier worden Exchange-serveren gevonden, en sommige aanbieders gebruiken het ook voor hun IMAP-mail. Om welk type gaat het? De DNS werd gevraagd om de server te vinden, nooit de server zelf."
+msgstr "Het domein {domain} noemt een server voor de automatische instelling (Autodiscover). Op die manier worden Exchange-servers gevonden, en sommige aanbieders gebruiken het ook voor hun IMAP-mail. Om welk type gaat het? De DNS werd gevraagd om de server te vinden, nooit de server zelf."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13638,7 +13638,7 @@ msgstr "De naam van de server"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
-msgstr "De servers hieronder zijn wat de ISP-d database van Mozilla vermeldt voor {domain}. Controleer ze voordat u verbindt."
+msgstr "De servers hieronder zijn wat de ISP database van Mozilla vermeldt voor {domain}. Controleer ze voordat u verbindt."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19140,7 +19140,7 @@ msgstr "{host} is ingesteld zonder versleuteling, waardoor het wachtwoord voor i
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{host} is what Mozilla's ISP database lists for {domain}."
-msgstr "{host} is wat de ISP-d database van Mozilla vermeldt voor {domain}."
+msgstr "{host} is wat de ISP database van Mozilla vermeldt voor {domain}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
