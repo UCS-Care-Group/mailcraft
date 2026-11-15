@@ -41,7 +41,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.reminder", "Add Reminder", "Home › Tags", reminder)
             .params(
-                r#"{"at": number (seconds since 1970, UTC) | "YYYY-MM-DDTHH:MM" (this computer's time, or with an offset), or "days": 1-365 (that many days from now), "ifNoReply"?: bool, "ids"?: [number]} (default: the selected messages). Flags the message with a reminder that the reminders window raises at that time (kept on this computer only; the flag goes to the server as any flag does). With `ifNoReply`, for messages you sent only: nothing is flagged unless, by then, nobody the message went to has replied in its conversation; a reply that arrives first cancels the reminder. The time must be in the future (five years at most)"#,
+                r#"{"at": number (seconds since 1970, UTC) | "YYYY-MM-DDTHH:MM" (this computer's time, or with an offset), or "days": 1-365 (that many days from now), "ifNoReply"?: bool, "ids"?: [number]} (default: the selected messages). Flags the message with a reminder that the reminders window raises at that time (kept on this computer only; the flag goes to the server as any flag does). With `ifNoReply`, for messages you sent only: nothing is flagged unless, by then, nobody the message went to has replied in its conversation; a reply is noticed when the time comes, and then there is no reminder. The time must be in the future (five years at most)"#,
             )
             .selection(needs_message),
         CommandSpec::new("mail.clearReminder", "Remove Reminder", "Home › Tags", clear_reminder)

@@ -18389,8 +18389,9 @@ msgstr "fișa unei persoane de contact păstrează cel mult 32 de chei"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "O ciornă nu poate avea memento: trimite-o mai întâi sau folosește Urmărire în mesajul însuși"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

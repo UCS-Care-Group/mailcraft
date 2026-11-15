@@ -18307,8 +18307,9 @@ msgstr "联系人名片最多保留 32 个密钥"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "草稿不能设置提醒：请先发送，或在邮件本身中使用“跟进”"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

@@ -649,11 +649,99 @@ fn a_reminder_of_an_imap_message_counts_from_when_the_server_took_it() {
 #[test]
 fn a_reminder_pending_for_a_copy_is_kept_in_the_file_and_let_go_of_with_time() {
     let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Microsoft);
+    let m = w.m(id).clone();
     let done = mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, ..Default::default() };
     super::graph_send::send_done_at(&mut w.s.mailbox, w.account, &done, mailcraft_i18n::Lang::default(), &mut Vec::new(), Some(NOON));
     assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
     reopen(&mut w);
     assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+    // A copy dated more than the keeping time after the send takes nothing, and stays pending.
+    let late = Message { id: 0, folder: w.sent, follow_up: None, date: NOON + 15 * DAY, ..m.clone() };
+    let copy = w.s.mailbox.add_message(late).unwrap();
+    assert!(w.m(copy).follow_up.is_none());
+    assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+    // Keeping another one, long after, lets the old one go.
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    w.s.mailbox.keep_follow_up_for_copy(w.mine, NOON + 15 * DAY);
+    let kept: Vec<&str> = w.s.mailbox.follow_ups_pending.iter().map(|p| p.message_id.as_str()).collect();
+    assert_eq!(kept, ["mine@example.org"], "the old one went");
+}
+
+#[test]
+fn only_the_owners_own_copy_in_sent_items_takes_a_kept_reminder() {
+    let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Microsoft);
+    let m = w.m(id).clone();
+    let done = mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, ..Default::default() };
+    super::graph_send::send_done_at(&mut w.s.mailbox, w.account, &done, mailcraft_i18n::Lang::default(), &mut Vec::new(), Some(NOON));
+    let down = |folder, from: &str| Message { id: 0, folder, follow_up: None, from: mailcraft_model::Address::new("X", from), ..m.clone() };
+    // A self-Bcc or a list's echo in the Inbox, a forged copy from someone else in Sent Items:
+    // none takes it.
+    for (folder, from) in [(w.inbox, "ann@example.org"), (w.sent, "mallory@example.org")] {
+        let c = w.s.mailbox.add_message(down(folder, from)).unwrap();
+        assert!(w.m(c).follow_up.is_none(), "{from} in {folder}");
+        assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+    }
+    let c = w.s.mailbox.add_message(down(w.sent, "Ann@Example.org")).unwrap();
+    assert!(w.m(c).follow_up.is_some());
+}
+
+#[test]
+fn undo_leaves_the_reminders_kept_for_a_sent_copy_as_they_are() {
+    let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Microsoft);
+    let before = w.s.mailbox.clone();
+    let done = mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, ..Default::default() };
+    super::graph_send::send_done_at(&mut w.s.mailbox, w.account, &done, mailcraft_i18n::Lang::default(), &mut Vec::new(), Some(NOON));
+    assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+    let touched = crate::undo::touched(&before, &w.s.mailbox);
+    let (out, _) = crate::undo::keep_in_step(before.clone(), &touched, &w.s.mailbox, mailcraft_i18n::Lang::default());
+    assert_eq!(out.follow_ups_pending, w.s.mailbox.follow_ups_pending, "the entry stays");
+    // And one taken meanwhile is not brought back.
+    let mut now = w.s.mailbox.clone();
+    now.follow_ups_pending.clear();
+    let (out, _) = crate::undo::keep_in_step(w.s.mailbox.clone(), &touched, &now, mailcraft_i18n::Lang::default());
+    assert!(out.follow_ups_pending.is_empty());
+}
+
+#[test]
+fn undo_of_an_unrelated_step_does_not_bring_back_a_reminder_that_ended() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    w.s.run("mail.markUnread", &json!({"ids": [w.got]})).unwrap();
+    // The flag is cleared elsewhere (a sync), and the reminder ends with it.
+    w.s.mailbox.message_mut(w.got).unwrap().flag = FlagStatus::None;
+    w.settle(NOON + 120);
+    assert!(w.m(w.got).follow_up.is_none());
+    w.s.run("edit.undo", &json!({})).unwrap();
+    assert!(w.m(w.got).read, "the step was undone");
+    assert!(w.m(w.got).follow_up.is_none(), "an ended reminder does not come back to fire twice");
+    // The same for one a reply cancelled.
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    w.s.run("mail.markUnread", &json!({"ids": [w.mine]})).unwrap();
+    w.reply_from("bob@example.org");
+    w.settle(NOON + 2 * DAY);
+    assert!(w.m(w.mine).follow_up.is_none());
+    w.s.run("edit.undo", &json!({})).unwrap();
+    assert!(w.m(w.mine).follow_up.is_none());
+}
+
+#[test]
+fn a_file_with_too_many_or_odd_pending_reminders_is_cut_down_when_repaired() {
+    let mut mb = Mailbox::with_local_account("Ann", "ann@example.org");
+    let account = mb.accounts[0].id;
+    let entry = |i: usize, id: String| mailcraft_model::PendingFollowUp {
+        account,
+        message_id: id,
+        follow_up: mailcraft_model::FollowUp::default(),
+        since: i as i64,
+    };
+    mb.follow_ups_pending = (0..5_000).map(|i| entry(i, format!("m{i}@example.org"))).collect();
+    mb.follow_ups_pending.push(entry(9_999, "x".repeat(100_000)));
+    mb.follow_ups_pending.push(entry(9_998, String::new()));
+    assert!(!mb.repair().is_empty());
+    assert_eq!(mb.follow_ups_pending.len(), 200);
+    assert!(mb.follow_ups_pending.iter().all(|p| !p.message_id.is_empty() && p.message_id.len() < 1_000));
+    // The newest are the ones kept.
+    assert!(mb.follow_ups_pending.iter().any(|p| p.message_id == "m4999@example.org"));
 }
 
 /// A Microsoft account with one message its server has, as `graph_down_flag_tests` makes one.

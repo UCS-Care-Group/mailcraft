@@ -18167,8 +18167,9 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "Een concept kan geen herinnering hebben: verstuur het eerst, of gebruik Opvolgen in het bericht zelf"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

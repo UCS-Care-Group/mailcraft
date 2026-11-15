@@ -3478,6 +3478,9 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        if self.repair_follow_ups_pending() {
+            fixed.push("reminders waiting for a sent copy cut".to_string());
+        }
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
         }

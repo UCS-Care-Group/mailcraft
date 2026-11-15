@@ -173,3 +173,26 @@ fn an_agent_cannot_dismiss_or_snooze_the_owners_message_reminders_through_the_ui
     r.app.execute("ui.snoozeReminders", json!({"minutes": 10})).unwrap();
     assert!(r.app.session.mailbox.message(r.got).unwrap().follow_up.unwrap().postponed_until.is_some());
 }
+
+/// Every command there is, asked of the gate as an agent that has been let do nothing by itself
+/// (what needs the owner is asked about, never run): none of them, by whatever route, dismisses or
+/// snoozes the owner's reminder on a message.
+#[test]
+fn no_route_lets_an_agent_dismiss_or_snooze_a_message_reminder() {
+    let ids: Vec<String> =
+        rig().app.session.registry.all().iter().map(|c| c.id.to_string()).chain(crate::UI_COMMANDS.iter().map(|c| c.0.to_string())).collect();
+    assert!(ids.len() > 200, "the whole list: {}", ids.len());
+    for id in ids {
+        let mut r = rig();
+        r.app.execute("mail.reminder", json!({"ids": [r.got], "at": NOW + 60})).unwrap();
+        r.app.execute("mail.reminder", json!({"ids": [r.mine], "days": 2, "ifNoReply": true})).unwrap();
+        let junk = json!({"ids": [r.got, r.mine], "id": r.got, "all": true, "minutes": 10, "event": r.got});
+        let (request, _answer) = crate::ControlRequest::new("engine.execute", json!({"command": id, "params": junk}));
+        let request = request.from_agent(Vec::new());
+        let _ = crate::agent_gate::screen(&mut r.app, &request, &[]);
+        for m in [r.got, r.mine] {
+            let Some(f) = r.app.session.mailbox.message(m).and_then(|m| m.follow_up) else { continue };
+            assert!(!f.dismissed && f.postponed_until.is_none(), "{id} touched the reminder of message {m}");
+        }
+    }
+}

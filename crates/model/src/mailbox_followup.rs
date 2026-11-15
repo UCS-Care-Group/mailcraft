@@ -413,14 +413,37 @@ impl Mailbox {
         }
     }
 
-    /// A message that has come down (or been made) takes the reminder kept for it, if any.
+    /// A message that has come down takes the reminder kept for it, if any: only a message in
+    /// Sent Items of that account, from one of the owner's addresses, dated within the time a
+    /// reminder is kept of when it was sent (a copy in the Inbox, a list's echo or a forged one
+    /// takes nothing).
     pub(super) fn take_pending_follow_up(&mut self, m: &mut Message) {
         if self.follow_ups_pending.is_empty() || m.message_id.is_empty() || m.follow_up.is_some() {
             return;
         }
-        if let Some(i) = self.follow_ups_pending.iter().position(|p| p.account == m.account && p.message_id == m.message_id) {
-            m.follow_up = Some(self.follow_ups_pending.remove(i).follow_up);
+        let in_sent = self.folder(m.folder).is_some_and(|f| f.account == m.account && f.kind == FolderKind::Sent);
+        let own = self.accounts.iter().any(|a| !norm(&a.email).is_empty() && norm(&a.email) == norm(&m.from.email));
+        if !in_sent || !own {
+            return;
         }
+        let Some(i) = self
+            .follow_ups_pending
+            .iter()
+            .position(|p| p.account == m.account && p.message_id == m.message_id && m.date.abs_diff(p.since) < PENDING_FOLLOW_UP_KEPT.unsigned_abs())
+        else {
+            return;
+        };
+        m.follow_up = Some(self.follow_ups_pending.remove(i).follow_up);
+    }
+
+    /// Let go of reminders kept too many, too long or with a `Message-ID` too long (a file can
+    /// say anything); answers whether any went.
+    pub(super) fn repair_follow_ups_pending(&mut self) -> bool {
+        let n = self.follow_ups_pending.len();
+        self.follow_ups_pending.retain(|p| !p.message_id.is_empty() && p.message_id.len() <= 998);
+        self.follow_ups_pending.sort_by_key(|p| std::cmp::Reverse(p.since));
+        self.follow_ups_pending.truncate(MAX_PENDING_FOLLOW_UPS);
+        n != self.follow_ups_pending.len()
     }
 
     /// Follow Up with a date was chosen for `ids` (`due`: when the flag is due): a reminder for a

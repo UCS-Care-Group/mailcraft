@@ -43,6 +43,8 @@ pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
+    /// The messages whose reminder the change itself changed (#948).
+    follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
     /// The contacts it added, changed or took away.
     changed_contacts: BTreeSet<Id>,
@@ -142,6 +144,9 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         match (b, a) {
             (Some(b), Some(a)) if a != b => {
                 t.changed_messages.insert(id);
+                if a.follow_up != b.follow_up {
+                    t.follow_up_changed.insert(id);
+                }
                 if relevant(b, &g) || relevant(a, &g) {
                     t.messages.insert(id, Some(a.clone()));
                 }
@@ -293,6 +298,9 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let mut keys = now.public_keys.clone();
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
+    // Reminders kept for a sent copy to come down are what was learnt of the server, not the owner's
+    // change: an undo leaves them as they are now (#948).
+    out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
@@ -395,7 +403,9 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
     // touched goes back to its reminder as it was, with the state it has now (#948).
     for id in &touched.changed_messages {
         let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
-        let undone = mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up);
+        // A step that left the reminder alone leaves it as it is now (ended, raised, put off);
+        // one that changed it goes back to the reminder as it was, with its state now.
+        let undone = if touched.follow_up_changed.contains(id) { mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up) } else { c.follow_up };
         if undone != t.follow_up
             && let Some(t) = out.messages.get_mut(id)
         {

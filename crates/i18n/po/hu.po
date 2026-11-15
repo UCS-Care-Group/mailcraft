@@ -18375,8 +18375,9 @@ msgstr "a kapcsolati kártya legfeljebb 32 kulcsot tartalmaz"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "Piszkozathoz nem adható emlékeztető: előbb küldd el, vagy használd a Nyomon követés funkciót magában az üzenetben"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

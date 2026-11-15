@@ -17371,8 +17371,9 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "Un brouillon ne peut pas avoir de rappel : envoyez-le d'abord, ou utilisez Suivi dans le message lui-même"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

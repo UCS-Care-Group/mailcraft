@@ -17436,8 +17436,9 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr ""
+msgstr "Una bozza non può avere un promemoria: inviala prima, oppure usa Completamento nel messaggio stesso"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

@@ -82,7 +82,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.followUp", "Follow Up", "Message › Tags", super::followup::compose_follow_up)
             .pure()
             .when_writing(needs_compose)
-            .params(r#"{"days": 1-365 | "at": number | "YYYY-MM-DDTHH:MM", or "clear": true} — remind me if nobody replies: once the message has gone, after that many days (or at that time), if nobody it went to has replied in its conversation by then, a reminder is raised and the message flagged; a reply that arrives first cancels it. Kept on this computer only"#),
+            .params(r#"{"days": 1-365 | "at": number | "YYYY-MM-DDTHH:MM", or "clear": true} — remind me if nobody replies: once the message has gone, after that many days (or at that time), if nobody it went to has replied in its conversation by then, a reminder is raised and the message flagged; a reply is noticed when the time comes, and then there is no reminder. Kept on this computer only"#),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
