@@ -7352,6 +7352,12 @@ msgid "Mail to keep offline:"
 msgstr "Kapcsolat nélkül elérhető levelek:"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "Kimarad az a levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, vagy amelynek a feladójára figyelmeztetés vonatkozik."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail, calendar, people and tasks, written from scratch in Rust."
@@ -16918,8 +16924,10 @@ msgstr "Leiratkozás a kijelölt üzenetekről"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-msgstr "Leiratkozás {lists} listáról: {click} egy kattintással (minden lista kiszolgálója csak az általa megadott címet kapja meg, egyenként), {mail} a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül. {pages} a saját oldalán iratkoztat le: ehhez nyissa meg egyenként ezeket az üzeneteket. Kimarad az a levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, vagy amelynek a feladójára figyelmeztetés vonatkozik."
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Leiratkozás {n} listáról."
+msgstr[1] "Leiratkozás {n} listáról."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21490,6 +21498,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "A postafiók tartalommappájában {n} üzenettörzs vagy melléklet hiányzik vagy sérült."
 msgstr[1] "A postafiók tartalommappájában {n} üzenettörzs vagy melléklet hiányzik vagy sérült."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
+msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+msgstr[0] "{n} a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül, a lista által megadott tárggyal és szöveggel."
+msgstr[1] "{n} egy-egy, a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül, az egyes listák által megadott tárggyal és szöveggel."
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -21655,6 +21671,14 @@ msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] "{n} óra"
 msgstr[1] "{n} óra"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} egy kattintással: a kiszolgálója csak az általa megadott címet kapja meg."
+msgstr[1] "{n} egy kattintással: minden lista kiszolgálója csak az általa megadott címet kapja meg, egyenként."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -22186,6 +22210,14 @@ msgstr[0] "{n} olvasatlan a kiszolgálón"
 msgstr[1] "{n} olvasatlan a kiszolgálón"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} a saját oldalán iratkoztat le: ehhez nyissa meg az üzenetét."
+msgstr[1] "{n} a saját oldalán iratkoztat le: ehhez nyissa meg egyenként ezeket az üzeneteket."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -22418,6 +22450,10 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+#~ msgstr "Leiratkozás {lists} listáról: {click} egy kattintással (minden lista kiszolgálója csak az általa megadott címet kapja meg, egyenként), {mail} a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül. {pages} a saját oldalán iratkoztat le: ehhez nyissa meg egyenként ezeket az üzeneteket. Kimarad az a levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, vagy amelynek a feladójára figyelmeztetés vonatkozik."
 
 #, fuzzy
 #~ msgid "A sign-in is already open."

@@ -7345,6 +7345,12 @@ msgid "Mail to keep offline:"
 msgstr "E-mail păstrat offline:"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "Mesajele pentru care serverul nu garantează, cele din E-mail nedorit sau cele cu un avertisment despre expeditor sunt lăsate deoparte."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail, calendar, people and tasks, written from scratch in Rust."
@@ -16893,8 +16899,11 @@ msgstr "Dezabonare de la mesajele selectate"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-msgstr "Dezabonare de la {lists} liste: {click} cu un clic (serverul fiecărei liste primește adresa pe care a dat-o, nimic altceva, pe rând), {mail} printr-un mesaj din contul dvs., prin Mesaje de trimis. {pages} se dezabonează pe propria pagină: deschideți fiecare dintre aceste mesaje ca să o faceți acolo. Mesajele pe care serverul dvs. nu le garantează, cele din E-mail nedorit sau care au un avertisment despre expeditor sunt lăsate deoparte."
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Dezabonare de la {n} listă."
+msgstr[1] "Dezabonare de la {n} liste."
+msgstr[2] "Dezabonare de la {n} de liste."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21455,6 +21464,15 @@ msgstr[0] "{n} corp sau atașament lipsește din dosarul de conținut al cutiei 
 msgstr[1] "{n} corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 msgstr[2] "{n} de corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
+msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+msgstr[0] "{n} printr-un mesaj din contul dvs., prin Mesaje de trimis, cu subiectul și textul date de listă."
+msgstr[1] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis, cu subiectul și textul date de fiecare listă."
+msgstr[2] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis, cu subiectul și textul date de fiecare listă."
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -21637,6 +21655,15 @@ msgid_plural "{n} hours"
 msgstr[0] "{n} oră"
 msgstr[1] "{n} ore"
 msgstr[2] "{n} de ore"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} cu un clic: serverului ei i se trimite adresa dată, nimic altceva."
+msgstr[1] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
+msgstr[2] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -22227,6 +22254,15 @@ msgstr[1] "{n} necitite pe server"
 msgstr[2] "{n} necitite pe server"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} se dezabonează pe pagina proprie: deschideți mesajul pentru a o face acolo."
+msgstr[1] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
+msgstr[2] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -22460,6 +22496,10 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+#~ msgstr "Dezabonare de la {lists} liste: {click} cu un clic (serverul fiecărei liste primește adresa pe care a dat-o, nimic altceva, pe rând), {mail} printr-un mesaj din contul dvs., prin Mesaje de trimis. {pages} se dezabonează pe propria pagină: deschideți fiecare dintre aceste mesaje ca să o faceți acolo. Mesajele pe care serverul dvs. nu le garantează, cele din E-mail nedorit sau care au un avertisment despre expeditor sunt lăsate deoparte."
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

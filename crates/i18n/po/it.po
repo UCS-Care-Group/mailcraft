@@ -6968,6 +6968,12 @@ msgid "Mail to keep offline:"
 msgstr "Posta da conservare offline:"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+msgstr "La posta di cui il server non garantisce, quella in Posta indesiderata o quella con un avviso sul mittente viene esclusa."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail, calendar, people and tasks, written from scratch in Rust."
@@ -16023,8 +16029,10 @@ msgstr "Disiscriviti dai messaggi selezionati"
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
-msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
-msgstr "Disiscriversi da {lists} liste: {click} con un clic (il server di ogni lista riceve l'indirizzo che ha dato, nient'altro, una alla volta), {mail} con un messaggio del suo account tramite la sua Posta in uscita. {pages} disiscrivono dalla propria pagina: apra ciascuno di quei messaggi per farlo lì. La posta che il suo server non garantisce, quella in Posta indesiderata, o con un avviso sul mittente, viene tralasciata."
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Annulla l'iscrizione a {n} lista."
+msgstr[1] "Annulla l'iscrizione a {n} liste."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20341,6 +20349,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "{n} corpo o allegato manca dalla cartella dei contenuti della cassetta postale, o è danneggiato."
 msgstr[1] "{n} corpi o allegati mancano dalla cartella dei contenuti della cassetta postale, o sono danneggiati."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox, with the subject and text the list gave."
+msgid_plural "{n} by a message each from your account through your Outbox, with the subject and text each list gave."
+msgstr[0] "{n} con un messaggio dal tuo account tramite Posta in uscita, con l'oggetto e il testo indicati dalla lista."
+msgstr[1] "{n} con un messaggio ciascuna dal tuo account tramite Posta in uscita, con l'oggetto e il testo indicati da ogni lista."
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -20494,6 +20510,14 @@ msgid "{n} hour"
 msgid_plural "{n} hours"
 msgstr[0] "{n} ora"
 msgstr[1] "{n} ore"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} con un clic: il suo server riceve l'indirizzo indicato, nient'altro."
+msgstr[1] "{n} con un clic: il server di ogni lista riceve l'indirizzo indicato, nient'altro, una alla volta."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -20998,6 +21022,14 @@ msgstr[0] "{n} non letto sul server"
 msgstr[1] "{n} non letti sul server"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} si annulla sulla propria pagina: apri il suo messaggio per farlo lì."
+msgstr[1] "{n} si annullano sulla propria pagina: apri ciascuno di quei messaggi per farlo lì."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "{n} was here already"
 msgid_plural "{n} were here already"
@@ -21221,6 +21253,10 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Unsubscribe from {lists} lists: {click} in one click (each list's server is sent the address it gave, nothing else, one at a time), {mail} by a message from your account through your Outbox. {pages} unsubscribe on their own page: open each of those messages to do it there. Mail your server doesn't vouch for, in Junk E-mail, or with a warning about its sender, is left out."
+#~ msgstr "Disiscriversi da {lists} liste: {click} con un clic (il server di ogni lista riceve l'indirizzo che ha dato, nient'altro, una alla volta), {mail} con un messaggio del suo account tramite la sua Posta in uscita. {pages} disiscrivono dalla propria pagina: apra ciascuno di quei messaggi per farlo lì. La posta che il suo server non garantisce, quella in Posta indesiderata, o con un avviso sul mittente, viene tralasciata."
 
 #~ msgid "Browse This PC…"
 #~ msgstr "Sfoglia questo PC…"
