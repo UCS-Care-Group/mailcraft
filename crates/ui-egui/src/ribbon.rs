@@ -722,7 +722,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
-    let delayed = app.session.compose.as_ref().is_some_and(|c| c.send_at.is_some());
+    let delayed = crate::send_later::delay_is_on(app);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![

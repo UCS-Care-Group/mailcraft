@@ -195,27 +195,43 @@ pub(crate) fn undo_bar(app: &mut MailApp, ui: &mut Ui) {
 /// Worked out at most once a second: it looks through the Outboxes, which a window of many messages
 /// shouldn't do at every frame.
 pub(crate) fn status_text(app: &MailApp, ctx: &egui::Context) -> Option<String> {
-    let key = egui::Id::unique("send_later_status");
-    let now = crate::now_ms();
-    if let Some((at, text)) = ctx.data(|d| d.get_temp::<(f64, Option<String>)>(key))
+    let key = egui::Id::NULL.with("send_later_status");
+    let (now, rev) = (crate::now_ms(), app.session.rev());
+    // (Kept for a second, and not past any change of the mailbox.)
+    if let Some((at, seen, text)) = ctx.data(|d| d.get_temp::<(f64, u64, Option<String>)>(key))
+        && seen == rev
         && (0.0..1000.0).contains(&(now - at))
     {
         return text;
     }
     let text = note_text(app);
-    ctx.data_mut(|d| d.insert_temp(key, (now, text.clone())));
+    ctx.data_mut(|d| d.insert_temp(key, (now, rev, text.clone())));
     text
+}
+
+/// Whether the message being written has a Send time still ahead (the ribbon's Delay Delivery is ticked then).
+pub(crate) fn delay_is_on(app: &MailApp) -> bool {
+    app.session.compose.as_ref().is_some_and(|c| c.send_at.is_some_and(|at| at > app.session.now()))
 }
 
 fn note_text(app: &MailApp) -> Option<String> {
     let note = app.session.send_later_note()?;
     if note.late > 0 {
-        let text = tln!(
-            note.late,
-            "{n} delayed message is late: MailCraft wasn't running at its time",
-            "{n} delayed messages are late: MailCraft wasn't running at their time"
-        );
-        return Some(text);
+        let text = tln!(note.late, "{n} delayed message didn't go at its time", "{n} delayed messages didn't go at their time");
+        // Why, where it is known.
+        let why = if app.offline() {
+            Some(tl!("working offline"))
+        } else if note.late_account.is_some_and(|a| !app.can_sync_quietly(a)) {
+            Some(tl!("sign-in needed"))
+        } else if app.has_sync_problems() {
+            Some(tl!("the last Send/Receive had problems"))
+        } else {
+            None
+        };
+        return Some(match why {
+            Some(why) => format!("{text} ({why})"),
+            None => text,
+        });
     }
     let next = label(app, note.next?);
     let text = tln!(note.waiting, "Delayed message goes {when}", "{n} delayed messages: the next goes {when}");

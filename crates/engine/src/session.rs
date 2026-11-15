@@ -1108,6 +1108,9 @@ pub struct Session {
     /// there and its time has not come, the window offers Undo ([`Session::undo_send_wait`]).
     /// In memory only.
     pub(crate) undo_send: Option<Id>,
+    /// The step count right after that Send: while it is still the count, nothing else has been
+    /// done since, and Undo (Ctrl+Z) takes the send back ([`Session::undo_send_latest`]).
+    pub(crate) undo_send_step: Option<u64>,
     /// The sync driver's state: what a front end's background jobs remember between looks
     /// ([`crate::sync_driver`]). In memory only, never saved.
     pub driver: crate::sync_driver::Driver,
@@ -1335,6 +1338,7 @@ impl Session {
             fallback_offset: None,
             sync_status: String::new(),
             undo_send: None,
+            undo_send_step: None,
             driver: Default::default(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
@@ -3201,6 +3205,7 @@ impl Session {
         self.driver.reset();
         // The message Undo Send waited on was the old mailbox's.
         self.undo_send = None;
+        self.undo_send_step = None;
         self.pst_running = None;
         self.pst_tops.clear();
         self.history.clear();
@@ -3437,6 +3442,16 @@ impl Session {
         match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
             (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
             (then, now) => then.is_some() != now.is_some(),
+        }
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) would take the message `message` away or
+    /// put it in an Outbox (#950).
+    pub fn undo_puts_in_outbox_or_takes(&self, redo: bool, message: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        match step.mailbox.messages.get(&message) {
+            None => true,
+            Some(then) => step.mailbox.folder(then.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Outbox),
         }
     }
 
@@ -3692,7 +3707,8 @@ impl Session {
         // copy of the mailbox is taken for it: the import is one step, kept when it ends
         // ([`crate::import_pst::finish`]), and a batch that fails takes itself out again.
         let staged = id == "file.importPst" && self.agent.is_none() && params.get("staged").and_then(Value::as_bool) == Some(true);
-        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background && !staged;
+        // (Undo Send puts a message back to write: no step of the history may put it in the Outbox again, #950.)
+        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo" | "compose.undoSend") && !background && !staged;
         // The computer may have been carried to another zone since the last command: the
         // mailbox is put by that zone's clock first, and that is not this command's to undo.
         self.settle_zone();

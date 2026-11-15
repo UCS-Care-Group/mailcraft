@@ -97,8 +97,14 @@ pub fn date_undated(mb: &mut Mailbox, account: Id, now: i64) -> bool {
 }
 
 /// How many messages of `account` wait in its Outbox to be sent (held ones aren't).
-pub fn waiting(mb: &Mailbox, account: Id) -> usize {
-    mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).count())
+pub fn waiting(s: &Session, account: Id) -> usize {
+    waiting_at(&s.mailbox, s.now(), account)
+}
+
+/// [`waiting`] against a mailbox and a clock: a message with a Send time ahead of `now` doesn't wait to go.
+pub fn waiting_at(mb: &Mailbox, now: i64, account: Id) -> usize {
+    mb.folder_of_kind(account, FolderKind::Outbox)
+        .map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now) && !from_server(m)).count())
 }
 
 /// Take in what became of one message sent. Whether anything changed; a line for the owner when

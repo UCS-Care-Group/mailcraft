@@ -2083,7 +2083,7 @@ impl MailApp {
             return Err(e);
         }
         // Undo (Ctrl+Z) while Undo Send's wait runs takes the message back, as the bar's button does (#950).
-        if id == "edit.undo" && self.session.undo_send_wait().is_some() {
+        if id == "edit.undo" && self.session.undo_send_wait().is_some() && self.session.undo_send_latest() {
             return self.run("compose.undoSend", json!({}));
         }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)

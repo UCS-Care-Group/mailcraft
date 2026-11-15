@@ -157,7 +157,7 @@ fn a_delayed_message_survives_a_restart_and_goes_late_at_the_next_run() {
     assert_eq!(back.mailbox.message(id).unwrap().send_at, Some(T0 + 600));
     assert!(to_send(&back, a).is_empty(), "still waiting after the restart");
     // MailCraft wasn't running at the time: the next run takes it, and the status bar says late.
-    assert_eq!(back.send_later_note().unwrap(), SendLaterNote { next: Some(T0 + 600), waiting: 1, late: 0 });
+    assert_eq!(back.send_later_note().unwrap(), SendLaterNote { next: Some(T0 + 600), waiting: 1, late: 0, late_account: None });
     at(&mut back, T0 + 600 + 3 * 3600);
     assert_eq!(to_send(&back, a), vec![id]);
     assert_eq!(back.send_later_note().unwrap().late, 1);
@@ -187,7 +187,7 @@ fn the_status_bar_note_names_the_next_time_and_the_count() {
     assert!(s.send_later_note().is_none());
     send_after(&mut s, a, "Second", 7200);
     send_after(&mut s, a, "First", 600);
-    assert_eq!(s.send_later_note().unwrap(), SendLaterNote { next: Some(T0 + 600), waiting: 2, late: 0 });
+    assert_eq!(s.send_later_note().unwrap(), SendLaterNote { next: Some(T0 + 600), waiting: 2, late: 0, late_account: None });
 }
 
 #[test]
@@ -287,12 +287,117 @@ fn open_draft_on_a_queued_message_takes_it_out_of_the_queue_with_its_time() {
     let id = send_after(&mut s, a, "Edit me", 600);
     s.run("mail.editDraft", &json!({"id": id})).unwrap();
     let c = s.compose.as_ref().unwrap();
-    assert_eq!((c.subject.as_str(), c.send_at), ("Edit me", Some(T0 + 600)));
+    assert_eq!((c.subject.as_str(), c.send_at), ("Edit me", None), "opened with no delay");
+    assert_eq!(s.mailbox.message(id).unwrap().send_at, None);
     at(&mut s, T0 + 10_000);
     assert!(to_send(&s, a).is_empty(), "taken out of the queue while it is written");
     // Send again: queued with its time (already passed here: it goes at the next run).
     let again = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
     assert_eq!(to_send(&s, a), vec![again]);
+}
+
+/// A draft that was queued, taken to write again: its date is now's, no Send time left on it.
+#[test]
+fn cancelling_clears_the_time_and_dates_the_draft_now() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "Cancel me", 3600);
+    at(&mut s, T0 + 100);
+    s.run("mail.cancelSend", &json!({"id": id})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.send_at, m.date, m.received), (None, T0 + 100, T0 + 100));
+}
+
+#[test]
+fn a_null_time_dates_the_message_now() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "Now after all", 3600);
+    at(&mut s, T0 + 100);
+    s.run("mail.setSendTime", &json!({"id": id, "at": null})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.send_at, m.date, m.received), (None, T0 + 100, T0 + 100));
+}
+
+#[test]
+fn a_time_less_than_a_minute_ahead_is_refused() {
+    let (mut s, a) = imap();
+    write(&mut s, a, "Soon");
+    for after in [1, 30, 59] {
+        let e = s.run("compose.delay", &json!({"at": T0 + after})).unwrap_err().to_string();
+        assert!(e.contains("too soon"), "{e}");
+    }
+    assert!(s.run("compose.delay", &json!({"at": T0 + 60})).is_ok());
+    let id = send_after(&mut s, a, "Later", 3600);
+    assert!(s.run("mail.setSendTime", &json!({"id": id, "at": T0 + 59})).is_err());
+}
+
+#[test]
+fn undo_send_leaves_no_step_that_puts_the_message_back_in_the_queue() {
+    let (mut s, a) = imap();
+    s.run("sync.waitBeforeSending", &json!({"seconds": 5})).unwrap();
+    write(&mut s, a, "Wrong person");
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    s.run("compose.undoSend", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    // The toolbar's Undo, and then a second Ctrl+Z after the bar has gone: neither queues it again.
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    at(&mut s, T0 + 100);
+    let _ = s.run("edit.undo", &json!({}));
+    let _ = s.run("edit.undo", &json!({}));
+    assert!(s.mailbox.message(id).map_or(true, |m| m.folder != outbox), "never back in the Outbox");
+    assert!(s.mailbox.messages_in(outbox).next().is_none());
+}
+
+#[test]
+fn undo_and_redo_leave_a_message_that_is_being_sent_alone() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "On its way", 600);
+    s.run("mail.setSendTime", &json!({"id": id, "at": T0 + 900})).unwrap();
+    at(&mut s, T0 + 900);
+    assert!(crate::cmd::graph_send::mark_sending(&mut s.mailbox, a, &[id]));
+    let before = s.mailbox.message(id).unwrap().clone();
+    let _ = s.run("edit.undo", &json!({}));
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.sending);
+    assert_eq!((m.send_at, m.folder, m.date), (before.send_at, before.folder, before.date));
+    let _ = s.run("edit.redo", &json!({}));
+    assert!(s.mailbox.message(id).unwrap().sending);
+    assert_eq!(s.mailbox.message(id).unwrap().send_at, before.send_at);
+}
+
+#[test]
+fn undo_send_is_the_latest_step_only_until_something_else_is_done() {
+    let (mut s, a) = imap();
+    s.run("sync.waitBeforeSending", &json!({"seconds": 20})).unwrap();
+    write(&mut s, a, "Wait");
+    s.run("compose.send", &json!({})).unwrap();
+    assert!(s.undo_send_latest());
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Next", "account": a})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    assert!(!s.undo_send_latest(), "another step came after the send");
+    assert!(s.undo_send_wait().is_some(), "the bar's own button still works");
+    assert!(s.run("compose.undoSend", &json!({})).is_ok());
+}
+
+#[test]
+fn undo_of_an_earlier_send_later_is_refused_under_an_open_composer() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "Edit me", 600);
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    // The step that queued it would take the message the composer holds away.
+    let _ = s.run("edit.undo", &json!({}));
+    assert!(s.mailbox.message(id).is_some(), "not taken from under the composer");
+    assert!(s.compose.is_some());
+}
+
+#[test]
+fn only_due_messages_count_as_waiting_to_go() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "Later", 600);
+    assert_eq!(crate::cmd::graph_send::waiting(&s, a), 0);
+    at(&mut s, T0 + 600);
+    assert_eq!(crate::cmd::graph_send::waiting(&s, a), 1);
+    let _ = id;
 }
 
 #[test]

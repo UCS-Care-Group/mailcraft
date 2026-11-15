@@ -68,7 +68,7 @@ fn a_message_waiting_in_the_outbox_says_when_it_goes_and_can_be_cancelled() {
     h.get_by_label("Cancel Send").click();
     h.run_steps(3);
     let m = h.state().session.mailbox.message(id).unwrap();
-    assert!(m.draft && m.send_at.is_some(), "back in Drafts, as a draft");
+    assert!(m.draft && m.send_at.is_none(), "back in Drafts, as a draft, with no time");
 }
 
 #[test]
@@ -105,4 +105,49 @@ fn the_status_bar_names_the_next_delayed_message() {
     h.run_steps(3);
     let text = crate::send_later::status_text(h.state(), &egui::Context::default()).expect("a line for the delayed message");
     assert!(text.contains("2026"), "it names the time: {text}");
+}
+
+#[test]
+fn the_status_note_leaves_out_the_undo_wait_and_follows_a_change_of_time() {
+    let (mut h, account) = window();
+    h.state_mut().run("sync.waitBeforeSending", json!({"seconds": 10})).unwrap();
+    write(&mut h, account);
+    h.state_mut().run("compose.send", json!({})).unwrap();
+    let ctx = egui::Context::default();
+    assert_eq!(crate::send_later::status_text(h.state(), &ctx), None, "the wait has its own bar");
+    h.state_mut().run("compose.undoSend", json!({})).unwrap();
+    h.state_mut().run("compose.close", json!({})).unwrap();
+    write(&mut h, account);
+    let id = h.state_mut().run("compose.sendLater", json!({"at": NOW + 3 * 3600})).unwrap()["id"].as_u64().unwrap();
+    let first = crate::send_later::status_text(h.state(), &ctx).unwrap();
+    h.state_mut().run("mail.setSendTime", json!({"id": id, "at": NOW + 5 * 86_400})).unwrap();
+    let second = crate::send_later::status_text(h.state(), &ctx).unwrap();
+    assert_ne!(first, second, "the cached line doesn't outlive the change");
+}
+
+#[test]
+fn delay_delivery_is_ticked_only_while_the_time_is_ahead() {
+    let (mut h, account) = window();
+    write(&mut h, account);
+    assert!(!crate::send_later::delay_is_on(h.state()));
+    h.state_mut().run("compose.delay", json!({"at": NOW + 600})).unwrap();
+    assert!(crate::send_later::delay_is_on(h.state()));
+    h.state_mut().session.compose.as_mut().unwrap().send_at = Some(NOW - 5);
+    assert!(!crate::send_later::delay_is_on(h.state()), "a time that has gone by");
+}
+
+#[test]
+fn ctrl_z_undoes_the_last_step_when_something_else_came_after_the_send() {
+    let (mut h, account) = window();
+    h.state_mut().run("sync.waitBeforeSending", json!({"seconds": 30})).unwrap();
+    write(&mut h, account);
+    let id = h.state_mut().run("compose.send", json!({})).unwrap()["id"].as_u64().unwrap();
+    write(&mut h, account);
+    h.state_mut().run("compose.saveDraft", json!({})).unwrap();
+    h.state_mut().run("compose.close", json!({})).unwrap();
+    h.state_mut().run("edit.undo", json!({})).unwrap();
+    assert_ne!(h.state().session.compose.as_ref().and_then(|c| c.draft), Some(id), "not the send");
+    assert!(h.state().session.undo_send_wait().is_some(), "the bar's button is still there");
+    h.state_mut().run("compose.undoSend", json!({})).unwrap();
+    assert_eq!(h.state().session.compose.as_ref().and_then(|c| c.draft), Some(id));
 }

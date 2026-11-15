@@ -18273,6 +18273,11 @@ msgid "sign-in failed: {reason}"
 msgstr "error al iniciar sesión: {reason}"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "sign-in needed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
 msgstr ""
@@ -18299,6 +18304,11 @@ msgstr "esa es la dirección de la propia cuenta: indique la del buzón comparti
 #, fuzzy
 msgid "that is too much to paste into one message"
 msgstr "es demasiado para pegarlo en un solo mensaje"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "that is too soon: pick a time at least a minute from now (or send it now)"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -18352,6 +18362,11 @@ msgstr "ese mensaje no está aquí"
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
 msgid "that message isn't waiting in the Outbox"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+msgid "that step changes a message that is open for writing: close it first"
 msgstr ""
 
 #. what a command says
@@ -18626,6 +18641,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
 msgid "the key is larger than a contact's card keeps one"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "the last Send/Receive had problems"
 msgstr ""
 
 #. what a command says
@@ -19589,6 +19609,11 @@ msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "esta copia de MailCraft no se instaló con su instalador (.msi), así que Windows no la conoce."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "working offline"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -20306,8 +20331,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
-msgid "{n} delayed message is late: MailCraft wasn't running at its time"
-msgid_plural "{n} delayed messages are late: MailCraft wasn't running at their time"
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
 msgstr[0] ""
 msgstr[1] ""
 

@@ -24,6 +24,8 @@ use serde_json::{Value, json};
 use super::{bad, fail, needs_compose};
 use crate::{CmdError, CmdResult, CommandSpec, Prefs, Session, p};
 
+/// How soon a Send time may be: a minute from now.
+pub const MIN_AHEAD: i64 = 60;
 /// How far ahead a Send time may be: a year (and a day).
 pub const MAX_AHEAD: i64 = 366 * 24 * 3600;
 /// A message that goes this long after its Send time went late (MailCraft wasn't running, or the
@@ -62,6 +64,9 @@ fn time_of(s: &Session, v: &Value, allow_none: bool) -> Result<Option<i64>, CmdE
             let now = s.now();
             if at <= now {
                 return Err(fail("that time has passed: choose a time in the future"));
+            }
+            if at < now.saturating_add(MIN_AHEAD) {
+                return Err(fail("that is too soon: pick a time at least a minute from now (or send it now)"));
             }
             if at > now.saturating_add(MAX_AHEAD) {
                 return Err(fail("choose a time within a year"));
@@ -121,12 +126,11 @@ fn set_time(s: &mut Session, v: &Value) -> CmdResult {
     let id = one(v)?;
     let at = time_of(s, v, true)?;
     queued(s, id)?;
+    let now = s.now();
     let m = s.mailbox.message_mut(id)?;
     m.send_at = at;
-    // Its Date is the time it goes (the same octets at every run); a message let go now keeps it.
-    if let Some(at) = at {
-        m.date = at;
-    }
+    // Its Date is the time it goes (the same octets at every run); one let go now is dated now.
+    (m.date, m.received) = (at.unwrap_or(now), at.unwrap_or(now));
     if at.is_none() && s.undo_send == Some(id) {
         s.undo_send = None;
     }
@@ -140,10 +144,12 @@ pub fn cancel_send(s: &mut Session, id: Id) -> Result<(), CmdError> {
     let m = queued(s, id)?;
     let drafts = s.mailbox.folder_of_kind(m.account, FolderKind::Drafts).ok_or_else(|| fail("this account has no Drafts folder"))?;
     s.mailbox.move_message(id, drafts)?;
+    let now = s.now();
     let m = s.mailbox.message_mut(id)?;
-    // (The time stays on the draft that opens again: Send puts it back in the Outbox with it.)
+    // No time stays on the draft (it can be given one again), and it is dated now.
     m.draft = true;
     m.held.clear();
+    (m.send_at, m.date, m.received) = (None, now, now);
     if s.undo_send == Some(id) {
         s.undo_send = None;
     }
@@ -162,8 +168,6 @@ fn undo_send(s: &mut Session, v: &Value) -> CmdResult {
     p::only(v, &[])?;
     let (id, _) = s.undo_send_wait().ok_or_else(|| fail("nothing is waiting to be sent: it is on its way already"))?;
     cancel_send(s, id)?;
-    // (The few seconds of the wait are no Send time to keep.)
-    s.mailbox.message_mut(id)?.send_at = None;
     super::compose::open_draft(s, id)
 }
 
@@ -184,6 +188,8 @@ pub struct SendLaterNote {
     /// Messages whose time came more than [`LATE_AFTER`] seconds ago and that haven't gone yet:
     /// MailCraft wasn't running, or the computer slept, and they go now.
     pub late: usize,
+    /// The account of one of the late messages, for saying why it didn't go.
+    pub late_account: Option<Id>,
 }
 
 impl Session {
@@ -196,18 +202,26 @@ impl Session {
         waits_in_outbox(self, m).then_some((id, at))
     }
 
+    /// Whether the Send that put the message in the wait is the last thing done (nothing else was a
+    /// step of the history since): then Undo (Ctrl+Z) takes the send back, else it undoes that step.
+    pub fn undo_send_latest(&self) -> bool {
+        self.undo_send_step.is_some() && self.undo_send_step == Some(self.undo_steps_moved())
+    }
+
     /// Delayed mail in the Outboxes: the next time, how many wait, and how many are late. `None`
     /// when no message has a Send time.
     pub fn send_later_note(&self) -> Option<SendLaterNote> {
         let now = self.now();
         let mut note = SendLaterNote::default();
-        for m in self.mailbox.messages.values().filter(|m| m.send_at.is_some() && waits_in_outbox(self, m)) {
+        // (What waits for Undo Send isn't delayed mail: the bar says so.)
+        for m in self.mailbox.messages.values().filter(|m| m.send_at.is_some() && Some(m.id) != self.undo_send && waits_in_outbox(self, m)) {
             let Some(at) = m.send_at else { continue };
             if at > now {
                 note.waiting = note.waiting.saturating_add(1);
                 note.next = Some(note.next.map_or(at, |n| n.min(at)));
             } else if now.saturating_sub(at) >= LATE_AFTER {
                 note.late = note.late.saturating_add(1);
+                note.late_account.get_or_insert(m.account);
             }
         }
         (note != SendLaterNote::default()).then_some(note)

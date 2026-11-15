@@ -1463,6 +1463,8 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
     }
     s.compose = None;
     s.undo_send = by_wait.then_some(id);
+    // (This command's own step is pushed once it returns.)
+    s.undo_send_step = by_wait.then(|| s.undo_steps_moved().wrapping_add(1));
     Ok(json!({"id": id, "queued": queued, "delivered": delivered, "sendAt": m.send_at, "wait": by_wait}))
 }
 
