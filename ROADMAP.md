@@ -12,29 +12,30 @@ rough edges is [`docs/gaps.md`](docs/gaps.md). The parity checklists stay beside
 [`docs/ui-parity.md`](docs/ui-parity.md), [`docs/file-format-parity.md`](docs/file-format-parity.md)
 and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 
-## Headline numbers (2026-10-31)
+## Headline numbers (2026-11-15)
 
 | Number | Value | Kind |
 |---|---|---|
-| Ribbon/menu catalog coverage | **246 / 314 in scope (78.3%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
+| Ribbon/menu catalog coverage | **247 / 315 in scope (78.4%) have a command; 0 are Complete (0%)**; 17 rows out of scope | measured (`cargo xtask parity` → [`docs/parity-checklist.md`](docs/parity-checklist.md)) |
 | Ready for real work with a real account | **~25%** | estimated ([how](#methodology)); in daily use on one Microsoft 365 mailbox, the author's; the beta run is under way (#11) and no tester has reported a figure yet. Whether MailCraft is ready for beta is decided by [the beta checklist](#the-beta-checklist), not by this estimate |
 | Ready as a local viewer and organiser of exported mail | **~55%** | estimated ([how](#methodology)) |
-| Commands / crates | 338 commands · 19 crates, 3 apps, `xtask` | measured (source) |
-| Tests | 5,401 `#[test]`s (`cargo xtask stats`); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
+| Commands / crates | 344 commands · 27 crates, 4 apps, `xtask` | measured (source) |
+| Tests | 8,413 `#[test]`s (`cargo xtask stats`, which counts source attributes); property tests on every reader, and a cargo-fuzz target for each in CI | measured |
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
 | 64,000 messages, 677 MB, 374 folders (#519, 2026-10-27) | the window's open **0.84 s** warm (was 1.35 s), the bodies the budget holds following in the background in about 0.23 s, on a made-up mailbox shaped as a large real one (about 7 KB of headers a message) | measured (`store_bench_tests.rs`, see the progress log) |
-| Releases | seventeen published, v0.1.0 to v0.9.0 ([Releases](https://github.com/UCS-Care-Group/mailcraft/releases)); from v0.5.0 each carries MailCraft's own release signature, none is signed by Windows or macOS, and on macOS updates are installed by the owner until the builds are notarized (#497) | measured |
+| Releases | twenty-two published, v0.1.0 to v0.13.0 ([Releases](https://github.com/UCS-Care-Group/mailcraft/releases)); from v0.5.0 each carries MailCraft's own release signature, none is signed by Windows or macOS, and on macOS updates are installed by the owner until the builds are notarized (#497) | measured |
 
 The gap between the two readiness numbers is the story of this release: the mailbox, the
 commands, the interface and the file formats are in good shape, and the connection to real mail
 servers is the thinnest part: two-way and with Microsoft sign-in since 2026-10-12, kept in step
 through Microsoft Graph for Microsoft accounts since R3, in use on one Microsoft 365 mailbox, and
-not yet run against any other server.
+run against other servers only in part (a Windows acceptance of Gmail and Google Workspace is in
+[the Google account guide](docs/google-accounts.md); an Exchange server account has been tried against Grommunio).
 
 ### Methodology
 
-- **Measured.** `crates/engine/src/catalog.rs` lists 331 ribbon and menu features of Outlook by
+- **Measured.** `crates/engine/src/catalog.rs` lists 332 ribbon and menu features of Outlook by
   name, each mapped to a command id; `cargo xtask parity` counts how many of those ids the command
   registry has and writes [`docs/parity-checklist.md`](docs/parity-checklist.md). Parity is two
   counts. **Has a command**: the behaviour is reachable by id (ribbon, shortcut, CLI, control
@@ -77,15 +78,15 @@ against a pass/fail checklist, several at once. The shortfalls behind them are i
 15. `.msg` import
 16. Clean-up commands (Ignore, Clean Up Conversation, Recover Deleted)
 
-## Where it stands, by area (2026-10-31)
+## Where it stands, by area (2026-11-15)
 
 | Area | Where it stands |
 |---|---|
 | **Reading and triage** | Virtualised list measured against Outlook's, date groups, sort, filters, conversations, pin, flags with due dates, categories, importance, junk, archive, two-step delete, full undo, drag onto folders, Send/Receive Progress. Arranged by categories too (#327). Missing: column view (in review, #344), Focused Inbox, Sweep, Ignore and Clean Up Conversation; conversations are grouped by subject ([gaps](docs/gaps.md) 17 and rough edges) |
 | **Search** | A query language with field keywords, negation and dates, answered from a word index beside the mailbox (0.16 s at 200,000 messages); More results on the server for Microsoft accounts; an Advanced Search panel with date ranges and a calendar beside each date (#329). Missing: search folders, searching on an IMAP server |
 | **Rendering mail** | Display blocks of our own: tables, colours, alignment, lists and pictures (the message's own shown, the web's on the owner's say-so), adjusted for the dark theme, nothing run; a message's `@media` follows the pane's width and the theme (#599), and its text is drawn in the first of its fonts installed on this computer, none ever fetched (#600). Missing: background pictures, right-to-left text (gap 6) |
-| **Writing mail** | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking, Insert › Date & Time and Word Count (#507); a message being written is never dropped by opening another mailbox (#470). Missing: pictures in the body, spell check, templates, Delay Delivery and Undo Send, receipts (gaps 7, 17) |
-| **Servers** | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies; mail moves and copies between accounts, onto the other server (#451); Safe and Blocked Senders per account (#516); an organisation's own Exchange server through Exchange Web Services, for mail, tried against Grommunio and, for reading, Exchange Server 2019 (#252, #746). In daily use on one Microsoft 365 mailbox; bounded Windows Gmail/Workspace OAuth and app-password acceptance is documented in the [Google account guide](docs/google-accounts.md); other provider limits remain in [gaps](docs/gaps.md); no connection in the browser build (gaps 1–5) |
+| **Writing mail** | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking, Insert › Date & Time and Word Count (#507); a message being written is never dropped by opening another mailbox (#470). Pictures go into the body (#547). Missing: spell check, templates, Delay Delivery and Undo Send, delivery receipts (read receipts are asked for, never answered) (gaps 7, 17) |
+| **Servers** | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies; mail moves and copies between accounts, onto the other server (#451); Safe and Blocked Senders per account (#516); an organisation's own Exchange server through Exchange Web Services, for mail, tried against Grommunio and, for reading, Exchange Server 2019 (#252, #746). In daily use on one Microsoft 365 mailbox; bounded Windows Gmail/Workspace OAuth and app-password acceptance is documented in the [Google account guide](docs/google-accounts.md); other provider limits remain in [gaps](docs/gaps.md); the browser build connects to JMAP servers only (gap 5; [jmap.md](docs/jmap.md)) |
 | **Calendar** | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; Find a Time (everyone's free and busy time) for one day; shared mailboxes' calendars and a colleague's calendar opened by address (#70); reminders with desktop alerts. Missing: rooms, Find a Time over several days, sharing or publishing one's own calendar, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
 | **People** | Contacts with several addresses and phones, favourites, categories, `.vcf` in and out in every character set, a Microsoft account's contacts read. Missing: contact groups, photos, the organisation's directory (gap 17) |
 | **Tasks** | To-dos with dates, importance, categories, completion, links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). The To-Do Bar beside every module (#831). Missing: recurrence, assignment, My Day (gap 17) |
@@ -111,35 +112,35 @@ Beta is for Microsoft accounts (personal, or work or school). MailCraft is in pu
 (2026-10-24): a working program for those accounts, with testers using it and nothing lost so far.
 It leaves beta when every item below passes; each is checked by testers' reports and GitHub
 issues, not by estimate. Where each stands
-(2026-10-24):
+(2026-11-15):
 
 | # | To leave beta | Status |
 |---|---|---|
 | B1 | At least 5 testers, none of them authors, each on a Microsoft account (personal, or work or school) | In progress: 11 signed up ([#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)), 6 of them on Microsoft accounts; 4 of those also for the beta run, 1 short |
-| B2 | Each uses MailCraft on 14 working days (Monday to Friday; about three weeks), on at least 2 devices | Under way (since 2026-10-22 or before); each tester's 14 days count from when they start (R8) |
+| B2 | Each uses MailCraft on 14 working days (Monday to Friday; about three weeks), on at least 2 devices | The 14-day beta run has been under way since 2026-10-22 or before; each tester's 14 days count from when they start (R8) |
 | B3 | Windows x64, macOS (Apple silicon and Intel) and Linux x86_64, each with at least one tester | Met on paper: each platform, an Intel Mac included, has a tester on a Microsoft account signed up for the beta run; to be proven in it. All are built in CI |
-| B4 | No data-loss incident, and no crash that loses work, in those 14 working days | Counting: no data loss reported so far |
+| B4 | No data-loss incident, and no crash that loses work, in those 14 working days | Counting: no data loss in the beta run, which has been running since 2026-10-22 or before |
 | B5 | Reading, filing, searching, forwarding and replying in rich text, with the quoted original kept | Built (R3, R4, R6.2); to be proven in the beta run |
-| B6 | Accepting and declining a meeting; reminders come up as system notifications while MailCraft runs | In progress: meetings are answered from the reading pane and the calendar; desktop alerts (R7.1, 0.5.2) seen on Linux; Windows and macOS still to be seen ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25)) |
+| B6 | Accepting and declining a meeting; reminders come up as system notifications while MailCraft runs | In progress: meetings are answered from the reading pane and the calendar; desktop alerts (R7.1, 0.5.2) seen on Linux (KDE) and on macOS (Apple silicon, 0.8.2) ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25), closed 2026-11-09); no report from Windows yet |
 | B7 | Every account in step with Outlook on the web, checked by each tester at the end | Built: Microsoft accounts are kept in step through Microsoft Graph (R3); R3.8, no IMAP or SMTP left for a Microsoft account, waits on testers ([#19](https://github.com/UCS-Care-Group/mailcraft/issues/19)); the check is the beta run's last step |
 | B8 | Accounts of up to 200,000 messages: open under 3 s, a save under 1 s, under 1 GB of memory, measured on the reference machine and reported by testers | Met on the reference machine (R6.4, R6.2: open 1.5 s, a save 8 ms, at most 849 MB with a search); testers' reports to come |
-| B9 | Sign-ins remembered on every beta platform | In progress: built for Windows and macOS, not yet seen there by a tester; Linux through the Secret Service (R5), across a restart on GNOME and KDE still to be seen |
+| B9 | Sign-ins remembered on every beta platform | In progress: seen across a restart and a reboot on Windows by a tester (0.12.0, IMAP and SMTP accounts, [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11), 2026-11-12); built for macOS, not yet seen there; Linux through the Secret Service (R5), across a restart on GNOME and KDE still to be seen |
 | B10 | The Windows and macOS builds signed; the Microsoft registration publisher-verified | In progress: publisher verification under way; signing the Windows and macOS builds not started |
 
 ## The steps of the roadmap reset
 
 The steps R1–R8 of the roadmap reset led to the public beta and lead to the checklist above, tracked in
-[#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Where each stands (2026-10-19):
+[#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Where each stands (2026-11-15):
 
 | Step | What | Status |
 |---|---|---|
 | R1 | Hygiene | Done |
-| R2 | Exchange Web Services removed | Done (0.3.0) |
+| R2 | Exchange Web Services removed for Microsoft accounts | Done (0.3.0); an organisation's own Exchange server has an account kind of its own since #252 |
 | R3 | Microsoft accounts kept in step through Microsoft Graph: folders, mail down, changes up, drafts, sending, undo, the switch from IMAP | Done but R3.8: no IMAP or SMTP left for a Microsoft account ([#19](https://github.com/UCS-Care-Group/mailcraft/issues/19)), once R3 is proven on testers |
 | R4 | Rich-text replies, signatures with a logo | Done |
 | R5 | Sign-ins remembered on Linux and FreeBSD (Secret Service) | Done; across a restart on GNOME and KDE still to be seen |
 | R6 | 200,000 messages: bodies read when wanted, a log-structured mailbox, a word index, search on the server | Done: open 1.5 s, under 1 GB, a search in 0.16 s |
-| R7 | Desktop Alerts, Copy Diagnostics, told of (and installing) a new version | Built (0.5.2); Desktop Alerts seen on Linux; Windows and macOS still to be seen ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25)) |
+| R7 | Desktop Alerts, Copy Diagnostics, told of (and installing) a new version | Built (0.5.2); Desktop Alerts seen on Linux and macOS, none reported from Windows yet ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25), closed) |
 | R8 | The beta run: 5 testers on Microsoft accounts, 14 working days, nothing lost | Under way, still recruiting ([#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)): 11 signed up, 6 on Microsoft accounts, 4 of them for the beta run; one more wanted |
 
 Two things outside the code stand in the way of testers in other organisations: the publisher
@@ -151,18 +152,19 @@ approves MailCraft first), and signing the Windows and macOS builds (so the syst
 Not scheduled; in the order of how much each matters to someone leaving classic Outlook at work,
 the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/gaps.md).
 
-1. Shared mailboxes' calendars are read, changed where the owner may edit, and their meeting requests answered (#70, calendars 2 and 3); calendars opened by address, and delegated calendars with their permissions are still to come (gap 5, #70).
+1. Shared mailboxes' calendars are read, changed where the owner may edit, and their meeting requests answered (#70, calendars 2 and 3); calendars opened by address are there too (#70, calendars 4); delegated calendars with their permissions are still to come (gap 5, #70).
 2. An Android app: the same program on a phone or tablet, for Microsoft accounts first, signing in
    through the system's browser, with the mailbox kept on the device and a layout for a small
-   screen. It can come soon after beta.
-3. Bringing an Outlook archive across: `.pst` and `.msg` files (gap 12).
+   screen. Under way (`apps/mailcraft-android`, MB3: accounts and sign-in, the mail list, background
+   Send/Receive with new-mail notifications); not in a release yet.
+3. Bringing an Outlook archive across: `.pst` files come in (#815); `.msg` files remain (gap 12).
 4. Printing messages, calendars and contacts (gap 15).
 5. Warnings before sending (a recipient who looks like someone the owner writes to but isn't, many
    people outside the organisation who would see each other's addresses) and Report Phishing;
    the warnings about a sender when reading came with #508 (gap 17).
-6. Undo Send and Delay Delivery, with an Outbox that also holds mail written offline; Snooze
-   (gap 17).
-7. Signed and encrypted mail with S/MIME and OpenPGP (gap 16, [#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
+6. Undo Send and Delay Delivery, with an Outbox that also holds mail written offline; the rest of
+   Snooze, whose first part (the commands `mail.snooze`, `mail.unsnooze` and `mail.returnDue`, no menu or dialog yet) is in 0.13.0 (gap 17).
+7. Signed and encrypted mail with S/MIME and OpenPGP: signatures are checked where a message is read; signing and encrypting what is sent, and opening encrypted mail, remain (gap 16, [#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
 8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2): done for the Inbox of accounts whose server offers IDLE (#276).
 9. Calendars and contacts beyond Microsoft (CalDAV, CardDAV, subscribed calendars) and Google
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
@@ -170,7 +172,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    addressing (gap 17).
 11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); the rest of rules kept on the server: the rest of Outlook's conditions, exceptions and actions (#566 part 2), forwarding by a rule (part 3), changing a rule there, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
-13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
+13. Answering read receipts, unsubscribing from a selection or many senders at once (one message has Unsubscribe, #1207), attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Spell checking while writing (gap 7); further review of the French, German, Spanish, Italian, Dutch,
     Romanian, Hungarian and Simplified Chinese previews, more languages, right-to-left layout (gap 14). Partly done: the eight ship as previews.
