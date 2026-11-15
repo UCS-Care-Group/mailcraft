@@ -28,6 +28,8 @@ pub mod blocks;
 mod core;
 mod error;
 mod events;
+mod fetch;
+mod fetch_api;
 mod keep;
 mod limits;
 mod message;
@@ -43,6 +45,8 @@ pub mod text;
 mod accounts_tests;
 #[cfg(test)]
 mod fake_tests;
+#[cfg(test)]
+mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
 #[cfg(test)]
@@ -68,6 +72,8 @@ pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
+pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
+pub use fetch_api::{AttachmentFile, AttachmentVerdict};
 pub use limits::{DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;

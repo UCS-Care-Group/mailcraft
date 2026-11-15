@@ -221,6 +221,9 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+    /// The whole message is on the phone. When not, only its headers and preview are (the body
+    /// shows the preview): `Core::open_message` fetches it.
+    pub whole: bool,
 }
 
 /// What "remove account and data" came to (`Core::delete_local_data`).

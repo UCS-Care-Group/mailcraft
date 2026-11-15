@@ -107,6 +107,7 @@ impl Core {
                 blocks: views,
                 dark_design,
                 remote_pictures: text::count_of(remote_pictures),
+                whole: !m.unfetched,
             })
         })
         .await

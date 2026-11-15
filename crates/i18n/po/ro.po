@@ -7835,6 +7835,11 @@ msgstr "Mesajele își păstrează culorile alese de expeditori, pe o pagină al
 msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
 msgstr "Mesajele mutate din „{name}” în „{to}” sunt în continuare și în „{name}”"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9174,6 +9179,11 @@ msgstr "Nu s-a mai găsit nimic pe server"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Nothing of this search can be asked of the server."
 msgstr ""
 
 #. interface
@@ -13840,6 +13850,11 @@ msgstr "Contul nu a putut fi adăugat"
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr "Contul nu a putut fi configurat. Verificați detaliile sau scrieți adresa serverului în Setări server."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The account has to be signed in again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -13905,6 +13920,11 @@ msgstr "Serverul contului îl creează când se trimite întâlnirea; linkul de 
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "Aprobarea nu a trecut."
+
+#. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "The attachment is too large to open on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -14198,6 +14218,11 @@ msgstr ""
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The download was called off."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -14426,6 +14451,11 @@ msgstr "Contactul îmbinat ar avea mai multe certificate și chei decât poate p
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "Câmpul {field} al contactului îmbinat ar fi prea mare ({now}, cel mult {max}), deci contactele nu se îmbină. Alegeți câmpul {field} al unui singur contact sau scurtați-le întâi."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "The message for your administrator could not be made."
@@ -14437,11 +14467,21 @@ msgstr ""
 msgid "The message has no such attachment"
 msgstr "Mesajul nu are un astfel de atașament"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is no longer on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The message is on the clipboard: paste it into mail or chat for your organisation's administrator"
 msgstr "Mesajul este în clipboard: lipiți-l într-un e-mail sau chat pentru administratorul organizației"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is too large to download on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -14683,6 +14723,11 @@ msgstr "Serverul a răspuns fără adresa Exchange Web Services. Cereți-o admin
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "Serverul a răspuns, dar nu ca un server Exchange. Verificați-i adresa în Setări server."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -14736,6 +14781,11 @@ msgstr "Serverul are cel puțin {total} dosare: lista lor era prea lungă pentru
 #, fuzzy
 msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
 msgstr "Serverul are {total} dosare: o rulare citește primele {max} și omite celelalte {left}, începând cu „{first}”"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server is busy. Try again in a few minutes."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15087,6 +15137,11 @@ msgstr "Aici nu există un dosar de date de deschis"
 #, fuzzy
 msgid "There is no earlier version to go back to."
 msgstr "Nu există o versiune anterioară la care să reveniți."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "There is no network connection."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -19098,6 +19153,11 @@ msgid "the app's own code failed"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "the attachment could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
@@ -19344,7 +19404,7 @@ msgid "the message can't hold that much text"
 msgstr "mesajul nu poate conține atât de mult text"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
 msgid "the message could not be read"
 msgstr ""
 
