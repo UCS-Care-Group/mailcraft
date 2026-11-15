@@ -108,3 +108,51 @@ fn an_empty_user_name_is_explained_before_any_commands() {
         assert!(stream.sent().is_empty());
     }
 }
+
+/// #1147: the server that offers `ID` (RFC 2971) is told which client this is once the owner is
+/// signed in, as Coremail's servers need before they will open a mailbox.
+#[test]
+fn a_server_that_offers_id_is_told_which_client_this_is() {
+    let version = env!("CARGO_PKG_VERSION");
+    let id = format!("(\"name\" \"MailCraft\" \"version\" \"{version}\")");
+    let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
+    let mut stream = Script::new(greeting("AUTH=PLAIN SASL-IR ID", "A0001 OK welcome\r\nA0002 OK ID done\r\n"));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), format!("A0001 AUTHENTICATE PLAIN {payload}\r\nA0002 ID {id}\r\n"));
+    assert!(stream.finished());
+}
+
+#[test]
+fn login_falls_back_then_tells_the_server_which_client_this_is() {
+    let version = env!("CARGO_PKG_VERSION");
+    let mut stream = Script::new(greeting("ID", "A0001 OK welcome\r\nA0002 OK ID done\r\n"));
+    Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
+    assert_eq!(
+        stream.sent(),
+        format!("A0001 LOGIN \"user@example.org\" \"invented\"\r\nA0002 ID (\"name\" \"MailCraft\" \"version\" \"{version}\")\r\n"),
+    );
+}
+
+#[test]
+fn a_refused_id_command_still_leaves_the_owner_signed_in() {
+    for refusal in ["NO not now", "BAD what"] {
+        let mut stream = Script::new(greeting("AUTH=PLAIN SASL-IR ID", &format!("A0001 OK welcome\r\nA0002 {refusal}\r\n")));
+        let mut imap = Imap::connect(&mut stream).unwrap();
+        imap.authenticate_password("user@example.org", "invented").unwrap();
+        assert!(imap.is_authenticated(), "{refusal}");
+        assert!(stream.sent().contains("A0002 ID ("), "{refusal}");
+    }
+}
+
+#[test]
+fn a_server_without_id_is_sent_no_id_command() {
+    for caps in ["AUTH=PLAIN SASL-IR", "AUTH=PLAIN"] {
+        let replies = if caps.ends_with("SASL-IR") { "A0001 OK welcome\r\n" } else { "+ continue\r\nA0001 OK welcome\r\n" };
+        let mut stream = Script::new(greeting(caps, replies));
+        Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
+        assert!(!stream.sent().contains(" ID "), "{caps}: {}", stream.sent());
+        assert!(stream.finished());
+    }
+}

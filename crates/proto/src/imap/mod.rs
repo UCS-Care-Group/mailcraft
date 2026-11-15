@@ -741,11 +741,29 @@ impl<S: Read + Write> Imap<S> {
         match line.status {
             Status::Ok => {
                 self.authenticated = true;
+                self.identify()?;
                 Ok(())
             }
             Status::No => Err(ProtoError::Auth(self.refusal(&line))),
             _ => Err(ProtoError::Rejected(self.refusal(&line))),
         }
+    }
+
+    /// Tells the server which client this is, in the `ID` command of RFC 2971, where it offers
+    /// that: Coremail's servers (163.com, 126.com) refuse every mailbox until a client has said,
+    /// their answer to anything else being `Unsafe Login`. Sent after a sign-in has succeeded.
+    ///
+    /// Nothing is sent to a server that doesn't offer `ID`, and a server that refuses the command
+    /// (NO or BAD) still leaves the owner signed in: what the command says is a courtesy, never
+    /// what the session rests on. The version is this build's own; nothing of the owner or the
+    /// sign-in is in it.
+    fn identify(&mut self) -> Result<(), ProtoError> {
+        if !self.offers("ID") {
+            return Ok(());
+        }
+        let id = format!("(\"name\" \"MailCraft\" \"version\" \"{}\")", env!("CARGO_PKG_VERSION"));
+        let _ = self.exchange(Command::new("ID").arg(&id), &mut ignore)?;
+        Ok(())
     }
 
     /// AUTHENTICATE XOAUTH2: an OAuth access token in place of a password. NO → `ProtoError::Auth`.
@@ -793,6 +811,7 @@ impl<S: Read + Write> Imap<S> {
             Status::Ok if asked == 0 => Err(ProtoError::Protocol(said!("the server ended the command early"))),
             Status::Ok => {
                 self.authenticated = true;
+                self.identify()?;
                 Ok(())
             }
             Status::No => Err(ProtoError::Auth(self.refusal(&line))),

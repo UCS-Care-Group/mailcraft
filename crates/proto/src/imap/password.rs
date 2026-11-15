@@ -62,6 +62,7 @@ impl<S: Read + Write> Imap<S> {
             Status::Ok if !sent => Err(ProtoError::Protocol(said!("the server accepted a password that was not sent"))),
             Status::Ok => {
                 self.authenticated = true;
+                self.identify()?;
                 Ok(())
             }
             Status::No => Err(ProtoError::Auth(self.refusal(&verdict))),
