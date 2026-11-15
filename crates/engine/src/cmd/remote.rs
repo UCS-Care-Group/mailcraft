@@ -3466,6 +3466,9 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                 fresh.categories = old.categories.clone();
                 fresh.favorite = old.favorite;
                 fresh.uid = old.uid.clone();
+                // And whether an agent made it, which the owner hasn't confirmed (#891): the server's
+                // word doesn't, and a change of it mustn't make the contact trusted for pictures.
+                fresh.by_agent = old.by_agent;
                 if *old == fresh {
                     merged.unchanged += 1;
                 } else if let Ok(contact) = mailbox.contact_mut(fresh.id) {

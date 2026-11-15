@@ -791,9 +791,24 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
                     .wrap(),
                 );
             }
+            if let Some(note) = agent_note(&c) {
+                ui.add_space(8.0);
+                ui.add(egui::Label::new(RichText::new(note).font(regular(12.0)).color(t.text_dim)).wrap());
+            }
             card_recent(app, ui, &c);
         });
     });
+}
+
+/// What the card says of a contact an agent made, or gave an address, which the owner hasn't
+/// edited since (#891): its addresses don't count as the owner's own for "Download pictures in mail
+/// from people in my contacts", whoever they were before. Editing the contact, even with nothing
+/// changed, is the owner's word that it is theirs.
+fn agent_note(c: &Contact) -> Option<String> {
+    c.by_agent.then(|| {
+        tl!("An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts.")
+            .to_string()
+    })
 }
 
 /// The avatar, the name, what they do and where, and the categories.

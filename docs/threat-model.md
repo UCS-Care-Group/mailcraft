@@ -74,8 +74,11 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   address, and File › Options says the switch trusts no more than that; and not a contact an
   agent made or gave an address to: `people.new`, `people.edit`, `people.fromMessage` and a vCard
   or .pst import are safe for agents, so the engine marks what they add (`Contact::by_agent`,
-  `agent::mark_agent_contacts`, never set by a command's params) and only the owner's `people.edit`
-  clears it; the addresses are read once into a set, made again when the mailbox changes), holds only for a message
+  `agent::mark_agent_contacts`, whatever the command, `file.open` with `data` included, and a
+  server's update of a contact keeps it; never set by a command's params) and only the owner's
+  `people.edit` clears it, which is the owner's word for an address the agent gave one of their
+  own contacts too, until then none of that contact's addresses counts, and the contact's card in
+  People says so; the addresses are read once into a set, made again when the mailbox changes), holds only for a message
   whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
   signature of that domain, **and was written by the account's own server**

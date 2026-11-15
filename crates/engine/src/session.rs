@@ -3770,8 +3770,9 @@ impl Session {
             (r, _) => r,
         };
         // What an agent made of the contacts, or gave them an address of, isn't trusted for
-        // pictures until the owner edits it (#891).
-        if result.is_ok() && self.agent.is_some() && spec.mutates {
+        // pictures until the owner edits it (#891). Whatever the command, not only those that
+        // change the mailbox: `file.open` with `data` doesn't, and brings the agent's own contacts.
+        if result.is_ok() && self.agent.is_some() {
             crate::agent::mark_agent_contacts(&before.mailbox, &mut self.mailbox);
         }
         match &result {

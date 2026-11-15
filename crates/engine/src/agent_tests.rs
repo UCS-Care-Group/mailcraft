@@ -269,3 +269,20 @@ END:VCARD
     s.run("people.edit", &json!({"id": owen, "notes": "mine again"})).unwrap();
     assert!(!contact_with(&s, "owen@kite.example").by_agent);
 }
+
+/// `file.open` with `data` changes nothing of the mailbox it is run on, as far as the command's
+/// class goes, but brings the agent's own contacts: they are the agent's as any it makes (#891).
+#[test]
+fn a_mailbox_an_agent_opens_has_its_contacts_marked() {
+    let mut made = Session::empty();
+    made.run("people.new", &json!({"first": "Mia", "email": "mia@kite.example"})).unwrap();
+    let data = mailcraft_charset::base64::STANDARD.encode(crate::io::write_mailbox(&made.mailbox).unwrap());
+    let mut s = Session::empty();
+    s.agent = Some(vec![Class::Mailbox]);
+    s.run("file.open", &json!({"name": "made.mailcraft", "data": data})).unwrap();
+    assert!(contact_with(&s, "mia@kite.example").by_agent);
+    // The owner opening the same file brings nothing of the sort.
+    s.agent = None;
+    s.run("file.open", &json!({"name": "made.mailcraft", "data": data})).unwrap();
+    assert!(!contact_with(&s, "mia@kite.example").by_agent);
+}

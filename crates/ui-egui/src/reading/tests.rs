@@ -1813,6 +1813,19 @@ fn a_contact_an_agent_adds_does_not_bring_pictures() {
     assert_eq!(shown(&harness, by_agent), (1, 0, 0));
 }
 
+/// The frame's lookup of the contacts is asked while its cache is borrowed: an answer, no panic
+/// (#891).
+#[test]
+fn the_contacts_lookup_has_no_panic_path() {
+    let (mut app, _) = app_with(vec![]);
+    with_contacts(&mut app, &["kim@kite.example"]);
+    let held = app.remote_pictures.contacts.borrow_mut();
+    assert!(super::remote::from_contact(&app, "kim@kite.example"));
+    assert!(!super::remote::from_contact(&app, "lee@kite.example"));
+    drop(held);
+    assert!(super::remote::from_contact(&app, "kim@kite.example"));
+}
+
 /// A contact is that address exactly: not a lookalike of it, nor one of a lookalike.
 #[test]
 fn a_lookalike_address_is_not_a_contact() {

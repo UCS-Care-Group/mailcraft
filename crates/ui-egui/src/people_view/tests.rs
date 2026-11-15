@@ -418,3 +418,27 @@ fn the_lines_under_the_name_are_cleaned_too() {
     assert_eq!(subtitle(&c), "Harbor Books · orders@harborbooks.example");
     assert_eq!(role_line(&c), "Buyer · Harbor Books");
 }
+
+/// The card says why a contact an agent made or gave an address doesn't bring pictures, and says
+/// nothing of the owner's own (#891).
+#[test]
+fn the_card_says_when_a_contact_is_the_agents() {
+    use egui_kittest::kittest::Queryable;
+    let mut mine = contact("Owen", "Kite");
+    assert_eq!(agent_note(&mine), None);
+    mine.by_agent = true;
+    let note = agent_note(&mine).unwrap();
+    assert!(note.contains("Until you edit it"), "{note}");
+
+    // And the window draws it on that contact's card only.
+    let mut w = crate::testing::window("view.people");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    let ids = people::sorted(&w.state().session, "");
+    let (agents, owners) = (ids[0], ids[1]);
+    w.state_mut().session.mailbox.contact_mut(agents).unwrap().by_agent = true;
+    for (id, shown) in [(agents, true), (owners, false)] {
+        w.state_mut().execute("people.select", json!({"id": id})).unwrap();
+        w.run();
+        assert_eq!(w.query_by_label_contains("Until you edit it").is_some(), shown, "{id}");
+    }
+}

@@ -1171,6 +1171,11 @@ msgid "An account couldn't be sent and received."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."

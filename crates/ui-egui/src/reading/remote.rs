@@ -146,7 +146,7 @@ pub struct RemotePictures {
     forget_all: bool,
     /// The addresses of the contacts that the switch for the contacts' mail trusts, as of the
     /// mailbox revision and number of contacts they were read at ([`from_contact`]).
-    contacts: std::cell::RefCell<Option<((u64, usize), HashSet<String>)>>,
+    pub(super) contacts: std::cell::RefCell<Option<((u64, usize), HashSet<String>)>>,
 }
 
 impl RemotePictures {
@@ -242,13 +242,18 @@ fn remembered_unvouched(app: &MailApp, m: &Message) -> bool {
 pub fn from_contact(app: &MailApp, address: &str) -> bool {
     let Some(address) = sender(address) else { return false };
     let key = (app.session.rev(), app.session.mailbox.contacts.len());
-    let mut kept = app.remote_pictures.contacts.borrow_mut();
+    // (Not `borrow_mut`: that panics when the cache is borrowed already, and this is asked at every
+    // frame. Then there is no answer to keep, and the contacts are read for this one.)
+    let Ok(mut kept) = app.remote_pictures.contacts.try_borrow_mut() else { return contact_addresses(app).contains(&address) };
     if kept.as_ref().is_none_or(|(of, _)| *of != key) {
-        let all =
-            app.session.mailbox.contacts.values().filter(|c| !c.by_agent).flat_map(|c| c.emails.iter().filter_map(|e| sender(&e.value))).collect();
-        *kept = Some((key, all));
+        *kept = Some((key, contact_addresses(app)));
     }
     kept.as_ref().is_some_and(|(_, all)| all.contains(&address))
+}
+
+/// The addresses of the contacts the owner has made or confirmed ([`from_contact`]).
+fn contact_addresses(app: &MailApp) -> std::collections::HashSet<String> {
+    app.session.mailbox.contacts.values().filter(|c| !c.by_agent).flat_map(|c| c.emails.iter().filter_map(|e| sender(&e.value))).collect()
 }
 
 /// Whether the switch for the contacts' mail is on and `m`'s sender is a contact, before the

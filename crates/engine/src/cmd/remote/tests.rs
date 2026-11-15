@@ -1460,6 +1460,22 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert!(s.mailbox.clone().repair().is_empty());
 }
 
+/// A contact an agent made (#891) stays the agent's when the server's copy of it changes: the
+/// download doesn't confirm it for pictures.
+#[test]
+fn a_server_update_keeps_a_contact_marked_as_the_agents() {
+    let (mut s, account) = session();
+    apply_contacts(&mut s, &everybody(account, vec![person("c-ada", "Ada", "ada@example.org")])).unwrap();
+    let id = contact_called(&s, account, "c-ada").id;
+    s.mailbox.contact_mut(id).unwrap().by_agent = true;
+    let changed = RemoteContact { change_key: "ck-2".into(), company: "Engines".into(), ..person("c-ada", "Ada", "ada@example.org") };
+    let merged = apply_contacts(&mut s, &everybody(account, vec![changed])).unwrap();
+    assert_eq!(counts(&merged), (0, 1, 0, 0, 0));
+    let kept = contact_called(&s, account, "c-ada");
+    assert_eq!(kept.company, "Engines");
+    assert!(kept.by_agent, "the update replaced the contact and dropped the mark");
+}
+
 #[test]
 fn an_account_can_be_forgotten() {
     let (mut s, account) = session();
