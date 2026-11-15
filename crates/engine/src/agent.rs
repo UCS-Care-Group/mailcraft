@@ -338,6 +338,8 @@ const SAFE: &[&str] = &[
     "calendar.join",
     "calendar.copy",
     "calendar.calendars",
+    // Makes the subscribed calendars due a look ahead of their time: they were chosen by the owner.
+    "calendar.refreshSubscribed",
     "calendar.showOnly",
     "calendar.color",
     "calendar.timeZones",
@@ -488,6 +490,11 @@ const ACCOUNTS: &[&str] = &[
     // the owner's sign-in, and removing one removes what is kept of it here.
     "calendar.openShared",
     "calendar.removeShared",
+    // Calendars on the web (#209): subscribing makes this computer fetch an address (which may
+    // hold a secret) from then on; an agent never chooses one unasked.
+    "calendar.subscribe",
+    "calendar.unsubscribe",
+    "calendar.subscriptionSettings",
     // A shared mailbox's calendar listed twice (#70): hiding the copy removes it and its events
     // from this computer.
     "calendar.hideListedCopy",
@@ -613,6 +620,9 @@ const NEVER: &[&str] = &[
     "sync.applyFavorites",
     "sync.applyMailboxSettings",
     "sync.applyAutomaticReplies",
+    // Subscribed calendars (#209): the addresses a host is to look at, and what it brought.
+    "sync.subscriptionRequest",
+    "sync.applySubscription",
     "sync.forgetRemote",
     // File pickers are the owner's; agents pass `data`.
     "ui.open",
@@ -1728,6 +1738,25 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
         "calendar.openShared" => {
             format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
+        }
+        "calendar.subscribe" => {
+            // (The host alone: the rest of an address may hold a secret.)
+            let host = mailcraft_model::subscription::check_address(st("address")).map(|a| a.host).unwrap_or_default();
+            format!(
+                "subscribe to the calendar on the web at the host {} (its file is fetched from then on, every hour and on Send/Receive, and kept read-only under Other Calendars); the address is kept like a password",
+                clip(&host, 80)
+            )
+        }
+        "calendar.unsubscribe" => {
+            let named = p::id_strict(params, "id").ok().flatten().and_then(|c| s.mailbox.calendar(c)).map(|c| c.name.clone()).unwrap_or_default();
+            format!("unsubscribe from the calendar {} and remove it and its events from this computer", clip(&named, 80))
+        }
+        "calendar.subscriptionSettings" => {
+            let named = p::id_strict(params, "id").ok().flatten().and_then(|c| s.mailbox.calendar(c)).map(|c| c.name.clone()).unwrap_or_default();
+            format!(
+                "change how the subscribed calendar {} is kept up to date (how often it is fetched, or the address it is fetched from)",
+                clip(&named, 80)
+            )
         }
         "calendar.removeShared" => {
             let named = p::id_strict(params, "id")
