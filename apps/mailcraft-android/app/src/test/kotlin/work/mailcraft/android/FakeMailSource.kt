@@ -20,6 +20,10 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     /** When set, a window is answered only once it is completed: a read still on its way. */
     var gate: CompletableDeferred<Unit>? = null
 
+    /** When set, only the window asked for in this place (0 the first) waits for [gate] and fails. */
+    var onlyCall: Int? = null
+    private var calls = 0
+
     /** A change from outside: the rows are these now, at the next revision. */
     fun change(newRows: List<InboxRow>) {
         rows = newRows
@@ -28,8 +32,10 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
 
     override suspend fun window(query: MailQuery, offset: Int, count: Int): RowsWindow? {
         windows += offset to count
-        gate?.await()
-        if (failWindows) return null
+        val call = calls++
+        val picked = onlyCall
+        if (picked == null || picked == call) gate?.await()
+        if (failWindows || (picked != null && picked == call)) return null
         return RowsWindow(rev, rows.size, offset, rows.drop(offset).take(count))
     }
 

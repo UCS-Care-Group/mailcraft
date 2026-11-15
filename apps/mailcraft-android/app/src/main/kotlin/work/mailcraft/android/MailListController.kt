@@ -33,6 +33,10 @@ internal class MailListController(
     private val generation = AtomicInteger()
     private val notices = AtomicInteger()
 
+    /** The list (by generation) a reload last brought rows for: a first page that fails then leaves them. */
+    @Volatile
+    private var freshFor = -1
+
     /** Pulls to refresh under way. */
     private val refreshes = AtomicInteger()
 
@@ -68,11 +72,16 @@ internal class MailListController(
             )
         }
         visible = 0..0
-        val first = source.window(query, 0, PAGE_SIZE)
+        val first = try {
+            source.window(query, 0, PAGE_SIZE)
+        } finally {
+            // (Called off too: paging is never left waiting for a first page that will not come.)
+            if (mine == generation.get()) switching = false
+        }
         if (mine != generation.get()) return
-        switching = false
         if (first == null) {
-            state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty) }
+            // A reload of this list that brought its rows meanwhile is kept; else the list is unreadable.
+            if (freshFor != mine) state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty) }
             return
         }
         val snapshot = ListSnapshot.Empty.with(first) ?: ListSnapshot.Empty
@@ -133,6 +142,7 @@ internal class MailListController(
         val first = ListSnapshot(newest, fresh.first().total).with(fresh.first()) ?: return
         val snapshot = fresh.drop(1).fold(first) { acc, w -> acc.with(w) ?: acc }
         state.update { if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot) else it }
+        freshFor = mine
         if (query.search.isBlank()) loadTabs(mine, query.folder)
     }
 
@@ -176,10 +186,16 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
-        val done = state.value.query?.let { source.focusedRun(triage, it, rows) } ?: false
+        val count = state.value.query?.let { source.focusedRun(triage, it, rows) }
         reload()
-        // A change the owner can see in the list needs no word; one that takes mail away offers its undo.
-        if (!done) notify(ListNotice.Failed) else if (triage.destructive) notify(ListNotice.Done(triage, rows.size))
+        // A change the owner can see in the list needs no word; one that takes mail away offers its undo,
+        // counting the messages it took. Any other change done since makes an earlier undo offer stale
+        // (Undo takes back the last change), so that offer is withdrawn.
+        when {
+            count == null -> notify(ListNotice.Failed)
+            triage.destructive -> notify(ListNotice.Done(triage, count))
+            else -> state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
+        }
     }
 
     /** Takes back the last change. */
@@ -221,12 +237,13 @@ internal fun MailListController.handle(event: Event, scope: CoroutineScope) {
  * Runs [triage] on [rows] of the list [query] as commands, naming the messages: a conversation's row
  * stands for the messages it lists, which are the ones that command takes, whatever filter or search
  * made the list. A row that stands for more than the ids it carries has its whole list read first;
- * when that can't be had (the row is gone, or the core can't say), nothing is done.
+ * when that can't be had (the row is gone, or the core can't say), nothing is done. Gives how many
+ * messages the command named, or null when it was not done.
  */
-internal suspend fun MailSource.focusedRun(triage: Triage, query: MailQuery, rows: List<InboxRow>): Boolean {
+internal suspend fun MailSource.focusedRun(triage: Triage, query: MailQuery, rows: List<InboxRow>): Int? {
     val ids = rows.flatMap { row ->
         if (row.members > row.memberIds.size && row.members > 1) {
-            members(query, row.id)?.takeIf { it.isNotEmpty() } ?: return false
+            members(query, row.id)?.takeIf { it.isNotEmpty() } ?: return null
         } else {
             row.memberIds.ifEmpty { listOf(row.id) }
         }
@@ -241,5 +258,5 @@ internal suspend fun MailSource.focusedRun(triage: Triage, query: MailQuery, row
         is Triage.MoveTo -> "mail.move" to (withIds + ("folder" to triage.folder))
         is Triage.Category -> "mail.categorize" to (withIds + mapOf("category" to triage.name, "value" to triage.on))
     }
-    return run(command, jsonText(params))
+    return if (run(command, jsonText(params))) ids.size else null
 }

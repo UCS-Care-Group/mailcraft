@@ -296,6 +296,9 @@ fn a_conversation_longer_than_a_row_carries_is_named_whole_by_its_members() {
     let whole = block_on(core.row_members(q.clone(), row.id)).unwrap();
     assert_eq!(whole.len(), 250);
     assert!(row.member_ids.iter().all(|id| whole.contains(id)));
+    // Outside conversations a row stands for its own message.
+    let plain = all(&core, query(inbox(&core))).into_iter().find(|r| r.subject == "Zebra herd").unwrap();
+    assert_eq!(block_on(core.row_members(query(inbox(&core)), plain.id)).unwrap(), vec![plain.id]);
     // A row the list no longer has stands for nothing.
     assert!(block_on(core.row_members(q.clone(), u64::MAX)).unwrap().is_empty());
     // A command on the whole row takes every message of it, and its undo puts them all back.

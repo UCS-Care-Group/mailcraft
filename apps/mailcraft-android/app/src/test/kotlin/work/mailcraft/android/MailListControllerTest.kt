@@ -169,7 +169,7 @@ class MailListControllerTest {
         c.triage(SwipeAction.Delete.triage(FakeMailSource.row(1)), listOf(FakeMailSource.row(1)))
         assertEquals("mail.delete" to """{"ids":[1]}""", source.commands.last())
         val notice = c.ui.value.notice?.notice
-        assertTrue(notice is ListNotice.Done && notice.undoable)
+        assertTrue(notice is ListNotice.Done && notice.undoable && notice.count == 1)
         assertEquals(4, c.ui.value.snapshot.total)
         c.undo()
         assertEquals("edit.undo", source.commands.last().first)
@@ -220,6 +220,50 @@ class MailListControllerTest {
         c.triage(Triage.Delete, listOf(row))
         assertEquals(listOf("mail.delete" to """{"ids":[200,201,202,203]}"""), source.commands)
         assertTrue(source.memberAsks.isEmpty())
+    }
+
+    @Test
+    fun aConversationsNoticeCountsItsMessagesAndALaterChangeWithdrawsTheUndo() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox.copy(conversations = true))
+        c.triage(Triage.Delete, listOf(FakeMailSource.row(2, members = 4)))
+        val notice = c.ui.value.notice?.notice
+        assertTrue(notice is ListNotice.Done && notice.count == 4)
+        // Undo takes back the last change: once another is made, the offer would undo that one.
+        c.triage(Triage.MarkRead(true), listOf(FakeMailSource.row(3)))
+        assertNull(c.ui.value.notice)
+    }
+
+    @Test
+    fun aFirstPageCalledOffLeavesPagingWorking() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(120))
+        val c = controller(source)
+        c.show(inbox)
+        source.gate = CompletableDeferred()
+        val pending = launch(start = CoroutineStart.UNDISPATCHED) { c.show(inbox.copy(filter = ListFilter.Unread)) }
+        pending.cancel()
+        pending.join()
+        source.gate = null
+        source.windows.clear()
+        c.showRange(100, 110)
+        assertTrue(source.windows.map { it.first }.contains(2 * PAGE_SIZE))
+    }
+
+    @Test
+    fun aFirstPageThatFailsAfterAReloadBroughtTheRowsLeavesThem() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(10))
+        val c = controller(source)
+        // The first page is the first window asked for: it waits, then fails.
+        source.onlyCall = 0
+        source.gate = CompletableDeferred()
+        val showing = launch(start = CoroutineStart.UNDISPATCHED) { c.show(inbox) }
+        c.reload()
+        assertEquals(LoadState.Ready, c.ui.value.load)
+        source.gate?.complete(Unit)
+        showing.join()
+        assertEquals(LoadState.Ready, c.ui.value.load)
+        assertEquals(10, c.ui.value.snapshot.total)
     }
 
     @Test

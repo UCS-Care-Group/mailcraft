@@ -105,24 +105,26 @@ internal fun MailListScreen(
 @Composable
 private fun ListBody(context: MailListContext, ui: MailListUi, actions: MailListActions) {
     val texts = context.texts
-    when {
-        ui.load == LoadState.Failed -> Centered(texts.t("The mailbox could not be read."))
-        ui.load == LoadState.Loading -> Centered(texts.t("Loading…"))
-        else -> PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = actions.onRefresh) {
-            if (ui.snapshot.total == 0) {
-                // (Scrollable, so that a pull reaches the refresh with nothing in the list.)
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    item {
-                        Centered(
-                            if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."),
-                            Modifier.fillParentMaxSize(),
-                        )
-                    }
-                }
-            } else {
-                Rows(context, ui, actions)
-            }
+    if (ui.load == LoadState.Loading) {
+        Centered(texts.t("Loading…"))
+        return
+    }
+    // A list that could not be read is pulled to try again, as an empty one is to check for mail.
+    PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = actions.onRefresh) {
+        when {
+            ui.load == LoadState.Failed -> PullableLine(texts.t("The mailbox could not be read."))
+            ui.snapshot.total == 0 ->
+                PullableLine(if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."))
+            else -> Rows(context, ui, actions)
         }
+    }
+}
+
+/** A line in the middle of the list's space, scrollable so that a pull reaches the refresh. */
+@Composable
+private fun PullableLine(text: String) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item { Centered(text, Modifier.fillParentMaxSize()) }
     }
 }
 
