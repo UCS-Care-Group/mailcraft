@@ -265,3 +265,18 @@ fn the_clean_up_refuses_what_it_does_not_take() {
         assert!(s.run("mail.removeImportedDuplicates", &params).is_err(), "{params}");
     }
 }
+
+#[test]
+fn a_server_copy_that_is_only_a_preview_here_does_not_count_as_the_mail() {
+    // Mail older than what an IMAP account keeps offline is only its headers and a preview here
+    // (#653): the local copy of it may be all of that mail there is on this computer.
+    let (mut s, _, inbox) = imap();
+    let preview = s.mailbox.messages_in(inbox).find(|m| m.uid == 1).unwrap().id;
+    s.mailbox.message_mut(preview).unwrap().unfetched = true;
+    let kept = local_copy(&mut s, inbox, 1);
+    let twin = local_copy(&mut s, inbox, 2);
+    let r = s.run("mail.removeImportedDuplicates", &json!({})).unwrap();
+    assert_eq!(r["removed"], 1, "{r}");
+    assert!(s.mailbox.message(kept).is_some(), "its server copy is only a preview here");
+    assert!(s.mailbox.message(twin).is_none());
+}
