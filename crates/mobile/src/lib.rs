@@ -48,6 +48,7 @@ mod fake_tests;
 mod host_failure_tests;
 #[cfg(test)]
 mod junk_tests;
+#[cfg(test)]
 mod keep_tests;
 #[cfg(test)]
 mod links_tests;
