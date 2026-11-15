@@ -387,6 +387,28 @@ impl SendReceive {
         if found.is_empty() { stored().filter(|r| !r.is_empty()) } else { Some(found) }
     }
 
+    /// How a job that fetches `account`'s mail (whole messages, a search on its server) gets its
+    /// Graph token (MB3.17): a token of this session that is still good at `ctx.now_s`, else the
+    /// account's refresh token as a run finds it, to be renewed on the job's thread the way a run
+    /// renews it ([`crate::fetch::with_access`]); what that renewal brings comes back through
+    /// [`adopt_tokens`](Self::adopt_tokens). `None` when there is nothing to sign in with, the
+    /// account isn't one a round may include, it isn't a Microsoft account of its own (a shared
+    /// mailbox is read with its owner's sign-in), Work Offline is on, or the mailbox is
+    /// unconfirmed or its data removed.
+    pub fn mail_access(&mut self, session: &Session, ctx: &Context, account: Id) -> Option<crate::fetch::Access> {
+        self.follow_opening(session);
+        if session.prefs.offline || ctx.held() || !self.eligible(session, account) {
+            return None;
+        }
+        let a = session.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft && !a.is_shared())?;
+        if let Some(kept) = self.tokens.get(&account).filter(|t| t.fresh(ctx.now_s)) {
+            return Some(crate::fetch::Access::Held(kept.access.clone()));
+        }
+        let oauth = a.oauth.clone()?;
+        let refresh = self.refresh_for(session, ctx, account)?;
+        Some(crate::fetch::Access::Renew { oauth: mailcraft_engine::sync_driver::effective_oauth(oauth, &ctx.ids), refresh })
+    }
+
     fn start(&mut self, host: &Host, session: &mut Session, ctx: &Context, account: Id, quiet: bool) -> Step {
         let Some(a) = session.mailbox.account(account) else {
             session.sync_progress.leave_out(account);

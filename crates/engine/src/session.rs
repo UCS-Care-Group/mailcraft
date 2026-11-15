@@ -21,6 +21,9 @@ use crate::{CmdError, Registry};
 /// Undo steps kept.
 const MAX_HISTORY: usize = 100;
 
+/// Most messages [`Session::keep_for_now`] holds on a device beyond its limits for a session.
+pub const MOST_KEPT_FOR_NOW: usize = 5_000;
+
 /// How long a search spends bringing the bodies of older mail into memory before it answers with
 /// what it has searched (and says what it hasn't).
 const SEARCH_TIME: std::time::Duration = std::time::Duration::from_secs(2);
@@ -3141,6 +3144,24 @@ impl Session {
     /// Whether the mailbox file is known to hold the mailbox as it is now.
     pub(crate) fn file_is_current(&self) -> bool {
         self.path.is_some() && !self.dirty
+    }
+
+    /// Keep `ids` on this device for the rest of the session whatever its limits say: messages the
+    /// owner opened, or brought here from a search on the server, although they are older than
+    /// their account's mail to keep offline (MB3.17). Until the mailbox is opened again; at most
+    /// [`MOST_KEPT_FOR_NOW`] are held, and past that nothing more is kept this way.
+    pub fn keep_for_now(&mut self, ids: impl IntoIterator<Item = Id>) {
+        for id in ids {
+            if self.kept_for_now.len() >= MOST_KEPT_FOR_NOW {
+                break;
+            }
+            self.kept_for_now.insert(id);
+        }
+    }
+
+    /// Whether message `id` is kept on this device for the session ([`Session::keep_for_now`]).
+    pub fn kept_for_now(&self, id: Id) -> bool {
+        self.kept_for_now.contains(&id)
     }
 
     /// Replace the mailbox (File › New, File › Open): history and selection start over.

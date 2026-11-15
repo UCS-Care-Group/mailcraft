@@ -8,6 +8,8 @@
 
 pub mod calendar;
 pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
 pub mod graph;
 pub mod init;
 #[cfg(test)]
