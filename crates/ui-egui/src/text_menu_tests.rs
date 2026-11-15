@@ -363,6 +363,35 @@ fn the_classic_composer_ribbon_copies_cuts_and_pastes_the_body() {
 }
 
 #[test]
+fn the_classic_composer_ribbon_only_uses_the_clipboard_while_its_body_is_visible() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 10})).unwrap();
+    for module in ["view.calendar", "view.people", "view.tasks"] {
+        h.state_mut().execute(module, json!({})).unwrap();
+        settle(&mut h, 4);
+        for command in ["edit.copy", "edit.cut", "edit.paste"] {
+            let at = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id(command)).unwrap().center();
+            click(&mut h, at, PointerButton::Primary);
+            settle(&mut h, 4);
+        }
+        assert_eq!(plain(&h), "draft text", "{module}");
+        assert_eq!(board.0.borrow().reads, 0, "{module}");
+        assert!(board.0.borrow().put.is_empty(), "{module}");
+    }
+    let opened = h.state_mut().execute("compose.popOut", json!({})).unwrap();
+    let window = opened["window"].as_u64().unwrap();
+    settle(&mut h, 4);
+    let at = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("edit.paste")).unwrap().center();
+    click(&mut h, at, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(plain(&h), "replacement");
+    assert_eq!(board.0.borrow().reads, 1);
+}
+
+#[test]
 fn a_password_field_offers_paste_alone() {
     let board = Board::holding(TYPED);
     let mut a = app(Some(&board));

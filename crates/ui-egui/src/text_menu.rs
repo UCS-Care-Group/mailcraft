@@ -55,16 +55,24 @@ fn compose_clipboard_item(command: &str) -> Option<Item> {
 pub(crate) fn compose_clipboard_enabled(app: &MailApp, command: &str) -> Option<bool> {
     let item = compose_clipboard_item(command)?;
     let compose = app.session.compose.as_ref()?;
-    Some(match item {
-        Item::Paste => app.services.clipboard.is_some(),
-        _ => !compose.body.selection().is_empty(),
-    })
+    // A pop-out draws its own composer. The main window draws it only in Mail.
+    let visible = app.hit.window() != 0
+        || (app.session.view.module == mailcraft_engine::Module::Mail && crate::windows::compose_window::pane_compose(app) == Some(compose.id));
+    Some(
+        visible
+            && match item {
+                Item::Paste => app.services.clipboard.is_some(),
+                _ => !compose.body.selection().is_empty(),
+            },
+    )
 }
 
 pub(crate) fn compose_clipboard(app: &MailApp, ctx: &Context, command: &str) -> bool {
     let Some(item) = compose_clipboard_item(command) else { return false };
     let Some(compose) = app.session.compose_id() else { return false };
-    choose(ctx, crate::compose::editor::id_of(compose), item, Takes::Pictures);
+    if compose_clipboard_enabled(app, command) == Some(true) {
+        choose(ctx, crate::compose::editor::id_of(compose), item, Takes::Pictures);
+    }
     true
 }
 

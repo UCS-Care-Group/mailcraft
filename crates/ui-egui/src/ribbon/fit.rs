@@ -64,9 +64,9 @@ pub(crate) fn cells<'a>(items: &[&'a Item], stage: Stage) -> Vec<Cell<'a>> {
     out
 }
 
-/// A control that opens a menu and nothing else: it has a `▾`.
+/// A control that opens a menu in the classic layout: it has a `▾`.
 pub(crate) fn drops(item: &Item) -> bool {
-    item.command.is_none() && item.menu.is_some()
+    item.menu == Some(Menu::RecentAttachments) || (item.command.is_none() && item.menu.is_some())
 }
 
 /// The controls of a group the classic layout draws.
