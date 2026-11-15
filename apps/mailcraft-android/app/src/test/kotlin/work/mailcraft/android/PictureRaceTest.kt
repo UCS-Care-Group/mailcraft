@@ -189,7 +189,7 @@ class PictureRaceTest {
         images.onScreen(rows)
         val late = row.copy(id = 99u, address = "late@example.org")
         images.onScreen(listOf(late))
-        assertTrue(source.senderDownloads.none { it.contains("late") || it.contains("example.org") && false })
+        assertTrue("the 65th is not asked for while the room is full", source.senderDownloads.none { it.contains("late") })
         source.onSenderDownload = {}
         gate.complete(Unit)
         val before = source.senderDownloads.size
