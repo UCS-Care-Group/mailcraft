@@ -17,7 +17,8 @@ import org.junit.Test
 class MailListControllerTest {
     private val inbox = MailQuery(1uL)
 
-    private fun controller(source: FakeMailSource, clock: () -> Long = { 0L }) = MailListController(source, clock)
+    private fun controller(source: FakeMailSource, clock: () -> Long = { 0L }) =
+        MailListController(source, clock, pause = {})
 
     @Test
     fun showingAListReadsItsFirstPageAndItsTabsOnly() = runBlocking {
@@ -236,6 +237,48 @@ class MailListControllerTest {
     }
 
     @Test
+    fun anEarlierCommandFinishingLastOffersNoUndoForIt() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        source.gate = CompletableDeferred()
+        // Delete A is done and waits for its list; Mark as read B comes after it.
+        val now = CoroutineStart.UNDISPATCHED
+        val delete = launch(start = now) { c.triage(Triage.Delete, listOf(FakeMailSource.row(1))) }
+        val read = launch(start = now) { c.triage(Triage.MarkRead(true), listOf(FakeMailSource.row(2))) }
+        source.gate?.complete(Unit)
+        delete.join()
+        read.join()
+        // Undo would take back B, so nothing offers to undo A.
+        assertNull(c.ui.value.notice)
+    }
+
+    @Test
+    fun aPageThatCouldNotBeReadIsTriedAgain() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(120))
+        val c = controller(source)
+        c.show(inbox)
+        source.failCall = 1
+        c.showRange(60, 70)
+        assertNotNull(c.ui.value.snapshot.row(60))
+        assertEquals(listOf(0, PAGE_SIZE, PAGE_SIZE), source.windows.map { it.first }.take(3))
+    }
+
+    @Test
+    fun aReloadThatEndsAfterAScrollFillsWhatIsOnScreen() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(300))
+        val c = controller(source)
+        c.show(inbox)
+        source.waitCall = 1
+        source.gate = CompletableDeferred()
+        val reloading = launch(start = CoroutineStart.UNDISPATCHED) { c.reload() }
+        c.showRange(260, 270)
+        source.gate?.complete(Unit)
+        reloading.join()
+        assertNotNull(c.ui.value.snapshot.row(260))
+    }
+
+    @Test
     fun aFirstPageCalledOffLeavesPagingWorking() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(120))
         val c = controller(source)
@@ -255,7 +298,8 @@ class MailListControllerTest {
         val source = FakeMailSource(FakeMailSource.rows(10))
         val c = controller(source)
         // The first page is the first window asked for: it waits, then fails.
-        source.onlyCall = 0
+        source.waitCall = 0
+        source.failCall = 0
         source.gate = CompletableDeferred()
         val showing = launch(start = CoroutineStart.UNDISPATCHED) { c.show(inbox) }
         c.reload()

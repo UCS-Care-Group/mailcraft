@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -24,6 +25,8 @@ import uniffi.mailcraft_mobile.Event
 internal class MailListController(
     private val source: MailSource,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Waits between tries of a page that could not be read. */
+    private val pause: suspend (Long) -> Unit = { delay(it) },
 ) {
     private val state = MutableStateFlow(MailListUi.Start)
 
@@ -36,6 +39,9 @@ internal class MailListController(
     /** The list (by generation) a reload last brought rows for: a first page that fails then leaves them. */
     @Volatile
     private var freshFor = -1
+
+    /** Moves on with each command, so that only the last one's completion offers an undo. */
+    private val commands = AtomicInteger()
 
     /** Pulls to refresh under way. */
     private val refreshes = AtomicInteger()
@@ -101,17 +107,24 @@ internal class MailListController(
     /** The rows [first] to [last] are on screen: reads the pages of them (and the next) that are missing. */
     suspend fun showRange(first: Int, last: Int) {
         visible = first..last
-        val query = state.value.query
+        val query = state.value.query ?: return
         val mine = generation.get()
         val ahead = last + PAGE_SIZE / 2
-        val missing = if (switching || query == null) emptyList() else state.value.snapshot.missing(first, ahead)
+        val missing = if (switching) emptyList() else state.value.snapshot.missing(first, ahead)
         val wanted = missing.filter { reading.add(mine to it) }
         try {
-            val windows = coroutineScope {
-                wanted.map { page -> async { query?.let { q -> source.window(q, page * PAGE_SIZE, PAGE_SIZE) } } }
-                    .awaitAll()
+            // A page that could not be read is tried again a few times, a while apart (and a pull to
+            // refresh reads the pages on screen again).
+            var left = wanted
+            var tries = 0
+            while (left.isNotEmpty() && mine == generation.get() && tries <= PAGE_RETRIES) {
+                if (tries > 0) pause(RETRY_MILLIS * tries)
+                val windows = source.pages(query, left)
+                val got = windows.values.filterNotNull().takeIf { mine == generation.get() }.orEmpty()
+                state.update { ui -> got.fold(ui) { acc, w -> acc.merged(w) } }
+                left = windows.filterValues { it == null }.keys.toList()
+                tries++
             }
-            if (mine == generation.get()) windows.filterNotNull().forEach { w -> state.update { it.merged(w) } }
         } finally {
             wanted.forEach { reading.remove(mine to it) }
         }
@@ -143,6 +156,8 @@ internal class MailListController(
         val snapshot = fresh.drop(1).fold(first) { acc, w -> acc.with(w) ?: acc }
         state.update { if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot) else it }
         freshFor = mine
+        // The owner may have scrolled while the pages were read: what is on screen now is filled in.
+        showRange(visible.first, visible.last)
         if (query.search.isBlank()) loadTabs(mine, query.folder)
     }
 
@@ -186,20 +201,23 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
+        val mine = commands.incrementAndGet()
         val count = state.value.query?.let { source.focusedRun(triage, it, rows) }
+        // Undo takes back the last change: once this one is made, an earlier offer would undo it instead.
+        if (count != null) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
         reload()
         // A change the owner can see in the list needs no word; one that takes mail away offers its undo,
-        // counting the messages it took. Any other change done since makes an earlier undo offer stale
-        // (Undo takes back the last change), so that offer is withdrawn.
+        // counting the messages it took, unless another command came after it.
         when {
             count == null -> notify(ListNotice.Failed)
-            triage.destructive -> notify(ListNotice.Done(triage, count))
-            else -> state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
+            triage.destructive && mine == commands.get() -> notify(ListNotice.Done(triage, count))
+            else -> Unit
         }
     }
 
     /** Takes back the last change. */
     suspend fun undo() {
+        commands.incrementAndGet()
         if (!source.run("edit.undo", "{}")) notify(ListNotice.Failed)
         reload()
     }
@@ -219,6 +237,15 @@ internal class MailListController(
         return copy(snapshot = next, load = LoadState.Ready)
     }
 }
+
+/** The [pages] of the list [query] asks for, read together: each page's window, or null when it couldn't be read. */
+internal suspend fun MailSource.pages(query: MailQuery, pages: List<Int>): Map<Int, RowsWindow?> = coroutineScope {
+    pages.map { page -> async { page to window(query, page * PAGE_SIZE, PAGE_SIZE) } }.awaitAll().toMap()
+}
+
+/** How many more times a page that could not be read is asked for, and how far apart (times the try). */
+private const val PAGE_RETRIES = 2
+private const val RETRY_MILLIS = 1_000L
 
 /**
  * Takes the core's events that are the list's, in [scope]: a newer revision reads the pages on
