@@ -243,6 +243,14 @@ not in a release yet are marked "when the app is released".
   "Updated N min ago" and "Offline" instead of promising. The app asks for no battery exemption
   and runs no foreground service, and exact alarms are used for reminders only, never to check
   mail.
+- **Opening a message, its attachments and a search.** A message whose body isn't on the phone
+  yet is fetched whole from your own provider (Microsoft) when you open it, on any connection,
+  attachments and all, and so is one whose attachment you open; the bodies the phone fetches by
+  itself, between checks, are those of recent mail up to the size you chose (1 MB unless you
+  change it), only on a connection that is not metered and not while Data Saver is on. Search on
+  the server, only when you ask for it, sends your provider the words of your search, and the
+  headers of what it finds are kept on the phone until the app is next started. Nothing of this
+  goes anywhere else.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
   as the account's setting says). A switch in Settings shows "New mail" and nothing else, and on a lock
