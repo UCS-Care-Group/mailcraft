@@ -333,6 +333,12 @@ msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het kla
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A brand's name on another address."
+msgstr "De naam van een merk op een ander adres."
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -421,6 +427,12 @@ msgstr "Een koppeling met de tekst {named} gaat naar {host}."
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "Een koppeling waarvan de tekst vooral uit tekens bestaat die niet worden getoond, gaat naar {host}."
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A made-up domain."
+msgstr "Een verzonnen domein."
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -468,6 +480,12 @@ msgstr "Een vergadering in uw agenda heeft deze id, maar een andere organisator,
 #, fuzzy
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
 msgstr "Een vergadering die wordt herhaald en sommige dagen overslaat, kan vanaf hier niet op de agenda van de server worden gezet: alle genodigden zouden voor elke overgeslagen dag een annulering ontvangen. Bewaar de vergadering in een agenda op deze computer, of maak de vergadering opnieuw zonder de overgeslagen dagen."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr "Een bericht met het verzoek om af te melden gaat van {from} naar {to}, via uw Postvak UIT."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -1232,6 +1250,12 @@ msgid "An account couldn't be sent and received."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "Een adres zonder domein."
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -1277,6 +1301,12 @@ msgstr ""
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "Een terugkerend item kan niet op deze manier naar een andere agenda worden verplaatst. Houd Ctrl ingedrukt om dit exemplaar daarheen te kopiëren, of gebruik Naar agenda verplaatsen in het menu voor de hele reeks."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "An unsubscribe is already on its way."
+msgstr "Er is al een afmelding onderweg."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1666,6 +1696,12 @@ msgstr "Vraag nogmaals om de afbeeldingen die niet konden worden gedownload."
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "Vraag de server van het account nu om de agenda rond deze vergadering."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr "De lijst vragen u geen e-mail meer te sturen. MailCraft vraagt het eerst en zegt hoe."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1721,8 +1757,9 @@ msgstr "Op de begintijd"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "At the Foot of the Pane"
-msgstr ""
+msgstr "Onder aan het deelvenster"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -2023,8 +2060,9 @@ msgstr "Terug naar accountinstellingen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Bar on the Left"
-msgstr ""
+msgstr "Balk aan de linkerkant"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -2120,6 +2158,11 @@ msgstr "Agenda naar voren brengen"
 #, fuzzy
 msgid "Bring in"
 msgstr "Inlezen"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -2370,7 +2413,7 @@ msgid "Categorize"
 msgstr "Categoriseren"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Cc"
 msgstr "CC"
@@ -3400,6 +3443,12 @@ msgstr "E-mail kon niet worden verzonden: het account heeft geen server voor uit
 #, fuzzy
 msgid "Country"
 msgstr "Land"
+
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Courier New"
+msgstr "Courier New"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -5176,6 +5225,12 @@ msgstr "Van"
 msgid "From Sender"
 msgstr "Van afzender"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "Van een mailinglijst."
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6368,6 +6423,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "Hij gaat naar de server zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen); tot dan wordt hij op deze computer uitgevoerd, zolang MailCraft open is."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "Het gaat mee met de volgende Verzenden/ontvangen; daarna haalt de lijst u eraf."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6496,6 +6557,12 @@ msgstr "De berichten van het gesprek in andere mappen blijven waar ze zijn."
 #, fuzzy
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee, en ook de agenda, contactpersonen, taken en werktijden die van de server kwamen."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr "Onderwerp: '{subject}'. Tekst: '{body}'."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7013,6 +7080,12 @@ msgstr "Bezig met zoeken naar uw Exchange-server…"
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "Zoeken… {folders}, {files}, {messages} tot nu toe"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Looks like a brand."
+msgstr "Lijkt op een merk."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7324,6 +7397,12 @@ msgstr "MailCraft bereikt de regels van dit account op de server zodra het overs
 #: crates/ui-egui/src/security.rs
 msgid "MailCraft reads the key without its passphrase and keeps the file, still protected by it, in the system's credential store. The key must have a passphrase and sign with Ed25519 or ECDSA; MailCraft asks for the passphrase when you sign."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft stuurt {host} het adres dat deze lijst voor afmelden gaf, waarmee u bij de lijst herkenbaar kunt zijn, en verder niets: geen cookies, geen aanmelding. Zoals elke verbinding toont die ook uw internetadres."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -7650,7 +7729,7 @@ msgstr[0] "{n} contactpersoon samenvoegen…"
 msgstr[1] "{n} contactpersonen samenvoegen…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Bericht"
@@ -8197,15 +8276,19 @@ msgstr "Navigatie"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Navigation\n"
 "Bar"
 msgstr ""
+"Navigatie-\n"
+"balk"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Navigation Bar"
-msgstr ""
+msgstr "Navigatiebalk"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8397,7 +8480,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "Nieuwe items gaan naar de agenda die hier is gekozen"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "New mail"
 msgstr "Nieuwe e-mail"
@@ -8739,6 +8822,11 @@ msgid "No preview helper is available for this attachment."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "No recent searches"
@@ -8986,6 +9074,12 @@ msgstr "Niet nu: het wordt geïnstalleerd wanneer u MailCraft afsluit."
 #, fuzzy
 msgid "Not saved"
 msgstr "Niet opgeslagen"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Not unsubscribed."
+msgstr "Niet afgemeld."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -9331,6 +9425,12 @@ msgstr ""
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Alleen een vergadering die u organiseert, heeft Een tijd zoeken"
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr "Van hier wordt alleen een afmelding per e-mail verzonden: één klik en een webpagina gaan via het venster."
+
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
@@ -9596,6 +9696,12 @@ msgid "Open the message"
 msgstr "Het bericht openen"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Open the page"
+msgstr "Pagina openen"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Open the page again"
@@ -9857,6 +9963,12 @@ msgstr "Page Down"
 #, fuzzy
 msgid "Page Up"
 msgstr "Page Up"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "Pagina geopend."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10511,6 +10623,11 @@ msgid "Recent Searches"
 msgstr "Recente zoekopdrachten"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Recent mail"
@@ -10974,6 +11091,12 @@ msgstr "Antwoorden vragen"
 #, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Leesbevestiging aanvragen"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "Verzoek in uw Postvak UIT."
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -11795,7 +11918,7 @@ msgid "Select a meeting first"
 msgstr "Selecteer eerst een vergadering"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "Selecteer eerst een bericht"
@@ -11818,7 +11941,7 @@ msgid "Select the message before previewing its attachment."
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "Verzenden"
@@ -12038,6 +12161,11 @@ msgstr "Verzenden/ontvangen alle mappen"
 #, fuzzy
 msgid "Send/Receive Progress"
 msgstr "Voortgang van verzenden/ontvangen"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountsHub.kt
+msgid "Send/Receive couldn't start. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -14249,6 +14377,18 @@ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-i
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server didn't take the request: {why}."
+msgstr "De server van de lijst heeft het verzoek niet aangenomen: {why}."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr "De server van de lijst heeft het verzoek aangenomen. Het kan enkele dagen duren voordat de e-mail stopt."
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "The local program receives the selected attachment and runs with your permissions."
 msgstr ""
@@ -14363,6 +14503,12 @@ msgstr "De naam verbergt een ander adres."
 #, fuzzy
 msgid "The name hides characters."
 msgstr "De naam verbergt tekens."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name is another domain."
+msgstr "De naam is een ander domein."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -14520,14 +14666,38 @@ msgstr "De afzender gebruikt uw naam, maar dit bericht kwam van {real}, en dat i
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "Het adres van de afzender staat op {domain}, een internetadres zonder domeinnaam: echte organisaties versturen zelden vanaf zo'n adres."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}."
 msgstr "Het adres van de afzender staat op {domain}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "Het domein van de afzender, {domain}, lijkt op dat van {brand}, maar het is geen van de domeinen van {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
 msgstr "Het domein van de afzender, {domain}, lijkt op {like}, waarmee u correspondeert, maar het is niet hetzelfde."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "Het domein van de afzender, {domain}, lijkt door een machine gemaakt of kan niet bestaan: echte organisaties versturen zelden vanaf zo'n domein."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "De naam van de afzender zegt {brand}, maar dit bericht kwam van {real}, en {domain} is geen van de domeinen van {brand}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -14905,7 +15075,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "De gebruikersnaam is te lang of bevat een teken dat een naam niet mag hebben"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "Het venster is nog niet verschenen."
@@ -15070,6 +15240,12 @@ msgstr "Dit account gebruikt geen aanmelding met Google."
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "Dit account bewaart zijn regels niet op zijn server"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "Dit account verzendt geen e-mail vanuit MailCraft en kan zich dus niet per e-mail afmelden."
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -15259,6 +15435,12 @@ msgstr "Deze build kan de server niet bereiken om automatische antwoorden te wij
 #, fuzzy
 msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "Deze build kan zich niet aanmelden bij dit soort account. Gebruik de desktop-app."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "Deze versie kan niet met één klik afmelden."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -15529,6 +15711,18 @@ msgid "This link goes somewhere other than its text says."
 msgstr "Deze koppeling gaat ergens anders heen dan de tekst zegt."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "Deze lijst meldt af op een eigen pagina, bij {host}. Die opent in uw browser: een bezoek vertelt de lijst dat dit adres gelezen wordt."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "De pagina van deze lijst kan niet worden geopend."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This mailbox is in Microsoft 365"
@@ -15654,11 +15848,23 @@ msgstr "Dit bericht zegt geen vergadering af."
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Dit bericht stelt geen andere tijd voor een vergadering voor."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "Dit bericht zegt niet hoe u zich afmeldt."
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "Dit bericht wordt gedownload zodra de berichten die nu worden gedownload hier zijn."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "Dit bericht heeft een waarschuwing over de afzender: verplaats het naar Ongewenste e-mail in plaats van af te melden."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15677,6 +15883,12 @@ msgstr "Dit bericht heeft afbeeldingen op het web. Deze build kan ze niet downlo
 #, fuzzy
 msgid "This message hasn't been sent."
 msgstr "Dit bericht is nog niet verzonden."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Dit bericht staat in Ongewenste e-mail: verwijder het in plaats van u af te melden."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15943,7 +16155,7 @@ msgid "Title"
 msgstr "Titel"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "Aan"
@@ -16180,7 +16392,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -16348,6 +16560,30 @@ msgstr "Niet-opgeslagen wijzigingen"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Niet-opgeslagen bericht"
+
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe"
+msgstr "Afmelden"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "Meld u af op de pagina van de lijst in uw browser."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribed."
+msgstr "Afgemeld."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing…"
+msgstr "Bezig met afmelden…"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -17234,6 +17470,12 @@ msgstr "Uw e-mailserver heeft gecontroleerd waar dit bericht vandaan kwam, en de
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "Uw e-mailserver staat er niet voor in dat dit bericht van de afzender komt, dus de afmeldkoppeling wordt niet gebruikt."
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -17997,7 +18239,7 @@ msgstr "Verzonden items"
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "folder {id} is not that account's"
-msgstr ""
+msgstr "map {id} hoort niet bij dat account"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -18741,7 +18983,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selecteer eerst een gesprek in de gespreksweergave"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
@@ -18860,6 +19102,12 @@ msgid "that message isn't held"
 msgstr "dat bericht wordt niet vastgehouden"
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "that message isn't here"
+msgstr "dat bericht is hier niet"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
 msgid "that was only looked at, not read in full"
@@ -18925,7 +19173,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melden"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
@@ -19269,6 +19517,12 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "het voorgestelde einde ligt niet na het voorgestelde begin"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "the request was lost"
+msgstr "het verzoek is verloren gegaan"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -19837,7 +20091,7 @@ msgid "this account has no Drafts folder"
 msgstr "dit account heeft geen map Concepten"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "dit account heeft geen map Postvak UIT"

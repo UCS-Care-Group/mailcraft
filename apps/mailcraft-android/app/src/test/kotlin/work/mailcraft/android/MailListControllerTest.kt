@@ -3,10 +3,15 @@
 package work.mailcraft.android
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import uniffi.mailcraft_mobile.Event
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -172,7 +177,7 @@ class MailListControllerTest {
         val notice = c.ui.value.notice?.notice
         assertTrue(notice is ListNotice.Done && notice.undoable && notice.count == 1)
         assertEquals(4, c.ui.value.snapshot.total)
-        c.undo()
+        c.undo((notice as ListNotice.Done).command)
         assertEquals("edit.undo", source.commands.last().first)
         assertEquals(5, c.ui.value.snapshot.total)
     }
@@ -286,6 +291,41 @@ class MailListControllerTest {
         assertEquals(listOf("mail.markRead", "mail.delete"), source.commands.map { it.first })
         val notice = c.ui.value.notice?.notice
         assertTrue(notice is ListNotice.Done && notice.triage == Triage.Delete)
+    }
+
+    @Test
+    fun anUndoOfferedForAnEarlierChangeNeverTakesBackALaterOne() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        c.triage(Triage.Delete, listOf(FakeMailSource.row(1)))
+        val offered = c.ui.value.notice?.notice as ListNotice.Done
+        // Another change is made before the owner presses that notice's Undo.
+        c.triage(Triage.MarkRead(true), listOf(FakeMailSource.row(2)))
+        c.undo(offered.command)
+        assertTrue(source.commands.none { it.first == "edit.undo" })
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
+    }
+
+    @Test
+    fun aRowCommandWhileAnotherQueryLoadsNamesTheMessagesOfTheRowsOnScreen() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        val shown = inbox.copy(conversations = true)
+        c.show(shown)
+        val long = FakeMailSource.row(2, members = 3).let { it.copy(memberIds = it.memberIds.take(2)) }
+        source.memberLists = mapOf(2uL to listOf(200uL, 201uL, 202uL))
+        // A search in the same folder is on its way (its first page, the second window asked for, waits):
+        // the rows on screen are still the last query's.
+        source.waitCall = 1
+        source.gate = CompletableDeferred()
+        val searching = launch(start = CoroutineStart.UNDISPATCHED) { c.show(shown.copy(search = "x")) }
+        assertEquals("x", c.ui.value.query?.search)
+        c.triage(Triage.Delete, listOf(long))
+        assertEquals(listOf(shown), source.memberQueries)
+        source.gate?.complete(Unit)
+        searching.join()
+        assertEquals("x", c.ui.value.rowsOf?.search)
     }
 
     @Test
@@ -423,51 +463,59 @@ class MailListControllerTest {
     }
 
     @Test
-    fun pullToRefreshAsksTheCoreAndSaysWhyWhenItWontSendAndReceive() = runBlocking {
-        val source = FakeMailSource(FakeMailSource.rows(3))
-        val c = controller(source)
+    fun pullToRefreshFollowsTheHubsSpinnerAndSaysWhyARoundDidNotStart() = runBlocking {
+        val c = controller(FakeMailSource(FakeMailSource.rows(3)))
         c.show(inbox)
-        c.refresh()
+        val syncing = MutableStateFlow(false)
+        val notice = MutableStateFlow<String?>(null)
+        var taken = 0
+        val scope = CoroutineScope(coroutineContext + Job())
+        val putAway = {
+            taken++
+            notice.value = null
+        }
+        c.follow(syncing, notice, putAway, scope)
+        settle()
+        syncing.value = true
+        settle()
+        assertEquals(true, c.ui.value.refreshing)
+        // The spinner stops when the hub says the round is over, not when a window's work ends.
+        syncing.value = false
+        settle()
+        assertEquals(false, c.ui.value.refreshing)
+        assertNull(c.ui.value.notice)
+        notice.value = "There is no account to send and receive."
+        settle()
         val said = c.ui.value.notice?.notice
         assertTrue(said is ListNotice.Said && said.message == "There is no account to send and receive.")
-        assertEquals(false, c.ui.value.refreshing)
-        // A round that starts needs no word; one that can't be asked for says it did not work.
-        c.noticeShown(c.ui.value.notice!!.seq)
-        source.refreshOutcome = RefreshOutcome.Started
-        c.refresh()
-        assertNull(c.ui.value.notice)
-        source.refreshOutcome = RefreshOutcome.Failed
-        c.refresh()
-        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
-        assertEquals(3, source.refreshes.get())
-    }
-
-    @Test
-    fun aRefreshWhoseWindowIsGoneStillStopsTheSpinner() = runBlocking {
-        val source = FakeMailSource(FakeMailSource.rows(3))
-        source.refreshOutcome = RefreshOutcome.Started
-        val c = controller(source)
-        c.show(inbox)
-        source.gate = CompletableDeferred()
-        val pull = launch(start = CoroutineStart.UNDISPATCHED) { c.refresh() }
-        assertEquals(true, c.ui.value.refreshing)
-        pull.cancel()
-        pull.join()
-        assertEquals(false, c.ui.value.refreshing)
+        assertEquals(1, taken)
+        // The same reason again is said again.
+        notice.value = "There is no account to send and receive."
+        settle()
+        assertEquals(2, taken)
+        scope.cancel()
     }
 
     @Test
     fun aNoticeIsShownOnceAndTheSameNoticeTwiceIsTwo() = runBlocking {
         val c = controller(FakeMailSource(FakeMailSource.rows(1)))
         c.show(inbox)
-        c.refresh()
+        val notice = MutableStateFlow<String?>(null)
+        val scope = CoroutineScope(coroutineContext + Job())
+        c.follow(MutableStateFlow(false), notice, { notice.value = null }, scope)
+        settle()
+        notice.value = "You're working offline."
+        settle()
         val first = c.ui.value.notice
-        c.refresh()
+        notice.value = "You're working offline."
+        settle()
         val second = c.ui.value.notice
-        assertTrue(first != null && second != null && first.seq != second.seq)
-        c.noticeShown(first!!.seq)
+        scope.cancel()
+        val (older, newer) = checkNotNull(first) to checkNotNull(second)
+        assertTrue(older.seq != newer.seq)
+        c.noticeShown(older.seq)
         assertNotNull(c.ui.value.notice)
-        c.noticeShown(second!!.seq)
+        c.noticeShown(newer.seq)
         assertNull(c.ui.value.notice)
     }
 
@@ -486,3 +534,6 @@ class MailListControllerTest {
         assertEquals(5_000L, c.ui.value.updatedAtMillis)
     }
 }
+
+/** Lets the coroutines launched on this thread take what they were given. */
+private suspend fun settle() = repeat(5) { yield() }

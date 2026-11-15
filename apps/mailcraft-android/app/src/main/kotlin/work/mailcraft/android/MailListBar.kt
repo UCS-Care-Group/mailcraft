@@ -53,9 +53,17 @@ internal fun MailListBar(
     menuOpen: Boolean = false,
 ) {
     var text by rememberSaveable(query.folder) { mutableStateOf(query.search) }
+    // The search the box last sent (trimmed, as the query keeps it): a search of the query's that is
+    // not that one came from elsewhere (the same folder chosen again clears it) and replaces the draft.
+    var sent by rememberSaveable(query.folder) { mutableStateOf(query.search) }
+    LaunchedEffect(query.search) {
+        text = searchDraft(query.search, sent, text)
+        sent = query.search
+    }
     LaunchedEffect(text) {
         if (text != query.search) {
             delay(SEARCH_DELAY_MILLIS)
+            sent = text.trim()
             actions.onSearch(text)
         }
     }
@@ -83,7 +91,12 @@ internal fun MailListBar(
                 }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { actions.onSearch(text) }),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    sent = text.trim()
+                    actions.onSearch(text)
+                },
+            ),
         )
         FunnelMenu(texts, query, actions, menuOpen)
     }
@@ -169,3 +182,9 @@ private fun ActiveChips(texts: Texts, query: MailQuery, actions: MailListActions
         }
     }
 }
+
+/**
+ * What the search box holds once the query's search is [search]: the [draft] while that is the search
+ * the box [sent] (what is typed after it stays), else [search], which came from elsewhere.
+ */
+internal fun searchDraft(search: String, sent: String, draft: String): String = if (search == sent) draft else search

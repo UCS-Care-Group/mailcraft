@@ -16,6 +16,22 @@ use crate::{Core, CoreError};
 
 /// The longest search text read; more is cut.
 const MAX_SEARCH: usize = 256;
+/// The longest filter or Inbox split code kept while a query waits: every known one is shorter, so
+/// a longer one stays unknown when cut.
+const MAX_CODE: usize = 32;
+
+/// `q` cut to what is read of it, before it waits for the session thread (the caller's own strings
+/// would otherwise live as long as the call waits), and the bytes it holds meanwhile.
+pub(crate) fn held(q: ListQuery) -> (ListQuery, usize) {
+    let q = ListQuery {
+        filter: text::clip(&q.filter, MAX_CODE),
+        split: text::clip(&q.split, MAX_CODE),
+        search: text::clip(q.search.trim(), MAX_SEARCH),
+        ..q
+    };
+    let bytes = q.filter.len().saturating_add(q.split.len()).saturating_add(q.search.len());
+    (q, bytes)
+}
 
 fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
@@ -74,7 +90,8 @@ impl Core {
     /// headers and preview only).
     pub async fn message_list(&self, query: ListQuery, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
         let count = text::window(count);
-        self.call(move |s| window(s, &query, Some(query.conversations), offset, count)).await
+        let (query, bytes) = held(query);
+        self.call_holding(bytes, move |s| window(s, &query, Some(query.conversations), offset, count)).await
     }
 
     /// Every message the row of `id` stands for in the list `query` asks for, newest first (a
@@ -82,7 +99,8 @@ impl Core {
     /// [`mailcraft_engine::p::MAX_IDS`]: what a command on that row names. Empty when the list has no
     /// row for `id` (it changed since the row was read).
     pub async fn row_members(&self, query: ListQuery, id: u64) -> Result<Vec<u64>, CoreError> {
-        self.call(move |s| {
+        let (query, bytes) = held(query);
+        self.call_holding(bytes, move |s| {
             let rows = rows_of(s, &query, Some(query.conversations))?;
             Ok(rows.into_iter().find(|r| r.id == id).map(|r| r.members.into_iter().take(mailcraft_engine::p::MAX_IDS).collect()).unwrap_or_default())
         })

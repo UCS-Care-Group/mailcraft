@@ -83,6 +83,23 @@ fn reading_a_list_leaves_the_sessions_own_view_as_it_was() {
 }
 
 #[test]
+fn a_query_is_cut_to_what_is_read_of_it_before_it_waits() {
+    let core = sample_core();
+    let folder = inbox(&core);
+    let huge = ListQuery { filter: format!("all{}", "x".repeat(1 << 20)), split: "y".repeat(1 << 20), search: "z".repeat(1 << 20), ..query(folder) };
+    let (cut, bytes) = crate::list::held(huge.clone());
+    assert!(bytes <= 32 + 32 + 256, "{bytes}");
+    assert_eq!(bytes, cut.filter.len() + cut.split.len() + cut.search.len());
+    // Cut, a filter that was not known is still not known.
+    assert!(matches!(block_on(core.message_list(huge.clone(), 0, 5)), Err(CoreError::BadRequest { .. })));
+    // A long search finds what its first part finds, as it did when it was cut later.
+    let long = ListQuery { search: format!("  {}", "a".repeat(10_000)), ..query(folder) };
+    let short = ListQuery { search: "a".repeat(256), ..query(folder) };
+    assert_eq!(all(&core, long.clone()), all(&core, short));
+    assert!(block_on(core.row_members(long, 1)).is_ok());
+}
+
+#[test]
 fn a_query_that_names_nothing_real_is_refused() {
     let core = sample_core();
     let folder = inbox(&core);

@@ -152,7 +152,8 @@ internal sealed interface ListNotice {
 
     data object Failed : ListNotice
 
-    class Done(val triage: Triage, val count: Int) : ListNotice
+    /** [command] is the count of commands made when this one was: only that command's undo is offered. */
+    class Done(val triage: Triage, val count: Int, val command: Int = 0) : ListNotice
 
     /** Whether the notice offers to undo what it says. */
     val undoable: Boolean get() = this is Done && triage.destructive
@@ -172,6 +173,12 @@ internal data class MailListUi(
     /** When mail was last brought up to date (milliseconds since 1970), if it was since this started. */
     val updatedAtMillis: Long?,
     val offline: Boolean,
+    /**
+     * The query the rows of [snapshot] were read for: while another query's first page is read, [query]
+     * is already that one and the rows on screen are still these. A command on a row names its messages
+     * as this query has them.
+     */
+    val rowsOf: MailQuery? = null,
 ) {
     companion object {
         val Start = MailListUi(null, LoadState.Loading, ListSnapshot.Empty, emptyList(), false, null, null, false)

@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -48,9 +49,6 @@ internal class MailListController(
 
     /** Commands are made one at a time, so that their count follows the order the core made them in. */
     private val commandLock = Mutex()
-
-    /** Pulls to refresh under way. */
-    private val refreshes = AtomicInteger()
 
     /** The rows last on screen, kept to read the same ones again after a change. */
     @Volatile
@@ -93,14 +91,17 @@ internal class MailListController(
         if (mine != generation.get()) return
         if (first == null) {
             // A reload of this list that brought its rows meanwhile is kept; else the list is unreadable.
-            if (freshFor != mine) state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty) }
+            if (freshFor != mine) {
+                state.update { it.copy(load = LoadState.Failed, snapshot = ListSnapshot.Empty, rowsOf = query) }
+            }
             return
         }
         val snapshot = ListSnapshot.Empty.with(first) ?: ListSnapshot.Empty
         // A reload of this same list may have brought a newer revision while the first page was on
         // its way: that one stays.
         state.update {
-            it.copy(load = LoadState.Ready, snapshot = if (it.snapshot.rev > first.rev) it.snapshot else snapshot)
+            val newer = it.snapshot.rev > first.rev
+            it.copy(load = LoadState.Ready, snapshot = if (newer) it.snapshot else snapshot, rowsOf = query)
         }
         // The screen may have reported rows further down while the first page was on its way.
         showRange(visible.first, visible.last)
@@ -133,7 +134,8 @@ internal class MailListController(
                 if (failed) pause(RETRY_MILLIS * rounds)
                 val windows = source.pages(query, left)
                 val got = windows.values.filterNotNull().takeIf { mine == generation.get() }.orEmpty()
-                state.update { ui -> got.fold(ui) { acc, w -> acc.merged(w) } }
+                // (Pages of the query the rows on screen are of: never another's under them.)
+                state.update { ui -> if (ui.rowsOf != query) ui else got.fold(ui) { acc, w -> acc.merged(w) } }
                 failed = windows.values.any { it == null }
                 rounds++
             }
@@ -166,7 +168,9 @@ internal class MailListController(
         val fresh = windows.filter { it.rev == newest }
         val first = ListSnapshot(newest, fresh.first().total).with(fresh.first()) ?: return
         val snapshot = fresh.drop(1).fold(first) { acc, w -> acc.with(w) ?: acc }
-        state.update { if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot) else it }
+        state.update {
+            if (newest >= it.snapshot.rev) it.copy(load = LoadState.Ready, snapshot = snapshot, rowsOf = query) else it
+        }
         freshFor = mine
         // The owner may have scrolled while the pages were read: what is on screen now is filled in.
         showRange(visible.first, visible.last)
@@ -174,24 +178,23 @@ internal class MailListController(
     }
 
     /**
-     * Pull to refresh: asks the core to send and receive. A round that starts needs no word (the
-     * freshness line moves when it ends); one the core won't start says why, in its own words.
+     * Follows the Send/Receive the owner asks for through the hub ([AccountsHub.syncNow], the one path
+     * a pull to refresh takes), in [scope]: the spinner is [syncing] (the hub outlives every window, so
+     * it stops when the round does), and each [notice], why a round didn't start in the owner's
+     * language, is said once, then [noticeTaken] puts it away.
      */
-    suspend fun refresh() {
-        // The controller outlives the window whose pull started this: however it ends (the window's
-        // work called off among them), the spinner stops once the last refresh under way is over.
-        refreshes.incrementAndGet()
-        state.update { it.copy(refreshing = true) }
-        try {
-            when (val outcome = source.refresh()) {
-                RefreshOutcome.Started -> Unit
-                is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
-                RefreshOutcome.Failed -> notify(ListNotice.Failed)
+    fun follow(
+        syncing: StateFlow<Boolean>,
+        notice: StateFlow<String?>,
+        noticeTaken: () -> Unit,
+        scope: CoroutineScope,
+    ) {
+        scope.launch { syncing.collect { on -> state.update { it.copy(refreshing = on) } } }
+        scope.launch {
+            notice.filterNotNull().collect {
+                notify(ListNotice.Said(it))
+                noticeTaken()
             }
-            reload()
-        } finally {
-            refreshes.decrementAndGet()
-            state.update { it.copy(refreshing = refreshes.get() > 0) }
         }
     }
 
@@ -213,7 +216,8 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
-        val query = state.value.query
+        // (The rows were read for this query, which a query on its way may not have yet.)
+        val query = state.value.rowsOf
         val (count, mine) = commandLock.withLock {
             val done = query?.let { source.focusedRun(triage, it, rows) }
             done to (if (done != null) commands.incrementAndGet() else commands.get())
@@ -225,7 +229,7 @@ internal class MailListController(
         // counting the messages it took, unless another command came after it.
         when {
             count == null -> notify(ListNotice.Failed)
-            triage.destructive && mine == commands.get() -> notify(ListNotice.Done(triage, count))
+            triage.destructive && mine == commands.get() -> notify(ListNotice.Done(triage, count, mine))
             else -> Unit
         }
     }
@@ -243,10 +247,14 @@ internal class MailListController(
         return done
     }
 
-    /** Takes back the last change. */
-    suspend fun undo() {
+    /**
+     * Takes back the change of the notice whose [command] it was, when that change is still the last:
+     * once another command was made, an undo would take back that one instead, and nothing is done.
+     */
+    suspend fun undo(command: Int) {
         val undone = commandLock.withLock {
-            source.run("edit.undo", "{}").also { commands.incrementAndGet() }
+            // (Looked at with the lock held: a command that was being made when Undo was pressed is made by now.)
+            command == commands.get() && source.run("edit.undo", "{}").also { commands.incrementAndGet() }
         }
         if (!undone) notify(ListNotice.Failed)
         reload()
@@ -346,5 +354,7 @@ internal fun MailListUi.switchedTo(query: MailQuery, sameFolder: Boolean): MailL
         load = if (keep) load else LoadState.Loading,
         snapshot = if (sameFolder) snapshot else ListSnapshot.Empty,
         tabs = if (sameFolder) tabs else emptyList(),
+        // (No rows are no other query's.)
+        rowsOf = if (sameFolder) rowsOf else query,
     )
 }

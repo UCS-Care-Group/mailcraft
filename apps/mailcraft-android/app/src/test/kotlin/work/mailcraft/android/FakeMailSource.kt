@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 
 /** A mail source over a list of invented rows that records what it is asked, for the tests. */
@@ -15,8 +14,6 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var failWindows = false
     var failCommands = false
     var isOffline = false
-    val refreshes = AtomicInteger()
-    var refreshOutcome: RefreshOutcome = RefreshOutcome.Refused("There is no account to send and receive.")
 
     /** When set, a window is answered only once it is completed: a read still on its way. */
     var gate: CompletableDeferred<Unit>? = null
@@ -58,21 +55,20 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var memberLists: Map<ULong, List<ULong>> = emptyMap()
     val memberAsks = mutableListOf<ULong>()
 
+    /** The query each look-up of a row's whole list was for. */
+    val memberQueries = mutableListOf<MailQuery>()
+
     /** When set, a look-up of a row's whole list waits for it. */
     var membersGate: CompletableDeferred<Unit>? = null
 
     override suspend fun members(query: MailQuery, id: ULong): List<ULong> {
         memberAsks += id
+        memberQueries += query
         membersGate?.await()
         return memberLists[id].orEmpty()
     }
 
     override suspend fun categories() = listOf(CategoryItem("Green category", 0x2E8B57))
-
-    override suspend fun refresh(): RefreshOutcome {
-        refreshes.incrementAndGet()
-        return refreshOutcome
-    }
 
     override suspend fun offline() = isOffline
 

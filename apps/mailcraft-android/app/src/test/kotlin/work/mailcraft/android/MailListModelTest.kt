@@ -13,7 +13,7 @@ class MailListModelTest {
 
     @Test
     fun aSnapshotHoldsOnlyTheRowsItWasGiven() {
-        val s = ListSnapshot(1uL, 200).with(window(1uL, 200, 50, PAGE_SIZE))!!
+        val s = checkNotNull(ListSnapshot(1uL, 200).with(window(1uL, 200, 50, PAGE_SIZE)))
         assertNull(s.row(0))
         assertEquals("Subject 51", s.row(50)?.subject)
         assertEquals("Subject 100", s.row(99)?.subject)
@@ -24,26 +24,35 @@ class MailListModelTest {
 
     @Test
     fun anOlderWindowIsDroppedAndANewerOneReplacesEverything() {
-        val s = ListSnapshot.Empty.with(window(5uL, 100, 0, PAGE_SIZE))!!
+        val s = checkNotNull(ListSnapshot.Empty.with(window(5uL, 100, 0, PAGE_SIZE)))
         assertNull(s.with(window(4uL, 100, 50, PAGE_SIZE)))
-        val newer = s.with(window(6uL, 90, 50, PAGE_SIZE))!!
+        val newer = checkNotNull(s.with(window(6uL, 90, 50, PAGE_SIZE)))
         assertEquals(setOf(1), newer.heldPages)
         assertEquals(90, newer.total)
     }
 
     @Test
     fun aWindowNotOnAPageBoundaryIsNotKept() {
-        val s = ListSnapshot.Empty.with(window(1uL, 100, 7, 10))!!
+        val s = checkNotNull(ListSnapshot.Empty.with(window(1uL, 100, 7, 10)))
         assertTrue(s.heldPages.isEmpty())
     }
 
     @Test
     fun missingPagesAreThoseNotHeldAndNeverBeyondTheList() {
-        val s = ListSnapshot.Empty.with(window(1uL, 120, 0, PAGE_SIZE))!!
+        val s = checkNotNull(ListSnapshot.Empty.with(window(1uL, 120, 0, PAGE_SIZE)))
         assertEquals(listOf(1, 2), s.missing(0, 1_000_000))
         assertEquals(emptyList<Int>(), s.missing(0, 10))
         assertEquals(emptyList<Int>(), ListSnapshot.Empty.missing(0, 10))
         assertEquals(listOf(0), ListSnapshot.pagesOf(-5, 3, 10))
+    }
+
+    @Test
+    fun theSearchBoxFollowsASearchClearedFromElsewhereAndKeepsWhatIsTypedAfterItsOwn() {
+        // The same folder chosen again clears the search the box sent: the box is cleared too.
+        assertEquals("", searchDraft(search = "", sent = "invoice", draft = "invoice"))
+        // The box's own search arriving keeps what was typed since.
+        assertEquals("invoice 20", searchDraft(search = "invoice", sent = "invoice", draft = "invoice 20"))
+        assertEquals("invoice ", searchDraft(search = "invoice", sent = "invoice", draft = "invoice "))
     }
 
     @Test
