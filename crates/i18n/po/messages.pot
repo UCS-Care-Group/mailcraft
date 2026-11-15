@@ -1874,6 +1874,11 @@ msgstr ""
 msgid "By Subject"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "By mail"
+msgstr ""
+
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 msgid "Calendar"
@@ -2331,7 +2336,7 @@ msgid "Classic Ribbon"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 msgid "Clean Up"
 msgstr ""
 
@@ -2401,7 +2406,7 @@ msgid "Clipboard"
 msgstr ""
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 msgid "Close"
 msgstr ""
 
@@ -3073,6 +3078,11 @@ msgid ""
 "Folder"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Delete All"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Delete Calendar"
@@ -3615,6 +3625,11 @@ msgstr ""
 msgid "Each sender gets one automatic reply, with the message below:"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Each ticked sender's newest message says how: MailCraft asks first."
+msgstr ""
+
 #. interface, name
 #: crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 msgid "Edit"
@@ -4130,7 +4145,7 @@ msgid "Fold the calendars of this group away"
 msgstr ""
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Folder"
 msgstr ""
 
@@ -4912,6 +4927,11 @@ msgstr ""
 msgid "How many messages each folder holds and the space they take"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "How to unsubscribe"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "I'm an Administrator: Approve MailCraft for My Organisation"
@@ -5207,6 +5227,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "In line with text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "In one click"
 msgstr ""
 
 #. interface
@@ -5784,6 +5809,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 msgid "Last name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Last received"
 msgstr ""
 
 #. interface, name
@@ -6539,7 +6569,7 @@ msgid "Message Preview"
 msgstr ""
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs
 msgid "Messages"
 msgstr ""
 
@@ -6808,6 +6838,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Move All and Send Invitations"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Move All…"
 msgstr ""
 
 #. interface
@@ -7413,6 +7448,11 @@ msgstr ""
 msgid "No message is being read there"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "No messages in this folder."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 msgid "No messages match."
@@ -7649,6 +7689,11 @@ msgid "Not saved"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Not unsubscribed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Not unsubscribed."
 msgstr ""
@@ -7789,7 +7834,7 @@ msgid "Numbering"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -7831,6 +7876,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "On its own page"
 msgstr ""
 
 #. interface
@@ -8141,6 +8191,11 @@ msgid "Open on GitHub"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Open one of its messages to unsubscribe there."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Open or save the Digital signature"
 msgstr ""
@@ -8398,6 +8453,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Page Up"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Page opened"
 msgstr ""
 
 #. interface
@@ -9349,6 +9409,11 @@ msgid "Request a Read Receipt"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Request in your Outbox"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Request in your Outbox."
 msgstr ""
@@ -10279,6 +10344,11 @@ msgstr ""
 msgid "Send/Receive with Microsoft Graph"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Sender"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 msgid "Sender images"
@@ -10287,6 +10357,16 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Sender's address contains"
+msgstr ""
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+msgid "Senders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Senders in {folder}"
 msgstr ""
 
 #. name
@@ -11155,7 +11235,7 @@ msgid "Still indexing: some older mail is searched more slowly"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/sync_panel.rs
+#: crates/ui-egui/src/senders.rs crates/ui-egui/src/sync_panel.rs
 msgid "Stop"
 msgstr ""
 
@@ -12130,6 +12210,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "The lists not yet asked aren't asked; the one being asked still is."
 msgstr ""
 
 #. interface
@@ -13560,6 +13645,16 @@ msgid "Tick at least one more contact to merge into the kept one."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Tick every sender listed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Tick senders to unsubscribe from their lists, or to delete or move all their messages in this folder."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Tick the contacts that are the same person, and choose the one to keep:"
 msgstr ""
@@ -13930,7 +14025,7 @@ msgid "Undo {what}"
 msgstr ""
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/senders.rs
 msgid "Unread"
 msgstr ""
 
@@ -13967,7 +14062,7 @@ msgid "Unsaved Message"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/senders.rs
 msgid "Unsubscribe"
 msgstr ""
 
@@ -13992,6 +14087,11 @@ msgid "Unsubscribe on the list's page in your browser."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Unsubscribed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribed."
 msgstr ""
@@ -14000,6 +14100,13 @@ msgstr ""
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+msgid "Unsubscribing: {n} list left."
+msgid_plural "Unsubscribing: {n} lists left."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -15280,6 +15387,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+msgid "and {n} more sender, with fewer messages"
+msgid_plural "and {n} more senders, with fewer messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "and {n} more, not merged now"
 msgid_plural "and {n} more, not merged now"
@@ -15760,7 +15874,7 @@ msgid "no folder \"{path}\""
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 msgid "no folder with id {id}"
 msgstr ""
 

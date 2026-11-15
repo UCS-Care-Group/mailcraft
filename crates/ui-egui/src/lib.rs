@@ -214,6 +214,7 @@ mod security_fixtures_tests;
 mod security_tests;
 mod send_receive;
 mod sender_images;
+mod senders;
 mod sending;
 pub mod server_search;
 pub mod settings_notice;

@@ -94,6 +94,24 @@ pub(crate) fn poll(app: &mut MailApp) {
     }
 }
 
+/// What came of unsubscribing from message `id`, once something has: Senders says it on its row.
+pub(crate) fn outcome(app: &MailApp, id: u64) -> Option<Outcome> {
+    app.unsubscribing.said.get(&id).cloned()
+}
+
+/// How many one-click requests are on their way or waiting their turn.
+pub(crate) fn pending(app: &MailApp) -> usize {
+    app.unsubscribing.waiting.len() + usize::from(app.unsubscribing.flying.is_some())
+}
+
+/// Stop: the one-click requests still waiting their turn are dropped, unasked (the one on its way
+/// can't be called back, and its answer is still said). How many were dropped.
+pub(crate) fn stop(app: &mut MailApp) -> usize {
+    let dropped = app.unsubscribing.waiting.len();
+    app.unsubscribing.waiting.clear();
+    dropped
+}
+
 /// Whether the engine would offer `m` a way to unsubscribe (its server vouches for it, and it has
 /// no sender warning): the bar and the right-click menu offer it only then.
 pub(crate) fn offered(app: &mut MailApp, m: &Message) -> bool {

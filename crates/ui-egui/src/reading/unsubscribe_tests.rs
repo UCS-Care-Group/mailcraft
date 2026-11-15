@@ -205,3 +205,13 @@ fn a_selection_unsubscribes_each_list_once_one_click_at_a_time() {
     // The page is its message's to open, on its own bar.
     assert_eq!(app.unsubscribing.said.get(&page), None);
 }
+
+#[test]
+fn stop_drops_the_one_click_requests_still_waiting() {
+    let (mut app, _) = list_app(&ONE_CLICK);
+    app.unsubscribing.waiting.extend([(1, "https://a.example/u".to_string()), (2, "https://b.example/u".to_string())]);
+    assert_eq!(super::pending(&app), 2);
+    assert_eq!(super::stop(&mut app), 2);
+    assert_eq!(super::pending(&app), 0);
+    assert!(super::outcome(&app, 1).is_none(), "a request dropped unasked says nothing came of it");
+}

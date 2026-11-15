@@ -984,6 +984,7 @@ fn folder(app: &MailApp) -> Tab {
             vec![
                 Item::big("markAllRead", "Mark All\nas Read", "mail.markAllRead", no()).at(2, 3),
                 Item::big("rules", "Run Rules\nNow", "rules.run", no()).at(2, 4),
+                Item::big("findFromSender", "Senders", "mail.senders", no()).at(2, 4),
                 Item::big("empty", "Empty\nFolder", "folder.empty", no()).at(2, 4),
             ],
         ),

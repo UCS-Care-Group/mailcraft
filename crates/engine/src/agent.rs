@@ -158,6 +158,8 @@ const SAFE: &[&str] = &[
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
     "mail.unsubscribeMany",
+    // The senders of a folder, counted, and how each can be unsubscribed from: read only.
+    "mail.senders",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",

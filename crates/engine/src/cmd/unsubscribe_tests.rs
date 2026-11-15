@@ -221,3 +221,42 @@ fn many_messages_give_each_sender_once_and_say_what_is_left_out() {
     // Named wrongly, refused.
     assert!(s.run("mail.unsubscribeMany", &json!({"ids": "all"})).is_err());
 }
+
+#[test]
+fn the_senders_of_a_folder_are_counted_most_messages_first() {
+    let (mut s, ids) = inbox(&[
+        ("letter@news.example", "<https://news.example/u/old>", true, 100),
+        ("Letter@News.example ", "<https://news.example/u/new>", true, 200),
+        ("deals@shop.example", "<mailto:leave@shop.example>", true, 150),
+        ("spoof@bank.example", "<https://bank.example/u>", false, 130),
+    ]);
+    let inbox = s.mailbox.message(ids[0]).map(|m| m.folder).unwrap();
+    s.run("mail.markRead", &json!({"ids": [ids[0]]})).unwrap();
+    let said = s.run("mail.senders", &json!({"folder": inbox})).unwrap();
+    let senders = said["senders"].as_array().unwrap();
+    assert_eq!(
+        senders.iter().map(|x| x["sender"].as_str().unwrap()).collect::<Vec<_>>(),
+        ["letter@news.example", "deals@shop.example", "spoof@bank.example"]
+    );
+    // One sender however its address is written (with `with`'s message too); the newest stands for it.
+    let news = &senders[0];
+    assert_eq!((news["messages"].as_u64(), news["unread"].as_u64(), news["last"].as_i64()), (Some(3), Some(2), Some(200)));
+    assert_eq!((news["newest"].as_u64(), news["way"].as_str()), (Some(ids[1]), Some("page")));
+    assert_eq!(senders[1]["way"], "mail");
+    // Mail its server doesn't vouch for offers nothing, and says why.
+    assert!(senders[2].get("way").is_none() && senders[2]["why"].is_string(), "{said}");
+    assert_eq!(said["more"], 0);
+    // Its messages, for Delete All and Move All.
+    let wanted = std::collections::HashSet::from(["letter@news.example".to_string()]);
+    let mut theirs = crate::cmd::unsubscribe::of_senders(&s.mailbox, inbox, &wanted);
+    theirs.sort_unstable();
+    let mut expected: Vec<Id> = s.mailbox.messages_in(inbox).filter(|m| m.from.email.to_lowercase().contains("letter@news")).map(|m| m.id).collect();
+    assert_eq!(expected.len(), 3);
+    expected.sort_unstable();
+    assert_eq!(theirs, expected);
+    // The folder in view by default; one that isn't there, or named wrongly, is refused.
+    s.view.folder = inbox;
+    assert_eq!(s.run("mail.senders", &json!({})).unwrap()["senders"].as_array().map(Vec::len), Some(3));
+    assert!(s.run("mail.senders", &json!({"folder": 999_999})).is_err());
+    assert!(s.run("mail.senders", &json!({"folder": "Inbox"})).is_err());
+}
