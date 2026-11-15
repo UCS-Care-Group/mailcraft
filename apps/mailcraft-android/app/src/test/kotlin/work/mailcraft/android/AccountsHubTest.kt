@@ -130,8 +130,7 @@ class AccountsHubTest {
     @Test
     fun aSaveThatFailsAfterSavingWasTurnedOffLeavesThatNoticeAlone() = runBlocking {
         val gate = CompletableDeferred<Unit>()
-        lateinit var saving: AccountsHub
-        saving = AccountsHub(
+        val saving = AccountsHub(
             api = HubApi(CompletableDeferred()),
             texts = EnglishTexts,
             scope = app,

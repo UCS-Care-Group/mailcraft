@@ -15,7 +15,7 @@ import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
 /** The Rust core and what the app built on it, once both are ready. */
-internal class Opened(val core: Core, val hub: AccountsHub)
+internal class Opened(val core: Core, val hub: AccountsHub, val mail: MailListController)
 
 /** What starting the Rust core has come to: under way, the core, or why there is none. */
 internal typealias Started = Phase<Opened>
@@ -111,7 +111,7 @@ class MailCraftApplication : Application() {
                 copy = { text -> copyToClipboard(applicationContext, text) },
                 sync = { core.syncNow() },
             )
-            Opened(core, hub)
+            Opened(core, hub, MailListController(CoreMailSource(core)))
         } catch (_: CoreException) {
             null
         } catch (_: LinkageError) {
@@ -133,6 +133,9 @@ class MailCraftApplication : Application() {
             // window's language even when no window has opened (the owner's saved choice first).
             opened.core.setLanguage(LanguageChoice.inUse(this))
             opened.core.setNotifyNewMail(mailNotificationsAllowed(applicationContext))
+            events.register { event -> opened.mail.handle(event, scope) }
+            // A pull to refresh is the hub's Send/Receive: the list shows its spinner and its word.
+            opened.mail.follow(opened.hub.syncing, opened.hub.syncNotice, opened.hub::syncNoticeShown, scope)
             events.launchIn(scope) { nextEvent(opened.core) }
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
             // (WorkManager not starting is no reason to refuse the core: the window still works.)
