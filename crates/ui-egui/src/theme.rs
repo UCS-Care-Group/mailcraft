@@ -8,7 +8,9 @@ use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily,
 use mailcraft_model::rich::Font;
 
 mod accent;
+mod blue;
 pub use accent::{Accent, AccentInk, lenient_bool};
+pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
@@ -517,9 +519,9 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off.
-    pub fn for_choice(accent: Accent, high_contrast: bool) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build(true, accent, high_contrast) }
+    /// The built-in look in `accent`, with high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build_dark(style, accent, high_contrast) }
     }
 
     fn slot() -> egui::Id {
@@ -537,12 +539,14 @@ pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
     pub high_contrast: bool,
+    /// The greys of the dark theme (#1384).
+    pub dark_style: DarkStyle,
 }
 
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast)
+        Palette::for_choice(self.accent, self.high_contrast, self.dark_style)
     }
 }
 
@@ -692,6 +696,8 @@ pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
         (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
         (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
         (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Font::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Font::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
         (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
         (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
         (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
@@ -1181,10 +1187,12 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
                 (false, _) => (regular_face, format!("Doc{}", font.label())),
             };
             fonts.font_data.insert(name.clone(), data.clone());
+            // A fixed-width face has JetBrains Mono behind it, so a glyph it lacks keeps the columns (#969).
+            let mono = font.is_fixed_width().then_some("Mono");
             let chain = if bold_face {
-                chain(&[Some(&name), bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
+                chain(&[Some(&name), mono, bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
             } else {
-                chain(&[Some(&name), regular, Some("Inter")])
+                chain(&[Some(&name), mono, regular, Some("Inter")])
             };
             fonts.families.insert(document_family(font, bold_face), chain);
         }

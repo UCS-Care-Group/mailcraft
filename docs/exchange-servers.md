@@ -1,6 +1,6 @@
 # Exchange servers other than Microsoft's
 
-> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-04 · **Change:** patch
+> **Last reviewed:** 2026-10-30 · **Last updated:** 2026-11-14 · **Change:** minor
 
 An Exchange server account (#252) reaches an organisation's own mail server through Exchange Web
 Services, for mail (its calendar and contacts are not kept in step yet). This page says what has been seen
@@ -100,6 +100,7 @@ and modern sign-in (not built), a shared mailbox, and Autodiscover from an addre
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1349: Exchange Server 2010: what the reporter's server refused and how MailCraft now asks it; not yet tried again against that server |
 | 2026-11-04 | patch | #746: Exchange Server 2019 seen working for mail (Basic over TLS, 24,574 messages, exact folder counts), and taken off the not yet tried list |
 | 2026-11-01 | minor | #252: Exchange server accounts are on for everyone, for mail; the testing switch is gone |
 | 2026-10-30 | major | First version: what was seen on Grommunio (#252, E8) |

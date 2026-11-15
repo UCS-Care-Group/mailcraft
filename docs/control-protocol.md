@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -146,6 +146,7 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `ui.joinMeeting {"event"?}` | open the link to join an online meeting by in the system's browser: only an `https` link, and only on this command |
 | `ui.theme`, `ui.interfaceSize`, `ui.lightMessages {"value"?}` | light, dark or the system's; interface size 80–200; a message's body on a light page in its own colours, also in the dark theme (#634; without `value`, turns it over) |
 | `ui.highContrast {"on"}`, `ui.accent {"accent"}` | high contrast on or off, a stronger version of whichever theme is in use; the accent colour: `blue` (default), `teal`, `violet` or `graphite` (#703). Both are saved in `ui.json` (`highContrast`, `accent`) and show at once in every window |
+| `ui.darkStyle {"value"}` | the greys of the dark theme: `neutral` (default) or `blue`, the blue-tinted greys the dark theme had before #1242 (#1384); File › Options › General › Dark theme. The light theme is the same in both, and the accent and high contrast apply to either. Saved in `ui.json` (`darkStyle`) and shows at once in every window |
 | `ui.animations {"value"}` | whether the window's animations play: `system` (default) as the system says (Windows' Animation effects; where the system says nothing, they play), `on` or `off` (menus and sections open at once, scrolling to a place jumps there, the search bar over the list appears at once; a spinner still turns) (#1183). Saved in `ui.json` (`animations`) and follows at once in every window |
 | `ui.previewAttachment` | `{"id"?: number, "index": number}`: preview a zero-based attachment of the selected message in the reading pane after the owner enables previews in File › Options. This command is unavailable to agents and in Junk E-mail or its subfolders. PDF uses `pdfcraft-cli`; PNG, JPEG, TIFF and WebP use `photocraft-cli`. Install the native executable on `PATH`, or set `MAILCRAFT_PDFCRAFT_CLI` or `MAILCRAFT_PHOTOCRAFT_CLI` to its absolute path. Helpers must render in their own process, since the time limit terminates the process MailCraft started. |
 | `ui.language` | `{"language": "auto"\|"en"\|"fr"\|"de"\|"es"\|"it"\|"nl"\|"ro"\|"zh_CN"\|"pseudo"}`: the interface language (`auto`, the system's, is the default); a language is offered once it has a catalogue (French, German, Spanish, Italian, Dutch, Romanian and Simplified Chinese are previews; the initial Chinese catalogue was reviewed by its contributor and is offered on desktop only until the browser has a CJK font, while the others await native-speaker review), and `pseudo` (accented English, for finding text that isn't translated) only here |
@@ -291,6 +292,21 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1384: `ui.darkStyle` (`neutral` or `blue`), the greys of the dark theme |
+| 2026-11-14 | patch | #1347: the reading pane's `alwaysDownloadPictures` link is listed only when the server vouches for the sender; `alwaysDownloadPicturesDomain` likewise |
+| 2026-11-13 | minor | #276: `FolderState` and `FolderDelta` in `sync.request`/`sync.apply` carry an optional `status` (`messages`, `uidNext`, `unseen`, `limit`, `at`), the STATUS an IMAP folder was last read whole under; `skipped` also counts IMAP folders passed over for having it unchanged |
+| 2026-11-13 | minor | `ui.minimize {minimized}` (not for agents); `MAILCRAFT_FLUSH_AFTER_SECS` sets how long the window waits out of sight before it lets go of memory |
+| 2026-11-13 | minor | #1200: `mail.list` and `folder.select` take `folder`: an id, a standard folder's kind (`inbox`, `sent`…) in any language of the mailbox, or a path, with `account` for whose it is: an account that is there, whose folder it has to be, a path without it taken from the account in view first; `mailcraft-cli --folder` goes through it |
+| 2026-11-13 | minor | #1174: `view.navigationBar` puts the switch between the modules at the foot of the pane on the left or back on the bar; the hit map lists `moduleFoot` |
+| 2026-11-13 | minor | `ui.closeToTray` sets the General option; `app.quit` exits even while closing to the tray is enabled |
+| 2026-11-12 | patch | `ui.parity`: what its counts are over (in-scope rows, out of scope rows left out) |
+| 2026-11-12 | patch | software-render: `ui.dismissSoftwareNotice` |
+| 2026-11-12 | patch | #1199: the control key file is named by the port in Flatpak too (`control-key.local-<port>`), so the MCP bridge finds the key of the app on its port |
+| 2026-11-12 | minor | #1183: `ui.animations` beside `ui.highContrast` |
+| 2026-11-12 | minor | #1135: `ui.language` takes `ro`; Romanian is a preview, and Automatic follows `ro-RO` |
+| 2026-11-12 | minor | #1031: `ui.language` takes `zh_CN` for the Simplified Chinese preview |
+| 2026-11-11 | minor | #1074 part 2: `sync.jmapRequest` carries `sends`, and `sync.applyJmap` takes in what became of them and answers `sent` |
+| 2026-11-11 | minor | #1074 part 1: `sync.jmapRequest` carries `changes`, and `sync.applyJmap` takes in what became of them and answers `pushed` and `refused` |
 | 2026-11-11 | minor | #815 part 5: `notes.list`, `notes.get`, `journal.list`, `journal.get` |
 | 2026-11-11 | minor | Preview a selected attachment with an optional local PdfCraft or PhotoCraft renderer (#1053) |
 | 2026-11-11 | minor | #956 part 3: `ui.reportProblem {"via": "send", "username"?}` fills the Report a Problem window and never sends; only the owner's click on Send report does |

@@ -2268,8 +2268,16 @@ fn take_in(
         if uid != 0 && (on_server.by_uid.contains_key(&(folder, uid)) || on_server.leaving.contains(&(folder, uid))) {
             continue;
         }
-        if matched(mb, on_server, folder, &m).is_some() {
+        // Gmail's labels of it, cleaned again: a result can say anything (#1153).
+        m.gmail_labels = mailcraft_model::gmail::tidy_labels(&m.gmail_labels);
+        if let Some(id) = matched(mb, on_server, folder, &m) {
             counts.matched += 1;
+            // The copy here takes what Gmail says of the one on the server.
+            if mb.message(id).is_some_and(|here| here.folder == folder && here.gmail_labels != m.gmail_labels)
+                && let Ok(here) = mb.message_mut(id)
+            {
+                here.gmail_labels = std::mem::take(&mut m.gmail_labels);
+            }
             continue;
         }
         m.id = 0;
@@ -2328,6 +2336,20 @@ fn take_in(
             }
         }
     }
+    // Gmail's labels of the messages already here (#1153), as the server listed them with their
+    // flags: read only, the server's word is the one (a label changes by a move or a copy between
+    // label folders, which the server then says). Cleaned again: a result can say anything.
+    if !reset {
+        for said in delta.gmail_labels.iter().take(MAX_LABELLED) {
+            let Some(id) = on_server.by_uid.get(&(folder, said.uid)).copied() else { continue };
+            let labels = mailcraft_model::gmail::tidy_labels(&said.labels);
+            if mb.message(id).is_some_and(|m| m.folder == folder && m.gmail_labels != labels)
+                && let Ok(m) = mb.message_mut(id)
+            {
+                m.gmail_labels = labels;
+            }
+        }
+    }
     if delta.complete {
         waited_for(mb, account, on_server, folder, &delta.remote, counts);
     }
@@ -2346,6 +2368,10 @@ fn take_in(
         }
     }
 }
+
+/// Most messages of one folder's piece whose Gmail labels are taken in (#1153): more than a
+/// folder a run reads holds.
+const MAX_LABELLED: usize = 1_000_000;
 
 fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let result: SyncResult =
