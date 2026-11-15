@@ -1011,6 +1011,11 @@ msgid "After"
 msgstr "之后"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
@@ -2374,6 +2379,11 @@ msgstr "取消会议"
 msgid "Cancel Opening the Mailbox"
 msgstr "取消打开邮箱"
 
+#. command label, interface
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+msgid "Cancel Send"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -2466,6 +2476,11 @@ msgstr "更改自动回复"
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "更改重复项目"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+msgid "Change Send Time"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3541,8 +3556,8 @@ msgstr ""
 msgid "Data on this computer"
 msgstr "这台计算机上的数据"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "日期"
@@ -3652,6 +3667,22 @@ msgstr "减少缩进"
 #, fuzzy
 msgid "Default"
 msgstr "默认"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+msgid "Delay Delivery"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Delayed until {when}"
+msgstr ""
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -3991,6 +4022,16 @@ msgstr "显示名称"
 #, fuzzy
 msgid "Do"
 msgstr "执行"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Do not deliver before a date and time"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Do not deliver before:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4505,6 +4546,11 @@ msgstr "结束"
 #, fuzzy
 msgid "Ends before it starts"
 msgstr "在开始之前结束"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Enter a date and a time."
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6239,6 +6285,11 @@ msgid "In the Outbox: it is on its way"
 msgstr "在发件箱中：正在发送"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "In the Outbox: it waits for its time"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "In the folder pane's order"
@@ -7177,7 +7228,7 @@ msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "在其他程序或网页中创建，其中部分内容 MailCraft 无法显示"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "邮件"
@@ -7788,7 +7839,7 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8051,7 +8102,7 @@ msgid "Month"
 msgstr "月份"
 
 #. ribbon location
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "More Options"
 msgstr "更多选项"
@@ -9295,7 +9346,7 @@ msgid "Numbering"
 msgstr "编号"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "确定"
@@ -9317,6 +9368,11 @@ msgstr "10月"
 #, fuzzy
 msgid "October"
 msgstr "10月"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Off"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -9846,7 +9902,7 @@ msgid "Optional"
 msgstr "可选"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "选项"
@@ -10325,7 +10381,7 @@ msgid "Postal code"
 msgstr "邮政编码"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Preferences"
 msgstr "偏好设置"
@@ -10970,6 +11026,11 @@ msgstr "从收藏夹中移除"
 #, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "从安全发件人或阻止发件人中移除"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Remove the delay"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12019,7 +12080,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "请先选择邮件，再预览其附件。"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "发送"
@@ -12031,7 +12092,7 @@ msgid "Send & Receive"
 msgstr "发送和接收"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "发送/接收"
@@ -12047,6 +12108,16 @@ msgstr "再次发送"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "发送取消通知"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+msgid "Send Later"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Send Later…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -12130,6 +12201,11 @@ msgid "Send my sign-in"
 msgstr "发送我的登录信息"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Send options"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Send report"
@@ -12170,6 +12246,11 @@ msgstr "向他们发送邀请吗？会议进入账户的日历后，服务器会
 #, fuzzy
 msgid "Send the update to them? The account's server sends them the change by mail."
 msgstr "向他们发送更新吗？账户服务器会通过邮件发送更改。"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Send this message, but not before:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12314,6 +12395,11 @@ msgstr "正在发送和接收…"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "Sending from a shared mailbox"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "Sending in {n} s"
 msgstr ""
 
 #. interface
@@ -14569,6 +14655,11 @@ msgid "The message isn't there any more"
 msgstr "邮件已不存在"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
@@ -16008,6 +16099,16 @@ msgstr "此邮件包含网络图片，此版本无法下载。"
 msgid "This message hasn't been sent."
 msgstr "此邮件尚未发送。"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "This message is delayed. It goes {when}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "This message is due and goes with the next Send/Receive."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -16217,7 +16318,7 @@ msgid "Tighter Spacing"
 msgstr "更紧密的间距"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "时间"
@@ -16626,11 +16727,16 @@ msgstr "在此计算机上的文件夹下："
 msgid "Underline"
 msgstr "下划线"
 
-#. android, command label, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Undo"
 msgstr "撤销"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+msgid "Undo Send"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -16974,6 +17080,16 @@ msgstr "查看源代码"
 #, fuzzy
 msgid "Violet"
 msgstr "紫罗兰色"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+msgid "Wait Before Sending"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Wait before sending"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18260,6 +18376,11 @@ msgid "cancelled"
 msgstr "已取消"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "choose a time within a year"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
@@ -18829,13 +18950,13 @@ msgid "no message being written has the id {id}"
 msgstr "没有 ID 为 {id} 的正在撰写的邮件"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "没有正在撰写的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
@@ -18970,6 +19091,11 @@ msgstr "邮件中未选择任何内容"
 #, fuzzy
 msgid "nothing is waiting to be imported"
 msgstr "没有待导入的内容"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "nothing is waiting to be sent: it is on its way already"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -19241,6 +19367,11 @@ msgid "that message is a draft: open it to send it"
 msgstr "此邮件是草稿：打开后即可发送"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "that message is being sent now"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message isn't a draft"
@@ -19257,6 +19388,16 @@ msgstr "此邮件未被保留"
 #, fuzzy
 msgid "that message isn't here"
 msgstr "该邮件不在这里"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "that message isn't waiting in the Outbox"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+msgid "that time has passed: choose a time in the future"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20251,7 +20392,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "此次发送/接收针对的是之前指定的服务器 {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
 msgstr "此账户没有“草稿”文件夹"
@@ -20279,6 +20420,11 @@ msgstr "此账户没有 {folder} 文件夹"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "此账户没有保存它的权限"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -21274,6 +21420,12 @@ msgid_plural "{n} declined"
 msgstr[0] "{n} 人已拒绝"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+msgid "{n} delayed message is late: MailCraft wasn't running at its time"
+msgid_plural "{n} delayed messages are late: MailCraft wasn't running at their time"
+msgstr[0] ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} distribution list, kept as a contact listing its members"
@@ -21735,6 +21887,12 @@ msgstr[0] "此处删除的 {n} 条规则仍保留在服务器上，直到 MailCr
 #, fuzzy
 msgid "{n} s"
 msgstr "{n} 秒"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs

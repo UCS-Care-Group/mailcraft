@@ -51,7 +51,9 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
     let exchange = kind == Some(mailcraft_model::AccountKind::Exchange);
     // A JMAP account's message always goes whole: its server keeps no draft of this program's.
     let jmap = kind == Some(mailcraft_model::AccountKind::Jmap);
-    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
+    // (Not what waits for its Send time: due is judged here, at each run, #950.)
+    let now = s.now();
+    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now) && !from_server(m)).map(|m| m.id).collect();
     waiting.sort_unstable();
     waiting
         .into_iter()

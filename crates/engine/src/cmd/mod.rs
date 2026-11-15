@@ -133,6 +133,7 @@ mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;
+pub mod send_later;
 pub mod send_receive;
 pub mod shared;
 pub mod signature;
@@ -211,6 +212,7 @@ pub fn registry() -> Registry {
     v.extend(auto_replies::specs());
     v.extend(offline::specs());
     v.extend(send_receive::specs());
+    v.extend(send_later::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());

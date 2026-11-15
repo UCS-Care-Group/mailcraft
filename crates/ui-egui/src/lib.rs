@@ -212,6 +212,7 @@ pub mod security;
 mod security_fixtures_tests;
 #[cfg(test)]
 mod security_tests;
+mod send_later;
 mod send_receive;
 mod sender_images;
 mod sending;
@@ -2081,6 +2082,10 @@ impl MailApp {
             self.say_refused(id, &e);
             return Err(e);
         }
+        // Undo (Ctrl+Z) while Undo Send's wait runs takes the message back, as the bar's button does (#950).
+        if id == "edit.undo" && self.session.undo_send_wait().is_some() {
+            return self.run("compose.undoSend", json!({}));
+        }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
@@ -2165,7 +2170,7 @@ impl MailApp {
             self.show_source(v);
         }
         // Sent from a shared mailbox (#70): pressing Send is the owner asking for it to go.
-        if id == "compose.send"
+        if matches!(id, "compose.send" | "compose.sendLater")
             && let Ok(v) = &r
             && let Some(sent) = v.get("id").and_then(Value::as_u64)
         {
@@ -5176,6 +5181,8 @@ impl MailApp {
             settings_notice::bar(self, ui);
             software::bar(self, ui);
             unconfirmed::bar(self, ui);
+            // Undo Send's wait is running: "Sending in 5 s · Undo".
+            send_later::undo_bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {
@@ -5453,6 +5460,14 @@ pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
 fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
+        // Waiting for a time (Delay Delivery, Send Later): in the Outbox until then (#950). The wait of Undo Send has its own line.
+        "compose.send" | "compose.sendLater"
+            if v.get("queued").and_then(Value::as_bool) == Some(true)
+                && v.get("sendAt").is_some_and(|at| !at.is_null())
+                && v.get("wait").and_then(Value::as_bool) != Some(true) =>
+        {
+            Some(tl!("In the Outbox: it waits for its time").to_string())
+        }
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
         // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
         // most of the original's headers, which is said rather than hidden (#451).

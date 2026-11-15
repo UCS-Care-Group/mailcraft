@@ -837,9 +837,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
+    let clock = s.now();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Not what waits for its Send time, #950.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.waits_until(clock) {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
