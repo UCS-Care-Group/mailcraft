@@ -42,6 +42,8 @@ pub(crate) fn block_on<F: Future>(f: F) -> F::Output {
 #[derive(Default)]
 pub(crate) struct FakeSecrets {
     pub(crate) kept: Mutex<Vec<(String, String)>>,
+    /// Set to have the store refuse to keep anything.
+    pub(crate) refuse: std::sync::atomic::AtomicBool,
     /// How many of the next writes of the index of names fail.
     pub(crate) fail_index: std::sync::atomic::AtomicUsize,
     /// Deleting removes nothing (the store refuses, and says nothing).
@@ -65,6 +67,9 @@ impl SecretStore for FakeSecrets {
     }
 
     fn set(&self, key: String, secret: String) -> Result<(), HostError> {
+        if self.refuse.load(Ordering::Relaxed) {
+            return Err(HostError::Failed);
+        }
         if key.contains("notice") && self.notice_unwritable.load(Ordering::Relaxed) {
             return Err(HostError::Unsupported);
         }
@@ -165,6 +170,11 @@ impl Platform for FakePlatform {
 
     fn open_file(&self, _name: String, _bytes: Vec<u8>) -> Result<(), HostError> {
         Err(HostError::Unsupported)
+    }
+
+    fn open_link(&self, url: String) -> Result<(), HostError> {
+        self.opened.lock().unwrap().push(url);
+        Ok(())
     }
 
     fn now(&self) -> Result<i64, HostError> {

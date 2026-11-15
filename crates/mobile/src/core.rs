@@ -14,13 +14,14 @@ use mailcraft_host::sync::SendReceive;
 use mailcraft_i18n::Lang;
 use serde_json::Value;
 
+use crate::accounts::SignIns;
 use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
-use crate::sign_in::Redirects;
+use crate::records::{LinkKind, LinkTarget};
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
-use crate::{CoreError, DataRemoved, android};
+use crate::{CoreError, DataRemoved, HostError, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
@@ -123,6 +124,11 @@ pub struct Core {
     budget_id: Option<u64>,
     events: Arc<Queue<Event>>,
     pub(crate) platform: Arc<dyn Platform>,
+    /// The same platform as the host sees it: what the sign-in code of `mailcraft-host` is given.
+    pub(crate) native: Arc<Native>,
+    /// The sign-in that is open, and where its redirect lands (`accounts.rs`): the one sign-in of
+    /// the phone, Add Account's and an account's signing in again alike.
+    pub(crate) signins: SignIns,
     memory_budget: u64,
     language: AtomicU8,
     /// The latest language asked for, until the session thread has applied it (before its next job):
@@ -132,10 +138,6 @@ pub struct Core {
     pub(crate) closing: Arc<AtomicBool>,
     /// Send/Receive: what is due, what a run brought, the sign-ins of the session.
     pub(crate) sync: Arc<SyncHost>,
-    /// Where the address a sign-in page came back to is handed over.
-    pub(crate) redirects: Arc<Redirects>,
-    /// A sign-in is open (one at a time).
-    pub(crate) signing_in: Arc<AtomicBool>,
     /// The mailbox's storage, when it has one.
     keep: Option<Arc<Keep>>,
     /// Told once the session thread has ended (after its last save).
@@ -174,10 +176,12 @@ impl Core {
         dir: Option<String>,
     ) -> Result<Arc<Core>, CoreError> {
         android::check()?;
-        let host = mailcraft_host::init(Arc::new(Native { inner: platform.clone() }))?;
+        let native = Arc::new(Native { inner: platform.clone() });
+        let host = mailcraft_host::init(native.clone())?;
         // What the device can spare caps what the session keeps of mail content: the lowest of the
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
-        let budget_id = enter_budget(host.platform().memory_budget());
+        let device_budget = host.platform().memory_budget();
+        let budget_id = enter_budget(device_budget);
         let events = Queue::new();
         let sink = EventSink { queue: events.clone() };
         let keep = match dir {
@@ -206,6 +210,9 @@ impl Core {
                 // choice dropped); the next save writes what they changed.
                 let _ = mailcraft_engine::cmd::file::after_opening(&mut session);
             }
+            // A phone keeps less than a computer: a mailbox from before the phone's own limits is
+            // moved to them, once (MB3.16).
+            crate::limits::settle(&mut session, device_budget);
             // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
             // left at that default follows the zone, one it chose stays. Asked before either change.
             let default_date = session.view.date == session.today();
@@ -246,13 +253,13 @@ impl Core {
             budget_id,
             events,
             platform,
+            native,
+            signins: SignIns::default(),
             memory_budget,
             language: AtomicU8::new(0),
             pending_language: Arc::default(),
             closing: Arc::new(AtomicBool::new(false)),
             sync,
-            redirects: Arc::default(),
-            signing_in: Arc::default(),
             keep,
             finished: Mutex::new(Some(finished)),
             session_thread,
@@ -509,8 +516,11 @@ impl Core {
     /// `next_event` ends. The session thread ends with its last job.
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
+        // What is being fetched is called off: nothing it brings is taken in.
+        self.sync.cancel_fetches(None);
         self.sync.pacer.poke();
-        self.redirects.close();
+        // (A sign-in waiting for its page is called off; none begins after this.)
+        self.signins.cancel();
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner).take();
         // The session thread saves the mailbox as its last act: wait for it a little (never from
         // that thread itself, and never for long), so that a process about to end keeps the mail.
@@ -534,6 +544,17 @@ impl Core {
         match self.platform.network() {
             Ok(n) => n,
             Err(_) => NetworkKind::Unknown,
+        }
+    }
+
+    /// Follow a link of a message: a web address goes to the browser and a telephone number to the
+    /// dialer, through the platform. Only an address [`crate::links::link_target`] vouches for is
+    /// handed on; anything else (another scheme, a mail address, a part of the message) is refused
+    /// here and the platform is never asked.
+    pub fn open_link(&self, url: String) -> Result<(), HostError> {
+        match crate::links::link_target(url) {
+            Some(LinkTarget { kind: LinkKind::Web | LinkKind::Phone, shown }) => self.platform.open_link(shown).map_err(|_| HostError::Failed),
+            _ => Err(HostError::Unsupported),
         }
     }
 

@@ -1,0 +1,1 @@
+- Hungarian is available as a preview interface language, with year-first dates and a 24-hour clock (thanks to @ferivoq).

@@ -44,6 +44,7 @@ mod signature;
 mod signature_tests;
 #[cfg(test)]
 mod tests;
+pub(crate) mod unsubscribe;
 mod view;
 mod warnings;
 #[cfg(test)]
@@ -211,6 +212,10 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // A draft in the reading pane is not received mail: say so, and offer to go on writing it (#651).
     if place == Place::Pane && m.draft {
         draft_bar(app, ui, m);
+    }
+    // One waiting in the Outbox for its Send time: when it goes, and the way to change or cancel that (#950).
+    if place == Place::Pane {
+        crate::send_later::queued_bar(app, ui, m);
     }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
@@ -463,6 +468,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // That it comes from a mailing list, and Unsubscribe (#1207).
+        unsubscribe::bar(app, ui, m, place, &t);
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).

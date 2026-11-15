@@ -155,6 +155,8 @@ const SAFE: &[&str] = &[
     "mail.toggleRead",
     "mail.markAllRead",
     "mail.flag",
+    // How a message can be unsubscribed from ("send": true is asked about, `classify`).
+    "mail.unsubscribe",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -188,6 +190,12 @@ const SAFE: &[&str] = &[
     "compose.set",
     "compose.replyTo",
     "compose.readReceipt",
+    // Delay Delivery: a time on the message being written; nothing goes until Send, which is asked about (#950).
+    "compose.delay",
+    // A message waiting in the Outbox goes back to Drafts and is not sent (#950).
+    "mail.cancelSend",
+    // The message Send put in the Outbox for its wait is taken back and opened to write again (#950).
+    "compose.undoSend",
     "compose.attach",
     "compose.attachItem",
     "insert.businessCard",
@@ -423,12 +431,17 @@ const SAFE: &[&str] = &[
 
 const SEND: &[&str] = &[
     "compose.send",
+    // Send, not before a time; and a new time for mail waiting in the Outbox, which may be sooner (#950).
+    "compose.sendLater",
+    "mail.setSendTime",
     // The server answers mail on the owner's behalf with what it says.
     "account.setAutomaticReplies",
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
     "ui.downloadPictures",
+    // Unsubscribes from a list: one click reaches its server, by mail writes to it.
+    "ui.unsubscribe",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -474,6 +487,9 @@ const ACCOUNTS: &[&str] = &[
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
+    // Device limits (MB3.16): what a phone keeps; the server keeps it all.
+    "account.deviceLimits",
+    "account.trimDevice",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
     "ui.automaticRepliesSignIn",
@@ -503,6 +519,8 @@ const SETTINGS: &[&str] = &[
     "file.options",
     // Work Offline: turned off, what waits in the Outbox goes out.
     "sync.offline",
+    // Wait before sending (Undo Send): turned off, what is sent goes at the next run (#950).
+    "sync.waitBeforeSending",
     "calendar.deleteAnsweredRequests",
     "rules.add",
     "rules.remove",
@@ -780,6 +798,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
+        "mail.unsubscribe" if sends => Access::Owner(Class::Send),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
         // away. When the owner wrote in it, the window asks them every time either way, saved or
@@ -1054,10 +1073,13 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.resend",
     "mail.removeAttachment",
     "mail.sendAgain",
+    "mail.cancelSend",
+    "mail.setSendTime",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
-const ONE_MESSAGE: &[&str] = &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain"];
+const ONE_MESSAGE: &[&str] =
+    &["mail.reply", "mail.replyAll", "mail.replyAndDelete", "mail.editDraft", "mail.resend", "mail.sendAgain", "mail.cancelSend", "mail.setSendTime"];
 
 /// The refusal for a command in [`NEEDS_IDS`] given no messages.
 pub fn needs_ids(id: &str) -> String {
@@ -1357,6 +1379,33 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             None => "send the message being written".to_string(),
         },
+        // Not before a time (#950): said in the owner's zone, as what it sends is said as Send says it.
+        "compose.sendLater" => {
+            let when = p::i64(params, "at")
+                .map(|at| s.wall_at(at))
+                .map_or_else(|| "a time not given".to_string(), |w| format!("{} {:02}:{:02}", w.date.iso(), w.hour, w.minute));
+            match s.compose_named(params) {
+                Some(c) => {
+                    let to: Vec<String> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()]
+                        .into_iter()
+                        .flat_map(|l| addresses(Some(&Value::String(l.to_string()))))
+                        .collect();
+                    let to = if to.is_empty() { "nobody yet".to_string() } else { some(&to, 12) };
+                    format!("send {} to {to}, not before {when}", quoted(&c.subject))
+                }
+                None => format!("send the message being written, not before {when}"),
+            }
+        }
+        "mail.setSendTime" => {
+            let when = match params.get("at") {
+                Some(Value::Null) => "the next Send/Receive".to_string(),
+                _ => p::i64(params, "at")
+                    .map(|at| s.wall_at(at))
+                    .map_or_else(|| "a time not given".to_string(), |w| format!("{} {:02}:{:02}", w.date.iso(), w.hour, w.minute)),
+            };
+            let ids = taken(params);
+            format!("let {} go not before {when}", messages_text(s, &ids))
+        }
         "mail.move" | "mail.copy" => {
             // What the agent names (#620), read as the command reads them (#503, #451).
             let ids = taken(params);
@@ -1415,6 +1464,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
         "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, id, params), clip(st("response"), 20)),
+        "mail.unsubscribe" | "ui.unsubscribe" => {
+            // Each by the key its command reads: what is approved is what is done.
+            let key = if id == "ui.unsubscribe" { "message" } else { "id" };
+            let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
+            let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
+            format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+        }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);
             let to = if who.is_empty() {
@@ -1749,6 +1805,7 @@ fn starting_text(s: &Session, id: &str, params: &Value) -> Option<String> {
         "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
         "mail.editDraft" => format!("open the draft {}", one()),
         "mail.resend" => format!("open {} again as a new message to send", one()),
+        "compose.undoSend" => "take back the message just sent and open it again to write".to_string(),
         "people.email" => format!("start a new message to the contact {}", contact()),
         "calendar.email" => "start a new message with a summary of the owner's calendar".to_string(),
         "calendar.contactAttendees" => format!("start a new message to the people of {}", event_title(s, id, params)),
