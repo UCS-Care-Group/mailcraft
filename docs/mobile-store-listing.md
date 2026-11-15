@@ -78,3 +78,4 @@ specifications. The source and the privacy statement are at github.com/UCS-Care-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-13 | major | MB4.3: first version, the Play data-safety answers and the listing texts |
