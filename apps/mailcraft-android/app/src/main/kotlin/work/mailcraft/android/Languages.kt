@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.content.Context
 import android.os.LocaleList
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 
 /** A language the app has a catalogue for, by its code and its own name for itself. */
@@ -18,6 +20,7 @@ internal val LANGUAGES: List<LanguageOption> = listOf(
     LanguageOption("it", "Italiano"),
     LanguageOption("nl", "Nederlands"),
     LanguageOption("ro", "Română"),
+    LanguageOption("hu", "Magyar"),
 )
 
 /**
@@ -54,4 +57,12 @@ internal object LanguageChoice {
 
     /** The language of the window's own configuration, which is the owner's choice when there is one. */
     fun inUse(locales: LocaleList): String = coreLanguage(locales.takeIf { !it.isEmpty }?.get(0)?.language)
+
+    /**
+     * The language in use with no window open (a background run started cold): the owner's saved
+     * choice, which before Android 13 is not in the application's own configuration, else the
+     * system's language.
+     */
+    fun inUse(context: Context): String =
+        inUse(ContextCompat.getContextForLanguage(context).resources.configuration.locales)
 }

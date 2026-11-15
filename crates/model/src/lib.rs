@@ -11,6 +11,7 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
@@ -52,6 +53,7 @@ pub mod signature;
 pub mod sync;
 mod task;
 pub mod thread_index;
+pub mod unsubscribe;
 pub mod update;
 pub mod words;
 pub mod zoned;
@@ -219,6 +221,8 @@ mod sender_warnings_tests;
 mod shown_tests;
 #[cfg(test)]
 mod snooze_tests;
+#[cfg(test)]
+mod unsubscribe_tests;
 #[cfg(test)]
 mod well_known_folder_tests;
 

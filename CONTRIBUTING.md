@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** patch
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -54,7 +54,7 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   it lets a maintainer bring your branch up to date with `main` or fix a small thing without
   waiting for you.
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
-  spdx, test-files, layers, wasm, wasm-clock (no std clock in code the browser runs), and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+  spdx, test-files, layers, wasm, wasm-clock (no std clock in code the browser runs), i18n --check, release-notes, docs-log, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
 - **Rows of the documents' tables and lines of the release notes are files of their own.** A row
   of a document's revision history goes in `docs/log.d/<document without .md>/revisions/<issue>.md`,
   a row of `ROADMAP.md`'s progress log in `docs/log.d/ROADMAP/progress/<issue>.md`
@@ -119,6 +119,8 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | `cargo xtask ci` names its wasm-clock step: no std clock or sleep in code the browser runs (#1337) |
+| 2026-11-12 | minor | An open pull request holds its feature while its author answers a review within 7 days; after that the feature is free to be built afresh |
 | 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |
 | 2026-11-07 | minor | Security fixes: a fix for a security finding comes with a test that covers every site of its root cause |
 | 2026-11-04 | minor | A row of a document's revision history or of the progress log is a fragment, `docs/log.d/…`, joined in at release like a release-notes line |

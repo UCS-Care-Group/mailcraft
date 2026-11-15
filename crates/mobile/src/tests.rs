@@ -119,7 +119,7 @@ fn the_sink_carries_the_other_events_in_order() {
     let sink = core.sink();
     sink.push(Event::SyncProgress { account: 1, phase: "Inbox".into(), done: 3, total: 9 });
     sink.push(Event::SignInNeeded { account: 1 });
-    sink.push(Event::PermissionQuestion { account: 1, question: "tasks.sendLocal".into() });
+    sink.push(Event::PermissionQuestion { account: 1, permission: crate::Permission::Tasks });
     sink.push(Event::ReminderScheduleChanged);
     assert!(matches!(block_on(core.next_event()), Some(Event::SyncProgress { done: 3, .. })));
     assert!(matches!(block_on(core.next_event()), Some(Event::SignInNeeded { account: 1 })));

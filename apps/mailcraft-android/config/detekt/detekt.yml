@@ -70,8 +70,16 @@ style:
     active: true
 
 complexity:
+  TooManyFunctions:
+    active: true
+    # The message list's controller is one cohesive state holder: show, scroll, revision, refresh,
+    # triage and undo, each a line or two over the same state.
+    thresholdInClasses: 15
   LongParameterList:
     active: true
+    # A holder of the callbacks a screen calls (one for each thing the owner can do) is one parameter
+    # of the screens and as many as there are things to do.
+    constructorThreshold: 12
     # A screen takes what it draws and what it does as parameters; that is how Compose is written.
     ignoreAnnotated:
       - 'Composable'

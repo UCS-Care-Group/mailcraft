@@ -59,3 +59,6 @@ display_name = "Mauro Mazzieri"
 
 [people.HarleyInfinite]
 display_name = "Harley"
+
+[people.cyberdawid]
+sync_github_name = true
