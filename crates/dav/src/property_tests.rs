@@ -45,7 +45,7 @@ proptest! {
 
     #[test]
     fn builders_never_panic_and_never_leave_the_origin(url in junk_text(), a in junk_text(), b in junk_text()) {
-        let e = Endpoint::new(origin(), Some(Secret::basic("u", "p")));
+        let e = Endpoint::new(crate::href::TrustedOrigin::from_account_settings("https://dav.example.org").unwrap(), Some(Secret::basic("u", "p").unwrap()));
         let coll = "https://dav.example.org/cal/c/";
         let stamp = Stamp::parse("20260101T000000Z").unwrap();
         let end = Stamp::parse("20270101T000000Z").unwrap();
@@ -130,5 +130,12 @@ proptest! {
         let url = s.collection_url("work");
         let req = HttpRequest::new(method, &url, &[("Authorization", auth.expose()), ("Depth", &depth), ("Content-Type", "application/xml")], body).unwrap();
         let _ = s.exchange(&req);
+    }
+
+    #[test]
+    fn http_dates_with_any_numbers_never_panic(d in any::<i64>(), y in any::<i64>(), h in any::<i64>(), m in any::<i64>(), s in any::<i64>(), now in any::<i64>()) {
+        let text = format!("Sun, {d} Nov {y} {h}:{m}:{s} GMT");
+        let _ = http_date(&text);
+        let _ = retry_after(Some(&text), now);
     }
 }

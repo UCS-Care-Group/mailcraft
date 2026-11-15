@@ -33,12 +33,11 @@ impl Secret {
     pub fn new(value: &str) -> Self {
         Self(value.chars().filter(|c| !c.is_control()).collect())
     }
-    /// `Basic <base64(user:password)>` (RFC 7617, UTF-8).
-    /// A user name with a `:` in it cannot be told from the password, and is refused: the result
-    /// then holds no credential at all (`Basic ` and nothing), which no server accepts.
-    pub fn basic(user: &str, password: &str) -> Self {
+    /// `Basic <base64(user:password)>` (RFC 7617, UTF-8). A `:` in the user name is refused
+    /// (RFC 7617 §2: the first colon ends it).
+    pub fn basic(user: &str, password: &str) -> Result<Self, CredentialError> {
         if user.contains(':') {
-            return Self::new("Basic ");
+            return Err(CredentialError);
         }
         const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let raw = format!("{user}:{password}");
@@ -54,7 +53,7 @@ impl Secret {
                 }
             }
         }
-        Self::new(&out)
+        Ok(Self::new(&out))
     }
 
     /// The value, for whoever sends it.
@@ -68,6 +67,17 @@ impl fmt::Debug for Secret {
         f.write_str("Secret(<redacted>)")
     }
 }
+
+/// A user name that cannot be sent with Basic (it holds a `:`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CredentialError;
+
+impl fmt::Display for CredentialError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a user name with a colon cannot be used with Basic sign-in")
+    }
+}
+impl std::error::Error for CredentialError {}
 
 /// Why an address is not one a request goes to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -9,7 +9,7 @@
 //! delete must in addition lie inside the collection it is for. Bodies are small, fixed documents;
 //! the only text put in them is escaped.
 
-use crate::href::{HrefError, Origin};
+use crate::href::{HrefError, Origin, TrustedOrigin};
 use crate::http::{EndpointError, HttpRequest, Method, Secret};
 use crate::xml::{CALDAV, CARDDAV, DAV};
 use std::fmt;
@@ -168,11 +168,12 @@ fn document(root: &str, body: &str) -> Vec<u8> {
 }
 
 impl Endpoint {
-    /// An endpoint on `origin` that sends `auth` with every request, or none.
-    pub fn new(origin: Origin, auth: Option<Secret>) -> Self {
-        Self { origin, auth }
+    /// An endpoint on the account's own origin that sends `auth` with every request, or none. The
+    /// type keeps a credential from being paired with an origin a server named.
+    pub fn new(origin: TrustedOrigin, auth: Option<Secret>) -> Self {
+        Self { origin: origin.origin().clone(), auth }
     }
-    /// An endpoint that sends no credential: a probe.
+    /// An endpoint that sends no credential: a probe, or anything on an origin a server named.
     pub fn anonymous(origin: Origin) -> Self {
         Self { origin, auth: None }
     }

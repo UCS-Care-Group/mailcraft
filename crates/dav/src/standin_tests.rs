@@ -5,6 +5,7 @@ use super::*;
 
 const USER: &str = "owner@example.org";
 use crate::answer::{Collections, Multistatus};
+use crate::href::TrustedOrigin;
 use crate::request::{Endpoint, Kind, Stamp};
 use crate::status::{Verdict, classify};
 
@@ -18,7 +19,7 @@ fn server() -> (StandIn, Endpoint) {
     s.add_calendar("shared", "Shared", true);
     s.add_task_list("tasks", "Tasks");
     s.add_address_book("people", "People", false);
-    let e = Endpoint::new(s.origin().clone(), Some(s.credential()));
+    let e = s.endpoint();
     (s, e)
 }
 
@@ -65,7 +66,7 @@ fn probes_without_credentials_get_a_401_whose_dav_header_is_the_evidence() {
     let r = run(&s, anon.propfind_principal(&s.root_url()).unwrap());
     assert_eq!(r.status(), 401);
     assert!(!crate::status::is_dav_evidence(&r, s.origin(), &s.root_url()));
-    let wrong = Endpoint::new(s.origin().clone(), Some(Secret::basic(USER, "wrong")));
+    let wrong = Endpoint::new(TrustedOrigin::from_account_settings("https://dav.example.org").unwrap(), Some(Secret::basic(USER, "wrong").unwrap()));
     assert_eq!(run(&s, wrong.options(&s.root_url()).unwrap()).status(), 401);
     assert!(s.seen().iter().all(|x| !x.authorized));
 }
@@ -320,7 +321,7 @@ fn a_report_without_depth_is_depth_zero_and_a_multiget_ignores_depth() {
     let xml = [("Content-Type", "application/xml")];
     let sync = "<d:sync-collection xmlns:d=\"DAV:\"><d:sync-token/><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>";
     assert_eq!(raw(&s, Method::Report, &c, &xml, sync).status(), 207);
-    let query = "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop></c:calendar-query>";
+    let query = "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"/></c:filter></c:calendar-query>";
     let r = raw(&s, Method::Report, &c, &xml, query);
     assert_eq!(r.status(), 207);
     assert!(!String::from_utf8_lossy(r.body()).contains("a.ics"), "Depth 0 asks about the collection only");
@@ -356,4 +357,106 @@ fn a_vcard_is_served_as_text_vcard() {
     s.put_directly("people", "p.vcf", "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\nEND:VCARD\r\n").unwrap();
     let r = run(&s, e.get(&format!("{}p.vcf", s.collection_url("people"))).unwrap());
     assert_eq!(r.header("content-type"), Some("text/vcard"));
+}
+
+#[test]
+fn preconditions_follow_the_order_of_rfc_9110() {
+    let (s, _) = server();
+    let c = s.collection_url("work");
+    let ct = ("Content-Type", "text/calendar; charset=utf-8");
+    let ics = event("z", "20260301T100000Z");
+    // A change of a resource that is gone: If-Match fails, 412, and it is not a violation.
+    assert_eq!(raw(&s, Method::Put, &format!("{c}gone.ics"), &[ct, ("If-Match", "\"1\"")], &ics).status(), 412);
+    assert_eq!(raw(&s, Method::Put, &format!("{c}gone.ics"), &[ct, ("If-Match", "*")], &ics).status(), 412);
+    assert!(s.violations().is_empty());
+    // If-Match that holds and If-None-Match: * on an existing resource: 412.
+    let etag = s.put_directly("work", "z.ics", &ics).unwrap();
+    assert_eq!(raw(&s, Method::Put, &format!("{c}z.ics"), &[ct, ("If-Match", &etag), ("If-None-Match", "*")], &ics).status(), 412);
+    // Creating with If-Match: 412 (nothing to match).
+    assert_eq!(raw(&s, Method::Put, &format!("{c}new.ics"), &[ct, ("If-Match", &etag), ("If-None-Match", "*")], &ics).status(), 412);
+    assert!(s.violations().is_empty());
+    assert_eq!(s.writes(), 0);
+}
+
+fn query(s: &StandIn, e: &Endpoint, a: &str, b: &str) -> Vec<String> {
+    let c = s.collection_url("work");
+    let r = run(s, e.calendar_query(&c, &Stamp::parse(a).unwrap(), &Stamp::parse(b).unwrap()).unwrap());
+    Multistatus::parse(r.body(), s.origin(), &c).unwrap().members().map(|m| m.href.rsplit('/').next().unwrap().to_owned()).collect()
+}
+
+#[test]
+fn calendar_query_reads_the_event_not_the_time_zone_and_matches_by_overlap() {
+    let (s, e) = server();
+    let tz = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Paris\r\nBEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n";
+    // The first DTSTART in the file is 1970's, inside the zone; the event is in June 2026.
+    s.put_directly("work", "zoned.ics", &format!("{tz}BEGIN:VEVENT\r\nUID:z\r\nDTSTART;TZID=Europe/Paris:20260601T100000\r\nDTEND;TZID=Europe/Paris:20260601T110000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")).unwrap();
+    // A multi-day event that starts before the range and crosses its start.
+    s.put_directly(
+        "work",
+        "cross.ics",
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c\r\nDTSTART:20251230T100000Z\r\nDTEND:20260103T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    )
+    .unwrap();
+    // Ends exactly where the range starts: no overlap.
+    s.put_directly(
+        "work",
+        "before.ics",
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:b\r\nDTSTART:20251231T000000Z\r\nDTEND:20260101T000000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    )
+    .unwrap();
+    // A duration, and an all-day event with no end.
+    s.put_directly(
+        "work",
+        "dur.ics",
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d\r\nDTSTART:20260105T100000Z\r\nDURATION:PT1H30M\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    )
+    .unwrap();
+    s.put_directly("work", "day.ics", "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART;VALUE=DATE:20260110\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+        .unwrap();
+    let mut found = query(&s, &e, "20260101T000000Z", "20270101T000000Z");
+    found.sort();
+    assert_eq!(found, ["cross.ics", "day.ics", "dur.ics", "zoned.ics"]);
+    assert_eq!(query(&s, &e, "20260105T110000Z", "20260105T113000Z"), ["dur.ics"]);
+    assert_eq!(query(&s, &e, "20260110T120000Z", "20260111T000000Z"), ["day.ics"]);
+    assert!(query(&s, &e, "20300101T000000Z", "20310101T000000Z").is_empty());
+    // The zoned event is judged conservatively around its own day, never by 1970.
+    assert_eq!(query(&s, &e, "20260601T000000Z", "20260601T001000Z").len(), 1);
+    assert!(s.violations().is_empty());
+}
+
+#[test]
+fn calendar_query_needs_a_filter_and_a_sane_range() {
+    let (s, _) = server();
+    let c = s.collection_url("work");
+    let f = [("Content-Type", "application/xml"), ("Depth", "1")];
+    let open = "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop>";
+    assert_eq!(raw(&s, Method::Report, &c, &f, &format!("{open}</c:calendar-query>")).status(), 400);
+    assert_eq!(
+        raw(&s, Method::Report, &c, &f, &format!("{open}<c:filter><c:comp-filter name=\"VEVENT\"/></c:filter></c:calendar-query>")).status(),
+        400
+    );
+    let bad = format!(
+        "{open}<c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:time-range start=\"soon\"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>"
+    );
+    assert_eq!(raw(&s, Method::Report, &c, &f, &bad).status(), 400);
+    let open_ended = format!(
+        "{open}<c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:time-range start=\"20260101T000000Z\"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>"
+    );
+    assert_eq!(raw(&s, Method::Report, &c, &f, &open_ended).status(), 207);
+    assert_eq!(s.violations().len(), 3);
+}
+
+#[test]
+fn a_propfind_without_a_body_is_an_allprop() {
+    let (s, _) = server();
+    let c = s.collection_url("work");
+    let r = raw(&s, Method::Propfind, &c, &[("Depth", "0")], "");
+    assert_eq!(r.status(), 207);
+    assert!(String::from_utf8_lossy(r.body()).contains("<d:displayname>Work</d:displayname>"));
+    assert!(s.violations().is_empty());
+}
+
+#[test]
+fn a_user_name_with_a_colon_makes_no_stand_in() {
+    assert!(StandIn::new("https://dav.example.org", "a:b", "pw").is_err());
 }

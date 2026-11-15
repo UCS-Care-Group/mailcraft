@@ -96,3 +96,48 @@ fn challenges_reads_every_scheme_in_one_header() {
     assert_eq!(challenges(&resp), ["negotiate", "basic", "digest"]);
     assert_eq!(challenges(&r(401).with_field("WWW-Authenticate", "Basic")), ["basic"]);
 }
+
+#[test]
+fn a_hostile_http_date_never_overflows() {
+    for bad in [
+        "Sun, 06 Nov 1994 -9223372036854775808:00:00 GMT",
+        "Sun, 06 Nov 1994 08:-1:00 GMT",
+        "Sun, 06 Nov 1994 +8:49:37 GMT",
+        "Sun, 06 Nov 99999999999999999999 08:49:37 GMT",
+        "Sun, 06 Nov 9999999999999999 08:49:37 GMT",
+        "Sun, 06 Nov 1994 8:49:37 GMT",
+        "Sun, 06 Nov 1994 08:49:37:00 GMT",
+        "Sun, 06 Nov 1994 08:49:37 GMT extra",
+        "Sun, +6 Nov 1994 08:49:37 GMT",
+        "Sun, 06 Nov -999 08:49:37 GMT",
+    ] {
+        assert_eq!(http_date(bad), None, "{bad:?}");
+        assert_eq!(retry_after(Some(bad), 0), 60);
+        assert_eq!(classify(&r(429).with_field("Retry-After", bad), i64::MIN), Verdict::Wait(60));
+    }
+    assert_eq!(retry_after(Some("Sun, 06 Nov 9999 08:49:37 GMT"), i64::MIN), MAX_WAIT);
+    assert_eq!(http_date("Sun, 06 Nov 1994 08:49:37 GMT"), Some(784_111_777));
+    assert_eq!(status_code_digits(), None);
+}
+
+fn status_code_digits() -> Option<u16> {
+    crate::answer::status_code("HTTP/1.1 +20 OK")
+}
+
+#[test]
+fn a_303_is_a_redirect() {
+    assert_eq!(classify(&r(303), 0), Verdict::Redirect(303));
+}
+
+#[test]
+fn only_a_dav_error_with_the_precondition_is_an_invalid_token() {
+    for body in [
+        "valid-sync-token",
+        "<html>valid-sync-token</html>",
+        "<d:error xmlns:d=\"DAV:\"><d:other/></d:error>",
+        "<x:error xmlns:x=\"urn:x\"><x:valid-sync-token/></x:error>",
+        "<d:error xmlns:d=\"DAV:\"><d:valid-sync-token/>",
+    ] {
+        assert_eq!(classify(&HttpResponse::new(403, body.as_bytes().to_vec()), 0), Verdict::Forbidden, "{body}");
+    }
+}

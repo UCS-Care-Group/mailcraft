@@ -36,7 +36,7 @@ pub enum Verdict {
     /// 507 as the status of the whole response: the server is out of room. (RFC 6578 truncation
     /// is a 507 response element inside a 207, which [`crate::answer::Multistatus::truncated`] says.)
     InsufficientStorage,
-    /// A redirect (301, 302, 307, 308) to `Location`; never followed here.
+    /// A redirect (301, 302, 303, 307, 308) to `Location`; never followed here.
     Redirect(u16),
     /// Any other code.
     Other(u16),
@@ -57,16 +57,16 @@ pub fn classify(response: &HttpResponse, now: i64) -> Verdict {
         428 => Verdict::PreconditionRequired,
         429 | 503 => Verdict::Wait(retry_after(response.header("retry-after"), now)),
         507 => Verdict::InsufficientStorage,
-        c @ (301 | 302 | 307 | 308) => Verdict::Redirect(c),
+        c @ (301 | 302 | 303 | 307 | 308) => Verdict::Redirect(c),
         c => Verdict::Other(c),
     }
 }
 
-/// Whether an error body names the `valid-sync-token` precondition (RFC 6578 §3.2). Only the
-/// first 64 KB are looked at, and as text.
+/// Whether an error body is a `DAV:error` holding `DAV:valid-sync-token` (RFC 6578 §3.2),
+/// parsed as XML under the usual budgets. (The request is not known here: a 403 or 409 that names
+/// this precondition can only be an answer to a sync.)
 fn names_valid_sync_token(body: &[u8]) -> bool {
-    let head = body.get(..body.len().min(64 * 1024)).unwrap_or(&[]);
-    String::from_utf8_lossy(head).contains("valid-sync-token")
+    crate::xml::parse_document(body).is_ok_and(|root| root.is(crate::xml::DAV, "error") && root.child(crate::xml::DAV, "valid-sync-token").is_some())
 }
 
 /// The seconds a `Retry-After` asks for (RFC 9110 §10.2.3: a number, or an HTTP-date), at most
@@ -82,27 +82,54 @@ pub fn retry_after(value: Option<&str>, now: i64) -> u64 {
     }
 }
 
-/// An IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`) as Unix seconds.
+/// Exactly `min..=max` ASCII digits, no sign, as a number.
+fn digits(text: &str, min: usize, max: usize) -> Option<i64> {
+    if text.len() < min || text.len() > max || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse::<i64>().ok()
+}
+
+/// An IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`) as Unix seconds. Every number is unsigned
+/// digits of the length the format has, and the arithmetic is checked.
 pub fn http_date(text: &str) -> Option<i64> {
     let mut words = text.split_whitespace().skip(1);
-    let day: i64 = words.next()?.parse().ok()?;
+    let day = digits(words.next()?, 1, 2)?;
     let name = words.next()?;
-    let month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].iter().position(|m| *m == name)? as i64 + 1;
-    let year: i64 = words.next()?.parse().ok()?;
+    let month = i64::try_from(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].iter().position(|m| *m == name)?)
+        .ok()?
+        .checked_add(1)?;
+    let year = digits(words.next()?, 4, 4)?;
     let mut clock = words.next()?.split(':');
-    let (h, m, s): (i64, i64, i64) = (clock.next()?.parse().ok()?, clock.next()?.parse().ok()?, clock.next()?.parse().ok()?);
-    if words.next()? != "GMT" || !(1..=31).contains(&day) || !(1970..=9999).contains(&year) || h > 23 || m > 59 || s > 60 {
+    let (h, m, s) = (digits(clock.next()?, 2, 2)?, digits(clock.next()?, 2, 2)?, digits(clock.next()?, 2, 2)?);
+    if clock.next().is_some()
+        || words.next()? != "GMT"
+        || words.next().is_some()
+        || !(1..=31).contains(&day)
+        || year < 1970
+        || h > 23
+        || m > 59
+        || s > 60
+    {
+        return None;
+    }
+    civil_seconds(year, month, day, h * 3_600 + m * 60 + s)
+}
+
+/// Unix seconds of a proleptic Gregorian date and a time of day in seconds, checked.
+pub(crate) fn civil_seconds(year: i64, month: i64, day: i64, clock: i64) -> Option<i64> {
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
         return None;
     }
     // Days from civil (Howard Hinnant's algorithm, public domain).
-    let y = if month <= 2 { year - 1 } else { year };
+    let y = if month <= 2 { year.checked_sub(1)? } else { year };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;
     let mp = (month + 9) % 12;
     let doy = (153 * mp + 2) / 5 + day - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146_097 + doe - 719_468;
-    Some(days * 86_400 + h * 3_600 + m * 60 + s)
+    let days = era.checked_mul(146_097)?.checked_add(doe)?.checked_sub(719_468)?;
+    days.checked_mul(86_400)?.checked_add(clock)
 }
 
 /// The authentication schemes a 401 offers (`Basic`, `Digest`, `Bearer`…), lower-cased.

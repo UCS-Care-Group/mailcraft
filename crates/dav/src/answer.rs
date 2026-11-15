@@ -87,6 +87,14 @@ pub struct Entry {
     pub calendar_homes: Vec<String>,
     /// `addressbook-home-set`.
     pub addressbook_homes: Vec<String>,
+    /// A principal on **another** origin (iCloud answers one host with homes on another): an
+    /// absolute address as data only. Nothing in this crate builds a credentialed request for it;
+    /// discovery decides whether its host may be used.
+    pub foreign_principal: Option<String>,
+    /// Calendar homes on other origins, as data only (see [`Entry::foreign_principal`]).
+    pub foreign_calendar_homes: Vec<String>,
+    /// Address book homes on other origins, as data only.
+    pub foreign_addressbook_homes: Vec<String>,
 }
 
 impl std::fmt::Debug for Entry {
@@ -187,7 +195,7 @@ pub fn status_code(line: &str) -> Option<u16> {
     if !words.next()?.starts_with("HTTP/") {
         return None;
     }
-    words.next()?.parse::<u16>().ok().filter(|c| (100..=599).contains(c))
+    words.next().filter(|w| w.len() == 3 && w.bytes().all(|b| b.is_ascii_digit()))?.parse::<u16>().ok().filter(|c| (100..=599).contains(c))
 }
 
 fn read_response(response: &Node, origin: &Origin, base: &str, out: &mut Multistatus) {
@@ -304,12 +312,15 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
                 if let Some(h) = p.child(DAV, "href") {
                     match origin.resolve(base, &h.text) {
                         Ok(url) => e.principal = Some(url),
-                        Err(_) => *skipped += 1,
+                        Err(_) => {
+                            *skipped += 1;
+                            e.foreign_principal = origin.foreign(&h.text);
+                        }
                     }
                 }
             }
-            (CALDAV, "calendar-home-set") => homes(p, origin, base, &mut e.calendar_homes, skipped),
-            (CARDDAV, "addressbook-home-set") => homes(p, origin, base, &mut e.addressbook_homes, skipped),
+            (CALDAV, "calendar-home-set") => homes(p, origin, base, (&mut e.calendar_homes, &mut e.foreign_calendar_homes), skipped),
+            (CARDDAV, "addressbook-home-set") => homes(p, origin, base, (&mut e.addressbook_homes, &mut e.foreign_addressbook_homes), skipped),
             (CALDAV, "calendar-data") | (CARDDAV, "address-data") => {
                 if p.text.len() > MAX_DATA {
                     e.data_too_large = true;
@@ -323,12 +334,21 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
     true
 }
 
-fn homes(p: &Node, origin: &Origin, base: &str, into: &mut Vec<String>, skipped: &mut usize) {
+fn homes(p: &Node, origin: &Origin, base: &str, into: (&mut Vec<String>, &mut Vec<String>), skipped: &mut usize) {
+    let (into, foreign) = into;
     for h in p.children.iter().filter(|c| c.is(DAV, "href")).take(MAX_HOMES) {
         match origin.resolve(base, &h.text) {
             Ok(url) if !into.contains(&url) => into.push(url),
             Ok(_) => {}
-            Err(_) => *skipped += 1,
+            Err(_) => {
+                *skipped += 1;
+                if let Some(url) = origin.foreign(&h.text)
+                    && foreign.len() < MAX_HOMES
+                    && !foreign.contains(&url)
+                {
+                    foreign.push(url);
+                }
+            }
         }
     }
 }

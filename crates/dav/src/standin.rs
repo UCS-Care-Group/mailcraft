@@ -102,6 +102,7 @@ struct State {
 /// The server. Share it by reference; it locks inside.
 pub struct StandIn {
     origin: Origin,
+    trusted: crate::href::TrustedOrigin,
     state: Mutex<State>,
 }
 
@@ -128,6 +129,8 @@ impl StandIn {
     /// tests' own, never a real one) and has no collections.
     pub fn new(origin: &str, user: &str, password: &str) -> Result<Self, crate::http::EndpointError> {
         let parsed = Origin::parse(origin)?;
+        let trusted = crate::href::TrustedOrigin::from_account_settings(origin)?;
+        Secret::basic(user, password).map_err(|_| crate::http::EndpointError::Credentials)?;
         let state = State {
             origin: parsed.clone(),
             quirks: Quirks::default(),
@@ -140,7 +143,7 @@ impl StandIn {
             seen: Vec::new(),
             writes: 0,
         };
-        Ok(Self { origin: parsed, state: Mutex::new(state) })
+        Ok(Self { origin: parsed, trusted, state: Mutex::new(state) })
     }
 
     /// The origin, as an endpoint takes it.
@@ -150,7 +153,12 @@ impl StandIn {
     /// The credential the stand-in takes.
     pub fn credential(&self) -> Secret {
         let s = self.lock();
-        Secret::basic(&s.user, &s.password)
+        Secret::basic(&s.user, &s.password).unwrap_or_else(|_| Secret::new(""))
+    }
+    /// An endpoint on this server with its credential (the account's own origin, as the settings
+    /// would have it).
+    pub fn endpoint(&self) -> crate::request::Endpoint {
+        crate::request::Endpoint::new(self.trusted.clone(), Some(self.credential()))
     }
     /// Sets the quirks.
     pub fn set_quirks(&self, quirks: Quirks) {
@@ -303,7 +311,7 @@ impl StandIn {
         let on_origin = Origin::parse(&url).is_ok_and(|o| o == self.origin);
         let path = if on_origin { self.origin.path(&url).unwrap_or_default() } else { String::new() };
         let sent = request.field("authorization");
-        let expected = Secret::basic(&s.user, &s.password);
+        let expected = Secret::basic(&s.user, &s.password).unwrap_or_else(|_| Secret::new(""));
         let authorized = sent == Some(expected.expose());
         s.seen.push(Seen { method: request.method().as_str().into(), path: path.clone(), authorized, credential: sent.is_some() });
         if !on_origin {
@@ -486,20 +494,36 @@ fn wanted(node: &Node) -> Vec<(String, String)> {
     node.child(DAV, "prop").map(|p| p.children.iter().map(|c| (c.namespace.clone(), c.name.clone())).collect()).unwrap_or_default()
 }
 
+/// What an allprop names here.
+const ALL_PROPS: &[(&str, &str)] = &[
+    (DAV, "resourcetype"),
+    (DAV, "displayname"),
+    (DAV, "getetag"),
+    (DAV, "getcontenttype"),
+    (DAV, "supported-report-set"),
+    (DAV, "current-user-privilege-set"),
+    (DAV, "sync-token"),
+    (CALSERVER, "getctag"),
+];
+
 fn propfind(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> HttpResponse {
     let depth = match request.field("depth") {
         Some("0") => 0,
         Some("1") => 1,
         _ => return error_body(403, "d:propfind-finite-depth"),
     };
-    let body = match parse_body(request, &[(DAV, "propfind")]) {
-        Ok(b) => b,
-        Err(r) => {
-            s.violations.push("PROPFIND body is not a propfind document".into());
-            return r;
+    // RFC 4918 §9.1: a request without a body is an allprop.
+    let want = if request.body().is_empty() {
+        ALL_PROPS.iter().map(|(ns, n)| ((*ns).to_owned(), (*n).to_owned())).collect()
+    } else {
+        match parse_body(request, &[(DAV, "propfind")]) {
+            Ok(b) => wanted(&b),
+            Err(r) => {
+                s.violations.push("PROPFIND body is not a propfind document".into());
+                return r;
+            }
         }
     };
-    let want = wanted(&body);
     let Some(res) = locate(s, layout, path) else { return HttpResponse::new(404, Vec::new()) };
     let mut out = response_for(s, layout, &res, &want);
     if depth == 1 {
@@ -526,10 +550,78 @@ fn hrefs_of(body: &Node) -> Vec<String> {
     body.children.iter().filter(|c| c.is(DAV, "href")).map(|c| c.text.trim().to_owned()).collect()
 }
 
-fn dtstart(body: &str) -> Option<String> {
-    let line = body.lines().find(|l| l.starts_with("DTSTART"))?;
-    let v = line.split_once(':')?.1.trim();
-    Some(if v.len() == 8 { format!("{v}T000000Z") } else { v.to_owned() })
+/// A `DATE` or `DATE-TIME` value as Unix seconds (floating and `Z` times are read as UTC).
+fn stamp(value: &str) -> Option<(i64, bool)> {
+    let num = |r: std::ops::Range<usize>| value.get(r).filter(|t| t.bytes().all(|b| b.is_ascii_digit())).and_then(|t| t.parse::<i64>().ok());
+    let (y, m, d) = (num(0..4)?, num(4..6)?, num(6..8)?);
+    if value.len() == 8 {
+        return crate::status::civil_seconds(y, m, d, 0).map(|t| (t, true));
+    }
+    if value.get(8..9) != Some("T") || !matches!(value.len(), 15 | 16) || (value.len() == 16 && !value.ends_with('Z')) {
+        return None;
+    }
+    let clock = num(9..11)?.checked_mul(3600)?.checked_add(num(11..13)?.checked_mul(60)?)?.checked_add(num(13..15)?)?;
+    crate::status::civil_seconds(y, m, d, clock).map(|t| (t, false))
+}
+
+/// A positive `DURATION` (RFC 5545 §3.3.6) in seconds.
+fn duration(value: &str) -> Option<i64> {
+    let mut rest = value.strip_prefix('P')?;
+    let mut total = 0i64;
+    let mut time = false;
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix('T') {
+            time = true;
+            rest = r;
+            continue;
+        }
+        let end = rest.find(|c: char| !c.is_ascii_digit())?;
+        let n = rest.get(..end)?.parse::<i64>().ok()?;
+        let unit = match (rest.get(end..end + 1)?, time) {
+            ("W", false) => 604_800,
+            ("D", false) => 86_400,
+            ("H", true) => 3_600,
+            ("M", true) => 60,
+            ("S", true) => 1,
+            _ => return None,
+        };
+        total = total.checked_add(n.checked_mul(unit)?)?;
+        rest = rest.get(end + 1..)?;
+    }
+    Some(total)
+}
+
+/// Whether the first `VEVENT` of an iCalendar object overlaps `start..end` (RFC 4791 §9.9). The
+/// properties are the event's own, not those of a `VTIMEZONE` before it. An event with a `TZID`
+/// is judged conservatively: its span is widened by fourteen hours either way.
+fn overlaps(body: &str, start: i64, end: Option<i64>) -> bool {
+    let mut inside = false;
+    let (mut dtstart, mut dtend, mut dur, mut zoned) = (None, None, None, false);
+    for line in body.lines() {
+        if line == "BEGIN:VEVENT" {
+            inside = true;
+        } else if line == "END:VEVENT" {
+            break;
+        } else if inside && !line.starts_with(' ') {
+            let Some((head, value)) = line.split_once(':') else { continue };
+            let name = head.split(';').next().unwrap_or("");
+            zoned |= matches!(name, "DTSTART" | "DTEND") && head.contains("TZID=");
+            match name {
+                "DTSTART" => dtstart = stamp(value.trim()),
+                "DTEND" | "DUE" => dtend = stamp(value.trim()).map(|t| t.0),
+                "DURATION" => dur = duration(value.trim()),
+                _ => {}
+            }
+        }
+    }
+    let Some((s0, date_only)) = dtstart else { return false };
+    let e0 = dtend.or_else(|| dur.and_then(|d| s0.checked_add(d))).or(if date_only { s0.checked_add(86_400) } else { None });
+    let slack = if zoned { 14 * 3_600 } else { 0 };
+    let (s0, e0) = (s0.saturating_sub(slack), e0.map(|e| e.saturating_add(slack)));
+    match e0 {
+        Some(e0) if e0 > s0 => end.is_none_or(|e| s0 < e) && e0 > start,
+        _ => end.is_none_or(|e| s0 < e) && s0 >= start,
+    }
 }
 
 fn report(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> HttpResponse {
@@ -574,19 +666,35 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
     }
     let mut out = String::new();
     if is(CALDAV, "calendar-query") {
-        let range = body
+        // RFC 4791 §7.8: the filter is required; VCALENDAR holds a comp-filter.
+        let Some(outer) = body
             .child(CALDAV, "filter")
             .and_then(|f| f.child(CALDAV, "comp-filter"))
-            .and_then(|f| f.child(CALDAV, "comp-filter"))
-            .and_then(|f| f.child(CALDAV, "time-range"));
-        let (start, end) = range.map_or((None, None), |r| (r.attribute("start").map(str::to_owned), r.attribute("end").map(str::to_owned)));
-        for (n, m) in coll.members.iter().filter(|_| depth == "1") {
-            let d = dtstart(&m.body);
-            let inside = match (&d, &start, &end) {
-                (Some(d), Some(a), Some(b)) => d.as_str() >= a.as_str() && d.as_str() < b.as_str(),
-                _ => true,
-            };
-            if inside {
+            .filter(|c| c.component_name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case("VCALENDAR")))
+        else {
+            violations.push("calendar-query without a filter on VCALENDAR".into());
+            return HttpResponse::new(400, Vec::new());
+        };
+        let inner = outer.child(CALDAV, "comp-filter");
+        let events = inner.is_none_or(|c| c.component_name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case("VEVENT")));
+        let range = inner.and_then(|c| c.child(CALDAV, "time-range"));
+        let bounds = match range {
+            None => None,
+            Some(r) => {
+                let a = r.attribute("start").and_then(stamp);
+                let b = r.attribute("end").map(stamp);
+                match (a, b) {
+                    (Some((a, _)), None) => Some((a, None)),
+                    (Some((a, _)), Some(Some((b, _)))) => Some((a, Some(b))),
+                    _ => {
+                        violations.push("time-range with a start or end that is not a UTC date-time".into());
+                        return HttpResponse::new(400, Vec::new());
+                    }
+                }
+            }
+        };
+        for (n, m) in coll.members.iter().filter(|_| depth == "1" && events) {
+            if bounds.is_none_or(|(a, b)| overlaps(&m.body, a, b)) {
                 out.push_str(&response_for(s, layout, &Res::Member(coll, n, m), &want));
             }
         }
@@ -686,25 +794,25 @@ fn put(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> Htt
     if data.len() > crate::request::MAX_RESOURCE {
         return HttpResponse::new(413, Vec::new());
     }
-    if exists {
-        match &if_match {
-            None if none_match.as_deref() == Some("*") => return HttpResponse::new(412, Vec::new()),
-            None => {
-                s.violations.push("PUT of an existing resource without If-Match".into());
-                return HttpResponse::new(428, Vec::new());
-            }
-            Some(tag) => {
-                let current = s.colls.get(index).and_then(|x| x.members.get(&name)).map(|m| m.etag.clone());
-                if tag != "*" && current.as_deref() != Some(tag.as_str()) {
-                    return HttpResponse::new(412, Vec::new());
-                }
-            }
-        }
-    } else if none_match.as_deref() != Some("*") {
+    // RFC 9110 §13.2.2: If-Match is evaluated first, then If-None-Match. A failed one is 412.
+    let current = s.colls.get(index).and_then(|x| x.members.get(&name)).map(|m| m.etag.clone());
+    if let Some(tag) = &if_match
+        && (current.is_none() || (tag != "*" && current.as_deref() != Some(tag.as_str())))
+    {
+        return HttpResponse::new(412, Vec::new());
+    }
+    if none_match.as_deref() == Some("*") && exists {
+        return HttpResponse::new(412, Vec::new());
+    }
+    // What this server insists on besides: a change names what it replaces, a create names that
+    // nothing is there.
+    if exists && if_match.is_none() {
+        s.violations.push("PUT of an existing resource without If-Match".into());
+        return HttpResponse::new(428, Vec::new());
+    }
+    if !exists && none_match.as_deref() != Some("*") {
         s.violations.push("PUT that creates without If-None-Match: *".into());
         return HttpResponse::new(428, Vec::new());
-    } else if if_match.is_some() {
-        return HttpResponse::new(412, Vec::new());
     }
     let etag = format!("\"{}\"", s.next_etag);
     s.next_etag += 1;

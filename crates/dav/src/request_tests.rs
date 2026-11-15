@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::*;
+use crate::href::TrustedOrigin;
 use crate::http::Method;
 
 const COLL: &str = "https://dav.example.org/cal/owner/work/";
 
 fn ep() -> Endpoint {
-    Endpoint::new(Origin::parse("https://dav.example.org").unwrap(), Some(Secret::basic("u", "p")))
+    Endpoint::new(TrustedOrigin::from_account_settings("https://dav.example.org").unwrap(), Some(Secret::basic("u", "p").unwrap()))
 }
 fn body(r: &HttpRequest) -> String {
     String::from_utf8(r.body().to_vec()).unwrap()
@@ -31,7 +32,7 @@ fn every_body_is_well_formed_xml_in_the_right_shape() {
         let doc = crate::xml::parse_document(r.body()).unwrap();
         assert_eq!(doc.name, *root);
         assert_eq!(r.field("depth"), if depth.is_empty() { None } else { Some(*depth) }, "a multiget leaves Depth out");
-        assert_eq!(r.field("authorization"), Some(Secret::basic("u", "p").expose()));
+        assert_eq!(r.field("authorization"), Some(Secret::basic("u", "p").unwrap().expose()));
         assert!(r.is_repeatable());
     }
     assert_eq!(all[4].0.method(), Method::Report);
@@ -156,7 +157,7 @@ fn escape_covers_markup() {
 
 #[test]
 fn a_user_name_with_a_colon_makes_no_credential_and_authorization_is_endpoint_only() {
-    assert_eq!(Secret::basic("a:b", "pw").expose(), "Basic ");
+    assert_eq!(Secret::basic("a:b", "pw"), Err(crate::http::CredentialError));
     // `HttpRequest::new` is crate-private: a credential reaches a request only through an Endpoint,
     // which has checked the address. (Checked by the crate not compiling otherwise.)
     let anon = Endpoint::anonymous(Origin::parse("https://dav.example.org").unwrap());

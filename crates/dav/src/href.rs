@@ -134,6 +134,11 @@ impl Origin {
         if !plain(href) || href.contains('#') {
             return Err(HrefError::Malformed);
         }
+        // A reference with a scheme but no `//` (`mailto:x`, `https:host/x`) is not a path.
+        let first = href.split(['/', '?']).next().unwrap_or("");
+        if first.contains(':') && !href.contains("://") {
+            return Err(HrefError::Malformed);
+        }
         let base_path = self.path_of(base)?;
         let tail = if let Some((scheme, rest)) = href.split_once("://") {
             let secure = match scheme.to_ascii_lowercase().as_str() {
@@ -164,6 +169,21 @@ impl Origin {
             out.push_str(&escape(query, true)?);
         }
         if out.len() > MAX_ADDRESS { Err(HrefError::Malformed) } else { Ok(out) }
+    }
+
+    /// An absolute address on **another** origin, normalised, for data only (discovery decides
+    /// whether a host may be used at all). `https`, or loopback `http`; never a credentialed
+    /// request from this crate. None for anything else, including addresses on this origin.
+    pub fn foreign(&self, href: &str) -> Option<String> {
+        let href = href.trim_matches([' ', '\t', '\r', '\n']);
+        if !plain(href) || href.contains('#') || !href.contains("://") {
+            return None;
+        }
+        let other = Origin::parse(href).ok()?;
+        if &other == self || !(other.secure() || other.is_loopback()) {
+            return None;
+        }
+        other.resolve(&other.base(), href).ok()
     }
 
     /// The part of an address after the authority (path and query), the address having to be on
@@ -278,16 +298,14 @@ fn escape(text: &str, query: bool) -> Result<String, HrefError> {
     Ok(out)
 }
 
-/// The path with dot segments removed. `..` above the root is an error, never clamped.
+/// RFC 3986 §5.2.4 `remove_dot_segments` on the path, empty segments kept (`/a//b` stays). `..`
+/// above the root is an error, never clamped.
 fn normal_path(path: &str) -> Result<String, HrefError> {
     let mut kept: Vec<String> = Vec::new();
-    let segments: Vec<&str> = path.split('/').collect();
+    let rest = path.strip_prefix('/').unwrap_or(path);
+    let segments: Vec<&str> = rest.split('/').collect();
     let last = segments.len().saturating_sub(1);
-    let mut trailing = false;
     for (i, raw) in segments.iter().enumerate() {
-        if i == 0 && raw.is_empty() {
-            continue;
-        }
         let segment = escape(raw, false)?;
         // A path parameter does not hide a dot segment (`..;x` is `..` to some servers).
         let base = segment.split(';').next().unwrap_or("");
@@ -295,26 +313,49 @@ fn normal_path(path: &str) -> Result<String, HrefError> {
             return Err(HrefError::Escapes);
         }
         match segment.as_str() {
-            "." => trailing = i == last,
+            "." => {
+                if i == last {
+                    kept.push(String::new());
+                }
+            }
             ".." => {
                 if kept.pop().is_none() {
                     return Err(HrefError::Escapes);
                 }
-                trailing = i == last;
+                if i == last {
+                    kept.push(String::new());
+                }
             }
-            "" => trailing = i == last,
-            _ => {
-                kept.push(segment);
-                trailing = false;
-            }
+            _ => kept.push(segment),
         }
     }
-    let mut out = String::from("/");
-    out.push_str(&kept.join("/"));
-    if trailing && !kept.is_empty() {
-        out.push('/');
+    Ok(format!("/{}", kept.join("/")))
+}
+
+/// The origin of an account's DAV server **as the owner set it** (the settings, or an address the
+/// owner typed). Only this can be paired with a credential ([`crate::request::Endpoint::new`]); an
+/// [`Origin`] taken from anything a server said (a redirect, an `href`, an SRV answer) can only
+/// make an anonymous endpoint.
+#[derive(Clone, PartialEq, Eq)]
+pub struct TrustedOrigin(Origin);
+
+impl TrustedOrigin {
+    /// From the account's own setting: `https`, or loopback `http` for tests. Never call this with
+    /// an address a server supplied.
+    pub fn from_account_settings(url: &str) -> Result<Self, EndpointError> {
+        let origin = Origin::parse(url)?;
+        if origin.secure() || origin.is_loopback() { Ok(Self(origin)) } else { Err(EndpointError::NotEncrypted) }
     }
-    Ok(out)
+    /// The origin.
+    pub fn origin(&self) -> &Origin {
+        &self.0
+    }
+}
+
+impl fmt::Debug for TrustedOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("TrustedOrigin(..)")
+    }
 }
 
 #[cfg(test)]

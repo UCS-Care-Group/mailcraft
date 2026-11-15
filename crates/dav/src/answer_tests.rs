@@ -235,3 +235,30 @@ fn debug_shows_counts_and_flags_only() {
         assert!(!shown.contains(secret), "{secret}");
     }
 }
+
+#[test]
+fn off_origin_principal_and_homes_come_out_as_data_with_no_request_built() {
+    let m = ms(&prop(
+        "/",
+        "<d:current-user-principal><d:href>https://p01-caldav.example.net/123/principal/</d:href></d:current-user-principal>\
+         <c:calendar-home-set><d:href>https://p01-caldav.example.net/123/calendars/</d:href><d:href>https://p01-caldav.example.net/123/calendars/</d:href><d:href>/local/</d:href></c:calendar-home-set>\
+         <card:addressbook-home-set><d:href>http://plain.example.net/x/</d:href><d:href>https://p02-contacts.example.net/9/</d:href></card:addressbook-home-set>",
+    ));
+    let e = &m.entries[0];
+    assert!(e.principal.is_none());
+    assert_eq!(e.foreign_principal.as_deref(), Some("https://p01-caldav.example.net/123/principal/"));
+    assert_eq!(e.foreign_calendar_homes, ["https://p01-caldav.example.net/123/calendars/"]);
+    assert_eq!(e.calendar_homes, ["https://dav.example.org/local/"]);
+    assert_eq!(e.foreign_addressbook_homes, ["https://p02-contacts.example.net/9/"], "plain http is not offered");
+    assert!(m.skipped >= 3);
+    // An endpoint on this origin refuses them.
+    let ep = crate::request::Endpoint::anonymous(o());
+    assert!(ep.propfind_collections(&e.foreign_calendar_homes[0]).is_err());
+}
+
+#[test]
+fn foreign_homes_are_capped() {
+    let hrefs: String = (0..20).map(|i| format!("<d:href>https://h{i}.example.net/c/</d:href>")).collect();
+    let m = ms(&prop("/", &format!("<c:calendar-home-set>{hrefs}</c:calendar-home-set>")));
+    assert!(m.entries[0].foreign_calendar_homes.len() <= 8);
+}
