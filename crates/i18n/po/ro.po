@@ -395,8 +395,9 @@ msgstr "Mai întâi se salvează o copie a întregii cutii poștale lângă ea, 
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "O dată"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -802,13 +803,15 @@ msgstr "Adăugare calendar"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Add Reminder"
-msgstr ""
+msgstr "Adaugă memento"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Add Reminder…"
-msgstr ""
+msgstr "Adaugă memento…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1801,8 +1804,9 @@ msgstr "Cere doar e-mailul, fără calendar și contacte, care pot fi conectate 
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "At a date and time"
-msgstr ""
+msgstr "La o dată și o oră"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2809,8 +2813,9 @@ msgstr "Alegeți o categorie"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "Alege o dată…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4381,8 +4386,9 @@ msgstr "Dată scadentă"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Due Reminders"
-msgstr ""
+msgstr "Mementouri scadente"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5155,8 +5161,9 @@ msgstr "Marcare pentru urmărire"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "Marchează mesajul și amintește-mi:"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5266,8 +5273,9 @@ msgstr "Urmărire"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "De urmărit"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6177,8 +6185,9 @@ msgstr "Dacă nu s-a deschis niciun browser, verificați că acest computer are 
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
-msgstr ""
+msgstr "Dacă până atunci nimeni căruia i s-a trimis mesajul nu a răspuns în conversație, se declanșează un memento și mesajul este marcat."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9022,8 +9031,9 @@ msgstr "Încă nu sunt păstrate chei publice."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Reminder"
-msgstr ""
+msgstr "Fără memento"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9285,8 +9295,9 @@ msgstr "Nu este scadent niciun memento."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "No reply yet"
-msgstr ""
+msgstr "Încă fără răspuns"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9932,8 +9943,9 @@ msgstr "Doar de data aceasta, și trimite-l"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Only if nobody replies"
-msgstr ""
+msgstr "Doar dacă nu răspunde nimeni"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11041,8 +11053,9 @@ msgstr "Ieșire din MailCraft"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Raise Due Reminders"
-msgstr ""
+msgstr "Declanșează mementourile scadente"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11282,13 +11295,15 @@ msgstr "Amintește-mi din nou mai târziu"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remind me if nobody replies"
-msgstr ""
+msgstr "Amintește-mi dacă nu răspunde nimeni"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Remind me if nobody replies by:"
-msgstr ""
+msgstr "Amintește-mi dacă nu răspunde nimeni până la:"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -11404,8 +11419,9 @@ msgstr "Eliminare recurență"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remove Reminder"
-msgstr ""
+msgstr "Elimină mementoul"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -13725,8 +13741,9 @@ msgstr "Amânare"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Snooze Reminder"
-msgstr ""
+msgstr "Amână mementoul"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15875,8 +15892,9 @@ msgstr "Textul nu a fost găsit."
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
-msgstr ""
+msgstr "Ora este păstrată pe acest computer; un marcaj ajunge la serverul contului ca orice marcaj."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -19723,8 +19741,9 @@ msgstr "nimeni altcineva nu este invitat la această programare"
 
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr ""
+msgstr "niciunul dintre aceste mesaje nu are un memento afișat"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20490,8 +20509,9 @@ msgstr "sfârșitul propus nu este după începutul propus"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "the reminder time must be in the future"
-msgstr ""
+msgstr "ora mementoului trebuie să fie în viitor"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs

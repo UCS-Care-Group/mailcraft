@@ -395,8 +395,9 @@ msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opge
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "Een datum"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -802,13 +803,15 @@ msgstr "Agenda toevoegen"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Add Reminder"
-msgstr ""
+msgstr "Herinnering toevoegen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Add Reminder…"
-msgstr ""
+msgstr "Herinnering toevoegen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1800,8 +1803,9 @@ msgstr "Vraagt alleen om e-mail, zonder de agenda en de contactpersonen, die lat
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "At a date and time"
-msgstr ""
+msgstr "Op een datum en tijd"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2807,8 +2811,9 @@ msgstr "Een categorie kiezen"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "Kies een datum…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4378,8 +4383,9 @@ msgstr "Einddatum"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Due Reminders"
-msgstr ""
+msgstr "Verlopen herinneringen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5146,8 +5152,9 @@ msgstr "Markeren voor opvolgen"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "Markeer het bericht en herinner mij:"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5257,8 +5264,9 @@ msgstr "Opvolgen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "Opvolgen"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6161,8 +6169,9 @@ msgstr "Als er geen browser is geopend, controleer of deze computer een standaar
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
-msgstr ""
+msgstr "Als niemand aan wie het bericht is gestuurd dan in het gesprek heeft gereageerd, wordt een herinnering geactiveerd en het bericht gemarkeerd."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9002,8 +9011,9 @@ msgstr "Er worden nog geen openbare sleutels bewaard."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Reminder"
-msgstr ""
+msgstr "Geen herinnering"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9265,8 +9275,9 @@ msgstr "Er zijn geen herinneringen aan de beurt."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "No reply yet"
-msgstr ""
+msgstr "Nog geen antwoord"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9912,8 +9923,9 @@ msgstr "Alleen deze keer, en verzenden"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Only if nobody replies"
-msgstr ""
+msgstr "Alleen als niemand antwoordt"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11021,8 +11033,9 @@ msgstr "Stop MailCraft"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Raise Due Reminders"
-msgstr ""
+msgstr "Verlopen herinneringen activeren"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11261,13 +11274,15 @@ msgstr "Mij later opnieuw herinneren"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remind me if nobody replies"
-msgstr ""
+msgstr "Herinner mij als niemand antwoordt"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Remind me if nobody replies by:"
-msgstr ""
+msgstr "Herinner mij als niemand antwoordt voor:"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -11383,8 +11398,9 @@ msgstr "Terugkeerpatroon verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remove Reminder"
-msgstr ""
+msgstr "Herinnering verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -13700,8 +13716,9 @@ msgstr "Uitstellen"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Snooze Reminder"
-msgstr ""
+msgstr "Herinnering uitstellen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15848,8 +15865,9 @@ msgstr "De tekst is niet gevonden."
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
-msgstr ""
+msgstr "De tijd wordt op deze computer bewaard; een markering gaat zoals elke markering naar de server van het account."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -19684,8 +19702,9 @@ msgstr "er is niemand anders uitgenodigd voor deze afspraak"
 
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr ""
+msgstr "geen van deze berichten toont een herinnering"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20451,8 +20470,9 @@ msgstr "het voorgestelde einde ligt niet na het voorgestelde begin"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "the reminder time must be in the future"
-msgstr ""
+msgstr "de tijd van de herinnering moet in de toekomst liggen"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs

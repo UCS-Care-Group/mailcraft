@@ -395,8 +395,9 @@ msgstr "Primero se guarda junto a él una copia de todo su buzón, como siempre.
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "Una fecha"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -801,13 +802,15 @@ msgstr "Agregar calendario"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Add Reminder"
-msgstr ""
+msgstr "Añadir recordatorio"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Add Reminder…"
-msgstr ""
+msgstr "Añadir recordatorio…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1799,8 +1802,9 @@ msgstr "Solicita solo el correo, sin el calendario ni los contactos, que se pued
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "At a date and time"
-msgstr ""
+msgstr "En una fecha y hora"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2803,8 +2807,9 @@ msgstr "Elija una categoría"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "Elegir una fecha…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4373,8 +4378,9 @@ msgstr "Fecha de vencimiento"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Due Reminders"
-msgstr ""
+msgstr "Recordatorios vencidos"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5142,8 +5148,9 @@ msgstr "Marcar para seguimiento"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "Marcar el mensaje y recordármelo:"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5253,8 +5260,9 @@ msgstr "Seguimiento"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "Seguimiento"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6153,8 +6161,9 @@ msgstr "Si no se abrió ningún navegador, compruebe que este equipo tiene un na
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
-msgstr ""
+msgstr "Si para entonces nadie a quien se envió el mensaje ha respondido en su conversación, se genera un recordatorio y se marca el mensaje."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8993,8 +9002,9 @@ msgstr "Aún no hay claves públicas guardadas."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Reminder"
-msgstr ""
+msgstr "Sin recordatorio"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9256,8 +9266,9 @@ msgstr "No hay avisos pendientes."
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "No reply yet"
-msgstr ""
+msgstr "Aún sin respuesta"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9903,8 +9914,9 @@ msgstr "Solo esta vez, y enviarlo"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Only if nobody replies"
-msgstr ""
+msgstr "Solo si nadie responde"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11011,8 +11023,9 @@ msgstr "Salir de MailCraft"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Raise Due Reminders"
-msgstr ""
+msgstr "Generar recordatorios vencidos"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11250,13 +11263,15 @@ msgstr "Recordármelo más tarde"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remind me if nobody replies"
-msgstr ""
+msgstr "Recordarme si nadie responde"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Remind me if nobody replies by:"
-msgstr ""
+msgstr "Recordarme si nadie responde antes de:"
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -11372,8 +11387,9 @@ msgstr "Quitar periodicidad"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remove Reminder"
-msgstr ""
+msgstr "Quitar recordatorio"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -13682,8 +13698,9 @@ msgstr "Posponer"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Snooze Reminder"
-msgstr ""
+msgstr "Posponer recordatorio"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15829,8 +15846,9 @@ msgstr "No se encontró el texto."
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
-msgstr ""
+msgstr "La hora se guarda en este equipo; una marca se envía al servidor de la cuenta como cualquier otra marca."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -19659,8 +19677,9 @@ msgstr "no hay nadie más invitado a esta cita"
 
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr ""
+msgstr "ninguno de estos mensajes tiene un recordatorio visible"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20426,8 +20445,9 @@ msgstr "el fin propuesto no es posterior al inicio propuesto"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "the reminder time must be in the future"
-msgstr ""
+msgstr "la hora del recordatorio debe estar en el futuro"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs

@@ -395,8 +395,9 @@ msgstr "和往常一样，会先在原位置旁边保存整个邮箱的副本。
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "A date"
-msgstr ""
+msgstr "某个日期"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -802,13 +803,15 @@ msgstr "添加日历"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Add Reminder"
-msgstr ""
+msgstr "添加提醒"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Add Reminder…"
-msgstr ""
+msgstr "添加提醒…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1799,8 +1802,9 @@ msgstr "仅连接邮件，日历和联系人可以稍后连接"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "At a date and time"
-msgstr ""
+msgstr "在指定日期和时间"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2805,8 +2809,9 @@ msgstr "选择一个类别"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Choose a date…"
-msgstr ""
+msgstr "选择日期…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -4375,8 +4380,9 @@ msgstr "截止日期"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Due Reminders"
-msgstr ""
+msgstr "到期提醒"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5139,8 +5145,9 @@ msgstr "标记为待跟进"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Flag the message and remind me:"
-msgstr ""
+msgstr "标记邮件并提醒我："
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
@@ -5250,8 +5257,9 @@ msgstr "跟进"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "Follow up"
-msgstr ""
+msgstr "跟进"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6153,8 +6161,9 @@ msgstr "如果浏览器没有打开，请检查此计算机是否设置了默认
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
-msgstr ""
+msgstr "如果到那时邮件的收件人都没有在会话中回复，将触发提醒并标记该邮件。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8988,8 +8997,9 @@ msgstr "尚未保存公钥。"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "No Reminder"
-msgstr ""
+msgstr "无提醒"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9251,8 +9261,9 @@ msgstr "没有到期提醒。"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
 msgid "No reply yet"
-msgstr ""
+msgstr "尚无回复"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9898,8 +9909,9 @@ msgstr "仅这一次，并发送"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Only if nobody replies"
-msgstr ""
+msgstr "仅当无人回复时"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11005,8 +11017,9 @@ msgstr "退出 MailCraft"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Raise Due Reminders"
-msgstr ""
+msgstr "触发到期提醒"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11246,13 +11259,15 @@ msgstr "稍后再提醒我"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remind me if nobody replies"
-msgstr ""
+msgstr "如果无人回复则提醒我"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "Remind me if nobody replies by:"
-msgstr ""
+msgstr "如果在以下时间前无人回复则提醒我："
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -11368,8 +11383,9 @@ msgstr "取消重复"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Remove Reminder"
-msgstr ""
+msgstr "删除提醒"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -13677,8 +13693,9 @@ msgstr "稍后提醒"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "Snooze Reminder"
-msgstr ""
+msgstr "推迟提醒"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15825,8 +15842,9 @@ msgstr "未找到该文本。"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
 msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
-msgstr ""
+msgstr "时间保存在这台计算机上；标记会像任何标记一样发送到账户的服务器。"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -19652,8 +19670,9 @@ msgstr "没有邀请其他人参加此约会"
 
 #. what a command says
 #: crates/engine/src/cmd/followup.rs
+#, fuzzy
 msgid "none of these messages has a reminder showing"
-msgstr ""
+msgstr "这些邮件都没有显示提醒"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20419,8 +20438,9 @@ msgstr "建议的结束时间必须晚于建议的开始时间"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
+#, fuzzy
 msgid "the reminder time must be in the future"
-msgstr ""
+msgstr "提醒时间必须在将来"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
