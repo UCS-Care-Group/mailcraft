@@ -7,11 +7,12 @@ use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody,
-    Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
+    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
 };
 use serde_json::{Value, json};
 
+use super::followup::FollowUpPlan;
 use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
@@ -78,6 +79,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
             .when_writing(needs_compose),
+        CommandSpec::new("compose.followUp", "Follow Up", "Message › Tags", super::followup::compose_follow_up)
+            .pure()
+            .when_writing(needs_compose)
+            .params(r#"{"days": 1-365 | "at": number | "YYYY-MM-DDTHH:MM", or "clear": true} — remind me if nobody replies: once the message has gone, after that many days (or at that time), if nobody it went to has replied in its conversation by then, a reminder is raised and the message flagged; a reply that arrives first cancels it. Kept on this computer only"#),
         CommandSpec::new("compose.highImportance", "High Importance", "Message › Tags", high_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.lowImportance", "Low Importance", "Message › Tags", low_importance).pure().when_writing(needs_compose),
         CommandSpec::new("compose.send", "Send", "Message", send).key("Mod+Enter / Alt+S").when_writing(needs_compose),
@@ -1015,6 +1020,8 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         quote,
         attachments,
         importance: m.importance,
+        // A reminder kept with a draft is "if nobody replies" for the days it was given as, or the time.
+        follow_up: m.follow_up.filter(|f| f.if_no_reply).map(|f| if f.days > 0 { FollowUpPlan::Days(f.days) } else { FollowUpPlan::At(f.at) }),
         read_receipt: asked_receipt(m),
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
@@ -1232,6 +1239,16 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         read: true,
         importance: c.importance,
         read_receipt: c.read_receipt,
+        follow_up: c.follow_up.map(|plan| {
+            let (at, days) = match plan {
+                FollowUpPlan::Days(d) => (now.saturating_add(i64::from(d).saturating_mul(86_400)), d),
+                FollowUpPlan::At(at) => (at, 0),
+            };
+            FollowUp {
+                days,
+                ..FollowUp::new(at.min(now.saturating_add(MAX_FOLLOW_UP_AHEAD)), true, s.mailbox.messages.keys().next_back().copied().unwrap_or(0))
+            }
+        }),
         message_id,
         ..Default::default()
     })
@@ -1421,7 +1438,7 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
                 continue;
             }
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
-            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, ..m.clone() };
+            let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, follow_up: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
             s.mailbox.apply_rules(cid);
             delivered += 1;

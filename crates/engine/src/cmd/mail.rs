@@ -860,11 +860,16 @@ fn clear_flag(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| {
         m.flag = FlagStatus::None;
         m.flag_due = None;
+        // The reminder goes with the flag (#948).
+        m.follow_up = None;
     })
 }
 
 fn complete(s: &mut Session, v: &Value) -> CmdResult {
-    each(s, v, |m| m.flag = FlagStatus::Complete)
+    each(s, v, |m| {
+        m.flag = FlagStatus::Complete;
+        m.follow_up = None;
+    })
 }
 
 fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -874,6 +879,7 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = if all_flagged { FlagStatus::None } else { FlagStatus::Flagged };
         if all_flagged {
             m.flag_due = None;
+            m.follow_up = None;
         }
     })
 }

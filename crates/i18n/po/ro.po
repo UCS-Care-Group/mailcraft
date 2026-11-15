@@ -152,7 +152,7 @@ msgid "(no recipients)"
 msgstr "(fără destinatari)"
 
 #. interface, what a command says, why a mail server couldn't be used
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(fără subiect)"
@@ -386,6 +386,11 @@ msgstr "Se salvează deja o copie a cutiei poștale pentru o schimbare: aștepta
 #, fuzzy
 msgid "A copy of your whole mailbox is saved next to it first, as always. Mail in the Outbox isn't left behind: it is sent through Microsoft Graph."
 msgstr "Mai întâi se salvează o copie a întregii cutii poștale lângă ea, ca de obicei. Mesajele din Mesaje de trimis nu rămân în urmă: sunt trimise prin Microsoft Graph."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "A date"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -780,6 +785,16 @@ msgstr "Adăugare cont"
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Adăugare calendar"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+msgid "Add Reminder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Add Reminder…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1750,6 +1765,11 @@ msgstr ""
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
 msgstr "Cere doar e-mailul, fără calendar și contacte, care pot fi conectate mai târziu"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "At a date and time"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2743,6 +2763,11 @@ msgid "Choose a category"
 msgstr "Alegeți o categorie"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Choose a date…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Choose a first and a last day, at most a year apart."
@@ -3552,8 +3577,8 @@ msgstr ""
 msgid "Data on this computer"
 msgstr "Date pe acest computer"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs
 #, fuzzy
 msgid "Date"
 msgstr "Dată"
@@ -3957,7 +3982,7 @@ msgid "Dismiss All"
 msgstr "Închidere toate"
 
 #. command label
-#: crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Dismiss Reminder"
 msgstr "Închidere memento"
@@ -4269,6 +4294,11 @@ msgstr "Termen"
 #, fuzzy
 msgid "Due Date"
 msgstr "Dată scadentă"
+
+#. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Due Reminders"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4943,6 +4973,11 @@ msgstr "Marcare mesaj"
 msgid "Flag for follow-up"
 msgstr "Marcare pentru urmărire"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Flag the message and remind me:"
+msgstr ""
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
@@ -5043,11 +5078,16 @@ msgid ""
 "Up"
 msgstr "Urmărire"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
 msgstr "Urmărire"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+msgid "Follow up"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5876,7 +5916,7 @@ msgid "Hold Unsent Mail"
 msgstr "Reținere e-mail netrimis"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Pornire"
@@ -5940,6 +5980,11 @@ msgstr "Dacă MailCraft este încă în modul de testare Google, cereți dezvolt
 #, fuzzy
 msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
 msgstr "Dacă nu s-a deschis niciun browser, verificați că acest computer are un browser implicit (în Windows: Setări, Aplicații, Aplicații implicite), apoi apăsați Deschideți din nou pagina."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8698,6 +8743,11 @@ msgid "No Public keys are kept yet."
 msgstr "Încă nu sunt păstrate chei publice."
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No Reminder"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No Send/Receive is running"
@@ -8931,6 +8981,11 @@ msgstr "Nicio căutare recentă"
 #, fuzzy
 msgid "No reminders are due."
 msgstr "Nu este scadent niciun memento."
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+msgid "No reply yet"
+msgstr ""
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9333,7 +9388,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9532,6 +9587,11 @@ msgstr "De aici se trimite doar o dezabonare prin e-mail: un clic și o pagină 
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "Confirmați doar dacă cunoașteți aceste servere."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Only if nobody replies"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10604,6 +10664,11 @@ msgstr "Acces rapid"
 msgid "Quit MailCraft"
 msgstr "Ieșire din MailCraft"
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Raise Due Reminders"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -10832,6 +10897,16 @@ msgstr "Se reține în setări; Fișier › Opțiuni afișează expeditorii și 
 msgid "Remind me again later"
 msgstr "Amintește-mi din nou mai târziu"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Remind me if nobody replies"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Remind me if nobody replies by:"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -10845,7 +10920,7 @@ msgid "Reminder for new appointments"
 msgstr "Memento pentru programări noi"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Mementouri"
@@ -10942,6 +11017,11 @@ msgstr "Eliminare cheie publică"
 #, fuzzy
 msgid "Remove Recurrence"
 msgstr "Eliminare recurență"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+msgid "Remove Reminder"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -12075,7 +12155,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -13211,6 +13291,11 @@ msgid "Snooze"
 msgstr "Amânare"
 
 #. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Snooze Reminder"
+msgstr ""
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Snooze Reminders"
@@ -13608,7 +13693,7 @@ msgid "Tables"
 msgstr "Tabele"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Etichete"
@@ -15227,6 +15312,11 @@ msgid "The text wasn't found."
 msgstr "Textul nu a fost găsit."
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
@@ -16284,7 +16374,7 @@ msgid "Tighter Spacing"
 msgstr "Spațiere mai strânsă"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs
 #, fuzzy
 msgid "Time"
 msgstr "Oră"
@@ -18906,7 +18996,7 @@ msgid "no message being written has the id {id}"
 msgstr "niciun mesaj în curs de scriere nu are ID-ul {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
@@ -19012,6 +19102,11 @@ msgstr "nu există dosarul {folder}"
 #, fuzzy
 msgid "nobody else is invited to this appointment"
 msgstr "nimeni altcineva nu este invitat la această programare"
+
+#. what a command says
+#: crates/engine/src/cmd/followup.rs
+msgid "none of these messages has a reminder showing"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -19755,6 +19850,11 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "sfârșitul propus nu este după începutul propus"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+msgid "the reminder time must be in the future"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -21371,7 +21471,7 @@ msgstr[1] ""
 msgstr[2] ""
 
 #. date and time, interface
-#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "{n} day"
 msgid_plural "{n} days"

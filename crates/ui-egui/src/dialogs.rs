@@ -41,6 +41,9 @@ pub enum Dialog {
     /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
     /// it was run without one; runs `mail.move` or `mail.copy`.
     MoveItems(crate::move_items::MoveItems),
+    /// Add Reminder on the selected messages, or Follow Up › Choose a date… in the message being
+    /// written (#948); runs `mail.reminder` or `compose.followUp`.
+    AddReminder(crate::reminder_dialog::AddReminder),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -234,6 +237,7 @@ impl Dialog {
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::MoveItems(d) => d.name(),
+            Dialog::AddReminder(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
@@ -305,6 +309,8 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "addReminder" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Messages)?),
+            "followUpDate" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Composing)?),
             "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
@@ -1604,6 +1610,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut outcome = crate::move_items::Outcome::Open;
             let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
             close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
+        }
+        Dialog::AddReminder(d) => {
+            let mut outcome = crate::reminder_dialog::Outcome::Open;
+            let title = if d.target == crate::reminder_dialog::Target::Composing { tl!("Follow Up") } else { tl!("Add Reminder") };
+            let open = window(ctx, title, 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::reminder_dialog::Outcome::Close);
         }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;

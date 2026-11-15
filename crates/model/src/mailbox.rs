@@ -12,6 +12,8 @@ use bulk::Removal;
 
 #[path = "mailbox_bulk.rs"]
 mod bulk;
+#[path = "mailbox_followup.rs"]
+mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
 use crate::sync::{RemoteFlags, same_category};
@@ -21,6 +23,7 @@ use crate::{
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
+pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -2800,7 +2803,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
-            copy.snooze = None;
+            (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
@@ -2824,8 +2827,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
-        // (A copy is not snoozed.)
-        copy.snooze = None;
+        // (A copy is not snoozed, and has no reminder.)
+        (copy.snooze, copy.follow_up) = (None, None);
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
