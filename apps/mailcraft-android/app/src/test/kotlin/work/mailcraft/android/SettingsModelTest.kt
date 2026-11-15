@@ -120,7 +120,8 @@ class SettingsModelTest {
     fun whatThePhoneHoldsIsSaidAgainstItsCap() {
         val use = StorageUse(capMb = 500, usedBytes = 40L * 1024 * 1024, messages = 1, choicesMb = listOf(250, 500))
         assertEquals("40 MB of 500 MB used by 1 message", storageUsedText(EnglishTexts, use))
-        assertEquals("0 B of 500 MB used by 3 messages", storageUsedText(EnglishTexts, use.copy(usedBytes = 0, messages = 3)))
+        val empty = use.copy(usedBytes = 0, messages = 3)
+        assertEquals("0 B of 500 MB used by 3 messages", storageUsedText(EnglishTexts, empty))
     }
 
     @Test

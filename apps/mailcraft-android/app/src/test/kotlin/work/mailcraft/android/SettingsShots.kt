@@ -33,7 +33,7 @@ internal object SettingsShots {
         accounts = listOf(ada, bo),
         folderName = "Inbox",
         folderId = 1uL,
-        mail = InboxState.Loading,
+        mail = ShellShots.listUi(rows = emptyList(), load = LoadState.Loading),
         version = "0.12.0",
         chosenLanguage = "",
         settingsUi = settings,

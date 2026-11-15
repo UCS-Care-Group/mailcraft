@@ -20,6 +20,7 @@ internal data class WindowChange(val code: String, val shorter: Boolean)
 internal data class Thinned(val thinned: Int, val left: Int)
 
 /** What Settings asks of the core and the phone: one seam, so that it runs without the library. */
+@Suppress("TooManyFunctions")
 internal interface SettingsApi {
     /** The windows the engine offers, shortest first. */
     fun codes(): List<String>

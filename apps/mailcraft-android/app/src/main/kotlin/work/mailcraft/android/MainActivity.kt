@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("TooManyFunctions")
+
 package work.mailcraft.android
 
 import android.content.ClipData
@@ -143,6 +145,7 @@ private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun CoreShell(
     opened: Opened,
     version: String,
@@ -176,14 +179,7 @@ private fun CoreShell(
     val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
     val accountsUi by hub.controller.ui.collectAsState()
-    val settingsUi by settings.ui.collectAsState()
-    val context = LocalContext.current
-    val settingsActions = remember(settings, context) {
-        settings.actions(
-            onChannelSettings = { id -> openChannelSettings(context, id) },
-            onOpenLink = { url -> openWebLink(context, url) },
-        )
-    }
+    val (settingsUi, settingsActions) = rememberSettings(settings)
     // The right to notify is asked for once there is an account to bring mail, never at a first start.
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
@@ -225,6 +221,20 @@ private fun CoreShell(
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
+}
+
+/** What the Settings pages draw, and what they do, with the system's own settings and web links. */
+@Composable
+private fun rememberSettings(settings: SettingsController): Pair<SettingsUi, SettingsActions> {
+    val ui by settings.ui.collectAsState()
+    val context = LocalContext.current
+    val actions = remember(settings, context) {
+        settings.actions(
+            onChannelSettings = { id -> openChannelSettings(context, id) },
+            onOpenLink = { url -> openWebLink(context, url) },
+        )
+    }
+    return ui to actions
 }
 
 /**

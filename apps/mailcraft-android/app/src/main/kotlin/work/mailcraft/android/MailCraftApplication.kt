@@ -15,7 +15,12 @@ import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
 /** The Rust core and what the app built on it, once both are ready. */
-internal class Opened(val core: Core, val hub: AccountsHub, val mail: MailListController, val settings: SettingsController)
+internal class Opened(
+    val core: Core,
+    val hub: AccountsHub,
+    val mail: MailListController,
+    val settings: SettingsController,
+)
 
 /** What starting the Rust core has come to: under way, the core, or why there is none. */
 internal typealias Started = Phase<Opened>
@@ -137,7 +142,8 @@ class MailCraftApplication : Application() {
             handback.sink = opened.core::handBackRedirect
             handback.interrupted = opened.hub.controller::signInInterrupted
             events.register(opened.hub::handle)
-            events.register(MailNotifier(applicationContext, opened.core::t) { DeviceSwitches(applicationContext).load().newMailOnly }::handle)
+            val onlyNewMail = { DeviceSwitches(applicationContext).load().newMailOnly }
+            events.register(MailNotifier(applicationContext, opened.core::t, onlyNewMail)::handle)
             // The words of what a background round says (a notification's "New mail") are the
             // window's language even when no window has opened (the owner's saved choice first).
             opened.core.setLanguage(LanguageChoice.inUse(this))

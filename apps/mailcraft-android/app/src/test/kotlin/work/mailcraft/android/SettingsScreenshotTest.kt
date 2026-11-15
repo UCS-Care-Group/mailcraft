@@ -97,7 +97,6 @@ class SettingsScreenshotTest {
 }
 
 // The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
-private const val TOLERANCE = 0.1
 private const val TALL = 5200
 private const val OFFLINE_TALL = 10000
 private const val OFFLINE_TALL_100 = 6500

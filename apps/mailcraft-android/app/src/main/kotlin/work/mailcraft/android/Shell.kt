@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 @file:OptIn(ExperimentalMaterial3Api::class)
+@file:Suppress("TooManyFunctions")
 
 package work.mailcraft.android
 
@@ -350,7 +351,7 @@ private fun MailTab(
 
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, accounts, mail, onSwipe, reading)
+    ShellActions(onFolder, onLanguage, accounts, settings, mail, onSwipe, reading)
 
 @Composable
 private fun TabLabel(text: String) {
