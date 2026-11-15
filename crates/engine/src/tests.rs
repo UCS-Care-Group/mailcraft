@@ -2479,6 +2479,13 @@ fn hostile_params_never_panic() {
         json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
         json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
         json!({"ids": [1], "until": {"deep": [[[]]]}}),
+        // Subscribed calendars (#209): addresses that are none, an outcome that is nonsense.
+        json!({"address": "https://user:pw@cal.example.org/x.ics", "name": "\u{0}", "color": 5}),
+        json!({"address": "webcal://[::1", "intervalMinutes": 1e300}),
+        json!({"address": "http://cal.example.org/".repeat(500), "id": 1}),
+        json!({"calendar": 1, "outcome": {"kind": "changed", "text": "BEGIN:VCALENDAR", "etag": "\r\n", "lastModified": [1]}}),
+        json!({"calendar": 1, "outcome": {"kind": "failed", "failure": "status:99999999999"}}),
+        json!({"calendar": 18446744073709551615u64, "outcome": {"kind": "notModified"}, "all": "yes"}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),

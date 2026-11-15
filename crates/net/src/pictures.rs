@@ -81,8 +81,8 @@ const HEAD_KEPT: usize = 20 * 1024;
 const MAX_INTERRUPTS: u32 = 100;
 /// How long a server that says "not now" is left alone before it is asked the one more time:
 /// what it says itself (`Retry-After`), within these.
-const RETRY_WAIT: Duration = Duration::from_secs(1);
-const MAX_RETRY_WAIT: Duration = Duration::from_secs(3);
+pub(crate) const RETRY_WAIT: Duration = Duration::from_secs(1);
+pub(crate) const MAX_RETRY_WAIT: Duration = Duration::from_secs(3);
 /// Most ways of packing an answer may be packed in, one inside the other.
 const MAX_CODINGS: usize = 2;
 
@@ -167,14 +167,14 @@ const SLICE: Duration = Duration::from_millis(100);
 
 /// How much one picture may cost.
 #[derive(Clone, Copy, Debug)]
-struct Limits {
-    max_bytes: usize,
-    patience: Duration,
-    connect: Duration,
+pub(crate) struct Limits {
+    pub(crate) max_bytes: usize,
+    pub(crate) patience: Duration,
+    pub(crate) connect: Duration,
     /// What one address of a host gets before the next is tried beside it.
-    head_start: Duration,
+    pub(crate) head_start: Duration,
     /// How long a server that says "not now" is left alone, when it doesn't say.
-    retry_wait: Duration,
+    pub(crate) retry_wait: Duration,
 }
 
 impl Default for Limits {
@@ -185,7 +185,7 @@ impl Default for Limits {
 
 /// A way of connecting that stands in for the system's, for the tests.
 #[cfg(test)]
-type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Send + Sync>;
+pub(crate) type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Send + Sync>;
 
 /// Where names lead, and where connections may go.
 ///
@@ -194,17 +194,17 @@ type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Sen
 /// addresses of this machine that stand in for it (`stand_ins` does not exist in any other
 /// build, and nothing at run time, no setting and no variable, can add to it), and they alone
 /// can say how an address answers (`dial`: one that never does, without a network that has one).
-struct Reach<'a> {
+pub(crate) struct Reach<'a> {
     /// The addresses of a host by its name, found in the time given; none when it has none.
-    lookup: &'a dyn Fn(&str, u16, Duration) -> Vec<SocketAddr>,
+    pub(crate) lookup: &'a dyn Fn(&str, u16, Duration) -> Vec<SocketAddr>,
     #[cfg(test)]
-    stand_ins: &'a [SocketAddr],
+    pub(crate) stand_ins: &'a [SocketAddr],
     #[cfg(test)]
-    dial: Option<Dial>,
+    pub(crate) dial: Option<Dial>,
 }
 
 impl Reach<'static> {
-    fn web() -> Reach<'static> {
+    pub(crate) fn web() -> Reach<'static> {
         Reach {
             lookup: &system_lookup,
             #[cfg(test)]
@@ -310,7 +310,7 @@ fn unreachable_host(host: &str, reason: &str) -> PictureError {
 }
 
 /// What an error of reading an answer comes to here.
-fn reading(error: NetError) -> PictureError {
+pub(crate) fn reading(error: NetError) -> PictureError {
     if http::is_too_long(&error) {
         PictureError::TooLarge
     } else if http::is_too_slow(&error) {
@@ -345,7 +345,7 @@ fn escaped(rest: &str) -> String {
 
 /// Read `text` as the address of a picture: `http://` or `https://`, a host, a port perhaps, a
 /// path. What follows a `#` is dropped (it is never sent).
-fn address(text: &str) -> Result<Url, PictureError> {
+pub(crate) fn address(text: &str) -> Result<Url, PictureError> {
     let text = text.trim().split('#').next().unwrap_or("");
     // (Longer than this it is no address, whatever is in it; and nothing longer is rewritten.)
     if text.len() > http::MAX_LONG_URL {
@@ -396,7 +396,7 @@ fn authority(url: &Url) -> String {
 }
 
 /// The address a redirect leads to: a whole one, or one written from where `from` is.
-fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
+pub(crate) fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
     let location = location.trim();
     if location.is_empty() || location.len() > http::MAX_LONG_URL {
         return Err(PictureError::Address);
@@ -424,14 +424,19 @@ fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
 
 /// What the headers of an answer say that matters here.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Said {
+pub(crate) struct Said {
     /// Where a redirect says it leads (`Location`).
-    location: Option<String>,
+    pub(crate) location: Option<String>,
     /// How the body is packed (`Content-Encoding`), in lower case; all of them when it says so
     /// more than once, in the order they were applied.
-    coding: Option<String>,
+    pub(crate) coding: Option<String>,
     /// How many seconds the server asks to be left alone for (`Retry-After`, when it is a number).
-    retry_after: Option<u64>,
+    pub(crate) retry_after: Option<u64>,
+    /// The server's marks of what it sent (`ETag`, `Last-Modified`): the first of each.
+    pub(crate) etag: Option<String>,
+    pub(crate) last_modified: Option<String>,
+    /// The character set `Content-Type` names (`charset=`), as written.
+    pub(crate) charset: Option<String>,
 }
 
 /// The headers of the answer that `head` begins with.
@@ -464,6 +469,16 @@ fn said(head: &[u8]) -> Said {
                 });
             } else if name.eq_ignore_ascii_case("retry-after") {
                 said.retry_after = value.parse::<u64>().ok().or(said.retry_after);
+            } else if name.eq_ignore_ascii_case("content-type") {
+                let named =
+                    value.split(';').skip(1).filter_map(|part| part.split_once('=')).find(|(key, _)| key.trim().eq_ignore_ascii_case("charset"));
+                if let Some((_, label)) = named {
+                    said.charset.get_or_insert_with(|| label.trim().trim_matches('"').chars().take(40).collect());
+                }
+            } else if name.eq_ignore_ascii_case("etag") {
+                said.etag.get_or_insert_with(|| value.to_string());
+            } else if name.eq_ignore_ascii_case("last-modified") {
+                said.last_modified.get_or_insert_with(|| value.to_string());
             }
         }
         if !(100..200).contains(&status) {
@@ -475,7 +490,7 @@ fn said(head: &[u8]) -> Said {
 
 /// A body as it was before it was packed: `coding` is what its `Content-Encoding` says. No more
 /// than `max` bytes come out, however little went in.
-fn unpack(body: Vec<u8>, coding: &str, max: usize) -> Result<Vec<u8>, PictureError> {
+pub(crate) fn unpack(body: Vec<u8>, coding: &str, max: usize) -> Result<Vec<u8>, PictureError> {
     // Applied in the order they are written, so undone from the last.
     let codings: Vec<&str> = coding.split(',').map(str::trim).filter(|c| !c.is_empty() && *c != "identity").collect();
     if codings.len() > MAX_CODINGS {
@@ -806,12 +821,23 @@ impl<R: Read> Read for Kept<'_, R> {
 }
 
 /// What one address answered.
-struct Answer {
-    status: u16,
+pub(crate) struct Answer {
+    pub(crate) status: u16,
     /// As it came, packed or not.
-    body: Vec<u8>,
-    said: Said,
+    pub(crate) body: Vec<u8>,
+    pub(crate) said: Said,
 }
+
+/// What a GET says besides where it goes and who is asking (nothing).
+#[derive(Clone, Copy)]
+pub(crate) struct Sent<'a> {
+    /// The kinds of answer asked for (`Accept`).
+    pub(crate) accept: &'a str,
+    /// More header lines, each ending in CRLF: made by the caller from values it has checked.
+    pub(crate) extra: &'a str,
+}
+
+const PICTURE: Sent<'static> = Sent { accept: ACCEPT, extra: "" };
 
 /// One GET, on a connection of its own, to an address that was checked first; a POST of `form`
 /// (`application/x-www-form-urlencoded`) instead when there is one.
@@ -822,6 +848,21 @@ fn ask(
     max_bytes: usize,
     deadline: Instant,
     form: Option<&str>,
+    cancel: &Cancel,
+) -> Result<Answer, PictureError> {
+    ask_with(url, reach, limits, max_bytes, deadline, form, &PICTURE, cancel)
+}
+
+/// [`ask`], saying what is asked for besides.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn ask_with(
+    url: &Url,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    max_bytes: usize,
+    deadline: Instant,
+    form: Option<&str>,
+    sent: &Sent<'_>,
     cancel: &Cancel,
 ) -> Result<Answer, PictureError> {
     if cancel.is_cancelled() {
@@ -843,9 +884,11 @@ fn ask(
     // all that is ever said: what to send, to whom, how, and that nothing more will be asked.
     let request = match form {
         None => format!(
-            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {ACCEPT}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nConnection: close\r\n\r\n",
+            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\n{}Connection: close\r\n\r\n",
             url.path,
-            authority(url)
+            authority(url),
+            sent.accept,
+            sent.extra
         ),
         Some(form) => format!(
             "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: */*\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{form}",
@@ -1899,7 +1942,7 @@ mod tests {
         let all = |text: &str| said(text.as_bytes());
         assert_eq!(
             all("HTTP/1.1 503 Busy\r\nRetry-After: 2\r\ncontent-encoding: GZip\r\nLocation: /x\r\n\r\nRetry-After: 9\r\n"),
-            Said { location: Some("/x".into()), coding: Some("gzip".into()), retry_after: Some(2) }
+            Said { location: Some("/x".into()), coding: Some("gzip".into()), retry_after: Some(2), ..Default::default() }
         );
         assert_eq!(
             all("HTTP/1.1 200 OK\r\nContent-Encoding: deflate\r\nContent-Encoding: gzip , br\r\n\r\n").coding.as_deref(),
