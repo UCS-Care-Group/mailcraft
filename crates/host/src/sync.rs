@@ -88,11 +88,22 @@ pub struct SendReceive {
     runner: Runner,
     /// Names of the credential-store entries written, not yet reported.
     written: Vec<String>,
+    /// Only accounts kept in step through Graph, not shared, are started (a front end that can't
+    /// run the others). Off by default: every account with a server is a candidate.
+    graph_only: bool,
 }
 
 impl Default for SendReceive {
     fn default() -> Self {
-        SendReceive { tokens: HashMap::new(), cancel: Arc::default(), running: None, opening: None, runner: real_runner(), written: Vec::new() }
+        SendReceive {
+            tokens: HashMap::new(),
+            cancel: Arc::default(),
+            running: None,
+            opening: None,
+            runner: real_runner(),
+            written: Vec::new(),
+            graph_only: false,
+        }
     }
 }
 
@@ -191,6 +202,24 @@ impl SendReceive {
         SendReceive { runner: Arc::new(runner), ..Self::default() }
     }
 
+    /// Start only non-shared Microsoft (Graph) accounts, in rounds the clock starts as in those
+    /// the owner asks for. The desktop leaves this off.
+    #[must_use]
+    pub fn graph_only(mut self) -> Self {
+        self.graph_only = true;
+        self
+    }
+
+    /// Whether a round may include `account` (always, unless [`graph_only`](Self::graph_only)).
+    pub fn eligible(&self, session: &Session, account: Id) -> bool {
+        !self.graph_only || session.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// The accounts with a server that a round may include.
+    fn round_accounts(&self, session: &Session) -> Vec<Id> {
+        mailcraft_engine::sync_driver::server_accounts(session).into_iter().filter(|a| self.eligible(session, *a)).collect()
+    }
+
     /// Whether a run is under way.
     pub fn busy(&self) -> bool {
         self.running.is_some()
@@ -263,6 +292,20 @@ impl SendReceive {
         Adopted::Kept
     }
 
+    /// Take in a refresh token Microsoft rotated this session's to in the answer to a check of a
+    /// permission ([`crate::signin::permission_standing`]): it replaces the session's only while
+    /// that is still the one the check began with, so that a sign-in made, or forgotten, meanwhile
+    /// is never written over by an older answer. Nothing is written to the credential store here.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn take_renewed(&mut self, session: &Session, account: Id, renewed: &crate::signin::Renewed) {
+        self.follow_opening(session);
+        if let Some(kept) = self.tokens.get_mut(&account)
+            && kept.refresh == renewed.from
+        {
+            kept.refresh.clone_from(&renewed.token);
+        }
+    }
+
     /// Start a round for `accounts` now, the owner having asked for it. Refused (false) while
     /// Work Offline is on or the mailbox is unconfirmed or its data removed.
     pub fn start_round(&mut self, session: &mut Session, ctx: &Context, accounts: &[Id]) -> bool {
@@ -289,7 +332,8 @@ impl SendReceive {
         if session.driver.round.queue.is_empty() {
             // Something made here waits to go: it doesn't wait for the next round.
             if session.driver.round.push_look_due(auto, ctx.now_ms) {
-                let waiting: Vec<Waiting> = mailcraft_engine::sync_driver::server_accounts(session)
+                let waiting: Vec<Waiting> = self
+                    .round_accounts(session)
                     .into_iter()
                     .map(|account| Waiting { account, count: mailcraft_engine::sync_driver::waiting_to_go(session, account) })
                     .collect();
@@ -303,7 +347,7 @@ impl SendReceive {
             if !session.driver.round.round_due(auto, ctx.minutes, ctx.now_ms) {
                 return Step::Idle;
             }
-            let round = mailcraft_engine::sync_driver::server_accounts(session);
+            let round = self.round_accounts(session);
             session.driver.round.begin_auto_round(&round, ctx.now_ms);
             if round.is_empty() {
                 return Step::Idle;
@@ -327,8 +371,10 @@ impl SendReceive {
         a.kind == AccountKind::Microsoft && !a.is_shared() && self.refresh_for(session, ctx, account).is_some()
     }
 
-    /// The account's refresh token: this session's, else the credential store's.
-    pub(crate) fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
+    /// The account's refresh token: this session's, else the credential store's (only when the
+    /// owner lets sign-ins be remembered). Nothing while the mailbox is unconfirmed or its data
+    /// removed.
+    pub fn refresh_for(&self, session: &Session, ctx: &Context, account: Id) -> Option<String> {
         if ctx.held() {
             return None;
         }

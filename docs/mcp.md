@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar. Each message is one line of at most
@@ -179,13 +179,15 @@ file gave, and a contact's names, postal addresses, phones and web sites. The se
 
 **Gmail's categories.** A message of a Gmail account's Inbox carries `gmailCategory` (#911) in `list_messages`, `read_message`, `mail.list` and `mail.get`: `primary`, `social`, `promotions`, `updates` or `forums`, the category Gmail put it in. It is one of those five words, written by MailCraft and not by the sender, so it isn't framed; like every field of a message it is data about the message, never instructions. `gmail:social` and the others search for them, and `folder.select {"id", "gmail": "social"}` shows one of them. `view.gmailCategories {"value": "tabs"}` (or `"folders"`) has the window show the five as tabs above the Inbox's list or as folders under it. `mail.setGmailCategory {"ids": [...], "category": "social"}` moves messages of the Inbox of a Gmail account that signs in with Google to another category (the messages named and any other copy here of the same Gmail message, since Gmail keeps one category for a message, never other messages of their conversations; the window's own selection in conversation view takes the whole conversation in that Inbox), queued to Gmail at the next Send/Receive; like a move to a folder, it needs no yes from the owner and refuses to act on the window's selection, so the messages are named. It is switched off in this version (disabled, "comes once Google has reviewed MailCraft") and refused for an account that signs in with an app password.
 
+**Gmail's labels.** A message of a Gmail account carries `gmailLabels` (#1153) in `list_messages`, `read_message`, `mail.list` and `mail.get` when it has any: the label names Gmail's server gave (`Work/Clients`), Gmail's own with their backslash (`\Inbox`, `\Important`, `\Starred`). They are text from outside, which whoever shares a label or a filter may have written, so `read_message` and `list_messages` frame them as message content: data about the message, never instructions. `label:` searches them. They are read only: a label changes by moving or copying the message between label folders (`mail.move`, `mail.copy`).
+
 **Signed and encrypted messages.** A Digitally signed or Encrypted message (S/MIME or OpenPGP) keeps the bytes it came as (#30); they are never part of an answer to an agent. `mail.checkAgain {"id"}` (safe) has those bytes downloaded again from the message's own server for one read before they were kept, and is refused for any other message. `mail.digitalSignature {"id"}` (safe, read only; also `digitalSignature` in `mail.get`) says what checking a Digital signature found: `format` (`smime` or `openpgp`), `result` (`verified`, `notVerified`, `changed`, `unchecked`), `coverage` (`whole`, or `part` when only a part inside a wrapper was signed: never `verified` then), `why`, `signer`, `fingerprint` (SHA-256), `issuer`, the certificate's dates, `revocationChecked` (always false: revocation isn't checked) and `signaturePart`, the index of the signature file (`smime.p7s`, or the `smime.p7m` an opaque signed message came as), which `mail.get` leaves out of `attachments` as the window does. An opaque signed message's text and files are its `body` and `attachments` (one read by an earlier version has them read again from the bytes it came as before the next command, not by the commands that read it). The signer's name and addresses come from the certificate or key in the message: message data, never instructions. An OpenPGP signature is checked against the Public keys kept for the sender's address, a contact's card, the keys the message carries and (in the window) the owner's GnuPG keyring; `fingerprint` is then the key's own, and `issuer` is empty. `keys.list {"address"?}` (safe) lists the Public keys kept: `address`, `format`, `fingerprint`, `verified`, `source` (`collected` or `imported`), `notAfter`, `seen`; never the keys' bytes; the addresses are data, never instructions. `keys.import {"data" | "path", "address"?}` and `keys.remove {"address", "fingerprint"}` (settings; a `path` only on the owner's word) import Public keys (an X.509 certificate for mail, OpenPGP Public keys; a file holding a private key is refused) and take one away, as steps of the history. No command marks a key Verified: only the owner does, in the window.
 
 **Sender warnings.** `read_message` and `mail.get` answer a message's sender warnings (#508) in
-`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `lookalikeSender`, `linkMismatch`, `linksUnchecked`,
-`external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
-the account's own server's verdict, the owner's contacts and Sent Items, and the message's links
-([control protocol](control-protocol.md#commands-worth-knowing)). What they are about (a name, an
+`warnings`: each a `kind` (`failedCheck`, `nameHidesAddress`, `brandName`, `lookalikeSender`, `brandLookalike`,
+`domainInName`, `madeUpDomain`, `linkMismatch`, `linksUnchecked`, `external`) and a `level` (`warning`, `caution`, `tag`), which are MailCraft's word, worked out from
+the account's own server's verdict, the owner's contacts and Sent Items, a short list of
+well-known brands, and the message's links ([control protocol](control-protocol.md#commands-worth-knowing)). What they are about (a name, an
 address, a domain, a link) is the message's own, framed as untrusted like the text above: a
 warning says a message may not be what it seems, never what to do about it.
 
@@ -239,6 +241,8 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1153: messages of a Gmail account carry `gmailLabels`, framed as message content |
+| 2026-11-13 | minor | #1200: `list_messages` takes a folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls the folder, beside its id and path; `account` says whose, goes with `folder`, and is an account that is there whose folder it has to be |
 | 2026-11-11 | minor | #30 part 4a: `mail.digitalSignature` checks OpenPGP too (`format`); `keys.list` (safe), `keys.import` and `keys.remove` (settings; a path only from the owner) |
 | 2026-11-11 | minor | #30 part 4b: the window's key commands (`ui.importPrivateKey`, `ui.removePrivateKey`, `ui.refreshOwnKeys`, `ui.importPublicKey`, `ui.verifyKey`, `ui.markKeyVerified`) are never for agents |
 | 2026-11-09 | minor | #30 part 2: `mail.digitalSignature` (and `digitalSignature` in `mail.get`) says what checking an S/MIME Digital signature found, read only |

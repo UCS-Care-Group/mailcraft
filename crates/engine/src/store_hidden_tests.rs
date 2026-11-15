@@ -31,7 +31,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
     save(&path, &mb).unwrap();
     clear_cache();
     // The record the mailbox file keeps has none of it, and names the content file.
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(!String::from_utf8_lossy(&record.json).contains(NEEDLE));
     assert_eq!(record.parts.hidden.map(|p| p.r.len), Some(long_hidden().len() as u64));
     assert!(blob_file(&path, long_hidden().as_bytes()).is_file());
@@ -82,7 +82,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
 #[test]
 fn a_short_hidden_text_stays_in_the_record_and_old_files_load() {
     let (mb, id) = with_hidden("a short preheader");
-    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new(), None).unwrap();
     assert!(record.parts.hidden.is_none() && String::from_utf8_lossy(&record.json).contains("a short preheader"));
     let tmp = Temp::new("hidden-inline");
     let path = tmp.file();
