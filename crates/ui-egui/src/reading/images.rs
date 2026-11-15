@@ -139,13 +139,21 @@ fn reader<'a>(data: &'a [u8], kinds: &[image::ImageFormat]) -> Option<image::Ima
 }
 
 /// A picture's size in pixels, from its header alone (a drawing's, from the drawing read and
-/// weighed: [`svg::probe`]). `None` for bytes that are not a picture that is decoded here, and
-/// for one over the caps.
+/// weighed: [`svg::probe`], which can take long on a hostile one: where the window's thread is
+/// the caller, [`Pictures`] reads a drawing apart instead). `None` for bytes that are not a
+/// picture that is decoded here, and for one over the caps.
 pub fn probe(data: &[u8]) -> Option<[u32; 2]> {
     if svg::is_svg(data) {
         return svg::probe(data).map(|drawing| drawing.size);
     }
     probe_as(data, KINDS)
+}
+
+/// Whether bytes that came from the web may be a picture, as the window can tell without reading
+/// a drawing (that is done on a thread of its own, [`Pictures`]): a raster picture is probed, a
+/// drawing is one by how it begins and within [`svg::MAX_SVG_BYTES`].
+pub fn seems_a_picture(data: &[u8]) -> bool {
+    if svg::is_svg(data) { data.len() <= svg::MAX_SVG_BYTES } else { probe_as(data, KINDS).is_some() }
 }
 
 /// [`probe`], for a sender's picture: a web site's icon (ICO) too.
@@ -202,6 +210,9 @@ struct Entry {
     size: Option<[u32; 2]>,
     /// What it is as a drawing, when it is an SVG one: it is drawn at the size it is shown.
     drawing: Option<svg::Drawing>,
+    /// An SVG drawing that is not read yet (its read is done on a thread of its own, never on the
+    /// window's): it has no size until it is.
+    unread: bool,
     texture: Option<egui::TextureHandle>,
     /// It was tried and could not be decoded.
     failed: bool,
@@ -302,24 +313,32 @@ pub struct Pictures {
     decoded_in: Option<u64>,
     /// The time (egui's, in seconds) at which a texture was last asked for.
     asked_at: Option<f64>,
-    /// How many pictures have been decoded.
+    /// How many pictures have been decoded, or drawings read.
     #[cfg(test)]
     decodes: usize,
     /// Pictures from the web, by their address as the message wrote it.
     remote: HashMap<Arc<str>, RemoteEntry>,
-    /// The SVG drawing being drawn on a thread of its own, if any: one at a time, never on the
-    /// window's thread.
+    /// The SVG drawing being read or drawn on a thread of its own, if any: one at a time, never
+    /// on the window's thread.
     drawing: Option<Drawn>,
     /// The thread of a drawing given up on after [`DRAWING_PATIENCE`] that has not finished yet:
     /// no other drawing is begun until it has, so drawings that take long never run side by side.
-    given_up: Option<std::sync::mpsc::Receiver<Option<egui::ColorImage>>>,
+    given_up: Option<std::sync::mpsc::Receiver<Done>>,
+    /// How many drawings have been read (so that a layout that waited for one is made again).
+    reads: u64,
 }
 
-/// A drawing being drawn apart: whose bytes, and where its picture (or `None`, it can't be
-/// drawn) comes.
+/// What the thread of a drawing brings: the drawing as read (`None`, it is not one that is
+/// shown), or its picture (`None`, it can't be drawn).
+pub(crate) enum Done {
+    Read(Option<svg::Drawing>),
+    Drawn(Option<egui::ColorImage>),
+}
+
+/// A drawing being read or drawn apart: whose bytes, and where what it comes to comes.
 struct Drawn {
     data: Arc<Vec<u8>>,
-    answer: std::sync::mpsc::Receiver<Option<egui::ColorImage>>,
+    answer: std::sync::mpsc::Receiver<Done>,
     /// When it was begun (egui's time, in seconds).
     since: f64,
 }
@@ -349,13 +368,11 @@ impl Pictures {
                 }
                 None => {
                     self.forget_unheld();
-                    let (size, drawing) = if svg::is_svg(data) {
-                        let drawing = svg::probe(data);
-                        (drawing.map(|d| d.size), drawing)
-                    } else {
-                        (probe(data), None)
-                    };
-                    self.entries.push(Entry { data: data.clone(), size, drawing, texture: None, failed: false, used: frame });
+                    // A drawing is read apart (`Pictures::begin_read`); what is decoded here is a raster
+                    // picture's header.
+                    let unread = svg::is_svg(data);
+                    let size = if unread { None } else { probe(data) };
+                    self.entries.push(Entry { data: data.clone(), size, drawing: None, unread, texture: None, failed: false, used: frame });
                     self.entries.len() - 1
                 }
             },
@@ -370,6 +387,18 @@ impl Pictures {
         let size = self.entry(data, frame).and_then(|e| e.size);
         self.trim(frame);
         size
+    }
+
+    /// Whether an attachment is an SVG drawing that is still being read, on a thread of its own: it
+    /// has no size yet, and is no broken picture.
+    pub fn is_reading(&mut self, data: &Arc<Vec<u8>>, frame: u64) -> bool {
+        self.entry(data, frame).is_some_and(|e| e.unread)
+    }
+
+    /// How many drawings have been read: a layout that had to do without one is made again when
+    /// it grows.
+    pub fn reads(&self) -> u64 {
+        self.reads
     }
 
     /// What became of the picture at `url`, when it was asked for; a message on screen is asking.
@@ -440,11 +469,19 @@ impl Pictures {
         if self.entry(data, frame).is_none() {
             return Picture::Failed;
         }
+        // A drawing just met is begun to be read.
+        self.begin_read(ctx);
         let Some(index) = self.entries.iter().position(|e| Arc::ptr_eq(&e.data, data)) else { return Picture::Failed };
-        let (size, drawing, failed, have) = match self.entries.get(index) {
-            Some(e) => (e.size, e.drawing, e.failed, e.texture.clone()),
+        let (size, drawing, failed, have, unread) = match self.entries.get(index) {
+            Some(e) => (e.size, e.drawing, e.failed, e.texture.clone(), e.unread),
             None => return Picture::Failed,
         };
+        if unread {
+            // A drawing being read apart (it was let go and is wanted again): looked at again in a
+            // while, whether it has come or not.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            return have.map_or(Picture::Pending, Picture::Ready);
+        }
         let ready = |have: Option<egui::TextureHandle>| have.map_or(Picture::Failed, Picture::Ready);
         let Some(size) = size.filter(|_| !failed) else { return ready(have) };
         let max_side = u32::try_from(ctx.input(|i| i.max_texture_side)).unwrap_or(MAX_TEXTURE_SIDE);
@@ -500,11 +537,11 @@ impl Pictures {
         picture
     }
 
-    /// Draw the SVG drawing of entry `index` on a thread of its own, unless one is being drawn
-    /// already (this one or another: one at a time); meanwhile the picture is what it has, or
-    /// pending. A drawing is never drawn on the window's thread, so one that takes long holds up
-    /// the other drawings, never the window. Where there are no threads (the browser) it can't be
-    /// drawn.
+    /// Draw the SVG drawing of entry `index` on a thread of its own, unless one is being read or
+    /// drawn already (this one or another: one at a time); meanwhile the picture is what it has, or
+    /// pending. A drawing is never read or drawn on the window's thread, so one that takes long
+    /// holds up the other drawings, never the window. Where there are no threads (the browser) it
+    /// can't be drawn.
     fn draw_apart(&mut self, ctx: &egui::Context, index: usize, max_side: u32, wanted: u32, have: Option<egui::TextureHandle>) -> Picture {
         let waiting = have.map_or(Picture::Pending, Picture::Ready);
         if self.drawing.is_some() || self.given_up.is_some() {
@@ -517,7 +554,7 @@ impl Pictures {
         let (bytes, repaint) = (entry.data.clone(), ctx.clone());
         let drawn = std::thread::Builder::new().name("mailcraft-svg".into()).stack_size(8 * 1024 * 1024).spawn(move || {
             // The window may be gone, and nobody waiting: nothing to do about it.
-            let _ = sender.send(svg::decode(&bytes, max_side, wanted));
+            let _ = sender.send(Done::Drawn(svg::decode(&bytes, max_side, wanted)));
             repaint.request_repaint();
         });
         if drawn.is_err() {
@@ -533,11 +570,43 @@ impl Pictures {
         waiting
     }
 
-    /// Take in the drawing drawn apart, once it is: its texture for its entry (still there by
-    /// those bytes, or the same bytes anew), or that it can't be drawn; and give it up as one that
-    /// can't once it has taken [`DRAWING_PATIENCE`].
+    /// Take in the drawing read or drawn apart, once it is: what it is, or its texture, for its
+    /// entry (still there by those bytes, or the same bytes anew), or that it can't be shown; give
+    /// it up as one that can't once it has taken [`DRAWING_PATIENCE`]; and begin reading the next
+    /// drawing that is not read yet.
     fn settle(&mut self, ctx: &egui::Context) {
         self.settle_at(ctx, ctx.input(|i| i.time));
+        self.begin_read(ctx);
+    }
+
+    /// Begin reading the first drawing that is not read yet, on a thread of its own, unless one is
+    /// being read or drawn already. The read (the XML, usvg's tree and the stroking it does for
+    /// bounds) is the part that can take long on a hostile drawing, so it is never done on the
+    /// window's thread.
+    fn begin_read(&mut self, ctx: &egui::Context) {
+        if self.drawing.is_some() || self.given_up.is_some() {
+            return;
+        }
+        let Some(entry) = self.entries.iter_mut().find(|e| e.unread) else { return };
+        let (sender, answer) = std::sync::mpsc::channel();
+        let (bytes, repaint) = (entry.data.clone(), ctx.clone());
+        let read = std::thread::Builder::new().name("mailcraft-svg".into()).stack_size(8 * 1024 * 1024).spawn(move || {
+            // The window may be gone, and nobody waiting: nothing to do about it.
+            let _ = sender.send(Done::Read(svg::probe(&bytes)));
+            repaint.request_repaint();
+        });
+        if read.is_err() {
+            // No threads (or no more of them): it can't be read.
+            entry.unread = false;
+            entry.failed = true;
+            self.reads += 1;
+            return;
+        }
+        self.drawing = Some(Drawn { data: entry.data.clone(), answer, since: ctx.input(|i| i.time) });
+        #[cfg(test)]
+        {
+            self.decodes += 1;
+        }
     }
 
     /// [`Pictures::settle`] at the time `now` (egui's, in seconds).
@@ -548,8 +617,8 @@ impl Pictures {
             self.given_up = None;
         }
         let Some(drawn) = self.drawing.take() else { return };
-        let image = match drawn.answer.try_recv() {
-            Ok(image) => image,
+        let done = match drawn.answer.try_recv() {
+            Ok(done) => Some(done),
             Err(std::sync::mpsc::TryRecvError::Empty) if now - drawn.since <= DRAWING_PATIENCE => {
                 self.drawing = Some(drawn);
                 return;
@@ -567,9 +636,21 @@ impl Pictures {
             None => self.entries.iter_mut().find(|e| e.data.len() == data.len() && e.data == data),
         };
         let Some(entry) = entry else { return };
-        match image {
-            Some(image) => entry.texture = Some(ctx.load_texture("mailcraft-inline-picture", image, egui::TextureOptions::LINEAR)),
-            None => {
+        match done {
+            Some(Done::Read(read)) => {
+                // What it is, or that it is not shown.
+                entry.unread = false;
+                entry.size = read.map(|d| d.size);
+                entry.drawing = read;
+                entry.failed = read.is_none();
+                self.reads += 1;
+            }
+            Some(Done::Drawn(Some(image))) => entry.texture = Some(ctx.load_texture("mailcraft-inline-picture", image, egui::TextureOptions::LINEAR)),
+            // It can't be drawn, or its thread took too long or is gone (a drawing not read by
+            // then is not shown either).
+            Some(Done::Drawn(None)) | None => {
+                self.reads += u64::from(entry.unread);
+                entry.unread = false;
                 entry.failed = true;
                 entry.texture = None;
             }
@@ -641,7 +722,7 @@ impl Pictures {
     /// The drawing being drawn apart is answered through the sender this returns, as its thread
     /// would answer, and not by its thread.
     #[cfg(test)]
-    pub fn hold_drawing(&mut self) -> Option<std::sync::mpsc::Sender<Option<egui::ColorImage>>> {
+    pub fn hold_drawing(&mut self) -> Option<std::sync::mpsc::Sender<Done>> {
         let drawn = self.drawing.as_mut()?;
         let (sender, answer) = std::sync::mpsc::channel();
         drawn.answer = answer;

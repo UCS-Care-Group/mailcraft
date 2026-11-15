@@ -46,6 +46,8 @@ pub(crate) mod svg;
 #[cfg(test)]
 mod svg_tests;
 #[cfg(test)]
+mod svg_wide_stroke_tests;
+#[cfg(test)]
 mod tests;
 mod view;
 mod warnings;

@@ -237,6 +237,9 @@ struct Key {
     /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
+    /// How many SVG drawings had been read when it was made: they are read on a thread of
+    /// their own, and a drawing that is not read has no size to lay out.
+    drawings: u64,
 }
 
 struct Entry {
@@ -501,10 +504,11 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
             super::fonts::tick(&ctx);
             super::fonts::generation(&ctx)
         },
+        drawings: pictures.reads(),
     };
     if entry.key == Some(key) {
         entry.next = None;
-    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, ..old } == key) {
+    } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, drawings: key.drawings, ..old } == key) {
         // Only the pictures or the message's fonts changed: what is shown stays until the new
         // layout is whole.
         if entry.next.as_ref().is_none_or(|(next, _)| *next != key) {

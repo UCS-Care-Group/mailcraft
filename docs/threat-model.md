@@ -56,15 +56,36 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   memory, only a part that is a picture is taken to be one it shows.
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
-  WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
-  checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
-  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  WebP by its declared type and its own bytes, or a plain SVG drawing (below, #565); never HTML or
+  text. They are decoded within caps checked before decoding (10 MB a picture, 32 pictures and
+  40 MB a message), anything else a placeholder; a `data:` address is never a link nor a
+  background (`crates/html/src/data.rs`).
   Under a reply or forward, each one the reading pane would show goes as a part of its own beside
   the HTML, which refers to it by a Content-ID naming nothing of the owner (#602,
   `mailcraft_html::quotable_with_pictures`); one refused, hidden or past the caps is left out, and
   a `data:` address is never sent on. Pictures on the web only on the owner's say-so, and only
   `<img>` addresses (no backgrounds, style sheets, fonts or frames, nothing 2 px or smaller), so a
   tracking pixel doesn't fire.
+- **An SVG picture is a stranger's program for a renderer that was not made for strangers, so
+  only the plainest drawings are shown** (#565, `crates/ui-egui/src/reading/svg.rs`; fuzzed by the
+  `svg` target). An `<img>` of one (attached by `cid:`, written into the message, or on the web
+  once the owner asked) is read with `resvg` built with none of its features: no text, so no font
+  is looked for, and the resolvers that would load another drawing, a picture or a file answer
+  nothing, so nothing a drawing names is fetched or read. An `<svg>` element in the message is
+  never drawn. Before anything reads it: at most 256 KB of UTF-8 (`svgz` is not unpacked), 40
+  levels deep (counted with no stack, ahead of the XML reader, which recurses), 20,000 nodes, no
+  entity or internal subset, an `<svg>` root in SVG's namespace. Then an allowlist: the shapes,
+  groups and gradients, their geometry and paint (a `style` of those properties alone, `opacity` on a
+  shape alone); no `<use>`, style sheet (of any namespace), `href`, clip, mask, marker, pattern,
+  filter, dash, blend mode, text or picture, and at most 5,000 shapes. A stroke is weighed
+  twice, as the text says it will be (the lines of the paths, round joins and caps most, and
+  its width against the drawing's size: usvg strokes every path as it builds its tree, to find
+  its bounds, and a stroke far wider than its curve makes that very slow) and again in the tree
+  usvg made (no clip, mask, filter or layer in a layer; at most 2,000,000 weighted lines). A
+  drawing is read and drawn only on a thread of its own, one at a time, never on the window's; one
+  that takes longer than 10 seconds is a broken picture and holds the next back until it ends. It
+  is drawn at the size it is shown, with fewer pixels the more shapes, layers and lines it has.
+  The browser build, which has no threads, shows none. A panic in the renderer is a broken picture.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
@@ -242,7 +263,8 @@ Gets the request for a picture the owner asked for.
   unique-local and similar addresses are refused, checked on every redirect and against the
   addresses actually connected to (DNS rebinding).
 - **Bounded:** at most five redirects (`MAX_REDIRECTS`), 8 MB (`MAX_BYTES`), a time limit, and what
-  arrives must be a PNG, JPEG, GIF or WebP by its own bytes.
+  arrives must be a PNG, JPEG, GIF or WebP by its own bytes, or an SVG drawing that passes the
+  reader above.
 - The picture cache (`apps/mailcraft/src/picture_cache.rs`) names files by hashes and never writes
   the address; it is capped and read back through the same checks as a download.
 

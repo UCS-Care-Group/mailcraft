@@ -25,16 +25,21 @@
 //!   layer is drawn inside another. So there is no `<use>`, style sheet, `href` (gradients don't
 //!   refer to each other), clip, mask, marker, pattern, filter, dash, blend mode or picture, and
 //!   nothing the renderer copies but a gradient's stops for each shape painted with it: the
-//!   elements times the stops are capped. At most [`MAX_SHAPES`] shapes.
+//!   elements times the stops are capped. At most [`MAX_SHAPES`] shapes. A stroke is no wider than
+//!   the drawing (four times its longer side) or [`MAX_STROKE_WIDTH`], and no more than
+//!   [`MAX_STROKE_RATIO`] times the smallest piece it follows, which weighs it more the wider it is
+//!   over it: usvg strokes every path to find its bounds, and a stroke far wider than its curve
+//!   makes that take seconds a hundred curves.
 //! - **The tree usvg made is checked** ([`counted`]): no clip, mask or filter in it, no layer in
 //!   a layer, at most `MAX_SVG_COST` nodes and `MAX_SEGMENTS` segments of paths (a stroke's weighing
 //!   more, a round one most).
 //! - **It is drawn at the size it is shown** (a drawing has no pixels of its own), within the
 //!   texture caps and [`MAX_SVG_PIXELS`], and with fewer pixels the more shapes, layers and segments it
-//!   has, so that drawing it is a bounded amount of work; and it is drawn on a thread of its own,
-//!   one drawing at a time, never on the window's (`Pictures::draw_apart`; the browser build,
-//!   which has no threads, shows none). Reading it ([`probe`]: the parse, usvg's tree and the
-//!   stroking for bounds) is done on the window's thread, which is why the caps above come first.
+//!   has, so that drawing it is a bounded amount of work. Reading it ([`probe`]: the parse, usvg's
+//!   tree and the stroking for bounds) and drawing it are done on a thread of its own, one drawing
+//!   at a time, never on the window's (`Pictures::begin_read`, `Pictures::draw_apart`; the
+//!   browser build, which has no threads, shows none). The caps above come first all the same:
+//!   the thread is held, and every other drawing waits, for as long as one drawing takes.
 //!
 //! Parsing and drawing are somebody else's code reading hostile bytes: a panic in them is a
 //! broken picture too.
@@ -276,6 +281,13 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
     // For a drawing with strokes, which usvg strokes as it reads (for their bounds): the most
     // lines its paths could be, from their text, and whether a stroke or a round one is anywhere.
     let (mut path_text, mut stroked, mut round) = (0u64, false, false);
+    // And how wide the widest stroke is, and how small the smallest piece it follows (the units of
+    // each are its own, as usvg strokes in them).
+    let (mut widest, mut finest, mut micro) = (1.0f64, f64::INFINITY, 0u32);
+    let extent = extent(document.root_element());
+    // Pieces smaller than this are no pieces: dust, which only a broken exporter or a drawing
+    // made to be slow has.
+    let dust = (extent * 1e-6).min(0.01);
     for node in document.descendants().filter(roxmltree::Node::is_element) {
         let name = node.tag_name().name();
         match node.tag_name().namespace() {
@@ -324,6 +336,14 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
                 }
             }
         }
+        if let Some(width) = declared(node, "stroke-width").and_then(|v| user_length(v, extent)) {
+            widest = widest.max(width);
+        }
+        if shape {
+            let (smallest, dusty) = finest_of(node, name, extent, dust);
+            finest = finest.min(smallest);
+            micro = micro.saturating_add(dusty);
+        }
         elements += 1;
         shapes += u64::from(shape);
         stops += u64::from(matches!(name, "stop" | "linearGradient" | "radialGradient"));
@@ -332,15 +352,131 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
     // stroked drawing's segments (a shape that isn't a path is a few), each weighted for what the
     // stroker makes of it, are bounded before usvg sees it.
     let segments = path_text.saturating_add(shapes.saturating_mul(8));
+    // A stroke much wider than what it follows is stroked in many more steps (usvg strokes every
+    // path as it reads it, and tiny-skia's stroker, past what f32 holds, cuts again and again:
+    // seconds for a hundred curves a stroke 1e8 wide): one wider than the drawing is, or than
+    // [`MAX_STROKE_WIDTH`], or than [`MAX_STROKE_RATIO`] times the smallest piece (more than
+    // [`MAX_DUST`] pieces smaller than dust are refused too), is refused, and each
+    // [`STROKE_RATIO_STEP`] of the ratio weighs the stroke once more.
+    let ratio = if finest.is_finite() { widest / finest } else { 0.0 };
+    if stroked && !(widest <= MAX_STROKE_WIDTH.min(4.0 * extent) && ratio <= MAX_STROKE_RATIO && micro <= MAX_DUST) {
+        return None;
+    }
+    let steps = 1 + (ratio / STROKE_RATIO_STEP) as u64;
     let weight = if round {
         1 + READ_ROUND_WEIGHT
     } else if stroked {
         1 + READ_STROKE_WEIGHT
     } else {
         0
-    };
+    }
+    .saturating_mul(steps);
     let strokes_fit = segments.saturating_mul(weight) <= MAX_READ_STROKES;
     (shapes <= MAX_SHAPES && elements.saturating_mul(stops) <= MAX_GRADIENT_COPIES && strokes_fit).then_some(shapes)
+}
+
+/// The widest stroke a drawing may have, in the units it is stroked in, and the most it may be
+/// against the smallest piece of a shape it follows (past which stroking takes far longer).
+const MAX_STROKE_WIDTH: f64 = 10_000.0;
+const MAX_STROKE_RATIO: f64 = 1e7;
+/// The ratio of a stroke's width to what it follows that makes it weigh once more.
+const STROKE_RATIO_STEP: f64 = 1e3;
+/// Most pieces of dust a stroked drawing may have.
+const MAX_DUST: u32 = 16;
+
+/// What a length is in user units, near enough for a bound: its units as CSS gives them, an em as
+/// 16 and a percentage of `whole`. `None` when it is no length; refused (infinite) when it isn't
+/// a finite one.
+fn user_length(text: &str, whole: f64) -> Option<f64> {
+    use svgtypes::LengthUnit::{Cm, Em, Ex, In, Mm, None as Bare, Pc, Percent, Pt, Px};
+    let length: svgtypes::Length = text.trim().parse().ok()?;
+    let unit = match length.unit {
+        Bare | Px => 1.0,
+        Mm => 3.78,
+        Cm => 37.8,
+        In => 96.0,
+        Pt => 1.34,
+        Pc => 16.0,
+        Em => 16.0,
+        Ex => 8.0,
+        Percent => whole / 100.0,
+    };
+    let value = (length.number * unit).abs();
+    Some(if value.is_finite() { value } else { f64::INFINITY })
+}
+
+/// The longer side of the drawing, in its own units: its `viewBox`, or its size, or the 100 usvg
+/// takes one with neither to be.
+fn extent(root: roxmltree::Node) -> f64 {
+    let view = root.attribute("viewBox").and_then(|v| v.parse::<svgtypes::ViewBox>().ok()).map(|v| v.w.max(v.h));
+    let side = |name| root.attribute(name).and_then(|v| user_length(v, 100.0)).filter(|v| v.is_finite());
+    let size = side("width").into_iter().chain(side("height")).fold(None, |a: Option<f64>, b| Some(a.map_or(b, |a| a.max(b))));
+    view.or(size).filter(|e| e.is_finite() && *e > 0.0).unwrap_or(100.0)
+}
+
+/// What an element says of a property of the style, as an attribute or in its `style`.
+fn declared<'a>(node: roxmltree::Node<'a, '_>, property: &str) -> Option<&'a str> {
+    let style = node
+        .attribute("style")
+        .and_then(|style| style.split(';').filter_map(|d| d.split_once(':')).find(|(p, _)| p.trim() == property).map(|(_, v)| v));
+    style.or_else(|| node.attribute(property))
+}
+
+/// The smallest piece a shape is, in its own units: its shortest side, or run of its path, that
+/// is not nothing, and how many pieces are smaller than `dust` (counted as `dust`). Infinite for a
+/// shape that is nothing but points.
+fn finest_of(node: roxmltree::Node, name: &str, whole: f64, dust: f64) -> (f64, u32) {
+    let (mut finest, mut dusty) = (f64::INFINITY, 0u32);
+    let mut piece = |v: f64| {
+        let v = v.abs();
+        if v > 0.0 {
+            dusty += u32::from(v < dust);
+            finest = finest.min(v.max(dust));
+        }
+    };
+    let number = |name: &str| node.attribute(name).and_then(|v| user_length(v, whole)).unwrap_or(0.0);
+    let point = |name: &str| node.attribute(name).and_then(|v| v.trim().parse::<f64>().ok()).unwrap_or(0.0);
+    match name {
+        "rect" => [number("width"), number("height")].into_iter().for_each(&mut piece),
+        "circle" => piece(number("r")),
+        "ellipse" => [number("rx"), number("ry")].into_iter().for_each(&mut piece),
+        "line" => [point("x2") - point("x1"), point("y2") - point("y1")].into_iter().for_each(&mut piece),
+        "polyline" | "polygon" => {
+            let mut last = None;
+            for (x, y) in svgtypes::PointsParser::from(node.attribute("points").unwrap_or("")) {
+                if let Some((px, py)) = last {
+                    piece(x - px);
+                    piece(y - py);
+                }
+                last = Some((x, y));
+            }
+        }
+        "path" => {
+            use svgtypes::SimplePathSegment::{CurveTo, LineTo, MoveTo, Quadratic};
+            let mut at = (0.0f64, 0.0f64);
+            for segment in svgtypes::SimplifyingPathParser::from(node.attribute("d").unwrap_or("")).map_while(Result::ok) {
+                // The box of the segment's points, as long as its longer side.
+                let points: Vec<(f64, f64)> = match segment {
+                    MoveTo { x, y } => {
+                        at = (x, y);
+                        continue;
+                    }
+                    LineTo { x, y } => vec![at, (x, y)],
+                    Quadratic { x1, y1, x, y } => vec![at, (x1, y1), (x, y)],
+                    CurveTo { x1, y1, x2, y2, x, y } => vec![at, (x1, y1), (x2, y2), (x, y)],
+                    svgtypes::SimplePathSegment::ClosePath => continue,
+                };
+                let range = |pick: fn(&(f64, f64)) -> f64| {
+                    let (lo, hi) = points.iter().map(pick).fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+                    hi - lo
+                };
+                piece(range(|p| p.0).max(range(|p| p.1)));
+                at = points.last().copied().unwrap_or(at);
+            }
+        }
+        _ => {}
+    }
+    (finest, dusty)
 }
 
 /// The most segments path text (`d`, `points`) could be: every number has a digit and two

@@ -638,7 +638,7 @@ fn shown(m: Message) -> (usize, usize) {
     harness.run_steps(3);
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
     // A drawing is drawn on a thread of its own: frames go on until it has come, or for a while.
-    for _ in 0..200 {
+    for _ in 0..600 {
         harness.run_steps(1);
         if Pictures::of(&harness.ctx).lock().unwrap().counts().1 > 0 {
             break;
@@ -682,7 +682,7 @@ fn a_drawing_is_never_drawn_on_the_windows_thread() {
 }
 
 /// A drawing given up on after its patience holds the next one back until its thread has
-/// finished: slow drawings never run side by side, however many there are.
+/// finished: slow drawings, read or drawn, never run side by side, however many there are.
 #[test]
 fn a_drawing_given_up_on_holds_the_next_until_its_thread_is_done() {
     let ctx = egui::Context::default();
@@ -690,6 +690,7 @@ fn a_drawing_given_up_on_holds_the_next_until_its_thread_is_done() {
     let shown = egui::vec2(40.0, 20.0);
     let slow = std::sync::Arc::new(drawing(40, 20, ""));
     let next = std::sync::Arc::new(drawing(20, 20, ""));
+    // Its read is begun, on a thread of its own: the picture is on its way, not broken.
     assert!(matches!(pictures.texture(&ctx, &slow, shown), images::Picture::Pending));
     let worker = pictures.hold_drawing().unwrap();
     let begun = pictures.decodes();
@@ -701,11 +702,41 @@ fn a_drawing_given_up_on_holds_the_next_until_its_thread_is_done() {
         assert!(matches!(pictures.texture(&ctx, &next, shown), images::Picture::Pending));
     }
     assert_eq!(pictures.decodes(), begun, "no second thread while the first runs");
-    // Its thread done (what it brings is let go), the next is drawn.
-    worker.send(None).unwrap();
+    // Its thread done (what it brings is let go), the next is read.
+    worker.send(images::Done::Read(None)).unwrap();
     assert!(matches!(pictures.texture(&ctx, &next, shown), images::Picture::Pending));
     assert_eq!(pictures.decodes(), begun + 1);
     assert!(matches!(pictures.texture(&ctx, &slow, shown), images::Picture::Failed), "the given-up one stays broken");
+}
+
+/// Review of #830: a drawing is read, not only drawn, on a thread of its own: asking for its size
+/// (as laying out a message does) begins the read and tells nothing yet, and the size comes with
+/// the next frames.
+#[test]
+fn a_drawing_is_read_apart_and_has_no_size_until_it_is() {
+    let ctx = egui::Context::default();
+    let mut pictures = Pictures::default();
+    let data = std::sync::Arc::new(drawing(40, 20, ""));
+    assert_eq!(pictures.size(&data, 1), None);
+    assert!(pictures.is_reading(&data, 1));
+    assert_eq!(pictures.reads(), 0);
+    let start = Instant::now();
+    while pictures.is_reading(&data, 1) {
+        assert!(start.elapsed() < Duration::from_secs(5), "never read");
+        std::thread::sleep(Duration::from_millis(5));
+        pictures.release_unseen(&ctx);
+    }
+    assert_eq!((pictures.size(&data, 1), pictures.reads()), (Some([40, 20]), 1));
+    // One that is not shown is a broken picture once it is read: no size, and no longer on its way.
+    let broken = std::sync::Arc::new(b"<svg xmlns='http://www.w3.org/2000/svg'><rect></svg>".to_vec());
+    assert!(pictures.is_reading(&broken, 1));
+    let start = Instant::now();
+    while pictures.is_reading(&broken, 1) {
+        assert!(start.elapsed() < Duration::from_secs(5), "never read");
+        std::thread::sleep(Duration::from_millis(5));
+        pictures.release_unseen(&ctx);
+    }
+    assert_eq!((pictures.size(&broken, 1), pictures.reads()), (None, 2));
 }
 
 #[test]

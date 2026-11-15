@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent, language catalogues and SVG pictures. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -33,6 +33,10 @@ mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
 mailcraft-smime = { path = "../crates/smime" }
 mailcraft-vcard = { path = "../crates/vcard" }
+# The SVG reader (`svg`) is the reading pane's own file, built here without its window.
+egui = { version = "0.37", default-features = false }
+resvg = { version = "0.45", default-features = false }
+svgtypes = "0.15"
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
 [workspace]
@@ -222,6 +226,13 @@ bench = false
 [[bin]]
 name = "header_block"
 path = "fuzz_targets/header_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "svg"
+path = "fuzz_targets/svg.rs"
 test = false
 doc = false
 bench = false

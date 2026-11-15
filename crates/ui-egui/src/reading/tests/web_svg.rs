@@ -24,7 +24,7 @@ fn an_svg_on_the_web_is_shown_once_asked_for_and_nothing_it_names_is() {
     harness.state_mut().execute("ui.downloadPictures", json!({})).unwrap();
     harness.run_steps(12);
     // The drawing is drawn on a thread of its own: frames go on until it has come.
-    for _ in 0..200 {
+    for _ in 0..600 {
         if shown(&harness, id) == (2, 1, 1) {
             break;
         }
@@ -37,5 +37,7 @@ fn an_svg_on_the_web_is_shown_once_asked_for_and_nothing_it_names_is() {
     assert_eq!(host.asked(), pictures);
     let at = stand_in_at(&harness, id, "/1.png");
     point_at(&mut harness, at);
-    assert!(says(&harness, "This picture couldn't be downloaded: it is a drawing (SVG) that is damaged or can't be shown."));
+    // A drawing is read on a thread of its own, so the window does not tell when it comes that it
+    // is damaged: it is a stand-in once it is read, one that came but can't be shown.
+    assert!(says(&harness, "This picture was downloaded, but can't be shown."));
 }
