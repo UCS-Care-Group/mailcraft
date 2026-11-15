@@ -78,7 +78,7 @@ impl MailApp {
             return;
         }
         let Some(store) = self.services.secrets.clone() else { return };
-        let asks: Vec<Ask> = self
+        let mut asks: Vec<Ask> = self
             .session
             .mailbox
             .accounts
@@ -94,6 +94,15 @@ impl MailApp {
                 })
             })
             .collect();
+        // The addresses of the calendars subscribed to, which may hold a secret (#209): kept like a password.
+        let subscribed = self
+            .session
+            .mailbox
+            .calendars
+            .iter()
+            .filter_map(|c| c.subscription.as_ref().map(|sub| (c.id, sub)))
+            .take(mailcraft_model::subscription::MAX_SUBSCRIBED);
+        asks.extend(subscribed.map(|(id, sub)| Ask { key: sub.secret_name(id), old: None }));
         let (send, receive) = mpsc::channel();
         let job = std::thread::Builder::new().name("secret-read".into()).spawn(move || {
             let _ = send.send(read(&*store, asks, migrate));

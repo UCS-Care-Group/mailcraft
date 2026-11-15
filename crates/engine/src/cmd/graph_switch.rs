@@ -54,7 +54,9 @@ fn has_imap_microsoft(s: &Session) -> Option<&'static str> {
 /// message held in the Outbox waits for its owner, not for a run.
 pub fn waiting(s: &Session, account: Id) -> usize {
     let mb = &s.mailbox;
-    let outbox = mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count());
+    let now = s.now();
+    let outbox =
+        mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty() && !m.waits_until(now)).count());
     outbox.saturating_add(left_behind(s, account))
 }
 
