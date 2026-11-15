@@ -322,6 +322,7 @@ fn a_draft_sent_here_is_never_a_draft_again_while_the_server_files_it() {
     let in_sent = |mb: &Mailbox| mb.messages_in(sent).map(|m| (m.id, m.draft)).collect::<Vec<_>>();
     assert_eq!(in_sent(&mb), vec![(id, false)], "the message sent is in Sent Items at once");
     assert_eq!(mb.messages_in(outbox).count(), 0);
+    assert!(mb.message(id).unwrap().server.as_ref().is_some_and(|s| s.folder == "FS"), "filed where the server puts it (#1175)");
     // Exchange files it in Sent Items itself: no move goes up for it, which it would refuse while
     // the message is being sent and put it back into Drafts here.
     assert_eq!(moves(&mb), 0, "a move into Sent Items went up for a message the server files there");
@@ -333,9 +334,14 @@ fn a_draft_sent_here_is_never_a_draft_again_while_the_server_files_it() {
     assert_eq!(mb.messages_in(drafts).count(), 0, "a message sent here came back as a draft in Drafts");
     assert_eq!(in_sent(&mb), vec![(id, false)]);
     assert_eq!(moves(&mb), 0);
-    // The next run: gone from Drafts, and listed in Sent Items, a draft still or not.
+    // The next run: gone from Drafts. The Sent Items delta may not have it yet (#1175): the
+    // removal of the draft is no deletion of the message sent, which the sweep keeps.
     let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
     take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    assert_eq!(in_sent(&mb), vec![(id, false)], "the sweep removed the message sent");
+    assert_eq!(mb.messages.len(), 1, "and nothing else went with it");
+    // Then the Sent Items listing, a draft still or not.
     for draft in [Some(true), Some(false)] {
         let mut filed = page("FS", "AAkD1", draft);
         filed.messages[0].server.change_key = "CK3".into();

@@ -165,11 +165,17 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
             // message when it is listed: never a new [Draft] that looks unsent (#1160). Moved here,
             // it doesn't follow the server into Drafts, and follows it nowhere else; marked so, no
             // move into Sent Items goes up for it while the server still has it in Drafts.
-            if let Some(sent_items) = sent_as_draft(mb, account, done.message)
+            let filed = sent_as_draft(mb, account, done.message).map(|sent| (sent, sent_folder_on_server(mb, sent)));
+            if let Some((sent_items, filed)) = filed
                 && let Ok(m) = mb.message_mut(done.message)
             {
                 (m.folder, m.draft, m.server_draft, m.held, m.sending) = (sent_items, false, None, String::new(), false);
                 m.sent_here = true;
+                // Where the server files it, so that the same run's removal from Drafts is not
+                // taken for its deletion before Sent Items lists it (#1175).
+                if let Some(server) = m.server.as_mut().filter(|_| !filed.is_empty()) {
+                    server.folder = filed;
+                }
                 return true;
             }
             mb.forget_message(done.message).is_ok() || changed
@@ -223,6 +229,11 @@ fn sent_as_draft(mb: &Mailbox, account: Id, id: Id) -> Option<Id> {
     let microsoft = mb.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
     let server_draft = m.server_draft.is_some() && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
     (microsoft && server_draft).then(|| mb.folder_of_kind(account, FolderKind::Sent)).flatten()
+}
+
+/// The id folder `folder` has on its server; empty when it has none yet.
+fn sent_folder_on_server(mb: &Mailbox, folder: Id) -> String {
+    mb.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default()
 }
 
 /// What a message held for having been handed to a server without an answer coming back says.

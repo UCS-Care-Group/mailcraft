@@ -281,15 +281,16 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // Where the server last had it, as this mailbox has that folder: a message still there here
     // follows the server; one moved here since stays where it was put (that move goes up, R3.3).
     let was_here = mb.folder_by_server(account, &last.folder);
-    // A draft sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
-    // this listing was made before it did (#1160). It is the message sent, in Sent Items here: it
-    // doesn't follow, and once the server has listed it in Sent Items such a listing says nothing.
     let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
+    // A draft sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
+    // this listing was made before it did (#1160). Nothing of it is taken — not its fields, and
+    // not its folder, which is where the send left it — until Sent Items lists it; the removal of
+    // the draft from Drafts is no deletion of it either (#1175).
     let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
-    if unfiled && !last.gone && was_here.and_then(|was| mb.folder(was)).is_some_and(|was| was.kind == FolderKind::Sent) {
+    if unfiled {
         return false;
     }
-    let follows = !unfiled && (last.gone || was_here.is_none_or(|was| m.folder == was));
+    let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
     let in_drafts = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
     // Only of a JMAP account: a Microsoft server keeps a follow-up's dates and "complete" itself.
     let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
