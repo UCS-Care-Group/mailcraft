@@ -375,6 +375,7 @@ pub(crate) fn sweep(mb: &mut Mailbox, account: Id, read: &HashSet<String>, down:
     }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !swept(m, account, read));
+    mb.prune_bookmarks();
     down.removed = down.removed.saturating_add(before.saturating_sub(mb.messages.len()));
 }
 
@@ -423,6 +424,7 @@ pub(crate) fn keep_what_is_only_here(mb: &mut Mailbox, account: Id, listing: &Fo
         let lay_there = m.server.as_ref().is_some_and(|server| dropped.get(&server.folder) == Some(&m.folder));
         !(kept.contains(&m.folder) && m.account == account && lay_there && !draft_here(m))
     });
+    mb.prune_bookmarks();
     let gone = before.saturating_sub(mb.messages.len());
     // What else of those mailboxes is here, and not in a folder that goes (whose mail goes with it),
     // is this computer's now.

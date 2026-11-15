@@ -147,6 +147,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
     ("category.remove", r#"{"name": "Purple category"}"#, Setup::None),
+    ("bookmark.remove", r#"{"id": 1}"#, Setup::None),
     ("compose.discard", "{}", Setup::Writing),
     ("ui.closeWindow", "{}", Setup::Window),
     // Accounts.

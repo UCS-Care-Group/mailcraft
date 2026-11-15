@@ -152,6 +152,7 @@ pub(crate) enum Menu {
     Junk,
     RecentAttachments,
     OpenCalendar,
+    Bookmarks,
 }
 
 impl Menu {
@@ -455,6 +456,7 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeMail).at(3, 3).plain(),
                 Item::big_menu("followUp", "flag", "Follow\nUp", "Follow Up", Menu::FollowUp).at(3, 3).plain(),
                 Item::small("pin", "Pin", "Pin to the top of the list", "mail.pin", no()).checked(pinned).at(5, 5),
+                Item::big_menu("bookmarks", "bookmark", "Book-\nmarks", "Bookmarks", Menu::Bookmarks).at(5, 5),
             ],
         ),
         g(
@@ -1551,6 +1553,23 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::FontColor => color_menu(ui, app),
         Menu::Highlight => highlight_menu(ui, app),
         Menu::FontSize => size_menu(ui, app),
+        Menu::Bookmarks => bookmarks_menu(ui, app),
+    }
+}
+
+/// The short Bookmarks menu: add one to the focused message, or open the All Bookmarks window.
+pub(crate) fn bookmarks_menu(ui: &mut Ui, app: &mut MailApp) {
+    let mid = app.session.sel.focus().unwrap_or(0);
+    let enabled = mid != 0;
+    let add_btn = ui.add_enabled(enabled, egui::Button::new(tl!("Add Bookmark")).min_size(vec2(190.0, 0.0)));
+    if add_btn.clicked() {
+        let _ = app.run("bookmark.add", json!({"id": mid}));
+        ui.close();
+    }
+    ui.separator();
+    if ui.add(egui::Button::new(tl!("All Bookmarks…")).min_size(vec2(190.0, 0.0))).clicked() {
+        let _ = app.run("ui.bookmarks", json!({}));
+        ui.close();
     }
 }
 
@@ -2995,7 +3014,7 @@ mod tests {
                     vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Reply and Delete", "View Source", "Meeting", "Add Sender"]
                 ),
                 ("Move", vec!["Move", "Rules", "Resend Message"]),
-                ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
+                ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin", "Book-\nmarks"]),
                 ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),
             ]

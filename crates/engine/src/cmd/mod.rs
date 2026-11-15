@@ -18,6 +18,9 @@ mod answered_tests;
 pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
+pub mod bookmark;
+#[cfg(test)]
+mod bookmark_tests;
 pub mod calendar;
 pub mod calendar_extra;
 pub mod calendar_opened;
@@ -215,6 +218,7 @@ pub fn registry() -> Registry {
     v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
+    v.extend(bookmark::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());

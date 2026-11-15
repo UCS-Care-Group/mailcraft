@@ -166,7 +166,8 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
     if !params.is_object() {
         params = json!({});
     }
-    let closes = id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
+    let closes = id == "ui.closeDialog"
+        || params.get("name").and_then(Value::as_str).is_some_and(|n| n != "bookmarks" && crate::sync_panel::Panel::named(n).is_none());
     let unsaved = match &app.dialog {
         _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
         _ if matches!(id, "file.new" | "file.open") => crate::windows::replacing_unsaved(app),

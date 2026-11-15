@@ -154,7 +154,7 @@ msgid "(no recipients)"
 msgstr "(geen ontvangers)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/bookmarks.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(geen onderwerp)"
@@ -789,6 +789,11 @@ msgstr ""
 msgid "Add Account"
 msgstr "Account toevoegen"
 
+#. command label, interface
+#: crates/engine/src/cmd/bookmark.rs crates/ui-egui/src/ribbon.rs
+msgid "Add Bookmark"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -1062,6 +1067,16 @@ msgstr "Alle"
 #, fuzzy
 msgid "All Attendees"
 msgstr "Alle deelnemers"
+
+#. command label, interface
+#: crates/ui-egui/src/bookmarks.rs crates/ui-egui/src/lib.rs
+msgid "All Bookmarks"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "All Bookmarks…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/category.rs
@@ -2223,9 +2238,26 @@ msgstr "Vet"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Book-\n"
+"marks"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bookmark"
 msgstr "Bladwijzer"
+
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "Bookmark #{n}"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bookmarks"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -2414,7 +2446,7 @@ msgid "Can't sign"
 msgstr "Kan niet ondertekenen"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/bookmarks.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2924,6 +2956,11 @@ msgid "Clear Recent Searches"
 msgstr "Recente zoekopdrachten wissen"
 
 #. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "Clear filter"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Clear filters"
@@ -2960,7 +2997,7 @@ msgid "Clipboard"
 msgstr "Klembord"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/bookmarks.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Sluiten"
@@ -3102,6 +3139,11 @@ msgstr "Voltooid op {date}"
 #, fuzzy
 msgid "Completed."
 msgstr "Voltooid."
+
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "Confirm Remove"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
@@ -5114,6 +5156,11 @@ msgstr "E-mail filteren"
 msgid "Filter Tasks"
 msgstr "Taken filteren"
 
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "Filter bookmarks"
+msgstr ""
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5577,6 +5624,11 @@ msgid "From:"
 msgstr "Van:"
 
 #. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "From: {sender}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Full details: and where, and the notes"
@@ -5809,6 +5861,11 @@ msgstr "Naar datum gaan"
 #, fuzzy
 msgid "Go to Folder"
 msgstr "Naar map gaan"
+
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "Go to message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -6168,7 +6225,7 @@ msgid "Hold Unsent Mail"
 msgstr "Onverzonden e-mail vasthouden"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -7023,6 +7080,11 @@ msgstr "jul"
 msgid "July"
 msgstr "juli"
 
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "Jump to Bookmark"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -7376,6 +7438,11 @@ msgstr "Koppelingen"
 #, fuzzy
 msgid "List Accounts"
 msgstr "Accounts opsommen"
+
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "List Bookmarks"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -9154,6 +9221,16 @@ msgid "No appointment matches."
 msgstr "Geen afspraak komt overeen."
 
 #. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "No bookmarks match."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "No bookmarks yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No categories yet"
@@ -9368,6 +9445,11 @@ msgstr "Geen resultaten in {scope}"
 #, fuzzy
 msgid "No rules yet. A rule files, flags or deletes mail as it arrives."
 msgstr "Nog geen regels. Een regel bergt e-mail op, markeert die of verwijdert die bij binnenkomst."
+
+#. interface
+#: crates/ui-egui/src/bookmarks.rs
+msgid "No saved quote."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -11391,7 +11473,7 @@ msgid "Reminders Window"
 msgstr "Herinneringenvenster"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/bookmarks.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Verwijderen"
@@ -11407,6 +11489,11 @@ msgstr "Account verwijderen"
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Bijlage verwijderen"
+
+#. command label
+#: crates/engine/src/cmd/bookmark.rs
+msgid "Remove Bookmark"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -14260,7 +14347,7 @@ msgid "Tables"
 msgstr "Tabellen"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Labels"
@@ -20175,7 +20262,7 @@ msgid "select a conversation in conversation view first"
 msgstr "selecteer eerst een gesprek in de gespreksweergave"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/bookmark.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "selecteer eerst een bericht"
@@ -21489,6 +21576,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "keer"
 msgstr[1] "keer"
+
+#. what a command says
+#: crates/engine/src/cmd/bookmark.rs
+msgid "too many bookmarks"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs

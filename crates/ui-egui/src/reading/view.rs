@@ -548,16 +548,40 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     }
     drop(pictures);
     let mut state = app.text_selection.state(place);
+
+    // Scroll to and highlight bookmark if jumping to one in this exact place (#951).
+    let mut bookmark_scroll = None;
+    let clear_bookmark_target = if let Some(target) = &app.bookmark_target
+        && target.place == place
+    {
+        if target.message != message.id {
+            true
+        } else {
+            let jump = super::select::find_bookmark_target(&entry.laid, &target.quote, target.offset);
+            bookmark_scroll = jump.scroll;
+            if let (Some((p1, p2)), Some(st)) = (jump.range, state.as_deref_mut()) {
+                st.select_body_range(p1, p2);
+            }
+            jump.resolved || entry.laid.done
+        }
+    } else {
+        false
+    };
+    if clear_bookmark_target {
+        app.bookmark_target = None;
+    }
+
     // A copy that waited for the layout to be whole is due now.
     let due = state.as_deref_mut().and_then(|state| state.bind(&entry.doc, entry.laid.done));
     let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged);
+    if let Some(r) = bookmark_scroll {
+        ui.scroll_to_rect(r.translate(origin.to_vec2()), Some(egui::Align::Center));
+    }
     #[cfg(test)]
     {
         entry.origin = origin;
         store.begun += begun;
     }
-    #[cfg(not(test))]
-    let _ = origin;
     // What a menu asked for is a command, run once the layouts are let go of.
     drop(store);
     for action in due.into_iter().chain(asked) {
@@ -808,7 +832,8 @@ pub fn paint(
             state.set_menu_link(link.clone());
         }
         let on_link = state.menu_link();
-        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref()));
+        let can_bookmark = state.can_bookmark();
+        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref(), can_bookmark));
     }
     // While a drag selects, nothing pops up under it; nor over a menu, which opens right where
     // the pointer is.
