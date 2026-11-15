@@ -288,6 +288,9 @@ pub struct EventDetail {
     pub all_day: bool,
     pub organizer: Option<AddressRecord>,
     pub attendees: Vec<AttendeeRecord>,
+    /// `attendees` is not the whole list (more people than are handed over, or an address cut to
+    /// size): the editor must not send it back as the list, which would drop whoever is missing.
+    pub people_cut: bool,
     pub recurrence: Option<RecurrenceRecord>,
     pub reminder_minutes: Option<u32>,
     pub show_as: String,

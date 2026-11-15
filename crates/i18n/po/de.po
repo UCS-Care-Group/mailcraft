@@ -3644,11 +3644,6 @@ msgstr ""
 msgid "Delete this rule"
 msgstr "Diese Regel löschen"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-msgid "Delete, tell nobody"
-msgstr ""
-
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -13316,7 +13311,7 @@ msgid "That didn't go through."
 msgstr ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
 msgid "That file could not be read as a calendar."
 msgstr ""
 
@@ -15776,6 +15771,11 @@ msgstr "Morgen"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Zu viele Kalenderänderungen warten darauf, an den Server gesendet zu werden. Lassen Sie sie zuerst von Senden/Empfangen übertragen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+msgid "Too many people to change here; they are kept as they are."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs

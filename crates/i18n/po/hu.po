@@ -3667,7 +3667,7 @@ msgstr "Elutasítás bejelentés nélkül"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Declined"
-msgstr "Lehalkított"
+msgstr "Elutasítva"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3830,11 +3830,6 @@ msgstr "A kulcs törlése ebből a számítógépből"
 #, fuzzy
 msgid "Delete this rule"
 msgstr "A szabály törlése"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-msgid "Delete, tell nobody"
-msgstr ""
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -14079,7 +14074,7 @@ msgid "That didn't go through."
 msgstr ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
 msgid "That file could not be read as a calendar."
 msgstr ""
 
@@ -16741,6 +16736,11 @@ msgstr "Holnap"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Túl sok naptár változás vár, hogy küldje el a szerverre. Hagyja, hogy a Küldés / Fogadás őket át először."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+msgid "Too many people to change here; they are kept as they are."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs

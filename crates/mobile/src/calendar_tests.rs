@@ -108,8 +108,13 @@ fn an_ics_file_is_imported_into_the_calendar_and_junk_is_refused() {
     // The same file again does not make a second event.
     exec(&core, "file.import", json!({"name": "invite.ics", "data": base64(ICS.as_bytes())})).unwrap();
     assert_eq!(block_on(core.calendar("2026-11-19".into(), "2026-11-21".into())).unwrap().events.len(), before + 1);
-    // Not a calendar, and not base64: an error, the calendar as it was.
-    for junk in [base64(b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"), base64(&[0xff, 0xfe, 0, 1]), "!!!!".to_string(), String::new()] {
+    // Data that is not base64 at all is refused outright; what is not a calendar is an error too, and
+    // the calendar stays as it was.
+    assert!(matches!(
+        exec(&core, "file.import", json!({"name": "x.ics", "data": "!!!!"})),
+        Err(CoreError::BadRequest { .. } | CoreError::Failed { .. })
+    ));
+    for junk in [base64(b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"), base64(&[0xff, 0xfe, 0, 1]), String::new()] {
         let r = exec(&core, "file.import", json!({"name": "x.ics", "data": junk}));
         assert!(!matches!(r, Err(CoreError::Internal)));
     }
@@ -207,4 +212,23 @@ fn optional_people_sent_apart_stay_optional_and_a_save_without_people_keeps_them
     // A title-only save sends no people: their roles stay as they were.
     exec(&core, "calendar.edit", json!({"id": id, "title": "Weekly sync"})).unwrap();
     assert_eq!(roles(&core), both);
+}
+
+#[test]
+fn a_list_of_people_longer_than_is_handed_over_says_so() {
+    let core = sample_core();
+    let few = (0..3).map(|i| format!("p{i}@example.org")).collect::<Vec<_>>().join("; ");
+    let made = exec(&core, "calendar.new", json!({"title": "Few", "start": "2026-11-02T09:00", "attendees": few, "send": false})).unwrap();
+    let e = block_on(core.event(made["id"].as_u64().unwrap())).unwrap();
+    assert_eq!((e.attendees.len(), e.people_cut), (3, false));
+    // One more than the editor is given: the list it has is not the whole list.
+    let many = (0..=crate::text::MAX_PEOPLE_IN_ITEM).map(|i| format!("p{i}@example.org")).collect::<Vec<_>>().join("; ");
+    let made = exec(&core, "calendar.new", json!({"title": "Many", "start": "2026-11-02T09:00", "attendees": many, "send": false})).unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let e = block_on(core.event(id)).unwrap();
+    assert_eq!((e.attendees.len(), e.people_cut), (crate::text::MAX_PEOPLE_IN_ITEM, true));
+    // A save that leaves the people alone (as the editor does for a cut list) keeps all of them.
+    exec(&core, "calendar.edit", json!({"id": id, "title": "Many more"})).unwrap();
+    let whole = exec(&core, "calendar.get", json!({"id": id})).unwrap();
+    assert_eq!(whole["attendees"].as_array().map(Vec::len), Some(crate::text::MAX_PEOPLE_IN_ITEM + 1));
 }

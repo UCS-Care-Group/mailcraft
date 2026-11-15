@@ -30,7 +30,9 @@ internal fun repeatOf(rule: RuleFacts): RepeatDraft {
     val interval = rule.interval.toInt()
     val showable = rule.nth == null && days.size == rule.byDay.size &&
         (repeat == Repeat.Weekly || days.isEmpty()) && interval in 1..RepeatDraft.MAX_INTERVAL &&
-        (rule.count == null || rule.until == null) && (rule.until == null || end is RepeatEnd.On)
+        (rule.count == null || rule.until == null) && (rule.until == null || end is RepeatEnd.On) &&
+        // A count the editor can't hold is kept whole: clamped, a save would shorten the series.
+        (rule.count == null || rule.count.toLong() in 1L..RepeatDraft.MAX_COUNT.toLong())
     return RepeatDraft(
         repeat = repeat,
         interval = interval.coerceIn(1, RepeatDraft.MAX_INTERVAL),

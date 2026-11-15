@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +48,15 @@ internal class Handoff(
         reading += 1
         mark(true)
         scope.launch {
-            val got = withContext(io) { read() }
+            // Whatever the reading throws is a file that could not be read: the count and the mark
+            // below are kept right either way. Cancellation is let through.
+            val got = try {
+                withContext(io) { read() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: RuntimeException) {
+                IcsRead.Unreadable
+            }
             reading -= 1
             if (got !is IcsRead.NotOurs && mine > applied) {
                 applied = mine

@@ -90,7 +90,7 @@ internal fun EventDetailPage(
         if (e.invited && !e.cancelled) {
             HorizontalDivider()
             Text(answerText(e.answer, texts), style = MaterialTheme.typography.titleSmall)
-            val asEvent = page.asEvent()
+            val asEvent = e.asEvent(page.occurrence)
             AnswerButtons(texts) { actions.onAnswer(asEvent, it) }
         }
         if (e.editable) {
@@ -109,13 +109,9 @@ private fun DetailFacts(texts: Texts, page: CalendarPage.Detail) {
     val locale = LocalMessageLocale.current
     val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
     val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
-    val whenText = if (e.allDay) {
-        page.occurrence.format(date) + " – " + texts.t("All day")
-    } else {
-        val from = e.start.toLocalTime().format(time)
-        // The day of the time that was opened, which for a series is not the day it began.
-        page.occurrence.format(date) + ", " + from + " – " + e.end.toLocalTime().format(time)
-    }
+    // The day of the time that was opened, which for a series is not the day it began; and the day it
+    // ends on as well when that is another.
+    val whenText = whenText(e.span(page.occurrence), e.allDay, texts.t("All day"), date, time)
     Text(whenText)
     if (e.repeatText.isNotBlank()) Text(e.repeatText, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (e.location.isNotBlank()) Labelled(texts.t("Location"), e.location)
@@ -136,23 +132,6 @@ private fun DetailPeople(texts: Texts, e: EventDetailModel) {
         )
     }
 }
-
-/** The page's event as the agenda's row, for the answer commands. */
-private fun CalendarPage.Detail.asEvent(): CalendarEvent = CalendarEvent(
-    id = event.id,
-    calendar = event.calendar,
-    color = 0,
-    title = event.title,
-    location = event.location,
-    start = event.start,
-    end = event.end,
-    allDay = event.allDay,
-    repeats = event.repeat.repeat != null,
-    meeting = event.hasPeople,
-    cancelled = event.cancelled,
-    invited = event.invited,
-    answer = event.answer,
-)
 
 private fun answerText(answer: Answer, texts: Texts): String = when (answer) {
     Answer.None -> texts.t("Not answered")
@@ -197,6 +176,9 @@ internal fun EventEditorPage(
     val d = page.draft
     val locale = LocalMessageLocale.current
     val context = LocalContext.current
+    // While a save is on its way nothing of the draft is changed: a successful save closes the editor,
+    // and what was typed meanwhile would be lost.
+    val on = !state.saving
     Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Gutter)) {
         PageBar(
             texts = texts,
@@ -212,47 +194,59 @@ internal fun EventEditorPage(
             onValueChange = { actions.onChange(d.copy(title = it)) },
             label = { Text(texts.t("Title")) },
             singleLine = true,
+            enabled = on,
             modifier = Modifier.fillMaxWidth(),
         )
-        SwitchRow(texts.t("All day"), d.allDay) { actions.onChange(d.copy(allDay = it)) }
-        DateTimeRow(texts.t("Starts"), d.startDate, d.startTime, d.allDay, locale, context,
+        SwitchRow(texts.t("All day"), d.allDay, on) { actions.onChange(d.copy(allDay = it)) }
+        DateTimeRow(texts.t("Starts"), d.startDate, d.startTime, d.allDay, locale, context, on,
             onDate = { actions.onChange(d.withStartDate(it)) }, onTime = { actions.onChange(d.withStartTime(it)) })
-        DateTimeRow(texts.t("Ends"), d.endDate, d.endTime, d.allDay, locale, context,
+        DateTimeRow(texts.t("Ends"), d.endDate, d.endTime, d.allDay, locale, context, on,
             onDate = { actions.onChange(d.copy(endDate = it)) }, onTime = { actions.onChange(d.copy(endTime = it)) })
-        CalendarPicker(texts, d, state.calendars, actions)
+        CalendarPicker(texts, d, state.calendars, on, actions)
         Choice(
             texts.t("Reminder"),
             reminderLabel(d.reminder, texts),
             reminderChoices.map { it to reminderLabel(it, texts) },
+            on,
         ) {
             actions.onChange(d.copy(reminder = it))
         }
-        RepeatEditor(texts, d, locale, context, actions)
-        EditorTextFields(texts, d, actions)
+        RepeatEditor(texts, d, locale, context, on, actions)
+        EditorTextFields(texts, d, on, actions)
     }
 }
 
 @Composable
-private fun EditorTextFields(texts: Texts, d: EventDraft, actions: CalendarActions) {
+private fun EditorTextFields(texts: Texts, d: EventDraft, on: Boolean, actions: CalendarActions) {
         OutlinedTextField(
             value = d.location,
             onValueChange = { actions.onChange(d.copy(location = it)) },
             label = { Text(texts.t("Location")) },
             singleLine = true,
+            enabled = on,
             modifier = Modifier.fillMaxWidth().padding(top = Small),
         )
+        // A list the editor was given only part of is shown and kept as it is, not changed here.
+        val cut = d.loaded?.peopleCut == true
+        val peopleHint = if (cut) {
+            texts.t("Too many people to change here; they are kept as they are.")
+        } else {
+            texts.t("Addresses, separated by semicolons")
+        }
         OutlinedTextField(
             value = d.attendees,
             onValueChange = { actions.onChange(d.copy(attendees = it)) },
             label = { Text(texts.t("People to invite")) },
-            supportingText = { Text(texts.t("Addresses, separated by semicolons")) },
+            supportingText = { Text(peopleHint) },
+            enabled = on && !cut,
             modifier = Modifier.fillMaxWidth().padding(top = Small),
         )
         OutlinedTextField(
             value = d.optional,
             onValueChange = { actions.onChange(d.copy(optional = it)) },
             label = { Text(texts.t("Optional")) },
-            supportingText = { Text(texts.t("Addresses, separated by semicolons")) },
+            supportingText = { Text(peopleHint) },
+            enabled = on && !cut,
             modifier = Modifier.fillMaxWidth().padding(top = Small),
         )
         OutlinedTextField(
@@ -261,15 +255,16 @@ private fun EditorTextFields(texts: Texts, d: EventDraft, actions: CalendarActio
             label = { Text(texts.t("Notes")) },
             minLines = 2,
             maxLines = DESCRIPTION_LINES,
+            enabled = on,
             modifier = Modifier.fillMaxWidth().padding(top = Small, bottom = Gutter),
         )
 }
 
 @Composable
-private fun SwitchRow(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(label: String, value: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = Small), verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = value, onCheckedChange = onChange)
+        Switch(checked = value, onCheckedChange = onChange, enabled = enabled)
     }
 }
 
@@ -281,6 +276,7 @@ private fun DateTimeRow(
     allDay: Boolean,
     locale: Locale,
     context: Context,
+    enabled: Boolean,
     onDate: (LocalDate) -> Unit,
     onTime: (LocalTime) -> Unit,
 ) {
@@ -289,11 +285,15 @@ private fun DateTimeRow(
     Column(modifier = Modifier.padding(top = Small)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(Small)) {
-            OutlinedButton(onClick = { pickDate(context, date, onDate) }, modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { pickDate(context, date, onDate) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            ) {
                 Text(date.format(dateFmt), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (!allDay) {
-                OutlinedButton(onClick = { pickTime(context, time, onTime) }) {
+                OutlinedButton(onClick = { pickTime(context, time, onTime) }, enabled = enabled) {
                     Text(time.format(timeFmt), maxLines = 1)
                 }
             }
@@ -315,15 +315,21 @@ private fun pickTime(context: Context, time: LocalTime, onPicked: (LocalTime) ->
 
 /** A row that opens a menu of [options] and says which is chosen. */
 @Composable
-private fun <T> Choice(label: String, shown: String, options: List<Pair<T, String>>, onPick: (T) -> Unit) {
+private fun <T> Choice(
+    label: String,
+    shown: String,
+    options: List<Pair<T, String>>,
+    enabled: Boolean,
+    onPick: (T) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     Column(modifier = Modifier.padding(top = Small)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Box {
-            OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
                 Text(shown, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenu(expanded = open && enabled, onDismissRequest = { open = false }) {
                 options.forEach { (value, text) ->
                     DropdownMenuItem(text = { Text(text) }, onClick = {
                         open = false
@@ -336,7 +342,13 @@ private fun <T> Choice(label: String, shown: String, options: List<Pair<T, Strin
 }
 
 @Composable
-private fun CalendarPicker(texts: Texts, d: EventDraft, calendars: List<CalendarInfo>, actions: CalendarActions) {
+private fun CalendarPicker(
+    texts: Texts,
+    d: EventDraft,
+    calendars: List<CalendarInfo>,
+    enabled: Boolean,
+    actions: CalendarActions,
+) {
     val editable = calendars.filter { it.editable }
     // A change keeps its calendar; only a new event with a choice shows one.
     if (!d.isNew || editable.size < 2) return
@@ -345,11 +357,19 @@ private fun CalendarPicker(texts: Texts, d: EventDraft, calendars: List<Calendar
         texts.t("Calendar"),
         current.name,
         editable.map { it.id to it.name },
+        enabled,
     ) { actions.onChange(d.copy(calendar = it)) }
 }
 
 @Composable
-private fun RepeatEditor(texts: Texts, d: EventDraft, locale: Locale, context: Context, actions: CalendarActions) {
+private fun RepeatEditor(
+    texts: Texts,
+    d: EventDraft,
+    locale: Locale,
+    context: Context,
+    enabled: Boolean,
+    actions: CalendarActions,
+) {
     if (d.occurrence != null) {
         Text(
             text = texts.t("Only this event is changed, not the series."),
@@ -373,7 +393,7 @@ private fun RepeatEditor(texts: Texts, d: EventDraft, locale: Locale, context: C
         Repeat.Monthly to texts.t("Every month"),
         Repeat.Yearly to texts.t("Every year"),
     )
-    Choice(texts.t("Repeats"), options.first { it.first == r.repeat }.second, options) { picked ->
+    Choice(texts.t("Repeats"), options.first { it.first == r.repeat }.second, options, enabled) { picked ->
         val days = if (picked == Repeat.Weekly) setOf(d.startDate.dayOfWeek) else emptySet()
         actions.onChange(d.copy(repeat = r.copy(repeat = picked, days = days)))
     }
@@ -386,6 +406,7 @@ private fun RepeatEditor(texts: Texts, d: EventDraft, locale: Locale, context: C
             CalendarPaging.weekDays(DayOfWeek.MONDAY).forEach { day ->
                 FilterChip(
                     selected = day in r.days,
+                    enabled = enabled,
                     onClick = {
                         val days = if (day in r.days) r.days - day else r.days + day
                         actions.onChange(d.copy(repeat = r.copy(days = days)))
@@ -395,11 +416,18 @@ private fun RepeatEditor(texts: Texts, d: EventDraft, locale: Locale, context: C
             }
         }
     }
-    if (r.repeat != null) RepeatEnds(texts, d, locale, context, actions)
+    if (r.repeat != null) RepeatEnds(texts, d, locale, context, enabled, actions)
 }
 
 @Composable
-private fun RepeatEnds(texts: Texts, d: EventDraft, locale: Locale, context: Context, actions: CalendarActions) {
+private fun RepeatEnds(
+    texts: Texts,
+    d: EventDraft,
+    locale: Locale,
+    context: Context,
+    enabled: Boolean,
+    actions: CalendarActions,
+) {
     val r = d.repeat
     val ends: List<Pair<RepeatEnd, String>> = listOf(
         RepeatEnd.Never to texts.t("Never ends"),
@@ -413,12 +441,13 @@ private fun RepeatEnds(texts: Texts, d: EventDraft, locale: Locale, context: Con
         is RepeatEnd.After -> texts.tn(e.count.toULong(), "Ends after {n} time", "Ends after {n} times")
         is RepeatEnd.On -> texts.t("Ends on") + " " + e.day.format(mediumDate)
     }
-    Choice(texts.t("Ends"), shown, ends) { actions.onChange(d.copy(repeat = r.copy(end = it))) }
+    Choice(texts.t("Ends"), shown, ends, enabled) { actions.onChange(d.copy(repeat = r.copy(end = it))) }
     (r.end as? RepeatEnd.On)?.let { on ->
         OutlinedButton(
             onClick = {
                 pickDate(context, on.day) { actions.onChange(d.copy(repeat = r.copy(end = RepeatEnd.On(it)))) }
             },
+            enabled = enabled,
             modifier = Modifier.padding(top = Small),
         ) { Text(on.day.format(mediumDate)) }
     }
@@ -469,18 +498,26 @@ private fun deleteChoices(
     texts: Texts,
     ask: Ask.Delete,
     actions: CalendarActions,
-): Pair<String, List<Pair<String, () -> Unit>>> {
-    val repeats = ask.detail.repeat.repeat != null || ask.detail.repeat.kept
-    val people = ask.detail.hasPeople && ask.detail.onServer && !ask.detail.invited
-    val out = ArrayList<Pair<String, () -> Unit>>()
-    // The question names what is deleted; the people are written to only on the owner's word.
-    if (people) {
-        out.add(texts.t("Delete and tell the people") to { actions.onAnswerAsk(true, false) })
-        out.add(texts.t("Delete, tell nobody") to { actions.onAnswerAsk(false, false) })
-        if (repeats) out.add(texts.t("Only this time, and tell the people") to { actions.onAnswerAsk(true, true) })
-    } else {
-        out.add(texts.t("Delete") to { actions.onAnswerAsk(null, false) })
-        if (repeats) out.add(texts.t("Only this time") to { actions.onAnswerAsk(null, true) })
+): Pair<String, List<Pair<String, () -> Unit>>> =
+    texts.t("Delete this event?") to deleteOptions(ask.detail, texts).map { (label, send, only) ->
+        label to { actions.onAnswerAsk(send, only) }
     }
-    return texts.t("Delete this event?") to out
+
+/**
+ * What deleting [detail] offers: each choice's words, whether the people are told (null when there is
+ * nobody to tell), and whether only the one time goes. A meeting the account's server keeps can't be
+ * deleted without its people being told (the server sends the cancellation), so there is no choice of
+ * telling nobody: the owner says yes to that, or cancels.
+ */
+internal fun deleteOptions(detail: EventDetailModel, texts: Texts): List<Triple<String, Boolean?, Boolean>> {
+    val people = detail.hasPeople && detail.onServer && !detail.invited
+    val out = ArrayList<Triple<String, Boolean?, Boolean>>()
+    if (people) {
+        out.add(Triple(texts.t("Delete and tell the people"), true, false))
+        if (detail.repeats) out.add(Triple(texts.t("Only this time, and tell the people"), true, true))
+    } else {
+        out.add(Triple(texts.t("Delete"), null, false))
+        if (detail.repeats) out.add(Triple(texts.t("Only this time"), null, true))
+    }
+    return out
 }

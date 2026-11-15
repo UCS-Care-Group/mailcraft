@@ -83,4 +83,15 @@ class HandoffTest {
         assertFalse(h.readAgain)
         assertFalse(handoff(pending = false).readAgain)
     }
+
+    @Test
+    fun aReadThatThrowsIsAFileThatCouldNotBeReadAndNothingIsLeftWaiting() {
+        val h = handoff()
+        h.take { throw IllegalStateException("the provider went away") }
+        io.tasks.removeAt(0).run()
+        assertSame(IcsRead.Unreadable, h.file.value)
+        h.handled()
+        assertFalse(h.unfinished)
+        assertEquals(listOf(true, false), remembered)
+    }
 }

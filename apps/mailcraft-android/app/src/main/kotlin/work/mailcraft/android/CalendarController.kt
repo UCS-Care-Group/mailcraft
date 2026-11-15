@@ -47,13 +47,47 @@ internal data class EventDetailModel(
     val cancelled: Boolean,
     val editable: Boolean,
     val onServer: Boolean,
+    /** [attendees] is not the whole list (the core hands over so many): it is shown, never sent back. */
+    val peopleCut: Boolean = false,
 ) {
     /** The people are named, so that a change or a deletion may write to them. */
     val hasPeople: Boolean get() = attendees.isNotEmpty()
 
+    /** It is a series, whether or not the editor can show its rule. */
+    val repeats: Boolean get() = repeat.repeat != null || repeat.kept
+
+    /**
+     * The start and the end of the time on [occurrence]: a series' times are on their own days, which
+     * are not the day the series began; any other event's are its own.
+     */
+    fun span(occurrence: LocalDate?): Pair<LocalDateTime, LocalDateTime> {
+        val shift = occurrence?.takeIf { repeats }?.let { ChronoUnit.DAYS.between(start.toLocalDate(), it) } ?: 0L
+        return start.plusDays(shift) to end.plusDays(shift)
+    }
+
+    /** The time on [occurrence] as the agenda's row of it, for the answer commands. */
+    fun asEvent(occurrence: LocalDate?): CalendarEvent {
+        val (from, to) = span(occurrence)
+        return CalendarEvent(
+            id = id,
+            calendar = calendar,
+            color = 0,
+            title = title,
+            location = location,
+            start = from,
+            end = to,
+            allDay = allDay,
+            repeats = repeats,
+            meeting = hasPeople,
+            cancelled = cancelled,
+            invited = invited,
+            answer = answer,
+        )
+    }
+
     fun draft(occurrence: LocalDate?): EventDraft {
         val last = if (allDay) end.minusNanos(1).toLocalDate().coerceAtLeast(start.toLocalDate()) else end.toLocalDate()
-        val only = occurrence?.takeIf { repeat.repeat != null || repeat.kept }
+        val only = occurrence?.takeIf { repeats }
         // One time of a series shows its own days; the draft gives the command the series' days back.
         val shift = only?.let { ChronoUnit.DAYS.between(start.toLocalDate(), it) } ?: 0L
         val required = attendees.filterNot { it.optional }.joinToString("; ") { it.address }
@@ -76,7 +110,7 @@ internal data class EventDetailModel(
             occurrence = only,
             repeatText = repeatText,
             seriesShift = shift,
-            loaded = LoadedText(title, location, description, required, optional),
+            loaded = LoadedText(title, location, description, required, optional, peopleCut),
         )
     }
 }
@@ -444,6 +478,7 @@ internal class CoreCalendarBackend(private val core: Core, private val texts: Te
                 cancelled = e.cancelled,
                 editable = e.editable,
                 onServer = e.onServer,
+                peopleCut = e.peopleCut,
             )
         }
     } catch (_: CoreException) {

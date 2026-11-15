@@ -186,6 +186,18 @@ class EventDraftTest {
         assertNull(SavedDraft.read(SavedDraft.write(base) + ("id" to "-1")))
         assertNull(SavedDraft.read(SavedDraft.write(base) + ("days" to "FUNDAY")))
     }
+
+    @Test
+    fun aListOfPeopleTheEditorWasGivenOnlyPartOfIsNeverSentBack() {
+        val cut = detail(people = true).copy(peopleCut = true)
+        val draft = cut.draft(null)
+        assertFalse(draft.copy(title = "Renamed").params(null).contains("attendees"))
+        // Not even when the field was changed: the core would take it as the whole list.
+        assertFalse(draft.copy(attendees = "ada@example.org; new@example.org").params(null).contains("attendees"))
+        val whole = detail(people = true).draft(null)
+        assertTrue(whole.copy(attendees = "ada@example.org; new@example.org").params(null).contains("\"attendees\""))
+        assertEquals(draft, SavedDraft.read(SavedDraft.write(draft)))
+    }
 }
 
 class JsonTextTest {

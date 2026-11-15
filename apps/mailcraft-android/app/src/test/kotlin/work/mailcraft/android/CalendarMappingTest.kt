@@ -80,4 +80,14 @@ class CalendarMappingTest {
         assertEquals(0, readCapped(ByteArrayInputStream(ByteArray(0)), 3)?.size)
         assertNull(readCapped(ByteArrayInputStream(ByteArray(ICS_MAX_BYTES + 1)), ICS_MAX_BYTES))
     }
+
+    @Test
+    fun aCountTheEditorCannotHoldIsKeptAndNotCut() {
+        // 2,000 times would be cut to the editor's 999 by a save that changed only the title.
+        assertTrue(repeatOf(RuleFacts("daily", 1u, emptyList(), null, 2000u, null)).kept)
+        assertTrue(repeatOf(RuleFacts("daily", 1u, emptyList(), null, 0u, null)).kept)
+        val most = repeatOf(RuleFacts("daily", 1u, emptyList(), null, RepeatDraft.MAX_COUNT.toUInt(), null))
+        assertFalse(most.kept)
+        assertEquals(RepeatEnd.After(RepeatDraft.MAX_COUNT), most.end)
+    }
 }

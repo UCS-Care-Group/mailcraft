@@ -6,6 +6,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
@@ -108,6 +109,30 @@ internal data class CalendarEvent(
 
     /** It lasts more than one calendar day. */
     val spansDays: Boolean get() = lastDay.isAfter(firstDay)
+}
+
+/**
+ * When an event is, in words: its day and times, or for a whole-day event its day and [allDayWord];
+ * an event that ends on another day than it starts names that day too (a whole-day event's last day,
+ * not the day after it).
+ */
+internal fun whenText(
+    span: Pair<LocalDateTime, LocalDateTime>,
+    allDay: Boolean,
+    allDayWord: String,
+    date: DateTimeFormatter,
+    time: DateTimeFormatter,
+): String {
+    val (from, to) = span
+    val first = from.toLocalDate()
+    val last = if (to.isAfter(from)) to.minusNanos(1).toLocalDate() else first
+    return when {
+        allDay && last.isAfter(first) -> first.format(date) + " – " + last.format(date) + ", " + allDayWord
+        allDay -> first.format(date) + " – " + allDayWord
+        last.isAfter(first) -> first.format(date) + ", " + from.toLocalTime().format(time) + " – " +
+            to.toLocalDate().format(date) + ", " + to.toLocalTime().format(time)
+        else -> first.format(date) + ", " + from.toLocalTime().format(time) + " – " + to.toLocalTime().format(time)
+    }
 }
 
 /** A time as the core writes it (`YYYY-MM-DDTHH:MM:SS`, or a date); null for what is neither. */

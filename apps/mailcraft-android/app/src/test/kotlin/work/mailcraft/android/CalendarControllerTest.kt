@@ -368,4 +368,34 @@ class CalendarControllerTest {
         c.restore(draft)
         assertEquals(draft, (c.state.value.page as CalendarPage.Editor).draft)
     }
+
+    @Test
+    fun anAnswerForOneTimeOfASeriesOpenedOnALaterDayNamesThatDay() {
+        val c = controller()
+        c.refresh()
+        // The series began on 3 November; the time opened is a fortnight later.
+        backend.detail = detail(guest = true).copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))
+        c.open(event(1, "2026-11-17T14:00", "2026-11-17T15:00", invited = true))
+        val page = c.state.value.page as CalendarPage.Detail
+        val asEvent = page.event.asEvent(page.occurrence)
+        assertEquals(LocalDateTime.parse("2026-11-17T14:00"), asEvent.start)
+        assertTrue(asEvent.repeats)
+        c.answer(asEvent, Answer.Accepted)
+        c.answerAsk(send = true, occurrenceOnly = true)
+        assertEquals(
+            "calendar.respond" to "{\"id\":1,\"response\":\"accept\",\"send\":true,\"scope\":\"occurrence\",\"occurrence\":\"2026-11-17\"}",
+            backend.commands.last(),
+        )
+    }
+
+    @Test
+    fun aMeetingTheServerKeepsIsNeverOfferedADeletionThatTellsNobody() {
+        val meeting = detail(people = true, onServer = true)
+        assertTrue(deleteOptions(meeting, EnglishTexts).all { it.second == true })
+        val series = meeting.copy(repeat = RepeatDraft(Repeat.Daily))
+        assertEquals(listOf(false, true), deleteOptions(series, EnglishTexts).map { it.third })
+        assertTrue(deleteOptions(series, EnglishTexts).all { it.second == true })
+        // Nobody to tell: the plain choices, which send nothing.
+        assertTrue(deleteOptions(detail(), EnglishTexts).all { it.second == null })
+    }
 }

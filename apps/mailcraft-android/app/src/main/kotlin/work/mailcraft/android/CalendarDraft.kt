@@ -77,6 +77,8 @@ internal data class LoadedText(
     val description: String,
     val attendees: String,
     val optional: String,
+    /** The people given are not all of them: the list can't be changed here, and is never sent back. */
+    val peopleCut: Boolean = false,
 )
 
 /** An event being made or changed, by the owner's clock; a whole-day event's [endDate] is its last day. */
@@ -181,8 +183,10 @@ internal data class EventDraft(
         val parts = ArrayList<String>()
         if (was == null || location != was.location) parts.add("\"location\":${jsonString(location.trim())}")
         if (was == null || description != was.description) parts.add("\"description\":${jsonString(description)}")
-        // The core rebuilds the list from both fields together, so a change of either sends both.
-        if (was == null || attendees != was.attendees || optional != was.optional) {
+        // The core rebuilds the list from both fields together, so a change of either sends both; a list
+        // the editor was given only part of is never sent, as it would drop whoever was not given.
+        val keepPeople = was != null && (was.peopleCut || (attendees == was.attendees && optional == was.optional))
+        if (!keepPeople) {
             parts.add("\"attendees\":${jsonString(attendees.trim())}")
             if (was != null || optional.isNotBlank()) parts.add("\"optional\":${jsonString(optional.trim())}")
         }

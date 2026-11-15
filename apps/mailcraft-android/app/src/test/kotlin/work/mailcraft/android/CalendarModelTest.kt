@@ -8,6 +8,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -216,4 +217,26 @@ class CalendarEventTest {
         assertEquals(Answer.None, Answer.fromCode("whatever"))
         assertEquals("tentative", Answer.Tentative.command)
     }
+
+    @Test
+    fun anEventThatEndsOnAnotherDayNamesThatDayToo() {
+        val date = DateTimeFormatter.ofPattern("d MMM", Locale.US)
+        val time = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+        // A whole-day event's end is the moment after its last day.
+        assertEquals("3 Nov – 5 Nov, All day", whenText(at("2026-11-03T00:00", "2026-11-06T00:00"), true, "All day", date, time))
+        assertEquals("3 Nov – All day", whenText(at("2026-11-03T00:00", "2026-11-04T00:00"), true, "All day", date, time))
+        assertEquals("3 Nov, 22:00 – 4 Nov, 02:00", whenText(at("2026-11-03T22:00", "2026-11-04T02:00"), false, "All day", date, time))
+        assertEquals("3 Nov, 14:00 – 15:00", whenText(at("2026-11-03T14:00", "2026-11-03T15:00"), false, "All day", date, time))
+        // An end at midnight is the same evening's.
+        assertEquals("3 Nov, 22:00 – 00:00", whenText(at("2026-11-03T22:00", "2026-11-04T00:00"), false, "All day", date, time))
+    }
+
+    @Test
+    fun oneTimeOfASeriesIsOnItsOwnDayAndAnyOtherEventOnItsOwn() {
+        val series = detail().copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))
+        assertEquals(at("2026-11-17T14:00", "2026-11-17T15:00"), series.span(day("2026-11-17")))
+        assertEquals(at("2026-11-03T14:00", "2026-11-03T15:00"), detail().span(day("2026-11-17")))
+    }
+
+    private fun at(from: String, to: String) = LocalDateTime.parse(from) to LocalDateTime.parse(to)
 }

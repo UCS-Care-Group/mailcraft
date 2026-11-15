@@ -46,6 +46,7 @@ internal object SavedDraft {
             out["was.description"] = it.description
             out["was.attendees"] = it.attendees
             out["was.optional"] = it.optional
+            out["was.peopleCut"] = it.peopleCut.toString()
         }
         return out
     }
@@ -95,6 +96,7 @@ internal object SavedDraft {
                     description = m["was.description"].orEmpty(),
                     attendees = m["was.attendees"].orEmpty(),
                     optional = m["was.optional"].orEmpty(),
+                    peopleCut = m["was.peopleCut"] == "true",
                 )
             },
         )

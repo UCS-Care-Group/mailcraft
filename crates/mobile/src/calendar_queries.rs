@@ -57,6 +57,8 @@ fn detail(s: &Session, e: &Event) -> EventDetail {
             optional: a.optional,
             response: code(&a.response),
         }),
+        people_cut: e.attendees.len() > text::MAX_PEOPLE_IN_ITEM
+            || e.attendees.iter().take(text::MAX_PEOPLE_IN_ITEM).any(|a| a.address.email.chars().nth(MAX_ADDRESS).is_some()),
         recurrence: e.recurrence.as_ref().map(recurrence),
         reminder_minutes: e.reminder_minutes,
         show_as: code(&e.show_as),

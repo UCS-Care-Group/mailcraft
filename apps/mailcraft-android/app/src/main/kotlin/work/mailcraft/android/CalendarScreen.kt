@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -80,6 +81,9 @@ private const val MAX_DOTS = 3
 private const val BLOCK_ALPHA = 0.22f
 private const val DIM_ALPHA = 0.45f
 private const val DEFAULT_SCROLL_MINUTE = 7 * MINUTES_IN_HOUR
+
+/** How much of the day view the whole-day events may take at most: a third. */
+private const val ALL_DAY_SHARE = 3
 
 /** The Calendar tab: the page that is open, or the three views with their bar. */
 @Composable
@@ -348,22 +352,34 @@ private fun DayView(
     val hours = startMinute.coerceAtLeast(0).toFloat() / MINUTES_IN_HOUR
     val initial = with(density) { (HourHeight * hours).roundToPx() }
     val scroll = rememberScrollState(initial = initial)
-    Column(modifier = Modifier.fillMaxSize()) {
-        layout.allDay.forEach { e ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { actions.onOpen(e) }
-                    .padding(horizontal = Gutter, vertical = Bar),
-                horizontalArrangement = Arrangement.spacedBy(Small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.size(Dot).background(Color(e.color), CircleShape))
-                Text(e.title.ifBlank { texts.t("(No title)") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(texts.t("All day"), style = MaterialTheme.typography.labelSmall)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // The whole-day events take at most a third of the view and scroll on their own beyond that, so
+        // that the hours below are always there to scroll through, however many there are.
+        val allDayMax = maxHeight / ALL_DAY_SHARE
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (layout.allDay.isNotEmpty()) {
+                Column(modifier = Modifier.heightIn(max = allDayMax).verticalScroll(rememberScrollState())) {
+                    layout.allDay.forEach { e -> AllDayRow(texts, e, actions) }
+                }
+            }
+            Box(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
+                DayGrid(texts, layout, state.anchor, locale, actions)
             }
         }
-        Box(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
-            DayGrid(texts, layout, state.anchor, locale, actions)
-        }
+    }
+}
+
+@Composable
+private fun AllDayRow(texts: Texts, e: CalendarEvent, actions: CalendarActions) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { actions.onOpen(e) }
+            .padding(horizontal = Gutter, vertical = Bar),
+        horizontalArrangement = Arrangement.spacedBy(Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(Dot).background(Color(e.color), CircleShape))
+        Text(e.title.ifBlank { texts.t("(No title)") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(texts.t("All day"), style = MaterialTheme.typography.labelSmall)
     }
 }
 

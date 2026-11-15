@@ -3829,11 +3829,6 @@ msgstr "Ștergeți această cheie de pe acest computer"
 msgid "Delete this rule"
 msgstr "Ștergeți această regulă"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-msgid "Delete, tell nobody"
-msgstr ""
-
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -14083,7 +14078,7 @@ msgid "That didn't go through."
 msgstr ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
 msgid "That file could not be read as a calendar."
 msgstr ""
 
@@ -16751,6 +16746,11 @@ msgstr "Mâine"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Prea multe modificări de calendar așteaptă să fie trimise serverului. Lăsați întâi Trimitere/primire să le trimită."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+msgid "Too many people to change here; they are kept as they are."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs

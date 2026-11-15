@@ -51,24 +51,30 @@ private const val BUFFER = 8192
  */
 internal fun readIcs(resolver: ContentResolver, intent: Intent): IcsRead {
     val uri: Uri = intent.data ?: return IcsRead.NotOurs
-    val type = intent.type ?: resolver.getType(uri)
-    if (intent.action != Intent.ACTION_VIEW || uri.scheme != ContentResolver.SCHEME_CONTENT || !isCalendarType(type)) {
-        return IcsRead.NotOurs
-    }
+    if (intent.action != Intent.ACTION_VIEW || uri.scheme != ContentResolver.SCHEME_CONTENT) return IcsRead.NotOurs
+    // What the sender's provider does is its own: whatever it throws (a refusal, an address it won't
+    // take, its process gone) is a file that could not be read, never a crash. (Nothing here suspends,
+    // so no cancellation is caught.)
     return try {
-        val bytes = resolver.openInputStream(uri)?.use { readCapped(it, ICS_MAX_BYTES) }
-        if (bytes == null) IcsRead.Unreadable else IcsRead.Got(IcsFile(nameOf(resolver, uri), bytes))
+        val type = intent.type ?: resolver.getType(uri)
+        if (!isCalendarType(type)) {
+            IcsRead.NotOurs
+        } else {
+            val bytes = resolver.openInputStream(uri)?.use { readCapped(it, ICS_MAX_BYTES) }
+            if (bytes == null) IcsRead.Unreadable else IcsRead.Got(IcsFile(nameOf(resolver, uri), bytes))
+        }
     } catch (_: IOException) {
         IcsRead.Unreadable
-    } catch (_: SecurityException) {
+    } catch (_: RuntimeException) {
         IcsRead.Unreadable
     }
 }
 
+/** The name the provider gives the file; empty when it gives none or fails to (the name is only a label). */
 private fun nameOf(resolver: ContentResolver, uri: Uri): String = try {
     resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
         if (c.moveToFirst()) c.getString(0).orEmpty() else ""
     }.orEmpty()
-} catch (_: SecurityException) {
+} catch (_: RuntimeException) {
     ""
 }
