@@ -3445,13 +3445,13 @@ impl Session {
         }
     }
 
-    /// Whether undoing the last step (or redoing, `redo`) would take the message `message` away or
-    /// put it in an Outbox (#950).
-    pub fn undo_puts_in_outbox_or_takes(&self, redo: bool, message: Id) -> bool {
-        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+    /// How undoing the last step (or redoing, `redo`) would change the message `message` (#950):
+    /// `(takes it away, puts it in an Outbox)`.
+    pub fn undo_takes_or_queues(&self, redo: bool, message: Id) -> (bool, bool) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (false, false) };
         match step.mailbox.messages.get(&message) {
-            None => true,
-            Some(then) => step.mailbox.folder(then.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Outbox),
+            None => (true, false),
+            Some(then) => (false, step.mailbox.folder(then.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Outbox)),
         }
     }
 

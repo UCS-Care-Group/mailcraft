@@ -151,3 +151,26 @@ fn ctrl_z_undoes_the_last_step_when_something_else_came_after_the_send() {
     h.state_mut().run("compose.undoSend", json!({})).unwrap();
     assert_eq!(h.state().session.compose.as_ref().and_then(|c| c.draft), Some(id));
 }
+
+#[test]
+fn the_late_line_says_why_where_it_is_known() {
+    let (mut h, account) = window();
+    let app = h.state_mut();
+    let why = |app: &MailApp, a| crate::send_later::late_reason(app, a);
+    assert_eq!(why(app, None), None, "no account, no reason to give");
+    // No sign-in for the account.
+    assert_eq!(why(app, Some(account)).as_deref(), Some("sign-in needed"));
+    // Signed in: nothing known, then its own problems.
+    app.passwords.insert(account, "x".into());
+    assert_eq!(why(app, Some(account)), None);
+    app.sync_problems.push((account + 1000, "Other".into(), "10:00".into(), Vec::new()));
+    assert_eq!(why(app, Some(account)), None, "another account's problems are not this one's");
+    app.sync_problems.push((account, "Mine".into(), "10:00".into(), Vec::new()));
+    assert_eq!(why(app, Some(account)).as_deref(), Some("the last Send/Receive had problems"));
+    // A shared mailbox the server refused isn't a sign-in.
+    app.shared_refused.insert(account, mailcraft_model::sync::SharedRefusal::NoAccess);
+    assert_eq!(why(app, Some(account)).as_deref(), Some("the mailbox wasn't opened"));
+    // Offline says so first.
+    app.session.prefs.offline = true;
+    assert_eq!(why(app, Some(account)).as_deref(), Some("working offline"));
+}

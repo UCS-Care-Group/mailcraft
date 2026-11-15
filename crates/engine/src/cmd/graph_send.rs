@@ -344,7 +344,9 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     }
     let why = p::str(v, "why").and_then(hold_reason).ok_or_else(|| bad("`why` is declined, approval or organisation"))?;
     let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return Ok(json!({"held": []})) };
-    let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).take(MAX_SENDS).collect();
+    let now = s.now();
+    // (A delayed message that isn't due isn't waiting to go, so there is nothing to hold.)
+    let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty() && !m.waits_until(now)).map(|m| m.id).take(MAX_SENDS).collect();
     let mut said = Vec::new();
     for id in &waiting {
         let done =

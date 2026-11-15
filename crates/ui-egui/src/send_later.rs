@@ -214,20 +214,32 @@ pub(crate) fn delay_is_on(app: &MailApp) -> bool {
     app.session.compose.as_ref().is_some_and(|c| c.send_at.is_some_and(|at| at > app.session.now()))
 }
 
+/// Why a delayed message of `account` didn't go at its time, where that is known: the window is
+/// offline, the account's mailbox wasn't opened (a shared one the server refused), it needs a
+/// sign-in, or its own last Send/Receive had problems.
+pub(crate) fn late_reason(app: &MailApp, account: Option<mailcraft_model::Id>) -> Option<String> {
+    if app.offline() {
+        return Some(tl!("working offline").to_string());
+    }
+    let account = account?;
+    if app.shared_refused.contains_key(&account) {
+        return Some(tl!("the mailbox wasn't opened").to_string());
+    }
+    if !app.can_sync_quietly(account) {
+        return Some(tl!("sign-in needed").to_string());
+    }
+    if app.sync_problems.iter().any(|(a, ..)| *a == account) {
+        return Some(tl!("the last Send/Receive had problems").to_string());
+    }
+    None
+}
+
 fn note_text(app: &MailApp) -> Option<String> {
     let note = app.session.send_later_note()?;
     if note.late > 0 {
         let text = tln!(note.late, "{n} delayed message didn't go at its time", "{n} delayed messages didn't go at their time");
         // Why, where it is known.
-        let why = if app.offline() {
-            Some(tl!("working offline"))
-        } else if note.late_account.is_some_and(|a| !app.can_sync_quietly(a)) {
-            Some(tl!("sign-in needed"))
-        } else if app.has_sync_problems() {
-            Some(tl!("the last Send/Receive had problems"))
-        } else {
-            None
-        };
+        let why = late_reason(app, note.late_account);
         return Some(match why {
             Some(why) => format!("{text} ({why})"),
             None => text,

@@ -68,9 +68,13 @@ fn refuse_taking_mail(s: &Session, id: &str, redo: bool) -> Result<(), CmdError>
 /// away under its composer (#950): written there, it could be sent with its edits lost, twice,
 /// or deleted with its queued copy.
 fn refuse_under_composer(s: &Session, redo: bool) -> Result<(), CmdError> {
-    let held = s.all_composing().filter_map(|c| c.draft).any(|d| s.undo_changes_message(redo, d) && s.undo_puts_in_outbox_or_takes(redo, d));
-    // An agent the owner allowed to delete has been asked already (#473): the composer keeps what it holds and saves it again.
-    let held = held && s.agent.is_none();
+    // An agent the owner allowed to delete has been asked already (#473), so taking the message
+    // away is let be for it (the composer keeps what it holds and saves it again); putting it back
+    // in an Outbox never is, whoever asks.
+    let held = s.all_composing().filter_map(|c| c.draft).filter(|d| s.undo_changes_message(redo, *d)).any(|d| {
+        let (takes, queues) = s.undo_takes_or_queues(redo, d);
+        queues || (takes && s.agent.is_none())
+    });
     if held { Err(fail("that step changes a message that is open for writing: close it first")) } else { Ok(()) }
 }
 

@@ -343,7 +343,7 @@ fn undo_send_leaves_no_step_that_puts_the_message_back_in_the_queue() {
     at(&mut s, T0 + 100);
     let _ = s.run("edit.undo", &json!({}));
     let _ = s.run("edit.undo", &json!({}));
-    assert!(s.mailbox.message(id).map_or(true, |m| m.folder != outbox), "never back in the Outbox");
+    assert!(s.mailbox.message(id).is_none_or(|m| m.folder != outbox), "never back in the Outbox");
     assert!(s.mailbox.messages_in(outbox).next().is_none());
 }
 
@@ -479,4 +479,25 @@ fn a_delayed_message_is_in_no_kind_of_runs_request_before_its_time() {
         assert!(waits(&s).is_empty(), "{name}: a cancelled message never goes");
         at(&mut s, T0);
     }
+}
+
+/// Send Later, Cancel Send, Open Draft, an edit, then an agent that may send and delete undoes the
+/// cancel: that would queue the old text under the open composer (a double send).
+#[test]
+fn an_agents_undo_never_puts_the_message_under_an_open_composer_back_in_the_outbox() {
+    let (mut s, a) = imap();
+    let id = send_after(&mut s, a, "Plan", 600);
+    s.run("mail.cancelSend", &json!({"id": id})).unwrap();
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    s.run("compose.setBody", &json!({"body": "New text"})).ok();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    s.agent = Some(vec![crate::agent::Class::Send, crate::agent::Class::Delete]);
+    let undone = s.run("edit.undo", &json!({}));
+    let redone = s.run("edit.redo", &json!({}));
+    s.agent = None;
+    assert!(undone.is_err(), "refused for an agent too");
+    let _ = redone;
+    assert_ne!(s.mailbox.message(id).unwrap().folder, outbox, "never back in the Outbox");
+    assert_eq!(s.mailbox.message(id).unwrap().send_at, None);
+    assert!(s.compose.is_some());
 }
