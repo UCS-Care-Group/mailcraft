@@ -362,8 +362,11 @@ impl Walk {
                 _ => media::media_type_for(&name).to_string(),
             };
             let name = if name.is_empty() { media::default_name(&mime) } else { name };
-            let content_id = file.content_id.unwrap_or_default();
-            self.attachments.push(Attachment { name, mime, content_id, inline: false, data: Arc::new(file.data) });
+            // No content id: only the stream's own rich text refers to one, and it isn't shown.
+            // Carried, it could clash with a part of the message's own (a `cid:` picture goes to
+            // the first attachment with its id, and the stream's files stand before what follows
+            // it), so the stream could put its file in the place of the message's picture.
+            self.attachments.push(Attachment { name, mime, content_id: String::new(), inline: false, data: Arc::new(file.data) });
         }
         if self.tnef_text.is_none() {
             self.tnef_text = found.body.map(|t| charset::unix_lines(&t));

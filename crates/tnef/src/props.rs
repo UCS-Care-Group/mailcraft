@@ -55,6 +55,41 @@ struct Prop<'a> {
     value: Value<'a>,
 }
 
+/// What the reader may still keep of a whole stream, in bytes ([`Limits::max_held`]): every
+/// property kept and every attachment started takes its size from it, before it is kept.
+#[derive(Debug)]
+pub(crate) struct Budget {
+    left: usize,
+}
+
+impl Budget {
+    pub(crate) fn new(bytes: usize) -> Budget {
+        Budget { left: bytes }
+    }
+
+    /// Take `n` bytes; false, and nothing taken, when fewer are left.
+    pub(crate) fn take(&mut self, n: usize) -> bool {
+        match self.left.checked_sub(n) {
+            Some(left) => {
+                self.left = left;
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+/// How a list of properties ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Ended {
+    /// Read to its end.
+    Whole,
+    /// Stopped early: a type of no known size, a value past the end, more than [`Limits`] allow.
+    Short,
+    /// Stopped because the stream's [`Budget`] is spent.
+    Spent,
+}
+
 /// The properties of a message or an attachment, in the order read.
 #[derive(Debug, Default)]
 pub(crate) struct Props<'a> {
@@ -102,31 +137,33 @@ impl<'a> Props<'a> {
     }
 }
 
-/// A counted list of properties. The second part is false when the list couldn't be read to
-/// its end (a type of no known size, a value past the end, more than [`Limits`] allow): what
-/// was read before is kept.
-pub(crate) fn read<'a>(data: &'a [u8], limits: &Limits) -> (Props<'a>, bool) {
+/// A counted list of properties, and how it ended: what was read before a list stopped is kept.
+/// Each property kept takes its size from `budget` first.
+pub(crate) fn read<'a>(data: &'a [u8], limits: &Limits, budget: &mut Budget) -> (Props<'a>, Ended) {
     let mut props = Props { list: Vec::new(), room: Some(limits.max_properties) };
     let mut c = Cursor::new(data);
-    let Some(count) = c.u32() else { return (props, false) };
+    let Some(count) = c.u32() else { return (props, Ended::Short) };
     // Every property read counts against the cap, named ones too, though only those with a
     // fixed id are kept; and each takes at least four bytes, so a count past what the data holds
     // stops at its end rather than going round for nothing.
     for read in 0..count {
         if usize::try_from(read).map_or(true, |read| read >= limits.max_properties) {
-            return (props, false);
+            return (props, Ended::Short);
         }
-        let (Some(kind), Some(id)) = (c.u16(), c.u16()) else { return (props, false) };
+        let (Some(kind), Some(id)) = (c.u16(), c.u16()) else { return (props, Ended::Short) };
         let named = id >= FIRST_NAMED;
         if named && name(&mut c).is_none() {
-            return (props, false);
+            return (props, Ended::Short);
         }
-        let Some(value) = value(&mut c, kind, limits) else { return (props, false) };
+        let Some(value) = value(&mut c, kind, limits) else { return (props, Ended::Short) };
         if !named {
+            if !budget.take(size_of::<Prop<'_>>()) {
+                return (props, Ended::Spent);
+            }
             props.list.push(Prop { id, value });
         }
     }
-    (props, true)
+    (props, Ended::Whole)
 }
 
 /// A named property's name (`NamedPropSpec`): its namespace, then a number or a string.

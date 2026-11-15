@@ -259,6 +259,55 @@ fn many_property_lists_keep_at_most_the_cap_of_properties_and_say_so() {
     assert_eq!(t.left_out, [LeftOut::Cap]);
 }
 
+/// An attachment of one byte whose property list holds `n` small properties (8 bytes each in
+/// the stream), every list within the default `max_properties`.
+fn crowded(writer: &mut Writer, n: usize) {
+    let mut list: Vec<Prop> = (0..n).map(|i| Prop::Int32(0x6000 + (i % 0x1000) as u16, 1)).collect();
+    list.push(Prop::Binary(0x3701, vec![b'x']));
+    writer.attachment(1, &list);
+}
+
+#[test]
+fn a_stream_of_many_small_properties_is_cut_short_at_the_budget() {
+    // The review's case: about 32 MB of 8-byte properties over 1,000 attachments, each list
+    // within max_properties, would have the reader keep about 130 MB of records. Within the
+    // default budget (4 MiB, about 131,000 properties kept) it stops after some 30 attachments.
+    let mut writer = Writer::new();
+    for _ in 0..1_000 {
+        crowded(&mut writer, 4_000);
+    }
+    let bytes = writer.finish();
+    assert!(bytes.len() > 32_000_000, "{} bytes", bytes.len());
+    let t = read(&bytes, &Limits::default()).unwrap();
+    assert!(t.left_out.contains(&LeftOut::Cap), "{:?}", t.left_out);
+    assert!(!t.files.is_empty() && t.files.len() < 40, "{} files", t.files.len());
+}
+
+#[test]
+fn what_comes_before_the_budget_is_spent_is_kept() {
+    // Room for a few lists of 100 properties: the files before the cut come out whole, nothing
+    // after it is read, and the cut is said.
+    let mut writer = Writer::new();
+    for _ in 0..10 {
+        crowded(&mut writer, 100);
+    }
+    let bytes = writer.finish();
+    let whole = read(&bytes, &Limits::default()).unwrap();
+    assert_eq!(whole.files.len(), 10);
+    assert!(whole.is_complete());
+
+    let t = read(&bytes, &Limits { max_held: 16 * 1024, ..Limits::default() }).unwrap();
+    assert!(t.files.len() < 10 && !t.files.is_empty(), "{} files", t.files.len());
+    assert!(t.files.iter().all(|f| f.data == b"x"));
+    // The attachment the cut fell in lost its data with the rest of its list.
+    assert_eq!(t.left_out, [LeftOut::Cap, LeftOut::NoData]);
+
+    // No budget at all: nothing is kept, and that is said too.
+    let t = read(&bytes, &Limits { max_held: 0, ..Limits::default() }).unwrap();
+    assert!(t.files.is_empty());
+    assert_eq!(t.left_out, [LeftOut::Cap]);
+}
+
 #[test]
 fn named_properties_count_against_the_cap() {
     let named: Vec<Prop> = (0..5).map(|i| Prop::NamedInt32 { name: format!("n{i}"), value: i }).collect();

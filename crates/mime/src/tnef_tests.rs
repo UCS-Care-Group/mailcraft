@@ -75,7 +75,7 @@ fn its_text_is_the_body_only_when_the_message_has_none() {
 }
 
 #[test]
-fn a_content_id_comes_along_and_the_file_is_not_inline() {
+fn a_streams_file_keeps_no_content_id_and_is_not_inline() {
     let stream = Writer::new()
         .attachment(
             1,
@@ -87,9 +87,37 @@ fn a_content_id_comes_along_and_the_file_is_not_inline() {
         )
         .finish();
     let m = parse(&message(Some("t"), "application/ms-tnef", "winmail.dat", &stream));
-    assert_eq!(m.attachments[0].content_id, "image001.png@01DA");
+    assert_eq!(m.attachments[0].name, "image001.png");
+    assert_eq!(m.attachments[0].content_id, "");
     assert_eq!(m.attachments[0].mime, "image/png");
     assert!(!m.attachments[0].inline);
+}
+
+#[test]
+fn a_streams_content_id_never_takes_the_place_of_the_messages_picture() {
+    // The message's own picture comes after the stream with the content id the stream's file
+    // also gives: the message's picture is the only attachment with it, so `cid:logo@example.org`
+    // can only be the message's.
+    let stream = Writer::new()
+        .attachment(
+            1,
+            &[
+                Prop::Unicode(0x3707, "other.png".into()),
+                Prop::Unicode(0x3712, "logo@example.org".into()),
+                Prop::Binary(0x3701, b"stream's".to_vec()),
+            ],
+        )
+        .finish();
+    let mut m = message(Some("t"), "application/ms-tnef", "winmail.dat", &stream);
+    let end = m.len() - "--b--\r\n".len();
+    let picture =
+        "--b\r\nContent-Type: image/png; name=\"logo.png\"\r\nContent-ID: <logo@example.org>\r\nContent-Disposition: inline\r\n\r\nmessage's\r\n";
+    m.splice(end..end, picture.bytes());
+    let m = parse(&m);
+    let with: Vec<_> = m.attachments.iter().filter(|a| a.content_id == "logo@example.org").collect();
+    assert_eq!(with.len(), 1);
+    assert_eq!(with[0].name, "logo.png");
+    assert_eq!(*with[0].data, b"message's");
 }
 
 #[test]

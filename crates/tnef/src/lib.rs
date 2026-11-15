@@ -34,7 +34,7 @@ mod tests;
 use std::fmt;
 
 use bytes::Cursor;
-use props::{Props, Value};
+use props::{Budget, Ended, Props, Value};
 
 /// The first four bytes of every TNEF stream (`TNEFSignature`, 2.1.3.2).
 pub const SIGNATURE: [u8; 4] = [0x78, 0x9F, 0x3E, 0x22];
@@ -109,11 +109,26 @@ pub struct Limits {
     pub max_name: usize,
     /// Most bytes of the message's text, and of the rich text it is read from.
     pub max_body: usize,
+    /// Most bytes the reader keeps of its own records for the whole stream: every property it
+    /// keeps and every attachment it starts takes its size from this before it is kept, so that
+    /// a stream of many small properties, each list within [`Limits::max_properties`], can't
+    /// make it hold many times its own size. Past it the rest of the stream is not read (it is
+    /// cut short there, [`LeftOut::Cap`]), and what came before is kept. The files themselves
+    /// are copies of the stream's bytes and never more than it.
+    pub max_held: usize,
 }
 
 impl Default for Limits {
     fn default() -> Limits {
-        Limits { max_attributes: 10_000, max_files: 1_000, max_properties: 4_096, max_values: 4_096, max_name: 1_024, max_body: 16 * 1024 * 1024 }
+        Limits {
+            max_attributes: 10_000,
+            max_files: 1_000,
+            max_properties: 4_096,
+            max_values: 4_096,
+            max_name: 1_024,
+            max_body: 16 * 1024 * 1024,
+            max_held: 4 * 1024 * 1024,
+        }
     }
 }
 
@@ -258,8 +273,12 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
     let mut attributes = 0usize;
     // As many attachments as a stream may give have been started: the rest are left out.
     let mut full = false;
+    // What the reader may still keep of the whole stream; once it is spent, the stream is cut
+    // short where it stands.
+    let mut budget = Budget::new(limits.max_held);
+    let mut spent = false;
     while !c.is_empty() {
-        if attributes >= limits.max_attributes {
+        if spent || attributes >= limits.max_attributes {
             note(&mut left_out, LeftOut::Cap);
             break;
         }
@@ -279,7 +298,11 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
             // The attachment this attribute belonged to may be missing it now: a new group
             // begins anyway, so that what follows isn't taken for the one before.
             if attr.id == id::ATTACH_REND_DATA {
-                full |= !start(&mut pending, false, limits, &mut left_out);
+                match start(&mut pending, false, limits, &mut budget, &mut left_out) {
+                    Start::Started => {}
+                    Start::Full => full = true,
+                    Start::Spent => spent = true,
+                }
             }
             continue;
         }
@@ -292,10 +315,8 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
             id::OEM_CODEPAGE => oem_codepage = Cursor::new(attr.data).u32().filter(|cp| *cp != 0),
             id::BODY => body_attr = Some(attr.data),
             id::MSG_PROPS => {
-                let (props, complete) = props::read(attr.data, limits);
-                if !complete {
-                    note(&mut left_out, LeftOut::Properties);
-                }
+                let (props, ended) = props::read(attr.data, limits, &mut budget);
+                spent |= ended_list(ended, &mut left_out);
                 if !message.merge(props) {
                     note(&mut left_out, LeftOut::Cap);
                 }
@@ -303,7 +324,11 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
             id::ATTACH_REND_DATA => {
                 // AttachType: 1 a file, 2 an OLE object.
                 let ole = Cursor::new(attr.data).u16() == Some(2);
-                full |= !start(&mut pending, ole, limits, &mut left_out);
+                match start(&mut pending, ole, limits, &mut budget, &mut left_out) {
+                    Start::Started => {}
+                    Start::Full => full = true,
+                    Start::Spent => spent = true,
+                }
             }
             id::ATTACH_DATA | id::ATTACH_TITLE | id::ATTACHMENT => {
                 // An attachment's attributes start with attAttachRendData; one that doesn't is
@@ -312,17 +337,25 @@ pub fn read(bytes: &[u8], limits: &Limits) -> Result<Tnef, Error> {
                     continue;
                 }
                 if pending.is_empty() {
-                    full |= !start(&mut pending, false, limits, &mut left_out);
+                    match start(&mut pending, false, limits, &mut budget, &mut left_out) {
+                        Start::Started => {}
+                        Start::Full => {
+                            full = true;
+                            continue;
+                        }
+                        Start::Spent => {
+                            spent = true;
+                            continue;
+                        }
+                    }
                 }
                 let Some(current) = pending.last_mut() else { continue };
                 match attr.id {
                     id::ATTACH_DATA => current.data = Some(attr.data),
                     id::ATTACH_TITLE => current.title = Some(attr.data),
                     _ => {
-                        let (props, complete) = props::read(attr.data, limits);
-                        if !complete {
-                            note(&mut left_out, LeftOut::Properties);
-                        }
+                        let (props, ended) = props::read(attr.data, limits, &mut budget);
+                        spent |= ended_list(ended, &mut left_out);
                         if !current.props.merge(props) {
                             note(&mut left_out, LeftOut::Cap);
                         }
@@ -371,15 +404,42 @@ fn attribute<'a>(c: &mut Cursor<'a>) -> Option<Attribute<'a>> {
     Some(Attribute { id, data, checksum_ok: sum == checksum })
 }
 
-/// Start an attachment's attributes; false, and nothing started, when there are already as
-/// many as a stream may give.
-fn start(pending: &mut Vec<Pending<'_>>, ole: bool, limits: &Limits, left_out: &mut Vec<LeftOut>) -> bool {
+/// Whether an attachment's attributes could be started.
+enum Start {
+    Started,
+    /// There are already as many as a stream may give ([`Limits::max_files`]).
+    Full,
+    /// The stream's [`Budget`] is spent.
+    Spent,
+}
+
+/// Start an attachment's attributes, if there is room for one more, and a budget for it.
+fn start(pending: &mut Vec<Pending<'_>>, ole: bool, limits: &Limits, budget: &mut Budget, left_out: &mut Vec<LeftOut>) -> Start {
     if pending.len() >= limits.max_files {
         note(left_out, LeftOut::Cap);
-        return false;
+        return Start::Full;
+    }
+    if !budget.take(size_of::<Pending<'_>>()) {
+        note(left_out, LeftOut::Cap);
+        return Start::Spent;
     }
     pending.push(Pending { ole, ..Pending::default() });
-    true
+    Start::Started
+}
+
+/// Note how a list of properties ended; true when the stream's budget is spent.
+fn ended_list(ended: Ended, left_out: &mut Vec<LeftOut>) -> bool {
+    match ended {
+        Ended::Whole => false,
+        Ended::Short => {
+            note(left_out, LeftOut::Properties);
+            false
+        }
+        Ended::Spent => {
+            note(left_out, LeftOut::Cap);
+            true
+        }
+    }
 }
 
 /// The file an attachment's attributes make, or why there is none.
