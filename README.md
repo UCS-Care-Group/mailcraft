@@ -89,6 +89,12 @@ The pictures are of the sample mailbox (`--sample`): invented people and invente
 
 The browser build is the same app with three differences that a browser imposes: it can't open the connections IMAP and SMTP need, so the only mail servers it reaches are JMAP ones ([docs/jmap.md](docs/jmap.md); bring other mail in with File › Import, or use the desktop app), the mailbox lives in the browser's storage, and saving means downloading.
 
+## ArtCraft Launcher
+
+On Windows and Linux, MailCraft can also be installed and kept up to date through the [ArtCraft Launcher](https://github.com/storytold/craft-launcher), where it is listed among the community apps. The launcher fetches the same releases that are on our [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases) and checks each download against its published checksums.
+
+MailCraft is an independent project, built and maintained by UCS Care Group and its contributors. It is not made by the ArtCraft team, and the ArtCraft team is not responsible for it, so please report problems with MailCraft [here](https://github.com/UCS-Care-Group/mailcraft/issues), not to them. We follow the Craft family's conventions because we like them, and we're glad to support the ArtCraft team and their work.
+
 ## Build and run
 
 ```

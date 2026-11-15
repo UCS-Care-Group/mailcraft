@@ -131,6 +131,14 @@ fn same_categories(a: &[String], b: &[String]) -> bool {
 }
 
 /// The properties of `m` changed here since `server` said, as one change.
+/// Whether `m` (of `account`, whatever the server's copy is marked as) has a change here that the
+/// server hasn't heard of: an update of its marks or a move.
+pub(super) fn has_unsent(mb: &Mailbox, account: Id, m: &Message) -> bool {
+    let Some(server) = m.server.as_ref().filter(|server| !server.id.is_empty()) else { return false };
+    update_of(m, server, Timestamp::default(), Timestamp::default()).is_some()
+        || destination(mb, account, m.folder).is_some_and(|(to, _)| to != server.folder)
+}
+
 fn update_of(m: &Message, server: &ServerMessage, today: Timestamp, now: Timestamp) -> Option<MessageChange> {
     let read = (m.read != server.read).then_some(m.read);
     let flag_changed = m.flag != server.flag || (m.flag == FlagStatus::Flagged && m.flag_due != server.flag_due);
