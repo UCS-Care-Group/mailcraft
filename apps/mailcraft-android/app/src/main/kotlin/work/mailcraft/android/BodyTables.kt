@@ -76,7 +76,7 @@ internal fun sectionsOf(grid: Grid): List<Grid> {
     val joined = grid.placed.any { it.cell.rowspan.toInt() > 1 }
     if (!ragged || joined) return listOf(grid)
     return byRow.values.map { cells ->
-        Grid(1, cells.sumOf { it.cols }, cells.map { Placed(it.cell, 0, it.col, it.cols) })
+        Grid(1, cells.sumOf { it.cols }, cells.map { PlacedCell(it.cell, 0, it.col, it.cols) })
     }
 }
 
@@ -103,7 +103,7 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
 @Composable
 private fun LayoutRow(
     table: TableView,
-    row: List<Placed>,
+    row: List<PlacedCell>,
     widths: List<Float>,
     gap: Float,
     env: BodyEnv,

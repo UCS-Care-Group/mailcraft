@@ -157,9 +157,9 @@ class TablePlanTest {
 
     @Test
     fun dataColumnsAreAsWideAsTheirWidestCellWithinTheirLimits() {
-        val a = Placed(B.cell(B.p("a")), 0, 0, 1)
-        val b = Placed(B.cell(B.p("b")), 0, 1, 1)
-        val wide = Placed(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
+        val a = PlacedCell(B.cell(B.p("a")), 0, 0, 1)
+        val b = PlacedCell(B.cell(B.p("b")), 0, 1, 1)
+        val wide = PlacedCell(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
         val widths = dataColumnWidths(listOf(a to 10, b to 500), 2, minimum = 48, maximum = 280)
         assertEquals(listOf(48, 280), widths.toList())
         // A cell over two columns widens them when they are too narrow together.

@@ -12,8 +12,6 @@ import com.android.resources.NightMode
 import org.junit.Rule
 import org.junit.Test
 
-private const val TOLERANCE = 0.1
-
 /** A phone tall enough to show a whole invented message, so that the shot shows everything it draws. */
 private val Tall = DeviceConfig.PIXEL_5.copy(screenHeight = 3_400)
 

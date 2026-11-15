@@ -17,15 +17,15 @@ internal const val MAX_COLUMNS = 64
 internal const val MAX_CELLS = 5_000
 
 /** A cell in its place in the grid of a table: its row, first column and the columns it covers. */
-internal class Placed(val cell: CellView, val row: Int, val col: Int, val cols: Int)
+internal class PlacedCell(val cell: CellView, val row: Int, val col: Int, val cols: Int)
 
 /** The cells of a table in a grid: spans honoured, a cell that a row span covers leaves no gap in its row. */
-internal class Grid(val rows: Int, val columns: Int, val placed: List<Placed>)
+internal class Grid(val rows: Int, val columns: Int, val placed: List<PlacedCell>)
 
 /** [table]'s cells placed in a grid, within the caps. */
 internal fun gridOf(table: TableView): Grid {
     val taken = HashSet<Pair<Int, Int>>()
-    val placed = ArrayList<Placed>()
+    val placed = ArrayList<PlacedCell>()
     var columns = 0
     for ((r, row) in table.rows.withIndex()) {
         var col = 0
@@ -49,15 +49,16 @@ private fun firstFree(taken: Set<Pair<Int, Int>>, r: Int, from: Int): Int {
 }
 
 /** [cell] at row [r], column [col]: its spans clamped, and the places they cover taken. */
-private fun place(taken: MutableSet<Pair<Int, Int>>, cell: CellView, r: Int, col: Int, rows: Int): Placed {
+private fun place(taken: MutableSet<Pair<Int, Int>>, cell: CellView, r: Int, col: Int, rows: Int): PlacedCell {
     val cols = cell.colspan.toInt().coerceIn(1, MAX_COLUMNS - col)
     val down = cell.rowspan.toInt().coerceIn(1, rows - r)
     for (dr in 0 until down) for (dc in 0 until cols) taken.add((r + dr) to (col + dc))
-    return Placed(cell, r, col, cols)
+    return PlacedCell(cell, r, col, cols)
 }
 
 /** The rows [p] covers as a screen reader is told: its row span, within the rows of [rows] that are left. */
-internal fun rowSpanOf(p: Placed, rows: Int): Int = p.cell.rowspan.toInt().coerceIn(1, (rows - p.row).coerceAtLeast(1))
+internal fun rowSpanOf(p: PlacedCell, rows: Int): Int =
+    p.cell.rowspan.toInt().coerceIn(1, (rows - p.row).coerceAtLeast(1))
 
 /** What a column of a layout table asks for. */
 internal class ColumnSpec(

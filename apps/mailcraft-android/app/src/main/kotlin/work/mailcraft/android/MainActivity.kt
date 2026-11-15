@@ -221,7 +221,11 @@ private fun CoreShell(
  * owner's commands in turn, so that an undo it offers is never taken by the mark.
  */
 @Composable
-private fun rememberReading(core: Core, list: MailListController, scope: CoroutineScope): Pair<ReadingUi, ReadingActions> {
+private fun rememberReading(
+    core: Core,
+    list: MailListController,
+    scope: CoroutineScope,
+): Pair<ReadingUi, ReadingActions> {
     val reading = remember(core, list) { ReadingController(CoreReadSource(core, list::markRead), scope) }
     val links = remember(core) { CoreLinks(core) }
     val ui by reading.ui.collectAsState()

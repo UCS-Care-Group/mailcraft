@@ -124,20 +124,6 @@ internal fun linkActionLabels(texts: Texts, links: List<LinkRange>): List<String
     links.map { it.link }.distinctBy { it.shown }.map { "${texts.t("Open link")}: ${it.shown}" }
 
 /**
- * The characters a tap may be on, given the nearest offset: the one at [offset] and the one before it
- * (on the right half of a character the nearest offset is the boundary after it), those inside the text.
- */
-internal fun hitCandidates(offset: Int, length: Int): List<Int> = listOf(offset, offset - 1).filter { it in 0 until length }
-
-/** The link whose drawn text [at] is on: a character is a hit only when the tap is inside its box. */
-private fun linkAt(layout: TextLayoutResult?, text: StyledText, at: Offset): LinkInfo? {
-    val shown = layout ?: return null
-    val offset = shown.getOffsetForPosition(at)
-    val hit = hitCandidates(offset, shown.layoutInput.text.length).firstOrNull { shown.getBoundingBox(it).contains(at) }
-    return hit?.let { text.linkAt(it) }
-}
-
-/**
  * Text that has links in it. A tap on a link follows it (the owner's phone opens it in the
  * browser, the composer or the dialer); a long press shows where it really goes first. A screen
  * reader is offered each link as an action that names its real destination.
