@@ -140,6 +140,11 @@ private fun CoreShell(
     }
     val accounts = outlined?.outline?.accounts.orEmpty()
     SideEffect { hub.showing(accounts) }
+    // The right to notify is asked for once there is an account to bring mail, never at a first start.
+    val context = LocalContext.current
+    AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
+        (context.applicationContext as? MailCraftApplication)?.followNotificationSwitch()
+    }
     val controller = hub.controller
     val accountsUi by controller.ui.collectAsState()
     AppShell(
