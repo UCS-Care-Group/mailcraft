@@ -220,7 +220,14 @@ proptest! {
         window_bits in 17u32..=19,
     ) {
         let data: Vec<u8> = noise(len, seed | 1).into_iter().map(|b| b % alphabet).collect();
-        let blocks = kinds.into_iter().map(|(k, n)| ([Kind::Verbatim, Kind::Aligned, Kind::Uncompressed][k], n)).collect();
+        // The last size is the one repeated to the end: tiny blocks over a whole chunk would make
+        // it longer than a chunk's two-byte length can say, which no encoder writes.
+        let last = kinds.len() - 1;
+        let blocks = kinds
+            .into_iter()
+            .enumerate()
+            .map(|(i, (k, n))| ([Kind::Verbatim, Kind::Aligned, Kind::Uncompressed][k], if i == last { n.max(2_048) } else { n }))
+            .collect();
         let opts = Options { window_bits, e8, blocks, runs, repeats };
         let packed = encode(&data, &opts);
         prop_assert_eq!(decode(&packed, &[], window_bits, data.len()).unwrap(), data);
