@@ -723,6 +723,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
+    let delayed = crate::send_later::delay_is_on(app);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
@@ -770,6 +771,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
                     .checked(read_receipt)
                     .at(4, 6),
+                Item::small("clock", "Delay Delivery", "Do not deliver before a date and time", "compose.delay", no()).checked(delayed).at(4, 6),
             ],
         ),
         g(

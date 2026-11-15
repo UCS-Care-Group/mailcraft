@@ -127,6 +127,8 @@ enum Setup {
 const ROWS: &[(&str, &str, Setup)] = &[
     // Send.
     ("compose.send", "{}", Setup::Writing),
+    ("compose.sendLater", r#"{"at": 1900000000}"#, Setup::Writing),
+    ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
@@ -199,6 +201,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.dismissWarnings", r#"{"ids": [$message]}"#, Setup::None),
     ("file.options", "{}", Setup::None),
     ("sync.offline", "{}", Setup::None),
+    ("sync.waitBeforeSending", r#"{"seconds": 10}"#, Setup::None),
     ("rules.add", r#"{"name": "x"}"#, Setup::None),
     ("rules.remove", r#"{"id": $rule}"#, Setup::None),
     ("rules.enable", r#"{"id": $rule}"#, Setup::None),
