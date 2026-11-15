@@ -154,3 +154,22 @@ fn an_exchange_server_account_fetches_and_keeps_only_its_window() {
     assert!(s.mailbox.message(old).unwrap().unfetched);
     assert!(!s.mailbox.message(new).unwrap().unfetched);
 }
+
+#[test]
+fn a_shorter_window_is_thinned_at_the_next_tick_without_the_window_asking() {
+    let (mut s, _, owner) = session();
+    s.driver.thinning.now = false;
+    s.run("account.edit", &json!({"id": owner, "keepOffline": "all"})).unwrap();
+    assert!(!s.driver.thinning.now, "a longer window has nothing to thin");
+    s.run("account.edit", &json!({"id": owner, "keepOffline": "1w"})).unwrap();
+    assert!(s.driver.thinning.now, "a shorter one is thinned at once");
+}
+
+#[test]
+fn another_mailbox_starts_the_background_fetch_afresh() {
+    let (mut s, _, _) = session();
+    s.driver.fetch.offline = true;
+    s.driver.fetch.idle_until = 1e12;
+    s.run("file.new", &json!({})).unwrap();
+    assert!(!s.driver.fetch.offline && !s.driver.fetch.resting(1.0));
+}

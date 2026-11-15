@@ -22,8 +22,9 @@ pub const MESSAGES: &str = "http://schemas.microsoft.com/exchange/services/2006/
 pub const ERRORS: &str = "http://schemas.microsoft.com/exchange/services/2006/errors";
 
 /// The version of the schema a request asks the server to answer in (`RequestServerVersion`,
-/// [MS-OXWSCDATA] `ExchangeVersionType`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// [MS-OXWSCDATA] `ExchangeVersionType`). They are in the order the server versions came, so an
+/// older one compares as less.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Version {
     /// Exchange 2007.
     Exchange2007,
@@ -60,6 +61,50 @@ impl Version {
         "Exchange2015",
         "Exchange2016",
     ];
+
+    /// Every version, oldest first, in the order of [`Version::NAMES`].
+    pub const ALL: [Version; 9] = [
+        Self::Exchange2007,
+        Self::Exchange2007Sp1,
+        Self::Exchange2010,
+        Self::Exchange2010Sp1,
+        Self::Exchange2010Sp2,
+        Self::Exchange2013,
+        Self::Exchange2013Sp1,
+        Self::Exchange2015,
+        Self::Exchange2016,
+    ];
+
+    /// The newest version an Exchange 2010 server knows (#1349): what a request steps down to when
+    /// a server answers `ErrorInvalidServerVersion`.
+    pub const FALLBACK: Version = Self::Exchange2010Sp2;
+
+    /// Whether a server answering in this version has the item properties Exchange 2013 brought
+    /// (`item:Preview`, `item:Flag`; [MS-OXWSCORE]): Exchange 2007 and 2010 have neither, and
+    /// refuse a request naming them as one that doesn't fit their schema.
+    pub fn has_preview(self) -> bool {
+        self >= Self::Exchange2013
+    }
+
+    /// Its place in [`Version::ALL`].
+    pub(crate) fn index(self) -> u8 {
+        match self {
+            Self::Exchange2007 => 0,
+            Self::Exchange2007Sp1 => 1,
+            Self::Exchange2010 => 2,
+            Self::Exchange2010Sp1 => 3,
+            Self::Exchange2010Sp2 => 4,
+            Self::Exchange2013 => 5,
+            Self::Exchange2013Sp1 => 6,
+            Self::Exchange2015 => 7,
+            Self::Exchange2016 => 8,
+        }
+    }
+
+    /// The version at `index` in [`Version::ALL`]; the default for a place that has none.
+    pub(crate) fn from_index(index: u8) -> Self {
+        Self::ALL.get(usize::from(index)).copied().unwrap_or_default()
+    }
 
     /// The name the schema gives it.
     pub fn as_str(self) -> &'static str {

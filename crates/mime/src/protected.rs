@@ -4,13 +4,50 @@
 //! (RFC 1847, used by S/MIME, RFC 8551, and PGP/MIME, RFC 3156), `multipart/encrypted` (PGP/MIME),
 //! `application/pkcs7-mime` (S/MIME's signed or enveloped data, also as `x-pkcs7-mime`), and a
 //! plain text body that holds OpenPGP armour (RFC 9580 §6.2, "inline PGP"). Such a message keeps
-//! the bytes it came as ([`mailcraft_model::Message::original`]); nothing here checks or opens
+//! the bytes it came as ([`Message::original`]); nothing here checks or opens
 //! anything.
 
-use mailcraft_model::{Message, Original};
+use std::sync::Arc;
+
+use crate::Message;
 
 use crate::header::{self, Headers, parse_params};
 use crate::{PLACE_HEADER, parse, transfer};
+
+/// The most bytes of the original a Digitally signed or Encrypted message keeps (#30): a
+/// larger one is read as any other message.
+pub const MAX_ORIGINAL: usize = 64 << 20;
+
+/// Most bytes of a text looked through for OpenPGP armour.
+pub const MAX_ARMOUR_SCAN: usize = 4 << 20;
+
+/// Whether `text` holds a whole piece of OpenPGP armour in its first [`MAX_ARMOUR_SCAN`] bytes,
+/// each line of it a line of its own: `-----BEGIN PGP MESSAGE-----` and, after it,
+/// `-----END PGP MESSAGE-----`; or `-----BEGIN PGP SIGNED MESSAGE-----`, then
+/// `-----BEGIN PGP SIGNATURE-----`, then `-----END PGP SIGNATURE-----`. What a message must hold
+/// to be kept as an inline-PGP one: a lone line that opens armour is not enough.
+pub(crate) fn has_armour_block(text: &[u8]) -> bool {
+    const MESSAGE: [&[u8]; 2] = [b"-----BEGIN PGP MESSAGE-----", b"-----END PGP MESSAGE-----"];
+    const SIGNED: [&[u8]; 3] = [b"-----BEGIN PGP SIGNED MESSAGE-----", b"-----BEGIN PGP SIGNATURE-----", b"-----END PGP SIGNATURE-----"];
+    let text = text.get(..MAX_ARMOUR_SCAN).unwrap_or(text);
+    // How far into each sequence the lines so far have come.
+    let (mut message, mut signed) = (0usize, 0usize);
+    for line in text.split(|b| *b == b'\n') {
+        let line = line.strip_prefix(b"\xef\xbb\xbf").unwrap_or(line);
+        let end = line.iter().rposition(|b| !matches!(b, b' ' | b'\t' | b'\r')).map_or(0, |i| i.saturating_add(1));
+        let line = line.get(..end).unwrap_or_default();
+        if MESSAGE.get(message) == Some(&line) {
+            message = message.saturating_add(1);
+        }
+        if SIGNED.get(signed) == Some(&line) {
+            signed = signed.saturating_add(1);
+        }
+        if message == MESSAGE.len() || signed == SIGNED.len() {
+            return true;
+        }
+    }
+    false
+}
 
 /// How deep into the first part of nested multiparts the body is looked for.
 const MAX_DEPTH: usize = 4;
@@ -72,9 +109,9 @@ fn of_part(headers: &Headers, body: &[u8], depth: usize) -> Option<Protection> {
             let text = match encoding.as_str() {
                 "base64" => transfer::base64_decode(body),
                 "quoted-printable" => transfer::qp_decode(body),
-                _ => return mailcraft_model::protected::has_armour_block(body).then_some(Protection::InlinePgp),
+                _ => return has_armour_block(body).then_some(Protection::InlinePgp),
             };
-            mailcraft_model::protected::has_armour_block(&text).then_some(Protection::InlinePgp)
+            has_armour_block(&text).then_some(Protection::InlinePgp)
         }
         multipart if multipart.starts_with("multipart/") && depth < MAX_DEPTH => {
             let boundary = content_type.get("boundary").filter(|b| !b.is_empty())?;
@@ -170,7 +207,7 @@ fn canonical(bytes: &[u8]) -> Vec<u8> {
 
 /// [`parse()`] for a message as its server or a file gave it: a Digitally signed or Encrypted
 /// one ([`protection`]) keeps the bytes it came as ([`Message::original`]), in CRLF lines
-/// ([`canonical`]), up to [`mailcraft_model::MAX_ORIGINAL`]; any other is read exactly as
+/// ([`canonical`]), up to [`MAX_ORIGINAL`]; any other is read exactly as
 /// [`parse()`] reads it. The line of MailCraft's own that a copy put on a server carries first
 /// ([`PLACE_HEADER`]) is not kept.
 pub fn parse_fetched(bytes: &[u8]) -> Message {
@@ -178,8 +215,8 @@ pub fn parse_fetched(bytes: &[u8]) -> Message {
     // (Measured in CRLF lines before anything is made of it: no more than the cap is ever held.)
     let bare = bytes.windows(2).filter(|w| matches!(w, [before, b'\n'] if *before != b'\r')).count();
     let bare = bare.saturating_add(usize::from(bytes.first() == Some(&b'\n')));
-    if bytes.len().saturating_add(bare) <= mailcraft_model::MAX_ORIGINAL && is_protected(bytes) {
-        message.original = Original::new(canonical(without_place(bytes)));
+    if bytes.len().saturating_add(bare) <= MAX_ORIGINAL && is_protected(bytes) {
+        message.original = Some(Arc::new(canonical(without_place(bytes)))).filter(|o| !o.is_empty());
     }
     message
 }

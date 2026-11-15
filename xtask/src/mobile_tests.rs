@@ -50,3 +50,10 @@ fn finds_banned_groups_anywhere_in_the_tree() {
     assert_eq!(found.len(), 2, "{found:?}");
     assert!(banned_in_tree("+--- androidx.core:core:1.0\n").is_empty());
 }
+
+#[test]
+fn finds_banned_subgroups_in_the_tree() {
+    let tree = "+--- com.google.firebase.tools:helper:1\n|    \\--- com.google.android.gms.ads:ads-lite:2 -> 3\n+--- com.google.firebasefoo:x:1\n";
+    let found = banned_in_tree(tree);
+    assert_eq!(found, vec!["com.google.firebase.tools:helper:1", "com.google.android.gms.ads:ads-lite:2"]);
+}

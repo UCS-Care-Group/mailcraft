@@ -21,6 +21,7 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     /** What a download of an address gives; a missing address is refused. */
     val web = mutableMapOf<String, ByteArray>()
     val senderWeb = mutableMapOf<String, ByteArray>()
+    var marks = true
 
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? {
         opened += Triple(id, widthDp, dark)
@@ -47,7 +48,7 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun markRead(id: ULong): Boolean {
         marked += id
-        return true
+        return marks
     }
 
     override suspend fun dataSaving(): Boolean = dataSaver

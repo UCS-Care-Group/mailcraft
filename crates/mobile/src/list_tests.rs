@@ -83,6 +83,23 @@ fn reading_a_list_leaves_the_sessions_own_view_as_it_was() {
 }
 
 #[test]
+fn a_query_is_cut_to_what_is_read_of_it_before_it_waits() {
+    let core = sample_core();
+    let folder = inbox(&core);
+    let huge = ListQuery { filter: format!("all{}", "x".repeat(1 << 20)), split: "y".repeat(1 << 20), search: "z".repeat(1 << 20), ..query(folder) };
+    let (cut, bytes) = crate::list::held(huge.clone());
+    assert!(bytes <= 32 + 32 + 256, "{bytes}");
+    assert_eq!(bytes, cut.filter.len() + cut.split.len() + cut.search.len());
+    // Cut, a filter that was not known is still not known.
+    assert!(matches!(block_on(core.message_list(huge.clone(), 0, 5)), Err(CoreError::BadRequest { .. })));
+    // A long search finds what its first part finds, as it did when it was cut later.
+    let long = ListQuery { search: format!("  {}", "a".repeat(10_000)), ..query(folder) };
+    let short = ListQuery { search: "a".repeat(256), ..query(folder) };
+    assert_eq!(all(&core, long.clone()), all(&core, short));
+    assert!(block_on(core.row_members(long, 1)).is_ok());
+}
+
+#[test]
 fn a_query_that_names_nothing_real_is_refused() {
     let core = sample_core();
     let folder = inbox(&core);
@@ -234,13 +251,13 @@ fn deleting_a_conversation_row_takes_the_messages_it_stands_for() {
 }
 
 #[test]
-fn an_account_says_whether_it_has_a_server_and_a_refresh_with_none_is_refused() {
+fn an_account_says_its_kind_and_a_refresh_with_no_server_is_refused() {
     let core = sample_core();
     let accounts = block_on(core.folders(0)).unwrap().accounts;
-    assert!(!accounts.is_empty() && accounts.iter().all(|a| !a.server));
+    assert!(!accounts.is_empty() && accounts.iter().all(|a| a.kind == "local"));
     assert!(exec(&core, "sync.request", json!({})).is_err());
     let gmail = block_on(gmail_core().folders(0)).unwrap();
-    assert!(gmail.accounts.iter().all(|a| a.server));
+    assert!(gmail.accounts.iter().all(|a| a.kind == "imap"));
 }
 
 fn zebra_core() -> Arc<Core> {
@@ -275,4 +292,35 @@ fn a_conversation_row_names_its_messages_under_a_filter_and_under_a_search() {
     let after = zebra(ListQuery { conversations: true, ..query(folder) });
     assert_eq!(after.members, 1);
     assert!(!after.member_ids.iter().any(|id| unread.member_ids.contains(id)));
+}
+
+#[test]
+fn a_conversation_longer_than_a_row_carries_is_named_whole_by_its_members() {
+    use crate::fake_tests::now;
+    let core = Core::start(FakePlatform::new(), || {
+        let mut mailbox = mailcraft_engine::sample::mailbox(now(), 0);
+        let inbox = mailbox.inbox().unwrap();
+        for n in 0..250 {
+            mailbox.add_message(Message { folder: inbox, subject: "Zebra herd".into(), date: now() - 1000 - n, ..Default::default() }).unwrap();
+        }
+        Session::at(mailbox, now(), 0)
+    })
+    .unwrap();
+    let q = ListQuery { conversations: true, ..query(inbox(&core)) };
+    let row = all(&core, q.clone()).into_iter().find(|r| r.subject == "Zebra herd").unwrap();
+    assert_eq!(row.members, 250);
+    assert_eq!(row.member_ids.len(), crate::text::MAX_ROW_MEMBERS);
+    let whole = block_on(core.row_members(q.clone(), row.id)).unwrap();
+    assert_eq!(whole.len(), 250);
+    assert!(row.member_ids.iter().all(|id| whole.contains(id)));
+    // Outside conversations a row stands for its own message.
+    let plain = all(&core, query(inbox(&core))).into_iter().find(|r| r.subject == "Zebra herd").unwrap();
+    assert_eq!(block_on(core.row_members(query(inbox(&core)), plain.id)).unwrap(), vec![plain.id]);
+    // A row the list no longer has stands for nothing.
+    assert!(block_on(core.row_members(q.clone(), u64::MAX)).unwrap().is_empty());
+    // A command on the whole row takes every message of it, and its undo puts them all back.
+    exec(&core, "mail.delete", json!({ "ids": whole })).unwrap();
+    assert!(all(&core, q.clone()).iter().all(|r| r.subject != "Zebra herd"));
+    exec(&core, "edit.undo", json!({})).unwrap();
+    assert_eq!(block_on(core.row_members(q, row.id)).unwrap().len(), 250);
 }

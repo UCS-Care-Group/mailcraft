@@ -8,6 +8,8 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import java.time.ZoneOffset
+import java.util.Locale
 
 /** Invented people and mail (example.org), so that screenshots never hold anything real. */
 internal object ShellShots {
@@ -89,17 +91,50 @@ internal object ShellShots {
 
     val actions = ShellActions(onFolder = { _, _ -> }, onLanguage = {}, mail = MailListActions.None, onSwipe = {})
 
+    /** The app's theme on a surface, with dates drawn in one zone and language, whatever machine records or checks the shot. */
     @Composable
-    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, with: ShellData = data) {
-        CompositionLocalProvider(LocalDecodeInPlace provides true) {
+    fun Fixed(content: @Composable () -> Unit) {
+        CompositionLocalProvider(
+            LocalMessageZone provides ZoneOffset.UTC,
+            LocalMessageLocale provides Locale.US,
+            LocalDecodeInPlace provides true,
+        ) {
             MailCraftTheme {
-                Surface {
-                    AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
-                }
+                Surface { content() }
             }
         }
     }
+
+    @Composable
+    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, with: ShellData = data) = Fixed {
+        AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
+    }
+
+    /** The window while the core opens the mailbox. */
+    @Composable
+    fun Starting() = Fixed { Opening() }
 }
 
-/** The same data with another list. */
+/** The same data with another list, pictures settings or sender pictures. */
+internal fun ShellData.copy(
+    mail: MailListUi = this.mail,
+    pictures: PicturesUi = this.pictures,
+    avatars: Map<ULong, ByteArray>? = this.avatars,
+) = ShellData(
+    accounts = accounts,
+    folderName = folderName,
+    folderId = folderId,
+    mail = mail,
+    version = version,
+    chosenLanguage = chosenLanguage,
+    accountsUi = accountsUi,
+    outline = outline,
+    categories = categories,
+    nowMillis = nowMillis,
+    swipe = swipe,
+    reading = reading,
+    pictures = pictures,
+    avatars = avatars,
+)
+
 internal fun ShellData.withMail(ui: MailListUi) = copy(mail = ui)

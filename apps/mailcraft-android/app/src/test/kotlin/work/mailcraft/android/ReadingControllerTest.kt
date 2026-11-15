@@ -72,6 +72,19 @@ class ReadingControllerTest {
     }
 
     @Test
+    fun aMarkThatFailedIsTriedAgainWhenTheMessageIsOpenedAgain() {
+        val r = rig()
+        r.source.marks = false
+        r.c.open(7uL, 360, dark = false)
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL), r.source.marked)
+        r.source.marks = true
+        r.c.open(7uL, 360, dark = false)
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL, 7uL), r.source.marked)
+    }
+
+    @Test
     fun downloadPicturesForThisMessageFetchesEachAddressOnceAndNeverATrackingPixel() {
         val r = rig()
         r.c.open(7uL, 360, dark = false)

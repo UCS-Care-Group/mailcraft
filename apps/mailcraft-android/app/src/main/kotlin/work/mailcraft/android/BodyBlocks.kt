@@ -153,7 +153,7 @@ private fun InlineRun(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width
             when (val kind = block.kind) {
                 is BlockKindView.Image -> PictureBlock(block, kind, env, paper, width)
                 is BlockKindView.Table -> TableBlock(kind.table, block.align, env, paper, width)
-                else -> TextBlock(block, env, paper)
+                else -> TextBlock(block, env, paper, fill = false)
             }
         }
     }

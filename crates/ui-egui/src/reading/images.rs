@@ -35,9 +35,12 @@ pub const MAX_TEXTURE_SIDE: u32 = 8_192;
 pub const MAX_TEXTURE_PIXELS: u64 = 8_000_000;
 
 /// Most pictures kept, and the most memory their textures may take, in bytes. The least recently
-/// shown go first.
+/// shown go first; what is on screen is never let go of for another, and a picture past these
+/// once that is done is a stand-in. So the count stays at what one screen of a newsletter may show
+/// at once (rows of small pictures), and the bytes hold two of the largest textures
+/// ([`MAX_TEXTURE_PIXELS`], 32 MB each) with a screen of others beside them.
 pub const CACHE_PICTURES: usize = 64;
-pub const CACHE_BYTES: usize = 160 * 1024 * 1024;
+pub const CACHE_BYTES: usize = 96 * 1024 * 1024;
 
 /// Seconds without a picture being shown after which the textures are let go.
 const IDLE_SECONDS: f64 = 5.0;
@@ -51,8 +54,9 @@ pub const MAX_PICTURES_PER_MESSAGE: usize = 200;
 /// Most pictures from the web that are kept, and the most their bytes (as they came) may take.
 /// The least recently shown go first. Nothing of them is written to disk from here (the host
 /// may keep what it downloaded, for the next start: `Services::picture_cache`).
-pub const REMOTE_PICTURES: usize = 300;
-pub const REMOTE_BYTES: usize = 96 * 1024 * 1024;
+/// (Those of a message on screen are kept whatever these say: each is asked for at every frame.)
+pub const REMOTE_PICTURES: usize = 150;
+pub const REMOTE_BYTES: usize = 48 * 1024 * 1024;
 
 /// The frame the window is at: the main window's count, whichever window is being laid out, so
 /// that what was shown last can be told in all of them alike.
@@ -354,6 +358,16 @@ impl Pictures {
     /// Forget every picture from the web that is kept: they are asked for again when wanted.
     pub fn forget_remote(&mut self) {
         self.remote.clear();
+    }
+
+    /// Let go of every picture kept, its texture and what it was decoded from, and of the
+    /// pictures from the web (the window is out of sight, [`crate::out_of_sight`]): each is made
+    /// again, and asked for again, when it is next shown.
+    pub fn let_go(&mut self) {
+        self.entries.clear();
+        self.remote.clear();
+        self.decoded_in = None;
+        self.asked_at = None;
     }
 
     /// Keep what became of the picture at `url`.

@@ -234,7 +234,7 @@ fn frame_bench() {
     let built = app.session.prepare_conversations();
     eprintln!("FRAME_BENCH the conversations, worked out for the window: {} in {:.1} ms", if built { "built" } else { "in step" }, ms(t.elapsed()));
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1600.0, 1000.0)).build_ui_state(
             |ui, app: &mut MailApp| {

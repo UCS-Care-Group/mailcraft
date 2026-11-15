@@ -47,7 +47,14 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
         account: 3,
         email: ME.into(),
         url: URL.into(),
-        folders: Some(EwsFolderDeltas { changed: vec![inbox], deleted: vec!["F0".into()], afresh: true, well_known: vec!["F1".into()] }),
+        folders: Some(EwsFolderDeltas {
+            changed: vec![inbox],
+            deleted: vec!["F0".into()],
+            afresh: true,
+            unreadable_in: vec![String::new()],
+            unreadable_anywhere: false,
+            well_known: vec!["F1".into()],
+        }),
         hierarchy: "H1".into(),
         pages: vec![EwsMessagePage { folder: "F1".into(), state: "S1".into(), ..Default::default() }],
         errors: vec!["one".into()],
@@ -56,7 +63,12 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     };
     let last = EwsMailResult {
         account: 3,
-        folders: Some(EwsFolderDeltas { deleted: vec!["F9".into()], ..Default::default() }),
+        folders: Some(EwsFolderDeltas {
+            deleted: vec!["F9".into()],
+            unreadable_in: vec!["F7".into()],
+            unreadable_anywhere: true,
+            ..Default::default()
+        }),
         pages: vec![EwsMessagePage { folder: "F1".into(), from: "S1".into(), state: "S2".into(), ..Default::default() }],
         whole: true,
         ..Default::default()
@@ -72,6 +84,8 @@ fn a_result_round_trips_and_pieces_are_absorbed_in_order() {
     let folders = all.folders.unwrap();
     assert_eq!((folders.changed.len(), folders.deleted, folders.afresh), (1, vec!["F0".to_string(), "F9".to_string()], true));
     assert_eq!(folders.well_known, ["F1"], "the server's own folders are kept from the piece that named them (#779)");
+    assert_eq!(folders.unreadable_in, ["", "F7"], "where the folders a list passed over lie is kept from every piece (#1108)");
+    assert!(folders.unreadable_anywhere);
 }
 
 fn page() -> EwsMessagePage {

@@ -4,7 +4,6 @@
 
 package work.mailcraft.android
 
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import app.cash.paparazzi.DeviceConfig
@@ -13,8 +12,6 @@ import com.android.ide.common.rendering.api.SessionParams
 import com.android.resources.NightMode
 import org.junit.Rule
 import org.junit.Test
-
-private const val TOLERANCE = 0.1
 
 /** A phone tall enough to show a whole invented message, so that the shot shows everything it draws. */
 private val Tall = DeviceConfig.PIXEL_5.copy(screenHeight = 3_400)
@@ -36,16 +33,10 @@ internal object ReadingShots {
         waiting = waiting,
     )
 
+    /** The pane with its dates in UTC and US English, whatever machine records or checks the shot. */
     @Composable
-    fun Pane(ui: ReadingUi) {
-        // (The pictures are decoded where the drawing is, so that the shot has them.)
-        CompositionLocalProvider(LocalDecodeInPlace provides true) {
-            MailCraftTheme {
-                Surface {
-                    ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
-                }
-            }
-        }
+    fun Pane(ui: ReadingUi) = ShellShots.Fixed {
+        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
     }
 }
 
@@ -195,7 +186,11 @@ class PicturesScreenshotTest {
     }
 
     private val shell = ShellShots.data.copy(
-        pictures = PicturesUi(PicturePrefs(senders = setOf("news@shop.example"), domains = setOf("letters.example")), 12, 3_400_000),
+        pictures = PicturesUi(
+            PicturePrefs(senders = setOf("news@shop.example"), domains = setOf("letters.example")),
+            12,
+            3_400_000,
+        ),
     )
 
     @Test
@@ -215,13 +210,16 @@ class PicturesScreenshotTest {
 
     @Test
     fun senderImagesSettingsDark200() = shoot("sender_images_settings_dark_200", true, 2f) {
-        ShellShots.Shell(NavState().openPage(SettingsPage.SenderImages), with = shell.copy(pictures = shell.pictures.copy(prefs = PicturePrefs(senderImages = true))))
+        val on = shell.pictures.copy(prefs = PicturePrefs(senderImages = true))
+        ShellShots.Shell(NavState().openPage(SettingsPage.SenderImages), with = shell.copy(pictures = on))
     }
 
     @Test
     fun rowsWithSenderImagesLight100() = shoot("sender_images_rows_light_100", false, 1f) {
         ShellShots.Shell(
-            with = ShellShots.data.copy(avatars = ShellShots.rows.filterIndexed { i, _ -> i % 2 == 0 }.associate { it.id to B.png }).withRows(),
+            with = ShellShots.data
+                .copy(avatars = ShellShots.rows.filterIndexed { i, _ -> i % 2 == 0 }.associate { it.id to B.png })
+                .withRows(),
         )
     }
 }

@@ -184,11 +184,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
         let title = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.address().full() };
-        // The text runs up to the buttons at the right: Settings, and Remove (a shared mailbox has
-        // Remove alone). The only account can be removed too, leaving an empty mailbox (#313); the
-        // empty mailbox's own placeholder can't.
-        let removable = app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = if a.is_shared() { 1 } else { usize::from(!a.email.is_empty()) + usize::from(removable) };
+        // The text runs up to the buttons at the right: Settings, and Remove. The only account can
+        // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
+        // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
+        let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
+        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
         let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
@@ -217,14 +217,15 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         };
         let settings_at = if removable { 168.0 } else { 86.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
-        let settings_tip = if a.kind == AccountKind::Microsoft {
+        let settings_tip = if a.is_shared() {
+            // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
+            tl!("Change the name the folder pane shows for this shared mailbox, and its colour")
+        } else if a.kind == AccountKind::Microsoft {
             tl!("Change this account's name, sign-in and mail to keep offline")
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        // (A shared mailbox has no settings of its own: its owner's sign-in reads it, #70.)
-        if !a.email.is_empty() && !a.is_shared() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked()
-        {
+        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
@@ -557,6 +558,19 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Options"), t);
     section(ui, tl!("General"), t);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut on = app.ui.close_to_tray;
+        let switch = ui.checkbox(&mut on, tl!("Close to system tray")).on_hover_text(tl!(
+            "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
+        ));
+        app.hit.add("optionCloseToTray", 0, switch.rect);
+        if switch.changed() {
+            let _ = app.run("ui.closeToTray", json!({"value": on}));
+        }
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
+    }
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
@@ -567,6 +581,50 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    // The greys of the dark theme (#1384): neutral, or tinted blue as before #1242.
+    let mut dark_style = egui::Rect::NOTHING;
+    row(ui, tl!("Dark theme"), |ui| {
+        let cur = app.ui.dark_style;
+        let combo = egui::ComboBox::from_id_salt("opt_dark_style").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for s in crate::theme::DarkStyle::ALL {
+                if ui.selectable_label(s == cur, tl!(s.label())).clicked() {
+                    let _ = app.run("ui.darkStyle", json!({"value": s.code()}));
+                }
+            }
+        });
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Dark theme"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        dark_style = combo.response.rect;
+        combo.response.on_hover_text(tl!("The greys the dark theme is drawn in: neutral, or tinted blue. The light theme stays as it is."));
+    });
+    app.hit.add("optionDarkStyle", 0, dark_style);
+    let mut animations = egui::Rect::NOTHING;
+    row(ui, tl!("Animations"), |ui| {
+        let cur = app.ui.animations;
+        let combo = egui::ComboBox::from_id_salt("opt_animations").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
+            for m in crate::motion::Motion::ALL {
+                if ui.selectable_label(m == cur, tl!(m.label())).clicked() {
+                    let _ = app.run("ui.animations", json!({"value": m.code()}));
+                }
+            }
+        });
+        // (Its name for a screen reader: the row's label is painted.)
+        let shown = tl!(cur.label()).to_string();
+        combo.response.widget_info(|| {
+            let mut info = egui::WidgetInfo::labeled(egui::Role::ComboBox, true, tl!("Animations"));
+            info.current_text_value = Some(shown.clone());
+            info
+        });
+        animations = combo.response.rect;
+        combo.response.on_hover_text(tl!(
+            "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
+        ));
+    });
+    app.hit.add("optionAnimations", 0, animations);
     let mut strong = app.ui.high_contrast;
     if ui.checkbox(&mut strong, tl!("High contrast")).on_hover_text(tl!("Stronger text and edges, in the light or the dark theme.")).changed() {
         let _ = app.run("ui.highContrast", json!({"on": strong}));

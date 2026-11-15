@@ -10,6 +10,8 @@ fn only_five_kinds_of_link_are_followed() {
     assert_eq!(kind("HTTP://Example.ORG/"), Some(LinkKind::Web));
     assert_eq!(kind("mailto:ada@example.org"), Some(LinkKind::Mail));
     assert_eq!(kind("tel:+15550100"), Some(LinkKind::Phone));
+    let shown = |u: &str| link_target(u.to_string()).map(|t| t.shown);
+    assert_eq!(shown("TeL:+15550100"), Some("tel:+15550100".to_string()));
     assert_eq!(kind("cid:logo"), Some(LinkKind::Part));
     for bad in [
         "",

@@ -17,9 +17,8 @@ class TablePlanTest {
 
     @Test
     fun twoHalvesStandSideBySideWhereEachIsAboutOneFortyDpOrMore() {
-        val widths = planColumns(listOf(spec(percent = 50), spec(percent = 50)), room = 328f, gap = 12f)
-        assertNotNull(widths)
-        assertEquals(158f, widths!![0], 0.01f)
+        val widths = requireNotNull(planColumns(listOf(spec(percent = 50), spec(percent = 50)), room = 328f, gap = 12f))
+        assertEquals(158f, widths[0], 0.01f)
     }
 
     @Test
@@ -48,9 +47,8 @@ class TablePlanTest {
 
     @Test
     fun aColumnThatHoldsNothingTakesWhatItAsksAndIsNotCounted() {
-        val widths = planColumns(listOf(spec(), spec(holds = false, fixed = 24f), spec()), room = 400f, gap = 0f)
-        assertNotNull(widths)
-        assertEquals(24f, widths!![1], 0f)
+        val widths = requireNotNull(planColumns(listOf(spec(), spec(holds = false, fixed = 24f), spec()), room = 400f, gap = 0f))
+        assertEquals(24f, widths[1], 0f)
         assertEquals(188f, widths[0], 0.01f)
     }
 
@@ -100,6 +98,38 @@ class TablePlanTest {
     }
 
     @Test
+    fun rowsJoinedByARowSpanAreNotPlannedApart() {
+        val t = B.table(
+            layout = true,
+            rows = listOf(
+                listOf(B.cell(B.p("a"), rowspan = 2u), B.cell(B.p("b"))),
+                listOf(B.cell(B.p("c"))),
+            ),
+        )
+        val sections = sectionsOf(gridOf(t))
+        assertEquals(1, sections.size)
+        assertEquals(1, sections[0].placed.first { it.cell.blocks[0].spans[0].text == "c" }.col)
+    }
+
+    @Test
+    fun aRowSpanIsToldToAScreenReaderWithinTheRowsThatAreLeft() {
+        val t = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a"), rowspan = 9u)), listOf(B.cell(B.p("b")))))
+        val grid = gridOf(t)
+        assertEquals(2, rowSpanOf(grid.placed[0], grid.rows))
+        assertEquals(1, rowSpanOf(grid.placed[1], grid.rows))
+    }
+
+    @Test
+    fun aCellOverColumnsNoOtherCellCoversStillGetsRoom() {
+        val t = B.table(layout = true, rows = listOf(listOf(B.cell(B.p("wide"), colspan = 2u))))
+        val specs = columnSpecs(gridOf(t))
+        assertTrue(specs.all { it.holds })
+        val widths = requireNotNull(planColumns(specs, room = 328f, gap = 0f))
+        assertEquals(328f, widths.sum(), 0.01f)
+        assertTrue(widths.all { it > 0f })
+    }
+
+    @Test
     fun hostileTablesStayWithinTheCaps() {
         val wide = B.table(layout = false, rows = listOf(List(500) { B.cell(B.p("x")) }, List(500) { B.cell(B.p("y"), colspan = 500u) }))
         val grid = gridOf(wide)
@@ -127,9 +157,9 @@ class TablePlanTest {
 
     @Test
     fun dataColumnsAreAsWideAsTheirWidestCellWithinTheirLimits() {
-        val a = Placed(B.cell(B.p("a")), 0, 0, 1)
-        val b = Placed(B.cell(B.p("b")), 0, 1, 1)
-        val wide = Placed(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
+        val a = PlacedCell(B.cell(B.p("a")), 0, 0, 1)
+        val b = PlacedCell(B.cell(B.p("b")), 0, 1, 1)
+        val wide = PlacedCell(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
         val widths = dataColumnWidths(listOf(a to 10, b to 500), 2, minimum = 48, maximum = 280)
         assertEquals(listOf(48, 280), widths.toList())
         // A cell over two columns widens them when they are too narrow together.

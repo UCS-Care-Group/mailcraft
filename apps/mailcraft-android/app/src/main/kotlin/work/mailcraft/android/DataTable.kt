@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.TableView
 
 /** What a cell of a data table is placed by, for the grid that measures it. */
-private class CellPlace(val placed: Placed)
+private class CellPlace(val placed: PlacedCell)
 
 private val DataMinColumn = 48.dp
 internal val DataMaxColumn = 280.dp
@@ -41,7 +41,7 @@ private fun headerTint(paper: Paper): Color =
  * cell): each column as wide as its widest single-column cell, within [minimum] and [maximum], and a
  * cell over several columns widens those it covers when they are too narrow together.
  */
-internal fun dataColumnWidths(wanted: List<Pair<Placed, Int>>, columns: Int, minimum: Int, maximum: Int): IntArray {
+internal fun dataColumnWidths(wanted: List<Pair<PlacedCell, Int>>, columns: Int, minimum: Int, maximum: Int): IntArray {
     val widths = IntArray(columns.coerceAtLeast(1))
     for ((p, w) in wanted) {
         if (p.cols == 1) widths[p.col] = maxOf(widths[p.col], w.coerceIn(minimum, maximum))
@@ -54,7 +54,7 @@ internal fun dataColumnWidths(wanted: List<Pair<Placed, Int>>, columns: Int, min
     return widths
 }
 
-private fun placeOf(m: Measurable): Placed? = (m.layoutId as? CellPlace)?.placed
+private fun placeOf(m: Measurable): PlacedCell? = (m.layoutId as? CellPlace)?.placed
 
 /**
  * A data table: a grid that keeps the widths its words ask for (each column within 48 to 280 dp) and
@@ -68,7 +68,7 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper) {
         Layout(
             content = {
                 grid.placed.forEach { p ->
-                    val info = CollectionItemInfo(p.row, 1, p.col, p.cols)
+                    val info = CollectionItemInfo(p.row, rowSpanOf(p, grid.rows), p.col, p.cols)
                     val plain = p.cell.header && p.cell.background == null
                     val tint = if (plain) Modifier.background(headerTint(paper)) else Modifier
                     val head = p.cell.header

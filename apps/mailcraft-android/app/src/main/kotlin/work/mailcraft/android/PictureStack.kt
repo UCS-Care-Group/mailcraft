@@ -23,12 +23,14 @@ internal class PictureStack(
     core: Core,
     context: Context,
     private val scope: CoroutineScope,
+    /** Marks a message read through the list, which runs the owner's commands in turn. */
+    mark: suspend (ULong) -> Boolean,
     /** Where the cache's folder is read and written: never the main thread. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     val prefs: PicturePrefsStore = DevicePicturePrefs(context)
     val cache = PictureCache(File(context.cacheDir, FOLDER))
-    private val source = CoreReadSource(core)
+    private val source = CoreReadSource(core, mark)
     val reading = ReadingController(source, cache, prefs, scope, io)
     val senderImages = SenderImages(source, cache, prefs, scope, reading::isAsked, io)
 

@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #1063: the servers of an address at a domain nobody knows, found in the domain's own SRV
-//! records (RFC 6186): shown in Server settings for the owner to check, with where they came from said; a server outside the
-//! owner's domain is named to the owner before the password goes there, and a no sends nothing.
+//! #1063, #1112: the servers of an address at a domain nobody knows, found in the domain's own
+//! records (its SRV records, RFC 6186; what it publishes for mail programs) or in Mozilla's ISP
+//! database: shown in Server settings for the owner to check, with where they came from said; a
+//! server outside the owner's domain is named to the owner before the password goes there, and a
+//! no sends nothing.
 
 use mailcraft_model::provider::{FoundServer, Via};
 
@@ -30,6 +32,7 @@ fn servers_found_in_the_domains_records_are_shown_to_check_and_said_to_be_found(
         exchangers: vec!["mx.lumen.example".into()],
         incoming: found("mail.lumen.example", 993, Security::Tls, Via::Srv),
         outgoing: found("mail.lumen.example", 587, Security::StartTls, Via::Srv),
+        username: String::new(),
     };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
@@ -71,6 +74,7 @@ fn a_server_outside_the_domain_is_named_before_the_password_goes_there() {
             exchangers: vec!["mx.hosted.example".into()],
             incoming: found(incoming, 993, Security::Tls, Via::Srv),
             outgoing: found(outgoing, 465, Security::Tls, Via::Srv),
+            username: String::new(),
         };
         let mut h = with_found(a, discovered);
         assert_eq!(wizard(&h).map(|w| w.found), Some(Some(Via::Srv)));
@@ -104,7 +108,12 @@ fn a_host_the_owner_typed_is_their_own_and_what_is_not_found_is_said_to_be_a_gue
     let mut a = app(false);
     let checked = checks(&mut a, None);
     // Only the incoming server was found, outside the domain; the outgoing one is a guess.
-    let discovered = Discovered { exchangers: Vec::new(), incoming: found("imap.hosted.example", 993, Security::Tls, Via::Srv), outgoing: None };
+    let discovered = Discovered {
+        exchangers: Vec::new(),
+        incoming: found("imap.hosted.example", 993, Security::Tls, Via::Srv),
+        outgoing: None,
+        username: String::new(),
+    };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
     assert_eq!(
@@ -118,6 +127,85 @@ fn a_host_the_owner_typed_is_their_own_and_what_is_not_found_is_said_to_be_a_gue
     press(&mut h, Key::Enter);
     assert_eq!(page(&h), Some(Page::Checking));
     assert_eq!(checked.lock().unwrap().len(), 1);
+}
+
+/// #1112: what the domain publishes for mail programs, and what Mozilla's ISP database lists.
+#[test]
+fn servers_from_a_published_document_or_the_isp_database_say_so_and_sign_in_as_it_says() {
+    for (via, says_where) in [(Via::Autoconfig, "publishes for mail programs"), (Via::Ispdb, "Mozilla's ISP database lists")] {
+        let mut a = app(false);
+        let checked = checks(&mut a, None);
+        let discovered = Discovered {
+            exchangers: vec!["mx.lumen.example".into()],
+            incoming: found("mail.lumen.example", 993, Security::Tls, via),
+            outgoing: found("mail.lumen.example", 465, Security::Tls, via),
+            username: "%EMAILLOCALPART%".into(),
+        };
+        let mut h = with_found(a, discovered);
+        let w = wizard(&h).unwrap();
+        // The user name is what the source's placeholder makes of the address.
+        assert_eq!((w.found, w.guessed, w.settings_open, w.username.as_str()), (Some(via), false, true, "noor"), "{via:?}");
+        assert!(says(&h, says_where) && !says(&h, "found in the DNS records") && !says(&h, "only a guess"), "{via:?}");
+        // In the domain: the password goes without a question, with that user name.
+        type_password(&mut h);
+        press(&mut h, Key::Enter);
+        assert_eq!(page(&h), Some(Page::Checking), "{via:?}");
+        assert_eq!(checked.lock().unwrap()[0].0.username, "noor", "{via:?}");
+    }
+}
+
+#[test]
+fn a_server_outside_the_domain_is_named_whatever_named_it() {
+    for (via, says_who) in [(Via::Autoconfig, "publishes for mail programs names"), (Via::Ispdb, "Mozilla's ISP database names")] {
+        let mut a = app(false);
+        let checked = checks(&mut a, None);
+        let discovered = Discovered {
+            exchangers: vec!["mx.hosted.example".into()],
+            incoming: found("imap.hosted.example", 993, Security::Tls, via),
+            outgoing: found("smtp.hosted.example", 465, Security::Tls, via),
+            username: "%EMAILADDRESS%".into(),
+        };
+        let mut h = with_found(a, discovered);
+        assert_eq!(wizard(&h).map(|w| (w.found, w.username.clone())), Some((Some(via), "noor@lumen.example".to_string())));
+        type_password(&mut h);
+        press(&mut h, Key::Enter);
+        assert_eq!(page(&h), Some(Page::ServerConsent), "{via:?}");
+        assert!(says(&h, "imap.hosted.example, smtp.hosted.example") && says(&h, says_who), "{via:?}: the hosts or their source aren't named");
+        assert!(checked.lock().unwrap().is_empty());
+        click(&mut h, "Don't send");
+        assert_eq!(page(&h), Some(Page::Password));
+        assert!(checked.lock().unwrap().is_empty(), "{via:?}");
+        press(&mut h, Key::Enter);
+        click(&mut h, "Send my sign-in");
+        assert_eq!((page(&h), checked.lock().unwrap().len()), (Some(Page::Checking), 1), "{via:?}");
+    }
+}
+
+/// The two servers from two sources: each is said to come from its own, on the page with the
+/// servers and in the question before the password goes to the one outside the domain.
+#[test]
+fn each_server_is_said_to_come_from_the_source_that_named_it() {
+    let mut a = app(false);
+    let checked = checks(&mut a, None);
+    let discovered = Discovered {
+        exchangers: vec!["mx.lumen.example".into()],
+        incoming: found("imap.lumen.example", 993, Security::Tls, Via::Autoconfig),
+        outgoing: found("smtp.hosted.example", 465, Security::Tls, Via::Ispdb),
+        username: String::new(),
+    };
+    let mut h = with_found(a, discovered);
+    assert_eq!(wizard(&h).map(|w| (w.found, w.guessed)), Some((Some(Via::Autoconfig), false)));
+    // Each server by its name, with its own source; no line that speaks of both at once.
+    assert!(says(&h, "imap.lumen.example is what lumen.example publishes for mail programs"), "the incoming server's source isn't said");
+    assert!(says(&h, "smtp.hosted.example is what Mozilla's ISP database lists for lumen.example"), "the outgoing server's source isn't said");
+    assert!(says(&h, "Check both servers before you connect.") && !says(&h, "The servers below"));
+    type_password(&mut h);
+    press(&mut h, Key::Enter);
+    assert_eq!(page(&h), Some(Page::ServerConsent));
+    // Only the outside host is asked about, and the database is named as who named it.
+    assert!(says(&h, "Mozilla's ISP database names smtp.hosted.example"), "the host isn't said to come from the database");
+    assert!(!says(&h, "publishes for mail programs names") && !says(&h, "imap.lumen.example"));
+    assert!(checked.lock().unwrap().is_empty());
 }
 
 #[test]

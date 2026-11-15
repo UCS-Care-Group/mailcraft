@@ -81,6 +81,8 @@ internal data class InboxRow(
     val memberIds: List<ULong> = emptyList(),
     /** The heading above the row when it starts a group, in English (the screen translates it). */
     val group: String? = null,
+    /** Whether [group] is one of the owner's categories: shown as spelt, never translated. */
+    val groupIsCategory: Boolean = false,
     val categories: List<String> = emptyList(),
     val account: ULong = 0uL,
     val folder: ULong = 0uL,
@@ -146,21 +148,21 @@ internal class ListSnapshot(
 internal enum class LoadState { Loading, Ready, Failed }
 
 /** What happened that the owner is told of, once. [Undo] has a button that takes it back. */
-internal sealed interface Notice {
-    data object NoAccount : Notice
+internal sealed interface ListNotice {
+    /** Words the core gave, already in the owner's language. */
+    class Said(val message: String) : ListNotice
 
-    data object NotYet : Notice
+    data object Failed : ListNotice
 
-    data object Failed : Notice
-
-    class Done(val triage: Triage, val count: Int) : Notice
+    /** [command] is the count of commands made when this one was: only that command's undo is offered. */
+    class Done(val triage: Triage, val count: Int, val command: Int = 0) : ListNotice
 
     /** Whether the notice offers to undo what it says. */
     val undoable: Boolean get() = this is Done && triage.destructive
 }
 
 /** A notice with a number, so that the same notice twice is two. */
-internal data class NoticeEvent(val seq: Int, val notice: Notice)
+internal data class NoticeEvent(val seq: Int, val notice: ListNotice)
 
 /** Everything the list screen draws, as plain values. */
 internal data class MailListUi(
@@ -173,6 +175,12 @@ internal data class MailListUi(
     /** When mail was last brought up to date (milliseconds since 1970), if it was since this started. */
     val updatedAtMillis: Long?,
     val offline: Boolean,
+    /**
+     * The query the rows of [snapshot] were read for: while another query's first page is read, [query]
+     * is already that one and the rows on screen are still these. A command on a row names its messages
+     * as this query has them.
+     */
+    val rowsOf: MailQuery? = null,
 ) {
     companion object {
         val Start = MailListUi(null, LoadState.Loading, ListSnapshot.Empty, emptyList(), false, null, null, false)

@@ -68,8 +68,8 @@ impl World for Fake {
         self.exchangers.clone()
     }
 
-    fn srv(&self, _name: &str) -> Option<Vec<(String, u16)>> {
-        self.srv.clone()
+    fn srv(&self, _name: &str) -> (Option<Vec<(String, u16)>>, Vec<String>) {
+        (self.srv.clone(), Vec::new())
     }
 
     fn probe(&self, url: &str, who: &Who, trusted: &str) -> Probed {

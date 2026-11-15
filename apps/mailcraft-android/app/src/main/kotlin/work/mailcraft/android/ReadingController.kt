@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
  * at all while the system's data saving holds them back until the owner says so. What is kept in the
  * [cache] is not asked for again.
  */
+@Suppress("TooManyFunctions")
 internal class ReadingController(
     private val source: ReadSource,
     private val cache: PictureCache,
@@ -67,7 +68,7 @@ internal class ReadingController(
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
             state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
-            if (opened.view.unread && remember(marked, id)) source.markRead(id)
+            if (opened.view.unread && remember(marked, id) && !source.markRead(id)) forget(id)
             loadPictures(mine, id, opened)
         }
     }
@@ -205,6 +206,12 @@ internal class ReadingController(
         val added = set.add(id)
         if (set.size > MAX_REMEMBERED_MESSAGES) set.remove(set.first())
         return added
+    }
+
+    /** A mark that failed is tried again when the message is opened again. */
+    @Synchronized
+    private fun forget(id: ULong) {
+        marked.remove(id)
     }
 
     private companion object {
