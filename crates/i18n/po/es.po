@@ -537,8 +537,9 @@ msgstr "Una regla necesita un nombre y algo que buscar."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "A rule this editor doesn't show; it is kept as it is."
-msgstr ""
+msgstr "Una regla que este editor no muestra; se conserva tal cual."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -965,8 +966,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Addresses, separated by semicolons"
-msgstr ""
+msgstr "Direcciones, separadas por punto y coma"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -993,8 +995,9 @@ msgstr "Después de aceptar, aceptar provisionalmente o rechazar una convocatori
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Agenda"
-msgstr ""
+msgstr "Agenda"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -1725,8 +1728,9 @@ msgstr "A la misma hora: {items}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "At the time of the event"
-msgstr ""
+msgstr "A la hora del evento"
 
 #. interface
 #: crates/ui-egui/src/compose.rs crates/ui-egui/src/pick_item.rs
@@ -2967,8 +2971,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Continues"
-msgstr ""
+msgstr "Continúa"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3595,8 +3600,9 @@ msgstr "¿Eliminar su copia de esta reunión?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Delete and tell the people"
-msgstr ""
+msgstr "Eliminar y avisar a los asistentes"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3618,8 +3624,9 @@ msgstr "Eliminar esta categoría"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Delete this event?"
-msgstr ""
+msgstr "¿Eliminar este evento?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3634,8 +3641,9 @@ msgstr "Eliminar esta regla"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Delete, tell nobody"
-msgstr ""
+msgstr "Eliminar sin avisar a nadie"
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -3833,8 +3841,9 @@ msgstr "Hacer"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Doesn't repeat"
-msgstr ""
+msgstr "No se repite"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -3891,8 +3900,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Don't send a response"
-msgstr ""
+msgstr "No enviar respuesta"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4218,8 +4228,9 @@ msgstr "Editar tarea"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Edit event"
-msgstr ""
+msgstr "Editar evento"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -4335,10 +4346,11 @@ msgstr "Termina"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends after {n} time"
 msgid_plural "Ends after {n} times"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Termina después de {n} vez"
+msgstr[1] "Termina después de {n} veces"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4347,13 +4359,15 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends on"
-msgstr ""
+msgstr "Termina el"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Ends on a day"
-msgstr ""
+msgstr "Termina en una fecha"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4362,8 +4376,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "Evento"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4379,8 +4394,9 @@ msgstr "Todos los contactos, como .vcf"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every day"
-msgstr ""
+msgstr "Todos los días"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4407,8 +4423,9 @@ msgstr "Cada minuto"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every month"
-msgstr ""
+msgstr "Todos los meses"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -4418,8 +4435,9 @@ msgstr "Todas las demás horas que se propusieron para esta reunión."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every week"
-msgstr ""
+msgstr "Todas las semanas"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4429,15 +4447,17 @@ msgstr "Todos los días laborables"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every year"
-msgstr ""
+msgstr "Todos los años"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} day"
 msgid_plural "Every {n} days"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Cada {n} día"
+msgstr[1] "Cada {n} días"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4447,24 +4467,27 @@ msgstr "Cada {n} minutos"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} month"
 msgid_plural "Every {n} months"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Cada {n} mes"
+msgstr[1] "Cada {n} meses"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} week"
 msgid_plural "Every {n} weeks"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Cada {n} semana"
+msgstr[1] "Cada {n} semanas"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "Every {n} year"
 msgid_plural "Every {n} years"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Cada {n} año"
+msgstr[1] "Cada {n} años"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6519,8 +6542,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Keep it here, invite nobody"
-msgstr ""
+msgstr "Guardarlo aquí, sin invitar a nadie"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8058,8 +8082,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Never ends"
-msgstr ""
+msgstr "No termina nunca"
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -8210,8 +8235,9 @@ msgstr "Nueva categoría"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "New event"
-msgstr ""
+msgstr "Nuevo evento"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8552,8 +8578,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "No reminder"
-msgstr ""
+msgstr "Sin aviso"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -8729,8 +8756,9 @@ msgstr "No es una dirección de correo electrónico: {names}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Not answered"
-msgstr ""
+msgstr "Sin responder"
 
 #. interface
 #: crates/ui-egui/src
@@ -8904,13 +8932,15 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Nothing on in these days."
-msgstr ""
+msgstr "No hay nada en estos días."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Nothing on."
-msgstr ""
+msgstr "No hay nada."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -9156,8 +9186,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only for this time, and send it"
-msgstr ""
+msgstr "Solo esta vez, y enviar la respuesta"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9228,18 +9259,21 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this event is changed, not the series."
-msgstr ""
+msgstr "Solo cambia este evento, no la serie."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this time"
-msgstr ""
+msgstr "Solo esta vez"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Only this time, and tell the people"
-msgstr ""
+msgstr "Solo esta vez, y avisar a los asistentes"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9492,8 +9526,8 @@ msgstr ""
 msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Optional"
 msgstr "Opcionales"
@@ -9512,8 +9546,9 @@ msgstr "¿O es uno de estos?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Organiser"
-msgstr ""
+msgstr "Organizador"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -9772,8 +9807,9 @@ msgstr "Personas"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "People to invite"
-msgstr ""
+msgstr "Personas a las que invitar"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -11631,8 +11667,9 @@ msgstr "¿Enviar una respuesta?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send a response?"
-msgstr ""
+msgstr "¿Enviar una respuesta?"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11658,8 +11695,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send invitations"
-msgstr ""
+msgstr "Enviar invitaciones"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -11702,13 +11740,15 @@ msgstr "¿Enviarles la invitación? El servidor de la cuenta la envía por corre
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send the invitations?"
-msgstr ""
+msgstr "¿Enviar las invitaciones?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "Send the response now"
-msgstr ""
+msgstr "Enviar la respuesta ahora"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13161,8 +13201,9 @@ msgstr "Provisional: {title}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
+#, fuzzy
 msgid "Tentatively accepted"
-msgstr ""
+msgstr "Aceptado provisionalmente"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13243,8 +13284,9 @@ msgstr "Eso no se puede abrir en una ventana propia"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "That could not be done."
-msgstr ""
+msgstr "No se ha podido hacer."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -13253,8 +13295,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#, fuzzy
 msgid "That file could not be read as a calendar."
-msgstr ""
+msgstr "Ese archivo no se ha podido leer como calendario."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -13517,8 +13560,9 @@ msgstr "La conexión del calendario funciona: lo que se envió llegó, y el serv
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The calendar could not be read."
-msgstr ""
+msgstr "No se ha podido leer el calendario."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -13718,13 +13762,15 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The event ends before it starts."
-msgstr ""
+msgstr "El evento termina antes de empezar."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
+#, fuzzy
 msgid "The event is gone."
-msgstr ""
+msgstr "El evento ya no existe."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -13743,8 +13789,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "The file holds no events."
-msgstr ""
+msgstr "El archivo no contiene eventos."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18152,8 +18199,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
 msgid "optional"
-msgstr ""
+msgstr "opcional"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -20285,10 +20333,11 @@ msgstr[1] "{n} días"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} day before"
 msgid_plural "{n} days before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} día antes"
+msgstr[1] "{n} días antes"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -20322,17 +20371,19 @@ msgstr[1] "{n} eventos"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} event added to the calendar, and the tasks in the file."
 msgid_plural "{n} events added to the calendar, and the tasks in the file."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} evento añadido al calendario, y las tareas del archivo."
+msgstr[1] "{n} eventos añadidos al calendario, y las tareas del archivo."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} event added to the calendar."
 msgid_plural "{n} events added to the calendar."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} evento añadido al calendario."
+msgstr[1] "{n} eventos añadidos al calendario."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -20380,10 +20431,11 @@ msgstr[1] "{n} horas"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} hour before"
 msgid_plural "{n} hours before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} hora antes"
+msgstr[1] "{n} horas antes"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -20603,10 +20655,11 @@ msgstr[1] "{n} minutos"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} minute before"
 msgid_plural "{n} minutes before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} minuto antes"
+msgstr[1] "{n} minutos antes"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -20876,10 +20929,11 @@ msgstr[1] "{n} ya estaban allí"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
 msgid "{n} week before"
 msgid_plural "{n} weeks before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} semana antes"
+msgstr[1] "{n} semanas antes"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
