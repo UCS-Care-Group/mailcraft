@@ -198,6 +198,10 @@ pub struct ServerFolder {
     /// False until a listing says so.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub well_known: bool,
+    /// To be listed afresh from its start at the next run (MB3.16: a phone's window made longer
+    /// brings the older mail it now covers). Cleared once a page of the new listing is in.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist: bool,
 }
 
 /// What an IMAP server's STATUS said of a folder (#276), with the limit on how many of its

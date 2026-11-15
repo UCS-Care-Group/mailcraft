@@ -66,6 +66,11 @@ use super::{folders as folders_of, id_of};
 use crate::NetError;
 use crate::http::{self, Url};
 
+/// An instant as Graph's filters write it: `2026-10-15T08:00:00Z`, within the years they take.
+fn utc(t: mailcraft_model::time::Timestamp) -> String {
+    mailcraft_model::time::format_iso_utc(t.clamp(0, 253_402_300_799))
+}
+
 /// What is asked for of each message: what the message list needs (R3 spec S9).
 pub(super) const FIELDS: &str = "receivedDateTime,sentDateTime,subject,from,toRecipients,ccRecipients,bodyPreview,isRead,flag,categories,importance,parentFolderId,internetMessageId,hasAttachments,isDraft,changeKey,conversationId";
 /// A message's size on the server (`PidTagMessageSize`), which Graph gives only as an extended
@@ -155,6 +160,8 @@ struct Run {
     left: HashSet<String>,
     seen: HashSet<String>,
     overflow: bool,
+    /// The earliest received time a folder listed from its start lists (a phone's, MB3.16).
+    since: Option<mailcraft_model::time::Timestamp>,
 }
 
 impl Run {
@@ -199,8 +206,8 @@ pub(super) fn messages(
     emit: &mut dyn FnMut(GraphMailResult),
 ) -> GraphMailResult {
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
-    let links: HashMap<&str, (&str, bool, Option<FolderCounts>)> =
-        request.links.iter().map(|l| (l.folder.as_str(), (l.link.as_str(), l.caught_up, l.counts))).collect();
+    let links: HashMap<&str, (&str, bool, Option<FolderCounts>, bool)> =
+        request.links.iter().map(|l| (l.folder.as_str(), (l.link.as_str(), l.caught_up, l.counts, l.afresh))).collect();
     // The Inbox pass lists nothing: its folder's counts are none of the server's.
     let listing = !phase_is_inbox(phase);
     let mut folders: Vec<GraphFolder> = listed.to_vec();
@@ -211,10 +218,14 @@ pub(super) fn messages(
             let (link, caught_up, afresh, kept) = match links.get(folder.id.as_str()) {
                 None => (None, false, false, None),
                 // A link from the mailbox file is followed only to Graph itself.
-                Some((link, caught_up, kept)) => match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
-                    Some(url) => (Some(url), *caught_up, false, kept.filter(|_| *caught_up)),
-                    None => (None, false, true, None),
-                },
+                // To be listed afresh (MB3.16): from its start, whatever link it had.
+                Some((_, _, _, true)) => (None, false, true, None),
+                Some((link, caught_up, kept, false)) => {
+                    match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
+                        Some(url) => (Some(url), *caught_up, false, kept.filter(|_| *caught_up)),
+                        None => (None, false, true, None),
+                    }
+                }
             };
             let round_here = link.is_none() || caught_up;
             // Counts the server didn't give are unknown, not 0: such a folder is never passed over.
@@ -246,7 +257,7 @@ pub(super) fn messages(
     // First the newest page of each (all of what changed, for one read to its end before), then
     // each to its end.
     let mut stopped = None;
-    let mut run = Run { tracking: reading.iter().any(|one| one.skipped), ..Default::default() };
+    let mut run = Run { tracking: reading.iter().any(|one| one.skipped), since: request.since, ..Default::default() };
     'passes: for (pass, first) in [(0, true), (1, false), (2, false)] {
         // After the rest: what left a folder read and turned up in none may be in a folder passed
         // over, so those are read after all (each from its delta link: as a rule, a page).
@@ -331,7 +342,14 @@ fn page(
         Some(url) => url.clone(),
         None => {
             // (Not the sizes: a delta refuses their expansion, see above.)
-            let query = http::form(&[("$select", FIELDS), ("$orderby", "receivedDateTime desc")]);
+            // On a phone only the window's mail (MB3.16): Graph's message delta takes a filter on
+            // the received time, and its links go on with it.
+            let since = run.since.map(|t| format!("receivedDateTime ge {}", utc(t)));
+            let mut fields = vec![("$select", FIELDS), ("$orderby", "receivedDateTime desc")];
+            if let Some(filter) = since.as_deref() {
+                fields.push(("$filter", filter));
+            }
+            let query = http::form(&fields);
             graph.url(&format!("{}/{}/messages/delta?{query}", folders_of(graph), http::encode(&one.folder.id)))
         }
     };

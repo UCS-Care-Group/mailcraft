@@ -222,6 +222,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     {
         s.delta = page.link.clone();
         s.caught_up = page.caught_up;
+        // Listed afresh as it was to be (MB3.16): the new listing goes on from here.
+        s.relist = false;
         // Ended before this page, or by it; a page read afresh begins again.
         s.round_ended = sorting || page.caught_up;
         // The counts the link was got with, or none (#276): a new link never keeps the old one's.

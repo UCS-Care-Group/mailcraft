@@ -642,14 +642,32 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     // A shorter window: what is outside it now is thinned at the next tick, for any host.
     let shortened = a.keep_offline < before.keep_offline;
+    // A longer one on a device that lists only its window's mail (a phone, MB3.16): its folders
+    // are listed afresh, to bring the older mail it now covers.
+    let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
     if shortened {
         s.driver.thinning.now = true;
+    }
+    if lengthened {
+        relist(&mut s.mailbox, id);
     }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
     Ok(json!({"id": id}))
+}
+
+/// Every folder the server has of `account`, and of the shared mailboxes opened through it, is
+/// listed afresh at their next run (MB3.16).
+fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
+    let accounts: Vec<Id> =
+        mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+    for f in mb.folders.iter_mut().filter(|f| accounts.contains(&f.account)) {
+        if let Some(server) = f.server.as_mut().filter(|s| !s.id.is_empty()) {
+            server.relist = true;
+        }
+    }
 }
 
 /// `account.forgetEwsCertificate`: the account no longer trusts the certificate it was told to trust (#252).

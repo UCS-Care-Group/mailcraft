@@ -49,3 +49,61 @@ fn account_edit_takes_the_one_megabyte_step() {
     s.run("account.edit", &json!({"id": id, "downloadInFull": "upTo1Mb"})).unwrap();
     assert_eq!(s.mailbox.account(id).unwrap().download_in_full, mailcraft_model::DownloadInFull::UpTo1Mb);
 }
+
+/// 2027-01-15.
+const NOW: i64 = 1_800_000_000;
+
+/// A session at [`NOW`] with a Microsoft account keeping a month, whose Inbox the server has.
+fn graph_session() -> (Session, u64, u64) {
+    use mailcraft_model::{FolderKind, Mailbox, ServerFolder};
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    s.run("account.edit", &json!({"id": account, "keepOffline": "1m"})).unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder {
+        id: "in".into(),
+        delta: "https://graph.microsoft.com/v1.0/x?$deltatoken=1".into(),
+        caught_up: true,
+        ..Default::default()
+    });
+    (s, account, inbox)
+}
+
+#[test]
+fn only_a_phone_asks_its_server_for_the_windows_mail_alone() {
+    let (mut s, account, _) = graph_session();
+    let request = crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap();
+    assert_eq!(request.since, None, "a computer lists everything");
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    let request = crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap();
+    assert_eq!(request.since, mailcraft_model::KeepOffline::Month1.since(NOW));
+    assert_eq!(crate::cmd::graph_mail::graph_inbox_request(&s, account).unwrap().since, request.since);
+}
+
+#[test]
+fn a_longer_window_on_a_phone_lists_the_folders_afresh_and_a_shorter_one_does_not() {
+    let (mut s, account, inbox) = graph_session();
+    let relisting = |s: &Session| s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().relist;
+    s.run("account.edit", &json!({"id": account, "keepOffline": "3m"})).unwrap();
+    assert!(!relisting(&s), "a computer has listed everything already");
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    s.run("account.edit", &json!({"id": account, "keepOffline": "1w"})).unwrap();
+    assert!(!relisting(&s));
+    s.run("account.edit", &json!({"id": account, "keepOffline": "6m"})).unwrap();
+    assert!(relisting(&s));
+    let request = crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap();
+    let link = request.links.iter().find(|l| l.folder == "in").unwrap();
+    assert!(link.afresh && link.link.is_empty(), "the old link is never followed");
+    assert!(crate::cmd::graph_mail::graph_inbox_request(&s, account).is_none(), "the whole run lists it");
+    // A page of the new listing taken in: it goes on from there.
+    let page = mailcraft_model::sync::MessagePage {
+        folder: "in".into(),
+        link: "https://graph.microsoft.com/v1.0/x?$deltatoken=2".into(),
+        afresh: true,
+        caught_up: true,
+        ..Default::default()
+    };
+    let mut index = crate::cmd::graph_down::ServerIndex::default();
+    crate::cmd::graph_down::take_page(&mut s.mailbox, &mut index, account, &page, &mut Default::default());
+    assert!(!relisting(&s));
+}
