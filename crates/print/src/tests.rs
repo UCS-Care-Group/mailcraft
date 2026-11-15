@@ -214,6 +214,14 @@ fn only_grey_and_ycbcr_jpegs_are_passed_through() {
     image::GrayImage::from_pixel(8, 8, image::Luma([90])).write_to(&mut gray, image::ImageFormat::Jpeg).unwrap();
     assert_eq!(picture::passes_through(gray.get_ref()), Some(true));
     assert_eq!(picture::passes_through(&cmyk_jpeg()), None, "CMYK is decoded and written again");
+    let whole = jpeg(8, 8);
+    assert_eq!(picture::passes_through(&whole[..whole.len() - 40]), None, "a cut-off JPEG is decoded, or left out");
+    let mut lossless = jpeg(8, 8);
+    let sof = lossless.windows(2).position(|w| w == [0xFF, 0xC0]).unwrap();
+    lossless[sof + 1] = 0xC3;
+    assert_eq!(picture::passes_through(&lossless), None, "a lossless JPEG isn't passed through");
+    lossless[sof + 1] = 0xC9;
+    assert_eq!(picture::passes_through(&lossless), None, "nor an arithmetic-coded one");
     // An Adobe JPEG that says its three components are RGB, not YCbCr.
     let mut rgb = jpeg(8, 8);
     let mut adobe = vec![0xFF, 0xEE, 0x00, 0x0E];
@@ -318,4 +326,38 @@ fn a_picture_one_message_had_no_room_for_prints_in_the_next() {
     let pages = layout::pages(&[first, second], &mut faces, &mut pictures, &Options::default());
     let last = pages.last().unwrap();
     assert!(last.ops.iter().any(|op| matches!(op, layout::Op::Image { .. })), "the logo is in the second message");
+}
+
+#[test]
+fn preformatted_text_keeps_its_indentation_and_tab_columns() {
+    let x_of = |html: &str, want: &str| {
+        let mut faces = font::FaceSet::new(&fonts()).unwrap();
+        let mut pictures = picture::Pictures::default();
+        let pages = layout::pages(&[doc(html)], &mut faces, &mut pictures, &Options::default());
+        pages[0].ops.iter().find_map(|op| match op {
+            layout::Op::Text { x, text, .. } if text.starts_with(want) => Some(*x),
+            _ => None,
+        })
+    };
+    let html = "<pre>fn a() {\n    let x = 1;\n}</pre>";
+    let (outer, inner) = (x_of(html, "fn a()").unwrap(), x_of(html, "let x = 1;").unwrap());
+    assert!(inner > outer + 10.0, "the indented line starts further right: {outer} {inner}");
+    // A tab goes to the next column of eight: "\tc" and "ab\tc" put c where eight characters end.
+    let tabbed = "<pre>abcdefgh|\n\tc</pre>";
+    let (bar, c) = (x_of(tabbed, "abcdefgh").unwrap(), x_of(tabbed, "c").unwrap());
+    let mono = 0.6 * 10.5 * 0.9;
+    assert!((c - bar - 8.0 * mono).abs() < 2.0, "{bar} {c}");
+    let mut column = 2;
+    assert_eq!(layout::expand_tabs("\tc\nab\tc", &mut column), "      c\nab      c");
+    assert!(x_of("<p>   words</p>", "words").unwrap() < outer + 1.0, "ordinary text keeps no leading spaces");
+}
+
+#[test]
+fn links_are_written_as_seven_bit_addresses_of_the_schemes_followed() {
+    assert_eq!(pdf::uri("https://example.org/café").as_deref(), Some("https://example.org/caf%C3%A9"));
+    assert!(pdf::uri("https://bücher.example/").is_some_and(|u| u.starts_with("https://xn--bcher-kva.example")));
+    assert!(pdf::uri("mailto:Zoë <zoe@example.org>").is_some_and(|u| u.is_ascii() && u.starts_with("mailto:")));
+    for refused in ["cid:logo@x", "javascript:alert(1)", "file:///etc/passwd", "mailto:", "data:text/html,x"] {
+        assert_eq!(pdf::uri(refused), None, "{refused}");
+    }
 }

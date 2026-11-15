@@ -3446,11 +3446,12 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-print"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "flate2",
  "image",
  "mailcraft-html",
+ "mailcraft-link",
  "pdf-writer",
  "skrifa 0.49.0",
  "subsetter",

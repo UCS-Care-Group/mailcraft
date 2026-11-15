@@ -184,8 +184,9 @@ enum Layout {
 /// never waits for the system.
 pub struct PrintDialog {
     ids: Vec<Id>,
-    docs: Arc<Vec<Doc>>,
-    fonts: Fonts,
+    /// The documents with their pictures, and the fonts, once they are read on their thread.
+    ready: Option<Result<(Arc<Vec<Doc>>, Fonts), String>>,
+    reading: Option<Receiver<Result<(Vec<Doc>, Fonts), String>>>,
     options: Options,
     /// The PDF's name.
     name: String,
@@ -213,9 +214,11 @@ impl PrintDialog {
         ids.extend(params.get("id").and_then(Value::as_u64));
         let ids = app.session.print_ids(&ids).ok()?;
         let request = Request { ids: ids.clone(), labels: labels(), paper: None };
-        let docs = app.session.print_docs(&request).ok()?;
-        let fonts = app.session.print_fonts().ok()?;
-        let options = app.session.print_options(&docs, &request);
+        // The messages are named, checked and their bodies read here; their pictures kept on
+        // disk and the fonts are read on a thread of their own, and the dialog opens at once.
+        let prepared = app.session.print_prepare(&request).ok()?;
+        let options = app.session.print_options(prepared.docs(), &request);
+        let reading = background("print-read", move || prepared.finish());
         let name = mailcraft_engine::cmd::file::pdf_name(&app.session, &ids);
         let listing = app.services.print.as_ref().map(|h| {
             let printers = h.printers.clone();
@@ -223,8 +226,8 @@ impl PrintDialog {
         });
         Some(PrintDialog {
             ids,
-            docs: Arc::new(docs),
-            fonts,
+            ready: None,
+            reading: Some(reading),
             options,
             name,
             printers: Vec::new(),
@@ -249,14 +252,38 @@ impl PrintDialog {
 
     /// Whether something is still being worked out: the pages, the printers, a job on its way.
     pub fn busy(&self) -> bool {
-        self.listing.is_some() || self.sending.is_some() || matches!(self.laid.get(usize::from(self.letter)), Some(Some(Layout::Busy(_))))
+        self.listing.is_some()
+            || self.sending.is_some()
+            || self.reading.is_some()
+            || matches!(self.laid.get(usize::from(self.letter)), Some(Some(Layout::Busy(_))))
     }
 
     /// The print for the paper chosen: laid out, started, or picked up when it is done.
     fn current(&mut self) -> Option<&Laid> {
+        if let Some(rx) = &self.reading {
+            match rx.try_recv() {
+                Ok(read) => self.ready = Some(read.map(|(docs, fonts)| (Arc::new(docs), fonts))),
+                Err(TryRecvError::Empty) => return None,
+                Err(TryRecvError::Disconnected) => self.ready = Some(Err(tl!("The messages couldn't be laid out for printing.").to_string())),
+            }
+            self.reading = None;
+        }
+        let ready = match self.ready.as_ref()? {
+            Ok((docs, fonts)) => Ok((docs.clone(), fonts.clone())),
+            Err(e) => Err(e.clone()),
+        };
         let slot = self.laid.get_mut(usize::from(self.letter))?;
         if slot.is_none() {
-            let (docs, fonts) = (self.docs.clone(), self.fonts.clone());
+            let (docs, fonts) = match ready {
+                Ok(ready) => ready,
+                Err(e) => {
+                    *slot = Some(Layout::Done(Err(e)));
+                    return match slot {
+                        Some(Layout::Done(laid)) => Some(laid),
+                        _ => None,
+                    };
+                }
+            };
             let options = Options { paper: if self.letter { Paper::LETTER } else { Paper::A4 }, ..self.options.clone() };
             let rx = background("print-layout", move || {
                 mailcraft_engine::print::render(&docs, &fonts, &options).map(|(bytes, pages)| (Arc::new(bytes), pages))

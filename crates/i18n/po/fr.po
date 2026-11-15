@@ -19129,6 +19129,11 @@ msgstr "le serveur a mis trop de temps à répondre"
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "le serveur n'a pas voulu envoyer « {subject} » en entier, il ne peut donc pas être transféré en tant que pièce jointe"
 
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server's answer was longer than {kb} KB"
@@ -21134,6 +21139,11 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr "« {subject} » est arrivé de son serveur, mais n'a pas pu être conservé sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
@@ -21150,6 +21160,11 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” wasn't found on its server, so it can't be printed"
+msgstr ""
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

@@ -183,7 +183,14 @@ fn decode(bytes: &[u8], room: u64) -> Result<Picture, Refused> {
 /// PDF reader would turn as if they were YCbCr). CMYK and YCCK JPEGs, with four, are decoded and
 /// written again, for `DeviceRGB` would take their bytes for something else.
 pub(crate) fn passes_through(bytes: &[u8]) -> Option<bool> {
-    let (components, adobe_transform) = jpeg_frame(bytes)?;
+    let (marker, components, adobe_transform) = jpeg_frame(bytes)?;
+    // Baseline, extended or progressive Huffman-coded only, which every reader of DCTDecode
+    // takes (lossless and arithmetic-coded JPEGs are not); and whole, to its end-of-image marker
+    // (a cut-off stream can stop a printer's whole job).
+    let ended = bytes.len() >= 4 && bytes.get(bytes.len().saturating_sub(64)..)?.windows(2).any(|w| w == [0xFF, 0xD9]);
+    if !matches!(marker, 0xC0..=0xC2) || !ended {
+        return None;
+    }
     match (components, adobe_transform) {
         (1, _) => Some(true),
         (3, Some(0)) => None,
@@ -192,9 +199,10 @@ pub(crate) fn passes_through(bytes: &[u8]) -> Option<bool> {
     }
 }
 
-/// The number of components in a JPEG's frame header, and the colour transform its Adobe marker
-/// names, if it has one; `None` when the markers can't be read to a frame header.
-fn jpeg_frame(bytes: &[u8]) -> Option<(u8, Option<u8>)> {
+/// The marker of a JPEG's frame header and the number of components in it, and the colour
+/// transform its Adobe marker names, if it has one; `None` when the markers can't be read to a
+/// frame header.
+fn jpeg_frame(bytes: &[u8]) -> Option<(u8, u8, Option<u8>)> {
     if bytes.get(..2) != Some(&[0xFF, 0xD8]) {
         return None;
     }
@@ -222,7 +230,7 @@ fn jpeg_frame(bytes: &[u8]) -> Option<(u8, Option<u8>)> {
         let body = bytes.get(i + 2..i.checked_add(len)?)?;
         let sof = matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF);
         if sof {
-            return Some((*body.get(5)?, transform));
+            return Some((marker, *body.get(5)?, transform));
         }
         if marker == 0xEE && body.starts_with(b"Adobe") {
             transform = body.get(11).copied();

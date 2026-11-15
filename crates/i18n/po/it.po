@@ -19196,6 +19196,11 @@ msgstr "il server ha impiegato troppo tempo a rispondere"
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "il server non ha voluto inviare «{subject}» per intero, quindi non può essere inoltrato come allegato"
 
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server's answer was longer than {kb} KB"
@@ -21202,6 +21207,11 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr "«{subject}» è arrivato dal suo server, ma non è stato possibile conservarlo su questo computer, quindi non può essere inoltrato come allegato"
 
 #. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
@@ -21218,6 +21228,11 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” wasn't found on its server, so it can't be printed"
+msgstr ""
 
 #~ msgid "Browse This PC…"
 #~ msgstr "Sfoglia questo PC…"

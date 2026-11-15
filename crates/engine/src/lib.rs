@@ -66,8 +66,8 @@ mod session;
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
-pub mod system_fonts;
 pub mod sync_driver;
+pub mod system_fonts;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;

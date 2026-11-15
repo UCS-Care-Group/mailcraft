@@ -571,10 +571,10 @@ const FALLBACK_FONTS_CAP: u64 = 64 * 1024 * 1024;
 #[cfg(not(target_arch = "wasm32"))]
 const FALLBACK_FONTS_MAX: usize = 8;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use mailcraft_engine::system_fonts::{FALLBACK_FACES, GEORGIAN_FACES};
 #[cfg(all(not(windows), not(target_arch = "wasm32")))]
 pub(crate) use mailcraft_engine::system_fonts::font_dirs;
+#[cfg(not(target_arch = "wasm32"))]
+pub use mailcraft_engine::system_fonts::{FALLBACK_FACES, GEORGIAN_FACES};
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use mailcraft_engine::system_fonts::{FONT_DIR_DEPTH, FONT_DIR_ENTRIES, find_font_files};
 

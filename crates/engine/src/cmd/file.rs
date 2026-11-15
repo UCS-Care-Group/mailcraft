@@ -371,7 +371,7 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// What `file.print` and `file.saveAsPdf` are asked to print.
-fn print_request(v: &Value) -> Result<crate::print::Request, crate::CmdError> {
+pub(crate) fn print_request(v: &Value) -> Result<crate::print::Request, crate::CmdError> {
     let mut ids = p::ids_strict(v)?.unwrap_or_default();
     if ids.is_empty()
         && let Some(id) = p::message_strict(v)?

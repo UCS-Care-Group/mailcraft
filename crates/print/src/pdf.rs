@@ -42,6 +42,21 @@ fn tag(n: usize) -> String {
     s
 }
 
+/// A link as a PDF's URI action takes it: 7-bit ASCII, the host of a web address in Punycode and
+/// the rest percent-encoded, as `mailcraft-link` writes what is launched. Only `http`, `https`,
+/// `mailto` and `tel` are linked; anything else (a `cid:` picture's, a `javascript:`) is none.
+pub(crate) fn uri(url: &str) -> Option<String> {
+    let url = url.trim();
+    let (scheme, rest) = url.split_once(':')?;
+    let scheme = scheme.to_ascii_lowercase();
+    let out = match scheme.as_str() {
+        "http" | "https" => mailcraft_link::WebLink::parse(url)?.into_string(),
+        "mailto" | "tel" if !rest.trim().is_empty() => format!("{scheme}:{}", mailcraft_link::encode_opaque(rest.trim())),
+        _ => return None,
+    };
+    out.is_ascii().then_some(out)
+}
+
 pub(crate) fn write(pages: &[Page], faces: &mut FaceSet, pictures: &Pictures, options: &Options) -> Vec<u8> {
     let mut pdf = Pdf::new();
     let mut ids = Ids(0);
@@ -136,6 +151,7 @@ pub(crate) fn write(pages: &[Page], faces: &mut FaceSet, pictures: &Pictures, op
                     content.restore_state();
                 }
                 Op::Link { x, y, w, h, url } => {
+                    let Some(uri) = uri(url) else { continue };
                     let annotation = ids.next();
                     pdf.annotation(annotation)
                         .subtype(AnnotationType::Link)
@@ -143,7 +159,7 @@ pub(crate) fn write(pages: &[Page], faces: &mut FaceSet, pictures: &Pictures, op
                         .border(0.0, 0.0, 0.0, None)
                         .action()
                         .action_type(ActionType::Uri)
-                        .uri(Str(url.as_bytes()));
+                        .uri(Str(uri.as_bytes()));
                     annotations.push(annotation);
                 }
             }

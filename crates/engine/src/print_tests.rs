@@ -157,3 +157,24 @@ fn the_system_s_faces_are_used_unless_the_host_names_others() {
     assert_eq!(crate::print::fallback_faces(&[vec![inter.clone()], vec![inter]]).len(), 1, "one file, once");
     let _ = std::fs::remove_file(junk);
 }
+
+#[test]
+fn a_print_of_several_messages_waits_for_each_one_not_downloaded() {
+    let mut s = sample();
+    let here = titled(&s, "Lunch next week?");
+    let inbox = s.mailbox.inbox().unwrap();
+    let mut later = |subject: &str| {
+        let server = mailcraft_model::sync::ServerMessage { id: format!("M-{subject}"), ..Default::default() };
+        let m = mailcraft_model::Message { folder: inbox, subject: subject.into(), unfetched: true, server: Some(server), ..Default::default() };
+        s.mailbox.add_message(m).unwrap()
+    };
+    let (a, b) = (later("Later A"), later("Later B"));
+    s.sel.messages = vec![here, a, b];
+    let plan = s.fetch_first_plan("file.print", &json!({})).unwrap().expect("it waits for its messages");
+    assert_eq!(plan.messages, [a, b]);
+    // An agent's print of one message fetches that one, whatever else is selected.
+    s.sel.messages = vec![a];
+    let plan = s.fetch_first_plan("file.saveAsPdf", &json!({"ids": [b]})).unwrap().unwrap();
+    assert_eq!(plan.messages, [b]);
+    assert!(s.fetch_first_plan("file.print", &json!({"ids": [here]})).unwrap().is_none(), "nothing to wait for");
+}

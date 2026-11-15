@@ -427,6 +427,8 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
             out.push(std::mem::take(word));
         }
     };
+    // The column of preformatted text, for its tabs.
+    let mut column = 0usize;
     for span in spans {
         let style = span_style(span, para);
         let size = span.size.map_or(para.size, |px| (f32::from(px) * PX).clamp(5.0, 48.0));
@@ -453,7 +455,14 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
             ascent: asc * size,
             descent: desc * size,
         };
-        for c in span.text.chars() {
+        let expanded;
+        let text = if para.pre {
+            expanded = expand_tabs(&span.text, &mut column);
+            expanded.as_str()
+        } else {
+            span.text.as_str()
+        };
+        for c in text.chars() {
             if is_invisible(c) {
                 if c == '\u{200b}' {
                     flush(&mut word, &mut out);
@@ -513,6 +522,30 @@ fn atoms(faces: &mut FaceSet, spans: &[Span], para: &Para) -> Vec<Atom> {
     out
 }
 
+/// Preformatted `text` with each tab as the spaces to the next column of eight, from `column`,
+/// which is where the text after it starts.
+pub(crate) fn expand_tabs(text: &str, column: &mut usize) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '\t' => {
+                let n = 8 - *column % 8;
+                out.extend(std::iter::repeat_n(' ', n));
+                *column += n;
+            }
+            '\n' | '\u{2028}' | '\u{2029}' => {
+                out.push(c);
+                *column = 0;
+            }
+            c => {
+                out.push(c);
+                *column += 1;
+            }
+        }
+    }
+    out
+}
+
 /// An atom too wide for a line, cut into pieces that fit `width`, character by character.
 fn split_atom(atom: Atom, width: f32) -> Vec<Atom> {
     let mut out = Vec::new();
@@ -544,8 +577,9 @@ fn split_atom(atom: Atom, width: f32) -> Vec<Atom> {
     out
 }
 
-/// Atoms broken into lines of at most `width`.
-fn break_lines(atoms: Vec<Atom>, width: f32) -> Vec<TextLine> {
+/// Atoms broken into lines of at most `width`. Preformatted text (`pre`) keeps the spaces a line
+/// starts with: its indentation.
+fn break_lines(atoms: Vec<Atom>, width: f32, pre: bool) -> Vec<TextLine> {
     let mut lines = Vec::new();
     let mut line = TextLine::default();
     let mut ended_by_break = false;
@@ -555,6 +589,10 @@ fn break_lines(atoms: Vec<Atom>, width: f32) -> Vec<TextLine> {
                 line.width -= r.width;
             }
         }
+        // Spaces a line starts with (preformatted text's indentation) are where its text starts,
+        // not glyphs drawn before it.
+        let lead = line.runs.iter().take_while(|(_, r)| !r.text.is_empty() && r.text.chars().all(|c| c == ' ')).count();
+        line.runs.drain(..lead);
         lines.push(std::mem::take(line).merged());
     };
     let mut queue: std::collections::VecDeque<Atom> = atoms.into();
@@ -570,7 +608,7 @@ fn break_lines(atoms: Vec<Atom>, width: f32) -> Vec<TextLine> {
             continue;
         }
         ended_by_break = false;
-        if atom.space && line.runs.is_empty() {
+        if atom.space && line.runs.is_empty() && !pre {
             continue;
         }
         if atom.width > width && !atom.space {
@@ -624,7 +662,7 @@ fn text_line(faces: &mut FaceSet, spans: &[Span], style: Style, size: f32, color
 /// A paragraph as slabs, a line each.
 fn paragraph(ctx: &mut Ctx, spans: &[Span], para: &Para) -> Vec<Slab> {
     let width = (para.width - para.indent).max(12.0);
-    let lines = break_lines(atoms(ctx.faces, spans, para), width);
+    let lines = break_lines(atoms(ctx.faces, spans, para), width, para.pre);
     let (asc, desc) = ctx.faces.extent(para.style);
     let mut out = Vec::new();
     let mut laid = 0.0;

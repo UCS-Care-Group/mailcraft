@@ -88,7 +88,7 @@ pub struct Request {
 impl Session {
     /// The messages `ids` names, or the selected ones, at most [`MAX_MESSAGES`]: what a print
     /// takes, as it takes them.
-    pub fn print_ids(&self, ids: &[Id]) -> Result<Vec<Id>, CmdError> {
+    pub fn print_targets(&self, ids: &[Id]) -> Result<Vec<Id>, CmdError> {
         let ids: Vec<Id> = if ids.is_empty() {
             let mut sel = self.sel.messages.clone();
             if sel.is_empty() {
@@ -105,11 +105,20 @@ impl Session {
             return Err(fail(format!("print at most {MAX_MESSAGES} messages at a time")));
         }
         for id in &ids {
-            let Some(m) = self.mailbox.message(*id) else { return Err(failed!("no message with id {id}", id = *id)) };
-            // Its preview is all that is here: printing that would leave the rest out unsaid.
-            if m.unfetched && m.server.is_some() {
-                return Err(fail(NOT_HERE));
+            if self.mailbox.message(*id).is_none() {
+                return Err(failed!("no message with id {id}", id = *id));
             }
+        }
+        Ok(ids)
+    }
+
+    /// [`Session::print_targets`], each of them here whole: one whose body isn't downloaded yet
+    /// is refused (its preview is all that is here, and printing that would leave the rest out
+    /// unsaid).
+    pub fn print_ids(&self, ids: &[Id]) -> Result<Vec<Id>, CmdError> {
+        let ids = self.print_targets(ids)?;
+        if ids.iter().filter_map(|id| self.mailbox.message(*id)).any(|m| m.unfetched && m.server.is_some()) {
+            return Err(fail(NOT_HERE));
         }
         Ok(ids)
     }
@@ -121,14 +130,23 @@ impl Session {
 
     /// The messages of `request` as documents to print.
     pub fn print_docs(&self, request: &Request) -> Result<Vec<Doc>, CmdError> {
+        self.print_prepare(request)?.pictures().map_err(CmdError::Failed)
+    }
+
+    /// What `request` prints, with what is slow to have (the pictures kept on disk, the fonts)
+    /// left for [`Prepared::finish`], which needs no session: the window runs it on a thread of
+    /// its own. The messages are named and checked here, and their bodies read.
+    pub fn print_prepare(&self, request: &Request) -> Result<Prepared, CmdError> {
         let mut docs = Vec::new();
-        let mut room = MAX_PRINT_PICTURE_BYTES;
+        let mut wanted = Vec::new();
         for id in self.print_ids(&request.ids)? {
-            // The body alone: each picture it shows is fetched by itself, once it is known to fit.
+            // The body alone: each picture it shows is read by itself, once it is known to fit.
             let m = self.loaded_message_where(id, |_| false)?;
-            docs.push(print_doc(self, &m, &request.labels, &mut room));
+            let (doc, pictures) = print_doc(self, &m, &request.labels);
+            wanted.extend(pictures.into_iter().map(|p| (docs.len(), p)));
+            docs.push(doc);
         }
-        Ok(docs)
+        Ok(Prepared { docs, wanted, groups: self.print_font_groups() })
     }
 }
 
@@ -164,24 +182,16 @@ impl Session {
     /// ([`Session::print_fallbacks`], else [`crate::system_fonts::fallback_paths`]). They are
     /// read and checked once and kept for the next print, while the files are the same.
     pub fn print_fonts(&self) -> Result<mailcraft_print::Fonts, CmdError> {
-        static KEPT: Mutex<Option<(Vec<Vec<std::path::PathBuf>>, mailcraft_print::Fonts)>> = Mutex::new(None);
-        // A group for each script, its files best first: the host's are one file each.
-        let groups: Vec<Vec<std::path::PathBuf>> = match &self.print_fallbacks {
+        fonts_for(self.print_font_groups())
+    }
+
+    /// The fallback faces' files a print looks at: a group for each script, its files best first
+    /// (the host's are one file each).
+    fn print_font_groups(&self) -> Vec<Vec<std::path::PathBuf>> {
+        match &self.print_fallbacks {
             Some(paths) => paths.iter().map(|p| vec![p.clone()]).collect(),
             None => crate::system_fonts::fallback_paths(),
-        };
-        if let Ok(kept) = KEPT.lock()
-            && let Some((known, fonts)) = kept.as_ref()
-            && *known == groups
-        {
-            return Ok(fonts.clone());
         }
-        let fallbacks = fallback_faces(&groups);
-        let fonts = mailcraft_print::bundled(fallbacks).ok_or_else(|| fail("the font to print in can't be read"))?;
-        if let Ok(mut kept) = KEPT.lock() {
-            *kept = Some((groups, fonts.clone()));
-        }
-        Ok(fonts)
     }
 
     /// The options a print of `docs` is laid out with.
@@ -198,6 +208,24 @@ impl Session {
         let (bytes, pages) = render(&docs, &fonts, &options).map_err(fail)?;
         Ok((bytes, pages, docs.len()))
     }
+}
+
+/// The bundled faces with those of `groups` behind them, read and checked once and kept while the
+/// files are the same.
+fn fonts_for(groups: Vec<Vec<std::path::PathBuf>>) -> Result<mailcraft_print::Fonts, CmdError> {
+    static KEPT: Mutex<Option<(Vec<Vec<std::path::PathBuf>>, mailcraft_print::Fonts)>> = Mutex::new(None);
+    if let Ok(kept) = KEPT.lock()
+        && let Some((known, fonts)) = kept.as_ref()
+        && *known == groups
+    {
+        return Ok(fonts.clone());
+    }
+    let fallbacks = fallback_faces(&groups);
+    let fonts = mailcraft_print::bundled(fallbacks).ok_or_else(|| fail("the font to print in can't be read"))?;
+    if let Ok(mut kept) = KEPT.lock() {
+        *kept = Some((groups, fonts.clone()));
+    }
+    Ok(fonts)
 }
 
 /// The faces of `groups` (a group for each script, its files best first): the first file of each
@@ -230,6 +258,36 @@ pub(crate) fn fallback_faces(groups: &[Vec<std::path::PathBuf>]) -> Vec<Face> {
     faces
 }
 
+/// Message `id` of a print wasn't sent whole by its server (`gone`: it isn't there any more).
+pub fn not_sent(s: &Session, id: Id, gone: bool) -> CmdError {
+    let subject = s.mailbox.message(id).map(|m| m.subject.clone()).unwrap_or_default();
+    if gone {
+        failed!("“{subject}” wasn't found on its server, so it can't be printed", subject)
+    } else {
+        failed!("the server wouldn't send “{subject}” whole, so it can't be printed", subject)
+    }
+}
+
+/// Message `id` of a print came from its server whole but wasn't kept here.
+pub fn not_kept(s: &Session, id: Id) -> CmdError {
+    let subject = s.mailbox.message(id).map(|m| m.subject.clone()).unwrap_or_default();
+    failed!("“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed", subject)
+}
+
+/// The messages a print of `id` with `params` takes, as it takes them, when it prints messages.
+pub fn printed(s: &Session, id: &str, params: &serde_json::Value) -> Option<Vec<Id>> {
+    if !matches!(id, "file.print" | "file.saveAsPdf") {
+        return None;
+    }
+    let request = crate::cmd::file::print_request(params).ok()?;
+    s.print_targets(&request.ids).ok()
+}
+
+/// Whether command `id` prints.
+pub fn prints(id: &str) -> bool {
+    matches!(id, "file.print" | "file.saveAsPdf")
+}
+
 /// `docs` laid out once as a PDF, with its page count; what is said when that can't be done.
 /// Needs no [`Session`]: the window runs it on a thread of its own.
 pub fn render(docs: &[Doc], fonts: &mailcraft_print::Fonts, options: &Options) -> Result<(Vec<u8>, usize), String> {
@@ -239,41 +297,95 @@ pub fn render(docs: &[Doc], fonts: &mailcraft_print::Fonts, options: &Options) -
 /// Message `m` as a document to print. Each attachment a picture of its body names is taken
 /// once, by its place, however the body spells its address; and only when it is a picture the
 /// reading pane shows, within the caps for one picture, one message and the print (`room`).
-fn print_doc(s: &Session, m: &Message, labels: &Labels, room: &mut usize) -> Doc {
+fn print_doc(s: &Session, m: &Message, labels: &Labels) -> (Doc, Vec<Wanted>) {
     let fields = s.print_header(m, labels);
     let blocks = body_blocks(m);
-    let mut pictures: HashMap<String, Arc<Vec<u8>>> = HashMap::new();
-    let mut by_place: HashMap<usize, Option<Arc<Vec<u8>>>> = HashMap::new();
-    let mut taken = 0usize;
+    let mut wanted: Vec<Wanted> = Vec::new();
+    let mut by_place: HashMap<usize, Option<usize>> = HashMap::new();
+    let mut named = std::collections::HashSet::new();
     for picture in mailcraft_html::images(&blocks).into_iter().take(MAX_PICTURE_ADDRESSES) {
         let BlockKind::Image { src, data: None, .. } = &picture.kind else { continue };
         let src = src.trim();
-        if pictures.contains_key(src) {
+        if !named.insert(src.to_string()) {
             continue;
         }
         let Some(index) = mailcraft_model::shown::cid_part(m, src) else { continue };
-        let bytes = by_place.entry(index).or_insert_with(|| {
-            // Judged by its size and kind before a byte of it is read; one that can't be read is
-            // left out, not the print.
+        let slot = by_place.entry(index).or_insert_with(|| {
+            // Judged by its size and kind before a byte of it is read.
             let a = m.attachments.get(index)?;
-            let len = a.size();
-            let fits = len <= mailcraft_print::MAX_PICTURE_BYTES && taken.saturating_add(len) <= MAX_MESSAGE_PICTURE_BYTES && len <= *room;
-            if !fits || !mailcraft_model::shown::is_picture_part(a) {
+            let size = a.size();
+            if size > mailcraft_print::MAX_PICTURE_BYTES || !mailcraft_model::shown::is_picture_part(a) {
                 return None;
             }
-            let data = if a.is_loaded() { a.data.clone() } else { s.content(m.id, crate::Part::Attachment(index)).ok()? };
-            if data.len() > len.max(mailcraft_print::MAX_PICTURE_BYTES) || !mailcraft_model::shown::is_picture(&data) {
-                return None;
-            }
-            taken += data.len();
-            *room = room.saturating_sub(data.len());
-            Some(data)
+            let read = s.attachment_reader(a).ok()?;
+            wanted.push(Wanted { srcs: Vec::new(), size, read: Box::new(move || read().ok()) });
+            Some(wanted.len() - 1)
         });
-        if let Some(bytes) = bytes {
-            pictures.insert(src.to_string(), bytes.clone());
+        if let Some(w) = slot.and_then(|i| wanted.get_mut(i)) {
+            w.srcs.push(src.to_string());
         }
     }
-    Doc { title: m.subject.clone(), fields, blocks, pictures }
+    (Doc { title: m.subject.clone(), fields, blocks, pictures: HashMap::new() }, wanted)
+}
+
+/// A picture of a message to read for a print: the addresses its body names it by, its size, and
+/// how its bytes are had (from memory, or from where they are kept).
+struct Wanted {
+    srcs: Vec<String>,
+    size: usize,
+    read: Box<dyn Fn() -> Option<Arc<Vec<u8>>> + Send + Sync>,
+}
+
+/// A print made ready on the window's thread ([`Session::print_prepare`]): its documents, the
+/// pictures still to read into them, and the fonts to read.
+pub struct Prepared {
+    docs: Vec<Doc>,
+    wanted: Vec<(usize, Wanted)>,
+    groups: Vec<Vec<std::path::PathBuf>>,
+}
+
+impl Prepared {
+    /// The documents, as far as they are known before their pictures are read (titles, for the
+    /// file's name and properties).
+    pub fn docs(&self) -> &[Doc] {
+        &self.docs
+    }
+
+    /// The documents with their pictures read: each picture once, in the order the messages show
+    /// them, within the caps for a message and for the print; one that can't be read, or isn't a
+    /// picture by its bytes after all, is left out.
+    pub fn pictures(self) -> Result<Vec<Doc>, String> {
+        let Prepared { mut docs, wanted, .. } = self;
+        let mut room = MAX_PRINT_PICTURE_BYTES;
+        let mut taken: HashMap<usize, usize> = HashMap::new();
+        for (doc, w) in wanted {
+            let used = taken.entry(doc).or_insert(0);
+            if used.saturating_add(w.size) > MAX_MESSAGE_PICTURE_BYTES || w.size > room {
+                continue;
+            }
+            let Some(data) = (w.read)() else { continue };
+            if data.len() > w.size.max(mailcraft_print::MAX_PICTURE_BYTES) || !mailcraft_model::shown::is_picture(&data) {
+                continue;
+            }
+            *used += data.len();
+            room = room.saturating_sub(data.len());
+            if let Some(d) = docs.get_mut(doc) {
+                for src in w.srcs {
+                    d.pictures.insert(src, data.clone());
+                }
+            }
+        }
+        Ok(docs)
+    }
+
+    /// The documents with their pictures, and the fonts to print them in: what is slow, done off
+    /// the window's thread.
+    pub fn finish(self) -> Result<(Vec<Doc>, mailcraft_print::Fonts), String> {
+        let groups = self.groups.clone();
+        let docs = self.pictures()?;
+        let fonts = fonts_for(groups).map_err(|e| e.to_string())?;
+        Ok((docs, fonts))
+    }
 }
 
 /// A message's display blocks as the reading pane takes them: from its HTML when that shows
