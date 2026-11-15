@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -105,6 +105,18 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1385: Folder pane: a shared mailbox can be named too, in its own Account Settings (its name and colour only, kept on this computer) |
+| 2026-11-14 | minor | #1384: the dark theme in neutral greys or, chosen in File › Options › General › Dark theme, the blue-tinted greys it had before |
+| 2026-11-13 | patch | The dark theme in neutral greys in place of blue-tinted ones (normal and high contrast), the accents' washes on them |
+| 2026-11-13 | patch | #1272: Mail quick actions leave room for the floating thumb, and People and Tasks follow the scrollbar mode |
+| 2026-11-13 | minor | #1174: Module bar: a row at the foot of the pane on the left as well as the bar down the window's edge (View › Layout › Navigation Bar) |
+| 2026-11-13 | minor | #969: Composer: Courier New in the font list, fixed width for text art and columns lined up with spaces |
+| 2026-11-13 | minor | #544: Optional Close to system tray, an icon only while enabled, Show, Send/Receive and Quit, first-close guidance, Dock restoration and recovery when the tray disappears; Linux/FreeBSD use X11/XWayland only when enabled and reachable |
+| 2026-11-12 | minor | #1176: Folder pane: Move to Folder and Copy to Folder without a folder ask which in Move Items or Copy Items |
+| 2026-11-12 | patch | #1158: Title bar: the row is 36 points high everywhere but in macOS' integrated title bar, was 48 |
+| 2026-11-12 | minor | #1135: Romanian as a preview language: Română (previzualizare) in File › Options, a 24-hour clock, Monday first, day-month-year |
+| 2026-11-12 | minor | #1031: Simplified Chinese preview, with a 24-hour clock and Monday first |
+| 2026-11-12 | minor | #1017: Folder pane: an account's heading is the name given in Account Settings › Account name, its address while none is |
 | 2026-11-11 | minor | #956 part 3: Report a Problem › Send report (to the MailCraft team privately, the reference or why not said, Try again), with an optional GitHub username; Open on GitHub stays |
 | 2026-11-11 | minor | #30 part 4b: File › Options › Security; Verify… on the reading pane's bar; Certificates on a contact's card |
 | 2026-11-10 | patch | #956: Report a Problem opens a GitHub issue only; Send by Email is gone |

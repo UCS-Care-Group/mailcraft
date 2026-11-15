@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -144,6 +144,7 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 | `ui.repliesInWindow {"value"?}` | File › Options › Mail, "Open new messages, replies and forwards in a new window": New Email, a reply or a forward the owner starts opens in a window of its own (off by default, kept in `ui.json` as `repliesInWindow`; without `value`, turns it over) |
 | `ui.moveWindowMessage {"folder", "window"?}`, `ui.saveWindowMessage {"window"?, "path"?}` | the window of a message file the system opened (#515; `ui.inspect` lists it as kind `file`, closed with `ui.closeWindow`): the file is in no folder. Move to Folder files it into `folder` (the mailbox gains that one message and the window is about it from then on); Save As writes the file to `path`, or answers its bytes as `data`. Never for an agent |
 | `ui.joinMeeting {"event"?}` | open the link to join an online meeting by in the system's browser: only an `https` link, and only on this command |
+| `ui.unsubscribe {"message"?}`, `mail.unsubscribe {"id"?, "send"?}` | unsubscribe from a mailing list as its `List-Unsubscribe` headers say (#1207), only for mail its account's server vouches for, outside Junk E-mail and with no sender warning (one click only when the one DKIM signature the server's pass names covers both unsubscribe headers, RFC 8058 4, otherwise the next way; nothing when either header is there twice): `mail.unsubscribe` answers the way (`oneClick`, `mail` or `page`, with its `url`, or `to` and `subject`) and with `"send": true` puts a request by mail in the Outbox; `ui.unsubscribe` does it as the window does after the owner's yes: one click posts `List-Unsubscribe=One-Click` to the list's `https` address (desktop; no redirect followed; the answer comes later, on the bar above the message), a web page opens in the browser. An agent is asked first for either, but for `mail.unsubscribe` without `send` |
 | `ui.theme`, `ui.interfaceSize`, `ui.lightMessages {"value"?}` | light, dark or the system's; interface size 80–200; a message's body on a light page in its own colours, also in the dark theme (#634; without `value`, turns it over) |
 | `ui.highContrast {"on"}`, `ui.accent {"accent"}` | high contrast on or off, a stronger version of whichever theme is in use; the accent colour: `blue` (default), `teal`, `violet` or `graphite` (#703). Both are saved in `ui.json` (`highContrast`, `accent`) and show at once in every window |
 | `ui.darkStyle {"value"}` | the greys of the dark theme: `neutral` (default) or `blue`, the blue-tinted greys the dark theme had before #1242 (#1384); File › Options › General › Dark theme. The light theme is the same in both, and the accent and high contrast apply to either. Saved in `ui.json` (`darkStyle`) and shows at once in every window |
@@ -292,6 +293,21 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1384: `ui.darkStyle` (`neutral` or `blue`), the greys of the dark theme |
+| 2026-11-14 | patch | #1347: the reading pane's `alwaysDownloadPictures` link is listed only when the server vouches for the sender; `alwaysDownloadPicturesDomain` likewise |
+| 2026-11-13 | minor | #276: `FolderState` and `FolderDelta` in `sync.request`/`sync.apply` carry an optional `status` (`messages`, `uidNext`, `unseen`, `limit`, `at`), the STATUS an IMAP folder was last read whole under; `skipped` also counts IMAP folders passed over for having it unchanged |
+| 2026-11-13 | minor | `ui.minimize {minimized}` (not for agents); `MAILCRAFT_FLUSH_AFTER_SECS` sets how long the window waits out of sight before it lets go of memory |
+| 2026-11-13 | minor | #1200: `mail.list` and `folder.select` take `folder`: an id, a standard folder's kind (`inbox`, `sent`…) in any language of the mailbox, or a path, with `account` for whose it is: an account that is there, whose folder it has to be, a path without it taken from the account in view first; `mailcraft-cli --folder` goes through it |
+| 2026-11-13 | minor | #1174: `view.navigationBar` puts the switch between the modules at the foot of the pane on the left or back on the bar; the hit map lists `moduleFoot` |
+| 2026-11-13 | minor | `ui.closeToTray` sets the General option; `app.quit` exits even while closing to the tray is enabled |
+| 2026-11-12 | patch | `ui.parity`: what its counts are over (in-scope rows, out of scope rows left out) |
+| 2026-11-12 | patch | software-render: `ui.dismissSoftwareNotice` |
+| 2026-11-12 | patch | #1199: the control key file is named by the port in Flatpak too (`control-key.local-<port>`), so the MCP bridge finds the key of the app on its port |
+| 2026-11-12 | minor | #1183: `ui.animations` beside `ui.highContrast` |
+| 2026-11-12 | minor | #1135: `ui.language` takes `ro`; Romanian is a preview, and Automatic follows `ro-RO` |
+| 2026-11-12 | minor | #1031: `ui.language` takes `zh_CN` for the Simplified Chinese preview |
+| 2026-11-11 | minor | #1074 part 2: `sync.jmapRequest` carries `sends`, and `sync.applyJmap` takes in what became of them and answers `sent` |
+| 2026-11-11 | minor | #1074 part 1: `sync.jmapRequest` carries `changes`, and `sync.applyJmap` takes in what became of them and answers `pushed` and `refused` |
 | 2026-11-11 | minor | #815 part 5: `notes.list`, `notes.get`, `journal.list`, `journal.get` |
 | 2026-11-11 | minor | Preview a selected attachment with an optional local PdfCraft or PhotoCraft renderer (#1053) |
 | 2026-11-11 | minor | #956 part 3: `ui.reportProblem {"via": "send", "username"?}` fills the Report a Problem window and never sends; only the owner's click on Send report does |
