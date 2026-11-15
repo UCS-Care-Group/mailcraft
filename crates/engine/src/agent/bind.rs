@@ -109,6 +109,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.removeSharedMailbox"
         | "account.setSenderAddresses"
         | "account.thinOffline"
+        | "account.deviceLimits"
+        | "account.trimDevice"
         | "ui.keepOffline"
         | "ui.connectMicrosoft"
         | "ui.automaticRepliesSignIn"

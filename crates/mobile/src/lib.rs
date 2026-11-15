@@ -25,10 +25,12 @@ pub mod android;
 #[cfg(target_os = "android")]
 mod android_jni;
 pub mod blocks;
+mod calendar_queries;
 mod core;
 mod error;
 mod events;
 mod keep;
+mod limits;
 mod list;
 mod message;
 mod platform;
@@ -42,6 +44,8 @@ pub mod text;
 #[cfg(test)]
 mod accounts_tests;
 #[cfg(test)]
+mod calendar_tests;
+#[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
 mod host_failure_tests;
@@ -50,6 +54,8 @@ mod junk_tests;
 #[cfg(test)]
 mod keep_tests;
 #[cfg(test)]
+mod limits_tests;
+#[cfg(test)]
 mod list_tests;
 #[cfg(test)]
 mod preview_tests;
@@ -57,6 +63,8 @@ mod preview_tests;
 mod queue_tests;
 #[cfg(test)]
 mod review_tests;
+#[cfg(test)]
+mod sync_stop_tests;
 #[cfg(test)]
 mod sync_tests;
 #[cfg(test)]
@@ -68,6 +76,7 @@ pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
+pub use limits::{DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};
