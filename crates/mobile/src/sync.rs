@@ -595,7 +595,11 @@ impl SyncHost {
     fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
         inner.sr.stop(session);
         session.driver.round.queue.clear();
-        self.finish_round(inner, session, false)
+        let summary = self.finish_round(inner, session, false);
+        // Pages the run brought before the stop stay: keep the mailbox within the limits.
+        inner.trim.due = true;
+        self.pacer.poke();
+        summary
     }
 
     /// The round under way (or the next, when none is): what [`SyncHost::stop_later`] is given.

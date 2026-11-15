@@ -663,6 +663,11 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
     let accounts: Vec<Id> =
         mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+    relist_accounts(mb, &accounts);
+}
+
+/// Every folder the server has of the `accounts` is listed afresh at its next run.
+pub(super) fn relist_accounts(mb: &mut mailcraft_model::Mailbox, accounts: &[Id]) {
     for f in mb.folders.iter_mut().filter(|f| accounts.contains(&f.account)) {
         if let Some(server) = f.server.as_mut().filter(|s| !s.id.is_empty()) {
             server.relist = true;

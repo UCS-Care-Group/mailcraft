@@ -408,6 +408,22 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
     for id in returned {
         super::graph_place::kept_instead(mb, id);
     }
+    // A message outside the window of a device that lists only that is marked gone by a listing
+    // afresh (MB3.16), though the server has it: with a change here that hasn't gone up, it stays
+    // (as the server's, so that the change goes up) and loses nothing.
+    let unsent: Vec<Id> = mb
+        .messages
+        .values()
+        .filter(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.gone) && super::graph_up::has_unsent(mb, account, m))
+        .map(|m| m.id)
+        .collect();
+    for id in unsent {
+        if let Some(m) = mb.messages.get_mut(&id)
+            && let Some(server) = std::sync::Arc::make_mut(m).server.as_mut()
+        {
+            server.gone = false;
+        }
+    }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));
     down.removed += before - mb.messages.len();

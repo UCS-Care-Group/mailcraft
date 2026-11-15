@@ -249,7 +249,9 @@ pub(super) fn messages(
                 }
             };
             let resumed = link.is_some() && !caught_up;
-            let windowed = request.since.is_some() && (link.is_none() || resumed);
+            // (A round that goes on from a saved link of a window is one too: Graph cuts it at the
+            // same limit.)
+            let windowed = request.since.is_some();
             let round_here = link.is_none() || caught_up;
             // Counts the server didn't give are unknown, not 0: such a folder is never passed over.
             let listed = (listing && folder.counted).then_some(FolderCounts { total: folder.total, unread: folder.unread });
@@ -440,7 +442,9 @@ fn page(
         // link is no delta link), and its end is where the round's delta link, held, is given.
         match (next, delta) {
             (Some((_, url)), None) => ((String::new(), url), false),
-            (None, None) => match one.held.take() {
+            // (Only a page that names no continuation at all is the list's end: one that names a
+            // link that can't be followed leaves the folder for the next run.)
+            (None, None) if json.get("@odata.nextLink").is_none() && json.get("@odata.deltaLink").is_none() => match one.held.take() {
                 Some(held) => (held, true),
                 None => {
                     one.left = true;

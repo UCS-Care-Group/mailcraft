@@ -61,6 +61,8 @@ mod queue_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
+mod sync_stop_tests;
+#[cfg(test)]
 mod sync_tests;
 #[cfg(test)]
 mod tests;

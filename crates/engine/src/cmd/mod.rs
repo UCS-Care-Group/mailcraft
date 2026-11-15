@@ -32,6 +32,8 @@ mod compose_trust_tests;
 mod conversation_thread_tests;
 pub mod device_limits;
 #[cfg(test)]
+mod device_limits_relist_tests;
+#[cfg(test)]
 mod device_limits_tests;
 pub mod edit;
 mod ews_down;
