@@ -65,8 +65,11 @@ contain no input text. The XML dependency is already used by the workspace; no t
 `mailcraft_net::lookup_dav` asks for the records of RFC 6764: a domain's `_caldavs._tcp` or
 `_carddavs._tcp` SRV record and the `path` of the TXT record beside it, over the same
 DNS-over-HTTPS name servers as the mail servers' records. Only the domain goes out. The
-services without TLS (`_caldav._tcp`, `_carddav._tcp`) are never asked for, and a path is taken
-only when it is at most 250 bytes of printable ASCII starting with one slash.
+services without TLS (`_caldav._tcp`, `_carddav._tcp`) are never asked for. What comes back is
+the domain, every target with a port, best first (lower priority, then the higher weight: the
+fixed order the mail servers' records are read in, not RFC 2782's weighted draw), and the path:
+the first `path` of the TXT record, taken only when it is at most 250 bytes of printable ASCII
+starting with one slash.
 
 `mailcraft_dav::discovery::probe` then says whether a CalDAV or CardDAV server answers at a
 `Start`: the place the records name, the domain's own `/.well-known/caldav` or
@@ -78,7 +81,14 @@ nothing itself: the host's `HttpExchange` does. Its rules:
   redirect to another server is not followed; its address is handed back (`Found::Elsewhere`),
   so that the owner can be asked before anything goes there. `https` only.
 - A server counts as one by `status::is_dav_evidence` alone: a DAV multistatus, or a 401 whose
-  `DAV` header names `calendar-access` or `addressbook`. A bare 401 proves nothing.
+  `DAV` header names `calendar-access` or `addressbook`. A bare 401 proves nothing, and a
+  search for calendars or for address books takes a 401 only when it names that kind's class.
+- When a TXT record's path leads to no DAV server, the well-known address on the same origin is
+  asked once more.
+- A `Start` keeps the domain it was looked up for, and says whether the host is outside it.
+  The certificate is checked for the host connected to, by whatever performs the exchange; a
+  host outside the domain is vouched for by the DNS alone, so the owner is asked, with the
+  host named, before a credential goes there.
 
 ## Validation and sources
 

@@ -54,11 +54,11 @@ fn domain() -> Start {
 fn the_start_is_the_records_place_or_the_domains_well_known_address() {
     assert_eq!(Start::at_domain("Example.ORG", Kind::Calendar).unwrap().url(), "https://example.org/.well-known/caldav");
     assert_eq!(Start::at_domain("example.org", Kind::AddressBook).unwrap().url(), "https://example.org/.well-known/carddav");
-    let srv = Start::from_srv("dav.example.org", 8443, None, Kind::AddressBook).unwrap();
+    let srv = Start::from_srv("example.org", "dav.example.org", 8443, None, Kind::AddressBook).unwrap();
     assert_eq!(srv.url(), "https://dav.example.org:8443/.well-known/carddav");
     assert_eq!((srv.origin().host(), srv.origin().port(), srv.origin().secure()), ("dav.example.org", 8443, true));
     // The TXT record's path takes the well-known address's place, and is tidied like any address.
-    let path = Start::from_srv("dav.example.org", 443, Some("/SOGo/./dav/"), Kind::Calendar).unwrap();
+    let path = Start::from_srv("example.org", "dav.example.org", 443, Some("/SOGo/./dav/"), Kind::Calendar).unwrap();
     assert_eq!(path.url(), "https://dav.example.org/SOGo/dav/");
     assert_eq!(Start::at("https://Cloud.Example.org/remote.php/dav").unwrap().url(), "https://cloud.example.org/remote.php/dav");
     assert!(Start::at("http://127.0.0.1:5232/").is_ok());
@@ -80,13 +80,14 @@ fn a_start_that_is_no_place_over_tls_is_refused() {
         "dav example.org",
         "dáv.example.org",
     ] {
-        assert!(Start::from_srv(host, 443, None, Kind::Calendar).is_err(), "{host:?}");
+        assert!(Start::from_srv("example.org", host, 443, None, Kind::Calendar).is_err(), "{host:?}");
+        assert!(Start::from_srv(host, "dav.example.org", 443, None, Kind::Calendar).is_err(), "{host:?}");
     }
-    assert!(Start::from_srv(&format!("{}.example.org", "a".repeat(64)), 443, None, Kind::Calendar).is_err());
-    assert!(Start::from_srv(&["a"; 130].join("."), 443, None, Kind::Calendar).is_err());
-    assert!(Start::from_srv("dav.example.org", 0, None, Kind::Calendar).is_err());
+    assert!(Start::from_srv("example.org", &format!("{}.example.org", "a".repeat(64)), 443, None, Kind::Calendar).is_err());
+    assert!(Start::from_srv("example.org", &["a"; 130].join("."), 443, None, Kind::Calendar).is_err());
+    assert!(Start::from_srv("example.org", "dav.example.org", 0, None, Kind::Calendar).is_err());
     for path in ["", "dav", "//other.example/dav", "/dav#x", "/dav\r\nHost: other.example", "/../../x"] {
-        assert!(Start::from_srv("dav.example.org", 443, Some(path), Kind::Calendar).is_err(), "{path:?}");
+        assert!(Start::from_srv("example.org", "dav.example.org", 443, Some(path), Kind::Calendar).is_err(), "{path:?}");
     }
     assert_eq!(Start::at("http://dav.example.org/"), Err(EndpointError::NotEncrypted));
     assert_eq!(Start::at("https://owner:pw@dav.example.org/"), Err(EndpointError::Credentials));
@@ -97,7 +98,7 @@ fn a_start_that_is_no_place_over_tls_is_refused() {
 fn a_server_is_found_behind_its_well_known_address_and_no_credential_goes_out() {
     let s = stand_in();
     for kind in [Kind::Calendar, Kind::AddressBook] {
-        let start = Start::from_srv("dav.example.org", 443, None, kind).unwrap();
+        let start = Start::from_srv("example.org", "dav.example.org", 443, None, kind).unwrap();
         let found = probe(&s, &start, 0).unwrap();
         assert_eq!(found, Found::Server { root: s.root_url(), schemes: vec!["basic".to_owned()] });
         assert_eq!(format!("{found:?}"), "Server(..)");
@@ -121,7 +122,7 @@ fn a_bare_401_is_no_server() {
 fn a_server_that_asks_nobody_who_they_are_is_found_by_its_multistatus() {
     let body = "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\"><d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>";
     let server = Script::new(|_| Ok(HttpResponse::new(207, body.as_bytes().to_vec())));
-    let found = probe(&server, &Start::from_srv("dav.example.org", 443, Some("/dav/"), Kind::Calendar).unwrap(), 0).unwrap();
+    let found = probe(&server, &Start::from_srv("example.org", "dav.example.org", 443, Some("/dav/"), Kind::Calendar).unwrap(), 0).unwrap();
     assert_eq!(found, Found::Server { root: "https://dav.example.org/dav/".to_owned(), schemes: Vec::new() });
     // A 207 that is no multistatus is somebody else's.
     let other = Script::new(|_| Ok(HttpResponse::new(207, b"<html/>".to_vec())));
@@ -218,13 +219,82 @@ fn anything_else_is_no_server_and_a_failed_exchange_is_an_error() {
     }
 }
 
+#[test]
+fn a_start_knows_its_domain_and_whether_the_host_is_outside_it() {
+    for (host, outside) in [
+        ("example.org", false),
+        ("dav.example.org", false),
+        ("a.b.Example.ORG", false),
+        ("dav.hoster.example", true),
+        ("notexample.org", true),
+        ("example.org.hoster.example", true),
+        ("org", true),
+    ] {
+        let start = Start::from_srv("Example.org", host, 443, None, Kind::Calendar).unwrap();
+        assert_eq!((start.domain(), start.outside_domain()), (Some("example.org"), outside), "{host}");
+    }
+    assert!(!domain().outside_domain());
+    // An address the owner gave has no domain behind it.
+    let typed = Start::at("https://cloud.example.net/dav").unwrap();
+    assert_eq!((typed.domain(), typed.outside_domain()), (None, false));
+}
+
+#[test]
+fn a_stale_path_falls_back_to_the_well_known_address_once() {
+    let start = Start::from_srv("example.org", "dav.example.org", 443, Some("/stale"), Kind::Calendar).unwrap();
+    let server = Script::new(|url| match url {
+        "https://dav.example.org/stale" => Ok(HttpResponse::new(404, Vec::new())),
+        "https://dav.example.org/.well-known/caldav" => redirect("/dav/"),
+        _ => dav_401(),
+    });
+    assert_eq!(probe(&server, &start, 0), Ok(Found::Server { root: "https://dav.example.org/dav/".to_owned(), schemes: vec!["basic".to_owned()] }));
+    assert_eq!(server.asked(), ["https://dav.example.org/stale", "https://dav.example.org/.well-known/caldav", "https://dav.example.org/dav/"]);
+    // Nothing there either: both were asked, each once.
+    let nothing = Script::new(|_| Ok(HttpResponse::new(404, Vec::new())));
+    assert_eq!(probe(&nothing, &start, 0), Ok(Found::NotDav));
+    assert_eq!(nothing.asked(), ["https://dav.example.org/stale", "https://dav.example.org/.well-known/caldav"]);
+    // A path that sent the search to the well-known address already is not asked there again,
+    let round = Script::new(|url| if url.ends_with("/stale") { redirect("/.well-known/caldav") } else { Ok(HttpResponse::new(404, Vec::new())) });
+    assert_eq!(probe(&round, &start, 0), Ok(Found::NotDav));
+    assert_eq!(round.asked().len(), 2);
+    // a path that is the well-known address has no second try,
+    let same = Start::from_srv("example.org", "dav.example.org", 443, Some("/.well-known/caldav"), Kind::Calendar).unwrap();
+    assert_eq!(probe(&nothing, &same, 0), Ok(Found::NotDav));
+    assert_eq!(nothing.asked().len(), 3);
+    // and another server named from the path is the answer: the well-known address is not asked.
+    let elsewhere = Script::new(|_| redirect("https://dav.hoster.example/"));
+    assert_eq!(probe(&elsewhere, &start, 0), Ok(Found::Elsewhere("https://dav.hoster.example/".to_owned())));
+    assert_eq!(elsewhere.asked().len(), 1);
+    // A failed exchange is an error, not a reason to ask elsewhere.
+    assert_eq!(probe(&Script::new(|_| Err(TransportError::Unreachable)), &start, 0), Err(TransportError::Unreachable));
+}
+
+#[test]
+fn a_401_counts_for_the_kind_looked_for_only() {
+    let only = |class: &'static str| {
+        Script::new(move |_| {
+            Ok(HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic realm=\"dav\"").with_field("DAV", &format!("1, 3, {class}")))
+        })
+    };
+    let found = |kind| Start::from_srv("example.org", "dav.example.org", 443, None, kind).unwrap();
+    assert!(matches!(probe(&only("calendar-access"), &found(Kind::Calendar), 0), Ok(Found::Server { .. })));
+    assert_eq!(probe(&only("calendar-access"), &found(Kind::AddressBook), 0), Ok(Found::NotDav));
+    assert!(matches!(probe(&only("addressbook"), &found(Kind::AddressBook), 0), Ok(Found::Server { .. })));
+    assert_eq!(probe(&only("addressbook"), &found(Kind::Calendar), 0), Ok(Found::NotDav));
+    // An address the owner gave is asked for either.
+    let typed = Start::at("https://dav.example.org/dav/").unwrap();
+    assert!(matches!(probe(&only("addressbook"), &typed, 0), Ok(Found::Server { .. })));
+    assert!(matches!(probe(&only("calendar-access"), &typed, 0), Ok(Found::Server { .. })));
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(512))]
 
     #[test]
-    fn a_hostile_server_never_gets_a_request_off_the_origin_or_more_than_six(
+    fn a_hostile_server_never_gets_a_request_off_the_origin_or_more_than_its_share(
         answers in prop::collection::vec((prop_oneof![Just(207u16), Just(301), Just(302), Just(307), Just(308), Just(401), 100u16..600], ".{0,60}", any::<bool>()), 1..8),
         steps in prop_oneof!["[a-z/.:%?#@ -]{0,40}", "(https?:)?//[a-z.]{1,20}(:[0-9]{1,5})?/[a-z/.]{0,20}", Just("//".to_owned())],
+        with_path in any::<bool>(),
     ) {
         let count = Mutex::new(0usize);
         let server = Script::new(|_| {
@@ -233,10 +303,11 @@ proptest! {
             *n += 1;
             Ok(HttpResponse::new(*status, body.clone().into_bytes()).with_field("Location", if *plain { &steps } else { body }).with_field("DAV", body))
         });
-        let start = domain();
+        let start = if with_path { Start::from_srv("example.org", "example.org", 443, Some("/dav/"), Kind::Calendar).unwrap() } else { domain() };
         let found = probe(&server, &start, 0).unwrap();
         let asked = server.asked();
-        prop_assert!(!asked.is_empty() && asked.len() <= MAX_STEPS + 1);
+        let share = (MAX_STEPS + 1) * (1 + usize::from(with_path));
+        prop_assert!(!asked.is_empty() && asked.len() <= share);
         for request in server.asked.lock().unwrap().iter() {
             prop_assert!(Origin::parse(request.url()).is_ok_and(|o| &o == start.origin()), "{}", request.url());
             prop_assert!(request.field("authorization").is_none());
@@ -249,8 +320,8 @@ proptest! {
     }
 
     #[test]
-    fn a_start_from_any_record_is_over_tls_or_refused(host in ".{0,40}", port in any::<u16>(), path in prop::option::of(".{0,40}")) {
-        if let Ok(start) = Start::from_srv(&host, port, path.as_deref(), Kind::Calendar) {
+    fn a_start_from_any_record_is_over_tls_or_refused(domain in prop_oneof![".{0,40}", Just("example.org".to_owned())], host in prop_oneof![".{0,40}", "[a-z.]{1,20}"], port in any::<u16>(), path in prop::option::of(prop_oneof![".{0,40}", "/[a-z/.]{0,20}"])) {
+        if let Ok(start) = Start::from_srv(&domain, &host, port, path.as_deref(), Kind::Calendar) {
             prop_assert!(start.origin().secure() && start.origin().port() == port && port != 0);
             prop_assert!(Origin::parse(start.url()).is_ok_and(|o| &o == start.origin()));
         }

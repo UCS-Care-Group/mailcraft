@@ -35,8 +35,10 @@ fn the_place_is_the_best_target_with_the_txt_records_path_and_only_the_domain_is
     let server = answering(SRV, r#"{"Status":0,"Answer":[{"type":16,"data":"\"path=/SOGo/dav/\""}]}"#);
     let endpoint = server.url("/dns-query");
     let found = lookup_dav_at(&[&endpoint], " Example.ORG. ", DavService::Calendars).unwrap().unwrap();
-    assert_eq!((found.target.host.as_str(), found.target.port), ("dav.example.org", 443));
-    assert_eq!(found.path.as_deref(), Some("/SOGo/dav/"));
+    // Every place with a port, best first: the ones behind the first are for when it can't be reached.
+    let targets: Vec<(&str, u16)> = found.targets.iter().map(|target| (target.host.as_str(), target.port)).collect();
+    assert_eq!(targets, [("dav.example.org", 443), ("backup.example.org", 8443)]);
+    assert_eq!((found.domain.as_str(), found.path.as_deref()), ("example.org", Some("/SOGo/dav/")));
     assert!(!format!("{found:?}").contains("example") && !format!("{found:?}").contains("SOGo"));
     lookup_dav_at(&[&endpoint], "example.org", DavService::Contacts).unwrap().unwrap();
     let asked: Vec<String> = (0..server.asked()).map(|n| server.request(n)).collect();
@@ -74,7 +76,7 @@ fn a_place_without_a_path_is_still_a_place() {
     for text in [NONE, r#"{"Status":0,"Answer":[{"type":16,"data":"\"v=spf1 -all\""}]}"#, "not json"] {
         let server = answering(SRV, text);
         let found = lookup_dav_at(&[&server.url("/dns-query")], "example.org", DavService::Contacts).unwrap().unwrap();
-        assert_eq!((found.target.host.as_str(), found.path), ("dav.example.org", None), "{text}");
+        assert_eq!((found.targets[0].host.as_str(), found.path), ("dav.example.org", None), "{text}");
     }
 }
 
@@ -116,8 +118,11 @@ fn a_path_is_read_from_quoted_and_bare_strings() {
     assert_eq!(path_of(&["path=/dav"]).as_deref(), Some("/dav"));
     assert_eq!(path_of(&[r#""txtvers=1" "PATH=/remote.php/dav/""#]).as_deref(), Some("/remote.php/dav/"));
     assert_eq!(path_of(&[r#""v=spf1 -all""#, r#"  "path=/cal?x=1"  "#]).as_deref(), Some("/cal?x=1"));
-    // The first that is a path wins.
-    assert_eq!(path_of(&[r#""path=nowhere" "path=/a""#, r#""path=/b""#]).as_deref(), Some("/a"));
+    // The first `path` is the one that counts (RFC 6763 §6.4), a path or not.
+    assert_eq!(path_of(&[r#""path=/a" "path=/b""#, r#""path=/c""#]).as_deref(), Some("/a"));
+    assert_eq!(path_of(&[r#""path=nowhere" "path=/a""#, r#""path=/b""#]), None);
+    assert_eq!(path_of(&[r#""path" "path=/a""#]), None);
+    assert_eq!(path_of(&[r#""Path=" "path=/a""#]), None);
     // Records of another type are not read.
     let other = Answer { status: 200, body: br#"{"Status":0,"Answer":[{"type":33,"data":"path=/dav"},{"type":16,"data":7}]}"#.to_vec() };
     assert_eq!(path(&records(&other).unwrap()), None);
