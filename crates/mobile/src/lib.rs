@@ -32,6 +32,7 @@ mod fetch;
 mod fetch_api;
 mod keep;
 mod limits;
+mod list;
 mod message;
 mod platform;
 mod queries;
@@ -55,6 +56,8 @@ mod junk_tests;
 mod keep_tests;
 #[cfg(test)]
 mod limits_tests;
+#[cfg(test)]
+mod list_tests;
 #[cfg(test)]
 mod preview_tests;
 #[cfg(test)]

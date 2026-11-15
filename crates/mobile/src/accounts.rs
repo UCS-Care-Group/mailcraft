@@ -342,6 +342,10 @@ impl Core {
     pub async fn grant_permission(&self, account: u64, permission: Permission) -> Result<PermissionOutcome, CoreError> {
         let email = self.email_of(account).await?;
         let Some(place) = self.signins.begin() else { return Ok(not_granted("a sign-in is already open")) };
+        // (Looked at with the place held: `shutdown` calls off the one that is open, and none opens after it.)
+        if self.closing.load(Ordering::Acquire) {
+            return Err(CoreError::Cancelled);
+        }
         let endpoints = match signin::client_oauth() {
             Some(o) => self.signins.at(permission_endpoints(&o, permission.into())),
             None => return Ok(not_granted("this build of MailCraft has no Microsoft sign-in set up")),
@@ -462,8 +466,11 @@ impl Core {
             // (Nothing else of the account's is held under its address: a mailbox with another account
             // of the same address keeps it.)
             let still = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
-            if !still {
-                signin::forget(platform.as_ref(), &email);
+            // (The account stays removed when the store refuses: the owner is told its sign-in is still kept.)
+            if !still && signin::forget(platform.as_ref(), &email).is_err() {
+                return Err(CoreError::Failed {
+                    reason: "the account was removed, but its sign-in couldn't be removed from this phone's secure store".to_string(),
+                });
             }
             Ok(())
         })
