@@ -383,8 +383,8 @@ fn junk_budgets_and_calls_never_panic() {
         assert!(!summary.ran);
     }
     assert!(matches!(block_on(core.sign_in(u64::MAX)), Err(CoreError::Failed { .. })));
-    assert!(!core.sign_in_redirect(String::new()));
-    assert!(!core.sign_in_redirect("x".repeat(100_000)));
+    assert!(!core.hand_back_redirect(String::new()));
+    assert!(!core.hand_back_redirect("x".repeat(100_000)));
     core.shutdown();
     assert!(matches!(block_on(core.sync_now()), Err(CoreError::Cancelled)));
 }

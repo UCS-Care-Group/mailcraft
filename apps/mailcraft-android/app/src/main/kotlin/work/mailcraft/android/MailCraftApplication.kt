@@ -9,27 +9,34 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
-/** What starting the Rust core came to: the core, or why there is none. */
-internal sealed interface Started {
-    class Ready(val core: Core) : Started
+/** The Rust core and what the app built on it, once both are ready. */
+internal class Opened(val core: Core, val hub: AccountsHub, val mail: MailListController)
 
-    data object Failed : Started
-}
+/** What starting the Rust core has come to: under way, the core, or why there is none. */
+internal typealias Started = Phase<Opened>
 
 /** Holds the one [Core] for the life of the process. */
 class MailCraftApplication : Application() {
     /** Where the sign-in's redirect lands ([RedirectActivity]). */
-    internal val handback = SignInHandback()
+    internal val handback by lazy { SignInHandback(PendingSignIn(File(noBackupFilesDir, "pending-signin"))) }
     private val foreground = ForegroundActivity()
 
-    /** Outlives every window (the save in `onStop` runs here; the core's own calls are asynchronous). */
+    /** Outlives every window: the sign-in, the account work and the save in `onStop` run here. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    internal val started: Started by lazy { start() }
+    /** The one reader of the core's events (a window never reads them itself). */
+    private val events = EventDispatcher()
+
+    /** Opening the core: off the main thread, and nothing touches the core before it is ready. */
+    private val startup = Startup<Opened>(scope)
+
+    /** Where starting the core stands; [begin] it first. */
+    internal val started: StateFlow<Started> get() = startup.state
 
     override fun onCreate() {
         super.onCreate()
@@ -52,37 +59,72 @@ class MailCraftApplication : Application() {
         runCatching { OpenedFiles(this).clearOld() }
     }
 
-    /** The mailbox is written when no window is on screen: the system may end the process after it. */
+    /** Starts the core, the first time a window asks; later calls change nothing. */
+    internal fun begin() {
+        startup.begin(::open, ::wire)
+    }
+
+    /**
+     * The mailbox is written when no window is on screen: the system may end the process after it.
+     * (A core still opening has nothing of the owner's to write yet.)
+     */
     internal fun saveNow() {
-        val ready = (started as? Started.Ready) ?: return
-        scope.launch {
-            try {
-                ready.core.saveNow()
-            } catch (_: CoreException) {
-                // The core says so itself (a SaveFailed event) and tries again.
-            }
-        }
+        val ready = startup.readyOrNull() ?: return
+        // (A failure is shown and tried again; the core says so itself too, with a SaveFailed event.)
+        scope.launch { ready.hub.saveNow() }
     }
 
     // Setting up the system's certificate check and opening the core can each fail without
     // being a bug in the app (the library did not load, the platform refused), so a failure is
-    // an answer for the screen to show and never a crash.
+    // an answer for the screen to show and never a crash. Runs on a background thread.
     @Suppress("TooGenericExceptionCaught")
-    private fun start(): Started =
+    private fun open(): Opened? =
         try {
             Bridge.initVerifier(applicationContext)
-            Started.Ready(Core.open(
+            // The core keeps the mailbox itself: opened from here (a phone that has one keeps it),
+            // saved after a change, at `saveNow` and when it ends. Private and left out of every
+            // backup (the manifest's rules), as the mail is private.
+            val core = Core.open(
                 AndroidPlatform(applicationContext, handback, foreground::get),
-                // Private and left out of every backup (the manifest's rules), as the mail is private.
                 File(noBackupFilesDir, "mailbox").path,
-            ).also {
-                createChannels(applicationContext, channelSpecs(it::t))
-            })
+            )
+            createChannels(applicationContext, channelSpecs(core::t))
+            val hub = AccountsHub(
+                api = CoreAccounts(core, handback),
+                texts = CoreTexts(core),
+                scope = scope,
+                save = { core.saveNow() },
+                copy = { text -> copyToClipboard(applicationContext, text) },
+            )
+            Opened(core, hub, MailListController(CoreMailSource(core)))
         } catch (_: CoreException) {
-            Started.Failed
+            null
         } catch (_: LinkageError) {
-            Started.Failed
+            null
         } catch (_: RuntimeException) {
-            Started.Failed
+            null
+        }
+
+    /** Wires the core that was opened to the rest of the app, on the main thread, before anything else sees it. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun wire(opened: Opened): Boolean =
+        try {
+            // The address the sign-in's page comes back to goes to the core as it is.
+            handback.sink = opened.core::handBackRedirect
+            handback.interrupted = opened.hub.controller::signInInterrupted
+            events.register(opened.hub::handle)
+            events.register { event -> opened.mail.handle(event, scope) }
+            events.launchIn(scope) { nextEvent(opened.core) }
+            true
+        } catch (_: RuntimeException) {
+            false
         }
 }
+
+/** The next event of the core's stream; null when the stream is over or the core can't say. */
+internal suspend fun nextEvent(core: Core): uniffi.mailcraft_mobile.Event? =
+    try {
+        core.nextEvent()
+    } catch (_: CoreException) {
+        null
+    }
