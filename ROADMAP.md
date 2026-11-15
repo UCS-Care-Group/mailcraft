@@ -163,7 +163,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 6. Undo Send and Delay Delivery, with an Outbox that also holds mail written offline; Snooze
    (gap 17).
 7. Signed and encrypted mail with S/MIME and OpenPGP (gap 16, [#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
-8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2).
+8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2): done for the Inbox of accounts whose server offers IDLE (#276).
 9. Calendars and contacts beyond Microsoft (CalDAV, CardDAV, subscribed calendars) and Google
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
@@ -172,8 +172,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
-15. Spell checking while writing (gap 7); native review of the French, German, Spanish, Italian, Dutch
-    and Romanian previews, more languages, right-to-left layout (gap 14). Partly done: the six ship as previews.
+15. Spell checking while writing (gap 7); further review of the French, German, Spanish, Italian, Dutch,
+    Romanian and Simplified Chinese previews, more languages, right-to-left layout (gap 14). Partly done: the seven ship as previews.
 16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
@@ -182,14 +182,14 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 MailCraft also builds for the browser (WebAssembly), from the same code. Every change is checked to
 build, and each release carries it as a download, but it has not yet been reviewed in use, and it
 can't open the connections IMAP and SMTP need: the only mail servers it reaches are JMAP ones, to
-read for now ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
-[docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
+read, to take changes up to and to send through ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
+[#1074](https://github.com/UCS-Care-Group/mailcraft/issues/1074), [docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
 browser.
 
 It is to be a mail client of its own (decided 2026-10-19, with #226):
 
 1. Review it: run it in the main browsers, and list what works, what doesn't and what is missing.
-2. JMAP accounts: read (#226, done); then changes going up and sending.
+2. JMAP accounts: read (#226, done); changes going up and sending (#1074, done).
 3. Microsoft accounts through Microsoft Graph, which runs over HTTPS as JMAP does.
 4. Gmail and Google Workspace accounts ([#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)),
    once Google sign-in on the desktop is in ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232)).
@@ -208,8 +208,8 @@ follows:
 | M3 | **Writes like mail** | Rich-text composing and replies, pictures, spell check | Rich text done (R4); pictures in the body and spell checking after beta (gap 7) |
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: six preview languages |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226), the marks, moves and deletions made in them go up and their mail is sent (#1074) |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: seven preview languages |
 
 ## Progress log
 

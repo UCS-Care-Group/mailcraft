@@ -1,0 +1,1 @@
+- An IONOS account now offers "Always download pictures from" a sender or a domain, and sender images, for mail its servers confirm came from that sender ([#1311](https://github.com/UCS-Care-Group/mailcraft/issues/1311)): MailCraft didn't recognise the name IONOS signs its checks with, so it never counted any IONOS mail as confirmed.

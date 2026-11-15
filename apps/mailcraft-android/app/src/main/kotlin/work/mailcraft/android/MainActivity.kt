@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -9,24 +15,31 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
+import java.time.ZoneId
+import java.util.Locale
+import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import uniffi.mailcraft_mobile.Core
-import uniffi.mailcraft_mobile.Event
 
 /**
  * The one window. An AppCompat activity, because that is what carries the per-app language to
@@ -37,21 +50,32 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
-        val started = application?.started ?: Started.Failed
-        if (started is Started.Ready) {
-            // The language in use is the owner's choice when there is one, else the system's; the
-            // window is built again when it changes, so the words are read afresh.
-            started.core.setLanguage(LanguageChoice.inUse(resources.configuration.locales))
-            createChannels(applicationContext, channelSpecs(started.core::t))
-        }
+        application?.begin()
+        val starting = application?.started ?: MutableStateFlow(Phase.Failed)
         val version = getString(R.string.app_version)
         setContent {
+            // What the window shows: the core's phase, passed on once a ready core has this window's
+            // language (the core opens off the main thread; until then the window says it is opening).
+            var started by remember { mutableStateOf<Started>(Phase.Loading) }
+            LaunchedEffect(starting) {
+                starting.collect { phase ->
+                    if (phase is Phase.Ready) {
+                        // The language in use is the owner's choice when there is one, else the system's;
+                        // the window is built again when it changes, so the words are read afresh.
+                        phase.value.core.setLanguage(LanguageChoice.inUse(resources.configuration.locales))
+                        createChannels(applicationContext, channelSpecs(phase.value.core::t))
+                    }
+                    started = phase
+                }
+            }
             MailCraftTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    var chosen by remember { mutableStateOf(LanguageChoice.current()) }
-                    Root(started, version, chosen) {
-                        chosen = it
-                        LanguageChoice.choose(it)
+                DeviceDateSettings {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        var chosen by remember { mutableStateOf(LanguageChoice.current()) }
+                        Root(started, version, chosen) {
+                            chosen = it
+                            LanguageChoice.choose(it)
+                        }
                     }
                 }
             }
@@ -62,62 +86,101 @@ class MainActivity : AppCompatActivity() {
 @Composable
 internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
     when (started) {
-        is Started.Ready -> CoreShell(started.core, version, chosenLanguage, onLanguage)
-        Started.Failed -> Centered(stringResource(R.string.start_failed))
+        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, onLanguage)
+        Phase.Loading -> Opening()
+        Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
 }
 
-/** What reading the sample mailbox's outline came to; [outline] is null when it could not be read. */
+/** The window while the core opens the mailbox, before any of its words can be asked for. */
+@Composable
+internal fun Opening() {
+    Centered(stringResource(R.string.starting))
+}
+
+/** What reading the mailbox's outline came to; [outline] is null when it could not be read. */
 private class Outlined(val outline: MailboxOutline?)
 
 /** How often the clock and the network are looked at again: the "Updated N min ago" line follows it. */
 private const val TICK_MILLIS = 30_000L
 
+/** The folder the Mail tab shows: the one the owner picked if it is still there, else the first Inbox. */
+private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
+    val all = outline?.accounts?.flatMap { it.folders }.orEmpty()
+    val wanted = picked.takeIf { id -> id != 0uL && all.any { it.id == id } } ?: outline?.inboxId
+    return all.firstOrNull { it.id == wanted }
+}
+
 @Composable
-private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
+private fun CoreShell(
+    opened: Opened,
+    version: String,
+    chosenLanguage: String,
+    onLanguage: (String) -> Unit,
+) {
+    val core = opened.core
+    val hub = opened.hub
+    val list = opened.mail
     val texts = remember(core) { CoreTexts(core) }
-    val source = remember(core) { CoreMailSource(core) }
-    val controller = remember(core) { MailListController(source) }
-    val hostContext = LocalContext.current
-    val appContext = hostContext.applicationContext
+    // The mailbox was opened with the core, when the application started, and not by a window. It is
+    // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
+    // announced, a synchronisation's among them). The list reads its own pages again on a revision
+    // (`MailListController.handle`), only those on screen.
+    val reload by hub.reloads.collectAsState()
+    val outlined by produceState<Outlined?>(null, core, reload) {
+        value = Outlined(loadOutline(core))
+    }
+    val categories by produceState(emptyList<CategoryItem>(), list, reload) { value = list.categories() }
+    val appContext = LocalContext.current.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
+    var swipe by remember { mutableStateOf(prefs.load()) }
+    // (A folder of 0 is the first Inbox.)
+    var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
+    val ui by list.ui.collectAsState()
+    val outline = outlined?.outline
+    val folder = chosenFolder(outline, query.folder)
+    val accounts = outline?.accounts.orEmpty()
+
+    val now = rememberTicks(list)
+    LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
+
+    SideEffect { hub.showing(accounts) }
+    val controller = hub.controller
+    val accountsUi by controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
-    val reading = remember(core) { ReadingController(CoreReadSource(core), scope) }
+    // The message being read is this window's own; marking it read goes through the list, which makes
+    // the owner's commands in turn, so that an undo it offers is never taken by the mark.
+    val reading = remember(core, list) { ReadingController(CoreReadSource(core, list::markRead), scope) }
     val links = remember(core) { CoreLinks(core) }
     val readingUi by reading.ui.collectAsState()
-    var outlined by remember { mutableStateOf<Outlined?>(null) }
-    var swipe by remember { mutableStateOf(prefs.load()) }
-    var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    val categories by produceState(emptyList<CategoryItem>(), core) { value = source.categories() }
-    val ui by controller.ui.collectAsState()
-    val outline = outlined?.outline
-    val folderId = query.folder.takeIf { it != 0uL } ?: outline?.inboxId
-    val folder = outline?.accounts?.flatMap { it.folders }?.firstOrNull { it.id == folderId }
-
-    ShellEffects(core, controller, outline, folderId, query, { outlined = Outlined(it) }) { now = it }
-
-    val mailActions = remember(controller, scope) {
-        mailListActions(controller, scope) { change -> query = change(query) }
+    val mailActions = remember(list, scope) {
+        mailListActions(list, scope) { change -> query = change(query) }
     }
-    val data = ShellData(
-        accounts = outline?.accounts.orEmpty(),
-        folderName = folder?.name ?: texts.t("Mail"),
-        folderId = folderId,
-        mail = if (outlined != null && folderId == null) ui.copy(load = LoadState.Failed) else ui,
-        categories = categories,
-        nowMillis = now,
-        swipe = swipe,
-        version = version,
-        chosenLanguage = chosenLanguage,
-        reading = readingUi,
-    )
     AppShell(
         texts = texts,
-        data = data,
+        data = ShellData(
+            accounts = accounts,
+            folderName = folder?.name ?: texts.t("Mail"),
+            folderId = folder?.id,
+            // (An outline that could not be read, or has no folder to show, has no list to wait for.)
+            mail = if (outlined != null && folder == null) ui.copy(load = LoadState.Failed) else ui,
+            version = version,
+            chosenLanguage = chosenLanguage,
+            accountsUi = accountsUi,
+            outline = when {
+                outlined == null -> OutlineStatus.Loading
+                outline == null -> OutlineStatus.Failed
+                else -> OutlineStatus.Ready
+            },
+            categories = categories,
+            nowMillis = now,
+            swipe = swipe,
+            reading = readingUi,
+        ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
+            accounts = controller.actions(),
             mail = mailActions,
             onSwipe = {
                 swipe = it
@@ -131,46 +194,18 @@ private fun CoreShell(core: Core, version: String, chosenLanguage: String, onLan
     )
 }
 
-/** What runs beside the screen: reading the outline, the core's events, the clock and the list asked for. */
+/** The time now, read again every [TICK_MILLIS] together with what the device says of the network. */
 @Composable
-private fun ShellEffects(
-    core: Core,
-    controller: MailListController,
-    outline: MailboxOutline?,
-    folderId: ULong?,
-    query: MailQuery,
-    onOutline: (MailboxOutline?) -> Unit,
-    onNow: (Long) -> Unit,
-) {
-    LaunchedEffect(core) { onOutline(loadOutline(core)) }
-    LaunchedEffect(core) { pumpEvents(core, controller) { onOutline(readOutline(core)) } }
-    LaunchedEffect(core) { tick(controller, onNow) }
-    LaunchedEffect(outline) { controller.accountsHaveServer(outline?.accounts?.any { it.server } == true) }
-    LaunchedEffect(folderId, query) { if (folderId != null) controller.show(query.copy(folder = folderId)) }
-}
-
-/** Looks at the network and the clock now and every [TICK_MILLIS]. */
-private suspend fun tick(controller: MailListController, setNow: (Long) -> Unit) {
-    while (true) {
-        controller.checkNetwork()
-        setNow(System.currentTimeMillis())
-        delay(TICK_MILLIS)
-    }
-}
-
-/** Reads the core's events: a newer revision reads the list's pages again, a finished sync marks it fresh. */
-private suspend fun pumpEvents(core: Core, controller: MailListController, outlineChanged: suspend () -> Unit) {
-    while (true) {
-        val event = core.nextEvent() ?: break
-        when (event) {
-            is Event.RevChanged -> {
-                controller.revChanged(event.rev)
-                outlineChanged()
-            }
-            is Event.SyncProgress -> if (event.total > 0uL && event.done >= event.total) controller.updated()
-            else -> Unit
+private fun rememberTicks(list: MailListController): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(list) {
+        while (true) {
+            list.checkNetwork()
+            now = System.currentTimeMillis()
+            delay(TICK_MILLIS)
         }
     }
+    return now
 }
 
 /** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
@@ -190,3 +225,38 @@ private fun mailListActions(
     onUndo = { scope.launch { controller.undo() } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },
 )
+
+/** Puts a plain text on the clipboard; what can't be is left. */
+internal fun copyToClipboard(context: Context, text: String) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText("", text))
+}
+
+/**
+ * Gives message dates the device's current language and time zone. The language comes from the
+ * configuration, so a change of it rebuilds the dates; a time-zone change is no configuration change,
+ * so a broadcast for it refreshes the zone.
+ */
+@Composable
+internal fun DeviceDateSettings(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
+    var zone by remember { mutableStateOf(ZoneId.systemDefault()) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                // The JVM caches its default zone; the platform's change is what the receiver heard.
+                TimeZone.setDefault(null)
+                zone = ZoneId.systemDefault()
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(Intent.ACTION_TIMEZONE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+    CompositionLocalProvider(LocalMessageZone provides zone, LocalMessageLocale provides locale, content = content)
+}

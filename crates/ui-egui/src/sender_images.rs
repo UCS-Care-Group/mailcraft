@@ -39,8 +39,10 @@ use crate::MailApp;
 use crate::reading::images;
 use crate::theme::Tokens;
 
-/// Most addresses whose picture, or lack of one, is kept in memory.
-const MAX_KEPT: usize = 1_000;
+/// Most addresses whose picture, or lack of one, is kept in memory (a picture is at most
+/// [`SIDE`] pixels a side, 64 KB): far more than a screen of rows shows, and those on screen
+/// are never let go of for another.
+const MAX_KEPT: usize = 300;
 /// Most addresses the host looks up at a time.
 const AT_A_TIME: usize = 4;
 /// Most addresses waiting for their turn.
@@ -82,6 +84,17 @@ pub struct SenderImages {
     /// Handed to the host with every look-up, weakly: gone with this state, it stops what is in
     /// flight before its next request.
     alive: Arc<()>,
+}
+
+impl SenderImages {
+    /// Let go of the senders' pictures kept in memory (the window is out of sight,
+    /// [`crate::out_of_sight`]): they are asked for again (from the host's cache first) when a
+    /// row of theirs is next on screen. What is known to have no picture is kept, and is not
+    /// asked about again; a look-up on its way is taken in when rows are next shown.
+    pub(crate) fn let_go_of_pictures(&mut self) {
+        self.looks.retain(|_, (look, _)| matches!(look, Look::Missing | Look::Asked(..)));
+        self.decoded = None;
+    }
 }
 
 /// Whether the owner knows `address` (in lower case): it is one of the contacts', or mail in

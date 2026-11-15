@@ -176,7 +176,8 @@ internal fun MailRowContent(texts: Texts, row: InboxRow, swipe: SwipeConfig, act
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap8) {
             Line(row.sender, weight, Modifier.weight(1f))
             if (row.members > 1) Text("${row.members}", style = MaterialTheme.typography.labelMedium)
-            Text(formatWhen(row.whenSeconds), style = MaterialTheme.typography.labelSmall)
+            val whenText = formatWhen(row.whenSeconds, LocalMessageZone.current, LocalMessageLocale.current)
+            Text(whenText, style = MaterialTheme.typography.labelSmall)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
             Line(row.subject, weight, Modifier.weight(1f))

@@ -80,11 +80,13 @@ class MailListModelTest {
 
     @Test
     fun noticesAreWordedAndOnlyDestructiveOnesOfferUndo() {
-        assertEquals("1 message deleted", noticeText(EnglishTexts, Notice.Done(Triage.Delete, 1)))
-        assertEquals("3 messages archived", noticeText(EnglishTexts, Notice.Done(Triage.Archive, 3)))
-        assertTrue(Notice.Done(Triage.MoveTo(1uL), 1).undoable)
-        assertEquals(false, Notice.Done(Triage.Flag(true), 1).undoable)
-        assertEquals(false, Notice.NoAccount.undoable)
+        assertEquals("1 message deleted", noticeText(EnglishTexts, ListNotice.Done(Triage.Delete, 1)))
+        assertEquals("3 messages archived", noticeText(EnglishTexts, ListNotice.Done(Triage.Archive, 3)))
+        assertTrue(ListNotice.Done(Triage.MoveTo(1uL), 1).undoable)
+        assertEquals(false, ListNotice.Done(Triage.Flag(true), 1).undoable)
+        assertEquals(false, ListNotice.Said("There is no network connection.").undoable)
+        val said = "There is no network connection."
+        assertEquals(said, noticeText(EnglishTexts, ListNotice.Said(said)))
     }
 
     @Test

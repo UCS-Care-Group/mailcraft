@@ -26,6 +26,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,29 +40,39 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /** Everything the shell draws, as plain values: it reads no core and no system service. */
-internal data class ShellData(
+@Suppress("LongParameterList")
+internal class ShellData(
     val accounts: List<AccountItem>,
     val folderName: String,
     val folderId: ULong?,
     val mail: MailListUi,
-    val categories: List<CategoryItem>,
-    /** The time now, in milliseconds since 1970: what "Updated N min ago" counts from. */
-    val nowMillis: Long,
-    /** The two swipes the owner chose on the mail list. */
-    val swipe: SwipeConfig,
     val version: String,
     /** The language the owner chose in the app: its code, or "" for the system's. */
     val chosenLanguage: String,
+    /** What the account screens draw besides the list of accounts. */
+    val accountsUi: AccountsUi = AccountsUi(),
+    /** What reading the outline came to: no accounts means none only when it is [OutlineStatus.Ready]. */
+    val outline: OutlineStatus = OutlineStatus.Ready,
+    /** The categories mail can be given, with their colours. */
+    val categories: List<CategoryItem> = emptyList(),
+    /** The time now, in milliseconds since 1970: what "Updated N min ago" counts from. */
+    val nowMillis: Long = 0L,
+    /** The two swipes the owner chose on the mail list. */
+    val swipe: SwipeConfig = SwipeConfig(),
     /** The message being read. */
     val reading: ReadingUi = ReadingUi(),
 )
+
+/** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
+internal enum class OutlineStatus { Loading, Failed, Ready }
 
 /** What the shell asks of the app. */
 internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
-    val mail: MailListActions,
-    val onSwipe: (SwipeConfig) -> Unit,
+    val accounts: AccountActions = AccountActions(),
+    val mail: MailListActions = MailListActions.None,
+    val onSwipe: (SwipeConfig) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
 )
 
@@ -88,19 +99,34 @@ internal fun AppShell(
     val drawer = rememberDrawerState(initialDrawer)
     val scope = rememberCoroutineScope()
     val back = nav.back()
-    BackHandler(enabled = back != null) { back?.let { nav = it } }
+    val adding = data.accountsUi.add
+    // Leaving Add Account: a sign-in that is waiting is called off, and the form is as new.
+    val leaveAdd = {
+        if (adding is AddAccountState.Waiting) actions.accounts.onCancelSignIn()
+        actions.accounts.onLeaveAdd()
+        nav = nav.leaveAddAccount()
+    }
+    BackHandler(enabled = back != null) { if (nav.adding) leaveAdd() else back?.let { nav = it } }
+    // An account is in: the screen closes.
+    LaunchedEffect(adding) {
+        if (adding is AddAccountState.Done) leaveAdd()
+    }
 
     ModalNavigationDrawer(
         drawerState = drawer,
-        gesturesEnabled = drawer.isOpen || !nav.settings,
+        gesturesEnabled = drawer.isOpen || !(nav.settings || nav.adding),
         drawerContent = {
             AppDrawer(
                 texts = texts,
                 accounts = data.accounts,
-                selectedFolder = data.folderId.takeIf { !nav.settings && nav.tab == Tab.Mail },
+                selectedFolder = data.folderId.takeIf { !nav.settings && !nav.adding && nav.tab == Tab.Mail },
                 onFolder = { account, folder ->
                     actions.onFolder(account, folder)
                     nav = nav.select(Tab.Mail)
+                    scope.launch { drawer.close() }
+                },
+                onAddAccount = {
+                    nav = nav.openAddAccount()
                     scope.launch { drawer.close() }
                 },
                 onSettings = {
@@ -110,35 +136,75 @@ internal fun AppShell(
             )
         },
     ) {
-        if (nav.settings) {
-            SettingsScreen(
+        WithAppNotices(texts, data.accountsUi, actions.accounts, onRestart = { nav = nav.openAddAccount() }) {
+            ShellScreen(
                 texts = texts,
-                page = nav.page,
                 data = data,
-                onOpen = { nav = nav.openPage(it) },
-                onBack = { back?.let { previous -> nav = previous } },
-                onLanguage = actions.onLanguage,
-                onSwipe = actions.onSwipe,
-            )
-        } else {
-            MainFrame(
-                texts = texts,
-                tab = nav.tab,
-                title = if (nav.tab == Tab.Mail) data.folderName else nav.tab.label(texts),
-                onTab = { nav = nav.select(it) },
+                actions = actions,
+                nav = nav,
+                onNav = { nav = it },
+                onLeaveAdd = leaveAdd,
                 onMenu = { scope.launch { drawer.open() } },
-                onBack = if (nav.message != null) ({ back?.let { nav = it } }) else null,
-            ) { modifier, expanded ->
-                when (nav.tab) {
-                    Tab.Mail -> {
-                        val opening = actions.mail.withOpen { row -> nav = nav.openMessage(row.id) }
-                        MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
-                    }
-                    else -> Centered(texts.t("Pending development"), modifier)
+            )
+        }
+    }
+    AccountDialogs(texts, data, actions.accounts)
+}
+
+/** The screen the navigation state says: Add Account, Settings, or a tab. */
+@Composable
+private fun ShellScreen(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    nav: NavState,
+    onNav: (NavState) -> Unit,
+    onLeaveAdd: () -> Unit,
+    onMenu: () -> Unit,
+) {
+    if (nav.adding) {
+        AddAccountScreen(texts, data.accountsUi.add, actions.accounts, onBack = onLeaveAdd)
+    } else if (nav.settings) {
+        SettingsScreen(
+            texts = texts,
+            page = nav.page,
+            data = data,
+            actions = actions,
+            onOpen = { onNav(nav.openPage(it)) },
+            onBack = { nav.back()?.let(onNav) },
+            onAddAccount = { onNav(nav.openAddAccount()) },
+        )
+    } else {
+        MainFrame(
+            texts = texts,
+            tab = nav.tab,
+            title = if (nav.tab == Tab.Mail) data.folderName else nav.tab.label(texts),
+            onTab = { onNav(nav.select(it)) },
+            onMenu = onMenu,
+            onBack = if (nav.message != null) ({ nav.back()?.let(onNav) }) else null,
+        ) { modifier, expanded ->
+            when (nav.tab) {
+                // (No account is said only after a read that worked and found none.)
+                Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
+                    NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
+                } else {
+                    val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
+                    MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
                 }
+                else -> Centered(texts.t("Pending development"), modifier)
             }
         }
     }
+}
+
+/** The questions that float over whatever screen is showing: a permission to ask for, an account to remove. */
+@Composable
+private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountActions) {
+    data.accountsUi.question?.let { question ->
+        val account = data.accounts.firstOrNull { it.id == question.ask.account }
+        PermissionQuestionDialog(texts, question, account?.email.orEmpty(), actions)
+    }
+    data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions, data.accountsUi.removeFailed) }
 }
 
 @Composable
@@ -243,7 +309,7 @@ private fun MailTab(
 
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, mail, onSwipe, reading)
+    ShellActions(onFolder, onLanguage, accounts, mail, onSwipe, reading)
 
 @Composable
 private fun TabLabel(text: String) {

@@ -51,16 +51,51 @@ class NavigationTest {
     }
 
     @Test
+    fun addAccountOpensOverWhereTheOwnerWasAndBackLeavesTheWayItCame() {
+        val tab = NavState(tab = Tab.Calendar)
+        assertEquals(tab, tab.openAddAccount().back())
+        val settings = NavState(tab = Tab.Mail, settings = true, page = SettingsPage.Accounts)
+        assertEquals(settings, settings.openAddAccount().back())
+        assertEquals(settings, settings.openAddAccount().leaveAddAccount())
+        assertNull(tab.back())
+        // Opening Settings or choosing a tab leaves it.
+        assertEquals(false, tab.openAddAccount().openSettings().adding)
+        assertEquals(false, tab.openAddAccount().select(Tab.Today).adding)
+    }
+
+    @Test
+    fun aMessageOpensInTheMailTabAndSettingsGoesBackToIt() {
+        val reading = NavState(tab = Tab.Calendar).openMessage(7uL)
+        assertEquals(NavState(tab = Tab.Mail, message = 7L), reading)
+        assertEquals(7uL, reading.messageId)
+        // Settings opens over the message, and leaving it shows the message again; then back closes it.
+        assertEquals(reading, reading.openSettings().back())
+        assertEquals(NavState(), reading.back())
+        assertEquals(null, reading.select(Tab.Today).messageId)
+    }
+
+    @Test
+    fun aSavedMessageComesBackOnlyInTheMailTab() {
+        val saved = listOf<Any?>(Tab.Mail.ordinal, false, -1, false, 9L)
+        assertEquals(NavState(message = 9L), NavState.fromSaved(saved))
+        assertEquals(NavState(tab = Tab.People), NavState.fromSaved(listOf(Tab.People.ordinal, false, -1, false, 9L)))
+        assertEquals(NavState(), NavState.fromSaved(listOf(Tab.Mail.ordinal, false, -1, false, -1L)))
+    }
+
+    @Test
     fun whatIsSavedComesBack() {
         val states = listOf(
             NavState(),
             NavState(tab = Tab.People),
             NavState(tab = Tab.Today, settings = true),
             NavState(tab = Tab.Mail, settings = true, page = SettingsPage.SenderImages),
+            NavState(tab = Tab.Today, adding = true),
         )
         states.forEach { s ->
-            val saved = listOf<Any?>(s.tab.ordinal, s.settings, s.page?.ordinal ?: -1)
+            val saved = listOf<Any?>(s.tab.ordinal, s.settings, s.page?.ordinal ?: -1, s.adding)
             assertEquals(s, NavState.fromSaved(saved))
+            // (What was saved before Add Account existed has three parts and is read as before.)
+            assertEquals(s.copy(adding = false), NavState.fromSaved(saved.take(3)))
         }
     }
 

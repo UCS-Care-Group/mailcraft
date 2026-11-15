@@ -1,0 +1,1 @@
+| 2026-11-13 | minor | MB1.3 to MB1.5: `host`, L5: the platform trait, `init`, `run_job`, and the To Do, Graph, message-fetch and calendar runs move from the app below the window; the sync driver's pacing helpers move into the engine |

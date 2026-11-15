@@ -56,3 +56,6 @@ sync_github_name = false
 [people.mmazzieri]
 real_name = "Mauro Mazzieri"
 display_name = "Mauro Mazzieri"
+
+[people.HarleyInfinite]
+display_name = "Harley"

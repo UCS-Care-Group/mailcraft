@@ -28,7 +28,7 @@ internal fun MessageHeader(texts: Texts, view: MessageView) {
         HeaderLine(texts.t("To"), view.to)
         if (view.cc.isNotEmpty()) HeaderLine(texts.t("Cc"), view.cc)
         Text(
-            formatDateTime(view.`when`),
+            formatDateTime(view.`when`, LocalMessageZone.current, LocalMessageLocale.current),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

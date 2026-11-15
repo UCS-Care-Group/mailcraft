@@ -4,7 +4,6 @@
 
 package work.mailcraft.android
 
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -25,13 +24,10 @@ internal object ReadingShots {
         opened = Corpus.opened(entry),
     )
 
+    /** The pane with its dates in UTC and US English, whatever machine records or checks the shot. */
     @Composable
-    fun Pane(ui: ReadingUi) {
-        MailCraftTheme {
-            Surface {
-                ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
-            }
-        }
+    fun Pane(ui: ReadingUi) = ShellShots.Fixed {
+        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
     }
 }
 

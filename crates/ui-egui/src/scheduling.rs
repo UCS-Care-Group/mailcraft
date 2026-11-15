@@ -20,21 +20,15 @@
 use std::sync::mpsc::Receiver;
 
 use egui::{Align2, Color32, CursorIcon, Rect, Sense, Stroke, Ui, pos2, vec2};
-use mailcraft_model::remote::{FreeBusy, FreeBusyAsk, MAX_SCHEDULES};
+use mailcraft_engine::sync_driver::free_busy::{FreeBusyCame, ToAsk};
 use mailcraft_model::sync::Tokens as SignIn;
 use mailcraft_model::{Address, Id, ShowAs};
 use mailcraft_time::{Date, DateTime};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, now_ms};
 
-/// How long the server is left alone about the same people and day after it was asked and gave
-/// nothing, and how long an answer is good for while the page stays in view (milliseconds).
-pub(crate) const RETRY_MS: f64 = 30_000.0;
-pub(crate) const REFRESH_MS: f64 = 300_000.0;
-/// Most days and people that are remembered at a time.
-const MAX_KNOWN: usize = 8;
 /// Most people of one kind (required, optional) the page has a row for.
 const MAX_ROWS: usize = 500;
 
@@ -50,73 +44,20 @@ const SNAP: i64 = 30;
 /// How wide the part of an edge of the meeting's band is that takes hold of it.
 const EDGE_W: f32 = 7.0;
 
-/// What the host is asked to find out for Find a Time
-/// ([`Services::free_busy`](crate::Services::free_busy)): when the people of `ask` are busy, as
-/// far as the account may know. It reads; nothing is written and nobody is told.
-pub struct FreeBusyRequest {
-    pub account: mailcraft_model::Account,
-    /// The account's sign-in settings, with the application id filled in.
-    pub oauth: mailcraft_model::OAuth,
-    /// The account's refresh token, to get a token with when `access` is empty.
-    pub refresh: String,
-    /// An access token from earlier in this session that is still good; else empty.
-    pub access: String,
-    pub ask: FreeBusyAsk,
-}
+/// What the host is asked to find out for Find a Time, and what it came to
+/// ([`Services::free_busy`](crate::Services::free_busy)).
+pub use mailcraft_host::calendar::{FreeBusyRequest, FreeBusyResult};
 
-/// What a [`FreeBusyRequest`] came to.
-#[derive(Default)]
-pub struct FreeBusyResult {
-    pub account: Id,
-    /// A token that was obtained for this (kept for the session, as a calendar job's is).
-    pub tokens: Option<SignIn>,
-    /// The owner hasn't allowed this program to read the calendar.
-    pub consent_needed: bool,
-    /// The token that was handed in is no longer taken.
-    pub token_refused: bool,
-    /// What the server said; `None` when it couldn't be asked.
-    pub schedule: Option<FreeBusy>,
-    /// Why there is no answer, for the owner to read.
-    pub error: String,
-}
+/// One person's day, whose time is looked at, and what Find a Time gets when it looks: the
+/// engine's ([`mailcraft_engine::sync_driver::free_busy`]).
+pub(crate) use mailcraft_engine::sync_driver::free_busy::{Day, Key, Look, address_key};
 
-/// One person's day, as far as it is known.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Day {
-    /// The time that is taken: from and to, in minutes of the day, and how. In order, and no
-    /// two stretches overlap.
-    pub busy: Vec<(u32, u32, ShowAs)>,
-    /// Why nothing is known of this person; empty when something is.
-    pub unknown: String,
-}
-
-/// Whose time is looked at, and on which day.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Key {
-    /// The account whose server is asked; 0 when there is none to ask.
-    account: Id,
-    day: Date,
-    /// Their addresses, in lower case, each once, in order.
-    people: Vec<String>,
-}
-
-/// What is known for a [`Key`].
-struct Known {
-    key: Key,
-    /// When the server was last asked (milliseconds).
-    asked: f64,
-    people: Vec<(String, Day)>,
-    /// Why the last question came to nothing; empty when it came to something.
-    error: String,
-}
-
-/// What the app keeps of people's free and busy times.
+/// What the app keeps of people's free and busy times: the question in flight. What was found out
+/// and when it is due again are the engine's.
 #[derive(Default)]
 pub(crate) struct Store {
     /// The question in flight, the mailbox opening it was asked under, and the answer to come.
     rx: Option<(Key, u64, Receiver<FreeBusyResult>)>,
-    /// What was found out, the newest last.
-    known: Vec<Known>,
     /// How many questions went to the host so far.
     pub(crate) asked: u64,
 }
@@ -127,66 +68,11 @@ impl Store {
         self.rx.is_some()
     }
 
-    /// Another mailbox took the place of the open one: the question out is let go of, and what
-    /// was found out goes with the accounts it was for.
+    /// Another mailbox took the place of the open one: the question out is let go of (what was
+    /// found out goes with the accounts it was for, in the engine).
     pub(crate) fn forget(&mut self) {
         self.rx = None;
-        self.known.clear();
     }
-}
-
-/// What Find a Time gets when it looks.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Look {
-    /// What is known of each of the people, by address (in lower case).
-    pub people: Vec<(String, Day)>,
-    /// The server is being asked right now.
-    pub pending: bool,
-    /// Why other people's time isn't shown, when it isn't.
-    pub note: String,
-}
-
-/// An address as people's times are kept by: trimmed, in lower case. Nothing for what isn't one.
-fn address_key(email: &str) -> Option<String> {
-    let email = email.trim();
-    Address::new("", email).is_valid().then(|| email.to_lowercase())
-}
-
-/// A day as `calendar.freeBusy` takes it, and the midnight after it.
-fn stretch(day: Date) -> (String, String) {
-    (format!("{}T00:00", day.iso()), format!("{}T00:00", day.add_days(1).iso()))
-}
-
-/// What `calendar.freeBusy` made of a server's answer, as days: for each of `people`, the
-/// stretches of `day` that are taken, cut to the day, in order. Whatever doesn't read is left out.
-fn days_of(answer: &Value, day: Date) -> Vec<(String, Day)> {
-    let midnight = DateTime::at_midnight(day);
-    let minute = |v: Option<&Value>| -> Option<u32> {
-        let (at, _) = mailcraft_time::parse_iso(v?.as_str()?)?;
-        u32::try_from(midnight.minutes_until(at).clamp(0, i64::from(DAY))).ok()
-    };
-    let people = answer.get("people").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
-    people
-        .iter()
-        .take(MAX_SCHEDULES)
-        .filter_map(|person| {
-            let email = address_key(person.get("email")?.as_str()?)?;
-            let times = person.get("busy").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
-            let mut busy: Vec<(u32, u32, ShowAs)> = times
-                .iter()
-                .take(2_000)
-                .filter_map(|time| {
-                    let (from, to) = (minute(time.get("start"))?, minute(time.get("end"))?);
-                    let show_as = ShowAs::parse(time.get("showAs")?.as_str()?)?;
-                    (to > from && show_as != ShowAs::Free).then_some((from, to, show_as))
-                })
-                .collect();
-            busy.sort_by_key(|(from, to, _)| (*from, *to));
-            let unknown: String =
-                person.get("error").and_then(Value::as_str).unwrap_or_default().chars().filter(|c| !c.is_control()).take(200).collect();
-            Some((email, Day { busy, unknown }))
-        })
-        .collect()
 }
 
 impl MailApp {
@@ -197,77 +83,26 @@ impl MailApp {
         self.free_busy_at(calendar, people, day, now_ms())
     }
 
-    /// The account whose server keeps `calendar`, when it is one that can be asked about other
-    /// people's time; else why not, in words.
-    fn free_busy_account(&self, calendar: Id) -> Result<mailcraft_model::Account, String> {
-        let mailbox = &self.session.mailbox;
-        let keeper = mailbox.calendar(calendar).and_then(|c| mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin));
-        let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
-        let Some(account) = keeper.filter(microsoft) else {
-            return Err(tl!(
-                "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
-            )
-            .to_string());
-        };
-        if self.services.free_busy.is_none() {
-            return Err(tl!("This build can't ask a server when other people are busy: only your own calendar is shown.").to_string());
+    /// What the host is asked about, as the engine's rules want it said.
+    fn free_busy_facts<'a>(&self, in_flight: Option<&'a Key>) -> mailcraft_engine::sync_driver::free_busy::FreeBusyFacts<'a> {
+        mailcraft_engine::sync_driver::free_busy::FreeBusyFacts {
+            reachable: self.services.free_busy.is_some(),
+            busy: self.job_busy(),
+            in_flight,
+            lang: crate::i18n::current(),
         }
-        if self.offline() {
-            return Err(crate::send_receive::said());
-        }
-        if self.graph_consent_needed.contains(&account.id) {
-            return Err(tl!("Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts").to_string());
-        }
-        Ok(account.clone())
     }
 
     /// [`free_busy`](Self::free_busy) at `now` (milliseconds).
     pub(crate) fn free_busy_at(&mut self, calendar: Id, people: &[String], day: Date, now: f64) -> Look {
-        let mut asked: Vec<String> = Vec::new();
-        for email in people.iter().filter_map(|email| address_key(email)) {
-            if asked.len() < MAX_SCHEDULES && !asked.contains(&email) {
-                asked.push(email);
-            }
-        }
-        if asked.is_empty() {
-            return Look::default();
-        }
-        let account = self.free_busy_account(calendar);
-        let key = Key { account: account.as_ref().map_or(0, |a| a.id), day, people: asked };
-        let known = self.free_busy.known.iter().find(|known| known.key == key);
-        let mut look = Look {
-            people: known.map(|known| known.people.clone()).unwrap_or_default(),
-            pending: self.free_busy.rx.as_ref().is_some_and(|(asking, ..)| *asking == key),
-            note: known.map(|known| known.error.clone()).unwrap_or_default(),
-        };
-        let account = match account {
-            Ok(account) => account,
-            Err(why) => {
-                // Nobody to ask: what a script handed in for these people is shown all the same.
-                if look.people.is_empty() {
-                    look.note = why;
-                }
-                return look;
-            }
-        };
-        // One question at a time, and not while the account's sign-in or calendar is being
-        // seen to; and not the same question again before its time.
-        let due = known.is_none_or(|known| now - known.asked >= if known.error.is_empty() { REFRESH_MS } else { RETRY_MS });
-        let busy = self.free_busy.rx.is_some() || self.signing_in.is_some() || self.graph_rx.is_some() || self.calendar_syncing();
-        if !due || busy {
-            return look;
-        }
+        let in_flight = self.free_busy.rx.as_ref().map(|(key, ..)| key.clone());
+        let facts = self.free_busy_facts(in_flight.as_ref());
+        let (mut look, to_ask) = self.session.free_busy_look(calendar, people, day, &facts, now);
+        let Some(ToAsk { account, key, ask }) = to_ask else { return look };
         let Some(oauth) = account.oauth.clone() else { return look };
         let access = self.graph_tokens.get(&account.id).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
         let refresh = kept.or_else(|| self.remembered("refresh", account.id)).unwrap_or_default();
-        let (from, to) = stretch(day);
-        // The engine says what to ask.
-        let ask = self
-            .session
-            .run("calendar.freeBusy", &json!({"people": key.people, "from": from, "to": to}))
-            .map_err(|e| e.to_string())
-            .and_then(|answer| serde_json::from_value::<FreeBusyAsk>(answer.get("ask").cloned().unwrap_or_default()).map_err(|e| e.to_string()));
         let failed = if access.is_empty() && refresh.is_empty() {
             Some(tl!("Sign in with Send/Receive to see when other people are busy.").to_string())
         } else {
@@ -282,22 +117,10 @@ impl MailApp {
             }
             _ => false,
         };
-        // What was known stays in view until the answer is there.
         let error = failed.unwrap_or_default();
-        self.note_free_busy(key, now, None, error.clone());
+        self.session.free_busy_noted(key, now, error.clone());
         (look.pending, look.note) = (started, error);
         look
-    }
-
-    /// Keep what is known for `key`: when it was asked, what came back (`None`: nothing yet, or
-    /// nothing at all, and what was known before stays), and why not.
-    fn note_free_busy(&mut self, key: Key, asked: f64, people: Option<Vec<(String, Day)>>, error: String) {
-        let known = &mut self.free_busy.known;
-        let before = known.iter().position(|known| known.key == key).map(|at| known.remove(at));
-        let people = people.or(before.map(|before| before.people)).unwrap_or_default();
-        known.push(Known { key, asked, people, error });
-        let extra = known.len().saturating_sub(MAX_KNOWN);
-        known.drain(..extra);
     }
 
     /// The host answered about people's time: keep its token, and take the answer in through
@@ -340,28 +163,8 @@ impl MailApp {
             // (Asked for as tokens always were: not known to be good for Outlook's Favorites.)
             self.favorites_token_is_plain(account);
         }
-        if result.consent_needed {
-            self.graph_consent_needed.insert(account);
-        }
-        let asked = self.free_busy.known.iter().find(|known| known.key == key).map_or_else(now_ms, |known| known.asked);
-        let (people, error) = match &result.schedule {
-            Some(schedule) => match self.digest_free_busy(&key, schedule) {
-                Ok(people) => (Some(people), String::new()),
-                Err(e) => (None, e),
-            },
-            None => {
-                let why: String = result.error.chars().filter(|c| !c.is_control()).take(300).collect();
-                (None, if why.trim().is_empty() { tl!("The server didn't say when other people are busy").to_string() } else { why })
-            }
-        };
-        self.note_free_busy(key, asked, people, error);
-    }
-
-    /// What `calendar.freeBusy` makes of a server's answer for `key`.
-    fn digest_free_busy(&mut self, key: &Key, schedule: &FreeBusy) -> Result<Vec<(String, Day)>, String> {
-        let (from, to) = stretch(key.day);
-        let taken = self.session.run("calendar.freeBusy", &json!({"people": key.people, "from": from, "to": to, "result": schedule}));
-        taken.map(|answer| days_of(&answer, key.day)).map_err(|e| e.to_string())
+        let came = FreeBusyCame { schedule: result.schedule.as_ref(), error: &result.error, consent_needed: result.consent_needed };
+        self.session.free_busy_answered(&key, now_ms(), &came, crate::i18n::current());
     }
 
     /// An answer about people's time that didn't come from the host: a script hands it in
@@ -369,25 +172,12 @@ impl MailApp {
     /// host's answer is, for the same people and day, and how many of them it said something of
     /// is answered.
     pub(crate) fn free_busy_stand_in(&mut self, calendar: Id, people: &[String], day: Date, schedule: &Value) -> Result<usize, String> {
-        let schedule: FreeBusy = serde_json::from_value(schedule.clone())
-            .map_err(|e| format!("`freeBusy`: {}", e.to_string().chars().filter(|c| !c.is_control()).take(200).collect::<String>()))?;
-        let mut asked: Vec<String> = Vec::new();
-        for email in people.iter().filter_map(|email| address_key(email)) {
-            if asked.len() < MAX_SCHEDULES && !asked.contains(&email) {
-                asked.push(email);
-            }
-        }
-        if asked.is_empty() {
-            return Err(tl!("Nobody with an address is invited").to_string());
-        }
-        let key = Key { account: self.free_busy_account(calendar).map_or(0, |a| a.id), day, people: asked };
-        let people = self.digest_free_busy(&key, &schedule)?;
-        let said = people.iter().filter(|(_, day)| day.unknown.is_empty()).count();
+        let facts = self.free_busy_facts(None);
+        let (key, said) = self.session.free_busy_stand_in(calendar, people, day, schedule, &facts, now_ms())?;
         // (A question that is out for the same people is overtaken by this.)
         if self.free_busy.rx.as_ref().is_some_and(|(asking, ..)| *asking == key) {
             self.free_busy.rx = None;
         }
-        self.note_free_busy(key, now_ms(), Some(people), String::new());
         Ok(said)
     }
 }
@@ -882,7 +672,9 @@ mod tests {
     use std::sync::{Arc, Mutex, mpsc};
 
     use mailcraft_engine::Session;
-    use mailcraft_model::remote::{BusyTime, PersonSchedule};
+    use mailcraft_engine::sync_driver::free_busy::days_of;
+    use mailcraft_model::remote::{BusyTime, FreeBusy, FreeBusyAsk, MAX_SCHEDULES, PersonSchedule};
+    use serde_json::json;
 
     use super::*;
     use crate::Services;
@@ -905,7 +697,7 @@ mod tests {
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         assert!(app.calendar_tick_at(true, now_ms()));
         app.poll_calendar();
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         let calendar = app.session.mailbox.calendars.iter().find(|c| c.origin.account == account).map(|c| c.id).expect("the server's calendar");
         let asked: Asked = Default::default();
         let seen = asked.clone();
@@ -1026,9 +818,9 @@ mod tests {
         let look = app.free_busy(own, &people, day);
         assert!(!look.pending && look.note.contains("kept on this computer"), "{}", look.note);
         // The owner hasn't allowed it.
-        app.graph_consent_needed.insert(account);
+        app.session.driver.calendar.consent_needed.insert(account);
         assert!(app.free_busy(calendar, &people, day).note.contains("needs your permission"));
-        app.graph_consent_needed.clear();
+        app.session.driver.calendar.consent_needed.clear();
         // No sign-in at hand: Send/Receive asks for one, this doesn't.
         let (tokens, graph_tokens) = (std::mem::take(&mut app.tokens), std::mem::take(&mut app.graph_tokens));
         let look = app.free_busy(calendar, &people, day);
@@ -1039,8 +831,8 @@ mod tests {
         assert!(app.free_busy(calendar, &people, day.add_days(3)).note.contains("can't ask a server"));
         app.services.free_busy = host;
         // While the account's calendar is being seen to, the question waits its turn.
-        app.auto_sync = true;
-        app.calendar.due = true;
+        app.session.driver.set_auto_sync(true);
+        app.session.driver.calendar.due = true;
         app.execute("view.calendar", json!({})).unwrap();
         assert!(app.calendar_tick_at(true, now_ms() + 400_000.0));
         assert!(!app.free_busy(calendar, &people, day.add_days(5)).pending);

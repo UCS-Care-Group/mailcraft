@@ -39,7 +39,8 @@ fn a_send_receive_keeps_the_folders_in_step_through_graph_and_never_imap() {
     let _route = server.route();
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     // The host's own Graph job, with the test in the token endpoint's place.
     let renewed: Arc<Mutex<usize>> = Arc::default();
     let route = server.url();
@@ -124,7 +125,8 @@ fn a_token_refused_for_the_mail_has_the_owner_asked_to_sign_in() {
     for answer in answers {
         let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
         let mut app = MailApp::new(session, Services::default());
-        (app.autosave, app.auto_sync) = (false, false);
+        app.autosave = false;
+        app.session.driver.set_auto_sync(false);
         app.services.graph = Some(Box::new(move |request: GraphRequest| {
             let (tx, rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {

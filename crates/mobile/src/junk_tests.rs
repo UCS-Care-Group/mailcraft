@@ -108,6 +108,7 @@ fn every_query_with_junk_answers_and_never_panics() {
                             search: t.to_string(),
                             everywhere: off % 2 == 0,
                         };
+                        not_internal("row_members", &block_on(core.row_members(q.clone(), u64::from(off))));
                         not_internal("message_list", &block_on(core.message_list(q, off, c)));
                     }
                     not_internal("people", &block_on(core.people(t.to_string(), off, c)));

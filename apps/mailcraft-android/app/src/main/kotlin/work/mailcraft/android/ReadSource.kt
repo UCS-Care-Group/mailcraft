@@ -36,9 +36,13 @@ internal interface ReadSource {
 /** Most links of one message that are looked at for their destination. */
 private const val MAX_LINKS = 2_000
 
-/** [ReadSource] over the Rust core. */
+/**
+ * [ReadSource] over the Rust core. Marking read is [mark]'s (the list's, which makes the owner's
+ * commands one at a time and keeps its offer of an undo true).
+ */
 internal class CoreReadSource(
     private val core: Core,
+    private val mark: suspend (ULong) -> Boolean,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ReadSource {
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? = withContext(dispatcher) {
@@ -50,14 +54,7 @@ internal class CoreReadSource(
         }
     }
 
-    override suspend fun markRead(id: ULong): Boolean = withContext(dispatcher) {
-        try {
-            core.execute("mail.markRead", jsonText(mapOf("ids" to listOf(id))))
-            true
-        } catch (_: CoreException) {
-            false
-        }
-    }
+    override suspend fun markRead(id: ULong): Boolean = mark(id)
 
     private fun linksOf(blocks: List<BlockView>): Map<String, LinkInfo> {
         val found = LinkedHashMap<String, LinkInfo>()

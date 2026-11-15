@@ -43,7 +43,8 @@ fn the_first_send_from_a_shared_mailbox_waits_for_its_permission_and_then_goes_t
     server.state().add_other(SHARED, true);
     let session = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     // Whether the owner has allowed sending from shared mailboxes yet, as the provider says when
     // a token for it is asked for; and how often one was.
     let allowed: Arc<Mutex<(bool, usize)>> = Arc::default();

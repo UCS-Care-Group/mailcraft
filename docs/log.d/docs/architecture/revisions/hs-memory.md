@@ -1,0 +1,1 @@
+| 2026-11-13 | minor | HS: the mailbox file in format 4: a message's header block (the header lines nothing reads by name) over a kilobyte is content beside it; format 3 read and written anew at the next save, kept as `.before-<version>` |

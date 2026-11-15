@@ -684,6 +684,17 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
         }
         let Some(name) = clean_name(&there.name) else { continue };
         let parent_here = if there.parent.is_empty() { None } else { here.get(&there.parent).copied() };
+        // A folder in one this account doesn't have (a calendar, contacts or tasks folder; one that
+        // couldn't be read; the root when it couldn't be told) is at the top here, and is kept as
+        // at the top on the server too: kept with the parent the server said, the difference
+        // would go up as a move of the owner's folder to the top of the mailbox (#1108).
+        let unplaced;
+        let there = if !there.parent.is_empty() && parent_here.is_none() {
+            unplaced = GraphFolder { parent: String::new(), ..there.clone() };
+            &unplaced
+        } else {
+            there
+        };
         let found = here.get(&there.id).copied().or_else(|| adopt(mb, account, there, parent_here, &name));
         match found {
             Some(id) => {

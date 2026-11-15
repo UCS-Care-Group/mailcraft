@@ -7,6 +7,9 @@ package work.mailcraft.android
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import java.time.ZoneOffset
+import java.util.Locale
 
 /** Invented people and mail (example.org), so that screenshots never hold anything real. */
 internal object ShellShots {
@@ -88,15 +91,38 @@ internal object ShellShots {
 
     val actions = ShellActions(onFolder = { _, _ -> }, onLanguage = {}, mail = MailListActions.None, onSwipe = {})
 
+    /** The app's theme on a surface, with dates drawn in one zone and language, whatever machine records or checks the shot. */
     @Composable
-    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, with: ShellData = data) {
-        MailCraftTheme {
-            Surface {
-                AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
+    fun Fixed(content: @Composable () -> Unit) {
+        CompositionLocalProvider(LocalMessageZone provides ZoneOffset.UTC, LocalMessageLocale provides Locale.US) {
+            MailCraftTheme {
+                Surface { content() }
             }
         }
     }
+
+    @Composable
+    fun Shell(nav: NavState = NavState(), drawer: DrawerValue = DrawerValue.Closed, with: ShellData = data) = Fixed {
+        AppShell(EnglishTexts, with, actions, initialNav = nav, initialDrawer = drawer)
+    }
+
+    /** The window while the core opens the mailbox. */
+    @Composable
+    fun Starting() = Fixed { Opening() }
 }
 
 /** The same data with another list. */
-internal fun ShellData.withMail(ui: MailListUi) = copy(mail = ui)
+internal fun ShellData.withMail(ui: MailListUi) = ShellData(
+    accounts = accounts,
+    folderName = folderName,
+    folderId = folderId,
+    mail = ui,
+    version = version,
+    chosenLanguage = chosenLanguage,
+    accountsUi = accountsUi,
+    outline = outline,
+    categories = categories,
+    nowMillis = nowMillis,
+    swipe = swipe,
+    reading = reading,
+)

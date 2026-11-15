@@ -21,9 +21,9 @@ fn bad(message: &str) -> CoreError {
     CoreError::BadRequest { reason: message.to_string() }
 }
 
-/// The window of `count` rows from `offset` of the list `q` asks for; `conversations` is
-/// whether it folds conversations (`None`: as the session's own view does).
-pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>, offset: u32, count: usize) -> Result<MessageWindow, CoreError> {
+/// The rows of the list `q` asks for; `conversations` is whether it folds conversations (`None`:
+/// as the session's own view does). The session's view and selection are as they were after.
+fn rows_of(s: &mut Session, q: &ListQuery, conversations: Option<bool>) -> Result<Vec<mailcraft_engine::list::Row>, CoreError> {
     let filter: Filter = serde_json::from_value(Value::String(q.filter.clone())).map_err(|_| bad("that filter is not known"))?;
     if s.mailbox.folder(q.folder).is_none() {
         return Err(bad("there is no such folder"));
@@ -39,8 +39,10 @@ pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>
     };
     // The list is built by the engine's non-mutating path over a view made for this query alone
     // (`Session::rows` would also move the selection's stays and the list cache of the folder in
-    // view), and the view is put back after.
+    // view), and the view is put back after. The selection's stays are set aside too: a message a
+    // selection keeps in the list it was made in would show though it fails the filter.
     let saved = s.view.clone();
+    let stays = s.sel.stays.take();
     s.view.folder = q.folder;
     s.view.filter = filter;
     s.view.search = text::clip(q.search.trim(), MAX_SEARCH);
@@ -52,9 +54,15 @@ pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>
     s.view.open.clear();
     let rows = mailcraft_engine::list::rows(s);
     s.view = saved;
+    s.sel.stays = stays;
+    Ok(rows)
+}
+
+/// The window of `count` rows from `offset` of the list `q` asks for; `conversations` as for [`rows_of`].
+pub(crate) fn window(s: &mut Session, q: &ListQuery, conversations: Option<bool>, offset: u32, count: usize) -> Result<MessageWindow, CoreError> {
+    let rows = rows_of(s, q, conversations)?;
     let start = usize::try_from(offset).unwrap_or(usize::MAX);
-    let window =
-        rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(m, &r.members, r.unread, r.group.clone()))).collect();
+    let window = rows.iter().skip(start).take(count).filter_map(|r| s.mailbox.message(r.id).map(|m| row(s, m, r))).collect();
     Ok(MessageWindow { rev: s.rev(), folder: q.folder, total: text::count_of(rows.len()), offset, rows: window })
 }
 
@@ -67,6 +75,18 @@ impl Core {
     pub async fn message_list(&self, query: ListQuery, offset: u32, count: u32) -> Result<MessageWindow, CoreError> {
         let count = text::window(count);
         self.call(move |s| window(s, &query, Some(query.conversations), offset, count)).await
+    }
+
+    /// Every message the row of `id` stands for in the list `query` asks for, newest first (a
+    /// conversation's row can stand for more than the ids a window's row carries), at most
+    /// [`mailcraft_engine::p::MAX_IDS`]: what a command on that row names. Empty when the list has no
+    /// row for `id` (it changed since the row was read).
+    pub async fn row_members(&self, query: ListQuery, id: u64) -> Result<Vec<u64>, CoreError> {
+        self.call(move |s| {
+            let rows = rows_of(s, &query, Some(query.conversations))?;
+            Ok(rows.into_iter().find(|r| r.id == id).map(|r| r.members.into_iter().take(mailcraft_engine::p::MAX_IDS).collect()).unwrap_or_default())
+        })
+        .await
     }
 
     /// The categories mail of `account` can be given (0: the list shared by accounts that keep

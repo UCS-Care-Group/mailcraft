@@ -3,18 +3,30 @@
 package work.mailcraft.android
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 
 /** A mail source over a list of invented rows that records what it is asked, for the tests. */
 internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSource {
     var rev = 1uL
     val windows = mutableListOf<Pair<Int, Int>>()
+    val asked = mutableListOf<MailQuery>()
     val commands = mutableListOf<Pair<String, String>>()
     var tabs: List<SplitTabItem> = emptyList()
     var failWindows = false
     var failCommands = false
     var isOffline = false
     val refreshes = AtomicInteger()
-    var refreshOutcome = RefreshOutcome.NoAccount
+    var refreshOutcome: RefreshOutcome = RefreshOutcome.Refused("There is no account to send and receive.")
+
+    /** When set, a window is answered only once it is completed: a read still on its way. */
+    var gate: CompletableDeferred<Unit>? = null
+
+    /** When set, only the window asked for in this place (0 the first) waits for [gate]. */
+    var waitCall: Int? = null
+
+    /** When set, the window asked for in this place fails. */
+    var failCall: Int? = null
+    private var calls = 0
 
     /** A change from outside: the rows are these now, at the next revision. */
     fun change(newRows: List<InboxRow>) {
@@ -24,7 +36,11 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
 
     override suspend fun window(query: MailQuery, offset: Int, count: Int): RowsWindow? {
         windows += offset to count
-        if (failWindows) return null
+        asked += query
+        val call = calls++
+        val waiting = waitCall
+        if (waiting == null || waiting == call) gate?.await()
+        if (failWindows || failCall == call) return null
         return RowsWindow(rev, rows.size, offset, rows.drop(offset).take(count))
     }
 
@@ -38,11 +54,24 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
         return true
     }
 
+    /** The whole lists of messages rows stand for, by row; a row not here is gone. */
+    var memberLists: Map<ULong, List<ULong>> = emptyMap()
+    val memberAsks = mutableListOf<ULong>()
+
+    /** When set, a look-up of a row's whole list waits for it. */
+    var membersGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun members(query: MailQuery, id: ULong): List<ULong> {
+        memberAsks += id
+        membersGate?.await()
+        return memberLists[id].orEmpty()
+    }
+
     override suspend fun categories() = listOf(CategoryItem("Green category", 0x2E8B57))
 
-    override suspend fun refresh(hasServer: Boolean): RefreshOutcome {
+    override suspend fun refresh(): RefreshOutcome {
         refreshes.incrementAndGet()
-        return if (hasServer) RefreshOutcome.Requested else refreshOutcome
+        return refreshOutcome
     }
 
     override suspend fun offline() = isOffline

@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
+use crate::auth_results::{self, Failed};
 use crate::confusables::{as_seen, hides, skeleton};
 use crate::{Account, FolderKind, Message, provider};
 
@@ -391,7 +391,7 @@ fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
     // A list writes its members' names as "Maya Okafor via Lumen Team": the name is the
     // member's, the address the list's.
     let via = via_list(&as_seen(&m.from.name, MAX_NAME_CHARS));
-    let list = m.headers.iter().take(MAX_HEADERS_READ).any(|(h, _)| h.eq_ignore_ascii_case("List-Id") || h.eq_ignore_ascii_case("List-Post"));
+    let list = m.has_header("List-Id") || m.has_header("List-Post");
     if !(via && list)
         && let Some(other) = addresses_in(&m.from.name).into_iter().find(|a| *a != address)
     {
