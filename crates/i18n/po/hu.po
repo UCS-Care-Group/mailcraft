@@ -742,7 +742,7 @@ msgid "Accounts"
 msgstr "Fiókok"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Actions"
 msgstr "Műveletek"
@@ -1310,6 +1310,11 @@ msgid "An authority on the way to a trusted one doesn't allow the certificate to
 msgstr "Egy megbízható személyhez vezető út nem teszi lehetővé, hogy a tanúsítványt így használják."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "An import is under way"
@@ -1536,6 +1541,11 @@ msgstr "Az elküldött szabály módosítása"
 #, fuzzy
 msgid "Apply Sent To-do Changes"
 msgstr "A feladatmódosítások alkalmazása"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "Apply Subscribed Calendar"
+msgstr ""
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1765,6 +1775,11 @@ msgstr "A {max}-kapcsolatok legfeljebb egyszerre egyesíthetők."
 #, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
 msgstr "A {n} naptárak legfeljebb cím alapján nyithatók meg: először egy törlést távolítsanak el."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2286,6 +2301,11 @@ msgstr "Naptár és kapcsolatok"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Naptár és kapcsolatok kell az engedély: Fájl › Info › Csatlakoztassa naptár és kapcsolatok"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -3469,6 +3489,16 @@ msgid "Couldn't send mail: the account has no outgoing server"
 msgstr "Nem sikerült e-mailt küldeni: a fióknak nincs kimenő szervere"
 
 #. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "Couldn't update {name}: {why}. What it held stays."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Couldn't update: {why}. What it held stays."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Country"
@@ -4574,6 +4604,27 @@ msgid "Every weekday"
 msgstr "Minden hétköznap"
 
 #. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "Every {n} day"
+msgid_plural "Every {n} days"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "Every {n} hour"
+msgid_plural "Every {n} hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "Every {n} minute"
+msgid_plural "Every {n} minutes"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Every {n} minutes"
@@ -4784,7 +4835,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fájl"
@@ -4954,7 +5005,7 @@ msgid "Fold the calendars of this group away"
 msgstr "A csoport naptárainak összecsukása"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Mappa"
@@ -5250,6 +5301,11 @@ msgstr "péntek"
 #, fuzzy
 msgid "From"
 msgstr "Feladó"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Internet…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5868,7 +5924,7 @@ msgid "Hold Unsent Mail"
 msgstr "A nem küldött levelek megtartása"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Kezdőlap"
@@ -6338,7 +6394,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "Indexáló levél: {percent}%"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Információ"
@@ -6595,6 +6651,11 @@ msgid "Items in this calendar are kept on this computer and nowhere else. Above 
 msgstr "A naptár elemei csak ezen a számítógépen vannak. A naptár fölött áthelyezheti őket a fiókja naptárába."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
@@ -6785,6 +6846,11 @@ msgstr "A feladatok lépésben tartása a Microsoft- lal"
 #, fuzzy
 msgid "Keep Waiting"
 msgstr "Folyton várj!"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -7630,7 +7696,7 @@ msgid "Makes one test appointment a year from today in your account's calendar, 
 msgstr "A fiók naptárában a mai naptól számított egy évre létrehoz egy próbaidőpontot, majd módosítja és törli. Megmutatja a kiszolgáló válaszait."
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Manage Calendars"
 msgstr "Naptárak kezelése"
@@ -8325,6 +8391,11 @@ msgstr "A szervezetemnek előbb jóvá kell hagynia a MailCraft használatát. M
 #, fuzzy
 msgid "Name"
 msgstr "Név"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Name (optional)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -9166,6 +9237,11 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Most nem. A frissítés a MailCraft bezárásakor települ."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Not read yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Not saved"
@@ -9661,6 +9737,11 @@ msgstr "Megnyitás és exportálás"
 msgid "Open Attachment"
 msgstr "A csatolás megnyitása"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Open Calendar"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9720,6 +9801,11 @@ msgstr "Nyissa meg a kiszolgáló eredményét"
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Megosztott naptár megnyitása"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Open Shared Calendar…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12075,7 +12161,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -13491,6 +13577,36 @@ msgstr "A tárgy tartalmazza"
 msgid "Subject:"
 msgstr "Tárgy:"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Subscribe"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+msgid "Subscribe to Internet Calendar"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "Subscribed Calendar Settings"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "Subscribed Calendars Due"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Subscribed calendars"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -13825,10 +13941,25 @@ msgid "That account is gone."
 msgstr "A fiók már nincs meg."
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "That calendar is a copy of one on the web: it stays where it is."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "That calendar is kept by an account's server already."
 msgstr "Ezt a naptárt már egy fiók kiszolgálója tárolja."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "That calendar isn't a subscribed one."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -14062,6 +14193,11 @@ msgid "The account's server makes it when the meeting is sent; the link to join 
 msgstr "A fiók kiszolgálója a meghívó elküldésekor hozza létre az értekezletet, és visszaküldi a csatlakozási hivatkozást."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+msgid "The address of the calendar"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The approval didn't go through."
@@ -14096,6 +14232,11 @@ msgstr "A böngésző nem nyit fájlokat a rendszerből"
 #, fuzzy
 msgid "The calendar \"{name}\" can only be read: its owner hasn't let this account change it."
 msgstr "A(z) „{name}” naptár csak olvasható. A tulajdonosa nem adott szerkesztési engedélyt ehhez a fiókhoz."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14138,6 +14279,11 @@ msgstr "A naptárkapcsolat működik"
 #, fuzzy
 msgid "The calendar connection works: what was sent arrived, and the server has it as it was sent."
 msgstr "A naptárkapcsolat működik: amit küldtek, megérkezett, és a szervernek is megvan, ahogy elküldték."
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+msgid "The calendar couldn't be added"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -14210,6 +14356,11 @@ msgstr ""
 "A {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
 "\n"
 "Címre is megnyitottad, így kétszer is ott van. A másik a címre nyitott másolatot távolítsd el? A másik marad, és a szerveren semmi változás."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -14372,6 +14523,11 @@ msgstr "Annak a személynek az e-mail-címe, akinek a naptárát meg szeretné n
 #, fuzzy
 msgid "The file couldn't be read ({why})"
 msgstr "A fájlt nem lehetett elolvasni ({why})"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -14676,6 +14832,11 @@ msgstr ""
 #, fuzzy
 msgid "The name of someone you know."
 msgstr "Valakinek a neve, akit ismersz."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The name the calendar gives itself"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15634,6 +15795,11 @@ msgstr "A MailCraft ezen verziója nem keres frissítéseket."
 #, fuzzy
 msgid "This calendar can only be read: new items can't go to it"
 msgstr "Ez a naptár csak olvasható: új elemek nem kerülhetnek oda"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16748,8 +16914,18 @@ msgid "Unsaved Message"
 msgstr "Mentetlen üzenet"
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribe"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Unsubscribe from Calendar"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "Unsubscribe from Internet Calendar"
 msgstr ""
 
 #. interface
@@ -16803,6 +16979,16 @@ msgstr "Naprakész"
 msgid "Upcoming"
 msgstr "Közelgő"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+msgid "Update Now"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+msgid "Update Subscribed Calendars"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
 msgid "Updated just now"
@@ -16836,6 +17022,11 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Updated {when} · {held}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
@@ -16858,6 +17049,11 @@ msgstr "A Google-bejelentkezés használata helyett"
 #, fuzzy
 msgid "Use Send/Receive to sign in to {address}"
 msgstr "A Küldés/fogadás paranccsal jelentkezhet be ebbe a fiókba: {address}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Use This Address"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16888,6 +17084,11 @@ msgstr "Alkalmazás jelszó használata"
 #, fuzzy
 msgid "Use an app password instead"
 msgstr "App- jelszó használata helyett"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Use https:// instead"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18835,7 +19036,7 @@ msgid "no calendar was opened by address"
 msgstr "cím szerint nem nyitottak meg naptárt"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "nincs ilyen azonosítójú naptár: {id}"
@@ -20201,7 +20402,7 @@ msgid "there are too many accounts"
 msgstr "túl sok fiók van"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "Túl sok naptár van."

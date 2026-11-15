@@ -66,6 +66,17 @@ pub enum Dialog {
         /// The address that was asked for and is being read.
         reading: Option<String>,
     },
+    /// The address of a calendar on the web to subscribe to (Calendar › Open Calendar › From
+    /// Internet…, #209): it only collects the address, then runs `calendar.subscribe`
+    /// ([`crate::subscribed`]). The address is a secret like a password: it is not shown back in
+    /// any message, and is never in a log.
+    Subscribe {
+        address: String,
+        name: String,
+        error: String,
+        /// For a refused `http://` address: the same one over `https://`, offered.
+        offer: Option<String>,
+    },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
         url: String,
@@ -237,6 +248,7 @@ impl Dialog {
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
+            Dialog::Subscribe { .. } => "subscribe",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
@@ -328,6 +340,12 @@ impl Dialog {
                 let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
                 Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
             }
+            "subscribe" => Dialog::Subscribe {
+                address: params.get("address").and_then(Value::as_str).unwrap_or_default().to_string(),
+                name: String::new(),
+                error: String::new(),
+                offer: None,
+            },
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
                 let sel = c.body.selection();
@@ -618,6 +636,17 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        // A subscribed calendar and its events go from this computer; nothing is sent (#209).
+        "calendar.unsubscribe" => {
+            let calendar = params.get("id").and_then(Value::as_u64).and_then(|c| mb.calendar(c)).filter(|c| c.is_subscribed())?;
+            let text = crate::i18n::fmt(
+                tl!(
+                    "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+                ),
+                &[("name", &calendar.name)],
+            );
+            question(tl!("Unsubscribe from Calendar"), text, tl!("Unsubscribe"))
         }
         // A calendar opened by address is removed here only: the server's is not touched (#70).
         "calendar.removeShared" => {
@@ -1306,6 +1335,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
+        "calendar.subscribe" if !has("address") => Some("subscribe"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1741,6 +1771,53 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 match app.begin_open_shared(*account, address.trim()) {
                     Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
                     Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::Subscribe { address, name, error, offer } => {
+            let mut submit = false;
+            let mut use_offer = false;
+            let open = window(ctx, tl!("Subscribe to Internet Calendar"), 460.0, |ui| {
+                ui.label(tl!("The address of the calendar"));
+                let field = egui::TextEdit::singleline(address).hint_text("https://calendar.example.org/club.ics").desired_width(f32::INFINITY);
+                let resp = crate::text_menu::field(ui.add(field));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.add_space(2.0);
+                ui.label(tl!("Name (optional)"));
+                let field = egui::TextEdit::singleline(name).hint_text(tl!("The name the calendar gives itself")).desired_width(f32::INFINITY);
+                crate::text_menu::field(ui.add(field));
+                ui.label(
+                    egui::RichText::new(tl!(
+                        "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                if offer.is_some() {
+                    use_offer = ui.link(tl!("Use https:// instead")).clicked();
+                }
+                let (ok, cancel) = buttons(ui, tl!("Subscribe"), !address.trim().is_empty());
+                submit = ok || (enter && !address.trim().is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if use_offer && let Some(better) = offer.take() {
+                *address = better;
+                error.clear();
+            } else if submit && !close {
+                error.clear();
+                *offer = None;
+                match app.begin_subscribe(address, name) {
+                    Ok(_) => close = true,
+                    Err(e) => {
+                        *offer = MailApp::https_offer(address);
+                        *error = e;
+                    }
                 }
             }
         }

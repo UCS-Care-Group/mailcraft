@@ -151,6 +151,7 @@ pub(crate) enum Menu {
     Highlight,
     Junk,
     RecentAttachments,
+    OpenCalendar,
 }
 
 impl Menu {
@@ -561,8 +562,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
-    // Somebody else's calendar, by their address (#70).
-    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
+    // Somebody else's calendar, by their address (#70), or one on the web (#209).
+    groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
         "Share",
         vec![
@@ -1373,6 +1374,10 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::Junk => junk_menu(ui, app),
+        Menu::OpenCalendar => {
+            mi(ui, app, "Open Shared Calendar…", "calendar.openShared", json!({}));
+            mi(ui, app, "From Internet…", "calendar.subscribe", json!({}));
+        }
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
             let accounts = selected_accounts(app);

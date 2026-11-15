@@ -1455,6 +1455,14 @@ fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: boo
         ui.separator();
         mi(ui, app, "Remove Shared Calendar", "calendar.removeShared", json!({"id": row.id}));
     }
+    // One on the web (#209): updated ahead of its time, or let go of.
+    if app.session.mailbox.calendar(row.id).is_some_and(|c| c.is_subscribed()) {
+        ui.separator();
+        if app.services.subscription.is_some() && !app.subscription_needs_address(row.id) {
+            mi(ui, app, "Update Now", "calendar.refreshSubscribed", json!({"id": row.id}));
+        }
+        mi(ui, app, "Unsubscribe", "calendar.unsubscribe", json!({"id": row.id}));
+    }
     // A shared mailbox's calendar that the server lists under Shared Calendars too (#70): the
     // copy is hidden, or shown again, here.
     match listed_twice(app, row.id) {
