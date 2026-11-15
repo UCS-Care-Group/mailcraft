@@ -202,6 +202,11 @@ pub struct ServerFolder {
     /// brings the older mail it now covers). Cleared once a page of the new listing is in.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub relist: bool,
+    /// Which request for `relist` this is: counted up each time one is made, and echoed by the
+    /// first page of the listing it brought ([`crate::sync::MessagePage::relist_gen`]), so that a
+    /// page of an earlier listing never says a later request has been met.
+    #[serde(skip_serializing_if = "is_zero", deserialize_with = "crate::sync::lenient_or_default")]
+    pub relist_gen: u32,
 }
 
 /// What an IMAP server's STATUS said of a folder (#276), with the limit on how many of its

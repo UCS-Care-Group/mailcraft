@@ -162,9 +162,16 @@ fn links(mb: &Mailbox, account: Id) -> Vec<GraphLink> {
         .map(|s| {
             if s.relist {
                 // Listed afresh from its start (MB3.16): the link it had is never followed.
-                return GraphLink { folder: s.id.clone(), afresh: true, ..Default::default() };
+                return GraphLink { folder: s.id.clone(), afresh: true, relist_gen: s.relist_gen, ..Default::default() };
             }
-            GraphLink { folder: s.id.clone(), link: s.delta.clone(), caught_up: s.caught_up, counts: s.counts.filter(|_| s.caught_up), afresh: false }
+            GraphLink {
+                folder: s.id.clone(),
+                link: s.delta.clone(),
+                caught_up: s.caught_up,
+                counts: s.counts.filter(|_| s.caught_up),
+                afresh: false,
+                relist_gen: 0,
+            }
         })
         .collect()
 }
@@ -609,6 +616,7 @@ pub(super) fn change_done(
                 sync_state: String::new(),
                 well_known: false,
                 relist: false,
+                relist_gen: 0,
             });
             taken.pushed += 1;
             None
@@ -850,6 +858,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         // (Once the server's own, always: one odd answer doesn't clear it.)
         well_known: own,
         relist: last.relist,
+        relist_gen: last.relist_gen,
     });
     *f != before
 }

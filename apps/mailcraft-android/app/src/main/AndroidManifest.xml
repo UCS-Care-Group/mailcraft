@@ -8,6 +8,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- New-mail notifications (Android 13 and later ask the owner, once an account exists). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The background Send/Receive never runs as a foreground service: WorkManager's is left out,
+         and the permission for it with it. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:node="remove" />
 
     <application
         android:name=".MailCraftApplication"
@@ -31,6 +38,10 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
+
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:node="remove" />
 
         <activity
             android:name=".MainActivity"

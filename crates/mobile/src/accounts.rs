@@ -289,6 +289,15 @@ impl Core {
                         signin::restore_refresh(platform, &for_call, before.as_deref());
                     }
                 };
+                // (The storage cap is the mailbox's, not the account's: a new account's choice of it
+                // goes again with the account when its setup fails.)
+                let limits_before = s.mailbox.device_limits;
+                let restore_limits = |s: &mut mailcraft_engine::Session| {
+                    if s.mailbox.device_limits != limits_before {
+                        s.mailbox.device_limits = limits_before;
+                        s.mailbox_changed();
+                    }
+                };
                 let account = match known {
                     Some(id) => id,
                     None => {
@@ -299,6 +308,7 @@ impl Core {
                                 Ok(()) => Ok(id),
                                 Err(e) => {
                                     let _ = s.run("account.remove", &json!({"id": id}));
+                                    restore_limits(s);
                                     Err(CoreError::from(e))
                                 }
                             }
@@ -320,6 +330,9 @@ impl Core {
                 if let Some(why) = crate::sync_api::adopt_refusal(lang, adopted) {
                     if known.is_none() && s.run("account.remove", &json!({"id": account})).is_err() {
                         log::warn!("accounts: an account added for a refused sign-in couldn't be removed again");
+                    }
+                    if known.is_none() {
+                        restore_limits(s);
                     }
                     undo_kept(platform.as_ref());
                     return Ok(Err(why));

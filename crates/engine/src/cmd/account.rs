@@ -666,6 +666,7 @@ fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
     for f in mb.folders.iter_mut().filter(|f| accounts.contains(&f.account)) {
         if let Some(server) = f.server.as_mut().filter(|s| !s.id.is_empty()) {
             server.relist = true;
+            server.relist_gen = server.relist_gen.wrapping_add(1);
         }
     }
 }
