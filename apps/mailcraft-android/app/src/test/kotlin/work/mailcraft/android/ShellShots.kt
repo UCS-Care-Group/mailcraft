@@ -57,4 +57,16 @@ internal object ShellShots {
             }
         }
     }
+
+    /** The window while the core opens the mailbox. */
+    @Composable
+    fun Starting() {
+        CompositionLocalProvider(LocalMessageZone provides ZoneOffset.UTC, LocalMessageLocale provides Locale.US) {
+            MailCraftTheme {
+                Surface {
+                    Opening()
+                }
+            }
+        }
+    }
 }

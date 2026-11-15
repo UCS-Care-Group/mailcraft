@@ -439,6 +439,9 @@ const DELETE: &[&str] = &[
     "mail.removeAttachment",
     "folder.delete",
     "folder.empty",
+    // Copies only this computer has, of mail its server has (#1401): undo brings them back, but
+    // they are gone from the mailbox. A preview only counts.
+    "mail.removeImportedDuplicates",
     "calendar.removeCalendar",
     // Local contacts, tasks, events and categories have no Deleted Items to come back from, and
     // undo is short-lived (what a server has been told of events and tasks clears it).
@@ -754,6 +757,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
         "ui.closeWindow" if unsaved(params) => return Access::Asked(Class::Delete),
         "file.new" | "file.open" if owner_writing_any(s) || unsaved(params) => return Access::Asked(Class::Mailbox),
+        "mail.removeImportedDuplicates" if p::bool(params, "preview") == Some(true) => return Access::Safe,
         _ => {}
     }
     if base != Access::Safe {
@@ -1383,6 +1387,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let n = if id == "folder.empty" { crate::cmd::folder::emptied(s, f).len() } else { crate::cmd::folder::deleted_with(s, f).len() };
             let verb = if id == "folder.empty" { "permanently empty" } else { "permanently delete the folder" };
             format!("{verb} {name} and the {} in it", plural(n, "{n} message", "{n} messages"))
+        }
+        // (#1401) Counted now: a different count on the yes is another question.
+        "mail.removeImportedDuplicates" => {
+            let folder = p::id_strict(params, "folder").ok().flatten();
+            let n = crate::cmd::imported_dupes::twins(&s.mailbox, folder).remove.len();
+            let where_ = folder.and_then(|f| s.mailbox.folder(f)).map_or_else(|| "every folder".to_string(), |f| quoted(&f.name));
+            format!(
+                "remove {} that only this computer has, beside the same mail from its server in {where_} (the server's copies are not touched, and nothing is sent)",
+                plural(n, "{n} message", "{n} messages")
+            )
         }
         "account.setAutomaticReplies" => {
             let account = p::id(params, "account")
