@@ -73,6 +73,11 @@ msgstr ""
 msgid "\"{name}\" will be permanently deleted."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\" will be removed from your templates."
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "\"{set}\" doesn't name the messages to change"
@@ -8276,6 +8281,11 @@ msgid "Only one part of this message was signed, and what's shown here holds mor
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Only plain text is kept; formatting and images are not saved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Only send during this time range:"
 msgstr ""
@@ -11844,6 +11854,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template #{n} will be removed from your templates."
 msgstr ""
 
 #. interface
@@ -15713,6 +15728,11 @@ msgid "a task needs a title"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "a template named \"{name}\" already exists"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 msgid "add an account first"
 msgstr ""
@@ -16629,6 +16649,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms/junk.rs
 msgid "someone@example.org or @example.org"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "templates exceed the total size limit"
 msgstr ""
 
 #. what a command says
@@ -17699,7 +17724,7 @@ msgid "too many flags for one command"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/template.rs
+#: crates/model/src/mailbox.rs
 msgid "too many templates"
 msgstr ""
 

@@ -228,6 +228,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("signature.open", "{}", Setup::None),
     ("signature.save", "{}", Setup::None),
     ("signature.close", "{}", Setup::None),
+    ("template.create", r#"{"name": "x", "subject": "y", "body": "z"}"#, Setup::None),
+    ("template.remove", r#"{"id": 1}"#, Setup::None),
     ("ui.alwaysDownloadPictures", "{}", Setup::None),
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),

@@ -2089,7 +2089,7 @@ impl MailApp {
             return self.run("compose.undoSend", json!({}));
         }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
-        let params = dialogs::as_opened(self, id, params);
+        let mut params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
         if dialogs::leaves_message(self, id, &params) {
             self.dialog = Some(dialogs::leaving(id, params));
@@ -2161,6 +2161,11 @@ impl MailApp {
             // Another mailbox file is read in the background, and opens once it is.
             "file.open" if opening::reads_ahead(self, &params) => opening::read_ahead(self, &params),
             _ => {
+                if id == "template.remove"
+                    && let Some(map) = params.as_object_mut()
+                {
+                    map.remove("confirmed");
+                }
                 self.windows.place = place;
                 let r = self.execute(id, params);
                 self.windows.place = None;

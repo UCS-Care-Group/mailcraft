@@ -3,7 +3,7 @@
 //! Reusable local message templates with plain-text field filling (#952).
 
 use mailcraft_i18n::date::{self, Day};
-use mailcraft_model::{Address, Contact, MAX_TEMPLATES, Template, TemplateFields};
+use mailcraft_model::{Address, Contact, Template, TemplateFields};
 use serde_json::{Value, json};
 
 use super::{bad, done, fail, needs_compose};
@@ -37,12 +37,14 @@ fn opt_str<'a>(v: &'a Value, k: &str) -> Result<Option<&'a str>, CmdError> {
 }
 
 fn compose_body_plain(c: &crate::session::Compose) -> String {
-    if let Some((before, _sig, _after)) = c.body.text().around_signature() {
-        let plain = before.map(|r| r.to_plain()).unwrap_or_default();
+    if c.body.text().signature().is_some() {
+        let mut body = c.body.text().clone();
+        body.remove_signature();
+        let plain = body.to_plain();
         if plain.trim().is_empty() {
             return String::new();
         }
-        return plain.strip_suffix('\n').unwrap_or(&plain).to_string();
+        return plain.trim_end_matches('\n').to_string();
     }
     c.body.plain()
 }
@@ -66,18 +68,19 @@ fn create(s: &mut Session, v: &Value) -> CmdResult {
         }
     };
 
-    if s.mailbox.templates().len() >= MAX_TEMPLATES {
-        return Err(fail("too many templates"));
-    }
-
     let now = s.now();
     let id = s.mailbox.alloc_id();
     let template = Template::new(id, name, &subject, &body, now);
     if template.name.is_empty() && template.subject.is_empty() && template.body.is_empty() {
         return Err(fail("give the template a name, subject or body"));
     }
-    if !s.mailbox.add_template(template.clone()) {
-        return Err(fail("too many templates"));
+    if !template.name.is_empty()
+        && let Some(existing) = s.mailbox.template_by_name(&template.name)
+    {
+        return Err(failed!("a template named \"{name}\" already exists", name = existing.name));
+    }
+    if let Err(err) = s.mailbox.add_template(template.clone()) {
+        return Err(fail(err.to_string()));
     }
     Ok(json!({
         "id": template.id,

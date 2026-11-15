@@ -370,3 +370,39 @@ pub(crate) fn capped_map<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
     }
     deserializer.deserialize_map(V(PhantomData))
 }
+
+/// `deserialize_with` for the mailbox's local templates: charges the budget per entry, shares each
+/// template behind an `Arc`, and trims entries past [`crate::MAX_TEMPLATES`] or
+/// [`crate::MAX_TEMPLATES_TOTAL_BYTES`] so a hand-edited file cannot blow up memory on load.
+pub(crate) fn capped_templates<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<Id, Arc<crate::Template>>, D::Error> {
+    struct V;
+    impl<'de> Visitor<'de> for V {
+        type Value = BTreeMap<Id, Arc<crate::Template>>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a map of templates")
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            let mut out: BTreeMap<Id, Arc<crate::Template>> = BTreeMap::new();
+            let mut total_bytes: usize = 0;
+            while let Some((id, mut item)) = map.next_entry::<Id, crate::Template>()? {
+                charge()?;
+                item.sanitize();
+                let bytes = item.byte_size();
+                if let Some(prev) = out.get(&id) {
+                    let next_total = total_bytes.saturating_sub(prev.byte_size()).saturating_add(bytes);
+                    if next_total <= crate::MAX_TEMPLATES_TOTAL_BYTES {
+                        total_bytes = next_total;
+                        out.insert(id, Arc::new(item));
+                    }
+                    continue;
+                }
+                if out.len() < crate::MAX_TEMPLATES && total_bytes.saturating_add(bytes) <= crate::MAX_TEMPLATES_TOTAL_BYTES {
+                    total_bytes = total_bytes.saturating_add(bytes);
+                    out.insert(id, Arc::new(item));
+                }
+            }
+            Ok(out)
+        }
+    }
+    deserializer.deserialize_map(V)
+}

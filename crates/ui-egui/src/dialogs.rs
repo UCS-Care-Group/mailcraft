@@ -340,7 +340,12 @@ impl Dialog {
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "saveTemplate" => {
                 let c = app.session.compose.as_ref()?;
-                let name = params.get("name").and_then(Value::as_str).filter(|s| *s != "saveTemplate").unwrap_or(c.subject.trim()).to_string();
+                let name = params
+                    .get("templateName")
+                    .and_then(Value::as_str)
+                    .or_else(|| params.get("name").and_then(Value::as_str).filter(|s| *s != "saveTemplate"))
+                    .unwrap_or(c.subject.trim())
+                    .to_string();
                 Dialog::SaveTemplate { name, error: String::new() }
             }
             "insertTemplate" => {
@@ -560,6 +565,16 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 crate::i18n::fmt(tl!("\"{name}\" will be permanently deleted."), &[("name", name)])
             };
             question(tl!("Delete Contact"), format!("{what} {}", tl!("Contacts don't go to Deleted Items.")), tl!("Delete"))
+        }
+        "template.remove" => {
+            let t = mb.template(mailcraft_engine::p::id_strict(params, "id").ok()??)?;
+            let name = t.name.trim();
+            let what = if name.is_empty() {
+                crate::i18n::fmt(tl!("Template #{n} will be removed from your templates."), &[("n", &t.id.to_string())])
+            } else {
+                crate::i18n::fmt(tl!("\"{name}\" will be removed from your templates."), &[("name", name)])
+            };
+            question(tl!("Remove Template"), what, tl!("Remove"))
         }
         "folder.empty" => {
             let f = folder("id")?;
@@ -1722,6 +1737,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     .color(t.text_dim)
                     .size(11.0),
                 );
+                ui.label(egui::RichText::new(tl!("Only plain text is kept; formatting and images are not saved.")).color(t.text_dim).size(11.0));
                 if !error.is_empty() {
                     ui.label(egui::RichText::new(error.as_str()).color(t.red));
                 }

@@ -52,6 +52,8 @@ pub enum Object {
     Rule,
     /// A signature.
     Signature,
+    /// A message template.
+    Template,
     /// A message being written: the one named, or the current one, whole.
     Compose,
     /// A window of the program, or its dialog: the one named, or the one in front. (The window
@@ -133,6 +135,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.list" => Account,
         "rules.add" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,
+        "template.create" | "template.remove" => Template,
         "compose.send" | "compose.sendLater" | "compose.discard" | "compose.close" => Compose,
         "ui.closeWindow" | "ui.eventWindow" | "ui.dialog" | "ui.closeDialog" => Window,
         "file.new" | "file.open" | "file.save" | "file.saveAs" => Mailbox,

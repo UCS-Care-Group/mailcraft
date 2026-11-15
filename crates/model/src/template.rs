@@ -14,6 +14,9 @@ use crate::time::Timestamp;
 
 /// Maximum number of templates kept in a mailbox.
 pub const MAX_TEMPLATES: usize = 500;
+/// Maximum combined byte size of all templates kept in a mailbox (4 MiB across name, subject, and
+/// body). Bounds both memory and undo-history snapshots when many large templates exist.
+pub const MAX_TEMPLATES_TOTAL_BYTES: usize = 4 * 1024 * 1024;
 /// Maximum length of a template's name, in characters.
 pub const MAX_TEMPLATE_NAME: usize = 120;
 /// Maximum length of a template's subject, in characters.
@@ -157,6 +160,11 @@ impl Template {
         let subject = clean_single_line(&subject_raw, MAX_TEMPLATE_SUBJECT, MAX_TEMPLATE_SUBJECT_BYTES);
         let body = expand_text_capped(&self.body, fields, MAX_EXPANDED_CHARS, MAX_EXPANDED_BYTES);
         (subject, body)
+    }
+
+    /// Total byte size of this template's text fields (`name`, `subject`, and `body`).
+    pub fn byte_size(&self) -> usize {
+        self.name.len().saturating_add(self.subject.len()).saturating_add(self.body.len())
     }
 }
 

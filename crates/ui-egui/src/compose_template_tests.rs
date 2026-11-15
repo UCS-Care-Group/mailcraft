@@ -133,10 +133,21 @@ fn templates_ribbon_label_command_search_and_gui_dialogs_work_end_to_end() {
         assert!(crate::dialogs::score("templates", &entry.1, &entry.2, &entry.0).is_some(), "{id} should match 'templates'");
     }
 
-    // Opening Save as Template via ui.dialog {"name": "saveTemplate"} keeps the subject default instead of "saveTemplate".
+    // Opening Save as Template via ui.dialog {"name": "saveTemplate"} keeps the subject default instead of "saveTemplate",
+    // and displays the plain-text notice.
     h.state_mut().execute("ui.dialog", json!({"name": "saveTemplate"})).unwrap();
     h.run_steps(2);
     assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::SaveTemplate { name, .. }) if name == "Status Ping"));
+    assert!(h.query_by_label_contains("Only plain text is kept").is_some());
+
+    // Passing explicit templateName pre-fills even "saveTemplate" cleanly.
+    h.state_mut().execute("ui.dialog", json!({"name": "saveTemplate", "templateName": "saveTemplate"})).unwrap();
+    h.run_steps(2);
+    assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::SaveTemplate { name, .. }) if name == "saveTemplate"));
+
+    // Reset back to "Status Ping" and save via the dialog's Save button.
+    h.state_mut().execute("ui.dialog", json!({"name": "saveTemplate"})).unwrap();
+    h.run_steps(2);
 
     // Save template via the dialog's Save button.
     h.get_by_label("Save").click();
@@ -170,4 +181,54 @@ fn templates_ribbon_label_command_search_and_gui_dialogs_work_end_to_end() {
     h.run_steps(3);
     assert!(h.state().dialog.is_none());
     assert!(h.state().session.mailbox.templates().is_empty());
+}
+
+#[test]
+fn templates_menu_aligns_rows_and_remove_buttons_and_confirms_delete() {
+    let mut a = app();
+    let short = a.execute("template.create", json!({"name": "Hi", "subject": "S", "body": "B"})).unwrap()["id"].as_u64().unwrap();
+    let long = a
+        .execute(
+            "template.create",
+            json!({"name": "Extremely Long Template Name That Exceeds Menu Column Width Easily", "subject": "L", "body": "Body"}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+
+    let mut h = harness(a);
+    h.state_mut().run("mail.new", json!({})).unwrap();
+    h.run_steps(3);
+
+    // Clicking the Templates button opens templates_menu; hovering it shows the "Templates" tooltip.
+    let btn = h.state().hit.rect("ribbon", crate::ribbon::hit_id("templates")).expect("Templates ribbon button");
+    h.event(egui::Event::PointerMoved(btn.center()));
+    h.run_steps(45);
+    assert!(h.query_all_by_label_contains("Templates").next().is_some(), "Templates tooltip/label must be visible");
+    click(&mut h, btn.center());
+    h.run_steps(2);
+
+    let r_short = h.state().hit.rect("templateMenuRow", short).expect("short row hit");
+    let r_long = h.state().hit.rect("templateMenuRow", long).expect("long row hit");
+    assert!((r_short.min.x - r_long.min.x).abs() < 0.5, "short & long rows must align left");
+    assert!((r_short.width() - r_long.width()).abs() < 0.5, "short & long rows must have equal fixed width");
+
+    let x_short = h.state().hit.rect("templateMenuRemove", short).expect("short x hit");
+    let x_long = h.state().hit.rect("templateMenuRemove", long).expect("long x hit");
+    assert!((x_short.min.x - x_long.min.x).abs() < 0.5, "remove buttons must align in one column");
+    assert!((x_short.max.x - x_long.max.x).abs() < 0.5);
+
+    // Clicking the remove button asks for confirmation instead of deleting right away.
+    click(&mut h, x_short.center());
+    assert_eq!(h.state().session.mailbox.templates().len(), 2, "template must remain until confirmed");
+    assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("confirm"));
+
+    h.get_by_label("Remove").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.mailbox.templates().len(), 1);
+    assert!(h.state().session.mailbox.template(short).is_none());
+
+    // Removal can also be undone.
+    assert!(h.state_mut().session.undo());
+    assert!(h.state().session.mailbox.template(short).is_some());
 }

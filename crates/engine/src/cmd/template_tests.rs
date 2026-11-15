@@ -123,3 +123,30 @@ fn hostile_template_inputs_are_bounded_and_never_panic() {
     let ins = s.run("template.insert", &json!({"id": tpl["id"]})).unwrap();
     assert_eq!(ins["body"], "Mallory {date} @ {recipient.name} on October 14, 2026");
 }
+
+#[test]
+fn create_keeps_text_after_mid_message_signature_and_rejects_duplicate_names() {
+    let mut s = sample_session();
+
+    // Signature in the middle: text before and after are kept, while only the signature block is removed.
+    s.run("signature.set", &json!({"name": "Work", "text": "-- \nAlice Example"})).unwrap();
+    s.run("mail.new", &json!({"subject": "Mid-sig", "body": "Opening paragraph."})).unwrap();
+    let mid = s.compose.as_ref().unwrap().body.text().len();
+    s.run("compose.select", &json!({"from": mid})).unwrap();
+    s.run("compose.signature", &json!({"name": "Work"})).unwrap();
+    let end = s.compose.as_ref().unwrap().body.text().len();
+    s.run("compose.select", &json!({"from": end})).unwrap();
+    s.run("compose.type", &json!({"text": "\nP.S. Text written after the signature."})).unwrap();
+
+    let created = s.run("template.create", &json!({"name": "MidSigTpl"})).unwrap();
+    let body = created["body"].as_str().unwrap();
+    assert!(body.contains("Opening paragraph."), "{body:?}");
+    assert!(body.contains("P.S. Text written after the signature."), "{body:?}");
+    assert!(!body.contains("Alice Example"), "{body:?}");
+
+    // Creating a second template with the same name (ignoring case and whitespace) is refused
+    // and names the existing template.
+    let err = s.run("template.create", &json!({"name": " midsigtpl ", "body": "Other"})).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("MidSigTpl"), "{msg}");
+}

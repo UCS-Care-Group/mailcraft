@@ -204,3 +204,35 @@ fn the_account_question_names_a_local_mailbox_and_the_only_account() {
     assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
     assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
 }
+
+#[test]
+fn templates_require_settings_on_create_and_delete_on_remove_including_undo() {
+    assert_eq!(access("template.list"), Some(Access::Safe));
+    assert_eq!(access("template.insert"), Some(Access::Safe));
+    assert_eq!(access("template.create"), Some(Access::Owner(Class::Settings)));
+    assert_eq!(access("template.remove"), Some(Access::Owner(Class::Delete)));
+
+    let mut s = sample();
+    let create_params = json!({"name": "Follow-up", "subject": "Hi", "body": "Checking in"});
+    assert!(matches!(check(&s, "template.create", &create_params, &[]), Verdict::Ask(Class::Settings, _)));
+    assert_eq!(check(&s, "template.create", &create_params, &[Class::Settings]), Verdict::Run);
+
+    let created = s.run("template.create", &create_params).unwrap();
+    let tid = created["id"].as_u64().unwrap();
+
+    // Undoing template.create removes a local template, so edit.undo is treated as Delete.
+    assert!(s.undo_removes_items(false));
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)));
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Delete]), Verdict::Run);
+
+    // Removing an existing template asks Delete and names the template.
+    let rem_params = json!({"id": tid});
+    assert!(matches!(check(&s, "template.remove", &rem_params, &[]), Verdict::Ask(Class::Delete, ref q) if q.contains("Follow-up")));
+    assert_eq!(check(&s, "template.remove", &rem_params, &[Class::Delete]), Verdict::Run);
+
+    s.run("template.remove", &rem_params).unwrap();
+    // Undoing template.remove restores a template (Settings); redoing removes it again (Delete).
+    assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Settings, _)));
+    assert!(s.undo());
+    assert!(matches!(check(&s, "edit.redo", &json!({}), &[]), Verdict::Ask(Class::Delete, _)));
+}

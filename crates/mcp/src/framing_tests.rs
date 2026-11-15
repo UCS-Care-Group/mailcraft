@@ -254,23 +254,29 @@ fn no_marker_in_any_content_answer_stands_outside_a_frame() {
             exec(&mut h, &pol, "mail.select", json!({"id": f.message})).unwrap();
         }
         let p = if *id == "template.insert" {
-            let tpl = exec(
-                &mut h,
-                &pol,
-                "template.create",
-                json!({
-                    "name": marked("templateInsertName"),
-                    "subject": marked("templateInsertSubject"),
-                    "body": format!("Hello {{recipient.name}}, {}", marked("templateInsertBody"))
-                }),
-            )
-            .unwrap();
+            let tpl = h
+                .session
+                .run(
+                    "template.create",
+                    &json!({
+                        "name": marked("templateInsertName"),
+                        "subject": marked("templateInsertSubject"),
+                        "body": format!("Hello {{recipient.name}}, {}", marked("templateInsertBody"))
+                    }),
+                )
+                .unwrap();
             exec(&mut h, &pol, "mail.new", json!({"to": "Hostile Contact <hostile-contact@example.org>"})).unwrap();
             json!({"id": tpl["id"]})
         } else {
             params(&f, id)
         };
-        let answer = exec(&mut h, &pol, id, p.clone()).unwrap_or_else(|e| panic!("{id} {p}: {e}"));
+        let saved_allow = std::mem::take(&mut h.allow);
+        if *id == "template.create" {
+            h.allow = vec![mailcraft_engine::agent::Class::Settings];
+        }
+        let answer = exec(&mut h, &pol, id, p.clone());
+        h.allow = saved_allow;
+        let answer = answer.unwrap_or_else(|e| panic!("{id} {p}: {e}"));
         let text = answer.to_string();
         // Every command but Send/Receive's progress (no sync has run) answered with the
         // hostile items, so the test sees what it is meant to.

@@ -1175,8 +1175,8 @@ pub struct Mailbox {
     pub junk_accounts: BTreeMap<Id, crate::JunkLists>,
     pub signatures: Vec<Signature>,
     /// Reusable local message templates with fields (#952), kept on this computer.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
-    pub templates: BTreeMap<Id, crate::Template>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_templates")]
+    pub templates: BTreeMap<Id, Arc<crate::Template>>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub pending: Vec<Pending>,
@@ -2926,13 +2926,13 @@ impl Mailbox {
     // ---- templates ----
 
     /// All local message templates in the mailbox.
-    pub fn templates(&self) -> &BTreeMap<Id, crate::Template> {
+    pub fn templates(&self) -> &BTreeMap<Id, Arc<crate::Template>> {
         &self.templates
     }
 
     /// Look up a template by its unique id.
     pub fn template(&self, id: Id) -> Option<&crate::Template> {
-        self.templates.get(&id)
+        self.templates.get(&id).map(Arc::as_ref)
     }
 
     /// Look up a template by its name (case-insensitive, trimmed).
@@ -2941,23 +2941,40 @@ impl Mailbox {
         if needle.is_empty() {
             return None;
         }
-        self.templates.values().find(|t| t.name.eq_ignore_ascii_case(needle))
+        self.templates.values().find(|t| t.name.eq_ignore_ascii_case(needle)).map(Arc::as_ref)
     }
 
     /// All templates sorted by name (case-insensitive), then id.
     pub fn templates_sorted(&self) -> Vec<crate::Template> {
-        let mut list: Vec<crate::Template> = self.templates.values().cloned().collect();
+        let mut list: Vec<crate::Template> = self.templates.values().map(|t| (**t).clone()).collect();
         list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.id.cmp(&b.id)));
         list
     }
 
-    /// Add a template. Returns `true` if added, `false` if limit [`crate::MAX_TEMPLATES`] was reached.
-    pub fn add_template(&mut self, template: crate::Template) -> bool {
-        if self.templates.len() >= crate::MAX_TEMPLATES && !self.templates.contains_key(&template.id) {
-            return false;
+    /// Combined byte size of all templates' text fields (`name`, `subject`, and `body`).
+    pub fn templates_total_bytes(&self) -> usize {
+        self.templates.values().map(|t| t.byte_size()).fold(0usize, usize::saturating_add)
+    }
+
+    /// Add a template. Refuses duplicate names, count over [`crate::MAX_TEMPLATES`], or combined
+    /// size over [`crate::MAX_TEMPLATES_TOTAL_BYTES`].
+    pub fn add_template(&mut self, template: crate::Template) -> Result<(), ModelError> {
+        let needle = template.name.trim();
+        if !needle.is_empty()
+            && let Some(existing) = self.templates.values().find(|t| t.id != template.id && t.name.eq_ignore_ascii_case(needle))
+        {
+            return Err(ModelError::Invalid(format!("a template named \"{}\" already exists", existing.name)));
         }
-        self.templates.insert(template.id, template);
-        true
+        if self.templates.len() >= crate::MAX_TEMPLATES && !self.templates.contains_key(&template.id) {
+            return Err(ModelError::Invalid("too many templates".into()));
+        }
+        let replaced_bytes = self.templates.get(&template.id).map_or(0, |t| t.byte_size());
+        let next_total = self.templates_total_bytes().saturating_sub(replaced_bytes).saturating_add(template.byte_size());
+        if next_total > crate::MAX_TEMPLATES_TOTAL_BYTES {
+            return Err(ModelError::Invalid("templates exceed the total size limit".into()));
+        }
+        self.templates.insert(template.id, Arc::new(template));
+        Ok(())
     }
 
     /// Remove a template by its unique id. Returns `true` if removed.
@@ -3569,7 +3586,9 @@ impl Mailbox {
             .chain(self.tasks.keys())
             .chain(self.notes.keys())
             .chain(self.journal.keys())
+            .chain(self.templates.keys())
             .copied()
+            .chain(self.templates.values().map(|t| t.id))
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
@@ -3609,7 +3628,11 @@ impl Mailbox {
                 *next += 1;
             }
         }
-        let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
+        let rehomed = big.len()
+            + rehome(&mut self.contacts, next)
+            + rehome(&mut self.events, next)
+            + rehome(&mut self.tasks, next)
+            + rehome(&mut self.templates, next);
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {
             if let Some(m) = self.messages.get_mut(k) {
@@ -3619,7 +3642,8 @@ impl Mailbox {
         let rekeyed = misnamed.len()
             + rekey(&mut self.contacts, |c| &mut c.id)
             + rekey(&mut self.events, |e| &mut e.id)
-            + rekey(&mut self.tasks, |t| &mut t.id);
+            + rekey(&mut self.tasks, |t| &mut t.id)
+            + rekey(&mut self.templates, |t| &mut t.id);
         if rehomed + rekeyed > 0 {
             fixed.push(format!("{} item id(s) corrected", rehomed.max(rekeyed)));
         }
@@ -3894,16 +3918,25 @@ impl Mailbox {
         if called_off > 0 {
             fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
         }
-        // Templates: drop invalid ids or empty ones, sanitize strings, and cap at MAX_TEMPLATES.
+        // Templates: sanitize strings, drop empty ones, and cap at MAX_TEMPLATES and MAX_TEMPLATES_TOTAL_BYTES.
         let before_templates = self.templates.clone();
-        self.templates.retain(|id, t| sane(id) && t.id == *id);
-        for t in self.templates.values_mut() {
-            t.sanitize();
+        let mut empty_template_ids = Vec::new();
+        for (&id, tpl) in &mut self.templates {
+            let mut sanitized = (**tpl).clone();
+            sanitized.sanitize();
+            if sanitized != **tpl {
+                *Arc::make_mut(tpl) = sanitized;
+            }
+            if tpl.name.is_empty() && tpl.subject.is_empty() && tpl.body.is_empty() {
+                empty_template_ids.push(id);
+            }
         }
-        self.templates.retain(|_, t| !t.name.is_empty() || !t.subject.is_empty() || !t.body.is_empty());
-        while self.templates.len() > crate::MAX_TEMPLATES {
-            if let Some(first_key) = self.templates.keys().next().copied() {
-                self.templates.remove(&first_key);
+        for id in empty_template_ids {
+            self.templates.remove(&id);
+        }
+        while self.templates.len() > crate::MAX_TEMPLATES || self.templates_total_bytes() > crate::MAX_TEMPLATES_TOTAL_BYTES {
+            if let Some(last_key) = self.templates.keys().next_back().copied() {
+                self.templates.remove(&last_key);
             } else {
                 break;
             }

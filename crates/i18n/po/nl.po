@@ -87,6 +87,11 @@ msgstr "„{name}” maakt deel uit van een reeks. Bedoelt u alleen het exemplaa
 msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}” wordt definitief verwijderd."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\" will be removed from your templates."
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -9992,6 +9997,11 @@ msgid "Only one part of this message was signed, and what's shown here holds mor
 msgstr "Alleen één deel van dit bericht was ondertekend, en wat hier wordt getoond, omvat meer dan dat deel: wat erbuiten staat, kan van alles zeggen."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Only plain text is kept; formatting and images are not saved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Only send during this time range:"
@@ -14305,6 +14315,11 @@ msgstr "Vertel de makers van MailCraft wat er misging, op GitHub of per e-mail. 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template #{n} will be removed from your templates."
 msgstr ""
 
 #. interface
@@ -18972,6 +18987,11 @@ msgid "a task needs a title"
 msgstr "een taak heeft een titel nodig"
 
 #. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "a template named \"{name}\" already exists"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "add an account first"
@@ -20066,6 +20086,11 @@ msgstr "aanmelden vereist"
 #, fuzzy
 msgid "someone@example.org or @example.org"
 msgstr "naam@example.org of @example.org"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "templates exceed the total size limit"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21348,7 +21373,7 @@ msgid "too many flags for one command"
 msgstr "te veel vlaggen voor één opdracht"
 
 #. what a command says
-#: crates/engine/src/cmd/template.rs
+#: crates/model/src/mailbox.rs
 msgid "too many templates"
 msgstr ""
 

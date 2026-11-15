@@ -3525,6 +3525,7 @@ impl Session {
         gone.extend(now.tasks.keys().filter(|k| !back.tasks.contains_key(*k)).map(|k| format!("task {k}")));
         gone.extend(now.notes.keys().filter(|k| !back.notes.contains_key(*k)).map(|k| format!("note {k}")));
         gone.extend(now.journal.keys().filter(|k| !back.journal.contains_key(*k)).map(|k| format!("journal entry {k}")));
+        gone.extend(now.templates.keys().filter(|k| !back.templates.contains_key(*k)).map(|k| format!("template {k}")));
         gone.extend(now.calendars.iter().filter(|c| !back.calendars.iter().any(|t| t.id == c.id)).map(|c| format!("calendar {}", c.id)));
         gone.extend(categories_gone(&now.categories, &back.categories).into_iter().map(|n| format!("category {n}")));
         // An account's own list the undo doesn't keep is taken away whole.
@@ -3563,7 +3564,12 @@ impl Session {
         if self.undo_deletes(redo) {
             return Some(Class::Delete);
         }
-        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
+        if to.rules != now.rules
+            || to.signatures != now.signatures
+            || to.templates != now.templates
+            || to.junk != now.junk
+            || to.junk_accounts != now.junk_accounts
+        {
             return Some(Class::Settings);
         }
         // Public keys imported or removed (#30): the keys Digital signatures are checked with.

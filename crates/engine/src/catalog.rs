@@ -183,6 +183,7 @@ Message|Include|Attach File|compose.attach
 Message|Include|Remove Attachment|compose.removeAttachment
 Message|Include|Attach Item|compose.attachItem
 Message|Include|Signature|compose.signature
+Message|Include|Templates|template.insert
 Message|Include|Link|compose.link
 Message|Tags|Follow Up|compose.followUp
 Message|Tags|High Importance|compose.highImportance

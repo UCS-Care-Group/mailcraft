@@ -96,7 +96,9 @@ pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
-pub use template::{MAX_TEMPLATE_BODY, MAX_TEMPLATE_NAME, MAX_TEMPLATE_SUBJECT, MAX_TEMPLATES, Template, TemplateFields, expand_text};
+pub use template::{
+    MAX_TEMPLATE_BODY, MAX_TEMPLATE_NAME, MAX_TEMPLATE_SUBJECT, MAX_TEMPLATES, MAX_TEMPLATES_TOTAL_BYTES, Template, TemplateFields, expand_text,
+};
 pub use thread_index::{ThreadIndex, ThreadKey};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".

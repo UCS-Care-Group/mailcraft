@@ -1556,8 +1556,29 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
 /// The reusable message templates menu while composing (#952): save the message being written
 /// as a template, insert one with fields filled in, or remove one.
 pub(crate) fn templates_menu(ui: &mut Ui, app: &mut MailApp) {
+    const MENU_W: f32 = 240.0;
+    const ROW_H: f32 = 24.0;
+    const REMOVE_W: f32 = 22.0;
+    const NAME_W: f32 = MENU_W - REMOVE_W - 4.0;
+
+    ui.set_width(MENU_W);
+    let t = Tokens::get(ui.ctx());
     let composing = app.session.compose.is_some();
-    if ui.add_enabled(composing, egui::Button::new(tl!("Save as Template…")).min_size(vec2(190.0, 0.0))).clicked() {
+
+    let left_row = |ui: &mut Ui, width: f32, label: &str, enabled: bool| -> egui::Response {
+        let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+        let (r, resp) = ui.allocate_exact_size(vec2(width, ROW_H), sense);
+        if resp.hovered() && enabled {
+            let fill = if resp.is_pointer_button_down_on() { t.pressed } else { t.hover };
+            ui.painter().rect_filled(r, 4.0, fill);
+        }
+        let ink = if enabled { t.text } else { t.text_disabled };
+        paint_clipped(ui.painter(), pos2(r.min.x + 8.0, r.center().y), width - 16.0, label, regular(12.5), ink);
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
+        resp
+    };
+
+    if left_row(ui, MENU_W, tl!("Save as Template…"), composing).clicked() {
         let _ = app.run("template.create", json!({}));
         ui.close();
     }
@@ -1565,25 +1586,35 @@ pub(crate) fn templates_menu(ui: &mut Ui, app: &mut MailApp) {
 
     let templates = app.session.mailbox.templates_sorted();
     if templates.is_empty() {
-        ui.add_enabled(false, egui::Button::new(tl!("No templates yet")).min_size(vec2(190.0, 0.0)));
+        left_row(ui, MENU_W, tl!("No templates yet"), false);
         return;
     }
 
     let mut insert_id = None;
     let mut remove_id = None;
     for tpl in templates {
-        let label = if tpl.name.is_empty() {
-            crate::i18n::fmt(tl!("Template #{n}"), &[("n", &tpl.id.to_string())])
-        } else {
-            mailcraft_names::shown(&tpl.name, 28)
-        };
+        let label = if tpl.name.is_empty() { crate::i18n::fmt(tl!("Template #{n}"), &[("n", &tpl.id.to_string())]) } else { tpl.name.clone() };
         ui.horizontal(|ui| {
-            let btn = ui.add_enabled(composing, egui::Button::new(label).min_size(vec2(160.0, 0.0)));
-            let btn = if !tpl.subject.is_empty() { btn.on_hover_text(&tpl.subject) } else { btn };
-            if btn.clicked() {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let mut resp = left_row(ui, NAME_W, &label, composing);
+            app.hit.add("templateMenuRow", tpl.id, resp.rect);
+            if !tpl.subject.is_empty() && tpl.subject != label {
+                resp = resp.on_hover_text(format!("{label}\n{}", tpl.subject));
+            } else {
+                resp = resp.on_hover_text(&label);
+            }
+            if resp.clicked() && composing {
                 insert_id = Some(tpl.id);
             }
-            if widgets::icon_button(ui, "close", tl!("Remove"), 12.0, true).clicked() {
+            let (xr, xresp) = ui.allocate_exact_size(vec2(REMOVE_W, ROW_H), egui::Sense::click());
+            app.hit.add("templateMenuRemove", tpl.id, xr);
+            if xresp.hovered() {
+                let fill = if xresp.is_pointer_button_down_on() { t.pressed } else { t.hover };
+                ui.painter().rect_filled(xr, 4.0, fill);
+            }
+            icons::paint(ui.painter(), Rect::from_center_size(xr.center(), vec2(12.0, 12.0)), "close", t.icon, t.accent);
+            xresp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Remove")));
+            if xresp.on_hover_text(tl!("Remove")).clicked() {
                 remove_id = Some(tpl.id);
             }
         });

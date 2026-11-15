@@ -375,9 +375,7 @@ const SAFE: &[&str] = &[
     "category.set",
     "category.rename",
     "category.list",
-    "template.create",
     "template.list",
-    "template.remove",
     "template.insert",
     "account.list",
     "account.offlineSize",
@@ -468,6 +466,7 @@ const DELETE: &[&str] = &[
     "people.merge",
     "tasks.delete",
     "category.remove",
+    "template.remove",
     "compose.discard",
     "ui.closeWindow",
 ];
@@ -557,6 +556,7 @@ const SETTINGS: &[&str] = &[
     "signature.open",
     "signature.save",
     "signature.close",
+    "template.create",
     "ui.alwaysDownloadPictures",
     "ui.downloadPicturesAutomatically",
     "ui.senderImages",
@@ -1533,6 +1533,14 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
             let whose = owner.and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
             format!("delete the category {}{whose}, taking it off everything that has it{shared}", quoted(st("name")))
+        }
+        "template.remove" => {
+            let tpl = p::id_strict(params, "id").ok().flatten().and_then(|t| s.mailbox.template(t));
+            match tpl {
+                Some(t) if !t.name.is_empty() => format!("delete the template {}", quoted(&clip(&t.name, 80))),
+                Some(t) => format!("delete template #{}", t.id),
+                None => "delete a template".to_string(),
+            }
         }
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))

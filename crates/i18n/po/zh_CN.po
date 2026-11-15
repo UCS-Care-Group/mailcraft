@@ -87,6 +87,11 @@ msgstr "“{name}”是重复日程的一部分。您指的是 {day} 的这一�
 msgid "\"{name}\" will be permanently deleted."
 msgstr "“{name}”将被永久删除。"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "\"{name}\" will be removed from your templates."
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -9978,6 +9983,11 @@ msgid "Only one part of this message was signed, and what's shown here holds mor
 msgstr "此邮件只有一部分经过签名，而这里显示的内容不止这一部分；签名范围之外可能包含任何内容。"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Only plain text is kept; formatting and images are not saved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Only send during this time range:"
@@ -14283,6 +14293,11 @@ msgstr "通过 GitHub 或电子邮件向 MailCraft 开发者反馈问题。由�
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Template #{n}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Template #{n} will be removed from your templates."
 msgstr ""
 
 #. interface
@@ -18942,6 +18957,11 @@ msgid "a task needs a title"
 msgstr "任务必须有标题"
 
 #. what a command says
+#: crates/engine/src/cmd/template.rs
+msgid "a template named \"{name}\" already exists"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "add an account first"
@@ -20034,6 +20054,11 @@ msgstr "需要登录"
 #, fuzzy
 msgid "someone@example.org or @example.org"
 msgstr "someone@example.org 或 @example.org"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "templates exceed the total size limit"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21315,7 +21340,7 @@ msgid "too many flags for one command"
 msgstr "单条命令中的标志过多"
 
 #. what a command says
-#: crates/engine/src/cmd/template.rs
+#: crates/model/src/mailbox.rs
 msgid "too many templates"
 msgstr ""
 
