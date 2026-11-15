@@ -252,6 +252,11 @@ msgstr "1 hónap"
 msgid "1 week"
 msgstr "1 hét"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "1. Copy the message below and send it to your organisation's administrator."
+msgstr ""
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -275,6 +280,11 @@ msgstr "2 hét"
 #, fuzzy
 msgid "2 years"
 msgstr "2 év"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "2. When they have approved MailCraft, come back here and sign in again."
+msgstr ""
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -469,6 +479,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Egy találkozó, amely megismétli és kihagy néhány napot nem lehet feltenni a szerver naptár innen: mindenki meghívott kap egy lemondás minden egyes kihagyt nap. Tartsa egy naptár ezen a számítógépen, vagy újra nélkül a kihagyott napok."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -575,12 +590,6 @@ msgstr "Egy megosztott postafiók, a fiók bejelentkezésével olvasva, ami nyit
 #, fuzzy
 msgid "A shared mailbox, read with the sign-in of {account}"
 msgstr "Megosztott postafiók a következő fiókkal megnyitva: {account}"
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-#, fuzzy
-msgid "A sign-in is already open."
-msgstr "Már van bejelentkezés."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -798,6 +807,11 @@ msgstr "Megosztott postafiók hozzáadása"
 msgid "Add Shared Mailbox…"
 msgstr "Megosztott postafiók hozzáadása…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Add a Microsoft account to read your mail here."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
@@ -863,6 +877,11 @@ msgstr "Feladat hozzáadása ehhez a fiókhoz: {address}"
 #, fuzzy
 msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "Feladat hozzáadása ehhez a fiókhoz: {address}. A feladat helyben vár a To Do engedélyezéséig."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
+msgid "Add account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1048,8 +1067,8 @@ msgstr "Mindet."
 msgid "All the conditions must hold"
 msgstr "Minden feltételnek teljesülnie kell"
 
-#. interface
-#: crates/ui-egui/src/agent_gate.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Allow"
 msgstr "Engedélyezés"
@@ -1131,6 +1150,11 @@ msgstr "Hagyjuk, hogy más emberek naptárait olvassák"
 #, fuzzy
 msgid "Allow Sending from Shared Mailboxes"
 msgstr "Megosztott postafiókák küldése"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Allowed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -1283,12 +1307,22 @@ msgid "An item that repeats can't be taken to another calendar this way. Hold Ct
 msgstr "Egy olyan elem, amely ismétli nem lehet más naptárba így. Tartsa Ctrl másolni ezt az eseményt ott, vagy használja a Move to Calendar menüben az egész sorozat."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "An unsubscribe is already on its way."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
 msgid_plural "And {n} more links like it."
 msgstr[0] "És még {n} hasonló hivatkozás."
 msgstr[1] "És még {n} hasonló hivatkozás."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Android closed MailCraft while Microsoft's page was open, so that sign-in could not be finished. Nothing was added."
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -1664,6 +1698,11 @@ msgstr "Kérd meg még egyszer azokat a képeket, amiket nem lehet letölteni."
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "A naptár frissítése a fiók kiszolgálójáról az értekezlet körüli időszakra."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2001,7 +2040,7 @@ msgid "Available formats:"
 msgstr "Elérhető formátumok:"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/view.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Back"
 msgstr "Vissza"
@@ -2125,6 +2164,11 @@ msgstr "A naptár elejére"
 #, fuzzy
 msgid "Bring in"
 msgstr "Hozzátok be!"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -2288,8 +2332,8 @@ msgstr "Calibri"
 msgid "Can't sign"
 msgstr "Nem tudom aláírni."
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Mégse"
@@ -2658,8 +2702,8 @@ msgstr "{folder} ellenőrzése ({done} of {total})"
 msgid "Checking: the report comes in a moment…"
 msgstr "Ellenőrzöm: a jelentés egy pillanat múlva érkezik…"
 
-#. interface
-#: crates/ui-egui/src/updates.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Checking…"
 msgstr "Ellenőrzöm…"
@@ -3044,8 +3088,8 @@ msgstr "Kapcsolattartó kártya"
 msgid "Contacts don't go to Deleted Items."
 msgstr "A kontaktusok nem mennek a törölt tárgyakhoz."
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Folytassa"
@@ -3073,6 +3117,11 @@ msgstr "Hozzájárulók"
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "A hozzájárulók maguk választják meg a nevüket; lásd: dokumentációk/befektetők.md."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Copied. Paste it into mail or chat for your administrator."
+msgstr ""
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -3156,6 +3205,11 @@ msgstr "Üzenet másolása az adminisztrátorom számára"
 msgid "Copy all of it"
 msgstr "Vettem."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Copy message for an administrator"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -3209,6 +3263,11 @@ msgstr "Nem sikerült a szerverrel kapcsolatban"
 #, fuzzy
 msgid "Couldn't change flags in \"{name}\""
 msgstr "A(z) „{name}” mappában nem sikerült módosítani a jelölőket"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Couldn't check"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -4362,6 +4421,11 @@ msgstr "E-mail"
 msgid "Email address"
 msgstr "e-mail cím"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Email address (optional)"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4800,11 +4864,21 @@ msgstr "Ujjlenyomat (SHA-256):"
 msgid "Fingerprint:"
 msgstr "Ujjlenyomat:"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Finish signing in first (your browser is waiting)"
 msgstr "Befejezni a bejelentkezést (a böngészője várakozik)"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -5157,6 +5231,11 @@ msgstr "Feladó"
 #, fuzzy
 msgid "From Sender"
 msgstr "Feladó szerint"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "From a mailing list."
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -5629,6 +5708,20 @@ msgstr ""
 "Jóváhagyás után előfordulhat, hogy a böngésző egy nem elérhető oldalt jelez. Ez rendben van: a cím a saját számítógépére mutat, ahol nincs kiszolgáló, a jóváhagyás ekkor már megtörtént.\n"
 "\n"
 "Köszönöm!"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid ""
+"Hello,\n"
+"\n"
+"I would like to use MailCraft with my work account. MailCraft is an open-source mail and calendar program that runs on my own phone. Our organisation lets only an administrator approve a new program, so it needs your approval once, for the whole organisation. Microsoft's page for that is here:\n"
+"\n"
+"{link}\n"
+"\n"
+"After you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n"
+"\n"
+"Thank you"
+msgstr ""
 
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -6365,6 +6458,11 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "A szerverre kerül, amint a MailCraft megváltoztathatja a szerver szabályait (File › Info › Kérj újra); addig ezen a számítógépen fut, amíg MailCraft nyitva van."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6478,6 +6576,11 @@ msgstr "A levelei itt olvashatók. Amit megváltoztatsz, ebben a postafiókában
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr "A levelei lépésben haladnak a Microsoft Graph-on, a levelező szerverek nélkül"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "Its mail on this phone and its sign-in are removed. Nothing is deleted from Microsoft's servers, and you can add the account again later."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -6489,6 +6592,11 @@ msgstr "Üzenetei más mappákban maradnak, ahol vannak."
 #, fuzzy
 msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
 msgstr "Üzenetei, mellékletei, beállításai és emlékezetes bejelentkezése is vele együtt jár, és így a naptár, a kapcsolatok, a feladatok és a munkaidő, ami a szerveréről jött."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -6648,6 +6756,11 @@ msgstr "A feladatok lépésben tartása a Microsoft- lal"
 msgid "Keep Waiting"
 msgstr "Folyton várj!"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "Keep account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6689,6 +6802,11 @@ msgstr "A változat elmentése"
 #, fuzzy
 msgid "Keep waiting, and the switch goes ahead by itself once MailCraft can reach the server. Or switch without them, if the server can't be reached any more (for example, your organisation has turned IMAP off):"
 msgstr "Várjanak, és a kapcsoló magától megy tovább, amint a MailCraft eléri a szervert. Vagy kapcsoljanak ki nélkülük, ha a szerver nem érhető el többé (például a szervezetük kikapcsolta IMAPt):"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Keep your To Do tasks in step?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7182,11 +7300,31 @@ msgstr "A MailCraft nem tudja a fiók szabályait a kiszolgálón tárolni"
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "A MailCraft még nem tud bejelentkezni erre a szerverre (a Kerberos-t akarja). Kérdezze meg a rendszergazdát, hogy képes-e felhasználónevet és jelszót felvenni egy titkosított kapcsolaton keresztül."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "MailCraft couldn't open a browser for Microsoft's page."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "MailCraft couldn't open a browser for Microsoft's page. Install or enable a browser, then try again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
 msgstr "MailCraft nem tudta megnyitni a böngészőt a Microsoft jóváhagyási oldalára. Másold le helyette az üzenetet: a benne lévő link ugyanazt az oldalt nyitja meg."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
+msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -7309,6 +7447,11 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr "MailCraft a kulcsot jelszó nélkül olvassa, és a fájlt, még mindig védi, a rendszer hiteles boltjában. A kulcsnak lennie kell egy jelszónak és alá kell írnia Ed25519 vagy ECDSA; Kiw kéri a jelszót, amikor aláírja."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7357,6 +7500,21 @@ msgstr "MailCraft tovább fut"
 #, fuzzy
 msgid "MailCraft will make one appointment called \"MailCraft connection check\" in the calendar of {account}, a year from today. It reads it back, changes its time twice (the second time said in this computer's time zone), reads it back each time, and deletes it again. Nothing else in your calendar is read or changed, nobody is invited or written to, and no reminder is set. Afterwards you see what the server answered at each step, and whether what was sent is what the server has."
 msgstr "MailCraft a mai naphoz képest egy \"MailCraft-kapcsolat ellenőrzés\" nevű időpontot tesz közzé a {account} naptárában. Visszaolvasza, kétszer megváltoztatja az idejét (a második alkalommal a számítógép időzónájában), minden alkalommal visszaolvassa és újra törli. A naptáradban semmi mást nem olvasunk vagy változtatunk, senki sem hív meg vagy írunk, és nincs emlékeztető beállítva. Ezután láthatod, hogy mit válaszolt a szerver minden lépésben, és hogy mi van a kiszolgálón."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "MailCraft will read and change the shared mailboxes you have access to. Microsoft's page opens in your browser to ask you."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "MailCraft will read and change your Microsoft To Do lists and tasks. Microsoft's page opens in your browser to ask you. Until you say yes, your tasks stay on this phone."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "MailCraft will send mail from a shared mailbox, as it or on its behalf. Microsoft's page opens in your browser to ask you."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -7459,6 +7617,11 @@ msgstr "Szabályok kezelése…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "Feladat kezelése"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Many organisations let only an administrator approve a new program. Nothing is wrong with your account or your phone."
+msgstr ""
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -7619,7 +7782,7 @@ msgstr[0] "{n} névjegy egyesítése…"
 msgstr[1] "{n} névjegy egyesítése…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Üzenet"
@@ -7742,6 +7905,11 @@ msgstr "A Microsoft 365 mail Microsoft-fiókként kerül hozzáadásra: beiratko
 msgid "Microsoft Application ID"
 msgstr "Microsoft alkalmazásazonosító"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Microsoft account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -7753,6 +7921,11 @@ msgstr "A Microsoft válasza: {words}"
 #, fuzzy
 msgid "Microsoft application ID"
 msgstr "Microsoft alkalmazásazonosító"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Microsoft doesn't offer this for this kind of account."
+msgstr ""
 
 #. name
 #: crates/model/src/sync.rs
@@ -7807,6 +7980,16 @@ msgstr "A Microsoft jóváhagyási oldala nyitva van a böngészőben"
 #, fuzzy
 msgid "Microsoft's approval page is open in your browser…"
 msgstr "A Microsoft jóváhagyási oldala nyitva van a böngészőjében…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Microsoft's page came back without giving it. You can try again."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Microsoft's page came back without signing you in. You can try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -8492,6 +8675,11 @@ msgstr "Egyetlen fiók sem kapcsolódik levelezési kiszolgálóhoz (Fájl › F
 msgid "No account signs in with Microsoft"
 msgstr "Nincs fiókjelszó a Microsoftnál"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "No account yet"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
@@ -8673,6 +8861,11 @@ msgid "No preview helper is available for this attachment."
 msgstr "Ehhez a melléklethoz nem áll rendelkezésre előzetes segítő."
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "No recent searches"
@@ -8834,6 +9027,11 @@ msgstr "Érvénytelen dátum"
 msgid "Not allowed by your organisation"
 msgstr "A szervezet nem engedélyezi"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Not allowed yet"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -8900,8 +9098,8 @@ msgstr "Az Outlookban nincs ilyen kategória, ezért ott szín nélkül jelenik 
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Még sehol sem tartottuk: Open & Export › Mentés Mailbox As."
 
-#. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Ne most."
@@ -8917,6 +9115,11 @@ msgstr "Most nem. A frissítés a MailCraft bezárásakor települ."
 #, fuzzy
 msgid "Not saved"
 msgstr "Nem mentve"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Not unsubscribed."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8936,8 +9139,18 @@ msgstr "Megjegyzések"
 msgid "Nothing came back from Microsoft's approval page: it was closed, or five minutes went by before the approval was given."
 msgstr "Semmi sem jött vissza a Microsoft jóváhagyási lapjáról: zárva volt, vagy öt perccel a jóváhagyás megadása előtt."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Nothing came back from Microsoft's page. You can try again."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Nothing came back from Microsoft's sign-in page. It may have been closed, or left open too long. You can try again."
+msgstr ""
+
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "Nothing came back from the sign-in page in time."
 msgstr "Semmi sem jött vissza időben a bejelentkezési lapról."
@@ -9068,8 +9281,8 @@ msgstr "Napok száma"
 msgid "Numbering"
 msgstr "Számozás"
 
-#. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9254,6 +9467,11 @@ msgstr "Csak egy Microsoft-fiókot hívunk."
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Csak egy találkozót szervezel, ahol találsz egy időt."
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
@@ -9337,6 +9555,11 @@ msgstr "A jóváhagyás csak erre a tanúsítványra és erre a fiókra vonatkoz
 #, fuzzy
 msgid "Only to mention you if we make the report public on GitHub."
 msgstr "Csak hogy megemlítsem, ha nyilvánosságra hozzuk a jelentést GitHubról."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Only used to fill in Microsoft's page for you."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9480,6 +9703,11 @@ msgstr "Nyissa ki a GitHub-on"
 msgid "Open or save the Digital signature"
 msgstr "A digitális aláírás megnyitása vagy mentése"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Open shared mailboxes?"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -9509,6 +9737,11 @@ msgstr "Nyissa meg a találkozót a javasolt idő töltött. Semmi sem küld, am
 #, fuzzy
 msgid "Open the message"
 msgstr "Az üzenet megnyitása"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Open the page"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9714,6 +9947,11 @@ msgstr "Ennél a fióknál az Outlook kedvencei nem érhetők el. A MailCraft a 
 msgid "Outlook.com"
 msgstr "Outlook.com"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Outlook.com, Hotmail, and Microsoft 365 work or school accounts. You sign in on Microsoft's own page in your browser, so MailCraft never sees your password."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -9767,6 +10005,11 @@ msgstr "Oldal le"
 #, fuzzy
 msgid "Page Up"
 msgstr "Oldalfel"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Page opened."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10425,6 +10668,11 @@ msgid "Recent Searches"
 msgstr "A legutóbbi keresések"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Recent mail"
@@ -10552,8 +10800,8 @@ msgstr "Emlékeztetők"
 msgid "Reminders Window"
 msgstr "Emlékeztető ablak"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Eltávolítás"
@@ -10654,6 +10902,11 @@ msgstr "Az importált kulcs eltávolítása"
 msgid "Remove Your Key"
 msgstr "Kulcs eltávolítása"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Remove account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -10693,6 +10946,11 @@ msgstr "Eltávolítás a biztonságos vagy blokkolt feladóktól"
 #, fuzzy
 msgid "Remove this account and the mail kept for it here"
 msgstr "A fiók és a helyben tárolt leveleinek eltávolítása"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "Remove this account?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10879,6 +11137,11 @@ msgid "Request a Read Receipt"
 msgstr "Olvasási visszaigazolás kérése"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Request in your Outbox."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Required"
@@ -10953,6 +11216,11 @@ msgstr "Frissítés újraindítása"
 #, fuzzy
 msgid "Restart to update is the owner's click."
 msgstr "A frissítés újrakezdése a tulajdonos kattintása."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Retry"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/snooze.rs
@@ -11701,7 +11969,7 @@ msgid "Select a meeting first"
 msgstr "Először válasszon ki egy találkozót"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "Válasszon ki egy üzenetet először"
@@ -11725,7 +11993,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "Válassza ki az üzenetet, mielőtt megtekintené a csatolását."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "Küldés"
@@ -11821,6 +12089,11 @@ msgstr "Automatikus válaszok küldése"
 #, fuzzy
 msgid "Send from a Shared Mailbox"
 msgstr "Küldés megosztott postafiókából"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Send from shared mailboxes?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -12007,6 +12280,11 @@ msgstr "Küldés"
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Küldés és fogadás…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Sending from a shared mailbox"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -12195,6 +12473,11 @@ msgstr "Megosztott postafiók · megnyitva {owner} bejelentkezésével"
 #, fuzzy
 msgid "Shared mailbox · the account it was opened through is gone: remove it"
 msgstr "Megosztott postafiók · A megnyitásához használt fiók már nincs meg. Távolítsa el a megosztott postafiókot."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Shared mailboxes"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -12546,8 +12829,8 @@ msgstr "Újbóli bejelentkezés"
 msgid "Sign In Again for Automatic Replies"
 msgstr "Automatikus válaszlépések esetén ismét jelentkezzen be"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Írja alá újra!"
@@ -12563,6 +12846,11 @@ msgstr "Írja be újra és válassza ki a {typed}, vagy változtassa meg az e-ma
 #, fuzzy
 msgid "Sign in again and pick {typed} on the sign-in page, or set up the account you signed in as instead."
 msgstr "Jelentkezzen be újra a következő fiókkal: {typed}. Azt a fiókot is beállíthatja, amellyel bejelentkezett."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Sign in again first"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -12654,6 +12942,11 @@ msgstr "Előbb jelentkezzen be ebbe a fiókba a Küldés/fogadás paranccsal: {o
 msgid "Sign in with Google"
 msgstr "Jelentkezz be a Google-lal"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Sign in with Microsoft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -12677,12 +12970,6 @@ msgstr "Jelentkezz be a Küldés/Elfogadásnál, hogy mikor vannak mások elfogl
 #, fuzzy
 msgid "Sign-in cancelled"
 msgstr "A bejelentkezés törlése"
-
-#. what a command says
-#: crates/mobile/src/sign_in.rs
-#, fuzzy
-msgid "Sign-in isn't set up on this phone."
-msgstr "A bejelentkezés nincs bekapcsolva a telefonba."
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
@@ -12737,12 +13024,6 @@ msgstr "Bejelentkezve, de a Microsoft még mindig nem engedi, hogy MailCraft elo
 #, fuzzy
 msgid "Signing in brought nothing back"
 msgstr "A bejelentkezés nem hozott vissza semmit."
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-#, fuzzy
-msgid "Signing in isn't available on this phone."
-msgstr "A bejelentkezés nem elérhető ezen a telefonon."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13482,6 +13763,11 @@ msgstr "A naptár a fiók saját listájában szerepel, és nem cím alapján ny
 msgid "That can't be opened in a window of its own"
 msgstr "Az nem nyitható ki a saját ablakán."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "That didn't go through."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -13607,6 +13893,11 @@ msgstr "Most nem lehet bejelentkezni a fiókba."
 #, fuzzy
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
 msgstr "A fiók módosult a beállításai megnyitása óta. A bejelentkezési mód váltása előtt nyissa meg újra a Fiókbeállításokat."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+msgid "The account could not be removed. It and its sign-in are still here. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -14157,6 +14448,16 @@ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-i
 msgstr "A telefonon tárolt beiratkozások listája megsérült, így néhány régebbi beiratkozás még mindig rajta lehet. MailCraft Android Beállításaiban lévő tárolójának törlése eltávolítja őket."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "The list's server didn't take the request: {why}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "The local program receives the selected attachment and runs with your permissions."
@@ -14209,6 +14510,11 @@ msgstr "Az egyesített kapcsolatnak több tanúsítványa és kulcsa lenne, mint
 #, fuzzy
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "Az egyesített kapcsolat {field} túl nagy ({now}, a legtöbb {max}), így a kapcsolatok nem egyesülnek. Válassza ki az egyik kapcsolat {field} érte, vagy lerövidíti őket először."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "The message for your administrator could not be made."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -14407,12 +14713,6 @@ msgstr "A szerver szabályait nem lehetett elfogadni: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "A küldött szabályokat nem lehetett megjegyezni: {error}"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
-#, fuzzy
-msgid "The sample mailbox has no Inbox."
-msgstr "A mintapostafiókban nincs Beérkezett üzenetek mappa."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14684,14 +14984,13 @@ msgstr "A megosztott postafiók „{name}” naptára csak a tulajdonos foglalts
 msgid "The shared mailbox's e-mail address"
 msgstr "A megosztott postafiók e-mail-címe"
 
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-#, fuzzy
-msgid "The sign-in couldn't be started."
-msgstr "A bejelentkezést nem lehetett elkezdeni."
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "The sign-in didn't go through."
+msgstr ""
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "The sign-in didn't work. Try again."
 msgstr "A bejelentkezés nem működött, próbáld újra."
@@ -14714,8 +15013,13 @@ msgstr "A bejelentkezési oldalt nem lehetett megnyitni."
 msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
 msgstr "A MailCraft megszakította a böngészőben függő bejelentkezést ehhez a fiókhoz: {address}. Ez tette lehetővé a megosztott postafiók olvasását. A Küldés/fogadás újra bejelentkezést kér."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "The sign-in was cancelled."
+msgstr ""
+
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "A beiratkozást elutasították."
@@ -14835,7 +15139,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "A felhasználónév túl hosszú, vagy van benne egy olyan karakter, ami nem lehet a név"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "Az ablak még nincs felhúzva."
@@ -15001,6 +15305,11 @@ msgstr "Ez a fiók nem használja a Google-bejelentkezést."
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "A fiók szabályai helyben vannak tárolva"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -15195,16 +15504,15 @@ msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "Ez a konstrukció nem tud bejelentkezni ilyen fiókba. Használja az asztali alkalmazást."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "This build can't unsubscribe in one click."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This build doesn't check for new versions."
 msgstr "A MailCraft ezen verziója nem keres frissítéseket."
-
-#. what a command says
-#: crates/mobile/src/sync_api.rs
-#, fuzzy
-msgid "This build has no application id to sign in with."
-msgstr "A MailCraft ezen verziójában nincs alkalmazásazonosító a bejelentkezéshez."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15471,6 +15779,16 @@ msgid "This link goes somewhere other than its text says."
 msgstr "Ez a link máshová is eljut, mint amit a szövegben találsz."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "This list's page isn't one that can be opened."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This mailbox is in Microsoft 365"
@@ -15596,11 +15914,21 @@ msgstr "Ez az üzenet nem hív le egy találkozót."
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Ez az üzenet nem javasol más időpontot egy találkozóra."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "Ez az üzenet letölt, amint az üzenetek letöltődnek."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15619,6 +15947,11 @@ msgstr "Az üzenet webes képeket tartalmaz. A MailCraft ezen verziója nem tudj
 #, fuzzy
 msgid "This message hasn't been sent."
 msgstr "Ezt az üzenetet nem küldték el."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -15890,6 +16223,11 @@ msgstr "Cím"
 msgid "To"
 msgstr "Címzett"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "To Do tasks"
+msgstr ""
+
 #. name
 #: crates/engine/src/session.rs
 #, fuzzy
@@ -16113,7 +16451,7 @@ msgid "Try Signing In Again"
 msgstr "Próbáljon újra bejelentkezni!"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Próbáld újra."
@@ -16283,6 +16621,26 @@ msgstr "Mentetlen módosítások"
 #, fuzzy
 msgid "Unsaved Message"
 msgstr "Mentetlen üzenet"
+
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribe"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribe on the list's page in your browser."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribing…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -16638,8 +16996,8 @@ msgstr "Amit az emberek meghívottak kérnek, az az, hogy a szervezője mondja e
 msgid "What to Do When Your Organisation Has to Approve MailCraft"
 msgstr "Teendők, ha a szervezetnek jóvá kell hagynia a MailCraft használatát"
 
-#. interface, name
-#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "What to do next"
 msgstr "Mi a következő lépés?"
@@ -17158,6 +17516,11 @@ msgstr "A postaszervered ellenőrizte, honnan jött ez az üzenet, és a csekk n
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr "A levelezési kiszolgáló nem igazolta, hogy az üzenet ettől a feladótól érkezett: {sender}. A MailCraft ezért nem jegyzi meg a feladót, akinek a címe hamisítható."
 
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -17243,7 +17606,7 @@ msgid "Your organisation has approved MailCraft. Now sign in with your own accou
 msgstr "A szervezet jóváhagyta a MailCraft használatát. Most jelentkezzen be a saját fiókjával."
 
 #. what a command says
-#: crates/mobile/src/sign_in.rs
+#: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
 msgstr "Bejelentkezés előtt a szervezetnek jóvá kell hagynia a MailCraft használatát. Forduljon a rendszergazdához."
@@ -17271,6 +17634,16 @@ msgstr "A szervezetében új alkalmazást csak rendszergazda hagyhat jóvá, és
 #, fuzzy
 msgid "Your organisation lets only an administrator approve a new program. Nothing is wrong with your account or your password, and there is nothing to wait for here."
 msgstr "A szervezet csak egy adminisztrátor hagyja jóvá az új programot. Semmi baj nincs a fiókjával vagy a jelszavával, és nincs itt semmi, amire várni lehetne."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Your organisation needs an administrator to approve this first. Ask your administrator, then try again."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+msgid "Your organisation needs to approve MailCraft"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -17319,6 +17692,16 @@ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postaf
 #, fuzzy
 msgid "Your organisation's administrator has to approve this once"
 msgstr "A szervezet adminisztrátorának jóvá kell hagynia ezt egyszer."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Your organisation's rules (Conditional Access) don't allow MailCraft to sign you in on this phone. This is your organisation's policy, not a fault in MailCraft or in your phone. Ask the people who run your organisation's mail whether sign-in from this kind of app can be allowed."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+msgid "Your organisation's rules don't allow this for your account. This is your organisation's policy, not a fault in MailCraft."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -18667,7 +19050,7 @@ msgid "select a conversation in conversation view first"
 msgstr "először egy beszélgetést válasszon a beszélgetési nézetben"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "először válasszon ki egy üzenetet"
@@ -18787,6 +19170,11 @@ msgid "that message isn't held"
 msgstr "Az üzenet nincs megtartva."
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "that message isn't here"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
 msgid "that was only looked at, not read in full"
@@ -18853,7 +19241,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e-mail-cím"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "a fiók már nincs meg"
@@ -19211,6 +19599,11 @@ msgstr "a platform visszautasította vagy megbukott"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "a javasolt befejezés nem a javasolt kezdet után történik"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "the request was lost"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -19789,7 +20182,7 @@ msgid "this account has no Drafts folder"
 msgstr "Ez a fiók nem rendelkezik vázlatok mappával"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "ez a fiók nem rendelkezik Outbox mappával"
@@ -20714,6 +21107,13 @@ msgid_plural "{n} accepted"
 msgstr[0] "{n} elfogadta"
 msgstr[1] "{n} elfogadta"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "{n} account"
+msgid_plural "{n} accounts"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -21623,4 +22023,28 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "A sign-in is already open."
+#~ msgstr "Már van bejelentkezés."
+
+#, fuzzy
+#~ msgid "Sign-in isn't set up on this phone."
+#~ msgstr "A bejelentkezés nincs bekapcsolva a telefonba."
+
+#, fuzzy
+#~ msgid "Signing in isn't available on this phone."
+#~ msgstr "A bejelentkezés nem elérhető ezen a telefonon."
+
+#, fuzzy
+#~ msgid "The sample mailbox has no Inbox."
+#~ msgstr "A mintapostafiókban nincs Beérkezett üzenetek mappa."
+
+#, fuzzy
+#~ msgid "The sign-in couldn't be started."
+#~ msgstr "A bejelentkezést nem lehetett elkezdeni."
+
+#, fuzzy
+#~ msgid "This build has no application id to sign in with."
+#~ msgstr "A MailCraft ezen verziójában nincs alkalmazásazonosító a bejelentkezéshez."
 
