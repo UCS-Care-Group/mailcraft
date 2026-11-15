@@ -340,6 +340,11 @@ msgstr "A .pst fájlt importálják: próbálja újra, ha kész"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "Egy JMAP-fiók levele még nem szivároghat ki."
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A brand's name on another address."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -429,6 +434,11 @@ msgstr "A {named}-t olvasó link {host}-hoz kerül."
 #, fuzzy
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "A hivatkozás szövegében főként láthatatlan karakterek vannak. A cél: {host}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A made-up domain."
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1257,6 +1267,11 @@ msgstr "X.509 tanúsítvány (.cer, .pem) vagy OpenPGP nyilvános kulcs (.asc) a
 #, fuzzy
 msgid "An account couldn't be sent and received."
 msgstr "Az egyik fiók szinkronizálása nem sikerült."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "An address with no domain."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -7125,6 +7140,11 @@ msgstr "Keresem a csere szerverét…"
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "{folders}, {files}, {messages} eddig"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Looks like a brand."
+msgstr ""
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -14578,6 +14598,11 @@ msgstr "A név rejti a karaktereket."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+msgid "The name is another domain."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "The name of someone you know."
 msgstr "Valakinek a neve, akit ismersz."
@@ -14740,15 +14765,35 @@ msgstr "A feladó az Ön nevét használja, de az üzenet olyan címről érkeze
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "The sender's address is at {domain}."
 msgstr "A feladó címe {domain}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
 msgstr "A feladó területe, {domain}, úgy néz ki, mint {like}, ami neked megfelel, de ez nem ugyanaz."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
