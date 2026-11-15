@@ -130,8 +130,8 @@ class MailCraftApplication : Application() {
             events.register(opened.hub::handle)
             events.register(MailNotifier(applicationContext, opened.core::t)::handle)
             // The words of what a background round says (a notification's "New mail") are the
-            // window's language even when no window has opened.
-            opened.core.setLanguage(LanguageChoice.inUse(resources.configuration.locales))
+            // window's language even when no window has opened (the owner's saved choice first).
+            opened.core.setLanguage(LanguageChoice.inUse(this))
             opened.core.setNotifyNewMail(mailNotificationsAllowed(applicationContext))
             events.launchIn(scope) { nextEvent(opened.core) }
             // Send/Receive while the app is closed: one periodic run, kept if it is there already.
