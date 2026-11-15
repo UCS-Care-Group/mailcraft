@@ -313,8 +313,22 @@ impl Parts {
 
     /// The parts kept as content files of their own (a header block in a pack is not one).
     fn all(&self) -> impl Iterator<Item = &Part> {
-        let loose_headers = self.headers.iter().filter(|_| self.headers_at.is_none());
-        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).chain(&self.original).chain(loose_headers)
+        self.all_with_kind().map(|(_, part)| part)
+    }
+
+    /// The same, each with whether it is the header block, told by the field it is kept in and
+    /// never by its bytes: an attachment may hold the very same ones (#1399).
+    fn all_with_kind(&self) -> impl Iterator<Item = (bool, &Part)> {
+        let ordinary = self
+            .text
+            .iter()
+            .chain(&self.html)
+            .chain(&self.hidden)
+            .chain(self.attachments.iter().flatten())
+            .chain(&self.original)
+            .map(|p| (false, p));
+        let loose_headers = self.headers.iter().filter(|_| self.headers_at.is_none()).map(|p| (true, p));
+        ordinary.chain(loose_headers)
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -3382,8 +3396,12 @@ fn prepare(
 /// than every later save failing.
 fn on_disk_here(id: Id, parts: &Parts, st: &State, dir: &Path, folders: &Folders) -> Result<(), String> {
     // (A header block that is gone is unavailable, never a save refused: the message has the lines
-    // it reads by name, #1376.)
-    for p in parts.all().filter(|p| !p.held && Some(**p) != parts.headers && !st.live.contains_key(&p.r.hash)) {
+    // it reads by name, #1376. Told by the field it is kept in, never by its bytes: an attachment
+    // may hold the very same ones, and is checked like any other, #1399.)
+    for (is_headers, p) in parts.all_with_kind().filter(|(_, p)| !p.held && !st.live.contains_key(&p.r.hash)) {
+        if is_headers {
+            continue;
+        }
         if present(dir, &p.r, folders) {
             continue;
         }

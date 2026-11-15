@@ -106,6 +106,47 @@ fn a_truncated_pack_loses_only_the_blocks_past_its_end() {
     assert_eq!(lost, 1);
 }
 
+/// #1399: a block whose pack was cut short and which is written again is named where it went,
+/// not at its old place: with the old place kept, the block read as gone and its header lines
+/// were unreadable from then on.
+#[test]
+fn a_block_written_again_after_its_pack_was_cut_short_is_named_where_it_is_now() {
+    let mb = with_exchange_headers(6);
+    let tmp = Temp::new("pack-truncated-again");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    let (file, bytes) = the_pack(&path);
+    let dir = blob_dir(&path);
+    // Cut short in the middle of the last block: its place is past the end now.
+    let last = mb.messages.values().map(|m| pack::find(&dir, &Digest::of(&m.header_block.data)).unwrap()).max_by_key(|l| l.at).unwrap();
+    fs::OpenOptions::new().write(true).open(&file).unwrap().set_len(last.at + 10).unwrap();
+    assert!(fs::metadata(&file).unwrap().len() < bytes.len() as u64);
+    // Saved again, with the blocks in memory: the one past the end is written anew.
+    save(&path, &mb).unwrap();
+    clear_cache();
+    assert_eq!(lines_of(&path), lines(&mb), "the block written again reads back");
+}
+
+/// #1399: the header block is the one part a save never refuses for, told by the field it is kept
+/// in. An attachment holding the very same bytes is checked like any other: a message carried
+/// over from another mailbox whose attachment isn't here is refused, never saved unreadable.
+#[test]
+fn a_header_block_is_told_from_an_attachment_that_holds_the_same_bytes() {
+    let bytes: &[u8] = b"Delivered-To: avery@example.org\r\nX-Spam-Status: no\r\n";
+    let part = Part { r: Ref::of(bytes), held: false };
+    let tmp = Temp::new("pack-header-same-bytes");
+    let dir = blob_dir(&tmp.file());
+    let folders = Folders::new();
+    let state = State::default();
+    // The header block alone, gone, is no reason to refuse a save (#1376).
+    let headers = Parts { headers: Some(part), headers_at: None, ..Default::default() };
+    assert!(on_disk_here(1, &headers, &state, &dir, &folders).is_ok());
+    // An attachment with the same bytes as the header block, and not here, is.
+    let both = Parts { headers: Some(part), headers_at: None, attachments: vec![Some(part)], ..Default::default() };
+    let refused = on_disk_here(1, &both, &state, &dir, &folders).unwrap_err();
+    assert!(refused.contains("isn't in this mailbox's folder"), "{refused}");
+}
+
 #[test]
 fn a_block_whose_bytes_are_not_what_its_name_says_is_unavailable() {
     let mb = with_exchange_headers(3);

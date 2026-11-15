@@ -540,7 +540,10 @@ impl Writer {
             k.current = self.pack;
         }
         for (hash, loc) in placed {
-            k.at.entry(hash).or_insert(loc);
+            // A block written again when its old place was past its pack's end is where it went
+            // now: the stale place would read somebody else's bytes, and the block would count as
+            // gone, its header lines unreadable from then on (#1399).
+            k.at.insert(hash, loc);
         }
         (None, loose)
     }
