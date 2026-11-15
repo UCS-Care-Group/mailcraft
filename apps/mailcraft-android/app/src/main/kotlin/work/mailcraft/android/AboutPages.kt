@@ -7,11 +7,14 @@ package work.mailcraft.android
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -119,6 +122,62 @@ internal fun SpaceCard(texts: Texts, ask: SpaceAsk, actions: SettingsActions) {
                 TextButton(onClick = actions.onSpaceYes) { Text(texts.t("Sync anyway")) }
             }
         }
+    }
+}
+
+/** Asked before everything kept on the phone is removed. */
+@Composable
+internal fun RemoveDataCard(texts: Texts, removal: Removal, actions: SettingsActions) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Column(modifier = Modifier.padding(Gutter), verticalArrangement = Arrangement.spacedBy(Gutter)) {
+            Text(texts.t("Remove all local data?"), style = MaterialTheme.typography.titleMedium)
+            Text(
+                texts.t("All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (removal == Removal.Failed) {
+                Text(
+                    texts.t("Not everything could be removed. Some of it is still here. Try again."),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            val working = removal == Removal.Working
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = actions.onRemoveCancel, enabled = !working) { Text(texts.t("Keep data")) }
+                TextButton(onClick = actions.onRemoveConfirm, enabled = !working) { Text(texts.t("Remove")) }
+            }
+        }
+    }
+}
+
+/** What the core says when the removal went but older sign-ins may remain: read, then it is not said again. */
+@Composable
+internal fun RemovalNoticeCard(texts: Texts, message: String, actions: SettingsActions) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Column(modifier = Modifier.padding(Gutter), verticalArrangement = Arrangement.spacedBy(Gutter)) {
+            Text(texts.t("Your data was removed"), style = MaterialTheme.typography.titleMedium)
+            Text(message, style = MaterialTheme.typography.bodyMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = actions.onRemoveNoticeRead) { Text(texts.t("OK")) }
+            }
+        }
+    }
+}
+
+/** The questions that float over whatever Settings screen is showing. */
+@Composable
+internal fun RemovalDialogs(texts: Texts, removal: Removal, actions: SettingsActions) {
+    when (removal) {
+        Removal.Asking, Removal.Working, Removal.Failed ->
+            Dialog(onDismissRequest = actions.onRemoveCancel) {
+                Box(modifier = Modifier.verticalScroll(rememberScrollState())) { RemoveDataCard(texts, removal, actions) }
+            }
+        is Removal.Notice ->
+            Dialog(onDismissRequest = actions.onRemoveNoticeRead) {
+                Box(modifier = Modifier.verticalScroll(rememberScrollState())) { RemovalNoticeCard(texts, removal.message, actions) }
+            }
+        Removal.Idle, Removal.Done -> Unit
     }
 }
 

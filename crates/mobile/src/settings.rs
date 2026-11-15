@@ -39,7 +39,8 @@ pub struct DeviceSettings {
     pub download_pictures: bool,
     /// Show sender images (off).
     pub sender_images: bool,
-    /// Notify for new mail only: no reminders' wording, no other kinds (off).
+    /// A notification for new mail says "New mail" and nothing of the message, whatever the lock
+    /// screen shows (off); the app passes it on with [`Core::set_notify_new_mail_only`].
     pub new_mail_only: bool,
     /// Notify only for mail that would alert: Primary or Focused (off).
     pub primary_only: bool,

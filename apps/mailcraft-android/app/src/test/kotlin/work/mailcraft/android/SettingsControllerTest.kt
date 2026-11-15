@@ -59,6 +59,32 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
         return true
     }
 
+    var storage = StorageUse(500, 120L * 1024 * 1024, 40, listOf(250, 500, 1024, 2048))
+    var storageReads = 0
+    var removal: DataRemoval? = DataRemoval()
+    var removals = 0
+    var noticesRead = 0
+
+    override suspend fun storage(): StorageUse? {
+        storageReads++
+        return storage
+    }
+
+    override suspend fun setStorageCap(megabytes: Long): StorageUse? {
+        if (refuse) return null
+        storage = storage.copy(capMb = megabytes)
+        return storage
+    }
+
+    override suspend fun removeData(): DataRemoval? {
+        removals++
+        return removal
+    }
+
+    override suspend fun removalNoticeRead() {
+        noticesRead++
+    }
+
     override fun switches() = kept
 
     override fun saveSwitches(switches: Switches) {
@@ -275,5 +301,88 @@ class SettingsControllerTest {
         c.actions().onSignatureSave(ada)
         assertEquals("Ada\n[logo]", c.ui.value.signatures[1uL]?.draft)
         assertEquals(emptyList<String>(), api.saved)
+    }
+
+    @Test
+    fun theStorageCapIsReadChosenFromTheOfferedOnesAndAFailureLeavesItAsItWas() {
+        val api = FakeSettings()
+        val c = controller(api)
+        c.actions().onStorageShown()
+        assertEquals(500L, c.ui.value.storage?.capMb)
+        c.actions().onStorageCap(1024)
+        assertEquals(1024L, c.ui.value.storage?.capMb)
+        assertEquals(1024L, api.storage.capMb)
+        // A cap that was not offered is not taken; nor is the one already there.
+        c.actions().onStorageCap(77)
+        assertEquals(1024L, api.storage.capMb)
+        api.refuse = true
+        c.actions().onStorageCap(250)
+        assertEquals(1024L, c.ui.value.storage?.capMb)
+        assertTrue(c.ui.value.storageFailed)
+        api.refuse = false
+        c.actions().onStorageCap(2048)
+        assertFalse(c.ui.value.storageFailed)
+    }
+
+    @Test
+    fun aShorterWindowReadsWhatThePhoneHoldsAgain() {
+        val api = FakeSettings()
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        val before = api.storageReads
+        c.actions().onKeepOffline(ada, "1w")
+        assertTrue(api.storageReads > before)
+    }
+
+    @Test
+    fun removingTheDataAsksFirstAndGoesThroughTheCore() {
+        val api = FakeSettings()
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onRemoveConfirm()
+        assertEquals(0, api.removals)
+        c.actions().onRemoveAsk()
+        assertEquals(Removal.Asking, c.ui.value.removal)
+        c.actions().onRemoveCancel()
+        assertEquals(Removal.Idle, c.ui.value.removal)
+        assertEquals(0, api.removals)
+        c.actions().onRemoveAsk()
+        c.actions().onRemoveConfirm()
+        assertEquals(1, api.removals)
+        assertEquals(Removal.Done, c.ui.value.removal)
+        // What was read for the accounts that were is gone with them.
+        assertTrue(c.ui.value.keepOffline.isEmpty() && c.ui.value.signatures.isEmpty())
+        assertNull(c.ui.value.storage)
+        assertEquals(0, api.noticesRead)
+    }
+
+    @Test
+    fun aRemovalThatLeftSomethingCanBeTriedAgain() {
+        val api = FakeSettings().apply { removal = null }
+        val c = controller(api)
+        c.actions().onRemoveAsk()
+        c.actions().onRemoveConfirm()
+        assertEquals(Removal.Failed, c.ui.value.removal)
+        api.removal = DataRemoval()
+        c.actions().onRemoveConfirm()
+        assertEquals(2, api.removals)
+        assertEquals(Removal.Done, c.ui.value.removal)
+    }
+
+    @Test
+    fun theCoresNoticeIsShownAndTheCoreToldOnceItIsRead() {
+        val api = FakeSettings().apply { removal = DataRemoval("Some sign-ins may remain.") }
+        val c = controller(api)
+        c.actions().onRemoveAsk()
+        c.actions().onRemoveConfirm()
+        assertEquals(Removal.Notice("Some sign-ins may remain."), c.ui.value.removal)
+        // Not told yet: it has only been put up.
+        assertEquals(0, api.noticesRead)
+        c.actions().onRemoveNoticeRead()
+        assertEquals(Removal.Done, c.ui.value.removal)
+        assertEquals(1, api.noticesRead)
+        // Read twice, told once.
+        c.actions().onRemoveNoticeRead()
+        assertEquals(1, api.noticesRead)
     }
 }

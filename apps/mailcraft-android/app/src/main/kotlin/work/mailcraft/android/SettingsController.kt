@@ -38,6 +38,18 @@ internal interface SettingsApi {
     /** The bytes free on the storage the mailbox is on; negative when the phone can't say. */
     fun freeBytes(): Long
 
+    /** What the phone holds against its cap; null when the core can't say. */
+    suspend fun storage(): StorageUse?
+
+    /** Sets the cap in megabytes; null when it didn't go through. */
+    suspend fun setStorageCap(megabytes: Long): StorageUse?
+
+    /** Removes everything kept on this phone; null when some of it is still there. */
+    suspend fun removeData(): DataRemoval?
+
+    /** The notice that came with a removal has been read: the core says it no more. */
+    suspend fun removalNoticeRead()
+
     suspend fun signature(account: ULong): SignatureState?
 
     /** Keeps the account's signature; false when it didn't go through. */
@@ -84,6 +96,12 @@ internal class SettingsController(
         onSpaceNo = { answered(false) },
         onSignatureDraft = { account, text -> draft(account.id, text) },
         onSignatureSave = { account -> saveSignature(account.id) },
+        onStorageShown = ::readStorage,
+        onStorageCap = ::chooseCap,
+        onRemoveAsk = { setRemoval(Removal.Asking, from = setOf(Removal.Idle, Removal.Done, Removal.Failed)) },
+        onRemoveCancel = { setRemoval(Removal.Idle, from = setOf(Removal.Asking, Removal.Failed)) },
+        onRemoveConfirm = ::removeData,
+        onRemoveNoticeRead = ::noticeRead,
         onChannelSettings = onChannelSettings,
         onOpenLink = onOpenLink,
     )
@@ -118,6 +136,55 @@ internal class SettingsController(
         }
     }
 
+    private fun readStorage() {
+        scope.launch {
+            val found = api.storage() ?: return@launch
+            ui.update { state -> state.copy(storage = found) }
+        }
+    }
+
+    private fun chooseCap(megabytes: Long) {
+        val current = ui.value.storage ?: return
+        if (megabytes == current.capMb || megabytes !in current.choicesMb) return
+        scope.launch {
+            val kept = api.setStorageCap(megabytes)
+            ui.update { state -> state.copy(storage = kept ?: state.storage, storageFailed = kept == null) }
+        }
+    }
+
+    private fun setRemoval(next: Removal, from: Set<Removal>) =
+        ui.update { state -> if (state.removal in from) state.copy(removal = next) else state }
+
+    /** Removes everything kept on the phone; what the core says of it decides what the owner sees next. */
+    private fun removeData() {
+        if (ui.value.removal != Removal.Asking && ui.value.removal != Removal.Failed) return
+        ui.update { it.copy(removal = Removal.Working) }
+        stopThinning()
+        scope.launch {
+            val gone = api.removeData()
+            ui.update { state ->
+                when {
+                    gone == null -> state.copy(removal = Removal.Failed)
+                    // What was read for the accounts that were is read again for those that come.
+                    else -> state.copy(
+                        removal = gone.notice?.let { Removal.Notice(it) } ?: Removal.Done,
+                        keepOffline = emptyMap(),
+                        signatures = emptyMap(),
+                        storage = null,
+                        keepFailed = false,
+                    )
+                }
+            }
+        }
+    }
+
+    /** The core is told once the words were read, so that it says them no more. */
+    private fun noticeRead() {
+        if (ui.value.removal !is Removal.Notice) return
+        ui.update { it.copy(removal = Removal.Done) }
+        scope.launch { api.removalNoticeRead() }
+    }
+
     private fun switches(switches: Switches) {
         ui.update { it.copy(switches = switches) }
         api.saveSwitches(switches)
@@ -145,6 +212,7 @@ internal class SettingsController(
         // headers a few hundred messages a call, until none is left.
         // It stops at Stop and at the next choice; the sync driver takes it over when it exists.
         if (changed?.shorter == true) startThinning()
+        readStorage()
     }
 
     private fun startThinning() {

@@ -513,8 +513,9 @@ msgstr "A szervező megjegyzése (választható)"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
-msgid "A notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
-msgstr ""
+#, fuzzy
+msgid "A notification says only \"New mail\", never the sender or the subject, even when the lock screen shows everything."
+msgstr "Az értesítés csak annyit mond: „Új levél”, a feladót és a tárgyat soha, akkor sem, ha a zárképernyő mindent megjelenít."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -1087,8 +1088,15 @@ msgstr "Egész nap"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt
+#, fuzzy
 msgid "All mail"
-msgstr ""
+msgstr "Minden levél"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."
+msgstr "A telefonon tárolt összes levél és fiók el lesz távolítva, minden bejelentkezéssel együtt. A levelezőszolgáltató szervereiről semmi sem törlődik. Ez nem vonható vissza."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1751,8 +1759,9 @@ msgstr "Olvasási visszaigazolás kérése"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Asked first"
-msgstr ""
+msgstr "Először kérdez"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -4236,8 +4245,9 @@ msgstr "Töltse le a bájtokat, ez az üzenet ismét jött, hogy ellenőrizze a 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Downloaded automatically"
-msgstr ""
+msgstr "Automatikusan letöltve"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4393,8 +4403,9 @@ msgstr "e-mail"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Each account's signature goes at the end of its new messages, replies and forwards. Leave it empty for none."
-msgstr ""
+msgstr "Az egyes fiókok aláírása az új üzenetek, válaszok és továbbítások végére kerül. Hagyja üresen, ha nincs aláírás."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4759,6 +4770,12 @@ msgstr "Minden adat egyetlen .mailcraft fájlban"
 #, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "A \"{folder}\" minden részletét véglegesen törölni fogjuk."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Everything kept on this phone was removed."
+msgstr "A telefonon tárolt minden adat el lett távolítva."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6032,8 +6049,9 @@ msgstr "Milyen messze van a háti mail teljes egészében a számítógépen. Az
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "How far back mail is kept in full on this phone, by the date it arrived. Older mail keeps its sender, subject and a preview, and is fetched again when you open it. A shorter window frees space; a longer one fetches more mail, and asks first when the phone is short of room."
-msgstr ""
+msgstr "Meddig visszamenőleg tárolódnak a levelek teljes egészében ezen a telefonon, az érkezés dátuma szerint. A régebbi levelek megtartják a feladót, a tárgyat és egy előnézetet, és megnyitáskor újra letöltődnek. A rövidebb időszak helyet szabadít fel; a hosszabb több levelet tölt le, és előtte rákérdez, ha kevés a hely a telefonon."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -6947,6 +6965,12 @@ msgid "Keep account"
 msgstr ""
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Keep data"
+msgstr "Adatok megtartása"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 msgid "Keep it here, invite nobody"
 msgstr ""
@@ -7167,8 +7191,9 @@ msgstr "Tudasd az emberekkel, hogy távol vagy, vagy nem tudsz válaszolni egy i
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Licences"
-msgstr ""
+msgstr "Licencek"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -7378,11 +7403,6 @@ msgstr "Levelezés"
 msgid "Mail Kept on This Device"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
-msgid "Mail and reminders"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 #, fuzzy
@@ -7490,6 +7510,12 @@ msgstr "Levelek, hogy ne kapcsoljanak ki"
 msgid "Mail to keep offline:"
 msgstr "Kapcsolat nélkül elérhető levelek:"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Mail, accounts and sign-ins on this phone"
+msgstr "Levelek, fiókok és bejelentkezések ezen a telefonon"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -7522,8 +7548,9 @@ msgstr "A MailCraft még nem tud bejelentkezni erre a szerverre (a Kerberos-t ak
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
-msgstr ""
+msgstr "A MailCraft az alábbi szoftvereket tartalmazza. A mag Rust-könyvtárai a verziószámukkal együtt a forráskód-tárolóban vannak felsorolva."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -7589,8 +7616,9 @@ msgstr "A MailCraft nyílt forráskódú (MIT vagy Apache-2.0). Minden gomb olya
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
-msgstr ""
+msgstr "A MailCraft nyílt forráskódú, MIT és Apache 2.0 licenc alatt."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -8619,8 +8647,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
-msgstr ""
+msgstr "Soha a levélszemétben. Bekapcsolt adatforgalom-csökkentés mellett az üzenet képei addig várnak, amíg Ön nem kéri őket."
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -8795,13 +8824,15 @@ msgstr "Új posta A Gmail figyelmeztetés nélkül érkezik a Social, Promóció
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "New mail only"
-msgstr ""
+msgstr "Csak „Új levél”"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
-msgid "New mail, Primary or Focused only"
-msgstr ""
+#, fuzzy
+msgid "New mail only, Primary or Focused only"
+msgstr "Csak „Új levél”, csak Elsődleges vagy Fókuszált"
 
 #. interface, what a command says
 #: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -9386,6 +9417,12 @@ msgstr "Nem minden terv ellenőrizve."
 msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
 msgstr "Nem minden szervert találtak: a többi csak találgatás a domainről. Ellenőrizze a szolgáltatóval vagy az adminisztrátorral, mielőtt csatlakozna."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Not everything could be removed. Some of it is still here. Try again."
+msgstr "Nem sikerült mindent eltávolítani. Egy része még megvan. Próbálja újra."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9400,8 +9437,9 @@ msgstr "Még sehol sem tartottuk: Open & Export › Mentés Mailbox As."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Not much room on this phone"
-msgstr ""
+msgstr "Kevés a hely ezen a telefonon"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
@@ -9579,8 +9617,9 @@ msgstr "Értesítések"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."
-msgstr ""
+msgstr "Csak azokról a levelekről értesít, amelyek figyelmeztetnének: Gmailnél az Elsődleges, Microsoftnál a Fókuszált."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -9607,7 +9646,7 @@ msgid "Numbering"
 msgstr "Számozás"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9632,8 +9671,9 @@ msgstr "október"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Off"
-msgstr ""
+msgstr "Ki"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -9815,8 +9855,9 @@ msgstr "Csak akkor erősítse meg, ha ismeri ezeket a szervereket."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
-msgstr ""
+msgstr "Csak a képernyőn látható sorokhoz. Bekapcsolt adatforgalom-csökkentés mellett csak a telefonon már tárolt képek jelennek meg."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10257,6 +10298,12 @@ msgstr "Más emberek naptárai Microsoft munka vagy iskolai fiók alatt is nyith
 #, fuzzy
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr "Más emberek naptárai nem voltak megengedettek: {error}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
+msgstr "Egyébként az értesítés a feladót és a tárgyat mutatja, az üzenet szövegét és képeit soha. A zárképernyőn megjelenő tartalmat a telefon saját adatvédelmi beállítása szabja meg."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10763,8 +10810,9 @@ msgstr "Elsődleges"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Primary or Focused only"
-msgstr ""
+msgstr "Csak Elsődleges vagy Fókuszált"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10774,8 +10822,9 @@ msgstr "Primary, Social, Promóciók, Frissítések és fórumok, ahogy Gmail re
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Privacy"
-msgstr ""
+msgstr "Adatvédelem"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11191,7 +11240,7 @@ msgid "Reminders Window"
 msgstr "Emlékeztető ablak"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Eltávolítás"
@@ -11297,6 +11346,12 @@ msgstr "Kulcs eltávolítása"
 msgid "Remove account"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Remove all local data?"
+msgstr "Eltávolítja az összes helyi adatot?"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11336,6 +11391,12 @@ msgstr "Eltávolítás a Kedvencekből"
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Eltávolítás a biztonságos vagy blokkolt feladóktól"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Remove local data"
+msgstr "Helyi adatok eltávolítása"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -11364,6 +11425,12 @@ msgstr "Feltétel eltávolítása"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "Távolítsa el a {format} kulcsot {who} erről a számítógépről? Töröljük a rendszer hiteles boltjából, és MailCraft nem tud vele többet aláírni. Tartsa meg a fájl egy példányát, ha esetleg szüksége lehet rá újra."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
+msgstr "Eltávolítja a telefonon tárolt leveleket, naptárakat, névjegyeket és feladatokat, a fiókjait és minden bejelentkezést. A levelezőszolgáltató szervereiről semmi sem törlődik, és a fiókokat később újra hozzáadhatja."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12683,6 +12750,12 @@ msgid "Send/Receive with Microsoft Graph"
 msgstr "Microsoft Graph- pel történő üzenetküldés/ fogadás"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Sender and subject shown"
+msgstr "A feladó és a tárgy látszik"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Sender images"
@@ -13087,11 +13160,6 @@ msgstr "Megjelenítés az idősávban"
 #, fuzzy
 msgid "Show messages on a light background in the dark theme"
 msgstr "Világos üzenetháttér sötét témában"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
-msgid "Show notifications for new mail, not for calendar and task reminders."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs
@@ -13631,8 +13699,9 @@ msgstr "Rendezés"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Sound, vibration and lock screen, in the phone's settings"
-msgstr ""
+msgstr "Hang, rezgés és zárképernyő a telefon beállításaiban"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13819,6 +13888,12 @@ msgstr "Megállok…"
 msgid "Stopping… what has come in stays."
 msgstr "Megállok… ami bejött, az marad."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Storage on this phone"
+msgstr "Tárhely ezen a telefonon"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -13944,8 +14019,9 @@ msgstr "Szimbólumok"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Sync anyway"
-msgstr ""
+msgstr "Szinkronizálás mégis"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -14245,8 +14321,15 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "That didn't go through. The limit is as it was."
+msgstr "Ez nem sikerült. A korlát változatlan."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "That didn't go through. The window is as it was."
-msgstr ""
+msgstr "Ez nem sikerült. Az időszak változatlan."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
@@ -14964,8 +15047,8 @@ msgstr "A feladók listája teljes: távolítsa el néhány fájlban › Beáll�
 #. what a command says
 #: crates/mobile/src/core.rs
 #, fuzzy
-msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
-msgstr "A telefonon tárolt beiratkozások listája megsérült, így néhány régebbi beiratkozás még mindig rajta lehet. MailCraft Android Beállításaiban lévő tárolójának törlése eltávolítja őket."
+msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
+msgstr "A telefonon tárolt bejelentkezések listája megsérült, ezért előfordulhat, hogy régebbi bejelentkezések még megvannak. A telefon MailCraftra vonatkozó beállításaiban törölheti, amit az alkalmazás tárol."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -15103,6 +15186,12 @@ msgstr "Az üzenet, amit írtál, a Drafts-re mentett; egy link újat nyitott."
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
 msgstr "Az aktuális mappa üzenetei .mbox formátumban"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
+msgstr "A telefon által tárolt levelek legnagyobb mennyisége, az összes fiókot együtt számolva. Efölött a legrégebbi levelek visszakerülnek a fejlécükre, majd lekerülnek a telefonról. A szerveren semmi sem törlődik."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -15655,8 +15744,9 @@ msgstr "A {account} Microsoft Graph-ra történő váltása addig vár, amíg Ma
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "The sync waits for your answer. A shorter window in Settings needs less room."
-msgstr ""
+msgstr "A szinkronizálás a válaszára vár. A Beállításokban egy rövidebb időszak kevesebb helyet igényel."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16682,13 +16772,15 @@ msgstr "A megosztott postafiókhoz tartozó fiók már nincs meg. Távolítsa el
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
-msgstr ""
+msgstr "Ez az aláírás képet vagy saját elrendezést tartalmaz. Módosítsa a számítógépen."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
-msgstr ""
+msgstr "Ehhez a szinkronizáláshoz körülbelül {needed} kell. A telefonon {free} szabad hely van, és a MailCraft hagy némi helyet, hogy a telefon tovább működhessen. Szinkronizál mégis?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -17597,8 +17689,9 @@ msgstr "A hét kezdete"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What MailCraft sends, and to whom"
-msgstr ""
+msgstr "Mit küld a MailCraft, és kinek"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -17620,8 +17713,9 @@ msgstr "A beérkező levelek kezelése"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What is bundled in this app, and under which licence"
-msgstr ""
+msgstr "Mi van ebben az alkalmazásban, és milyen licenc alatt"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18117,6 +18211,12 @@ msgstr "A naptárad: {day}"
 #, fuzzy
 msgid "Your certificates and keys"
 msgstr "A tanúsítványod és kulcsaid"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Your data was removed"
+msgstr "Az adatai el lettek távolítva"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -21792,10 +21892,11 @@ msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} fióknak van"
+msgstr[1] "{n} fióknak van"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -22373,10 +22474,11 @@ msgstr "Eddig a {total} {n}."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "{n} older message taken back to its headers"
 msgid_plural "{n} older messages taken back to its headers"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} régebbi üzenet visszaállítva a fejlécére"
+msgstr[1] "{n} régebbi üzenet visszaállítva a fejlécére"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22707,6 +22809,14 @@ msgstr "{time} ezelőtt"
 msgid "{title} (all day)"
 msgstr "{title} (egész nap)"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{used} of {cap} used by {n} message"
+msgid_plural "{used} of {cap} used by {n} messages"
+msgstr[0] "{used} / {cap} foglalt {n} üzenet által"
+msgstr[1] "{used} / {cap} foglalt {n} üzenet által"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -22790,6 +22900,10 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
+#~ msgstr "A telefonon tárolt beiratkozások listája megsérült, így néhány régebbi beiratkozás még mindig rajta lehet. MailCraft Android Beállításaiban lévő tárolójának törlése eltávolítja őket."
 
 #, fuzzy
 #~ msgid "A sign-in is already open."

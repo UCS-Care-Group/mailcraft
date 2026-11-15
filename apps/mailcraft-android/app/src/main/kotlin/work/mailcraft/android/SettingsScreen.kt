@@ -72,6 +72,7 @@ internal fun SettingsScreen(
                     AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
                 SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
                 SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+                SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
                 SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings)
                 SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
                 SettingsPage.Notifications -> NotificationsPage(texts, data.settingsUi.switches, actions.settings)
@@ -91,6 +92,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
             SettingsPage.About -> data.version
+            SettingsPage.RemoveData -> removeDataSummary(texts)
             SettingsPage.MailOffline -> offlineSummary(texts, data.settingsUi, data.accounts)
             SettingsPage.Notifications -> notificationsSummary(texts, data.settingsUi.switches)
             SettingsPage.Pictures -> picturesSummary(texts, data.settingsUi.switches)

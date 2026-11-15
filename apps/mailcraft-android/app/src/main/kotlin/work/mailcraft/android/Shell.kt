@@ -245,6 +245,7 @@ private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountAction
 @Composable
 private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsActions) {
     data.settingsUi.space?.let { SpaceDialog(texts, it, actions) }
+    RemovalDialogs(texts, data.settingsUi.removal, actions)
 }
 
 @Composable

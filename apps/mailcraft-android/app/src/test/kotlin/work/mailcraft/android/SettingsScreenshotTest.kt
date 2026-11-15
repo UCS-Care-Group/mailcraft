@@ -48,10 +48,10 @@ class SettingsScreenshotTest {
     fun rowsDark200() = shoot("settings_rows_dark_200", true, 2f, TALL) { SettingsShots.Page(null) }
 
     @Test
-    fun mailOfflineLight100() = shoot("settings_offline_light_100", false, 1f, TALL) { SettingsShots.Page(SettingsPage.MailOffline) }
+    fun mailOfflineLight100() = shoot("settings_offline_light_100", false, 1f, OFFLINE_TALL_100) { SettingsShots.Page(SettingsPage.MailOffline) }
 
     @Test
-    fun mailOfflineDark100() = shoot("settings_offline_dark_100", true, 1f, TALL) { SettingsShots.Page(SettingsPage.MailOffline) }
+    fun mailOfflineDark100() = shoot("settings_offline_dark_100", true, 1f, OFFLINE_TALL_100) { SettingsShots.Page(SettingsPage.MailOffline) }
 
     @Test
     fun mailOfflineLight200() = shoot("settings_offline_light_200", false, 2f, OFFLINE_TALL) { SettingsShots.Page(SettingsPage.MailOffline) }
@@ -75,6 +75,18 @@ class SettingsScreenshotTest {
     fun about() = four("settings_about", tallAtTwice = true) { SettingsShots.Page(SettingsPage.About) }
 
     @Test
+    fun removeData() = four("settings_remove_data", tallAtTwice = true) { SettingsShots.Page(SettingsPage.RemoveData) }
+
+    @Test
+    fun removeQuestion() = four("settings_remove_question") { SettingsShots.RemoveQuestion(Removal.Asking) }
+
+    @Test
+    fun removeQuestionFailed() = four("settings_remove_question_failed") { SettingsShots.RemoveQuestion(Removal.Failed) }
+
+    @Test
+    fun removalNotice() = four("settings_removal_notice") { SettingsShots.RemovalNotice() }
+
+    @Test
     fun licences() = four("settings_licences", tallAtTwice = true) { SettingsShots.Licences() }
 
     @Test
@@ -87,4 +99,5 @@ class SettingsScreenshotTest {
 // The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
 private const val TOLERANCE = 0.1
 private const val TALL = 5200
-private const val OFFLINE_TALL = 8000
+private const val OFFLINE_TALL = 10000
+private const val OFFLINE_TALL_100 = 6500

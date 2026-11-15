@@ -137,11 +137,13 @@ class MailCraftApplication : Application() {
             handback.sink = opened.core::handBackRedirect
             handback.interrupted = opened.hub.controller::signInInterrupted
             events.register(opened.hub::handle)
-            events.register(MailNotifier(applicationContext, opened.core::t)::handle)
+            events.register(MailNotifier(applicationContext, opened.core::t) { DeviceSwitches(applicationContext).load().newMailOnly }::handle)
             // The words of what a background round says (a notification's "New mail") are the
             // window's language even when no window has opened (the owner's saved choice first).
             opened.core.setLanguage(LanguageChoice.inUse(this))
             opened.core.setNotifyNewMail(mailNotificationsAllowed(applicationContext))
+            // The owner's privacy switch: a notification says "New mail" and nothing of the message.
+            followSwitches(opened.core, DeviceSwitches(applicationContext).load())
             events.register { event -> opened.mail.handle(event, scope) }
             // A pull to refresh is the hub's Send/Receive: the list shows its spinner and its word.
             opened.mail.follow(opened.hub.syncing, opened.hub.syncNotice, opened.hub::syncNoticeShown, scope)

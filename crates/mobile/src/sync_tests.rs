@@ -200,6 +200,29 @@ fn new_mail_notifications_can_be_switched_off_and_many_are_counted() {
 }
 
 #[test]
+fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
+    let (runner, _) = stand_in();
+    let (core, _, _) = signed_in(runner);
+    core.set_notify_new_mail_only(true);
+    block_on(core.sync_now()).unwrap();
+    until_finished(&core);
+    block_on(core.sync_now()).unwrap();
+    let events = until_finished(&core);
+    let told: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Notification { notification } => Some(notification.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 1, "{events:?}");
+    assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
+    // Nothing of the message is anywhere in what the app is told.
+    let all = format!("{told:?}");
+    assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
+}
+
+#[test]
 fn background_sync_runs_one_round_and_says_what_it_brought() {
     let (runner, _) = stand_in();
     let (core, _, _) = signed_in(runner);

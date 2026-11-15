@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +23,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -96,6 +98,59 @@ internal fun MailOfflinePage(texts: Texts, ui: SettingsUi, accounts: List<Accoun
         }
     }
     if (ui.keepFailed) Hint(texts.t("That didn't go through. The window is as it was."))
+    StorageSection(texts, ui, actions)
+}
+
+/** The phone's cap on the mail it keeps, all accounts together, with what is kept now. */
+@Composable
+private fun StorageSection(texts: Texts, ui: SettingsUi, actions: SettingsActions) {
+    LaunchedEffect(Unit) { actions.onStorageShown() }
+    val storage = ui.storage ?: return
+    HorizontalDivider()
+    Text(
+        texts.t("Storage on this phone"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = Gutter, vertical = Gap),
+    )
+    Hint(
+        texts.t(
+            "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server.",
+        ),
+    )
+    Text(
+        storageUsedText(texts, storage),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = Gutter),
+    )
+    storage.choicesMb.forEach { mb ->
+        ChoiceRow(sizeText(mb * MEBIBYTE), selected = mb == storage.capMb) { actions.onStorageCap(mb) }
+    }
+    if (ui.storageFailed) Hint(texts.t("That didn't go through. The limit is as it was."))
+}
+
+private const val MEBIBYTE = 1024L * 1024L
+
+/** Remove local data: what it takes off the phone, and the button that asks. */
+@Composable
+internal fun RemoveDataPage(texts: Texts, removal: Removal, actions: SettingsActions) {
+    Hint(
+        texts.t(
+            "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later.",
+        ),
+    )
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.End) {
+        Button(
+            onClick = actions.onRemoveAsk,
+            enabled = removal != Removal.Working,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ),
+        ) { Text(texts.t("Remove local data")) }
+    }
+    if (removal == Removal.Done) Hint(texts.t("Everything kept on this phone was removed."))
 }
 
 @Composable
@@ -118,7 +173,7 @@ private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
 internal fun NotificationsPage(texts: Texts, switches: Switches, actions: SettingsActions) {
     SwitchRow(
         texts.t("New mail only"),
-        texts.t("Show notifications for new mail, not for calendar and task reminders."),
+        texts.t("A notification says only \"New mail\", never the sender or the subject, even when the lock screen shows everything."),
         switches.newMailOnly,
     ) { actions.onSwitches(switches.copy(newMailOnly = it)) }
     SwitchRow(
@@ -128,7 +183,7 @@ internal fun NotificationsPage(texts: Texts, switches: Switches, actions: Settin
     ) { actions.onSwitches(switches.copy(primaryOnly = it)) }
     Hint(
         texts.t(
-            "A notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting.",
+            "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting.",
         ),
     )
     channelSpecs(texts::t).forEach { channel ->

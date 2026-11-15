@@ -509,8 +509,9 @@ msgstr "给组织者的说明（可选）"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
-msgid "A notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
-msgstr ""
+#, fuzzy
+msgid "A notification says only \"New mail\", never the sender or the subject, even when the lock screen shows everything."
+msgstr "通知只显示“新邮件”，绝不显示发件人或主题，即使锁屏会显示全部内容。"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -1080,8 +1081,15 @@ msgstr "全天"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt
+#, fuzzy
 msgid "All mail"
-msgstr ""
+msgstr "所有邮件"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."
+msgstr "此手机上保存的所有邮件和账户都会被移除，所有登录信息也一并移除。邮件服务商服务器上的内容不会被删除。此操作无法撤销。"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -1744,8 +1752,9 @@ msgstr "请求在邮件被阅读时通知我"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Asked first"
-msgstr ""
+msgstr "先询问"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -4222,8 +4231,9 @@ msgstr "重新下载此邮件的原始字节，以检查其数字签名"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Downloaded automatically"
-msgstr ""
+msgstr "自动下载"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4378,8 +4388,9 @@ msgstr "电子邮件"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Each account's signature goes at the end of its new messages, replies and forwards. Leave it empty for none."
-msgstr ""
+msgstr "每个账户的签名会添加在其新邮件、回复和转发的末尾。留空表示不使用签名。"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4741,6 +4752,12 @@ msgstr "将此处所有内容保存到一个 .mailcraft 文件中"
 #, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "“{folder}”中的所有内容都将被永久删除。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Everything kept on this phone was removed."
+msgstr "此手机上保存的所有内容都已移除。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6014,8 +6031,9 @@ msgstr "设置在此计算机上完整保留多长时间内的邮件。更早的
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "How far back mail is kept in full on this phone, by the date it arrived. Older mail keeps its sender, subject and a preview, and is fetched again when you open it. A shorter window frees space; a longer one fetches more mail, and asks first when the phone is short of room."
-msgstr ""
+msgstr "按邮件到达日期计算，此手机上完整保留多久以内的邮件。更早的邮件保留发件人、主题和预览，打开时会重新获取。时间范围越短越节省空间；越长则获取的邮件越多，手机空间不足时会先询问。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -6921,6 +6939,12 @@ msgid "Keep account"
 msgstr ""
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Keep data"
+msgstr "保留数据"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 msgid "Keep it here, invite nobody"
 msgstr ""
@@ -7141,8 +7165,9 @@ msgstr "让别人知道您不在或暂时无法回复：邮箱会自动回复"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Licences"
-msgstr ""
+msgstr "许可证"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -7352,11 +7377,6 @@ msgstr "邮件"
 msgid "Mail Kept on This Device"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
-msgid "Mail and reminders"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 msgid "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
@@ -7463,6 +7483,12 @@ msgstr "要保留以供离线使用的邮件"
 msgid "Mail to keep offline:"
 msgstr "要保留以供离线使用的邮件："
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Mail, accounts and sign-ins on this phone"
+msgstr "此手机上的邮件、账户和登录信息"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -7495,8 +7521,9 @@ msgstr "MailCraft 暂时无法以此方式登录该服务器（服务器要求�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
-msgstr ""
+msgstr "MailCraft 包含下列软件。其核心的 Rust 库及版本列在源代码仓库中。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -7560,8 +7587,9 @@ msgstr "MailCraft 是开源软件（MIT 或 Apache-2.0）。此处每个按钮�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
-msgstr ""
+msgstr "MailCraft 是开源软件，采用 MIT 和 Apache 2.0 许可证。"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -8580,8 +8608,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
-msgstr ""
+msgstr "垃圾邮件中永不下载。开启流量节省模式时，邮件中的图片会等到您要求时才下载。"
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -8755,13 +8784,15 @@ msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "New mail only"
-msgstr ""
+msgstr "仅显示“新邮件”"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
-msgid "New mail, Primary or Focused only"
-msgstr ""
+#, fuzzy
+msgid "New mail only, Primary or Focused only"
+msgstr "仅显示“新邮件”，仅限主要或重点邮件"
 
 #. interface, what a command says
 #: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -9341,6 +9372,12 @@ msgstr "并非每个布局都经过检查。"
 msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Not everything could be removed. Some of it is still here. Try again."
+msgstr "无法移除全部内容，仍有一部分保留。请重试。"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9355,8 +9392,9 @@ msgstr "尚未保存到任何位置：请使用“打开和导出 › 邮箱另�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Not much room on this phone"
-msgstr ""
+msgstr "此手机空间不多"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
@@ -9532,8 +9570,9 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."
-msgstr ""
+msgstr "仅为会提醒的邮件发送通知：Gmail 为“主要”，Microsoft 为“重点”。"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -9560,7 +9599,7 @@ msgid "Numbering"
 msgstr "编号"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "确定"
@@ -9585,8 +9624,9 @@ msgstr "10月"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Off"
-msgstr ""
+msgstr "关"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -9767,8 +9807,9 @@ msgstr "仅在确认这些服务器可信时继续。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
-msgstr ""
+msgstr "仅限屏幕上的行。开启流量节省模式时，只显示已保存在此手机上的图片。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10210,6 +10251,12 @@ msgstr "可以在 Microsoft 工作或学校账户下打开其他人的日历"
 #, fuzzy
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr "未获准访问其他人的日历：{error}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
+msgstr "否则，通知会显示发件人和主题，但绝不显示邮件正文或图片。锁屏上显示的内容遵循手机自身的隐私设置。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10715,8 +10762,9 @@ msgstr "主要"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "Primary or Focused only"
-msgstr ""
+msgstr "仅限主要或重点邮件"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10726,8 +10774,9 @@ msgstr "Gmail 会将收件箱分为主要、社交、促销、更新和论坛；
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Privacy"
-msgstr ""
+msgstr "隐私"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11147,7 +11196,7 @@ msgid "Reminders Window"
 msgstr "提醒窗口"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "移除"
@@ -11252,6 +11301,12 @@ msgstr "移除您的密钥"
 msgid "Remove account"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Remove all local data?"
+msgstr "要移除所有本地数据吗？"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11291,6 +11346,12 @@ msgstr "从收藏夹中移除"
 msgid "Remove from Safe or Blocked Senders"
 msgstr "从安全发件人或阻止发件人中移除"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Remove local data"
+msgstr "移除本地数据"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -11319,6 +11380,12 @@ msgstr "移除此条件"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "从这台计算机移除 {who} 的 {format} 密钥吗？密钥将从系统凭据存储中删除，MailCraft 将无法再使用它签名。如果以后可能需要此文件，请保留一份副本。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
+msgstr "移除此手机上保存的邮件、日历、联系人和任务，以及您的账户和所有登录信息。邮件服务商服务器上的内容不会被删除，您之后可以重新添加账户。"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12634,6 +12701,12 @@ msgid "Send/Receive with Microsoft Graph"
 msgstr "使用 Microsoft Graph 发送/接收"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Sender and subject shown"
+msgstr "显示发件人和主题"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 msgid "Sender images"
 msgstr ""
@@ -13035,11 +13108,6 @@ msgstr "在时间栏中显示"
 #, fuzzy
 msgid "Show messages on a light background in the dark theme"
 msgstr "深色主题下以浅色背景显示邮件"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
-msgid "Show notifications for new mail, not for calendar and task reminders."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/secret_field.rs
@@ -13574,8 +13642,9 @@ msgstr "排序依据"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "Sound, vibration and lock screen, in the phone's settings"
-msgstr ""
+msgstr "声音、振动和锁屏，在手机设置中"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13762,6 +13831,12 @@ msgstr "正在停止…"
 msgid "Stopping… what has come in stays."
 msgstr "正在停止…已导入的内容会保留。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Storage on this phone"
+msgstr "此手机上的存储空间"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -13887,8 +13962,9 @@ msgstr "符号"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "Sync anyway"
-msgstr ""
+msgstr "仍然同步"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -14186,8 +14262,15 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "That didn't go through. The limit is as it was."
+msgstr "未能完成。限制保持不变。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "That didn't go through. The window is as it was."
-msgstr ""
+msgstr "未能完成。时间范围保持不变。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
@@ -14897,8 +14980,9 @@ msgstr "发件人列表已满：在“文件” › “选项”中删除一些�
 
 #. what a command says
 #: crates/mobile/src/core.rs
-msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
-msgstr ""
+#, fuzzy
+msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
+msgstr "此手机上保存的登录信息列表已损坏，因此可能仍保留一些较早的登录信息。您可以在手机中 MailCraft 的设置里清除其保存的内容。"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -15037,6 +15121,12 @@ msgstr "您正在撰写的邮件已保存到“草稿”；链接打开了一封
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
 msgstr "将当前查看的文件夹中的邮件保存为 .mbox"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
+msgstr "此手机保留邮件的最大量，所有账户合计。超出后，最旧的邮件会退回只保留邮件头，然后从手机上移除。服务器上的内容不会被删除。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -15587,8 +15677,9 @@ msgstr "待 MailCraft 能连接服务器后，才会将 {account} 切换到 Micr
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "The sync waits for your answer. A shorter window in Settings needs less room."
-msgstr ""
+msgstr "同步正在等待您的答复。在“设置”中选择更短的时间范围所需空间更少。"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16613,13 +16704,15 @@ msgstr "此共享邮箱所属的账户已不存在：请移除共享邮箱后重
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
-msgstr ""
+msgstr "此签名含有图片或自定义版式。请在电脑上修改。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
-msgstr ""
+msgstr "此次同步大约需要 {needed}。此手机有 {free} 可用空间，MailCraft 还会留出一些空间让手机正常运行。仍然同步吗？"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -17529,8 +17622,9 @@ msgstr "一周的第一天"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What MailCraft sends, and to whom"
-msgstr ""
+msgstr "MailCraft 发送什么内容，发送给谁"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -17552,8 +17646,9 @@ msgstr "邮件到达后会发生什么"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
 msgid "What is bundled in this app, and under which licence"
-msgstr ""
+msgstr "此应用包含哪些内容，以及采用何种许可证"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18054,6 +18149,12 @@ msgstr "您的日历：{day}"
 #, fuzzy
 msgid "Your certificates and keys"
 msgstr "您的证书和密钥"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Your data was removed"
+msgstr "您的数据已移除"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -21696,9 +21797,10 @@ msgstr[0] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
 msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
-msgstr[0] ""
+msgstr[0] "{n} 个账户已设置"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -22200,9 +22302,10 @@ msgstr "目前已完成 {total} 中的 {n}。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
 msgid "{n} older message taken back to its headers"
 msgid_plural "{n} older messages taken back to its headers"
-msgstr[0] ""
+msgstr[0] "{n} 封较早的邮件已退回只保留邮件头"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22506,6 +22609,13 @@ msgstr "{time} 前"
 #, fuzzy
 msgid "{title} (all day)"
 msgstr "{title}（全天）"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{used} of {cap} used by {n} message"
+msgid_plural "{used} of {cap} used by {n} messages"
+msgstr[0] "{n} 封邮件占用 {used}（上限 {cap}）"
 
 #. date and time
 #: crates/i18n/src/date.rs

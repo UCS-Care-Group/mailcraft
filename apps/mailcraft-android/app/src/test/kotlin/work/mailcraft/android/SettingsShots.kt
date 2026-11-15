@@ -22,6 +22,7 @@ internal object SettingsShots {
     val ui = SettingsUi(
         switches = Switches(downloadPictures = false, senderImages = true, newMailOnly = true, primaryOnly = false),
         keepOffline = mapOf(1uL to "1m", 2uL to "6m"),
+        storage = StorageUse(500, 212L * 1024 * 1024, 4_120, listOf(250, 500, 1024, 2048, 5120, 10240)),
         signatures = mapOf(
             1uL to SignatureState("Ada Example\nExample Org\nada@example.org", "Ada Example\nExample Org\nada@example.org"),
             2uL to SignatureState("", "Bo", editable = true),
@@ -51,6 +52,18 @@ internal object SettingsShots {
             ShellActions(onFolder = { _, _ -> }, onLanguage = {}),
             initialNav = page?.let { NavState().openPage(it) } ?: NavState().openSettings(),
         )
+    }
+
+    @Composable
+    fun RemoveQuestion(removal: Removal) = Themed {
+        Box(modifier = Modifier.fillMaxSize().padding(24.dp)) { RemoveDataCard(EnglishTexts, removal, SettingsActions()) }
+    }
+
+    @Composable
+    fun RemovalNotice() = Themed {
+        Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            RemovalNoticeCard(EnglishTexts, "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps.", SettingsActions())
+        }
     }
 
     @Composable

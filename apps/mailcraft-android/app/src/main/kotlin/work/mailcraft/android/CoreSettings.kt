@@ -8,7 +8,9 @@ import android.os.StatFs
 import java.io.File
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
+import uniffi.mailcraft_mobile.DataRemoved
 import uniffi.mailcraft_mobile.DeviceSettings
+import uniffi.mailcraft_mobile.DeviceStorage
 import uniffi.mailcraft_mobile.deviceSettingsJson
 import uniffi.mailcraft_mobile.keepOfflineCodes
 import uniffi.mailcraft_mobile.offlineEstimate
@@ -73,6 +75,18 @@ internal fun freeBytesAt(dir: File): Long =
         -1L
     }
 
+/** Tells the core the phone's switches that change what it raises (the notification privacy switch). */
+internal fun followSwitches(core: Core, switches: Switches) {
+    runCatching { core.setNotifyNewMailOnly(switches.newMailOnly) }
+}
+
+private fun DeviceStorage.use() = StorageUse(
+    capMb = capMb.toLong(),
+    usedBytes = usedBytes.toLong().coerceAtLeast(0L),
+    messages = messages.toLong(),
+    choicesMb = choicesMb.map { it.toLong() },
+)
+
 /** [SettingsApi] over the Rust core, the phone's storage and its private preferences. */
 internal class CoreSettings(
     private val core: Core,
@@ -124,9 +138,43 @@ internal class CoreSettings(
         false
     }
 
+    override suspend fun storage(): StorageUse? = try {
+        core.deviceStorage().use()
+    } catch (_: CoreException) {
+        null
+    }
+
+    override suspend fun setStorageCap(megabytes: Long): StorageUse? = try {
+        val kept = core.setStorageCap(megabytes.coerceAtLeast(0L).toULong()).use()
+        keep()
+        kept
+    } catch (_: CoreException) {
+        null
+    }
+
+    override suspend fun removeData(): DataRemoval? = try {
+        when (val done = core.deleteLocalData()) {
+            is DataRemoved.SignInsMayRemain -> DataRemoval(done.message)
+            else -> DataRemoval()
+        }
+    } catch (_: CoreException) {
+        null
+    }
+
+    override suspend fun removalNoticeRead() {
+        try {
+            core.signInsNoticeShown()
+        } catch (_: CoreException) {
+            // Not heard: the core says it again at the next removal, which is the safe way round.
+        }
+    }
+
     override fun switches(): Switches = store.load()
 
-    override fun saveSwitches(switches: Switches) = store.save(switches)
+    override fun saveSwitches(switches: Switches) {
+        store.save(switches)
+        followSwitches(core, switches)
+    }
 
     private companion object {
         const val THIN_BATCH = 300u

@@ -14,7 +14,7 @@ internal data class Switches(
     val downloadPictures: Boolean = false,
     /** Show sender images (Gravatar, favicon.im, Google). Off. */
     val senderImages: Boolean = false,
-    /** Notify for new mail only. Off. */
+    /** A notification for new mail says "New mail" and nothing of the message, on the lock screen or off it. Off. */
     val newMailOnly: Boolean = false,
     /** Notify only for mail that would alert: Primary or Focused. Off. */
     val primaryOnly: Boolean = false,
@@ -102,6 +102,37 @@ internal data class SignatureState(
  */
 internal data class SpaceAsk(val account: ULong, val forWindow: String?, val warning: SpaceWarning)
 
+/** What the phone holds of mail against the cap the owner can change (the core's `DeviceStorage`). */
+internal data class StorageUse(
+    val capMb: Long,
+    val usedBytes: Long,
+    val messages: Long,
+    /** The caps offered, smallest first, the present one among them. */
+    val choicesMb: List<Long>,
+)
+
+/** Where removing all the data kept on this phone has got to. */
+internal sealed interface Removal {
+    data object Idle : Removal
+
+    /** The owner is being asked. */
+    data object Asking : Removal
+
+    data object Working : Removal
+
+    /** Not everything went; what is left is still here, and trying again is allowed. */
+    data object Failed : Removal
+
+    /** All of it went. */
+    data object Done : Removal
+
+    /** It went, but the core has words for the owner to read first ([message]). */
+    data class Notice(val message: String) : Removal
+}
+
+/** What the core says came of removing the data: the words to show, when it has some. */
+internal data class DataRemoval(val notice: String? = null)
+
 /** Everything Settings draws that isn't the list of accounts. */
 internal data class SettingsUi(
     val switches: Switches = Switches(),
@@ -115,6 +146,11 @@ internal data class SettingsUi(
     /** Older mail is being taken back to its headers after a shorter window; [thinned] so far. */
     val thinning: Boolean = false,
     val thinned: Long = 0L,
+    /** What the phone holds against its cap; null until the core has said. */
+    val storage: StorageUse? = null,
+    /** Changing the cap did not go through. */
+    val storageFailed: Boolean = false,
+    val removal: Removal = Removal.Idle,
 )
 
 /** What Settings asks of the app: one entry for each thing the owner can do there. */
@@ -129,6 +165,15 @@ internal class SettingsActions(
     val onSpaceNo: () -> Unit = {},
     val onSignatureDraft: (AccountItem, String) -> Unit = { _, _ -> },
     val onSignatureSave: (AccountItem) -> Unit = {},
+    /** The Mail to keep offline page is on screen: what the phone holds is read. */
+    val onStorageShown: () -> Unit = {},
+    /** The owner picked a storage cap, in megabytes. */
+    val onStorageCap: (Long) -> Unit = {},
+    val onRemoveAsk: () -> Unit = {},
+    val onRemoveCancel: () -> Unit = {},
+    val onRemoveConfirm: () -> Unit = {},
+    /** The owner has read the notice that came with the removal. */
+    val onRemoveNoticeRead: () -> Unit = {},
     /** The system's own settings for a notification channel. */
     val onChannelSettings: (String) -> Unit = {},
     /** A web address of the project's (https only). */

@@ -103,14 +103,20 @@ internal fun AskForNotificationsOnce(hasAccount: Boolean, answered: () -> Unit) 
  * and what the message says waits until the phone is unlocked; where the owner lets the lock
  * screen show all of it, the sender and subject show there too. Tapping one opens the app.
  */
-internal class MailNotifier(private val context: Context, private val t: (String) -> String) {
+internal class MailNotifier(
+    private val context: Context,
+    private val t: (String) -> String,
+    /** The owner's privacy switch, read as each one is shown. */
+    private val onlyNewMail: () -> Boolean = { false },
+) {
     fun handle(event: Event) {
         if (event is Event.Notification && event.notification.topic == NotificationTopic.MAIL) show(event.notification)
     }
 
-    private fun show(record: NotificationRecord) {
+    private fun show(sent: NotificationRecord) {
         // Checked again here: the owner may have turned them off since the core was told.
         if (!mailNotificationsAllowed(context)) return
+        val record = privateRecord(sent, onlyNewMail(), t("New mail"))
         val icon = IconCompat.createWithBitmap(envelope())
         val open = PendingIntent.getActivity(
             context,
@@ -140,6 +146,13 @@ internal class MailNotifier(private val context: Context, private val t: (String
         }
     }
 }
+
+/**
+ * What a notification says: the core's words, or with the owner's privacy switch on only
+ * [newMail] and nothing of the message, whatever the lock screen shows.
+ */
+internal fun privateRecord(record: NotificationRecord, onlyNewMail: Boolean, newMail: String): NotificationRecord =
+    if (onlyNewMail) record.copy(title = newMail, body = "") else record
 
 /** The status-bar icon, an envelope drawn here in white on nothing (the system tints it). */
 internal fun envelope(): Bitmap {

@@ -8,13 +8,24 @@ internal fun offlineSummary(texts: Texts, ui: SettingsUi, accounts: List<Account
     return offlineLabel(texts, ui.keepOffline[first.id] ?: DEFAULT_OFFLINE)
 }
 
+/** The summary under the Remove local data row. */
+internal fun removeDataSummary(texts: Texts): String = texts.t("Mail, accounts and sign-ins on this phone")
+
 /** The summary under the Notifications row. */
 internal fun notificationsSummary(texts: Texts, switches: Switches): String = when {
-    switches.newMailOnly && switches.primaryOnly -> texts.t("New mail, Primary or Focused only")
+    switches.newMailOnly && switches.primaryOnly -> texts.t("New mail only, Primary or Focused only")
     switches.newMailOnly -> texts.t("New mail only")
     switches.primaryOnly -> texts.t("Primary or Focused only")
-    else -> texts.t("Mail and reminders")
+    else -> texts.t("Sender and subject shown")
 }
+
+/** What the phone holds against its cap, in words. */
+internal fun storageUsedText(texts: Texts, storage: StorageUse): String =
+    texts.tn(storage.messages.toULong(), "{used} of {cap} used by {n} message", "{used} of {cap} used by {n} messages")
+        .replace("{used}", sizeText(storage.usedBytes))
+        .replace("{cap}", sizeText(storage.capMb * MIB_BYTES))
+
+private const val MIB_BYTES = 1024L * 1024L
 
 /** The summary under the Pictures row. */
 internal fun picturesSummary(texts: Texts, switches: Switches): String =

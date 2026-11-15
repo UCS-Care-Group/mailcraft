@@ -230,6 +230,8 @@ pub(crate) struct SyncHost {
     busy: AtomicBool,
     remember: AtomicBool,
     notify_mail: AtomicBool,
+    /// A notification for new mail says "New mail" and nothing of the message (the owner's switch).
+    notify_new_mail_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
     /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
@@ -260,6 +262,7 @@ impl SyncHost {
             busy: AtomicBool::new(false),
             remember: AtomicBool::new(true),
             notify_mail: AtomicBool::new(true),
+            notify_new_mail_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
             fetch_busy: AtomicBool::new(false),
@@ -301,6 +304,10 @@ impl SyncHost {
 
     pub(crate) fn set_notify_mail(&self, on: bool) {
         self.notify_mail.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn set_notify_new_mail_only(&self, on: bool) {
+        self.notify_new_mail_only.store(on, Ordering::Relaxed);
     }
 
     pub(crate) fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
@@ -772,7 +779,7 @@ impl SyncHost {
         let lang = session.interface_language;
         let found = inner.run_mark.take().map(|mark| arrivals::arrivals(&session.mailbox, &mark)).unwrap_or_default();
         if self.notify_mail.load(Ordering::Relaxed) {
-            for n in plan_notifications(session, &found, &mut inner.next_key) {
+            for n in plan_notifications(session, &found, &mut inner.next_key, self.notify_new_mail_only.load(Ordering::Relaxed)) {
                 self.sink.push(Event::Notification { notification: n });
             }
         }
@@ -812,11 +819,22 @@ fn add_error(errors: &mut Vec<String>, line: String) {
 }
 
 /// The notifications for new mail: one each for up to [`AT_ONCE`], else one that counts them. What
-/// they say of a message is its own text, hostile, made plain and short as a name is shown.
-fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64) -> Vec<NotificationRecord> {
+/// they say of a message is its own text, hostile, made plain and short as a name is shown. With
+/// `only_new_mail` (the owner's privacy switch) one notification says "New mail" and nothing else:
+/// no sender, no subject, no count, whatever the lock screen shows.
+fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, only_new_mail: bool) -> Vec<NotificationRecord> {
     let lang = session.interface_language;
     if found.is_empty() {
         return Vec::new();
+    }
+    if only_new_mail {
+        *next_key = next_key.wrapping_add(1);
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body: String::new(),
+        }];
     }
     if found.len() > AT_ONCE {
         *next_key = next_key.wrapping_add(1);

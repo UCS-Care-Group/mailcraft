@@ -102,6 +102,13 @@ impl Core {
         self.sync.set_notify_mail(on);
     }
 
+    /// Whether a notification for new mail says "New mail" and nothing of the message: no sender,
+    /// no subject, no count, whatever the lock screen shows (the owner's privacy switch in
+    /// Settings, off by default). The app tells the core at start and when the switch changes.
+    pub fn set_notify_new_mail_only(&self, on: bool) {
+        self.sync.set_notify_new_mail_only(on);
+    }
+
     /// Remove every sign-in the core kept (from the credential store and from memory), for
     /// "remove all my data". Says how many entries were looked for, and when the list of the
     /// sign-ins kept was damaged (and set aside) that older ones may still be in the store (the

@@ -7,6 +7,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.NotificationRecord
+import uniffi.mailcraft_mobile.NotificationTopic
 
 class SettingsModelTest {
     private val gib = 1024L * 1024 * 1024
@@ -91,10 +93,10 @@ class SettingsModelTest {
         assertEquals("Downloaded automatically", picturesSummary(EnglishTexts, Switches(downloadPictures = true)))
         assertEquals("Off", senderImagesSummary(EnglishTexts, Switches()))
         assertEquals("On", senderImagesSummary(EnglishTexts, Switches(senderImages = true)))
-        assertEquals("Mail and reminders", notificationsSummary(EnglishTexts, Switches()))
+        assertEquals("Sender and subject shown", notificationsSummary(EnglishTexts, Switches()))
         assertEquals("New mail only", notificationsSummary(EnglishTexts, Switches(newMailOnly = true)))
         val both = Switches(newMailOnly = true, primaryOnly = true)
-        assertEquals("New mail, Primary or Focused only", notificationsSummary(EnglishTexts, both))
+        assertEquals("New mail only, Primary or Focused only", notificationsSummary(EnglishTexts, both))
     }
 
     @Test
@@ -112,5 +114,22 @@ class SettingsModelTest {
         assertFalse(isWebLink("https://example.org/a b"))
         assertFalse(isWebLink("https://example.org/\n"))
         assertFalse(isWebLink("intent://x#Intent;end"))
+    }
+
+    @Test
+    fun whatThePhoneHoldsIsSaidAgainstItsCap() {
+        val use = StorageUse(capMb = 500, usedBytes = 40L * 1024 * 1024, messages = 1, choicesMb = listOf(250, 500))
+        assertEquals("40 MB of 500 MB used by 1 message", storageUsedText(EnglishTexts, use))
+        assertEquals("0 B of 500 MB used by 3 messages", storageUsedText(EnglishTexts, use.copy(usedBytes = 0, messages = 3)))
+    }
+
+    @Test
+    fun theNotificationSaysOnlyNewMailWhenTheSwitchIsOn() {
+        val record = NotificationRecord(7uL, NotificationTopic.MAIL, "Ada Example", "Budget review")
+        assertEquals(record, privateRecord(record, false, "New mail"))
+        val hidden = privateRecord(record, true, "New mail")
+        assertEquals("New mail", hidden.title)
+        assertEquals("", hidden.body)
+        assertEquals(7uL, hidden.key)
     }
 }

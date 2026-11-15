@@ -130,7 +130,6 @@ pub fn check_licence_page(report: &str, page_source: &str) -> Vec<String> {
     problems
 }
 
-
 /// Whether a group is banned: exactly, or as a subgroup (`com.google.firebase.tools`).
 fn banned_group(group: &str) -> bool {
     BANNED_GROUPS.iter().any(|b| group == *b || group.starts_with(&format!("{b}.")))

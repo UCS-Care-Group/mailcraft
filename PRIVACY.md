@@ -259,7 +259,9 @@ not in a release yet are marked "when the app is released".
   goes anywhere else.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
-  as the account's setting says). A switch in Settings shows "New mail" and nothing else. On the
+  as the account's setting says). The switch New mail only in Settings makes every notification
+  say "New mail" and nothing else (no sender, no subject, no count), on the lock screen or off
+  it, whatever the phone's own setting says. Without it, on the
   lock screen what shows follows the phone's own setting for sensitive content: where the system
   hides private content there, a public version that says only "New mail" stands in for the
   notification; where you let the lock screen show all notification content, the sender and the

@@ -33,6 +33,7 @@ internal enum class SettingsPage {
     SenderImages,
     Signatures,
     Language,
+    RemoveData,
     About,
     ;
 
@@ -45,6 +46,7 @@ internal enum class SettingsPage {
         SenderImages -> texts.t("Sender images")
         Signatures -> texts.t("Signatures")
         Language -> texts.t("Language")
+        RemoveData -> texts.t("Remove local data")
         About -> texts.t("About")
     }
 }
