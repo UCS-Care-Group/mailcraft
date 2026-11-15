@@ -7,11 +7,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.StorageNotice
+import uniffi.mailcraft_mobile.SyncAnswer
 
 /**
  * The one reader of the core's event stream. The stream has a single consumer, so it is read here,
@@ -52,17 +55,31 @@ internal class EventDispatcher {
  * change and when it ends, and says when a save failed or the file couldn't be read. [save] asks it
  * to save now (it throws [CoreException] when it couldn't); a failed save is tried again by itself,
  * after [retryAfter] each time (the last one repeated), until one works, and [pause] waits between.
+ *
+ * [syncNow] is Send/Receive on the owner's word (the mail list's pull to refresh): [sync] starts a
+ * round and says whether it did; [syncing] is true from the ask until the core says the round is
+ * over, and [syncNotice] is why one didn't start, in the owner's language.
  */
 @Suppress("LongParameterList")
 internal class AccountsHub(
     api: AccountsApi,
-    texts: Texts,
+    private val texts: Texts,
     private val scope: CoroutineScope,
     private val save: suspend () -> Unit,
     copy: (String) -> Unit,
     private val retryAfter: List<Long> = DEFAULT_RETRY,
     private val pause: suspend (Long) -> Unit = { delay(it) },
+    private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
 ) {
+    private val syncingNow = MutableStateFlow(false)
+    private val notice = MutableStateFlow<String?>(null)
+
+    /** True while a Send/Receive the owner asked for is under way (the pull-to-refresh spinner). */
+    val syncing: StateFlow<Boolean> = syncingNow.asStateFlow()
+
+    /** Why the last Send/Receive the owner asked for didn't start; null when it did. */
+    val syncNotice: StateFlow<String?> = notice.asStateFlow()
+
     /** Bumped when the mailbox changed (its accounts, or a revision the core announced): the outline is read again. */
     val reloads = MutableStateFlow(0)
 
@@ -92,6 +109,31 @@ internal class AccountsHub(
     /** The accounts as the window has them now. */
     fun showing(accounts: List<AccountItem>) {
         shown = accounts
+    }
+
+    /**
+     * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
+     * changes nothing; the round's end comes as the core's `SyncFinished`.
+     */
+    fun syncNow() {
+        if (!syncingNow.compareAndSet(expect = false, update = true)) return
+        notice.value = null
+        scope.launch {
+            val answer = try {
+                sync()
+            } catch (_: CoreException) {
+                SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
+            }
+            if (!answer.started) {
+                notice.value = answer.message.ifEmpty { null }
+                syncingNow.value = false
+            }
+        }
+    }
+
+    /** The owner has read why Send/Receive didn't start. */
+    fun syncNoticeShown() {
+        notice.value = null
     }
 
     /** Saves the mailbox now; true when it is on disk. A failure is shown, and tried again by itself. */
@@ -140,6 +182,7 @@ internal class AccountsHub(
             is Event.SignInNeeded -> controller.signInNeeded(event.account)
             // (Synchronisation and every other change: what the window shows is read again.)
             is Event.RevChanged -> reloads.update { it + 1 }
+            is Event.SyncFinished -> syncingNow.value = false
             is Event.SaveFailed -> if (!savingOff) {
                 controller.setSaveFailed(true)
                 retryLater()

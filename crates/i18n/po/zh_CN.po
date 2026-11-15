@@ -333,6 +333,12 @@ msgstr "正在导入 .pst 文件：完成后重试"
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A brand's name on another address."
+msgstr "品牌名称出现在其他地址上。"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -423,6 +429,12 @@ msgstr "显示为 {named} 的链接指向 {host}。"
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "链接的文本主要由不可见字符组成，实际指向 {host}。"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A made-up domain."
+msgstr "虚构的域名。"
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -470,6 +482,12 @@ msgstr "您的日历中有同一 ID 但组织者不同的会议，因此此邀�
 #, fuzzy
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
 msgstr "无法从这里将跳过部分日期的重复会议放到服务器日历中：所有受邀者都会收到每个跳过日期的取消通知。请将其保存在此计算机的日历中，或重新创建不跳过日期的会议。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr "一封请求退订的邮件将通过发件箱从 {from} 发送到 {to}。"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -998,8 +1016,8 @@ msgstr "之后"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "在邮件中接受、暂定接受或拒绝会议请求，或从日历中移除已取消的会议后，邮件将移至“已删除邮件”。关闭此选项后，邮件会留在原处并显示您的答复。"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "All"
 msgstr "全部"
@@ -1028,8 +1046,8 @@ msgstr "所有类别…"
 msgid "All Mailboxes"
 msgstr "所有邮箱"
 
-#. interface
-#: crates/ui-egui/src/widgets.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "所有账户"
@@ -1241,6 +1259,12 @@ msgid "An account couldn't be sent and received."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "没有域名的地址。"
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -1287,6 +1311,12 @@ msgstr "正在导入"
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "无法通过此方式将重复项目移动到其他日历。按住 Ctrl 可将此次日程复制到目标日历；要移动整个系列，请使用菜单中的“移动到日历”。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "An unsubscribe is already on its way."
+msgstr "退订请求已在处理中。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -1544,8 +1574,8 @@ msgstr "4月"
 msgid "April"
 msgstr "4月"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Archive"
 msgstr "归档"
@@ -1679,6 +1709,12 @@ msgstr "再次请求下载未能下载的图片。"
 #, fuzzy
 msgid "Ask the account's server for the calendar round this meeting now."
 msgstr "立即向账户服务器查询此会议附近的日历日程。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
+msgstr "请邮件列表停止向你发送邮件。MailCraft 会先询问你，并说明方式。"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2137,6 +2173,11 @@ msgid "Bring in"
 msgstr "导入"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -2374,6 +2415,11 @@ msgstr "类别"
 msgid "Categories:"
 msgstr "类别："
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+msgid "Categories…"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -2381,7 +2427,7 @@ msgid "Categorize"
 msgstr "分类"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Cc"
 msgstr "抄送"
@@ -2794,14 +2840,14 @@ msgstr "清除最近的搜索"
 msgid "Clear filters"
 msgstr "清除过滤器"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Clear flag"
 msgstr "清除标记"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Clear search"
 msgstr "清除搜索"
@@ -3083,6 +3129,11 @@ msgstr "贡献者"
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "贡献者选择自己的名字；请参阅 docs/contributors.md。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "Conversations"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3612,8 +3663,8 @@ msgstr "减少缩进"
 msgid "Default"
 msgstr "默认"
 
-#. command label, interface, name, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#. android, command label, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "删除"
@@ -4755,8 +4806,8 @@ msgstr "文件："
 msgid "Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."
 msgstr "此类文件可能包含能像程序一样运行的宏。只有在确认发件人且预期会收到该文件时才打开。"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. android, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Filter"
 msgstr "过滤器"
@@ -4871,8 +4922,8 @@ msgstr "名字"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "在切换登录方法之前，首先保存 Google 的标准 IMAP 和 SMTP 设置以及匹配的电子邮件用户名。"
 
-#. name
-#: crates/ui-egui/src/forms.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Flag"
 msgstr "标记"
@@ -4889,8 +4940,8 @@ msgstr "标记邮件"
 msgid "Flag for follow-up"
 msgstr "标记为待跟进"
 
-#. name
-#: crates/engine/src/session.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
 msgid "Flagged"
 msgstr "已标记"
@@ -5203,6 +5254,12 @@ msgstr "发件人"
 #, fuzzy
 msgid "From Sender"
 msgstr "来自发件人"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "来自邮件列表。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -5631,6 +5688,11 @@ msgstr "有附件"
 #, fuzzy
 msgid "Has an attachment"
 msgstr "有附件"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+msgid "Has attachments"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6420,6 +6482,12 @@ msgid "It goes to the server once MailCraft may change the server's rules (File 
 msgstr "获得更改服务器规则的权限后，规则将发送到服务器（文件 › 信息 › 再次询问）；在此之前，只在 MailCraft 打开时于此计算机运行。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "It goes with the next Send/Receive; the list then takes you off it."
+msgstr "它会在下次发送/接收时发出，之后邮件列表会将你移除。"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options)."
@@ -6551,6 +6619,12 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "其邮件、附件、设置和记住的登录信息也会一并删除；来自服务器的日历、联系人、任务和工作时间亦然。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Its subject: “{subject}”. Its text: “{body}”."
+msgstr "主题：“{subject}”。正文：“{body}”。"
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Its text is replaced"
@@ -6641,8 +6715,8 @@ msgstr "6月"
 msgid "June"
 msgstr "6月"
 
-#. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Junk"
 msgstr "垃圾邮件"
@@ -7005,7 +7079,7 @@ msgid "List Tasks"
 msgstr "列出任务"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/InboxScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 msgid "Loading…"
 msgstr ""
 
@@ -7074,6 +7148,12 @@ msgstr "正在查找您的 Exchange 服务器…"
 #, fuzzy
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "正在查找…目前有 {folders}、{files}、{messages}"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Looks like a brand."
+msgstr "看起来像某个品牌。"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7392,6 +7472,12 @@ msgid "MailCraft reads the key without its passphrase and keeps the file, still 
 msgstr "MailCraft 读取密钥时无需输入密码短语，并将仍受密码短语保护的文件保存在系统凭据存储中。密钥必须设置密码短语，并使用 Ed25519 或 ECDSA 签名；签名时 MailCraft 会要求输入密码短语。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft 只会把此列表提供的退订地址发送给 {host}，该地址可能让对方识别出你，此外不发送任何内容：没有 Cookie，也不登录。与任何连接一样，它也会显示你的 IP 地址。"
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
@@ -7634,14 +7720,14 @@ msgstr "标记为已读"
 msgid "Mark as Unread"
 msgstr "标记为未读"
 
-#. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "标记为已读"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as unread"
 msgstr "标记为未读"
@@ -7717,7 +7803,7 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -7997,6 +8083,11 @@ msgstr "服务器上的更多结果"
 msgid "More about this"
 msgstr "了解更多"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+msgid "More actions"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8143,8 +8234,8 @@ msgstr "移至类别"
 msgid "Move to Folder"
 msgstr "移至文件夹"
 
-#. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Junk"
 msgstr "移至垃圾邮件"
@@ -8172,6 +8263,11 @@ msgstr "移至文件夹"
 #, fuzzy
 msgid "Move to the Account's Calendar"
 msgstr "移至账户的日历"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+msgid "Move to…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -8451,7 +8547,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "新建项目将保存到此处选择的日历中"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "New mail"
 msgstr "新邮件"
@@ -8774,6 +8870,16 @@ msgstr "没有更改邮箱或现有凭据。请重试，或返回账户设置并
 msgid "No message is being read there"
 msgstr "该处没有正在读取的邮件"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "No messages match."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "No messages."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -8785,6 +8891,11 @@ msgstr "没有新版本可供安装。"
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "没有可用于预览此附件的辅助程序。"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
@@ -9036,6 +9147,12 @@ msgid "Not saved"
 msgstr "未保存"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Not unsubscribed."
+msgstr "未退订。"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Not verified"
@@ -9216,6 +9333,11 @@ msgstr "10月"
 msgid "October"
 msgstr "10月"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Offline"
+msgstr ""
+
 #. name
 #: crates/time/src/lib.rs
 #, fuzzy
@@ -9375,6 +9497,12 @@ msgstr ""
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "只有您组织的会议才有“查找时间”"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Only an unsubscribe by mail is sent from here: one click and a web page are the window's."
+msgstr "这里只发送通过邮件的退订：一键退订和网页退订由窗口处理。"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -9643,6 +9771,12 @@ msgid "Open the message"
 msgstr "打开邮件"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Open the page"
+msgstr "打开页面"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Open the page again"
@@ -9904,6 +10038,12 @@ msgstr "向下翻页"
 #, fuzzy
 msgid "Page Up"
 msgstr "向上翻页"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Page opened."
+msgstr "页面已打开。"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
@@ -10451,6 +10591,11 @@ msgstr "范围"
 msgid "Read"
 msgstr "已读"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+msgid "Read / unread"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -10560,6 +10705,11 @@ msgstr ""
 #, fuzzy
 msgid "Recent Searches"
 msgstr "最近的搜索"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -10803,6 +10953,11 @@ msgstr ""
 msgid "Remove attendees"
 msgstr "移除与会者"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "Remove filter"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -11027,6 +11182,12 @@ msgstr "请求回复"
 #, fuzzy
 msgid "Request a Read Receipt"
 msgstr "请求已读回执"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Request in your Outbox."
+msgstr "请求已放入发件箱。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -11746,8 +11907,8 @@ msgstr "搜索文件夹"
 msgid "Search in"
 msgstr "搜索范围"
 
-#. interface
-#: crates/ui-egui/src/chrome.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Search mail"
 msgstr "搜索邮件"
@@ -11849,7 +12010,7 @@ msgid "Select a meeting first"
 msgstr "请先选择会议"
 
 #. interface
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Select a message first"
 msgstr "请先选择一封邮件"
@@ -11873,7 +12034,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "请先选择邮件，再预览其附件。"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send"
 msgstr "发送"
@@ -12094,6 +12255,11 @@ msgstr "发送/接收所有文件夹"
 #, fuzzy
 msgid "Send/Receive Progress"
 msgstr "发送/接收进度"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountsHub.kt
+msgid "Send/Receive couldn't start. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -13317,6 +13483,21 @@ msgstr "周日"
 msgid "Sunday"
 msgstr "周日"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Swipe actions"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Swipe to the left"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Swipe to the right"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
@@ -13632,6 +13813,11 @@ msgstr "该日历并非通过地址打开，而是在账户自己的日历列表
 #, fuzzy
 msgid "That can't be opened in a window of its own"
 msgstr "无法在单独的窗口中打开"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "That did not work."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -14310,6 +14496,18 @@ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-i
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server didn't take the request: {why}."
+msgstr "列表的服务器没有接受该请求：{why}。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "The list's server took the request. Mail from it may take a few days to stop."
+msgstr "列表的服务器已接受该请求。其邮件可能需要几天才会停止。"
+
+#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "The local program receives the selected attachment and runs with your permissions."
@@ -14340,7 +14538,7 @@ msgid "The mailbox at {address} can't be reached through Microsoft Graph."
 msgstr "无法通过 Microsoft Graph 访问 {address} 对应的邮箱。"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 msgid "The mailbox could not be read."
 msgstr ""
 
@@ -14426,6 +14624,12 @@ msgstr "这个名字隐藏了另一个地址。"
 #, fuzzy
 msgid "The name hides characters."
 msgstr "该名称中有隐藏字符。"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name is another domain."
+msgstr "名称是另一个域名。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -14592,14 +14796,38 @@ msgstr "发件人使用了您的姓名，但此邮件来自 {real}，该地址�
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "发件人的地址位于 {domain}，这是一个没有域名的 IP 地址：正规机构很少从这样的地址发送邮件。"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}."
 msgstr "发件人地址所在的域为 {domain}。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "发件人的域名 {domain} 看起来像 {brand} 的域名，但它不是 {brand} 的域名。"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
 msgstr "发件人的域 {domain} 看起来像您曾通信的域 {like}，但两者并不相同。"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "发件人的域名 {domain} 看起来是机器生成的或不可能存在：正规机构很少从这样的域名发送邮件。"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "发件人名称显示为 {brand}，但此邮件来自 {real}，而 {domain} 不是 {brand} 的域名。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -14983,7 +15211,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "用户名太长或包含名称中不能包含的字符"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "窗口尚未打开。"
@@ -15149,6 +15377,12 @@ msgstr "此账户不使用 Google 登录。"
 #, fuzzy
 msgid "This account doesn't keep its rules on its server"
 msgstr "此账户的规则不保存在服务器上"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "此账户不从 MailCraft 发送邮件，因此无法通过邮件退订。"
 
 #. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
@@ -15342,6 +15576,12 @@ msgid "This build can't sign in to this kind of account. Use the desktop app."
 msgstr "此版本无法登录此类账户。请使用桌面应用。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "此版本无法一键退订。"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "This build doesn't check for new versions."
@@ -15472,6 +15712,11 @@ msgstr "无法导入此文件：{why}"
 #, fuzzy
 msgid "This file has a password. Nothing is imported without it."
 msgstr "此文件受密码保护。没有密码就无法导入。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "This folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -15605,6 +15850,18 @@ msgid "This link goes somewhere other than its text says."
 msgstr "此链接的实际目标与显示文字所示的地址不同。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "此列表在其自己的页面上退订，位于 {host}。它会在你的浏览器中打开：访问该页面会让列表知道此地址有人在阅读。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "无法打开此列表的页面。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This mailbox is in Microsoft 365"
@@ -15730,11 +15987,23 @@ msgstr "此邮件并非取消会议的通知。"
 msgid "This message doesn't propose another time for a meeting."
 msgstr "此邮件并未提出其他会议时间。"
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "此邮件没有说明如何退订。"
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message downloads once the messages being downloaded now are here."
 msgstr "当前正在下载的邮件完成后，会下载此邮件。"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "此邮件有关于其发件人的警告：请将其移到垃圾邮件，而不是退订。"
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -15753,6 +16022,12 @@ msgstr "此邮件包含网络图片，此版本无法下载。"
 #, fuzzy
 msgid "This message hasn't been sent."
 msgstr "此邮件尚未发送。"
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "此邮件位于垃圾邮件中：请删除它，而不是退订。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -16021,7 +16296,7 @@ msgid "Title"
 msgstr "标题"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "收件人"
@@ -16090,6 +16365,11 @@ msgstr ""
 "要将 {address} 的任务与 Microsoft To Do 同步，MailCraft 需要您授权读取和更改 To Do 列表及任务。系统会在浏览器中打开 Microsoft 页面，向您请求一次授权。\n"
 "\n"
 "在您授权之前，任务只保存在此计算机上，不会向 Microsoft 发送任何任务内容。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+msgid "To me"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -16254,7 +16534,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -16361,8 +16641,8 @@ msgstr "在此计算机上的文件夹下："
 msgid "Underline"
 msgstr "下划线"
 
-#. command label, name
-#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Undo"
 msgstr "撤销"
@@ -16379,8 +16659,8 @@ msgstr "撤销输入"
 msgid "Undo {what}"
 msgstr "撤销 {what}"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Unread"
 msgstr "未读"
@@ -16425,6 +16705,30 @@ msgstr "未保存的更改"
 msgid "Unsaved Message"
 msgstr "未保存的邮件"
 
+#. command label, interface
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe"
+msgstr "退订"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe on the list's page in your browser."
+msgstr "在浏览器中打开列表的页面退订。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribed."
+msgstr "已退订。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing…"
+msgstr "正在退订…"
+
 #. interface
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
@@ -16461,11 +16765,34 @@ msgstr "已是最新"
 msgid "Upcoming"
 msgstr "即将到来"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated just now"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Updated {folder} on the server"
 msgstr "在服务器上更新了 {folder}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} day ago"
+msgid_plural "Updated {n} days ago"
+msgstr[0] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} hour ago"
+msgid_plural "Updated {n} hours ago"
+msgstr[0] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} minute ago"
+msgid_plural "Updated {n} minutes ago"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -17296,6 +17623,12 @@ msgstr "邮件服务器检查了此邮件的来源，但检查未通过：发件
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "你的邮件服务器无法证实此邮件来自其发件人，因此不会使用其退订链接。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18825,7 +19158,7 @@ msgid "select a conversation in conversation view first"
 msgstr "首先在对话视图中选择一个对话"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "请先选择一封邮件"
@@ -18944,6 +19277,12 @@ msgid "that message isn't held"
 msgstr "此邮件未被保留"
 
 #. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "that message isn't here"
+msgstr "该邮件不在这里"
+
+#. what a command says
 #: crates/engine/src/import_tree.rs
 #, fuzzy
 msgid "that was only looked at, not read in full"
@@ -19010,7 +19349,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
@@ -19363,6 +19702,12 @@ msgstr ""
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "建议的结束时间必须晚于建议的开始时间"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "the request was lost"
+msgstr "请求已丢失"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
@@ -19936,7 +20281,7 @@ msgid "this account has no Drafts folder"
 msgstr "此账户没有“草稿”文件夹"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "此账户没有“发件箱”文件夹"
@@ -21091,15 +21436,21 @@ msgid "{n} mailbox file"
 msgid_plural "{n} mailbox files"
 msgstr[0] "{n} 个邮箱文件"
 
-#. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{n} message"
 msgid_plural "{n} messages"
 msgstr[0] "{n} 封邮件"
 
-#. interface
-#: crates/ui-egui/src/lib.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message archived"
+msgid_plural "{n} messages archived"
+msgstr[0] ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -21126,6 +21477,18 @@ msgid "{n} message couldn't be moved between Gmail's categories this run; it wai
 msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
 msgstr[0] "本次运行无法在 Gmail 类别之间移动 {n} 封邮件，将在下次运行时重试"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message deleted"
+msgid_plural "{n} messages deleted"
+msgstr[0] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+msgid "{n} message in the conversation"
+msgid_plural "{n} messages in the conversation"
+msgstr[0] ""
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -21147,12 +21510,24 @@ msgid "{n} message matched"
 msgid_plural "{n} messages matched"
 msgstr[0] "匹配到 {n} 封邮件"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message moved"
+msgid_plural "{n} messages moved"
+msgstr[0] ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
 msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] "已将 {n} 封邮件移入账户：发送/接收时会将其上传到 Microsoft 服务器，但大多数邮件头（如 Received）不会保留"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message moved to Junk"
+msgid_plural "{n} messages moved to Junk"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

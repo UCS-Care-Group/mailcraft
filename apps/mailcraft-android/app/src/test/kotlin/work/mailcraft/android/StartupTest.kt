@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,11 +35,12 @@ class StartupTest {
         val startup = Startup<String>(main, io)
         val opening = CountDownLatch(1)
         val mayFinish = CountDownLatch(1)
-        var openedOn: Thread? = null
-        val wiredWhileLoading = mutableListOf<Boolean>()
+        // Written on the io thread, read here: shared safely, or this thread may see it unset.
+        val openedOn = AtomicReference<Thread?>(null)
+        val wiredWhileLoading = CopyOnWriteArrayList<Boolean>()
         startup.begin(
             open = {
-                openedOn = Thread.currentThread()
+                openedOn.set(Thread.currentThread())
                 opening.countDown()
                 mayFinish.await(10, TimeUnit.SECONDS)
                 "core"
@@ -56,8 +59,8 @@ class StartupTest {
         assertTrue(phase is Phase.Ready)
         assertEquals("core", startup.readyOrNull())
         // Opened on the background thread, never the caller's.
-        assertNotEquals(Thread.currentThread(), openedOn)
-        assertEquals("test-io", openedOn?.name)
+        assertNotEquals(Thread.currentThread(), openedOn.get())
+        assertEquals("test-io", openedOn.get()?.name)
         // Wired before it was said to be ready.
         assertEquals(listOf(true), wiredWhileLoading)
     }
