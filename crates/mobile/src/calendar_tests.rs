@@ -254,3 +254,23 @@ fn one_time_of_a_series_is_read_with_its_series_in_one_look() {
     assert!(matches!(block_on(core.event_on(u64::MAX, "2026-11-09".into())), Err(CoreError::BadRequest { .. })));
     assert!(matches!(block_on(core.event_on(id, "nonsense".into())), Err(CoreError::BadRequest { .. })));
 }
+
+#[test]
+fn a_day_whose_time_of_a_long_series_is_skipped_has_no_time_not_the_one_before() {
+    let core = sample_core();
+    // Each time runs 36 hours, so the time of the 3rd still overlaps the 4th.
+    let made = exec(
+        &core,
+        "calendar.new",
+        json!({"title": "Long", "start": "2026-11-02T09:00", "end": "2026-11-03T21:00", "recurrence": {"freq": "daily", "count": 5}}),
+    )
+    .unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let on = block_on(core.event_on(id, "2026-11-04".into())).unwrap();
+    assert_eq!(on.start.as_deref(), Some("2026-11-04T09:00:00"));
+    exec(&core, "calendar.delete", json!({"id": id, "scope": "occurrence", "occurrence": "2026-11-04"})).unwrap();
+    let gone = block_on(core.event_on(id, "2026-11-04".into())).unwrap();
+    assert_eq!((gone.start, gone.end), (None, None));
+    let next = block_on(core.event_on(id, "2026-11-05".into())).unwrap();
+    assert_eq!(next.start.as_deref(), Some("2026-11-05T09:00:00"));
+}

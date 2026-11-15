@@ -496,7 +496,7 @@ private fun MonthView(
     actions: CalendarActions,
 ) {
     val grid = CalendarPaging.monthGrid(state.anchor, weekStart)
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = FabClearance)) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Small)) {
             CalendarPaging.weekDays(weekStart).forEach { d ->
                 Text(

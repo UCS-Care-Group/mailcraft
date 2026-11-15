@@ -472,6 +472,17 @@ class CalendarControllerTest {
     }
 
     @Test
+    fun anAllDayTimeOfASeriesTheCoreNoLongerHasIsGoneToo() {
+        val c = controller()
+        // Only that day was declined: the core gives the series with no time on it.
+        backend.detail = detail().copy(allDay = true, repeat = RepeatDraft(Repeat.Daily))
+        backend.times = null
+        c.open(event(1, "2026-11-17T00:00", "2026-11-18T00:00"))
+        assertTrue(c.state.value.page is CalendarPage.Browse)
+        assertEquals("The event is gone.", c.state.value.notice)
+    }
+
+    @Test
     fun theDetailAndItsTimesOfASeriesComeFromOneReadAndAreReadTogetherAgain() {
         val c = controller()
         backend.detail = detail().copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))

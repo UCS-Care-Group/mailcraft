@@ -143,8 +143,8 @@ internal sealed interface Outcome {
 /** An event whole and its own start and end on one day; [times] is null when it has no time then. */
 internal data class OpenedEvent(val event: EventDetailModel, val times: Moments?)
 
-/** A timed time of a series has its own start and end from the core, or it is no longer there. */
-internal fun OpenedEvent.hasItsTime(): Boolean = times != null || !event.repeats || event.allDay
+/** A time of a series, timed or all-day, has its own start and end from the core, or it is no longer there. */
+internal fun OpenedEvent.hasItsTime(): Boolean = times != null || !event.repeats
 
 /** What the controller needs of the core; a fake in the tests. */
 internal interface CalendarBackend {

@@ -111,7 +111,7 @@ impl Core {
             let mut times = occurrences(s, day, day).into_iter().filter(|o| o.event == id);
             let first = times.next();
             let found = match first {
-                Some(o) if o.start.date != day => times.find(|n| n.start.date == day).or(Some(o)),
+                Some(o) if o.start.date != day => times.find(|n| n.start.date == day),
                 other => other,
             };
             Ok(EventOccurrence { detail: detail(s, e), start: found.as_ref().map(|o| o.start.iso()), end: found.map(|o| o.end.iso()) })
