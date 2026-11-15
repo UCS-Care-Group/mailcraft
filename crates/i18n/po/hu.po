@@ -1938,13 +1938,13 @@ msgstr "Automatikus válaszok a postaszerveren maradnak, és a MailCraft csak ol
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
-msgstr "Automatikus válasz nem sikerült"
+msgstr "Az automatikus válaszok ki vannak kapcsolva"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
-msgstr "Automatikus válaszok a következő címen:"
+msgstr "Az automatikus válaszok be vannak kapcsolva"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -5650,7 +5650,7 @@ msgstr "Grafit"
 #: crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "A Gravatar-t a feladó képére kérik, és a címüket egy hash-nak is elmondják; máskülönben a favikon.im-et, majd a Google-t, a weboldaluk ikonjának is megkérjük, és a küldő domain-jének is elmondják. Ez a szolgáltatás azoknak a szolgáltatásoknak a számára, akiknek a képeit nézi. Csak azoknak az embereknek, akiket ismer (akivel kapcsolatban áll, és akinek írt) és a levélnek, akiknek a képeit letölti, soha nem dzsunk e-mail-re, és csak akkor, ha a feladó képe megerősíti a postát."
+msgstr "A MailCraft a Gravatartól kéri le a feladó képét, és ehhez elküldi neki a feladó e-mail-címének hash-értékét. Ha ott nincs kép, a favicon.im-től, majd a Google-tól kéri le a feladó webhelyének ikonját, és ehhez elküldi nekik a feladó e-mail-címének domainnevét. Ezek a szolgáltatások így megtudják, kiknek a képét nézi meg. Ez csak a névjegyeire és azokra vonatkozik, akiknek már írt, és csak azokra a levelekre, amelyekben letölti a képeket. Levélszemét esetén nem történik ilyen lekérés. A feladó képe csak akkor jelenik meg, ha a levelezőszerver megerősíti, hogy a levél valóban tőle érkezett."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -12693,7 +12693,7 @@ msgstr "Jelszó megjelenítése"
 #: crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
-msgstr "A feladók képeinek megjelenítése a Gravatarról, a favikonról és a Google-ról"
+msgstr "A feladók képeinek megjelenítése a Gravatar, a favicon.im és a Google segítségével"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -17475,7 +17475,7 @@ msgstr "Ezzel a fiókkal jelentkezett be: {signedIn}. A megadott fiók: {typed}.
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You tentatively accepted this meeting."
-msgstr "Te is elfogadtad ezt a találkozót."
+msgstr "Feltételesen elfogadta ezt az értekezletet."
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
