@@ -51,10 +51,10 @@ fn account_edit_takes_the_one_megabyte_step() {
 }
 
 /// 2027-01-15.
-const NOW: i64 = 1_800_000_000;
+pub(super) const NOW: i64 = 1_800_000_000;
 
 /// A session at [`NOW`] with a Microsoft account keeping a month, whose Inbox the server has.
-fn graph_session() -> (Session, u64, u64) {
+pub(super) fn graph_session() -> (Session, u64, u64) {
     use mailcraft_model::{FolderKind, Mailbox, ServerFolder};
     let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
@@ -113,7 +113,7 @@ const DAY: i64 = 86_400;
 
 /// A message of `account` in `folder` (the server's "in" unless it is another), received
 /// `days_ago`, with `body` bytes of text; its id.
-fn add(s: &mut Session, account: u64, folder: u64, days_ago: i64, body: usize) -> u64 {
+pub(super) fn add(s: &mut Session, account: u64, folder: u64, days_ago: i64, body: usize) -> u64 {
     use mailcraft_model::sync::ServerMessage;
     use mailcraft_model::{Body, Message};
     let server_folder = s.mailbox.folder(folder).and_then(|f| f.server.as_ref()).map_or("in".to_string(), |f| f.id.clone());

@@ -311,6 +311,9 @@ pub struct Mail {
     /// Most messages a first round of delta with a `$filter` holds, as Microsoft Learn documents
     /// ("Applying `$filter` in a delta query returns only up to 5,000 messages"); 0 for that.
     pub filtered_cap: usize,
+    /// The next link of a plain list of a folder's messages names another server (a link that
+    /// can't be followed).
+    pub foreign_next: bool,
     /// The top of every folder's delta is refused (`400 ErrorInvalidRequest`), whatever it asks.
     pub refuse_delta: bool,
     /// A change of nothing but a message's read state comes in the next round as its id and
@@ -519,7 +522,11 @@ impl State {
                 }
                 let Some(seen) = self.mailbox.seen.get(token).filter(|s| s.folder == folder).cloned() else { return Err(self.expired()) };
                 let upto = self.mailbox.changes;
-                let keys = self.mailbox.keys(&folder, Some(seen.upto), upto, seen.newest_first, seen.from);
+                let mut keys = self.mailbox.keys(&folder, Some(seen.upto), upto, seen.newest_first, seen.from);
+                // A round of a filtered delta is cut at the same limit when it goes on from a saved link.
+                if seen.from.is_some() {
+                    keys.truncate(if self.mailbox.filtered_cap == 0 { FILTERED_CAP } else { self.mailbox.filtered_cap });
+                }
                 Round {
                     folder: folder.clone(),
                     upto,

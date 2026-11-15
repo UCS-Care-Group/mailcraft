@@ -55,6 +55,10 @@ fn device_limits(s: &mut Session, v: &Value) -> CmdResult {
     }
     if p::opt_bool(v, "off")? == Some(true) {
         if s.mailbox.device_limits.take().is_some() {
+            // What the folders were listed with was the window's mail alone, and a saved delta link
+            // keeps that: every folder, of the shared mailboxes too, is listed afresh, whole.
+            let accounts: Vec<Id> = s.mailbox.accounts.iter().map(|a| a.id).collect();
+            super::account::relist_accounts(&mut s.mailbox, &accounts);
             s.mailbox_changed();
         }
         return Ok(shown(s));

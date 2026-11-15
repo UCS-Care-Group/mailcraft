@@ -492,7 +492,15 @@ impl State {
         found.sort_by(|a, b| b.received.cmp(&a.received).then_with(|| a.id.cmp(&b.id)));
         let ids: Vec<String> = found.into_iter().map(|m| m.id.clone()).collect();
         let list = ids.iter().map(|id| self.message_json(id, &look)).collect();
-        self.page(asked, list)
+        let mut answer = self.page(asked, list)?;
+        if self.mailbox.foreign_next
+            && let Some(Value::Object(body)) = answer.1.as_mut()
+            && let Some(next) = body.get("@odata.nextLink").and_then(Value::as_str)
+        {
+            let path = next.split_once("/v1.0/").map_or("", |(_, rest)| rest);
+            body.insert("@odata.nextLink".into(), Value::String(format!("https://elsewhere.example/v1.0/{path}")));
+        }
+        Ok(answer)
     }
 }
 
