@@ -211,6 +211,8 @@ struct Inner {
     notice_checked: bool,
     /// The app's own number for the next notification that counts mail.
     next_key: u64,
+    /// Keeping the mailbox within the phone's limits (MB3.16).
+    trim: crate::limits::Trimming,
     /// How many rounds have ended: the round under way is known by the count before it ends.
     finished_rounds: u64,
 }
@@ -593,7 +595,11 @@ impl SyncHost {
     fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
         inner.sr.stop(session);
         session.driver.round.queue.clear();
-        self.finish_round(inner, session, false)
+        let summary = self.finish_round(inner, session, false);
+        // Pages the run brought before the stop stay: keep the mailbox within the limits.
+        inner.trim.due = true;
+        self.pacer.poke();
+        summary
     }
 
     /// The round under way (or the next, when none is): what [`SyncHost::stop_later`] is given.
@@ -654,9 +660,23 @@ impl SyncHost {
         self.busy.store(working, Ordering::Relaxed);
         if working {
             self.progress(inner, session);
-        } else if inner.active || inner.run_mark.is_some() {
-            self.finish_round(inner, session, true);
+        } else {
+            if inner.active || inner.run_mark.is_some() {
+                self.finish_round(inner, session, true);
+                // What a round brought may take the mailbox past the phone's limits.
+                inner.trim.due = true;
+            }
+            // Between runs, never during one: a run's pages name the messages they change.
+            if inner.trim.step(session) {
+                self.pacer.poke();
+            }
         }
+    }
+
+    /// Keep the mailbox within the phone's limits at the next wake (they were changed).
+    pub(crate) fn trim_soon(&self) {
+        self.lock().trim.due = true;
+        self.pacer.poke();
     }
 
     fn took(&self, inner: &mut Inner, taken: Taken) {
