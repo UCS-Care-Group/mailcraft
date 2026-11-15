@@ -196,7 +196,7 @@ fn the_keyboard_moves_into_the_menu_and_enter_opens_the_file() {
     assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed");
 }
 
-/// Enter on the chip's own part does what it did before the `▾`: nothing.
+/// Enter can select the chip without launching the file or showing its menu.
 #[test]
 fn enter_on_the_chip_opens_nothing() {
     let (mut h, o) = window();
@@ -299,7 +299,7 @@ fn long_and_reversed_names_keep_the_chip_bounded() {
 }
 
 #[test]
-fn one_click_previews_the_attachment_and_can_turn_a_page() {
+fn one_click_selects_the_file_and_confirmation_previews_it() {
     use crate::attachment_preview::{Format, Host, Page};
     use std::sync::mpsc;
 
@@ -325,6 +325,14 @@ fn one_click_previews_the_attachment_and_can_turn_a_page() {
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     h.run_steps(30);
+    assert!(received.lock().unwrap().is_empty(), "selecting a file starts no renderer");
+    assert_eq!(h.state().ui.tab, "Attachments");
+    let warning = h.get_by_label("Ask before previewing this type of file").rect().center();
+    click(&mut h, warning, PointerButton::Primary, 1);
+    assert!(h.state().ui.attachment_preview_without_warning.is_empty(), "only confirming a preview saves the choice");
+    let preview = h.state().hit.rect("attachmentPreviewStart", A).unwrap().center();
+    click(&mut h, preview, PointerButton::Primary, 1);
+    h.run_steps(6);
     let next = h.state().hit.rect("attachmentPreviewNext", A).unwrap().center();
     click(&mut h, next, PointerButton::Primary, 1);
     assert_eq!(*received.lock().unwrap(), vec![(1, bytes.clone()), (2, bytes)]);
@@ -333,21 +341,46 @@ fn one_click_previews_the_attachment_and_can_turn_a_page() {
     click(&mut h, back, PointerButton::Primary, 1);
     h.run_steps(2);
     assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    assert_eq!(h.state().ui.tab, "Home");
+    assert!(h.state().ui.attachment_preview_without_warning.contains(&Format::Pdf));
+    let at = chip(&h, A, 0).center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(h.state().hit.rect("attachmentPreviewImage", A).is_some(), "the confirmed preference applies to the next click");
 }
 
 #[test]
-fn without_a_helper_single_click_keeps_the_message_and_open_still_works() {
+fn without_a_helper_the_file_view_and_its_open_command_still_work() {
     let (mut h, opened_files) = window();
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
-    h.run_steps(10);
-    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    h.run_steps(30);
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_some());
+    assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
     assert!(opened(&opened_files).is_empty());
-    let menu = arrow(&h, A, 0).center();
-    click(&mut h, menu, PointerButton::Primary, 1);
-    assert!(entry_nodes(&h, "Preview Attachment").next().is_none());
-    choose(&mut h, "Open");
+    let open = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("mail.openAttachment")).unwrap().center();
+    click(&mut h, open, PointerButton::Primary, 1);
     assert_eq!(opened(&opened_files), vec![("notes.pdf".into(), b"a0".to_vec())]);
+}
+
+#[test]
+fn the_attachment_ribbon_in_a_message_window_acts_on_its_own_file() {
+    let (mut h, opened_files) = window();
+    let window = h.state_mut().run("ui.openWindow", json!({"message": B})).unwrap()["window"].as_u64().unwrap();
+    h.run_steps(8);
+    let at = h.state().hit.rect_in(window, "attachment", attachment_key(B, 0)).unwrap().center();
+    click(&mut h, at, PointerButton::Primary, 1);
+    h.run_steps(30);
+    assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_some());
+    assert_eq!(h.state().ui.tab, "Home");
+    let open = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("mail.openAttachment")).unwrap().center();
+    click(&mut h, open, PointerButton::Primary, 1);
+    assert_eq!(opened(&opened_files), vec![("other.pdf".into(), b"b0".to_vec())]);
+    let show = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("ui.showAttachmentMessage")).unwrap().center();
+    click(&mut h, show, PointerButton::Primary, 1);
+    h.run_steps(4);
+    assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_none());
+    assert!(h.state().hit.rect_in(window, "attachment", attachment_key(B, 0)).is_some());
 }
 
 #[test]
@@ -383,6 +416,9 @@ fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
     assert!(opened(&opened_files).is_empty());
     assert!(!crate::attachment_preview::available(h.state(), A, 0));
     h.state_mut().ui.attachment_previews = true;
+    h.state_mut().execute("ui.showAttachmentMessage", json!({})).unwrap();
+    h.run_steps(3);
+    let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 2);
     h.run_steps(30);
     assert_eq!(opened(&opened_files), vec![("notes.pdf".to_string(), bytes)]);
@@ -433,7 +469,8 @@ fn assert_junk_preview_restrictions(in_subfolder: bool) {
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     h.run_steps(30);
-    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_some());
+    assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
     let at = arrow(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     choose(&mut h, "Preview Attachment");

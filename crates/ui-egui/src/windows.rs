@@ -1292,13 +1292,16 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
         What::Message { seen, .. } => {
             let m = seen.clone();
             let mut close = false;
-            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
-                .resizable(false)
-                .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
-                .show(ui, |ui| close = actions(app, ui, &m, own_keys));
             // What the message draws (its attachments' chips and `▾`, #785) is recorded as in this
             // window, apart from the same message in the reading pane.
             let scope = app.hit.scope(id);
+            crate::attachment_preview::follow_message(app, id, Some(m.id));
+            if !crate::ribbon::show_attachment_window(app, ui, id, m.id) {
+                egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
+                    .resizable(false)
+                    .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
+                    .show(ui, |ui| close = actions(app, ui, &m, own_keys));
+            }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });

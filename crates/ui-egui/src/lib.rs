@@ -913,6 +913,9 @@ pub struct UiState {
     /// asking tells those services whose pictures are looked at.
     pub sender_images: bool,
     pub attachment_previews: bool,
+    /// Attachment formats the owner chose to preview without a separate confirmation.
+    #[serde(skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub attachment_preview_without_warning: std::collections::BTreeSet<attachment_preview::Format>,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -990,6 +993,7 @@ impl Default for UiState {
             picture_domains: Vec::new(),
             sender_images: false,
             attachment_previews: false,
+            attachment_preview_without_warning: Default::default(),
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -1067,6 +1071,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Message › Attachments",
         r#"{"id"?: number (the selected message), "index": number (zero-based attachment index)} — preview the file using an installed helper, if supported"#,
     ),
+    ("ui.showAttachmentMessage", "Show Message", "Attachments › Message", "{} — return from the attachment view to its message"),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
         "ui.advancedSearch",
@@ -1450,6 +1455,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
 
 /// The application.
 pub struct MailApp {
+    attachment_selection: Option<attachment_preview::Selection>,
     attachment_preview: Option<attachment_preview::Preview>,
     pending_attachment_preview: Option<attachment_preview::Click>,
     pub session: Session,
@@ -1811,6 +1817,7 @@ impl MailApp {
             row_checks_wanted: false,
             security: security::State::default(),
             ui: UiState::default(),
+            attachment_selection: None,
             attachment_preview: None,
             pending_attachment_preview: None,
             services,
@@ -2064,6 +2071,7 @@ impl MailApp {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
+            None if id == "ui.showAttachmentMessage" => self.attachment_selection.is_some(),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
@@ -2552,6 +2560,10 @@ impl MailApp {
             },
             "ui.advancedSearch" => advanced_search::command(self, p),
             "ui.previewAttachment" => attachment_preview::command(self, p),
+            "ui.showAttachmentMessage" => {
+                attachment_preview::close(self);
+                Ok(json!({}))
+            }
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;

@@ -544,6 +544,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr "端口是 1 到 65535 之间的数字"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "A preview may omit some content from the original file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1668,6 +1673,11 @@ msgstr "再次从该域的发件人下载图片之前先询问"
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "再次下载该发件人的图片之前先询问"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Ask before previewing this type of file"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2855,9 +2865,8 @@ msgstr "清除搜索 (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "单击可预览 {name}；双击可打开"
+msgid "Click to select {name}; double-click to open it"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4069,12 +4078,6 @@ msgstr "完成：已是最新状态"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "完成：{n} 项新增"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "双击打开 {name}；右键单击可保存"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -7787,8 +7790,8 @@ msgid "Merge {n} Contact…"
 msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8876,6 +8879,11 @@ msgstr "没有新版本可供安装。"
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "没有可用于预览此附件的辅助程序。"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -10356,6 +10364,11 @@ msgstr "预览附件"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "使用本地 PdfCraft 预览附件"
@@ -10371,6 +10384,11 @@ msgstr "使用本地 PdfCraft 和 PhotoCraft 预览附件"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "使用本地 PhotoCraft 预览附件"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview files only when you trust the sender."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10832,6 +10850,13 @@ msgstr "提醒窗口"
 msgid "Remove"
 msgstr "移除"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11250,6 +11275,11 @@ msgstr "重新启动以更新"
 msgid "Restart to update is the owner's click."
 msgstr "“重新启动以更新”必须由用户亲自点击。"
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Restore attachment preview warnings"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
@@ -11537,6 +11567,13 @@ msgstr ""
 msgid "Save & Close"
 msgstr "保存并关闭"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -11549,8 +11586,8 @@ msgstr "保存所有附件"
 msgid "Save All Attachments…"
 msgstr "保存所有附件…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "另存为"
@@ -11656,6 +11693,11 @@ msgstr "请先保存或放弃对此账户的更改，再切换到 Google 登录�
 #, fuzzy
 msgid "Save out"
 msgstr "保存到文件"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save to Computer"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12528,6 +12570,13 @@ msgstr "显示"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Show\n"
@@ -12577,6 +12626,11 @@ msgstr "在收件箱下显示 Gmail 的类别"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Show MailCraft"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Message"
 msgstr ""
 
 #. command label, interface
@@ -22026,6 +22080,14 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Click to preview {name}; double-click to open it"
+#~ msgstr "单击可预览 {name}；双击可打开"
+
+#, fuzzy
+#~ msgid "Double-click to open {name}; right-click to save it"
+#~ msgstr "双击打开 {name}；右键单击可保存"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc::Receiver};
 use std::time::Duration;
 
-use mailcraft_model::{Attachment, Id};
+use mailcraft_engine::{Module, Pane};
+use mailcraft_model::{Attachment, Id, Message};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -17,7 +18,8 @@ pub const MAX_SIDE: u32 = 3_072;
 const RETRY_DELAY: Duration = Duration::from_millis(25);
 const MAX_RETRIES: u8 = 120;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Format {
     Pdf,
     Png,
@@ -138,12 +140,7 @@ impl Host {
 }
 
 pub(crate) struct Preview {
-    message: Id,
-    index: usize,
-    name: String,
     viewport: egui::ViewportId,
-    mailbox: u64,
-    attachment: Attachment,
     read: ReadAttachment,
     format: Format,
     page: u32,
@@ -157,12 +154,19 @@ pub(crate) struct Preview {
     zoom: f32,
 }
 
-pub(crate) struct Click {
+pub(crate) struct Selection {
     message: Id,
     index: usize,
+    window: u64,
     viewport: egui::ViewportId,
     mailbox: u64,
     attachment: Attachment,
+    return_tab: Option<String>,
+    warn: bool,
+}
+
+pub(crate) struct Click {
+    target: Selection,
     at: f64,
 }
 
@@ -201,13 +205,10 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui) {
     app.hit.add("attachmentPreviewOption", 0, response.rect);
     if response.changed() && !app.ui.attachment_previews {
         app.attachment_preview = None;
-        app.pending_attachment_preview = None;
     }
-}
-
-/// Whether a chip click can preview the attachment without opening its menu.
-pub(crate) fn single_click_allowed(app: &MailApp, id: Id, index: usize) -> bool {
-    available(app, id, index) && !in_junk(app, id)
+    if !app.ui.attachment_preview_without_warning.is_empty() && ui.button(tl!("Restore attachment preview warnings")).clicked() {
+        app.ui.attachment_preview_without_warning.clear();
+    }
 }
 
 /// Apply the mailbox's Junk policy to the message, including descendants of Junk.
@@ -217,17 +218,10 @@ fn in_junk(app: &MailApp, id: Id) -> bool {
 
 /// Defer the chip action until a double-click can be ruled out.
 pub(crate) fn queue_click(app: &mut MailApp, ctx: &egui::Context, id: Id, index: usize) {
-    let Some(attachment) = attachment(app, id, index).cloned() else { return };
+    let Some(target) = Selection::new(app, ctx.viewport_id(), id, index) else { return };
     let delay = ctx.options(|o| o.input_options.max_double_click_delay).clamp(0.0, 2.0);
     let delay = if delay.is_finite() { delay } else { 0.3 };
-    app.pending_attachment_preview = Some(Click {
-        message: id,
-        index,
-        viewport: ctx.viewport_id(),
-        mailbox: app.session.openings(),
-        attachment,
-        at: ctx.input(|i| i.time) + delay,
-    });
+    app.pending_attachment_preview = Some(Click { target, at: ctx.input(|i| i.time) + delay });
     crate::software::repaint_after(ctx, Duration::from_secs_f64(delay + 0.001));
 }
 
@@ -238,7 +232,8 @@ pub(crate) fn cancel_click(app: &mut MailApp) {
 
 /// Start the queued action after checking that it still names the same attachment.
 pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
-    let Some(click) = app.pending_attachment_preview.as_ref().filter(|click| click.viewport == ctx.viewport_id() && click.message == id) else {
+    let Some(click) = app.pending_attachment_preview.as_ref().filter(|click| click.target.window == app.hit.window() && click.target.message == id)
+    else {
         return;
     };
     let remaining = click.at - ctx.input(|i| i.time);
@@ -247,11 +242,19 @@ pub(crate) fn finish_click(app: &mut MailApp, ctx: &egui::Context, id: Id) {
         return;
     }
     let Some(click) = app.pending_attachment_preview.take() else { return };
-    if single_click_allowed(app, click.message, click.index)
-        && attachment(app, click.message, click.index) == Some(&click.attachment)
-        && let Err(error) = open(app, click.viewport, click.message, click.index)
-    {
-        app.status(error);
+    let target = click.target;
+    if target.matches(app) {
+        let (viewport, message, index) = (target.viewport, target.message, target.index);
+        let immediate = Format::hint(&target.attachment).is_some_and(|format| app.ui.attachment_preview_without_warning.contains(&format));
+        select(app, target);
+        if immediate
+            && !in_junk(app, message)
+            && available(app, message, index)
+            && let Err(error) = open(app, viewport, message, index)
+        {
+            app.status(error);
+        }
+        ctx.request_repaint();
     }
 }
 
@@ -260,9 +263,51 @@ fn attachment(app: &MailApp, id: Id, index: usize) -> Option<&Attachment> {
     app.session.mailbox.message(id)?.attachments.get(index)
 }
 
-/// Whether this chip owns the preview currently shown in the viewport.
-pub(crate) fn selected(app: &MailApp, viewport: egui::ViewportId, id: Id, index: usize) -> bool {
-    app.attachment_preview.as_ref().is_some_and(|p| p.viewport == viewport && p.message == id && p.index == index)
+impl Selection {
+    fn new(app: &MailApp, viewport: egui::ViewportId, message: Id, index: usize) -> Option<Self> {
+        let attachment = attachment(app, message, index)?.clone();
+        Some(Self { message, index, window: app.hit.window(), viewport, mailbox: app.session.openings(), attachment, return_tab: None, warn: true })
+    }
+
+    fn matches(&self, app: &MailApp) -> bool {
+        self.mailbox == app.session.openings() && attachment(app, self.message, self.index) == Some(&self.attachment)
+    }
+}
+
+/// The selected file in this view, including before a preview helper is started.
+pub(crate) fn target(app: &MailApp, window: u64, message: Id) -> Option<usize> {
+    app.attachment_selection.as_ref().filter(|s| s.window == window && s.message == message && s.matches(app)).map(|s| s.index)
+}
+
+/// The contextual ribbon in the main window only targets a visible reading pane.
+pub(crate) fn pane_target(app: &MailApp) -> Option<(Id, usize)> {
+    let id = pane_message(app)?;
+    Some((id, target(app, 0, id)?))
+}
+
+fn select(app: &mut MailApp, mut selection: Selection) {
+    if target(app, selection.window, selection.message) == Some(selection.index) {
+        return;
+    }
+    close(app);
+    if selection.window == 0 {
+        selection.return_tab = Some(std::mem::replace(&mut app.ui.tab, "Attachments".into()));
+    }
+    app.attachment_selection = Some(selection);
+}
+
+pub(crate) fn close(app: &mut MailApp) {
+    cancel_click(app);
+    clear_selection(app);
+}
+
+fn clear_selection(app: &mut MailApp) {
+    app.attachment_preview = None;
+    if let Some(tab) = app.attachment_selection.take().and_then(|s| s.return_tab)
+        && app.ui.tab == "Attachments"
+    {
+        app.ui.tab = tab;
+    }
 }
 
 /// Replace any old preview and submit the selected attachment's first page.
@@ -277,24 +322,18 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
     if part.size() > MAX_INPUT_BYTES {
         return Err(Error::TooLarge.text().into());
     }
-    if selected(app, viewport, id, index) && app.attachment_preview.as_ref().is_some_and(|preview| preview.error.is_none()) {
+    if target(app, app.hit.window(), id) == Some(index) && app.attachment_preview.as_ref().is_some_and(|preview| preview.error.is_none()) {
         return Ok(());
     }
-    let name = mailcraft_engine::opening::file_name(&part.name);
     if !part.data.is_empty() && !format.matches(&part.data) {
         return Err(Error::Invalid.text().into());
     }
     let read = app.session.attachment_reader(part).map_err(|_| Error::Invalid.text())?;
-    let attachment = part.clone();
-    // Dropping a preview tells the worker to stop before the next render starts.
+    let selection = Selection::new(app, viewport, id, index).ok_or_else(|| Error::Invalid.text())?;
+    select(app, selection);
     app.attachment_preview = None;
     let mut preview = Preview {
-        message: id,
-        index,
-        name,
         viewport,
-        mailbox: app.session.openings(),
-        attachment,
         read: Arc::new(move || read().map_err(|_| Error::Invalid)),
         format,
         page: 1,
@@ -307,7 +346,9 @@ pub(crate) fn open(app: &mut MailApp, viewport: egui::ViewportId, id: Id, index:
         error: None,
         zoom: 1.0,
     };
-    preview.start(host, 1);
+    if let Some(host) = app.services.attachment_preview.as_ref() {
+        preview.start(host, 1);
+    }
     app.attachment_preview = Some(preview);
     Ok(())
 }
@@ -383,54 +424,138 @@ impl Preview {
     }
 }
 
-/// Release a preview or click when its viewport starts showing another message.
-pub(crate) fn follow_message(app: &mut MailApp, viewport: egui::ViewportId, id: Option<Id>) {
-    if app.attachment_preview.as_ref().is_some_and(|p| p.viewport == viewport && Some(p.message) != id) {
-        app.attachment_preview = None;
+/// Release a selection or pending click when its pane starts showing something else.
+pub(crate) fn follow_message(app: &mut MailApp, window: u64, id: Option<Id>) {
+    if app.attachment_selection.as_ref().is_some_and(|s| s.window == window && Some(s.message) != id) {
+        clear_selection(app);
     }
-    if app.pending_attachment_preview.as_ref().is_some_and(|click| click.viewport == viewport && Some(click.message) != id) {
+    if app.pending_attachment_preview.as_ref().is_some_and(|click| click.target.window == window && Some(click.target.message) != id) {
         cancel_click(app);
     }
 }
 
-/// Drop stale attachment state before polling the active preview.
+/// The main window's selected message while the reading pane can show it.
+pub(crate) fn pane_message(app: &MailApp) -> Option<Id> {
+    (app.session.view.module == Module::Mail
+        && app.session.view.reading_pane != Pane::Off
+        && app.session.sel.messages.len() == 1
+        && crate::windows::compose_window::pane_compose(app).is_none())
+    .then(|| app.session.sel.focus())
+    .flatten()
+}
+
+/// Drop stale attachments before polling the active preview.
 pub(crate) fn poll(app: &mut MailApp, ctx: &egui::Context) {
-    if app.pending_attachment_preview.is_none() && app.attachment_preview.is_none() {
-        return;
-    }
-    let viewports = crate::windows::viewports(app);
-    let window_is_open = |viewport| viewport == egui::ViewportId::ROOT || viewports.contains(&viewport);
-    if app.pending_attachment_preview.as_ref().is_some_and(|click| click.mailbox != app.session.openings() || !window_is_open(click.viewport)) {
+    let live = |selection: &Selection| {
+        selection.matches(app) && (selection.window == 0 || app.windows.of_message(selection.message) == Some(selection.window))
+    };
+    let stale_click = app.pending_attachment_preview.as_ref().is_some_and(|click| !live(&click.target));
+    let stale_selection = app.attachment_selection.as_ref().is_some_and(|selection| !live(selection));
+    if stale_click {
         cancel_click(app);
     }
-    if app.attachment_preview.as_ref().is_some_and(|preview| {
-        preview.mailbox != app.session.openings()
-            || !window_is_open(preview.viewport)
-            || attachment(app, preview.message, preview.index) != Some(&preview.attachment)
-    }) {
-        app.attachment_preview = None;
+    if stale_selection {
+        clear_selection(app);
     }
     if let (Some(preview), Some(host)) = (&mut app.attachment_preview, &app.services.attachment_preview) {
         preview.poll(ctx, host);
     }
 }
 
-/// Draw the preview in place of the message body when it belongs to this viewport.
-pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
-    let viewport = ui.ctx().viewport_id();
-    let Some(preview) = app.attachment_preview.as_mut().filter(|p| p.viewport == viewport && p.message == id) else { return false };
+/// The attachment view replaces the message header and body, while its other chips stay reachable.
+pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) -> bool {
+    let id = message.id;
+    let Some(index) = target(app, app.hit.window(), id) else { return false };
+    let tokens = crate::theme::Tokens::get(ui.ctx());
+    let mut back = false;
+    egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
+        let response = crate::widgets::icon_text_button(ui, "back", tl!("Back to Message"), true);
+        app.hit.add("attachmentPreviewBack", id, response.rect);
+        back = response.clicked();
+    });
+    if back {
+        let _ = app.run("ui.showAttachmentMessage", json!({}));
+        return false;
+    }
+    ui.separator();
+    egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
+        crate::reading::attachments(app, ui, message, &tokens);
+    });
+    ui.separator();
+    if target(app, app.hit.window(), id) != Some(index) {
+        return true;
+    }
+    if app.attachment_preview.is_some() {
+        show_page(app, ui, id, index);
+    } else {
+        preview_prompt(app, ui, id, index);
+    }
+    true
+}
+
+fn preview_prompt(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
+    use egui::{RichText, vec2};
+
+    let format = attachment(app, id, index).and_then(Format::hint);
+    let available = available(app, id, index);
+    let junk = in_junk(app, id);
+    let tokens = crate::theme::Tokens::get(ui.ctx());
+    let mut start = false;
+    let mut warn = app.attachment_selection.as_ref().is_none_or(|selection| selection.warn);
+    egui::ScrollArea::vertical().id_salt("attachment-preview-prompt").show(ui, |ui| {
+        egui::Frame::NONE.inner_margin(egui::Margin::symmetric(18, 14)).show(ui, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 12.0;
+                let (icon, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
+                crate::icons::paint(ui.painter(), icon, "warning", tokens.orange, tokens.orange);
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 9.0;
+                    ui.label(RichText::new(tl!("Preview files only when you trust the sender.")).strong());
+                    ui.label(tl!("A preview may omit some content from the original file."));
+                    if available && !junk {
+                        let preview = ui.button(tl!("Preview File"));
+                        app.hit.add("attachmentPreviewStart", id, preview.rect);
+                        start = preview.clicked();
+                        ui.checkbox(&mut warn, tl!("Ask before previewing this type of file"));
+                    } else {
+                        let reason = if available {
+                            tl!("In Junk E-mail, preview an attachment from its menu.")
+                        } else if !app.ui.attachment_previews
+                            && format.is_some_and(|format| app.services.attachment_preview.as_ref().is_some_and(|host| host.supports(format)))
+                        {
+                            tl!("Turn on attachment previews in File › Options.")
+                        } else {
+                            tl!("No preview is available for this attachment.")
+                        };
+                        ui.label(RichText::new(reason).color(tokens.text_dim));
+                    }
+                });
+            });
+        });
+    });
+    if let Some(selection) = &mut app.attachment_selection {
+        selection.warn = warn;
+    }
+    if start {
+        match open(app, ui.ctx().viewport_id(), id, index) {
+            Ok(()) => {
+                if !warn && let Some(format) = format {
+                    app.ui.attachment_preview_without_warning.insert(format);
+                }
+                ui.ctx().request_repaint();
+            }
+            Err(error) => app.status(error),
+        }
+    }
+}
+
+fn show_page(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
+    let Some(preview) = app.attachment_preview.as_mut() else { return };
     let tokens = crate::theme::Tokens::get(ui.ctx());
     let mut turn = None;
-    let mut close = false;
     egui::Frame::NONE.fill(tokens.panel).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 6.0);
-        ui.horizontal_wrapped(|ui| {
-            let back = ui.button(tl!("Back to Message"));
-            app.hit.add("attachmentPreviewBack", id, back.rect);
-            close = back.clicked();
-            ui.add(egui::Label::new(egui::RichText::new(&preview.name).strong()).truncate());
-        });
         ui.horizontal_wrapped(|ui| {
             if let Some(pages) = preview.pages.filter(|pages| *pages > 1) {
                 let ready = preview.pending.is_none() && preview.retry_at.is_none();
@@ -449,10 +574,6 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
             }
         });
     });
-    if close {
-        app.attachment_preview = None;
-        return false;
-    }
     if let (Some(page), Some(host)) = (turn, &app.services.attachment_preview) {
         preview.start(host, page);
     }
@@ -466,8 +587,8 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
             // in egui's memory for every attachment ever previewed.
             let mut area = egui::ScrollArea::both().auto_shrink([false, false]).id_salt("attachment-preview");
             let shown = egui::Id::unique(("mailcraft-attachment-preview-shown", ui.ctx().viewport_id()));
-            if ui.ctx().data(|d| d.get_temp::<(Id, usize)>(shown)) != Some((id, preview.index)) {
-                ui.ctx().data_mut(|d| d.insert_temp(shown, (id, preview.index)));
+            if ui.ctx().data(|d| d.get_temp::<(Id, usize)>(shown)) != Some((id, index)) {
+                ui.ctx().data_mut(|d| d.insert_temp(shown, (id, index)));
                 area = area.scroll_offset(egui::Vec2::ZERO);
             }
             area.show(ui, |ui| {
@@ -490,5 +611,4 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, id: Id) -> bool {
             }
         });
     }
-    true
 }

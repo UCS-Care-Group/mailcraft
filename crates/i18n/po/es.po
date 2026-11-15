@@ -525,6 +525,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Un puerto es un número del 1 al 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "A preview may omit some content from the original file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "A report is written beside your mailbox."
 msgstr ""
@@ -1607,6 +1612,11 @@ msgstr "Volver a preguntar antes de descargar imágenes de los remitentes de est
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Volver a preguntar antes de descargar las imágenes de este remitente"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Ask before previewing this type of file"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2709,7 +2719,7 @@ msgstr "Borrar búsqueda (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
-msgid "Click to preview {name}; double-click to open it"
+msgid "Click to select {name}; double-click to open it"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -3878,12 +3888,6 @@ msgstr "Listo: actualizado"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Listo: {n} nuevos"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Haga doble clic para abrir {name}; clic con el botón derecho para guardarlo"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -7372,8 +7376,8 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] ""
 msgstr[1] ""
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mensaje"
@@ -8439,6 +8443,11 @@ msgstr "No hay ninguna versión nueva lista para instalar."
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "No preview helper is available for this attachment."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
 msgstr ""
 
 #. interface
@@ -9846,6 +9855,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PdfCraft"
 msgstr ""
 
@@ -9857,6 +9871,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PhotoCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview files only when you trust the sender."
 msgstr ""
 
 #. interface
@@ -10290,6 +10309,13 @@ msgstr "Ventana de avisos"
 msgid "Remove"
 msgstr "Quitar"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -10683,6 +10709,11 @@ msgstr "Reiniciar para actualizar"
 msgid "Restart to update is the owner's click."
 msgstr "Solo el propietario puede hacer clic en Reiniciar para actualizar."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Restore attachment preview warnings"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
@@ -10963,6 +10994,13 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Guardar y cerrar"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Save All Attachments"
@@ -10973,8 +11011,8 @@ msgstr ""
 msgid "Save All Attachments…"
 msgstr ""
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Guardar como"
@@ -11075,6 +11113,11 @@ msgstr ""
 #, fuzzy
 msgid "Save out"
 msgstr "Extraer"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save to Computer"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11900,6 +11943,13 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Show\n"
@@ -11947,6 +11997,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Show MailCraft"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Message"
 msgstr ""
 
 #. command label, interface
@@ -20950,6 +21005,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "Double-click to open {name}; right-click to save it"
+#~ msgstr "Haga doble clic para abrir {name}; clic con el botón derecho para guardarlo"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

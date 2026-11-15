@@ -138,8 +138,6 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let picked = app.session.sel.messages.len();
-    let preview_message = if picked == 1 { app.session.sel.focus() } else { None };
-    crate::attachment_preview::follow_message(app, ui.ctx().viewport_id(), preview_message);
     // What showing it needs (its body, the pictures in it, a calendar part) is brought into
     // memory first, when the mailbox keeps it on disk; the message then shows whole in this
     // very frame. (One that can't be read says so in its text, once.)
@@ -197,6 +195,10 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
+    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    if crate::attachment_preview::show(app, ui, m) {
+        return;
+    }
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
     // here, and the window takes the whole message up at its next frame.
     if place != Place::Quote && app.session.needs_load_for_display(m.id) {
@@ -208,7 +210,6 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     let access = if doc.remote.is_empty() { Access::Blocked } else { remote::access(app, m) };
     // Asked for: what has not come yet is sent for, while the message is on screen.
     let progress = if access == Access::Allowed { remote::want(app, &ctx, m, &doc) } else { remote::Progress::default() };
-    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     // A draft in the reading pane is not received mail: say so, and offer to go on writing it (#651).
     if place == Place::Pane && m.draft {
         draft_bar(app, ui, m);
@@ -251,9 +252,6 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // header too wide for a narrow pane must not make the text run out of sight with it.
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        if crate::attachment_preview::show(app, ui, m.id) {
-            return;
-        }
         view::page(app, place, ui).show(ui, |ui| {
             // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
             egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
@@ -702,7 +700,7 @@ fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     });
 }
 
-fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
+pub(crate) fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
     // The signature part of a message whose signature was checked (that very part, by its bytes)
@@ -731,12 +729,13 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
             app.hit.add("attachment", attachment_key(m.id, index), main_rect);
             app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
-            ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            let selected = crate::attachment_preview::target(app, app.hit.window(), m.id) == Some(index);
+            let (fill, border) = if selected { (t.selection_pill, t.selection_edge) } else { (t.panel, t.border) };
+            ui.painter().rect(r, 5.0, fill, Stroke::new(1.0, border), egui::StrokeKind::Inside);
             let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
             let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
-            let selected = crate::attachment_preview::selected(app, ui.ctx().viewport_id(), m.id, index);
-            if selected || resp.hovered() {
-                ui.painter().rect_filled(main_rect.shrink(1.0), left, if selected { t.pressed } else { t.hover });
+            if !selected && resp.hovered() {
+                ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
             }
             if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
                 ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
@@ -769,17 +768,12 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 drop.on_hover_text(why);
                 continue;
             }
-            let can_preview = crate::attachment_preview::single_click_allowed(app, m.id, index);
-            let hint = if can_preview {
-                tl!("Click to preview {name}; double-click to open it")
-            } else {
-                tl!("Double-click to open {name}; right-click to save it")
-            };
+            let hint = tl!("Click to select {name}; double-click to open it");
             let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
             if resp.double_clicked() {
                 crate::attachment_preview::cancel_click(app);
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
-            } else if can_preview && resp.clicked() {
+            } else if resp.clicked() {
                 crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
             }
             resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));

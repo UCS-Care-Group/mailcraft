@@ -1,0 +1,1 @@
+- Selecting an attachment opens its preview view and a ribbon for opening, saving or removing the file and returning to the message.

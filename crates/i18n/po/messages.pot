@@ -459,6 +459,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "A preview may omit some content from the original file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "A report is written beside your mailbox."
 msgstr ""
@@ -1398,6 +1403,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Ask before downloading this sender's pictures again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Ask before previewing this type of file"
 msgstr ""
 
 #. interface
@@ -2392,7 +2402,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
-msgid "Click to preview {name}; double-click to open it"
+msgid "Click to select {name}; double-click to open it"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -3406,11 +3416,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Done: {n} new"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-msgid "Double-click to open {name}; right-click to save it"
 msgstr ""
 
 #. ribbon location
@@ -6521,8 +6526,8 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] ""
 msgstr[1] ""
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Message"
 msgstr ""
 
@@ -7431,6 +7436,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "No preview helper is available for this attachment."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
 msgstr ""
 
 #. interface
@@ -8676,6 +8686,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PdfCraft"
 msgstr ""
 
@@ -8687,6 +8702,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Preview attachments with local PhotoCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview files only when you trust the sender."
 msgstr ""
 
 #. interface
@@ -9070,6 +9090,13 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 msgid "Remove Account"
@@ -9415,6 +9442,11 @@ msgstr ""
 msgid "Restart to update is the owner's click."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Restore attachment preview warnings"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
@@ -9650,6 +9682,13 @@ msgstr ""
 msgid "Save & Close"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Save All Attachments"
@@ -9660,8 +9699,8 @@ msgstr ""
 msgid "Save All Attachments…"
 msgstr ""
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 msgid "Save As"
 msgstr ""
 
@@ -9748,6 +9787,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Save out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save to Computer"
 msgstr ""
 
 #. ribbon
@@ -10485,6 +10529,13 @@ msgstr ""
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
 "Show\n"
+"Message"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
 "Progress"
 msgstr ""
 
@@ -10523,6 +10574,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Show MailCraft"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Message"
 msgstr ""
 
 #. command label, interface

@@ -544,6 +544,11 @@ msgid "A port is a number from 1 to 65535"
 msgstr "Un port este un număr de la 1 la 65535"
 
 #. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "A preview may omit some content from the original file."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "A report is written beside your mailbox."
@@ -1673,6 +1678,11 @@ msgstr "Întreabă din nou înainte de a descărca imaginile expeditorilor din a
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Întreabă din nou înainte de a descărca imaginile acestui expeditor"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Ask before previewing this type of file"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2864,9 +2874,8 @@ msgstr "Ștergere căutare (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Clic pentru previzualizarea {name}; dublu clic pentru deschidere"
+msgid "Click to select {name}; double-click to open it"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4080,12 +4089,6 @@ msgstr "Gata: la zi"
 #, fuzzy
 msgid "Done: {n} new"
 msgstr "Gata: {n} noi"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dublu clic pentru a deschide {name}; clic dreapta pentru a-l salva"
 
 #. ribbon location
 #: crates/engine/src/cmd/send_receive.rs
@@ -7816,8 +7819,8 @@ msgstr[0] "Îmbinare {n} contact…"
 msgstr[1] "Îmbinare {n} contacte…"
 msgstr[2] "Îmbinare {n} de contacte…"
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mesaj"
@@ -8914,6 +8917,11 @@ msgstr "Nicio versiune nouă nu este gata de instalare."
 #, fuzzy
 msgid "No preview helper is available for this attachment."
 msgstr "Pentru acest atașament nu există un ajutor de previzualizare."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "No preview is available for this attachment."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -10396,6 +10404,11 @@ msgstr "Previzualizare atașament"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "Preview attachments with local PdfCraft"
 msgstr "Previzualizare atașamente cu PdfCraft local"
@@ -10411,6 +10424,11 @@ msgstr "Previzualizare atașamente cu PdfCraft și PhotoCraft locale"
 #, fuzzy
 msgid "Preview attachments with local PhotoCraft"
 msgstr "Previzualizare atașamente cu PhotoCraft local"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Preview files only when you trust the sender."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10872,6 +10890,13 @@ msgstr "Fereastră mementouri"
 msgid "Remove"
 msgstr "Eliminare"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Remove\n"
+"Attachment"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11290,6 +11315,11 @@ msgstr "Repornire pentru actualizare"
 msgid "Restart to update is the owner's click."
 msgstr "Repornirea pentru actualizare e decizia proprietarului."
 
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+msgid "Restore attachment preview warnings"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Retry"
@@ -11577,6 +11607,13 @@ msgstr ""
 msgid "Save & Close"
 msgstr "Salvare și închidere"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Save All\n"
+"Attachments"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -11589,8 +11626,8 @@ msgstr "Salvare toate atașamentele"
 msgid "Save All Attachments…"
 msgstr "Salvare toate atașamentele…"
 
-#. ribbon location
-#: crates/engine/src/cmd/file.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Save As"
 msgstr "Salvare ca"
@@ -11696,6 +11733,11 @@ msgstr "Salvați sau renunțați la modificările acestui cont înainte de a tre
 #, fuzzy
 msgid "Save out"
 msgstr "Salvare în afară"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save to Computer"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12576,6 +12618,13 @@ msgstr "Afișare"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Show\n"
+"Message"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Show\n"
@@ -12627,6 +12676,11 @@ msgstr "Afișați categoriile Gmail sub Mesaje primite"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Show MailCraft"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Message"
 msgstr ""
 
 #. command label, interface
@@ -22291,6 +22345,14 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "Click to preview {name}; double-click to open it"
+#~ msgstr "Clic pentru previzualizarea {name}; dublu clic pentru deschidere"
+
+#, fuzzy
+#~ msgid "Double-click to open {name}; right-click to save it"
+#~ msgstr "Dublu clic pentru a deschide {name}; clic dreapta pentru a-l salva"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

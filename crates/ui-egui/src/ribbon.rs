@@ -106,6 +106,9 @@ pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     if crate::windows::compose_window::pane_compose(app).is_some() {
         tabs.splice(1..1, ["Message", "Insert", "Format Text", "Review"]);
     }
+    if crate::attachment_preview::pane_target(app).is_some() {
+        tabs.push("Attachments");
+    }
     tabs
 }
 
@@ -172,7 +175,15 @@ impl Menu {
 /// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
 pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
     match (&item.command, item.menu) {
-        (Some((command, _)), _) => app.enabled(command),
+        (Some((command, params)), _) => {
+            let explicit_attachment =
+                matches!(*command, "mail.openAttachment" | "mail.removeAttachment" | "mail.saveAttachment" | "mail.saveAllAttachments")
+                    && params
+                        .get("id")
+                        .and_then(Value::as_u64)
+                        .is_some_and(|id| crate::attachment_preview::target(app, app.hit.window(), id).is_some());
+            explicit_attachment || app.enabled(command)
+        }
         (None, Some(menu)) => menu_usable(app, menu),
         (None, None) => true,
     }
@@ -379,6 +390,9 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
         "Insert" => (insert(), "Insert"),
         "Format Text" => (format_text(app), "Format Text"),
         "Review" => (review(), "Review"),
+        "Attachments" => {
+            (crate::attachment_preview::pane_target(app).map_or_else(|| Tab::of(Vec::new()), |(id, index)| attachments(id, index)), "Attachments")
+        }
         "Send / Receive" => (send_receive(app), "Send / Receive"),
         "Folder" => (folder(app), "Folder"),
         "View" => (view(app), "View"),
@@ -403,6 +417,27 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
 
 fn no() -> Value {
     json!({})
+}
+
+fn attachments(id: mailcraft_model::Id, index: usize) -> Tab {
+    let file = json!({"id": id, "index": index});
+    Tab::of(vec![
+        g(
+            "Actions",
+            vec![
+                Item::big("open", "Open", "mail.openAttachment", file.clone()).at(0, 1),
+                Item::big("delete", "Remove\nAttachment", "mail.removeAttachment", file.clone()).at(0, 4),
+            ],
+        ),
+        g(
+            "Save to Computer",
+            vec![
+                Item::big("save", "Save As", "mail.saveAttachment", file).at(1, 1),
+                Item::big("save", "Save All\nAttachments", "mail.saveAllAttachments", json!({"id": id})).at(1, 3),
+            ],
+        ),
+        g("Message", vec![Item::big("mail", "Show\nMessage", "ui.showAttachmentMessage", no()).at(2, 1)]),
+    ])
 }
 
 fn home_mail(app: &MailApp) -> Tab {
@@ -1665,7 +1700,7 @@ pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
 /// when it is on.
 fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
     let Some((id, params)) = &item.command else { return };
-    let (key, enabled) = (shortcut_text(app, id), app.enabled(id));
+    let (key, enabled) = (shortcut_text(app, id), usable(app, item));
     let mut button = egui::Button::new(item.name()).selected(item.checked).min_size(vec2(190.0, 0.0));
     if !key.is_empty() {
         button = button.shortcut_text(key);
@@ -1994,7 +2029,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             classic_recent_attachments(app, &resp, on);
         }
         (Some((command, params)), _) => {
-            let on = app.enabled(command);
+            let on = usable(app, item);
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
@@ -2043,7 +2078,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     classic_recent_attachments(app, &resp, on);
                 }
                 (Some((command, params)), _) => {
-                    let on = app.enabled(command);
+                    let on = usable(app, item);
                     let resp = small_frame(ui, item.icon, label, on, item.checked, false);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     let resp = command_tooltip(app, resp, &item.tip_text(), command);
@@ -2172,6 +2207,7 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
 // ---- the ribbon ----
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    crate::attachment_preview::follow_message(app, 0, crate::attachment_preview::pane_message(app));
     let tabs = tabs(app);
     if !tabs.contains(&app.ui.tab.as_str()) {
         app.ui.tab = "Home".into();
@@ -2189,6 +2225,18 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let tab = describe(app);
     band(app, ui, &tab, egui::Id::unique("ribbon"));
+}
+
+pub(crate) fn show_attachment_window(app: &mut MailApp, ui: &mut Ui, window: u64, message: mailcraft_model::Id) -> bool {
+    let Some(index) = crate::attachment_preview::target(app, window, message) else { return false };
+    if strip(app, ui, &["Message", "Attachments"], "Attachments", egui::Id::unique(("attachment-tabs", window)))
+        .is_some_and(|(tab, _)| tab == "Message")
+    {
+        let _ = app.run("ui.showAttachmentMessage", no());
+        return true;
+    }
+    band(app, ui, &attachments(message, index), egui::Id::unique(("attachment-ribbon", window)));
+    true
 }
 
 /// The ribbon of a window of its own with a message being written (#286), numbered `window`:
@@ -2239,7 +2287,7 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
                         ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), 4.0, t.hover);
                     }
                     // The tab that came up for the message being written stands out.
-                    let color = if *tab == "Message" && !active { t.accent_text } else { t.text };
+                    let color = if matches!(*tab, "Message" | "Attachments") && !active { t.accent_text } else { t.text };
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active { semibold(TAB_SIZE) } else { regular(TAB_SIZE) }, color);
                     if active {
                         // The tab in view: its name in the heavier weight, underlined in the accent.
