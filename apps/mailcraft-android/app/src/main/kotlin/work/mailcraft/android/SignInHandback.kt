@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** The address the provider's page sent the owner back to, as the system opened the app with it. */
 internal object Redirect {
@@ -44,7 +45,11 @@ internal object Redirect {
  * nothing. The state check is not here and must not be: Kotlin never holds it.
  */
 internal class SignInHandback(private val pending: PendingSignIn? = null) {
-    private val armed = AtomicBoolean(false)
+    /** The token of the arm that waits for an address; 0 when none does. */
+    private val armed = AtomicLong(0L)
+
+    /** The last token an [arm] gave. */
+    private val arms = AtomicLong(0L)
 
     /** This process started a sign-in or grant that has not ended: its recovery record is not lost. */
     private val live = AtomicBoolean(false)
@@ -105,27 +110,32 @@ internal class SignInHandback(private val pending: PendingSignIn? = null) {
             if (ticket != owner) return
             owner = 0L
             live.set(false)
-            armed.set(false)
+            armed.set(0L)
             pending?.clear()
         }
     }
 
-    /** A sign-in is about to open its page: the next address is for it. */
-    fun arm() {
+    /** A sign-in is about to open its page: the next address is for it. Gives the token that alone [disarm]s it. */
+    fun arm(): Long {
         live.set(true)
-        armed.set(true)
+        val token = arms.incrementAndGet()
+        armed.set(token)
+        return token
     }
 
-    /** The page could not be opened: no address will come for it (its [end] follows). */
-    fun disarm() {
-        armed.set(false)
+    /**
+     * The page of the arm of [token] could not be opened: no address will come for it (its [end]
+     * follows). A later arm is left as it is: a late failure of an earlier page never calls it off.
+     */
+    fun disarm(token: Long) {
+        armed.compareAndSet(token, 0L)
     }
 
     /** What the redirect's activity got; false when it was not taken. */
     fun deliver(address: String?): Boolean {
         val accepted = Redirect.accepted(address) ?: return false
         // (Only the first: whoever clears the flag is the one that passes the address on.)
-        if (!armed.compareAndSet(true, false)) {
+        if (armed.getAndSet(0L) == 0L) {
             // (None waits here. If one did before the system closed the app, it is told, once; a stranger's
             // address finds no such record and costs nothing.)
             // (Not while this process's own sign-in is still under way, e.g. past its first redirect:
