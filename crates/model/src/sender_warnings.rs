@@ -469,7 +469,7 @@ fn is_at(host: &str, domain: &str) -> bool {
 }
 
 /// `text` with its `%XX` escapes read back (`+` left as it is), as UTF-8 at most loosely.
-fn percent_decoded(text: &str) -> String {
+pub(crate) fn percent_decoded(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
