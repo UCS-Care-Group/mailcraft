@@ -37,6 +37,8 @@ macro_rules! said {
 #[cfg(test)]
 mod chinese_tests;
 #[cfg(test)]
+mod polish_tests;
+#[cfg(test)]
 mod said_tests;
 
 use std::collections::HashMap;
@@ -485,8 +487,6 @@ mod tests {
         assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
         assert_eq!(Lang::from_pref("auto", Some("hu_HU.UTF-8")), Lang::Hungarian);
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
-        assert_eq!(Lang::from_pref("auto", Some("pl_PL.UTF-8")), Lang::Polish);
-        assert_eq!(Lang::from_pref("pl", None), Lang::Polish);
     }
 
     #[test]

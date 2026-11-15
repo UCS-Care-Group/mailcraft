@@ -111,11 +111,6 @@ mod tests {
         let forms: Vec<usize> = [1, 0, 2, 19, 20, 100, 101, 119, 120, 1001].iter().map(|n| ro.index(*n)).collect();
         assert_eq!(forms, [0, 1, 1, 1, 2, 2, 1, 1, 2, 1]);
         assert_eq!(ro.forms(), 3);
-        let pl = Rule::from_header("nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");
-        assert_eq!(pl, Rule::Polish);
-        let forms: Vec<usize> = [1, 0, 2, 4, 5, 12, 14, 21, 22, 24, 25, 100, 101, 112, 122, 1000].iter().map(|n| pl.index(*n)).collect();
-        assert_eq!(forms, [0, 2, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 2]);
-        assert_eq!(pl.forms(), 3);
         assert_eq!(Rule::from_header("nplurals=2; plural=n>1;"), Rule::AboveOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n != 1);"), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=1; plural=0;"), Rule::Single);
