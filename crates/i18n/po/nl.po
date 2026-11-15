@@ -2140,6 +2140,11 @@ msgid "Bring in"
 msgstr "Inlezen"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -8752,6 +8757,11 @@ msgid "No preview helper is available for this attachment."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "No recent searches"
@@ -10536,6 +10546,11 @@ msgstr ""
 #, fuzzy
 msgid "Recent Searches"
 msgstr "Recente zoekopdrachten"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs

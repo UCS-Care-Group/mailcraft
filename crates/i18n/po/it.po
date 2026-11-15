@@ -2043,6 +2043,11 @@ msgid "Bring in"
 msgstr "Importa"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr "Sfoglia…"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -8401,6 +8406,11 @@ msgid "No preview helper is available for this attachment."
 msgstr "Non è disponibile un programma per l’anteprima di questo allegato."
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
+msgstr "Nessun file recente"
+
+#. interface
 #: crates/ui-egui/src/ribbon/view_menus.rs
 msgid "No recent searches"
 msgstr ""
@@ -10098,6 +10108,11 @@ msgstr ""
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Recent Searches"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr "File recenti"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -20803,6 +20818,9 @@ msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intes
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#~ msgid "Browse This PC…"
+#~ msgstr "Sfoglia questo PC…"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
