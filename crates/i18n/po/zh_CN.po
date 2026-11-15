@@ -1317,8 +1317,9 @@ msgstr "通往受信任证书颁发机构的证书链中，有颁发机构不允
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
-msgstr ""
+msgstr "一个 https:// 或 webcal:// 地址。在您点击“订阅”之前不会读取任何内容。该日历列在“其他日历”下，为只读，并每小时以及点击“发送/接收”时从网络更新；您可以在“文件 › 信息”中选择其他时间。其地址通过加密连接请求，不包含任何能表明您身份的信息。私有地址包含机密：它像密码一样保存——如果您允许 MailCraft 记住登录，则保存在系统的凭据存储中，否则保留到退出为止。"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1549,8 +1550,9 @@ msgstr "应用已发送的待办事项更改"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Apply Subscribed Calendar"
-msgstr ""
+msgstr "应用已订阅的日历"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1785,8 +1787,9 @@ msgstr "通过地址最多可打开 {n} 个日历，请先移除一个。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
-msgstr ""
+msgstr "最多可订阅 {n} 个日历：请先取消订阅其中一个。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2311,8 +2314,9 @@ msgstr "日历和联系人需要您的许可：文件 › 信息 › 连接日�
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
-msgstr ""
+msgstr "来自网络的日历（.ics 地址）在此保持更新，只读。“日历 › 打开日历 › 从 Internet…”可订阅一个。"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -3500,13 +3504,15 @@ msgstr "无法发送邮件：该账户没有发送服务器"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Couldn't update {name}: {why}. What it held stays."
-msgstr ""
+msgstr "无法更新 {name}：{why}。它原有的内容保留不变。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Couldn't update: {why}. What it held stays."
-msgstr ""
+msgstr "无法更新：{why}。它原有的内容保留不变。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4689,15 +4695,17 @@ msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} hour"
 msgid_plural "Every {n} hours"
-msgstr[0] ""
+msgstr[0] "每 {n} 小时"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} minute"
 msgid_plural "Every {n} minutes"
-msgstr[0] ""
+msgstr[0] "每 {n} 分钟"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5398,8 +5406,9 @@ msgstr "发件人"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "From Internet…"
-msgstr ""
+msgstr "从 Internet…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6738,8 +6747,9 @@ msgstr "此日历中的项目仅保存在此计算机上。您可以通过日历
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
-msgstr ""
+msgstr "其地址未被保存（可能包含机密）：请重新输入以更新此日历。在此期间显示它原有的内容。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6934,8 +6944,9 @@ msgstr "继续等待"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
-msgstr ""
+msgstr "在此保持来自网络的日历为最新：其地址以 .ics 结尾或以 webcal:// 开头"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -8474,8 +8485,9 @@ msgstr "名称"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Name (optional)"
-msgstr ""
+msgstr "名称（可选）"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -9334,8 +9346,9 @@ msgstr "暂不：退出 MailCraft 时将安装它。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Not read yet."
-msgstr ""
+msgstr "尚未读取。"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -9862,8 +9875,9 @@ msgstr "打开附件"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Calendar"
-msgstr ""
+msgstr "打开日历"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -9927,8 +9941,9 @@ msgstr "打开共享日历"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Shared Calendar…"
-msgstr ""
+msgstr "打开共享日历…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13728,33 +13743,39 @@ msgstr "主题："
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe"
-msgstr ""
+msgstr "订阅"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe to Internet Calendar"
-msgstr ""
+msgstr "订阅 Internet 日历"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendar Settings"
-msgstr ""
+msgstr "已订阅日历的设置"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendars Due"
-msgstr ""
+msgstr "到期的已订阅日历"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Subscribed calendars"
-msgstr ""
+msgstr "已订阅的日历"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
-msgstr ""
+msgstr "已订阅 {name}。它列在“其他日历”下，为只读，并每小时从网络更新。"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -14094,13 +14115,15 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
-msgstr ""
+msgstr "该地址所属的主机与日历的不同。要跟随已迁移的日历，请订阅其新地址。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "That calendar is a copy of one on the web: it stays where it is."
-msgstr ""
+msgstr "该日历是网络上某个日历的副本：它保持原位。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -14110,8 +14133,9 @@ msgstr "该日历已由账户服务器保存。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That calendar isn't a subscribed one."
-msgstr ""
+msgstr "该日历不是已订阅的日历。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -14353,8 +14377,9 @@ msgstr "发送会议时，账户服务器会创建会议，并返回加入链接
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The address of the calendar"
-msgstr ""
+msgstr "日历的地址"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -14394,8 +14419,9 @@ msgstr "日历“{name}”为只读：其所有者尚未允许此账户修改。
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
-msgstr ""
+msgstr "日历“{name}”是网络上某个日历的副本：在此只能读取。"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14446,8 +14472,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "The calendar couldn't be added"
-msgstr ""
+msgstr "无法添加该日历"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -14523,8 +14550,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
-msgstr ""
+msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为它保存的地址也一并删除。不会向任何地方发送任何内容；您可以用该地址重新订阅。"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -14698,8 +14726,9 @@ msgstr "无法读取文件（{why}）"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
-msgstr ""
+msgstr "该文件的事件多于保留的数量（每个日历 {one} 个，总共 {all} 个）：其余的被舍弃。"
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15011,8 +15040,9 @@ msgstr "你认识的人的名字。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The name the calendar gives itself"
-msgstr ""
+msgstr "日历给自己起的名称"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15972,8 +16002,9 @@ msgstr "此日历为只读，无法向其中添加新项目"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
-msgstr ""
+msgstr "该日历是网络上某个日历的副本。取消订阅即可将其删除。"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17100,13 +17131,15 @@ msgstr "退订"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Unsubscribe from Calendar"
-msgstr ""
+msgstr "取消订阅日历"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Unsubscribe from Internet Calendar"
-msgstr ""
+msgstr "取消订阅 Internet 日历"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -17164,13 +17197,15 @@ msgstr "即将到来"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "Update Now"
-msgstr ""
+msgstr "立即更新"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Update Subscribed Calendars"
-msgstr ""
+msgstr "更新已订阅的日历"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -17203,8 +17238,9 @@ msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Updated {when} · {held}"
-msgstr ""
+msgstr "更新于 {when} · {held}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -17232,8 +17268,9 @@ msgstr "使用“发送/接收”登录 {address}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Use This Address"
-msgstr ""
+msgstr "使用此地址"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17267,8 +17304,9 @@ msgstr "改用应用密码"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Use https:// instead"
-msgstr ""
+msgstr "改用 https://"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -18355,8 +18393,9 @@ msgstr "正在将 .pst 文件导入此邮箱：请等待完成，然后保存到
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
-msgstr ""
+msgstr ".pst 文件只会导入到此计算机上您自己的日历中，绝不会导入到服务器上的帐户或已订阅的日历"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs

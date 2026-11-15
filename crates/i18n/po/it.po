@@ -1271,8 +1271,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
-msgstr ""
+msgstr "Un indirizzo https:// o webcal://. Non viene letto nulla finché non premi Iscriviti. Il calendario è elencato in Altri calendari, in sola lettura, e viene aggiornato dal web ogni ora e quando premi Invia/Ricevi; puoi scegliere un altro intervallo in File › Informazioni. Il suo indirizzo viene richiesto su una connessione cifrata, senza nulla che dica chi sei. Un indirizzo privato contiene un segreto: viene conservato come una password, nell'archivio delle credenziali del sistema se lasci che MailCraft ricordi gli accessi, e altrimenti fino alla chiusura."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1495,8 +1496,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Apply Subscribed Calendar"
-msgstr ""
+msgstr "Applica calendario sottoscritto"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1721,8 +1723,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
-msgstr ""
+msgstr "Si possono sottoscrivere al massimo {n} calendari: annulla prima l'iscrizione a uno."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2210,8 +2213,9 @@ msgstr "Calendario e contatti richiedono l'autorizzazione: File › Informazioni
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
-msgstr ""
+msgstr "Calendari dal web (un indirizzo .ics) tenuti aggiornati qui, in sola lettura. Calendario › Apri calendario › Da Internet… ne sottoscrive uno."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -3343,13 +3347,15 @@ msgstr "Impossibile inviare la posta: l'account non ha un server in uscita"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Couldn't update {name}: {why}. What it held stays."
-msgstr ""
+msgstr "Impossibile aggiornare {name}: {why}. Il contenuto attuale resta."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Couldn't update: {why}. What it held stays."
-msgstr ""
+msgstr "Impossibile aggiornare: {why}. Il contenuto attuale resta."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4488,17 +4494,19 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} hour"
 msgid_plural "Every {n} hours"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Ogni ora"
+msgstr[1] "Ogni {n} ore"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Every {n} minute"
 msgid_plural "Every {n} minutes"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Ogni minuto"
+msgstr[1] "Ogni {n} minuti"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5176,8 +5184,9 @@ msgstr "Da"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "From Internet…"
-msgstr ""
+msgstr "Da Internet…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6422,8 +6431,9 @@ msgstr "Gli elementi di questo calendario sono conservati su questo computer e d
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
-msgstr ""
+msgstr "Il suo indirizzo non è stato conservato (potrebbe contenere un segreto): inseriscilo di nuovo per aggiornare questo calendario. Nel frattempo viene mostrato il contenuto attuale."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6612,8 +6622,9 @@ msgstr "Continua ad attendere"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
-msgstr ""
+msgstr "Tieni qui aggiornato un calendario dal web: il suo indirizzo termina con .ics o inizia con webcal://"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -8099,8 +8110,9 @@ msgstr "Nome"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Name (optional)"
-msgstr ""
+msgstr "Nome (facoltativo)"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8941,8 +8953,9 @@ msgstr "Non ora: viene installata all'uscita da MailCraft."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Not read yet."
-msgstr ""
+msgstr "Non ancora letto."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -9450,8 +9463,9 @@ msgstr "Apri allegato"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Calendar"
-msgstr ""
+msgstr "Apri calendario"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -9511,8 +9525,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Open Shared Calendar…"
-msgstr ""
+msgstr "Apri calendario condiviso…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13125,33 +13140,39 @@ msgstr "Oggetto:"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe"
-msgstr ""
+msgstr "Iscriviti"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Subscribe to Internet Calendar"
-msgstr ""
+msgstr "Iscriviti a un calendario Internet"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendar Settings"
-msgstr ""
+msgstr "Impostazioni dei calendari sottoscritti"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Subscribed Calendars Due"
-msgstr ""
+msgstr "Calendari sottoscritti da aggiornare"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Subscribed calendars"
-msgstr ""
+msgstr "Calendari sottoscritti"
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
-msgstr ""
+msgstr "Iscritto a {name}. È elencato in Altri calendari, in sola lettura, e viene aggiornato dal web ogni ora."
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -13465,13 +13486,15 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
-msgstr ""
+msgstr "Quell'indirizzo appartiene a un host diverso da quello del calendario. Per seguire un calendario che si è spostato, iscriviti al suo nuovo indirizzo."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "That calendar is a copy of one on the web: it stays where it is."
-msgstr ""
+msgstr "Quel calendario è una copia di uno sul web: resta dov'è."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -13481,8 +13504,9 @@ msgstr "Quel calendario è già conservato sul server di un account."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "That calendar isn't a subscribed one."
-msgstr ""
+msgstr "Quel calendario non è sottoscritto."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -13711,8 +13735,9 @@ msgstr "Il server dell'account la crea quando la riunione viene inviata; il coll
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The address of the calendar"
-msgstr ""
+msgstr "L'indirizzo del calendario"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -13748,8 +13773,9 @@ msgstr "Il calendario «{name}» è di sola lettura: il proprietario non ha cons
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
-msgstr ""
+msgstr "Il calendario «{name}» è una copia di uno sul web: qui può solo essere letto."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -13799,8 +13825,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/subscribed.rs
+#, fuzzy
 msgid "The calendar couldn't be added"
-msgstr ""
+msgstr "Impossibile aggiungere il calendario"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -13863,8 +13890,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
-msgstr ""
+msgstr "Il calendario {name} e i suoi eventi conservati su questo computer verranno rimossi, così come l'indirizzo conservato per esso. Non viene inviato nulla; puoi iscriverti di nuovo con l'indirizzo."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -14021,8 +14049,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
-msgstr ""
+msgstr "Il file ha più eventi di quelli conservati ({one} per calendario, {all} in tutto): il resto viene escluso."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -14312,8 +14341,9 @@ msgstr "Il nome di una persona che conosce."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The name the calendar gives itself"
-msgstr ""
+msgstr "Il nome che il calendario si dà"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15224,8 +15254,9 @@ msgstr "Questo calendario è di sola lettura: non può ricevere nuovi elementi"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
-msgstr ""
+msgstr "Questo calendario è una copia di uno sul web. Annulla l'iscrizione per rimuoverlo."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16304,13 +16335,15 @@ msgstr "Disiscriviti"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Unsubscribe from Calendar"
-msgstr ""
+msgstr "Annulla iscrizione al calendario"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Unsubscribe from Internet Calendar"
-msgstr ""
+msgstr "Annulla iscrizione a un calendario Internet"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -16367,13 +16400,15 @@ msgstr "Prossimamente"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "Update Now"
-msgstr ""
+msgstr "Aggiorna ora"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
 msgid "Update Subscribed Calendars"
-msgstr ""
+msgstr "Aggiorna calendari sottoscritti"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -16409,8 +16444,9 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Updated {when} · {held}"
-msgstr ""
+msgstr "Aggiornato {when} · {held}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -16437,8 +16473,9 @@ msgstr "Usare Invia/Ricevi per accedere a {address}"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Use This Address"
-msgstr ""
+msgstr "Usa questo indirizzo"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16469,8 +16506,9 @@ msgstr "Usa invece una password per le app"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Use https:// instead"
-msgstr ""
+msgstr "Usa invece https://"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17490,8 +17528,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
+#, fuzzy
 msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
-msgstr ""
+msgstr "Un file .pst viene importato solo in un calendario tuo su questo computer, mai in un account su un server né in un calendario sottoscritto"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
