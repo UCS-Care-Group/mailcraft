@@ -7,33 +7,23 @@
 //! skipped and never a crash.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use mailcraft_engine::sync_driver::{ClientIds, effective_oauth};
+use mailcraft_engine::Session;
 use mailcraft_host::sync::Adopted;
 use mailcraft_i18n::Lang;
-use mailcraft_model::{AccountKind, OAuth, OAuthProvider};
+use mailcraft_model::AccountKind;
 
 use crate::core::CancelOnDrop;
 use crate::queue::Queue;
-use crate::sign_in::{self, Ended};
-use crate::sync::{SyncAnswer, SyncStatus, SyncSummary, Wake};
-use crate::{Core, CoreError, RedirectKind, SignInsForgotten};
+use crate::sync::{SyncAnswer, SyncHost, SyncStatus, SyncSummary, Wake};
+use crate::{Core, CoreError, SignInOutcome, SignInsForgotten};
 
 /// The shortest and the longest time a background sync is given (the system gives a worker some
 /// minutes; a `0` or a day is a mistake).
 const LEAST_BUDGET_MS: u64 = 500;
 const MOST_BUDGET_MS: u64 = 10 * 60 * 1000;
-
-/// Ends a sign-in's claim on the core when the call ends or is dropped.
-struct Open(Arc<AtomicBool>);
-
-impl Drop for Open {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
 
 #[uniffi::export]
 impl Core {
@@ -55,9 +45,14 @@ impl Core {
     pub async fn background_sync(&self, budget_ms: u64) -> Result<SyncSummary, CoreError> {
         let budget = Duration::from_millis(budget_ms.clamp(LEAST_BUDGET_MS, MOST_BUDGET_MS));
         let replies = Queue::<Wake>::new();
-        let (sync, waiter) = (self.sync.clone(), replies.clone());
-        let answer = self.call(move |session| Ok(sync.ask(session, Some(waiter)))).await?;
+        // Dropping this call (the worker stopped, its coroutine cancelled) calls the round off too,
+        // so that the budget bounds it whoever stops waiting first; from the moment it is started,
+        // its answer still on its way back included.
+        let mut stop_on_drop = StopOnDrop { core: self, shared: Arc::new(Started::default()), armed: true };
+        let (sync, waiter, shared) = (self.sync.clone(), replies.clone(), stop_on_drop.shared.clone());
+        let answer = self.call(move |session| Ok(start_attached(&sync, session, waiter, &shared))).await?;
         if !answer.started {
+            stop_on_drop.armed = false;
             return Ok(SyncSummary { ran: false, finished: true, errors: vec![answer.message], ..Default::default() });
         }
         // The timer: one short-lived thread, ended when this call is.
@@ -77,14 +72,16 @@ impl Core {
                 }
             })
             .map_err(|_| CoreError::Failed { reason: "a timer for the sync could not be started".to_string() })?;
-        match replies.next().await {
+        let out = match replies.next().await {
             Some(Wake::Done(summary)) => Ok(summary),
             Some(Wake::Budget) => {
                 let sync = self.sync.clone();
                 self.call(move |session| Ok(sync.stop(session))).await
             }
             None => Err(CoreError::Cancelled),
-        }
+        };
+        stop_on_drop.armed = false;
+        out
     }
 
     /// Where Send/Receive stands: whether a round is under way, what the last said went wrong,
@@ -135,49 +132,40 @@ impl Core {
         .await
     }
 
-    /// Sign `account` (a Microsoft account) in on the provider's page. Opens the page through
-    /// [`crate::Platform::open_sign_in_page`] and waits for the app to hand over the address the
-    /// system opened it with ([`Core::sign_in_redirect`]); dropping the call (or `shutdown`)
-    /// calls the sign-in off. On success the sign-in is kept for the session and, when the owner
-    /// lets it be, in the credential store; refused when it is somebody else's. Run `sync_now`
-    /// after it.
+    /// Sign `account` (a Microsoft account) in again on the provider's page, its address as the
+    /// page's hint. The same sign-in as Add Account's ([`Core::sign_in_microsoft`]): one at a time,
+    /// the page opened through [`crate::Platform::open_sign_in_page`], the address the system
+    /// opened the app with handed over by [`Core::hand_back_redirect`], called off by
+    /// [`Core::cancel_sign_in`], by dropping the call or by `shutdown`. On success the sign-in is
+    /// kept for the session and, when the owner lets it be, in the credential store; refused when
+    /// it is somebody else's. Run `sync_now` after it.
     pub async fn sign_in(&self, account: u64) -> Result<(), CoreError> {
         let lang = self.lang();
-        if self.signing_in.swap(true, Ordering::AcqRel) {
-            return Err(fail(lang, words("A sign-in is already open.")));
-        }
-        let _open = Open(self.signing_in.clone());
-        let scheme = match self.platform.redirect() {
-            Ok(RedirectKind::CustomScheme { scheme }) => scheme,
-            Ok(RedirectKind::Loopback) | Err(_) => return Err(fail(lang, words("Signing in isn't available on this phone."))),
-        };
-        let ids_account = account;
-        let (oauth, address) = self
+        let address = self
             .call(move |session| {
-                let Some(a) = session.mailbox.account(ids_account) else {
+                let Some(a) = session.mailbox.account(account) else {
                     return Err(fail(lang, words("That account is gone.")));
                 };
                 if a.kind != AccountKind::Microsoft || a.is_shared() {
                     return Err(fail(lang, words("Only a Microsoft account signs in on the phone for now.")));
                 }
-                let oauth = a.oauth.clone().unwrap_or(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
-                let oauth = effective_oauth(oauth, &ClientIds { microsoft_built_in: crate::sync::MS_CLIENT_ID, ..Default::default() });
-                Ok((oauth, a.email.clone()))
+                Ok(a.email.clone())
             })
             .await?;
-        if oauth.client_id.is_empty() {
-            return Err(fail(lang, words("This build has no application id to sign in with.")));
-        }
-        let tokens = self.page_sign_in(oauth, address, scheme).await?;
+        let tokens = match self.account_sign_in(mailcraft_host::signin::hint_of(&address)).await? {
+            Ok((_, tokens)) => tokens,
+            Err(SignInOutcome::Cancelled) => return Err(CoreError::Cancelled),
+            Err(SignInOutcome::NoBrowser) => return Err(fail(lang, words("The sign-in page couldn't be opened."))),
+            Err(SignInOutcome::NeedsApproval) => {
+                return Err(fail(lang, words("Your organisation has to approve MailCraft before you can sign in. Ask an administrator.")));
+            }
+            Err(SignInOutcome::Declined | SignInOutcome::OrganisationBlocks) => return Err(fail(lang, words("The sign-in was declined."))),
+            Err(SignInOutcome::TimedOut) => return Err(fail(lang, words("Nothing came back from the sign-in page in time."))),
+            Err(SignInOutcome::Failed { .. } | SignInOutcome::SignedIn { .. }) => {
+                return Err(fail(lang, words("The sign-in didn't work. Try again.")));
+            }
+        };
         self.adopt_tokens(account, tokens).await
-    }
-
-    /// The app hands over the address the system opened it with after the provider's page (a
-    /// custom-scheme link). Taken only while a [`Core::sign_in`] waits, and only the first; it is
-    /// read strictly there, and anything wrong with it ends the sign-in in an error that says
-    /// nothing of it. Returns whether it was taken.
-    pub fn sign_in_redirect(&self, address: String) -> bool {
-        self.redirects.deliver(&address)
     }
 }
 
@@ -188,57 +176,66 @@ impl Core {
         let lang = self.lang();
         let sync = self.sync.clone();
         let adopted = self.call(move |session| Ok(sync.adopt(session, account, tokens))).await?;
-        match adopted {
-            Adopted::Kept => Ok(()),
-            Adopted::WrongPerson => Err(fail(lang, words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."))),
-            Adopted::Refused => Err(fail(lang, words("The account can't be signed in now."))),
+        match adopt_refusal(lang, adopted) {
+            None => Ok(()),
+            Some(reason) => Err(CoreError::Failed { reason }),
         }
     }
+}
 
-    /// The page, on a thread of its own (it waits for the owner), its end as a reply.
-    pub(crate) async fn page_sign_in(&self, oauth: OAuth, address: String, scheme: String) -> Result<mailcraft_model::sync::Tokens, CoreError> {
-        self.page_sign_in_at(oauth, address, scheme, None).await
-    }
+/// Why Send/Receive didn't take a sign-in, in the interface language; nothing when it took it.
+pub(crate) fn adopt_refusal(lang: Lang, adopted: Adopted) -> Option<String> {
+    let text = match adopted {
+        Adopted::Kept => return None,
+        Adopted::WrongPerson => words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."),
+        Adopted::Refused => words("The account can't be signed in now."),
+    };
+    Some(lang.t(text).to_string())
+}
 
-    pub(crate) async fn page_sign_in_at(
-        &self,
-        oauth: OAuth,
-        address: String,
-        scheme: String,
-        endpoints: Option<mailcraft_net::oauth::Endpoints>,
-    ) -> Result<mailcraft_model::sync::Tokens, CoreError> {
-        type Reply = Result<mailcraft_model::sync::Tokens, CoreError>;
-        let lang = self.lang();
-        let reply = Queue::<Reply>::new();
-        let cancel = Arc::new(AtomicBool::new(false));
-        let _guard = CancelOnDrop(cancel.clone());
-        let (redirects, platform, out) = (self.redirects.clone(), self.platform.clone(), reply.clone());
-        let attempt = redirects.arm();
-        let thread_cancel = cancel.clone();
-        let spawned = std::thread::Builder::new().name("mailcraft-sign-in".to_string()).spawn(move || {
-            let page_failed = Arc::new(AtomicBool::new(false));
-            let (opened_flag, opened_cancel) = (page_failed.clone(), thread_cancel.clone());
-            let open = |url: &str| {
-                if platform.open_sign_in_page(url.to_string()).is_err() {
-                    // Nothing was opened, so nothing will come back: no waiting for it.
-                    opened_flag.store(true, Ordering::Release);
-                    opened_cancel.store(true, Ordering::Release);
-                }
-            };
-            let done = sign_in::run(&oauth, &address, &scheme, &open, &redirects, &thread_cancel, endpoints.as_ref());
-            redirects.disarm(attempt);
-            out.push(match done {
-                Ok(tokens) => Ok(tokens),
-                Err(_) if page_failed.load(Ordering::Acquire) => Err(fail(lang, words("The sign-in page couldn't be opened."))),
-                Err(Ended::Cancelled) => Err(CoreError::Cancelled),
-                Err(Ended::Said(said)) => Err(fail(lang, said)),
-            });
-        });
-        if spawned.is_err() {
-            self.redirects.disarm(attempt);
-            return Err(fail(lang, words("The sign-in couldn't be started.")));
+/// Calls a `background_sync`'s round off when the call is dropped before it has its answer. It
+/// only asks: the session's thread does it at its next wake, nothing is waited for in `drop`.
+struct StopOnDrop<'a> {
+    core: &'a Core,
+    shared: Arc<Started>,
+    armed: bool,
+}
+
+/// Start (or join) a round for a `background_sync`, on the session's thread, and note in `shared`
+/// the round the call is attached to. The round is read before `ask`, which may end it before it
+/// returns (nothing to run): read after, it would name the next round, which a later drop would
+/// then call off in its place.
+pub(crate) fn start_attached(sync: &SyncHost, session: &mut Session, waiter: Arc<Queue<Wake>>, shared: &Started) -> SyncAnswer {
+    let round = sync.round();
+    let answer = sync.ask(session, Some(waiter));
+    if answer.started {
+        shared.round.store(round.saturating_add(1), Ordering::SeqCst);
+        // Dropped while this ran: the drop may not have seen the round, so it is called off here.
+        if shared.dropped.load(Ordering::SeqCst) {
+            sync.stop(session);
         }
-        reply.next().await.unwrap_or(Err(CoreError::Cancelled))
+    }
+    answer
+}
+
+/// What the call's job and its drop tell each other: whichever comes second calls the round off.
+#[derive(Default)]
+pub(crate) struct Started {
+    /// The round the call started, plus one; 0 until it has started one.
+    pub(crate) round: AtomicU64,
+    pub(crate) dropped: AtomicBool,
+}
+
+impl Drop for StopOnDrop<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        self.shared.dropped.store(true, Ordering::SeqCst);
+        if let Some(round) = self.shared.round.load(Ordering::SeqCst).checked_sub(1) {
+            self.core.sync.stop_later(round);
+            self.core.enqueue_tick();
+        }
     }
 }
 
