@@ -483,7 +483,11 @@ fn page(
                 }
             }
             Some(Entry::Removed(id)) => taken.removed.push(id),
-            Some(Entry::Read(id, read)) => taken.read.push(ReadState { id, read }),
+            Some(Entry::Read(id, read)) => {
+                // (Graph's limit counts every change key, a read state's too.)
+                one.counted = one.counted.saturating_add(1);
+                taken.read.push(ReadState { id, read });
+            }
             None => {}
         }
     }
@@ -498,6 +502,12 @@ fn page(
         (taken.link, taken.caught_up, taken.counts) = (String::new(), false, None);
         one.held = Some((given, link));
         (one.plain, one.link, one.caught_up, one.listing) = (true, None, false, false);
+        // The plain list carries no removals: it is read as a listing afresh, which marks the
+        // folder's messages gone and lets each page it returns confirm its own. What is still gone
+        // when the run ends whole is gone from the window; a list stopped or cut short sweeps
+        // nothing (the sweep waits for every folder to be done), and the round's delta link,
+        // held, is given only at the list's end.
+        (one.afresh, one.relist_gen) = (true, 0);
         run.note(&taken);
         emit(GraphMailResult {
             account: out.account,

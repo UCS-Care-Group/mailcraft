@@ -458,7 +458,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        let since = s.mailbox.listed_since(account, s.now());
+        graph_down::sweep(&mut s.mailbox, account, since, &mut down);
         // Every folder read and none passed over: the full sweep is done for the hour (#276).
         if !result.partial && result.timings.skipped == 0 {
             let now = s.now();

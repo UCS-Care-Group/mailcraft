@@ -387,7 +387,7 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
 }
 
 /// Every folder's delta reached its end: what is still gone from every folder is gone here too.
-pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
+pub fn sweep(mb: &mut Mailbox, account: Id, since: Option<Timestamp>, down: &mut Down) {
     // But for a draft saved here that waits to go up: it is made on the server anew (S26); and
     // for what waits in the Outbox, or is held there (R3.4.2): it stays, for the owner to see.
     let outbox = mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox);
@@ -408,13 +408,20 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
     for id in returned {
         super::graph_place::kept_instead(mb, id);
     }
-    // A message outside the window of a device that lists only that is marked gone by a listing
-    // afresh (MB3.16), though the server has it: with a change here that hasn't gone up, it stays
-    // (as the server's, so that the change goes up) and loses nothing.
+    // A message outside the window of a device that lists only that (`since`: where the window
+    // starts) is marked gone by a listing afresh (MB3.16), though the server has it: with a change
+    // here that hasn't gone up, it stays (as the server's, so that the change goes up) and loses
+    // nothing. Without a window, or inside it, gone is gone: the server deleted or moved it.
     let unsent: Vec<Id> = mb
         .messages
         .values()
-        .filter(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.gone) && super::graph_up::has_unsent(mb, account, m))
+        .filter(|m| {
+            let received = if m.received != 0 { m.received } else { m.date };
+            m.account == account
+                && since.is_some_and(|since| received != 0 && received < since)
+                && m.server.as_ref().is_some_and(|s| s.gone)
+                && super::graph_up::has_unsent(mb, account, m)
+        })
         .map(|m| m.id)
         .collect();
     for id in unsent {

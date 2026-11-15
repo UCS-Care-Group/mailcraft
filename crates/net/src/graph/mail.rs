@@ -1053,4 +1053,6 @@ mod well_known_tests;
 #[cfg(test)]
 mod window_continue_tests;
 #[cfg(test)]
+mod window_plain_tests;
+#[cfg(test)]
 mod window_tests;
