@@ -1779,7 +1779,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut use_offer = false;
             let open = window(ctx, tl!("Subscribe to Internet Calendar"), 460.0, |ui| {
                 ui.label(tl!("The address of the calendar"));
-                let field = egui::TextEdit::singleline(address).hint_text("https://calendar.example.org/club.ics").desired_width(f32::INFINITY);
+                let field = egui::TextEdit::singleline(address)
+                    .password(true)
+                    .hint_text("https://calendar.example.org/club.ics")
+                    .desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add(field));
                 if error.is_empty() {
                     crate::text_menu::hold(&resp);

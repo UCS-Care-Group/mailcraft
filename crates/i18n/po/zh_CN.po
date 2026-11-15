@@ -18111,9 +18111,8 @@ msgstr "正在将 .pst 文件导入此邮箱：请等待完成，然后保存到
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
-#, fuzzy
-msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
-msgstr ".pst 文件只能导入到此计算机上的日历，不能导入到服务器上的账户"
+msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -22219,6 +22218,10 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+#~ msgstr ".pst 文件只能导入到此计算机上的日历，不能导入到服务器上的账户"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."

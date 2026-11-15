@@ -205,7 +205,8 @@ fn comment(v: &Value) -> String {
 /// the main calendar of the account's server when a download has brought one, so that the event
 /// shows wherever the account is read; otherwise the first calendar of the mailbox's own.
 pub fn current_calendar(s: &Session) -> Id {
-    if s.mailbox.calendar(s.view.in_calendar).is_some() {
+    // (Never a copy of a calendar on the web: nothing new goes into it.)
+    if s.mailbox.calendar(s.view.in_calendar).is_some_and(|c| !c.is_subscribed()) {
         return s.view.in_calendar;
     }
     match remote::server_calendar(&s.mailbox) {

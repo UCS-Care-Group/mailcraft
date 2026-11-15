@@ -357,7 +357,7 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
         ("secret_read.rs", "secret_cache.contains_key(", 2),
         // A subscribed calendar's address is kept like a password (#209): found again by the name
         // that holds its host.
-        ("subscribed.rs", "secret_cache.get(", 1),
+        ("subscribed.rs", "secret_cache.get(", 2),
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![root.clone()];

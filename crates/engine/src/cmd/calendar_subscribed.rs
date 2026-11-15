@@ -40,6 +40,8 @@ const MAX_NOTE: usize = 100_000;
 const MAX_CATEGORIES: usize = 50;
 /// How much of a file is looked at for its header (its name).
 const HEAD: usize = 64 * 1024;
+/// How much of the end of a file is looked at for `END:VCALENDAR` (trailing blank lines allowed).
+const TAIL: usize = 1024;
 /// Most events and to-dos `mailcraft_ical` reads from one file.
 const READER_LIMIT: usize = 20_000;
 
@@ -205,9 +207,14 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
 /// Whether `text` is an iCalendar file: it opens a `VCALENDAR` (the name in any case) near its
 /// start.
 fn is_calendar(text: &str) -> bool {
-    const MARK: &[u8] = b"BEGIN:VCALENDAR";
-    let head = text.as_bytes().get(..HEAD.min(text.len())).unwrap_or(&[]);
-    head.windows(MARK.len()).any(|window| window.eq_ignore_ascii_case(MARK))
+    const BEGIN: &[u8] = b"BEGIN:VCALENDAR";
+    const END: &[u8] = b"END:VCALENDAR";
+    let bytes = text.as_bytes();
+    let head = bytes.get(..HEAD.min(bytes.len())).unwrap_or(&[]);
+    // A file that stops short (a connection that dropped) has no end: it is not taken in, and
+    // the events held stay.
+    let tail = bytes.get(bytes.len().saturating_sub(TAIL)..).unwrap_or(&[]);
+    head.windows(BEGIN.len()).any(|w| w.eq_ignore_ascii_case(BEGIN)) && tail.windows(END.len()).any(|w| w.eq_ignore_ascii_case(END))
 }
 
 /// The name a file gives its calendar (`X-WR-CALNAME`, which is no standard but what calendar
@@ -235,7 +242,7 @@ fn calendar_name(text: &str) -> Option<String> {
                 out.push(c);
             }
         }
-        return clean_name(&out);
+        return mailcraft_names::incoming(&out, 255);
     }
     None
 }
@@ -246,23 +253,21 @@ fn count_events(text: &str) -> usize {
     text.as_bytes().windows(MARK.len()).filter(|window| window.eq_ignore_ascii_case(MARK)).count()
 }
 
-fn cut(text: &mut String, max: usize) {
-    if let Some((at, _)) = text.char_indices().nth(max) {
-        text.truncate(at);
-    }
-}
-
 /// What an appointment of somebody else's calendar keeps here: its words cut to size, and not what
 /// would make it more than an appointment (the people invited, an organizer, a reminder, a
 /// proposal of another time).
 fn tidy(mut e: Event, calendar: Id) -> Event {
-    cut(&mut e.title, MAX_LINE);
-    cut(&mut e.location, MAX_LINE);
-    cut(&mut e.description, MAX_NOTE);
+    // A feed is anybody's: one line without control or bidirectional characters (CR, LF, NUL,
+    // ESC, the C1 controls, the overrides that make a title read backwards) where a line is
+    // wanted, and a note keeps its line breaks and nothing else of the sort.
+    let line = |text: &str| mailcraft_names::incoming(text, MAX_LINE).unwrap_or_default();
+    e.title = line(&e.title);
+    e.location = line(&e.location);
+    e.description =
+        e.description.chars().filter(|c| matches!(c, '\n' | '\t') || !(c.is_control() || mailcraft_names::is_format(*c))).take(MAX_NOTE).collect();
+    e.uid = e.uid.chars().filter(|c| !c.is_control() && !mailcraft_names::is_format(*c)).take(MAX_KEY).collect();
     e.categories.truncate(MAX_CATEGORIES);
-    for category in &mut e.categories {
-        cut(category, MAX_LINE);
-    }
+    e.categories = e.categories.iter().filter_map(|c| mailcraft_names::incoming(c, MAX_LINE)).collect();
     e.calendar = calendar;
     e.id = 0;
     e.attendees.clear();
@@ -304,7 +309,8 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
             Ok(failed_look(s, id, failure, now)?)
         }
         SubscriptionOutcome::Changed { text, etag, last_modified } => {
-            if text.len() > MAX_TEXT {
+            // (The 8 MB is of the bytes, capped where they come in; a file in a legacy set reads as up to three times as many bytes of text.)
+            if text.len() > MAX_TEXT.saturating_mul(3) {
                 return failed_look(s, id, Failure::TooLarge, now);
             }
             if !is_calendar(&text) {
@@ -408,3 +414,7 @@ fn replace(s: &mut Session, id: Id, text: &str, etag: &str, last_modified: &str,
 #[cfg(test)]
 #[path = "calendar_subscribed_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "calendar_subscribed_readonly_tests.rs"]
+mod readonly_tests;

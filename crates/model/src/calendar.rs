@@ -213,6 +213,12 @@ impl Calendar {
         self.rights.can_edit() && self.subscription.is_none()
     }
 
+    /// Whether the calendar is the mailbox's own, kept on this computer and changed here: no
+    /// server keeps it and it is not a copy of one on the web.
+    pub fn is_own(&self) -> bool {
+        self.origin.is_local() && !self.is_subscribed()
+    }
+
     /// Whether the calendar is a copy of one on the web, which is never changed here.
     pub fn is_subscribed(&self) -> bool {
         self.subscription.is_some()

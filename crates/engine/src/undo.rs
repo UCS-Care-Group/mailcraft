@@ -294,6 +294,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
     returned(&mut out, now);
+    subscribed_stay(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
@@ -321,6 +322,21 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines(lang))
+}
+
+/// Subscribed calendars and their events are the web's and the refresh's, never the change's to
+/// undo: undoing a subscribe must not drop the calendar and orphan its address in the credential
+/// store, and undoing an unsubscribe must not bring one back without its address.
+fn subscribed_stay(out: &mut Mailbox, now: &Mailbox) {
+    let theirs: BTreeSet<Id> = out.calendars.iter().filter(|c| c.is_subscribed()).map(|c| c.id).collect();
+    out.events.retain(|_, e| !theirs.contains(&e.calendar));
+    out.calendars.retain(|c| !c.is_subscribed());
+    out.calendars.extend(now.calendars.iter().filter(|c| c.is_subscribed()).cloned());
+    for (id, e) in &now.events {
+        if now.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
+            out.events.insert(*id, e.clone());
+        }
+    }
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name

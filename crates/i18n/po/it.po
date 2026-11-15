@@ -17242,7 +17242,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
-msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
 msgstr ""
 
 #. what a command says

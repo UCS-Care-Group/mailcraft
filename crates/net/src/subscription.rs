@@ -116,8 +116,9 @@ pub(crate) fn fetch_with(address: &str, etag: &str, last_modified: &str, reach: 
     let mut left = limits.max_bytes;
     let (mut redirects, mut asked_again) = (0, false);
     loop {
-        // The marks are the first host's: nobody else is told what it said about its file.
-        let asking_back = !marks.is_empty() && at.host.eq_ignore_ascii_case(&first.host);
+        // The marks are the first host's (and are only ever kept from it, above): nobody else is
+        // told what it said about its file.
+        let asking_back = !marks.is_empty() && at.host.eq_ignore_ascii_case(&first.host) && at.port == first.port;
         let sent = Sent { accept: ACCEPT, extra: if asking_back { &marks } else { "" } };
         let answer = pictures::ask_with(&at, reach, limits, left, deadline, None, &sent).map_err(failure)?;
         match answer.status {
@@ -126,13 +127,16 @@ pub(crate) fn fetch_with(address: &str, etag: &str, last_modified: &str, reach: 
                     Some(coding) => pictures::unpack(answer.body, coding, left).map_err(failure)?,
                     None => answer.body,
                 };
-                let text = String::from_utf8_lossy(&body).into_owned();
+                // The input was capped on its way in (`left`); the text is read in the set the server
+                // names, else as UTF-8 or, where that isn't, Windows-1252, never the lossy way that
+                // grows a byte into three.
+                let text = mailcraft_charset::decode(&body, answer.said.charset.as_deref().unwrap_or(""));
                 let said = &answer.said;
-                return Ok(Fetched::Changed {
-                    text,
-                    etag: said.etag.as_deref().map(clean_validator).unwrap_or_default(),
-                    last_modified: said.last_modified.as_deref().map(clean_validator).unwrap_or_default(),
-                });
+                // The marks are kept for the server that gave them: after a redirect to another
+                // host (or port) they are not kept, and so are never sent to the first.
+                let same = at.host.eq_ignore_ascii_case(&first.host) && at.port == first.port;
+                let mark = |value: Option<&String>| if same { value.map(|v| clean_validator(v)).unwrap_or_default() } else { String::new() };
+                return Ok(Fetched::Changed { text, etag: mark(said.etag.as_ref()), last_modified: mark(said.last_modified.as_ref()) });
             }
             // Only an answer to a question that was asked.
             304 if asking_back => return Ok(Fetched::NotModified),

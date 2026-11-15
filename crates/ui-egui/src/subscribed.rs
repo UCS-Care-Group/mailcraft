@@ -99,6 +99,16 @@ impl MailApp {
         self.secret_cache.get(&name).cloned()
     }
 
+    /// Move the addresses the store gave this session into memory (before the cache is cleared).
+    pub(crate) fn keep_read_subscription_addresses(&mut self) {
+        for c in &self.session.mailbox.calendars {
+            let Some(name) = c.subscription.as_ref().map(|sub| sub.secret_name(c.id)) else { continue };
+            if let Some(address) = self.secret_cache.get(&name) {
+                self.subscribed.addresses.entry(c.id).or_insert_with(|| address.clone());
+            }
+        }
+    }
+
     /// Whether the subscribed calendar `id` has to be given its address again (File › Info).
     pub(crate) fn subscription_needs_address(&self, id: Id) -> bool {
         self.subscribed_address(id).is_none()
@@ -138,11 +148,16 @@ impl MailApp {
         if name.is_empty() {
             return;
         }
-        if let Some(store) = &self.services.secrets {
-            store.delete(name);
-        }
         self.secret_cache.remove(name);
-        self.ui.remembered_keys.retain(|key| key != name);
+        let Some(store) = &self.services.secrets else { return };
+        store.delete(name);
+        let gone = store.get(name).is_none();
+        // (As `forget_account_secrets` does: a name whose delete failed stays listed, and the owner is told.)
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None if gone => self.ui.remembered_keys.retain(|key| key != name),
+            None => {}
+        }
     }
 
     /// What the window does after a command of the subscribed calendars ran (`execute` calls this

@@ -2975,6 +2975,9 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        // The addresses of subscribed calendars already read stay in memory for the session (the
+        // owner turned remembering off, not the calendars): they are off the store, not off the window.
+        self.keep_read_subscription_addresses();
         self.secret_cache.clear();
         left
     }

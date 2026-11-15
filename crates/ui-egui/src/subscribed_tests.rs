@@ -22,6 +22,8 @@ const FILE: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a@exam
 #[derive(Clone, Default)]
 struct Store {
     kept: Arc<Mutex<HashMap<String, String>>>,
+    /// A store that takes a delete and does nothing (a locked keyring).
+    stuck: Arc<Mutex<bool>>,
 }
 
 impl SecretStore for Store {
@@ -33,7 +35,9 @@ impl SecretStore for Store {
         Ok(())
     }
     fn delete(&self, key: &str) {
-        self.kept.lock().unwrap().remove(key);
+        if !*self.stuck.lock().unwrap() {
+            self.kept.lock().unwrap().remove(key);
+        }
     }
 }
 
@@ -282,4 +286,54 @@ fn a_mailbox_that_takes_the_place_of_the_open_one_drops_the_addresses() {
     assert!(app.subscription_needs_address(id));
     assert!(app.subscribed.addresses_are_empty());
     assert!(asked.lock().unwrap().is_empty());
+}
+
+#[test]
+fn an_entry_the_store_would_not_delete_stays_listed_for_the_next_try() {
+    let store = Store::default();
+    let (mut app, _, answers) = window(Some(&store), true);
+    answers.lock().unwrap().push_back(changed(""));
+    let id = subscribe(&mut app);
+    looks(&mut app);
+    let name = app.session.mailbox.calendar(id).unwrap().subscription.as_ref().unwrap().secret_name(id);
+    *store.stuck.lock().unwrap() = true;
+    app.execute("calendar.unsubscribe", json!({"id": id, "confirmed": true})).unwrap();
+    // The calendar is gone and its address is out of memory, but the entry is still in the store,
+    // and so still named in the settings: Clear and the next start can take it out.
+    assert!(app.session.mailbox.calendar(id).is_none() && !app.secret_cache.contains_key(&name));
+    assert!(store.get(&name).is_some() && app.ui.remembered_keys.contains(&name));
+}
+
+#[test]
+fn turning_remembering_off_keeps_the_addresses_already_read_for_the_session() {
+    let store = Store::default();
+    let (mut app, asked, answers) = window(Some(&store), true);
+    answers.lock().unwrap().push_back(changed(""));
+    let id = subscribe(&mut app);
+    looks(&mut app);
+    let saved = serde_json::to_string(&app.session.mailbox).unwrap();
+    let mailbox: mailcraft_model::Mailbox = serde_json::from_str(&saved).unwrap();
+    // A restart: the address is the store's, read in the background.
+    let (mut again, asked_again, _) = window(Some(&store), true);
+    again.session = Session::at(mailbox, NOW + 7_200, 0);
+    let name = again.session.mailbox.calendar(id).unwrap().subscription.as_ref().unwrap().secret_name(id);
+    again.secret_cache.insert(name.clone(), ADDRESS.to_string());
+    again.ui.remembered_keys.push(name.clone());
+    assert!(!again.subscription_needs_address(id));
+    again.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
+    // The store has let go of it, the window has not.
+    assert!(store.get(&name).is_none() && again.secret_cache.is_empty());
+    assert!(!again.subscription_needs_address(id));
+    looks(&mut again);
+    assert_eq!(asked_again.lock().unwrap().as_slice(), [(id, ADDRESS.to_string(), String::new())]);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn a_subscribed_calendar_is_read_only_in_the_view_and_working_in_it_is_not_taken_up() {
+    let (mut app, _, _) = window(None, false);
+    let id = subscribe(&mut app);
+    assert!(crate::calendar_view::read_only(&app, id));
+    let own = app.session.mailbox.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id).unwrap();
+    assert!(!crate::calendar_view::read_only(&app, own));
 }

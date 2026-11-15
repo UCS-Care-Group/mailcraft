@@ -199,7 +199,7 @@ fn a_look_that_brings_nothing_keeps_what_was_there_and_says_why() {
         (json!({"kind": "failed", "failure": "notPublic"}), "private network"),
         (json!({"kind": "failed", "failure": "unheard-of"}), "didn't work"),
         (json!({"kind": "changed", "text": "<html><body>Please sign in</body></html>"}), "isn't a calendar"),
-        (json!({"kind": "changed", "text": "x".repeat(MAX_TEXT + 1)}), "larger than 8 MB"),
+        (json!({"kind": "changed", "text": "x".repeat(MAX_TEXT * 3 + 1)}), "larger than 8 MB"),
     ] {
         let said = s.run("sync.applySubscription", &json!({"calendar": id, "outcome": outcome})).unwrap();
         assert_eq!(said["changed"], false);

@@ -401,6 +401,8 @@ pub(crate) struct Said {
     /// The server's marks of what it sent (`ETag`, `Last-Modified`): the first of each.
     pub(crate) etag: Option<String>,
     pub(crate) last_modified: Option<String>,
+    /// The character set `Content-Type` names (`charset=`), as written.
+    pub(crate) charset: Option<String>,
 }
 
 /// The headers of the answer that `head` begins with.
@@ -433,6 +435,12 @@ fn said(head: &[u8]) -> Said {
                 });
             } else if name.eq_ignore_ascii_case("retry-after") {
                 said.retry_after = value.parse::<u64>().ok().or(said.retry_after);
+            } else if name.eq_ignore_ascii_case("content-type") {
+                let named =
+                    value.split(';').skip(1).filter_map(|part| part.split_once('=')).find(|(key, _)| key.trim().eq_ignore_ascii_case("charset"));
+                if let Some((_, label)) = named {
+                    said.charset.get_or_insert_with(|| label.trim().trim_matches('"').chars().take(40).collect());
+                }
             } else if name.eq_ignore_ascii_case("etag") {
                 said.etag.get_or_insert_with(|| value.to_string());
             } else if name.eq_ignore_ascii_case("last-modified") {

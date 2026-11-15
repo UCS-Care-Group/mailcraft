@@ -327,7 +327,7 @@ fn a_server_that_says_not_now_is_asked_once_more() {
 }
 
 #[test]
-fn text_that_is_not_utf8_is_read_with_replacements_and_junk_is_still_text() {
+fn text_that_is_not_utf8_is_read_as_windows_1252_or_in_the_set_the_server_names() {
     with_server(
         |_, _| {
             let body = b"BEGIN:VCALENDAR\r\nSUMMARY:caf\xe9\r\nEND:VCALENDAR\r\n";
@@ -336,8 +336,49 @@ fn text_that_is_not_utf8_is_read_with_replacements_and_junk_is_still_text() {
             out
         },
         |_, look| match look("https://calendar.example/c.ics", "", "", &quick()) {
-            Ok(Fetched::Changed { text, .. }) => assert!(text.contains("caf\u{fffd}")),
+            Ok(Fetched::Changed { text, .. }) => assert!(text.contains("caf\u{e9}") && !text.contains('\u{fffd}'), "{text}"),
             other => panic!("{other:?}"),
+        },
+    );
+    // A set the server names is the one used (here, bytes that are no UTF-8 and mean another thing in Latin-1).
+    with_server(
+        |_, _| {
+            let body = b"BEGIN:VCALENDAR\r\nSUMMARY:\xe8\xe9\r\nEND:VCALENDAR\r\n";
+            let mut out = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/calendar; charset=\"ISO-8859-2\"\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .into_bytes();
+            out.extend_from_slice(body);
+            out
+        },
+        |_, look| match look("https://calendar.example/c.ics", "", "", &quick()) {
+            Ok(Fetched::Changed { text, .. }) => assert!(text.contains("\u{10d}\u{e9}"), "{text}"),
+            other => panic!("{other:?}"),
+        },
+    );
+}
+
+#[test]
+fn marks_from_another_host_after_a_redirect_are_not_kept_to_be_sent_to_the_first() {
+    let port = Arc::new(Mutex::new(0u16));
+    let said = port.clone();
+    with_server(
+        move |_, request| {
+            let port = *said.lock().unwrap();
+            if request.starts_with("GET /old") {
+                reply("301 Moved Permanently", &format!("Location: https://other.example:{port}/new.ics\r\n"), "moved")
+            } else {
+                reply("200 OK", "ETag: \"theirs\"\r\nLast-Modified: Tue, 03 Nov 2026 10:00:00 GMT\r\n", CALENDAR)
+            }
+        },
+        |server, look| {
+            *port.lock().unwrap() = server.port;
+            let at = |path: &str| format!("https://calendar.example:{}{path}", server.port);
+            // The marks the other host gave are its own: nothing is kept that the first would be sent.
+            assert_eq!(look(&at("/old.ics"), "", "", &quick()), changed(CALENDAR, "", ""));
+            // From the host asked, they are kept.
+            assert_eq!(look(&at("/new.ics"), "", "", &quick()), changed(CALENDAR, "\"theirs\"", "Tue, 03 Nov 2026 10:00:00 GMT"));
         },
     );
 }
