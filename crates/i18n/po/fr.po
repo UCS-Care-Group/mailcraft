@@ -290,7 +290,7 @@ msgstr "3 mois"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "3D Models"
-msgstr ""
+msgstr "Modèles 3D"
 
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -671,7 +671,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Accessibility"
-msgstr ""
+msgstr "Accessibilité"
 
 #. command label, interface
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
@@ -1566,12 +1566,12 @@ msgstr "Disposition"
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "As Folders"
-msgstr ""
+msgstr "Sous forme de dossiers"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "As Tabs above the Inbox"
-msgstr ""
+msgstr "Sous forme d'onglets au-dessus de la boîte de réception"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -1650,7 +1650,7 @@ msgstr "Demander à la liste de ne plus vous écrire. MailCraft vous demande d'a
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Ask to be told when the message is read"
-msgstr ""
+msgstr "Demander à être prévenu quand le message est lu"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -2046,7 +2046,7 @@ msgstr "Gras"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Bookmark"
-msgstr ""
+msgstr "Signet"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -2240,6 +2240,8 @@ msgid ""
 "Cancel\n"
 "All"
 msgstr ""
+"Tout\n"
+"annuler"
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
@@ -2332,6 +2334,8 @@ msgid ""
 "Change\n"
 "View"
 msgstr ""
+"Modifier\n"
+"l'affichage"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -2353,7 +2357,7 @@ msgstr "Modifier cette réunion ?"
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Change View"
-msgstr ""
+msgstr "Modifier l'affichage"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2451,7 +2455,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Chart"
-msgstr ""
+msgstr "Graphique"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2466,7 +2470,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Check Accessibility"
-msgstr ""
+msgstr "Vérifier l'accessibilité"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
@@ -2927,11 +2931,13 @@ msgid ""
 "Contact\n"
 "Card"
 msgstr ""
+"Carte de\n"
+"visite"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
 msgid "Contact Attendees"
-msgstr ""
+msgstr "Contacter les participants"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -3389,6 +3395,8 @@ msgid ""
 "Date &\n"
 "Time"
 msgstr ""
+"Date et\n"
+"heure"
 
 #. command label
 #: crates/engine/src/cmd/writing_tools.rs
@@ -3691,7 +3699,7 @@ msgstr "Diagnostics copiés. Rien n'a été envoyé."
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Diagram"
-msgstr ""
+msgstr "Diagramme"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3741,7 +3749,7 @@ msgstr ""
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Direct Replies To"
-msgstr ""
+msgstr "Réponses directes à"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -4049,7 +4057,7 @@ msgstr "Les brouillons non envoyés vont dans vos Brouillons sur le serveur. Les
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Drop Cap"
-msgstr ""
+msgstr "Lettrine"
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -4189,7 +4197,7 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
 msgid "Editing"
-msgstr ""
+msgstr "Modification"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -4209,6 +4217,8 @@ msgid ""
 "Email\n"
 "Calendar"
 msgstr ""
+"Envoyer le calendrier\n"
+"par courrier"
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
@@ -4235,12 +4245,12 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Email the people of this meeting"
-msgstr ""
+msgstr "Écrire aux participants de cette réunion"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Emoji"
-msgstr ""
+msgstr "Emoji"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4301,7 +4311,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Equation"
-msgstr ""
+msgstr "Équation"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4544,7 +4554,7 @@ msgstr "février"
 #. command label, ribbon
 #: crates/engine/src/cmd/help.rs crates/ui-egui/src/ribbon.rs
 msgid "Feedback"
-msgstr ""
+msgstr "Donner votre avis"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -4880,7 +4890,7 @@ msgstr "Format"
 #. command label, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
 msgid "Format Painter"
-msgstr ""
+msgstr "Reproduire la mise en forme"
 
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
@@ -4917,6 +4927,8 @@ msgid ""
 "Forward\n"
 "Contact"
 msgstr ""
+"Transférer\n"
+"le contact"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -5000,7 +5012,7 @@ msgstr "De"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "From Sender"
-msgstr ""
+msgstr "De l'expéditeur"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -5061,6 +5073,8 @@ msgid ""
 "Get\n"
 "Support"
 msgstr ""
+"Obtenir\n"
+"de l'aide"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -5147,11 +5161,13 @@ msgid ""
 "Gmail\n"
 "Categories"
 msgstr ""
+"Catégories\n"
+"Gmail"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Gmail Categories"
-msgstr ""
+msgstr "Catégories Gmail"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -5402,7 +5418,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Have replies sent to other addresses"
-msgstr ""
+msgstr "Faire envoyer les réponses à d'autres adresses"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5563,7 +5579,7 @@ msgstr "Accueil"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Horizontal Line"
-msgstr ""
+msgstr "Ligne horizontale"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
@@ -5597,7 +5613,7 @@ msgstr "Je suis administrateur : l'approuver pour mon organisation"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Icons"
-msgstr ""
+msgstr "Icônes"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -5667,7 +5683,7 @@ msgstr "Si vous en avez un, collez ici son ID d'application (client). Il provien
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Illustrations"
-msgstr ""
+msgstr "Illustrations"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs
@@ -5993,7 +6009,7 @@ msgstr ""
 #. interface, name, ribbon
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Insert Calendar"
-msgstr ""
+msgstr "Insérer un calendrier"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6209,7 +6225,7 @@ msgstr "Italique"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Item"
-msgstr ""
+msgstr "Élément"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -6355,7 +6371,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Junk E-mail Options…"
-msgstr ""
+msgstr "Options du courrier indésirable…"
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -6620,7 +6636,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Line Spacing"
-msgstr ""
+msgstr "Interligne"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
@@ -6631,7 +6647,7 @@ msgstr "Lien"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Links"
-msgstr ""
+msgstr "Liens"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -6978,7 +6994,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
-msgstr ""
+msgstr "MailCraft est un logiciel libre (MIT ou Apache-2.0). Chaque bouton lance une commande que les scripts et les agents peuvent aussi lancer : voir Rechercher des commandes."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -7352,6 +7368,8 @@ msgid ""
 "Merge\n"
 "Duplicates"
 msgstr ""
+"Fusionner\n"
+"les doublons"
 
 #. command label
 #: crates/engine/src/cmd/people_merge.rs
@@ -7429,7 +7447,7 @@ msgstr "Les messages supprimés de « {name} » sont encore dans « {trash} »"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Messages from Sender"
-msgstr ""
+msgstr "Messages de l'expéditeur"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -7799,7 +7817,7 @@ msgstr "Déplacer vers un dossier"
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 msgid "Move to Junk"
-msgstr ""
+msgstr "Déplacer vers Courrier indésirable"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7939,12 +7957,12 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 msgid "Never Block Sender"
-msgstr ""
+msgstr "Ne jamais bloquer l'expéditeur"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 msgid "Never Block Sender's Domain"
-msgstr ""
+msgstr "Ne jamais bloquer le domaine de l'expéditeur"
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -8198,7 +8216,7 @@ msgstr "Non"
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "No Color"
-msgstr ""
+msgstr "Aucune couleur"
 
 #. interface, name, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -8380,7 +8398,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "No folders match"
-msgstr ""
+msgstr "Aucun dossier ne correspond"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8831,7 +8849,7 @@ msgstr "OK"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Object"
-msgstr ""
+msgstr "Objet"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -9115,6 +9133,8 @@ msgid ""
 "Open\n"
 "Calendar"
 msgstr ""
+"Ouvrir le\n"
+"calendrier"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -9193,7 +9213,7 @@ msgstr "Ouvrir sous ce compte une boîte aux lettres de votre organisation à la
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Open a message you sent as a new one"
-msgstr ""
+msgstr "Rouvrir un message envoyé comme nouveau message"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -9531,7 +9551,7 @@ msgstr "Les pages de ce type s'ouvrent dans le navigateur, où leurs scripts s'e
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Paragraph"
-msgstr ""
+msgstr "Paragraphe"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9597,7 +9617,7 @@ msgstr "Modèle"
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 msgid "Pending development"
-msgstr ""
+msgstr "En cours de développement"
 
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
@@ -9676,7 +9696,7 @@ msgstr "Image à côté du texte"
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Pictures"
-msgstr ""
+msgstr "Images"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -9743,6 +9763,8 @@ msgid ""
 "Plain\n"
 "Text"
 msgstr ""
+"Texte\n"
+"brut"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9778,7 +9800,7 @@ msgstr ""
 msgid ""
 "Pop\n"
 "Out"
-msgstr ""
+msgstr "Fenêtre"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
@@ -9794,7 +9816,7 @@ msgstr "Code postal"
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 msgid "Preferences"
-msgstr ""
+msgstr "Préférences"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -9885,7 +9907,7 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
 msgid "Proofing"
-msgstr ""
+msgstr "Vérification"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
@@ -10116,11 +10138,13 @@ msgid ""
 "Recent\n"
 "Searches"
 msgstr ""
+"Recherches\n"
+"récentes"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
 msgid "Recent Searches"
-msgstr ""
+msgstr "Recherches récentes"
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -10466,7 +10490,7 @@ msgstr "Se répète"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/ribbon.rs
 msgid "Replace"
-msgstr ""
+msgstr "Remplacer"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -10521,12 +10545,12 @@ msgstr "Répondre à tous"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Reply and Delete"
-msgstr ""
+msgstr "Répondre et supprimer"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
 msgid "Reply by Email"
-msgstr ""
+msgstr "Répondre par e-mail"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -10550,6 +10574,8 @@ msgid ""
 "Report a\n"
 "Problem"
 msgstr ""
+"Signaler\n"
+"un problème"
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -10565,7 +10591,7 @@ msgstr "Demander des réponses"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Request a Read Receipt"
-msgstr ""
+msgstr "Demander une confirmation de lecture"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -10582,7 +10608,7 @@ msgstr "Obligatoire"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Resend Message"
-msgstr ""
+msgstr "Renvoyer ce message"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10729,7 +10755,7 @@ msgstr "Disposition du ruban"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Rich Text"
-msgstr ""
+msgstr "Texte enrichi"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -11043,7 +11069,7 @@ msgstr "Exporter des données"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Saved Text"
-msgstr ""
+msgstr "Texte enregistré"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -11175,7 +11201,7 @@ msgstr "Indique ce que vous et l'administrateur de votre organisation pouvez fai
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Screenshot"
-msgstr ""
+msgstr "Capture d'écran"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11195,6 +11221,8 @@ msgid ""
 "Search\n"
 "Calendar"
 msgstr ""
+"Rechercher dans\n"
+"le calendrier"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11253,7 +11281,7 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/move_items.rs crates/ui-egui/src/ribbon.rs
 msgid "Search folders"
-msgstr ""
+msgstr "Rechercher des dossiers"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -11425,6 +11453,8 @@ msgid ""
 "Send Status\n"
 "Report"
 msgstr ""
+"Envoyer un\n"
+"rapport d'état"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -11805,7 +11835,7 @@ msgstr "Réglages…"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Shapes"
-msgstr ""
+msgstr "Formes"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
@@ -11873,6 +11903,8 @@ msgid ""
 "Show\n"
 "Training"
 msgstr ""
+"Afficher la\n"
+"formation"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -12540,7 +12572,7 @@ msgstr "Espace occupé par le courrier ancien"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Spelling & Grammar"
-msgstr ""
+msgstr "Orthographe et grammaire"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -12708,7 +12740,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Styles"
-msgstr ""
+msgstr "Styles"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -12789,12 +12821,12 @@ msgstr "Le passage à la connexion avec Google conserve les messages et dossiers
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Symbol"
-msgstr ""
+msgstr "Symbole"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Symbols"
-msgstr ""
+msgstr "Symboles"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -12821,7 +12853,7 @@ msgstr "Tableau"
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Tables"
-msgstr ""
+msgstr "Tableaux"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
@@ -12984,22 +13016,22 @@ msgstr "Les testeurs sont crédités s'ils le souhaitent ; voir docs/contribut
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
 msgid "Text"
-msgstr ""
+msgstr "Texte"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Box"
-msgstr ""
+msgstr "Zone de texte"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Effects"
-msgstr ""
+msgstr "Effets de texte"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Text Highlight Color"
-msgstr ""
+msgstr "Couleur de surbrillance du texte"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14390,7 +14422,7 @@ msgstr "Il n'existe pas de boîte aux lettres à l'adresse {address}."
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Thesaurus"
-msgstr ""
+msgstr "Dictionnaire des synonymes"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -15276,6 +15308,8 @@ msgid ""
 "Tighter\n"
 "Spacing"
 msgstr ""
+"Espacement\n"
+"réduit"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
@@ -15512,12 +15546,12 @@ msgstr "Taille totale"
 #. command label, interface, name, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Tracking"
-msgstr ""
+msgstr "Suivi"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Translate"
-msgstr ""
+msgstr "Traduire"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -15966,7 +16000,7 @@ msgstr "Afficher toutes les propositions…"
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "View Source"
-msgstr ""
+msgstr "Afficher la source"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
@@ -16131,7 +16165,7 @@ msgstr ""
 msgid ""
 "What's\n"
 "New"
-msgstr ""
+msgstr "Nouveautés"
 
 #. command label
 #: crates/engine/src/cmd/help.rs
@@ -16186,7 +16220,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Who has answered, and how"
-msgstr ""
+msgstr "Qui a répondu, et comment"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -16232,7 +16266,7 @@ msgstr "Sans cela, le calendrier utilise les heures de travail de votre boîte a
 msgid ""
 "Word\n"
 "Count"
-msgstr ""
+msgstr "Statistiques"
 
 #. command label, interface
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/dialogs.rs
@@ -16261,6 +16295,8 @@ msgid ""
 "Work\n"
 "Offline"
 msgstr ""
+"Travailler\n"
+"hors connexion"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -16326,7 +16362,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Write to the organizer without answering"
-msgstr ""
+msgstr "Écrire à l'organisateur sans répondre"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -16780,7 +16816,7 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Zoom the Message"
-msgstr ""
+msgstr "Zoomer sur le message"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs
@@ -19914,7 +19950,7 @@ msgstr "{name} a accepté provisoirement cette réunion."
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "{name}, pending development"
-msgstr ""
+msgstr "{name}, en cours de développement"
 
 #. what a command says
 #: crates/engine/src/io.rs
