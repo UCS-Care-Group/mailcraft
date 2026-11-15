@@ -228,6 +228,39 @@ fn background_sync_keeps_to_its_budget() {
 }
 
 #[test]
+fn a_background_sync_that_is_dropped_calls_its_round_off() {
+    let runner: Arc<Runner> = Arc::new(|req: GraphRequest| {
+        // A server that never answers, until it is called off.
+        let until = Instant::now() + Duration::from_secs(30);
+        while !req.cancel.load(Ordering::Relaxed) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let (core, _, _) = signed_in(runner);
+    {
+        // The worker's call, with a budget far longer than the test: it is dropped while it waits.
+        let mut call = std::pin::pin!(core.background_sync(600_000));
+        let mut cx = Context::from_waker(Waker::noop());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            assert!(call.as_mut().poll(&mut cx).is_pending(), "the round ended by itself");
+            if block_on(core.sync_status()).unwrap().running {
+                break;
+            }
+            assert!(Instant::now() < deadline, "the round never started");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    // The round is called off and ends long before the server would have answered.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "the round outlived the call that started it");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
 fn nothing_runs_while_offline() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counted = calls.clone();

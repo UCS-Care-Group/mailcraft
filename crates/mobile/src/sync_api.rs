@@ -7,7 +7,7 @@
 //! skipped and never a crash.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use mailcraft_host::sync::Adopted;
@@ -44,9 +44,26 @@ impl Core {
     pub async fn background_sync(&self, budget_ms: u64) -> Result<SyncSummary, CoreError> {
         let budget = Duration::from_millis(budget_ms.clamp(LEAST_BUDGET_MS, MOST_BUDGET_MS));
         let replies = Queue::<Wake>::new();
-        let (sync, waiter) = (self.sync.clone(), replies.clone());
-        let answer = self.call(move |session| Ok(sync.ask(session, Some(waiter)))).await?;
+        // Dropping this call (the worker stopped, its coroutine cancelled) calls the round off too,
+        // so that the budget bounds it whoever stops waiting first; from the moment it is started,
+        // its answer still on its way back included.
+        let mut stop_on_drop = StopOnDrop { core: self, shared: Arc::new(Started::default()), armed: true };
+        let (sync, waiter, shared) = (self.sync.clone(), replies.clone(), stop_on_drop.shared.clone());
+        let answer = self
+            .call(move |session| {
+                let answer = sync.ask(session, Some(waiter));
+                if answer.started {
+                    shared.round.store(sync.round().saturating_add(1), Ordering::SeqCst);
+                    // Dropped while this ran: the drop may not have seen the round, so it is called off here.
+                    if shared.dropped.load(Ordering::SeqCst) {
+                        sync.stop(session);
+                    }
+                }
+                Ok(answer)
+            })
+            .await?;
         if !answer.started {
+            stop_on_drop.armed = false;
             return Ok(SyncSummary { ran: false, finished: true, errors: vec![answer.message], ..Default::default() });
         }
         // The timer: one short-lived thread, ended when this call is.
@@ -66,14 +83,16 @@ impl Core {
                 }
             })
             .map_err(|_| CoreError::Failed { reason: "a timer for the sync could not be started".to_string() })?;
-        match replies.next().await {
+        let out = match replies.next().await {
             Some(Wake::Done(summary)) => Ok(summary),
             Some(Wake::Budget) => {
                 let sync = self.sync.clone();
                 self.call(move |session| Ok(sync.stop(session))).await
             }
             None => Err(CoreError::Cancelled),
-        }
+        };
+        stop_on_drop.armed = false;
+        out
     }
 
     /// Where Send/Receive stands: whether a round is under way, what the last said went wrong,
@@ -183,6 +202,35 @@ pub(crate) fn adopt_refusal(lang: Lang, adopted: Adopted) -> Option<String> {
         Adopted::Refused => words("The account can't be signed in now."),
     };
     Some(lang.t(text).to_string())
+}
+
+/// Calls a `background_sync`'s round off when the call is dropped before it has its answer. It
+/// only asks: the session's thread does it at its next wake, nothing is waited for in `drop`.
+struct StopOnDrop<'a> {
+    core: &'a Core,
+    shared: Arc<Started>,
+    armed: bool,
+}
+
+/// What the call's job and its drop tell each other: whichever comes second calls the round off.
+#[derive(Default)]
+struct Started {
+    /// The round the call started, plus one; 0 until it has started one.
+    round: AtomicU64,
+    dropped: AtomicBool,
+}
+
+impl Drop for StopOnDrop<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        self.shared.dropped.store(true, Ordering::SeqCst);
+        if let Some(round) = self.shared.round.load(Ordering::SeqCst).checked_sub(1) {
+            self.core.sync.stop_later(round);
+            self.core.enqueue_tick();
+        }
+    }
 }
 
 /// Marks a sentence for the catalogue (`cargo xtask i18n` gathers what is passed to it); the
