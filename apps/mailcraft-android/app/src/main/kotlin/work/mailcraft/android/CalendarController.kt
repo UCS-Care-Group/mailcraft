@@ -140,13 +140,20 @@ internal sealed interface Outcome {
     data class Refused(val reason: String) : Outcome
 }
 
+/** An event whole and its own start and end on one day; [times] is null when it has no time then. */
+internal data class OpenedEvent(val event: EventDetailModel, val times: Moments?)
+
+/** A timed time of a series has its own start and end from the core, or it is no longer there. */
+private fun OpenedEvent.hasItsTime(): Boolean = times != null || !event.repeats || event.allDay
+
 /** What the controller needs of the core; a fake in the tests. */
 internal interface CalendarBackend {
     suspend fun events(range: DateRange): List<CalendarEvent>?
 
     suspend fun calendars(): List<CalendarInfo>
 
-    suspend fun detail(id: ULong): EventDetailModel?
+    /** The event whole, with its time on [day], read together so that both are of one state of it. */
+    suspend fun detail(id: ULong, day: LocalDate): OpenedEvent?
 
     suspend fun run(command: String, params: String): Outcome
 
@@ -283,14 +290,15 @@ internal class CalendarController(
         go { it }
         val opened = visit
         scope.launch {
-            val detail = backend.detail(event.id)
+            val got = backend.detail(event.id, event.firstDay)
             // The owner may have gone elsewhere (a new event, say) while the event was read.
             if (opened != visit) return@launch
             _state.update {
-                if (detail == null) {
+                // A time of a series that is no longer there (the series changed since the row was read) is gone.
+                if (got == null || !got.hasItsTime()) {
                     it.copy(notice = texts.t("The event is gone."))
                 } else {
-                    it.copy(page = CalendarPage.Detail(detail, event.firstDay, event.start to event.end), notice = null)
+                    it.copy(page = CalendarPage.Detail(got.event, event.firstDay, got.times), notice = null)
                 }
             }
         }
@@ -408,10 +416,12 @@ internal class CalendarController(
     private suspend fun reopen() {
         val page = _state.value.page as? CalendarPage.Detail ?: return
         val from = visit
-        val detail = backend.detail(page.event.id)
+        val got = backend.detail(page.event.id, page.occurrence)
         // The owner may have left the page while it was read again.
         if (from != visit) return
-        _state.update { it.copy(page = if (detail == null) CalendarPage.Browse else page.copy(event = detail)) }
+        _state.update {
+            it.copy(page = if (got == null || !got.hasItsTime()) CalendarPage.Browse else page.copy(event = got.event, times = got.times))
+        }
     }
 
     /** Says [note] to the owner. */
@@ -475,8 +485,9 @@ internal class CoreCalendarBackend(private val core: Core, private val texts: Te
         emptyList()
     }
 
-    override suspend fun detail(id: ULong): EventDetailModel? = try {
-        val e = core.event(id)
+    override suspend fun detail(id: ULong, day: LocalDate): OpenedEvent? = try {
+        val got = core.eventOn(id, day.toString())
+        val e = got.detail
         val start = parseCoreTime(e.start)
         val end = parseCoreTime(e.end)
         if (start == null || end == null) {
@@ -484,7 +495,9 @@ internal class CoreCalendarBackend(private val core: Core, private val texts: Te
         } else {
             val allDay = e.allDay
             val rule = e.recurrence
-            EventDetailModel(
+            val from = got.start?.let(::parseCoreTime)
+            val to = got.end?.let(::parseCoreTime)
+            OpenedEvent(EventDetailModel(
                 id = e.event,
                 calendar = e.calendar,
                 title = e.title,
@@ -511,7 +524,7 @@ internal class CoreCalendarBackend(private val core: Core, private val texts: Te
                 editable = e.editable,
                 onServer = e.onServer,
                 peopleCut = e.peopleCut,
-            )
+            ), if (from != null && to != null) from to to else null)
         }
     } catch (_: CoreException) {
         null

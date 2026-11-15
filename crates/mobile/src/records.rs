@@ -304,6 +304,17 @@ pub struct EventDetail {
     pub on_server: bool,
 }
 
+/// One event whole with the start and end of one of its times, both read in one look at the
+/// calendar, so the times and the series they belong to always agree.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventOccurrence {
+    pub detail: EventDetail,
+    /// `YYYY-MM-DDTHH:MM:SS` of the time asked for, as the range gives it; `None` when the event
+    /// has no time on that day (it was moved or deleted since the row was read).
+    pub start: Option<String>,
+    pub end: Option<String>,
+}
+
 /// What a window of the message list is asked for: where, how filtered, in which of the Inbox
 /// split's tabs, with or without conversations, and under which search.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]

@@ -47,6 +47,9 @@ private class FakeBackend : CalendarBackend {
     var events: List<CalendarEvent> = emptyList()
     var calendars = listOf(CalendarInfo(1uL, 0uL, "Calendar", 0xFF2E8B57.toInt(), true))
     var detail: EventDetailModel? = detail()
+
+    /** The time the core gives on the day asked for, with the detail; null when there is none. */
+    var times: Moments? = null
     var outcome: Outcome = Outcome.Done()
     var gate: CompletableDeferred<Unit>? = null
     var detailGate: CompletableDeferred<Unit>? = null
@@ -62,8 +65,9 @@ private class FakeBackend : CalendarBackend {
 
     override suspend fun calendars() = calendars
 
-    override suspend fun detail(id: ULong): EventDetailModel? {
-        val held = detail
+    override suspend fun detail(id: ULong, day: java.time.LocalDate): OpenedEvent? {
+        // Both are what the core held when the read began: one state of the event.
+        val held = detail?.let { OpenedEvent(it, times) }
         detailGate?.await()
         return held
     }
@@ -375,6 +379,7 @@ class CalendarControllerTest {
         c.refresh()
         // The series began on 3 November; the time opened is a fortnight later.
         backend.detail = detail(guest = true).copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))
+        backend.times = LocalDateTime.parse("2026-11-17T14:00") to LocalDateTime.parse("2026-11-17T15:00")
         c.open(event(1, "2026-11-17T14:00", "2026-11-17T15:00", invited = true))
         val page = c.state.value.page as CalendarPage.Detail
         val asEvent = page.event.asEvent(page.occurrence)
@@ -444,6 +449,7 @@ class CalendarControllerTest {
             end = LocalDateTime.parse("2026-03-01T11:00"),
             repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.SUNDAY)),
         )
+        backend.times = LocalDateTime.parse("2026-04-05T11:00") to LocalDateTime.parse("2026-04-05T12:00")
         c.open(event(1, "2026-04-05T11:00", "2026-04-05T12:00"))
         val page = c.state.value.page as CalendarPage.Detail
         assertEquals(LocalDateTime.parse("2026-04-05T11:00"), page.event.span(page.occurrence, page.times).first)
@@ -452,6 +458,32 @@ class CalendarControllerTest {
         assertEquals(java.time.LocalTime.of(11, 0), draft.startTime)
         // Not touched, so not sent: the series is not moved an hour by looking at it.
         assertFalse(draft.copy(title = "Renamed").params(null).contains("\"start\""))
+    }
+
+    @Test
+    fun aTimeOfASeriesTheCoreNoLongerHasIsGoneAndNeverShiftedFromTheBaseline() {
+        val c = controller()
+        // The series moved to 15:00 since the row (14:00 on the 17th) was read: no time on that day.
+        backend.detail = detail().copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))
+        backend.times = null
+        c.open(event(1, "2026-11-17T14:00", "2026-11-17T15:00"))
+        assertTrue(c.state.value.page is CalendarPage.Browse)
+        assertEquals("The event is gone.", c.state.value.notice)
+    }
+
+    @Test
+    fun theDetailAndItsTimesOfASeriesComeFromOneReadAndAreReadTogetherAgain() {
+        val c = controller()
+        backend.detail = detail().copy(repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.TUESDAY)))
+        backend.times = LocalDateTime.parse("2026-11-17T15:00") to LocalDateTime.parse("2026-11-17T16:00")
+        // The row said 14:00 (an older state): what is shown is the core's own 15:00.
+        c.open(event(1, "2026-11-17T14:00", "2026-11-17T15:00"))
+        val page = c.state.value.page as CalendarPage.Detail
+        assertEquals(backend.times, page.times)
+        backend.times = LocalDateTime.parse("2026-11-17T16:00") to LocalDateTime.parse("2026-11-17T17:00")
+        c.answer(page.event.asEvent(page.occurrence, page.times), Answer.Accepted)
+        c.answerAsk(send = false, occurrenceOnly = true)
+        assertEquals(backend.times, (c.state.value.page as? CalendarPage.Detail)?.times)
     }
 
     private fun inviteLabels(ask: Ask.Invite): List<String> = inviteOptions(EnglishTexts, ask).map { it.first }

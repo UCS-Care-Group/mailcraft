@@ -7,11 +7,12 @@
 
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::calendar::current_calendar;
+use mailcraft_engine::cmd::calendar::occurrences;
 use mailcraft_model::{Event, Recurrence};
 use mailcraft_time::Weekday;
 
 use crate::queries::{address, bad, code, my_answer, rgb};
-use crate::records::{AttendeeRecord, CalendarList, CalendarRecord, EventDetail, RecurrenceRecord};
+use crate::records::{AttendeeRecord, CalendarList, CalendarRecord, EventDetail, EventOccurrence, RecurrenceRecord};
 use crate::text::{self, MAX_ADDRESS, MAX_LISTED, MAX_LOCATION, MAX_NAME, MAX_TITLE};
 use crate::{Core, CoreError};
 
@@ -96,6 +97,24 @@ impl Core {
         self.call(move |s| match s.mailbox.event(id) {
             Some(e) => Ok(detail(s, e)),
             None => Err(bad("there is no such event")),
+        })
+        .await
+    }
+
+    /// One event whole with its time on `day` (`YYYY-MM-DD`, the day the row of it begins), from
+    /// one look at the calendar: a series' baseline and the time on `day` cannot be of two
+    /// different states of it. An id that is no event, or a bad day, is a bad request.
+    pub async fn event_on(&self, id: u64, day: String) -> Result<EventOccurrence, CoreError> {
+        let day = crate::queries::date_of(&day)?;
+        self.call(move |s| {
+            let Some(e) = s.mailbox.event(id) else { return Err(bad("there is no such event")) };
+            let mut times = occurrences(s, day, day).into_iter().filter(|o| o.event == id);
+            let first = times.next();
+            let found = match first {
+                Some(o) if o.start.date != day => times.find(|n| n.start.date == day).or(Some(o)),
+                other => other,
+            };
+            Ok(EventOccurrence { detail: detail(s, e), start: found.as_ref().map(|o| o.start.iso()), end: found.map(|o| o.end.iso()) })
         })
         .await
     }

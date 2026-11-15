@@ -232,3 +232,25 @@ fn a_list_of_people_longer_than_is_handed_over_says_so() {
     let whole = exec(&core, "calendar.get", json!({"id": id})).unwrap();
     assert_eq!(whole["attendees"].as_array().map(Vec::len), Some(crate::text::MAX_PEOPLE_IN_ITEM + 1));
 }
+
+#[test]
+fn one_time_of_a_series_is_read_with_its_series_in_one_look() {
+    let core = sample_core();
+    let made = exec(
+        &core,
+        "calendar.new",
+        json!({"title": "Standup", "start": "2026-11-02T09:00", "end": "2026-11-02T09:30", "recurrence": {"freq": "weekly", "count": 4}}),
+    )
+    .unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let got = block_on(core.event_on(id, "2026-11-09".into())).unwrap();
+    assert_eq!((got.start.as_deref(), got.end.as_deref()), (Some("2026-11-09T09:00:00"), Some("2026-11-09T09:30:00")));
+    // The series baseline is the one read with it.
+    assert_eq!(got.detail.start, "2026-11-02T09:00:00");
+    assert_eq!(got.detail.rev, block_on(core.calendar("2026-11-09".into(), "2026-11-09".into())).unwrap().rev);
+    // A day with no time of it has none; a bad id or day is refused.
+    let none = block_on(core.event_on(id, "2026-11-10".into())).unwrap();
+    assert_eq!((none.start, none.end), (None, None));
+    assert!(matches!(block_on(core.event_on(u64::MAX, "2026-11-09".into())), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.event_on(id, "nonsense".into())), Err(CoreError::BadRequest { .. })));
+}

@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -386,9 +387,21 @@ private fun AllDayRow(texts: Texts, e: CalendarEvent, actions: CalendarActions) 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(Dot).background(Color(e.color), CircleShape))
-        Text(e.title.ifBlank { texts.t("(No title)") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            e.title.ifBlank { texts.t("(No title)") },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textDecoration = if (e.cancelled) TextDecoration.LineThrough else null,
+        )
         Text(texts.t("All day"), style = MaterialTheme.typography.labelSmall)
+        if (e.cancelled) CancelledTag(texts)
     }
+}
+
+/** The word that says a meeting was cancelled; the row or block it is in speaks it with the rest. */
+@Composable
+private fun CancelledTag(texts: Texts) {
+    Text(texts.t("Cancelled"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
 }
 
 @Composable
@@ -430,11 +443,14 @@ private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Lo
                     .padding(Bar),
             ) {
                 val title = p.event.title.ifBlank { texts.t("(No title)") }
-                val time = timeLine(texts, p.event, date, locale)
+                val line = timeLine(texts, p.event, date, locale)
+                val time = if (p.event.cancelled) "$line, ${texts.t("Cancelled")}" else line
+                val struck = if (p.event.cancelled) TextDecoration.LineThrough else null
                 if (height < ShortBlock) {
                     // A block too short for two lines keeps both in one.
                     Text(
                         "$title, $time",
+                        textDecoration = struck,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -443,6 +459,7 @@ private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Lo
                 } else {
                     Text(
                         title,
+                        textDecoration = struck,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,

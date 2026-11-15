@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -44,6 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.DayOfWeek
@@ -262,9 +266,15 @@ private fun EditorTextFields(texts: Texts, d: EventDraft, on: Boolean, actions: 
 
 @Composable
 private fun SwitchRow(label: String, value: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = Small), verticalAlignment = Alignment.CenterVertically) {
+    // The whole row is the switch, so that the label is what a screen reader says for it.
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .toggleable(value = value, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = value, onCheckedChange = onChange, enabled = enabled)
+        Switch(checked = value, onCheckedChange = null, enabled = enabled)
     }
 }
 
@@ -405,6 +415,8 @@ private fun RepeatEditor(
         ) {
             CalendarPaging.weekDays(DayOfWeek.MONDAY).forEach { day ->
                 FilterChip(
+                    // The letter shown is not one day's alone ("T", "S"): the screen reader says the whole name.
+                    modifier = Modifier.semantics { contentDescription = day.getDisplayName(TextStyle.FULL, locale) },
                     selected = day in r.days,
                     enabled = enabled,
                     onClick = {

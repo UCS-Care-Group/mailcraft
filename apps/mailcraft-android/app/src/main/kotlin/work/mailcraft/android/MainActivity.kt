@@ -142,6 +142,16 @@ private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
     return all.firstOrNull { it.id == wanted }
 }
 
+/** The list the Mail tab shows; an outline that could not be read, or has no folder to show, has no list to wait for. */
+private fun shownMail(outlineRead: Boolean, folder: FolderItem?, ui: MailListUi): MailListUi =
+    if (outlineRead && folder == null) ui.copy(load = LoadState.Failed) else ui
+
+private fun outlineStatus(outlineRead: Boolean, outline: MailboxOutline?): OutlineStatus = when {
+    !outlineRead -> OutlineStatus.Loading
+    outline == null -> OutlineStatus.Failed
+    else -> OutlineStatus.Ready
+}
+
 @Composable
 private fun CoreShell(
     opened: Opened,
@@ -193,16 +203,11 @@ private fun CoreShell(
             accounts = accounts,
             folderName = folder?.name ?: texts.t("Mail"),
             folderId = folder?.id,
-            // (An outline that could not be read, or has no folder to show, has no list to wait for.)
-            mail = if (outlined != null && folder == null) ui.copy(load = LoadState.Failed) else ui,
+            mail = shownMail(outlined != null, folder, ui),
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
-            outline = when {
-                outlined == null -> OutlineStatus.Loading
-                outline == null -> OutlineStatus.Failed
-                else -> OutlineStatus.Ready
-            },
+            outline = outlineStatus(outlined != null, outline),
             categories = categories,
             nowMillis = now,
             swipe = swipe,
