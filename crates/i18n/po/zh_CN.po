@@ -18061,6 +18061,11 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "联系人名片最多保留 32 个密钥"
 
 #. what a command says
+#: crates/model/src/mailbox_followup.rs
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"

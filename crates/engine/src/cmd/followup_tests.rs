@@ -87,6 +87,24 @@ impl World {
             .unwrap()
     }
 
+    /// Mail from `who` answering the message `of` (by its Message-ID).
+    fn reply_to(&mut self, of: Id, who: &str) -> Id {
+        let (mid, account) = (self.m(of).message_id.clone(), self.m(of).account);
+        let n = self.s.mailbox.messages.len();
+        self.s
+            .mailbox
+            .add_message(Message {
+                account,
+                folder: self.inbox,
+                subject: "Re".into(),
+                message_id: format!("rt{n}@example.org"),
+                in_reply_to: mid,
+                from: mailcraft_model::Address::new("", who),
+                ..Default::default()
+            })
+            .unwrap()
+    }
+
     fn settle(&mut self, now: i64) -> Value {
         at(&mut self.s, now);
         self.s.run("mail.settleReminders", &json!({})).unwrap()
@@ -414,4 +432,273 @@ fn hostile_parameters_are_refused_and_change_nothing() {
     for p in [json!({"ids": [w.got], "minutes": 0}), json!({"ids": [w.got], "minutes": 10_081}), json!({"ids": [w.got], "minutes": 1e300})] {
         assert!(w.s.run("mail.postponeReminder", &p).is_err(), "{p}");
     }
+}
+
+// ---- Review fixes (#948) ----
+
+#[test]
+fn undo_of_an_unrelated_step_keeps_a_dismissed_reminder_dismissed() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    w.s.run("mail.markUnread", &json!({"ids": [w.got]})).unwrap();
+    w.settle(NOON + 120);
+    assert_eq!(w.s.mailbox.due_follow_ups(NOON + 120), vec![w.got]);
+    w.s.run("mail.dismissReminder", &json!({"ids": [w.got]})).unwrap();
+    w.s.run("edit.undo", &json!({})).unwrap();
+    assert!(w.m(w.got).read, "the step before was undone");
+    let f = w.m(w.got).follow_up.unwrap();
+    assert!(f.dismissed && f.raised.is_some(), "still dismissed, not to be raised or alerted again");
+    assert!(w.s.mailbox.due_follow_ups(NOON + 130).is_empty());
+    assert_eq!(w.settle(NOON + 200)["raised"], json!([]));
+    // A raised one that was put off stays put off, too.
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    w.s.run("mail.markUnread", &json!({"ids": [w.mine]})).unwrap();
+    w.settle(NOON + 2 * DAY);
+    at(&mut w.s, NOON + 2 * DAY);
+    w.s.run("mail.postponeReminder", &json!({"ids": [w.mine], "minutes": 60})).unwrap();
+    w.s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(w.m(w.mine).follow_up.unwrap().postponed_until, Some(NOON + 2 * DAY + 3_600));
+}
+
+#[test]
+fn a_dismissed_reminder_is_over_and_makes_no_work() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    w.settle(NOON + 100);
+    assert!(!w.s.mailbox.follow_up_work(NOON + 100), "raised, nothing more to do");
+    w.s.run("mail.dismissReminder", &json!({"ids": [w.got]})).unwrap();
+    assert!(!w.s.mailbox.has_follow_ups() && !w.s.mailbox.follow_up_work(NOON + 10_000));
+    // Nothing to do: settling changes nothing, not even the revision.
+    let rev = w.s.rev();
+    w.settle(NOON + 20_000);
+    assert_eq!(w.s.rev(), rev);
+}
+
+#[test]
+fn a_reminder_that_is_due_is_work_and_one_that_is_not_is_not() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    assert!(!w.s.mailbox.follow_up_work(NOON + DAY - 1));
+    assert!(w.s.mailbox.follow_up_work(NOON + DAY));
+    // Waiting in the Outbox: not due, however late.
+    let outbox = w.s.mailbox.folder_of_kind(w.account, FolderKind::Outbox).unwrap();
+    w.s.mailbox.message_mut(w.mine).unwrap().folder = outbox;
+    assert!(!w.s.mailbox.follow_up_work(NOON + 9 * DAY));
+}
+
+/// Replies are found by what links them, with nothing built over the account's mail: a thousand
+/// messages after the reminder are looked through once, at its time, and not at all before.
+#[test]
+fn a_big_mailbox_is_looked_through_once_at_the_time_and_a_reply_is_found() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    for i in 0..20_000 {
+        w.s.mailbox
+            .add_message(Message {
+                account: w.account,
+                folder: w.inbox,
+                subject: format!("Noise {i}"),
+                message_id: format!("n{i}@example.org"),
+                from: mailcraft_model::Address::new("", "noise@example.org"),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+    let reply = w.reply_from("bob@example.org");
+    // Before its time nothing is looked through (and nothing is copied for a run).
+    assert!(!w.s.mailbox.follow_up_work(NOON + DAY - 1));
+    let started = std::time::Instant::now();
+    assert_eq!(w.settle(NOON + DAY)["cancelled"], json!([w.mine]));
+    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+    assert!(w.s.mailbox.message(reply).is_some());
+}
+
+#[test]
+fn a_reply_with_another_subject_still_cancels_it_when_its_headers_link_it() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    let r = w.reply_from("bob@example.org");
+    w.s.mailbox.message_mut(r).unwrap().subject = "Something else entirely".into();
+    assert_eq!(w.settle(NOON + DAY)["cancelled"], json!([w.mine]));
+}
+
+#[test]
+fn a_reply_to_a_reply_cancels_it_through_the_chain() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    // Dan (not a recipient) answers, and Carol answers Dan, naming only Dan's message.
+    let dan = w.reply_from("dan@example.org");
+    let dan_id = w.m(dan).message_id.clone();
+    let carol = w.reply_from("carol@example.org");
+    let c = w.s.mailbox.message_mut(carol).unwrap();
+    (c.in_reply_to, c.references) = (dan_id, Vec::new());
+    assert_eq!(w.settle(NOON + DAY)["cancelled"], json!([w.mine]));
+}
+
+#[test]
+fn a_reply_in_another_of_the_owners_accounts_cancels_it() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 1, "ifNoReply": true})).unwrap();
+    let other = w.s.mailbox.add_account(mailcraft_model::Account { name: "ann2".into(), email: "ann2@example.org".into(), ..Default::default() });
+    let inbox = w.s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    w.s.mailbox
+        .add_message(Message {
+            account: other,
+            folder: inbox,
+            subject: "Re: Budget".into(),
+            message_id: "elsewhere@example.org".into(),
+            in_reply_to: "mine@example.org".into(),
+            from: mailcraft_model::Address::new("", "bob@example.org"),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(w.settle(NOON + DAY)["cancelled"], json!([w.mine]));
+}
+
+#[test]
+fn a_reminder_ends_when_its_message_is_deleted() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    w.s.run("mail.delete", &json!({"ids": [w.got]})).unwrap();
+    let r = w.settle(NOON + 120);
+    assert_eq!((r["ended"].clone(), r["raised"].clone()), (json!([w.got]), json!([])));
+    assert!(w.m(w.got).follow_up.is_none());
+}
+
+#[test]
+fn follow_up_with_a_new_date_moves_the_reminder_or_ends_it() {
+    let mut w = world();
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    // A later day: the reminder goes to it (end of the working day), and the flag names the same time.
+    w.s.run("mail.flag", &json!({"ids": [w.got], "due": "2027-03-01"})).unwrap();
+    let m = w.m(w.got);
+    let (f, due) = (m.follow_up.unwrap(), m.flag_due.unwrap());
+    assert_eq!(f.at, due);
+    assert!(f.at > NOON + 60 && f.raised.is_none());
+    // A date with no time ahead (the end of today's working day has passed): it ends.
+    w.s.run("mail.reminder", &json!({"ids": [w.got], "at": NOON + 60})).unwrap();
+    w.s.run("mail.flag", &json!({"ids": [w.got], "due": "2001-01-01"})).unwrap();
+    assert!(w.m(w.got).follow_up.is_none());
+    // "If nobody replies" doesn't follow the flag's date.
+    w.s.run("mail.reminder", &json!({"ids": [w.mine], "days": 3, "ifNoReply": true})).unwrap();
+    w.s.run("mail.flag", &json!({"ids": [w.mine], "due": "2027-03-01"})).unwrap();
+    assert_eq!(w.m(w.mine).follow_up.unwrap().at, NOON + 3 * DAY);
+}
+
+#[test]
+fn an_at_time_reminder_is_refused_on_a_draft_and_an_if_nobody_replies_plan_is_kept() {
+    let mut w = world();
+    let drafts = w.s.mailbox.folder_of_kind(w.account, FolderKind::Drafts).unwrap();
+    let draft = w.s.mailbox.add_message(Message { account: w.account, folder: drafts, draft: true, ..Default::default() }).unwrap();
+    let e = w.s.run("mail.reminder", &json!({"ids": [draft], "at": NOON + 60})).unwrap_err().to_string();
+    assert!(e.contains("draft"), "{e}");
+    assert!(w.m(draft).follow_up.is_none() && w.m(draft).flag == FlagStatus::None);
+}
+
+/// The reminder of a message sent from the composer goes with the message when the server files
+/// its copy under another id: kept by Message-ID, counted from the moment it was sent.
+fn sent_through_outbox(kind: mailcraft_model::AccountKind) -> (World, Id) {
+    let mut w = world();
+    w.s.mailbox.account_mut(w.account).unwrap().kind = kind;
+    write_to_bob(&mut w);
+    w.s.run("compose.followUp", &json!({"days": 4})).unwrap();
+    let id = w.s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    (w, id)
+}
+
+#[test]
+fn a_reminder_follows_a_sent_message_whose_copy_the_server_files_itself() {
+    use mailcraft_model::AccountKind::{Exchange as Ews, Jmap, Microsoft};
+    use mailcraft_model::sync::{SendDone, SendOutcome};
+    for kind in [Microsoft, Ews, Jmap] {
+        let (mut w, id) = sent_through_outbox(kind);
+        let m = w.m(id).clone();
+        let outbox = w.s.mailbox.folder_of_kind(w.account, FolderKind::Outbox).unwrap();
+        assert_eq!(m.folder, outbox, "{kind:?}: queued");
+        // Sent a day later: counted from then, not from the click.
+        let sent_at = NOON + DAY;
+        let done = SendDone { message: id, outcome: SendOutcome::Sent, draft: None, draft_left: String::new() };
+        super::graph_send::send_done_at(&mut w.s.mailbox, w.account, &done, mailcraft_i18n::Lang::default(), &mut Vec::new(), Some(sent_at));
+        assert!(w.s.mailbox.message(id).is_none(), "{kind:?}: forgotten, the server's copy comes down");
+        // The copy comes down under an id of its own.
+        let down = Message { id: 0, folder: w.sent, follow_up: None, ..m };
+        let copy = w.s.mailbox.add_message(down).unwrap();
+        let f = w.m(copy).follow_up.unwrap_or_else(|| panic!("{kind:?}: the copy has the reminder"));
+        assert_eq!((f.at, f.if_no_reply, f.days), (sent_at + 4 * DAY, true, 4), "{kind:?}");
+        assert!(w.s.mailbox.follow_ups_pending.is_empty(), "{kind:?}: taken once");
+        // Bob's answer to it cancels, as for any other.
+        w.reply_to(copy, "bob@example.org");
+        assert_eq!(w.settle(sent_at + 4 * DAY)["cancelled"], json!([copy]), "{kind:?}");
+    }
+}
+
+#[test]
+fn a_reminder_of_an_imap_message_counts_from_when_the_server_took_it() {
+    let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Imap);
+    assert_eq!(w.m(id).follow_up.unwrap().at, NOON + 4 * DAY, "from the click while it waits");
+    let result = mailcraft_model::sync::SyncResult { sent: vec![id], ..Default::default() };
+    super::account::file_sent(&mut w.s.mailbox, w.account, &result, NOON + 2 * DAY);
+    assert_eq!(w.m(id).folder, w.sent);
+    assert_eq!(w.m(id).follow_up.unwrap().at, NOON + 6 * DAY);
+    // A message that waits in the Outbox never fires, however late.
+    let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Imap);
+    assert_eq!(w.settle(NOON + 30 * DAY)["raised"], json!([]));
+    assert!(w.m(id).follow_up.is_some());
+}
+
+#[test]
+fn a_reminder_pending_for_a_copy_is_kept_in_the_file_and_let_go_of_with_time() {
+    let (mut w, id) = sent_through_outbox(mailcraft_model::AccountKind::Microsoft);
+    let done = mailcraft_model::sync::SendDone { message: id, outcome: mailcraft_model::sync::SendOutcome::Sent, ..Default::default() };
+    super::graph_send::send_done_at(&mut w.s.mailbox, w.account, &done, mailcraft_i18n::Lang::default(), &mut Vec::new(), Some(NOON));
+    assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+    reopen(&mut w);
+    assert_eq!(w.s.mailbox.follow_ups_pending.len(), 1);
+}
+
+/// A Microsoft account with one message its server has, as `graph_down_flag_tests` makes one.
+fn microsoft() -> (Session, Id) {
+    use mailcraft_model::sync::ServerMessage;
+    use mailcraft_model::{AccountKind, ServerFolder};
+    let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+    let account = mb.accounts[0].id;
+    mb.accounts[0].kind = AccountKind::Microsoft;
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F".into(), ..Default::default() });
+    let server = ServerMessage { id: "E1".into(), folder: "F".into(), ..Default::default() };
+    let id = mb
+        .add_message(Message { account, folder: inbox, server: Some(server), subject: "Follow up".into(), read: true, ..Default::default() })
+        .unwrap();
+    let mut s = Session::new(mb);
+    at(&mut s, NOON);
+    (s, id)
+}
+
+#[test]
+fn undo_of_adding_or_removing_a_reminder_works_for_a_microsoft_account_too() {
+    let (mut s, id) = microsoft();
+    let f = |s: &Session| s.mailbox.message(id).unwrap().follow_up;
+    s.run("mail.reminder", &json!({"ids": [id], "at": NOON + 60})).unwrap();
+    assert!(f(&s).is_some());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(f(&s).is_none(), "adding it is undone");
+    s.run("edit.redo", &json!({})).unwrap();
+    assert!(f(&s).is_some());
+    s.run("mail.clearReminder", &json!({"ids": [id]})).unwrap();
+    assert!(f(&s).is_none());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(f(&s).is_some(), "removing it is undone");
+}
+
+#[test]
+fn undo_of_an_unrelated_step_keeps_a_dismissed_reminder_dismissed_for_a_microsoft_account() {
+    let (mut s, id) = microsoft();
+    s.run("mail.reminder", &json!({"ids": [id], "at": NOON + 60})).unwrap();
+    s.run("mail.markUnread", &json!({"ids": [id]})).unwrap();
+    at(&mut s, NOON + 120);
+    s.run("mail.settleReminders", &json!({})).unwrap();
+    s.run("mail.dismissReminder", &json!({"ids": [id]})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    let f = s.mailbox.message(id).unwrap().follow_up.unwrap();
+    assert!(f.dismissed && f.raised.is_some());
 }

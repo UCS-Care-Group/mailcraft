@@ -148,3 +148,28 @@ fn the_reminders_window_shows_a_raised_message_reminder_and_dismiss_ends_it() {
     crate::reminders::open_mail(&mut r.app, r.got);
     assert_eq!(r.app.session.sel.messages, [r.got]);
 }
+
+#[test]
+fn an_agent_cannot_dismiss_or_snooze_the_owners_message_reminders_through_the_ui_commands() {
+    let mut r = rig();
+    r.app.execute("mail.reminder", json!({"ids": [r.got], "at": NOW + 60})).unwrap();
+    r.app.session.clock.now = Some(NOW + 120);
+    let (ctx, mut time) = (egui::Context::default(), 0.0);
+    for _ in 0..4 {
+        pass(&ctx, &mut r.app, &mut time);
+    }
+    assert_eq!(r.app.reminders.mail.len(), 1);
+    // As the MCP bridge sends them: both are allowed to an agent for the calendar's reminders.
+    for (command, params) in [("ui.dismissReminder", json!({"all": true})), ("ui.snoozeReminders", json!({"minutes": 10}))] {
+        let (request, _answer) = crate::ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
+        let request = request.from_agent(Vec::new());
+        let Some(crate::control::Outcome::Done(reply)) = crate::agent_gate::screen(&mut r.app, &request, &[]) else { panic!("settled by the gate") };
+        assert_eq!(reply["ok"], true, "{command}: {reply}");
+        let f = r.app.session.mailbox.message(r.got).unwrap().follow_up.unwrap();
+        assert!(!f.dismissed && f.postponed_until.is_none(), "{command}: the owner's reminder is untouched");
+        assert_eq!(r.app.reminders.mail.len(), 1, "{command}");
+    }
+    // The owner's own do.
+    r.app.execute("ui.snoozeReminders", json!({"minutes": 10})).unwrap();
+    assert!(r.app.session.mailbox.message(r.got).unwrap().follow_up.unwrap().postponed_until.is_some());
+}

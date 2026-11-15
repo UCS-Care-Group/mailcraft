@@ -26,7 +26,9 @@ impl MailApp {
             return;
         }
         self.follow_up_last = now;
-        if self.session.mailbox.has_follow_ups() {
+        // Only when something is due or ended: a run that has nothing to do copies the mailbox
+        // for nothing.
+        if self.session.mailbox.follow_up_work(now) {
             let _ = self.execute("mail.settleReminders", json!({}));
         }
     }

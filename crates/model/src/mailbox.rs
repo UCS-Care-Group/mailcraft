@@ -23,7 +23,7 @@ use crate::{
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
-pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD};
+pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD, PendingFollowUp};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -1249,6 +1249,9 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
     pub public_keys: crate::public_keys::PublicKeys,
     next_id: Id,
+    /// Reminders of mail sent whose copy the server files in Sent Items ([`PendingFollowUp`], #948).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub follow_ups_pending: Vec<PendingFollowUp>,
 }
 
 impl Default for Mailbox {
@@ -1288,6 +1291,7 @@ impl Default for Mailbox {
             unhollowed: false,
             public_keys: Default::default(),
             next_id: 1,
+            follow_ups_pending: Vec::new(),
         }
     }
 }
@@ -2105,6 +2109,7 @@ impl Mailbox {
             m.id = self.alloc_id();
         }
         self.next_id = self.next_id.max(m.id.saturating_add(1));
+        self.take_pending_follow_up(&mut m);
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)

@@ -21,7 +21,7 @@ use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use super::{Mailbox, invalid, not_found};
-use crate::{FlagStatus, FolderKind, Id, Message, ModelError, ThreadIndex};
+use crate::{FlagStatus, FolderKind, Id, Message, ModelError};
 
 /// The furthest a reminder may lie from now, in seconds: five years. Beyond it, it is brought to it.
 pub const MAX_FOLLOW_UP_AHEAD: i64 = 5 * 366 * 86_400;
@@ -43,12 +43,13 @@ pub struct FollowUp {
     /// was a date), so that a draft kept and sent later counts them from the sending.
     #[serde(skip_serializing_if = "is_zero", deserialize_with = "crate::sync::lenient_or_default")]
     pub days: u16,
+    /// The owner dismissed it: it is over, and kept only so that undo of an unrelated step doesn't
+    /// bring it back as one that is still to be raised. Nothing looks at it any more.
+    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
+    pub dismissed: bool,
     /// When it was raised: the moment it was noticed that its time had come. `None`: it waits.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub raised: Option<Timestamp>,
-    /// The owner dismissed it: it is raised no more.
-    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
-    pub dismissed: bool,
     /// Put off until this time (Snooze in the reminders window): not shown before.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub postponed_until: Option<Timestamp>,
@@ -69,6 +70,45 @@ impl FollowUp {
         self.raised.is_some() && !self.dismissed && self.postponed_until.is_none_or(|t| t <= now)
     }
 }
+
+/// Whether two reminders are the same one: set the same way, whatever has become of it since
+/// (raised, put off). Undo of an unrelated step keeps what has become of a reminder.
+impl FollowUp {
+    pub fn same_plan(&self, other: &FollowUp) -> bool {
+        (self.at, self.if_no_reply, self.after_id, self.days) == (other.at, other.if_no_reply, other.after_id, other.days)
+    }
+
+    /// This reminder with what has become of it as `now` has it (raised, put off).
+    pub fn carrying_state(mut self, now: &FollowUp) -> FollowUp {
+        (self.raised, self.dismissed, self.postponed_until) = (now.raised, now.dismissed, now.postponed_until);
+        self
+    }
+
+    /// `then` as undo brings it back, against `now`: as it was, but what has become of it since
+    /// (raised, put off) stays when it is the same reminder.
+    pub fn undone(then: Option<FollowUp>, now: Option<FollowUp>) -> Option<FollowUp> {
+        match (then, now) {
+            (Some(t), Some(n)) if t.same_plan(&n) => Some(t.carrying_state(&n)),
+            (t, _) => t,
+        }
+    }
+}
+
+/// A reminder of a message that left the Outbox for the server's Sent Items, with the server's
+/// copy still to come down: the copy is a message of its own, found by its `Message-ID`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PendingFollowUp {
+    pub account: Id,
+    pub message_id: String,
+    pub follow_up: FollowUp,
+    /// When it was sent.
+    pub since: Timestamp,
+}
+
+/// How many such reminders are kept, and for how long (seconds) before one is let go of.
+pub const MAX_PENDING_FOLLOW_UPS: usize = 200;
+pub const PENDING_FOLLOW_UP_KEPT: i64 = 14 * 86_400;
 
 /// What [`Mailbox::settle_follow_ups`] changed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -96,7 +136,7 @@ fn norm(email: &str) -> String {
 impl Mailbox {
     /// Whether any message has a reminder (cheap enough to ask every minute).
     pub fn has_follow_ups(&self) -> bool {
-        self.messages.values().any(|m| m.follow_up.is_some())
+        self.messages.values().any(|m| m.follow_up.is_some_and(|f| !f.dismissed))
     }
 
     /// Whether `m` is mail the owner sent (in Sent Items or waiting in the Outbox), with someone
@@ -125,6 +165,11 @@ impl Mailbox {
         }
         if if_no_reply && let Some(why) = self.follow_up_refusal(ids) {
             return Err(invalid(why));
+        }
+        // A draft isn't mail yet: a reminder for a time can't be kept on it (saving it again
+        // would drop it), and it never fires.
+        if !if_no_reply && ids.iter().filter_map(|id| self.message(*id)).any(|m| m.draft) {
+            return Err(invalid("a draft can't have a reminder: send it first, or use Follow Up in the message itself"));
         }
         let at = at.min(now.saturating_add(MAX_FOLLOW_UP_AHEAD));
         let watermark = self.messages.keys().next_back().copied().unwrap_or(0);
@@ -157,7 +202,8 @@ impl Mailbox {
         cleared
     }
 
-    /// The owner dismissed the reminders of `ids` that are raised. Answers how many.
+    /// The owner dismissed the reminders of `ids` that are raised: they are over (the flag stays).
+    /// Answers how many.
     pub fn dismiss_follow_up(&mut self, ids: &[Id]) -> usize {
         let mut n = 0;
         for id in ids {
@@ -197,64 +243,133 @@ impl Mailbox {
         due.into_iter().map(|(_, id)| id).collect()
     }
 
-    /// Whether somebody the message `m` went to has answered in its conversation since the reminder
-    /// was set: mail that is not the owner's own, a draft or waiting to go, from a recipient, in
-    /// the conversation ([`ThreadIndex`]: headers, or the server's conversation id).
-    fn answered(&self, m: &Message, after: Id, threads: &ThreadIndex) -> bool {
-        let to: HashSet<String> = m.recipients().map(|a| norm(&a.email)).filter(|e| !e.is_empty()).collect();
-        let mine = self.account(m.account).map(|a| norm(&a.email)).unwrap_or_default();
-        threads.members(m.id).into_iter().filter(|id| *id > after && *id != m.id).filter_map(|id| self.message(id)).any(|r| {
-            let from = norm(&r.from.email);
-            !r.draft
-                && from != mine
-                && to.contains(&from)
-                && !self.folder(r.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox))
+    /// Whether there is anything for [`Mailbox::settle_follow_ups`] to do at `now`: a reminder to
+    /// raise, or to end (its flag was cleared elsewhere, its message deleted). A walk of the
+    /// reminders alone, so that nothing is copied or looked through while nothing is due.
+    pub fn follow_up_work(&self, now: Timestamp) -> bool {
+        self.messages.values().any(|m| {
+            m.follow_up.filter(|f| !f.dismissed).is_some_and(|f| {
+                let ended = (!f.if_no_reply || f.raised.is_some()) && m.flag != FlagStatus::Flagged;
+                ended || self.in_deleted_or_gone(m) || (f.raised.is_none() && f.at <= now && !self.unsent(m))
+            })
         })
     }
 
+    fn in_deleted_or_gone(&self, m: &Message) -> bool {
+        self.folder(m.folder).is_none() || self.is_in_deleted(m.folder)
+    }
+
+    /// Not sent yet: a draft, or waiting in the Outbox.
+    fn unsent(&self, m: &Message) -> bool {
+        m.draft || self.folder(m.folder).is_some_and(|x| matches!(x.kind, FolderKind::Drafts | FolderKind::Outbox))
+    }
+
+    /// Which of the "if nobody replies" reminders `due` (message ids) somebody has answered. One
+    /// look through the mail that arrived after the oldest of them: a message answers one by its
+    /// headers (`In-Reply-To` or `References` name it, or a message that does: a chain), whatever
+    /// its subject says and in whichever of the owner's accounts it arrived, or by the conversation
+    /// id its server gave it and the message's account's server gave the message. It answers when it
+    /// is from one of the people the message went to (not the owner's own address), is no draft, and
+    /// is not in Sent Items, Drafts or the Outbox.
+    fn answered(&self, due: &[(Id, Id)]) -> HashSet<Id> {
+        let Some(oldest) = due.iter().map(|(_, after)| *after).min() else { return HashSet::new() };
+        // What links to each reminded message so far: by Message-ID, and by conversation id.
+        let mut by_id: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut by_thread: HashMap<(Id, &str), Vec<usize>> = HashMap::new();
+        let mut people: Vec<HashSet<String>> = Vec::with_capacity(due.len());
+        for (i, (id, _)) in due.iter().enumerate() {
+            let Some(m) = self.message(*id) else {
+                people.push(HashSet::new());
+                continue;
+            };
+            people.push(m.recipients().map(|a| norm(&a.email)).filter(|e| !e.is_empty()).collect());
+            if !m.message_id.is_empty() {
+                by_id.entry(m.message_id.as_str()).or_default().push(i);
+            }
+            if let Some(thread) = m.server.as_ref().map(|x| x.thread.as_str()).filter(|t| !t.is_empty()) {
+                by_thread.entry((m.account, thread)).or_default().push(i);
+            }
+        }
+        let mine: HashSet<String> = self.accounts.iter().map(|a| norm(&a.email)).filter(|e| !e.is_empty()).collect();
+        let mut chained: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut answered = HashSet::new();
+        let Some(from) = oldest.checked_add(1) else { return answered };
+        for (_, r) in self.messages.range(from..) {
+            let mut hits: Vec<usize> = Vec::new();
+            let links = Some(r.in_reply_to.as_str())
+                .filter(|l| !l.is_empty())
+                .into_iter()
+                .chain(r.references.iter().rev().take(crate::thread_index::MAX_REFERENCES).map(String::as_str));
+            for link in links {
+                hits.extend(by_id.get(link).into_iter().flatten());
+                hits.extend(chained.get(link).into_iter().flatten());
+            }
+            if let Some(thread) = r.server.as_ref().map(|x| x.thread.as_str()).filter(|t| !t.is_empty()) {
+                hits.extend(by_thread.get(&(r.account, thread)).into_iter().flatten());
+            }
+            hits.sort_unstable();
+            hits.dedup();
+            if hits.is_empty() {
+                continue;
+            }
+            // A chain goes on through this message, whoever wrote it.
+            if !r.message_id.is_empty() && chained.len() < 100_000 {
+                chained.entry(r.message_id.clone()).or_default().extend(hits.iter().copied());
+            }
+            let from = norm(&r.from.email);
+            let counts = !r.draft
+                && !mine.contains(&from)
+                && !self.folder(r.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+            if counts {
+                for i in hits {
+                    if due.get(i).is_some_and(|(_, after)| r.id > *after) && people.get(i).is_some_and(|p| p.contains(&from)) {
+                        answered.insert(due[i].0);
+                    }
+                }
+            }
+        }
+        answered
+    }
+
     /// Bring the reminders up to date with `now` and with the mail: end those whose flag was
-    /// cleared or completed elsewhere; cancel "if nobody replies" ones that somebody has replied
-    /// to; raise those whose time has come (flagging the message for "if nobody replies"), once.
-    /// A message not sent yet (a draft, in the Outbox) waits. Cancelling is looked at before
-    /// raising, so a reply that arrived before the time is never missed.
+    /// cleared or completed elsewhere, or whose message was deleted; cancel "if nobody replies"
+    /// ones that somebody has replied to; raise those whose time has come (flagging the message
+    /// for "if nobody replies"), once. A message not sent yet (a draft, in the Outbox) waits.
+    /// Cancelling is looked at before raising, so a reply that arrived before the time is never
+    /// missed. Changes nothing, and copies nothing, when there is nothing to do.
     pub fn settle_follow_ups(&mut self, now: Timestamp) -> FollowUpsSettled {
         let mut settled = FollowUpsSettled::default();
-        let with: Vec<Id> = self.messages.values().filter(|m| m.follow_up.is_some()).map(|m| m.id).collect();
-        let mut threads: HashMap<Id, ThreadIndex> = HashMap::new();
+        if !self.follow_up_work(now) {
+            return settled;
+        }
+        let with: Vec<Id> = self.messages.values().filter(|m| m.follow_up.is_some_and(|f| !f.dismissed)).map(|m| m.id).collect();
+        // Due, "if nobody replies": looked through the mail once, for all of them.
+        let mut asking: Vec<(Id, Id)> = Vec::new();
+        let mut due: Vec<Id> = Vec::new();
         for id in with {
             let Some(m) = self.message(id) else { continue };
             let Some(f) = m.follow_up else { continue };
-            if (!f.if_no_reply || f.raised.is_some()) && m.flag != FlagStatus::Flagged {
+            if ((!f.if_no_reply || f.raised.is_some()) && m.flag != FlagStatus::Flagged) || self.in_deleted_or_gone(m) {
                 settled.ended.push(id);
                 continue;
             }
-            if f.raised.is_some() || m.draft {
-                continue;
-            }
-            let waiting = self.folder(m.folder).is_some_and(|x| matches!(x.kind, FolderKind::Drafts | FolderKind::Outbox));
-            if waiting {
+            if f.raised.is_some() || f.at > now || self.unsent(m) {
                 continue;
             }
             if f.if_no_reply {
-                let account = m.account;
-                let index = threads
-                    .entry(account)
-                    .or_insert_with(|| ThreadIndex::build(self.messages.values().map(|x| x.as_ref()).filter(|x| x.account == account)));
-                if self.answered(m, f.after_id, index) {
-                    settled.cancelled.push(id);
-                    continue;
-                }
+                asking.push((id, f.after_id));
             }
-            if f.at <= now {
+            due.push(id);
+        }
+        let answered = self.answered(&asking);
+        for id in due {
+            if answered.contains(&id) {
+                settled.cancelled.push(id);
+            } else {
                 settled.raised.push(id);
             }
         }
-        for id in &settled.ended {
-            if let Ok(m) = self.message_mut(*id) {
-                m.follow_up = None;
-            }
-        }
-        for id in &settled.cancelled {
+        for id in settled.ended.iter().chain(&settled.cancelled) {
             if let Ok(m) = self.message_mut(*id) {
                 m.follow_up = None;
             }
@@ -270,5 +385,56 @@ impl Mailbox {
             }
         }
         settled
+    }
+
+    /// The message `id` has just been sent (it is out of the Outbox, or the server has it in Sent
+    /// Items): a reminder set as "after so many days" counts them from now.
+    pub fn follow_up_sent(&mut self, id: Id, now: Timestamp) {
+        if let Ok(m) = self.message_mut(id)
+            && let Some(f) = m.follow_up.as_mut().filter(|f| f.days > 0 && f.raised.is_none())
+        {
+            f.at = now.saturating_add(i64::from(f.days).saturating_mul(86_400));
+        }
+    }
+
+    /// The message `id` is about to be forgotten here because the server files its copy in Sent
+    /// Items, to come down as a message of its own: its reminder waits for that copy, by `Message-ID`.
+    pub fn keep_follow_up_for_copy(&mut self, id: Id, now: Timestamp) {
+        let Some(m) = self.message(id) else { return };
+        let Some(f) = m.follow_up.filter(|f| f.if_no_reply && f.raised.is_none()) else { return };
+        if m.message_id.is_empty() {
+            return;
+        }
+        let entry = PendingFollowUp { account: m.account, message_id: m.message_id.clone(), follow_up: f, since: now };
+        self.follow_ups_pending
+            .retain(|p| now.saturating_sub(p.since) < PENDING_FOLLOW_UP_KEPT && !(p.account == entry.account && p.message_id == entry.message_id));
+        if self.follow_ups_pending.len() < MAX_PENDING_FOLLOW_UPS {
+            self.follow_ups_pending.push(entry);
+        }
+    }
+
+    /// A message that has come down (or been made) takes the reminder kept for it, if any.
+    pub(super) fn take_pending_follow_up(&mut self, m: &mut Message) {
+        if self.follow_ups_pending.is_empty() || m.message_id.is_empty() || m.follow_up.is_some() {
+            return;
+        }
+        if let Some(i) = self.follow_ups_pending.iter().position(|p| p.account == m.account && p.message_id == m.message_id) {
+            m.follow_up = Some(self.follow_ups_pending.remove(i).follow_up);
+        }
+    }
+
+    /// Follow Up with a date was chosen for `ids` (`due`: when the flag is due): a reminder for a
+    /// time that was set moves to it, when it is ahead, and otherwise ends: the later choice wins,
+    /// and the flag and the reminder never name two times. "If nobody replies" ones are not about
+    /// the flag's date and stay.
+    pub fn follow_up_due_chosen(&mut self, ids: &[Id], due: Timestamp, now: Timestamp) {
+        for id in ids {
+            if self.message(*id).and_then(|m| m.follow_up).is_none_or(|f| f.if_no_reply) {
+                continue;
+            }
+            if let Ok(m) = self.message_mut(*id) {
+                m.follow_up = (due > now).then(|| FollowUp { at: due, ..FollowUp::new(due, false, 0) });
+            }
+        }
     }
 }

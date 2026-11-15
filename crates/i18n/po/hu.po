@@ -18124,6 +18124,11 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "a kapcsolati kártya legfeljebb 32 kulcsot tartalmaz"
 
 #. what a command says
+#: crates/model/src/mailbox_followup.rs
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder can't move into itself"

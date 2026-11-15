@@ -391,6 +391,17 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
         }
     }
+    // A reminder's state (raised, put off) is not the change's to undo: a message the change
+    // touched goes back to its reminder as it was, with the state it has now (#948).
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        let undone = mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up);
+        if undone != t.follow_up
+            && let Some(t) = out.messages.get_mut(id)
+        {
+            Arc::make_mut(t).follow_up = undone;
+        }
+    }
     // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
     // the change moved between Gmail's categories goes back to the one it was in, against what
     // Gmail says now, so that a move Gmail has had already is moved back there at the next run.
@@ -845,6 +856,10 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
         };
     }
     back!(folder, read, flag, flag_due, importance, pinned, answered, forwarded, draft, held, placed, snooze);
+    // A reminder as it was, but what has become of it since (raised, put off) stays (#948).
+    if t.follow_up != a.follow_up {
+        m.follow_up = mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up);
+    }
     // Categories as a list that others add to too (R3 spec S17): what the change added is taken
     // off and what it took off is put back; one added in Outlook meanwhile stays.
     if t.categories != a.categories {

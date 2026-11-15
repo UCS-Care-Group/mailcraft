@@ -217,7 +217,9 @@ pub fn dismiss(app: &mut MailApp, one: Option<(u64, &str)>) -> usize {
         }
     }
     // Dismiss All dismisses the messages' too (one by one, a click on that reminder's own button).
-    if one.is_none() {
+    // Never for an agent: the owner's reminders are the owner's to dismiss (#948); an agent's
+    // dismissal here reaches the calendar's reminders as it always did.
+    if one.is_none() && app.session.agent.is_none() {
         let ids: Vec<u64> = app.reminders.mail.iter().map(|m| m.id).collect();
         n += ids.len();
         if !ids.is_empty() {
@@ -246,8 +248,9 @@ pub fn snooze(app: &mut MailApp, one: Option<(u64, &str)>, minutes: u64) -> usiz
         app.reminders.announced.remove(&k);
         app.reminders.snoozed.insert(k, until);
     }
-    // The messages' are put off in the mailbox file, so that it survives a restart.
-    if one.is_none() {
+    // The messages' are put off in the mailbox file, so that it survives a restart. Not by an
+    // agent (#948), as for Dismiss.
+    if one.is_none() && app.session.agent.is_none() {
         let rows = app.reminders.mail.clone();
         let ids: Vec<u64> = rows.iter().map(|m| m.id).collect();
         n += ids.len();
@@ -547,16 +550,20 @@ fn paint_mail_row(
     let font = egui::TextStyle::Button.resolve(ui.style());
     let wide = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Dismiss").to_string(), font, t.text).size().x + 16.0).max(64.0);
     let name = if row.subject.trim().is_empty() { tl!("(no subject)") } else { row.subject.as_str() };
-    // (Less than an event's: "60 minutes ago" is drawn between the text and Dismiss.)
-    let room = rect.width() - wide - 66.0 - 70.0;
-    crate::theme::paint_clipped(ui.painter(), egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0), room, name, semibold(12.5), t.text);
+    // How long ago, measured in the interface language: the title stops short of it, and the
+    // line below, which has no such text beside it, runs as far as Dismiss.
+    let ago = when(-row.minutes);
+    let ago_wide = ui.fonts_mut(|f| f.layout_no_wrap(ago.clone(), regular(11.5), t.text).size().x);
+    let room = rect.width() - wide - 66.0;
+    let title_room = (room - ago_wide - 8.0).max(20.0);
+    crate::theme::paint_clipped(ui.painter(), egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0), title_room, name, semibold(12.5), t.text);
     let when_text = crate::dates::medium_time(row.local, twelve);
     let what = if row.no_reply { tl!("No reply yet") } else { tl!("Follow up") };
     let detail = if row.who.is_empty() { format!("{what} · {when_text}") } else { format!("{what} · {} · {when_text}", row.who) };
     crate::theme::paint_clipped(ui.painter(), egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0), room, &detail, regular(11.5), t.text_dim);
     let said = egui::pos2(rect.max.x - wide - 14.0, rect.min.y + 15.0);
     let color = if row.minutes >= 0 { t.red } else { t.text_dim };
-    ui.painter().text(said, Align2::RIGHT_CENTER, when(-row.minutes), regular(11.5), color);
+    ui.painter().text(said, Align2::RIGHT_CENTER, ago, regular(11.5), color);
     let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - wide - 6.0, rect.center().y - 12.0), vec2(wide, 24.0));
     if ui.put(button, egui::Button::new(tl!("Dismiss"))).clicked() {
         done.push(Action::DismissMail(row.id));
