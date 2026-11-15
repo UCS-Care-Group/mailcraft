@@ -19399,6 +19399,14 @@ msgstr ""
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name} : ce n'est pas un fichier de message, de calendrier ou de contact que MailCraft sait lire"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "{name}: {n} item"
+msgid_plural "{name}: {n} items"
+msgstr[0] "{name} : {n} élément"
+msgstr[1] "{name} : {n} éléments"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -19577,7 +19585,7 @@ msgstr[0] "{n} heure"
 msgstr[1] "{n} heures"
 
 #. interface
-#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
 msgid_plural "{n} items"
@@ -19622,6 +19630,14 @@ msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "{n} élément sélectionné"
 msgstr[1] "{n} éléments sélectionnés"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} item, {left} more not listed"
+msgid_plural "{n} items, {left} more not listed"
+msgstr[0] "{n} élément, {left} de plus non listés"
+msgstr[1] "{n} éléments, {left} de plus non listés"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

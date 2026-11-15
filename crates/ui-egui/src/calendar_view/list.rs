@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use egui::{Rect, Sense, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::cmd::calendar_list::{self, Group, Row, Section};
+use mailcraft_engine::cmd::calendar_list::{self, Group, Listing, Row, Section};
 use mailcraft_engine::{ListArrange, ListColumn};
 use mailcraft_model::{Freq, Id};
 use serde_json::json;
@@ -141,9 +141,9 @@ pub(crate) fn lines(sections: &[Section]) -> Vec<Line> {
 /// to, and how many items there are. Worked out once for a state of the mailbox and of the three
 /// list settings, not at every frame ([`listed`]).
 pub(crate) struct Listed {
-    pub sections: Vec<Section>,
+    /// The engine's own copy ([`calendar_list::cached`]), shared, not a copy of the rows.
+    pub listing: Arc<Listing>,
     pub lines: Vec<Line>,
-    pub items: usize,
 }
 
 /// What a [`Listed`] was worked out under: the mailbox's revision and the settings.
@@ -161,8 +161,8 @@ pub(crate) fn listed(ctx: &egui::Context, session: &mailcraft_engine::Session) -
     {
         return listed;
     }
-    let listing = calendar_list::listing(session);
-    let listed = Arc::new(Listed { lines: lines(&listing.sections), sections: listing.sections, items: listing.items });
+    let listing = calendar_list::cached(session);
+    let listed = Arc::new(Listed { lines: lines(&listing.sections), listing });
     ctx.data_mut(|d| d.insert_temp(id, (key, listed.clone())));
     listed
 }
@@ -173,19 +173,19 @@ fn line_of_row(lines: &[Line], index: usize) -> Option<usize> {
 }
 
 /// A row, with the group it is under.
-fn row_in<'a>(sections: &'a [Section], line: &Line) -> Option<(&'a Row, &'a Group)> {
+fn row_in<'a>(listing: &'a Listing, line: &Line) -> Option<(&'a Row, &'a Group)> {
     match line {
-        Line::Row(s, r) => sections.get(*s).and_then(|section| Some((section.rows.get(*r)?, &section.group))),
+        Line::Row(s, r) => listing.sections.get(*s).and_then(|section| Some((listing.row(*s, *r)?, &section.group))),
         Line::Heading(_) => None,
     }
 }
 
 /// The line of the row that is selected: of the event selected, the row under the group it was
 /// chosen in; else (chosen by a script, or arranged otherwise since) its first row.
-pub(crate) fn selected_line(sections: &[Section], lines: &[Line], event: Option<Id>, chosen: Option<&(Id, Group)>) -> Option<usize> {
+pub(crate) fn selected_line(listing: &Listing, lines: &[Line], event: Option<Id>, chosen: Option<&(Id, Group)>) -> Option<usize> {
     let id = event?;
     let of = |group: Option<&Group>| {
-        lines.iter().position(|line| row_in(sections, line).is_some_and(|(row, under)| row.event == id && group.is_none_or(|g| g == under)))
+        lines.iter().position(|line| row_in(listing, line).is_some_and(|(row, under)| row.event == id && group.is_none_or(|g| g == under)))
     };
     chosen.filter(|(was, _)| *was == id).and_then(|(_, group)| of(Some(group))).or_else(|| of(None))
 }
@@ -212,7 +212,7 @@ fn heading(group: &Group, count: usize) -> String {
         Group::Recurrence(Some(Freq::Yearly)) => tl!("Yearly").to_string(),
         Group::All => String::new(),
     };
-    format!("{name}: {}", tln!(count, "{n} item", "{n} items"))
+    crate::i18n::fmt(&tln!(count, "{name}: {n} item", "{name}: {n} items"), &[("name", &name)])
 }
 
 /// Open a row's series in a window of its own, or in the form here where there are none.
@@ -226,15 +226,15 @@ fn open(app: &mut MailApp, id: Id) {
 pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let listed = listed(ui.ctx(), &app.session);
-    let (sections, lines) = (&listed.sections, &listed.lines);
+    let (listing, lines) = (&*listed.listing, &listed.lines);
     // The rows' width, beside the scroll bar where it has a lane of its own.
     let width = (ui.available_width() - ui.spacing().scroll.allocated_width()).max(0.0);
     let cells = fit(width);
     headings(app, ui, &t, &cells);
-    let selected = selected_line(sections, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
-    keys(app, ui, sections, lines, selected);
+    let selected = selected_line(listing, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    keys(app, ui, listing, lines, selected);
     // (Keys may have selected another.)
-    let selected = selected_line(sections, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    let selected = selected_line(listing, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
 
     // A day chosen (Today, Go to Date, the date navigator, this view itself) scrolls to the first
     // row on or after it.
@@ -244,7 +244,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let mut area = egui::ScrollArea::vertical().id_salt("calendar_list").auto_shrink([false, false]);
     if ui.ctx().data(|d| d.get_temp::<u32>(reveal_id)) != Some(wanted) {
         ui.ctx().data_mut(|d| d.insert_temp(reveal_id, wanted));
-        let row = calendar_list::first_from(sections, app.session.view.date);
+        let row = calendar_list::first_from(listing, app.session.view.date);
         let line = row.and_then(|row| line_of_row(lines, row)).unwrap_or(0);
         // With its group's heading over it when it is the group's first.
         let line = if line > 0 && matches!(lines.get(line - 1), Some(Line::Heading(_))) { line - 1 } else { line };
@@ -262,14 +262,15 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
             let (rect, resp) = ui.allocate_exact_size(vec2(width, LINE_H), Sense::click());
             match lines.get(at) {
                 Some(Line::Heading(n)) => {
-                    if let Some(section) = sections.get(*n) {
+                    if let Some(section) = listing.sections.get(*n) {
                         ui.painter().rect_filled(rect, 0.0, t.group_header);
                         let text = heading(&section.group, section.rows.len());
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &text));
                         paint_clipped(ui.painter(), pos2(rect.min.x + PAD, rect.center().y), rect.width() - 2.0 * PAD, &text, semibold(12.0), t.text);
                     }
                 }
                 Some(line @ Line::Row(..)) => {
-                    if let Some((row, group)) = row_in(sections, line) {
+                    if let Some((row, group)) = row_in(listing, line) {
                         row_ui(app, ui, &t, &cells, (rect, &resp, selected == Some(at)), row, group);
                     }
                 }
@@ -339,6 +340,14 @@ fn row_ui(app: &mut MailApp, ui: &Ui, t: &Tokens, cells: &[(Col, f32, f32)], at:
         let day = crate::dates::weekday_medium(at.date);
         if whole_day { day } else { format!("{day} {}", crate::dates::clock(at, twelve)) }
     };
+    // (Painted: what a screen reader says of the row, and whether it is the one selected.)
+    let said: Vec<String> =
+        [row.subject.clone(), when(row.start, row.all_day), when(row.end, row.all_day), row.location.clone(), row.recurrence.clone()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect();
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ListBoxOption, true, said.join(", ")));
+    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(selected));
     for &(col, x, w) in cells {
         let cell = Rect::from_min_size(pos2(rect.min.x + x, rect.min.y), vec2(w, rect.height()));
         let p = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
@@ -408,14 +417,14 @@ fn row_ui(app: &mut MailApp, ui: &Ui, t: &Tokens, cells: &[(Col, f32, f32)], at:
 /// The keys of the list, while nothing else has the keyboard: Up and Down go from row to row,
 /// Enter opens the one selected; Alt with a digit, = and - leave the list for the grids, as they
 /// do from any other view.
-fn keys(app: &mut MailApp, ui: &Ui, sections: &[Section], lines: &[Line], selected: Option<usize>) {
+fn keys(app: &mut MailApp, ui: &Ui, listing: &Listing, lines: &[Line], selected: Option<usize>) {
     use egui::Key;
     let ctx = ui.ctx().clone();
     if !has_keyboard(app, &ctx) {
         return;
     }
     let rows: Vec<(usize, &Row, &Group)> =
-        lines.iter().enumerate().filter_map(|(at, line)| row_in(sections, line).map(|(row, group)| (at, row, group))).collect();
+        lines.iter().enumerate().filter_map(|(at, line)| row_in(listing, line).map(|(row, group)| (at, row, group))).collect();
     let mut current = selected.and_then(|line| rows.iter().position(|(at, ..)| *at == line));
     if let Some((_, row, _)) = current.and_then(|n| rows.get(n))
         && crate::keys::take_enter_alone(&ctx, ui.layer_id())

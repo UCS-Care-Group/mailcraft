@@ -7,7 +7,7 @@ use mailcraft_model::{Calendar, Event, Freq, Id, Recurrence, Rights, ShowAs};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
-use super::calendar_list::{Group, first_from, sections};
+use super::calendar_list::{Group, first_from, listing};
 use crate::{CalView, ListArrange, ListColumn, Session};
 
 /// Wednesday 2026-10-14 16:00 UTC.
@@ -56,7 +56,7 @@ fn add_free_busy(s: &mut Session, events: Vec<Event>) {
 
 /// The titles in the list's order, each with its group.
 fn listed(s: &Session) -> Vec<(String, String)> {
-    sections(s).iter().flat_map(|section| section.rows.iter().map(|r| (section.group.name().to_string(), r.subject.clone()))).collect()
+    listing(s).flat().map(|(group, r)| (group.name().to_string(), r.subject.clone())).collect()
 }
 
 fn titles(s: &Session) -> Vec<String> {
@@ -73,9 +73,10 @@ fn a_series_is_one_row_under_its_first_start_and_its_rule() {
     // Its first day doesn't happen: the row is still where the series starts.
     series.exceptions = vec![Date::new(2026, 1, 5).unwrap()];
     let mut s = session(vec![series, event("Dentist", "", at(2026, 10, 20, 8), None, &[])]);
-    let sections = sections(&s);
+    let list = listing(&s);
+    let sections = &list.sections;
     assert_eq!(sections.iter().map(|x| x.group.clone()).collect::<Vec<_>>(), [Group::Recurrence(None), Group::Recurrence(Some(Freq::Weekly))]);
-    let row = &sections[1].rows[0];
+    let row = list.row(1, 0).unwrap();
     assert_eq!((row.subject.as_str(), row.start, row.recurrence.as_str()), ("Stand-up", at(2026, 1, 5, 9), "Every week on Monday"));
     // Scripts read it the same way: one row, and the groups with their counts.
     let page = run(&mut s, "calendar.listRows", json!({}));
@@ -182,7 +183,7 @@ fn a_chosen_day_stays_in_the_list_and_a_grid_leaves_it() {
     let reveal = s.view.list_reveal;
     run(&mut s, "view.goToDate", json!({"date": "2026-10-15"}));
     // The first row on or after the day, through the groups in order: (none)'s Mid.
-    assert_eq!(first_from(&sections(&s), s.view.date), Some(1));
+    assert_eq!(first_from(&listing(&s), s.view.date), Some(1));
     run(&mut s, "view.goToDate", json!({"date": "2026-10-15"}));
     run(&mut s, "view.today", json!({}));
     run(&mut s, "view.next", json!({}));
@@ -190,8 +191,8 @@ fn a_chosen_day_stays_in_the_list_and_a_grid_leaves_it() {
     assert_eq!((s.view.calendar, s.view.list_reveal.wrapping_sub(reveal)), (CalView::List, 4));
     assert_eq!(s.view.date, Date::new(2026, 11, 14).unwrap());
     // After the last row starts, the last row.
-    assert_eq!(first_from(&sections(&s), Date::new(2030, 1, 1).unwrap()), Some(2));
-    assert_eq!(first_from(&[], s.view.date), None);
+    assert_eq!(first_from(&listing(&s), Date::new(2030, 1, 1).unwrap()), Some(2));
+    assert_eq!(first_from(&super::calendar_list::Listing { rows: vec![], sections: vec![], items: 0, left_out: 0 }, s.view.date), None);
     for (grid, view) in [("view.day", CalView::Day), ("view.month", CalView::Month), ("view.week", CalView::Week)] {
         run(&mut s, "view.list", json!({}));
         run(&mut s, grid, json!({}));
@@ -213,7 +214,7 @@ fn a_row_selects_the_whole_series_and_nothing_asks_for_a_day() {
     assert_eq!(s.sel.event_day, Date::new(2026, 1, 5));
     // A calendar that isn't shown isn't listed.
     s.mailbox.calendars.iter_mut().for_each(|c| c.visible = false);
-    assert!(sections(&s).iter().all(|section| section.rows.is_empty()));
+    assert!(listing(&s).sections.iter().all(|section| section.rows.is_empty()));
 }
 
 /// An event a server keeps (account 7), named `id` there.
@@ -253,6 +254,24 @@ fn an_occurrence_changed_on_its_own_is_part_of_its_series_row() {
     assert_eq!((s.sel.event, s.sel.event_day), (Some(series), None));
 }
 
+/// An event whose own `UID` has a `#` in it is not a changed day of a series that has the text
+/// before it for its `UID`: only what follows as a recurrence-id makes it one.
+#[test]
+fn a_hash_in_a_uid_does_not_fold_an_event_into_a_series() {
+    let series = Event { uid: "retro@example.org".into(), ..event("Retro", "", at(2026, 1, 6, 15), weekly(), &[]) };
+    let alone = Event { uid: "retro@example.org#team".into(), ..event("Retro review", "", at(2026, 1, 8, 15), None, &[]) };
+    let numbered = Event { uid: "retro@example.org#1234".into(), ..event("Retro notes", "", at(2026, 1, 9, 15), None, &[]) };
+    let dated = Event { uid: "retro@example.org#20261301".into(), ..event("Retro odd", "", at(2026, 1, 10, 15), None, &[]) };
+    // Written as iCalendar writes them, a day, a time, a time in UTC: changed days of the series.
+    let day = Event { uid: "retro@example.org#20260113".into(), ..event("Retro 13", "", at(2026, 1, 13, 15), None, &[]) };
+    let time = Event { uid: "retro@example.org#20260120T150000".into(), ..event("Retro 20", "", at(2026, 1, 20, 15), None, &[]) };
+    let utc = Event { uid: "retro@example.org#20260127T150000Z".into(), ..event("Retro 27", "", at(2026, 1, 27, 15), None, &[]) };
+    let s = session(vec![series, alone, numbered, dated, day, time, utc]);
+    let mut shown = titles(&s);
+    shown.sort();
+    assert_eq!(shown, ["Retro", "Retro notes", "Retro odd", "Retro review"]);
+}
+
 #[test]
 fn switching_to_the_list_lets_go_of_the_day_selected() {
     let mut s = session(vec![event("Stand-up", "", at(2026, 1, 5, 9), weekly(), &[])]);
@@ -275,22 +294,21 @@ fn a_chosen_day_finds_its_row_whatever_the_list_is_sorted_by() {
         event("Gamma", "", at(2026, 10, 16, 9), None, &["Work", "Home"]),
     ]);
     let day = Date::new(2026, 10, 15).unwrap();
-    let at_row =
-        |s: &Session, n: Option<usize>| n.and_then(|n| sections(s).iter().flat_map(|section| section.rows.iter().map(|r| r.subject.clone())).nth(n));
+    let at_row = |s: &Session, n: Option<usize>| n.and_then(|n| listing(s).flat().map(|(_, r)| r.subject.clone()).nth(n));
     run(&mut s, "calendar.listArrange", json!({"by": "none"}));
     // The row that starts the earliest from the day on: by Subject it is the last of three.
     run(&mut s, "calendar.listSort", json!({"by": "subject"}));
-    assert_eq!(first_from(&sections(&s), day), Some(2));
+    assert_eq!(first_from(&listing(&s), day), Some(2));
     // The latest first: the second.
     run(&mut s, "calendar.listSort", json!({"by": "start", "descending": true}));
-    assert_eq!(at_row(&s, first_from(&sections(&s), day)).as_deref(), Some("Gamma"));
+    assert_eq!(at_row(&s, first_from(&listing(&s), day)).as_deref(), Some("Gamma"));
     // None starts that late: the one that starts the latest, wherever it is.
-    assert_eq!(at_row(&s, first_from(&sections(&s), Date::new(2027, 1, 1).unwrap())).as_deref(), Some("Alpha"));
+    assert_eq!(at_row(&s, first_from(&listing(&s), Date::new(2027, 1, 1).unwrap())).as_deref(), Some("Alpha"));
     run(&mut s, "calendar.listSort", json!({"by": "subject", "descending": true}));
-    assert_eq!(at_row(&s, first_from(&sections(&s), Date::new(2027, 1, 1).unwrap())).as_deref(), Some("Alpha"));
+    assert_eq!(at_row(&s, first_from(&listing(&s), Date::new(2027, 1, 1).unwrap())).as_deref(), Some("Alpha"));
     // Under two categories it is two rows: the first of them in the list (Home's).
     run(&mut s, "calendar.listArrange", json!({"by": "categories"}));
-    let place = first_from(&sections(&s), day);
+    let place = first_from(&listing(&s), day);
     assert_eq!(at_row(&s, place).as_deref(), Some("Gamma"));
     assert_eq!(place, Some(1));
 }

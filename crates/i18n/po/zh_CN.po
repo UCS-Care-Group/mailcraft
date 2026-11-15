@@ -20549,6 +20549,12 @@ msgstr "{name}：不是邮件文件"
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}：不是 MailCraft 可读取的邮件、日历或联系人文件"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+msgid "{name}: {n} item"
+msgid_plural "{name}: {n} items"
+msgstr[0] ""
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -20716,7 +20722,7 @@ msgid_plural "{n} hours"
 msgstr[0] "{n}小时"
 
 #. interface
-#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
 msgid_plural "{n} items"
@@ -20756,6 +20762,12 @@ msgstr[0] "{n} 项已移至您的账户日历"
 msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "已选择 {n} 项"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "{n} item, {left} more not listed"
+msgid_plural "{n} items, {left} more not listed"
+msgstr[0] ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

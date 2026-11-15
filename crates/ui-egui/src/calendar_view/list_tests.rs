@@ -4,7 +4,7 @@
 //! click on a heading, a double click on a series, the keys, and the columns giving way.
 
 use egui::Key;
-use mailcraft_engine::cmd::calendar_list::{Group, sections};
+use mailcraft_engine::cmd::calendar_list::{Group, cached};
 use mailcraft_engine::{CalView, ListArrange, ListColumn, Session};
 use serde_json::json;
 
@@ -181,8 +181,8 @@ fn of_an_event_under_two_categories_the_row_clicked_is_the_one_selected() {
     let both = rig.event("Both").id;
     assert_eq!(rig.selected(), (Some(both), None));
     // Only that row is the one selected; chosen by a script, it is the first.
-    let all = sections(&rig.app.session);
-    let at = lines(&all);
+    let all = cached(&rig.app.session);
+    let at = lines(&all.sections);
     let garden = (both, Group::Category(Some("Garden".into())));
     assert_eq!(selected_line(&all, &at, Some(both), Some(&garden)), Some(4));
     assert_eq!(selected_line(&all, &at, Some(both), None), Some(1));
@@ -221,15 +221,15 @@ fn the_rows_are_worked_out_again_only_when_the_mailbox_or_a_list_setting_changes
     let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
     s.run("view.list", &json!({})).unwrap();
     let first = listing(&ctx, &s);
-    assert!(first.items > 0 && first.lines.len() >= first.items);
+    assert!(first.listing.items > 0 && first.lines.len() >= first.listing.items);
     // Nothing changed: the same answer, not another one like it.
     assert!(std::sync::Arc::ptr_eq(&first, &listing(&ctx, &s)));
     // A change to the mailbox: a new one, with the row in it.
-    let before = first.items;
+    let before = first.listing.items;
     s.run("calendar.new", &json!({"title": "Added", "start": "2026-10-20T09:00:00", "end": "2026-10-20T10:00:00"})).unwrap();
     let second = listing(&ctx, &s);
     assert!(!std::sync::Arc::ptr_eq(&first, &second));
-    assert_eq!(second.items, before + 1);
+    assert_eq!(second.listing.items, before + 1);
     assert!(std::sync::Arc::ptr_eq(&second, &listing(&ctx, &s)));
     // Each of the three settings.
     let mut last = second;
@@ -249,7 +249,7 @@ fn the_rows_are_worked_out_again_only_when_the_mailbox_or_a_list_setting_changes
     s.run("calendar.showCalendar", &json!({"id": calendar, "value": false})).unwrap();
     let hidden = listing(&ctx, &s);
     assert!(!std::sync::Arc::ptr_eq(&last, &hidden));
-    assert!(hidden.items < last.items);
+    assert!(hidden.listing.items < last.listing.items);
 }
 
 #[test]
@@ -278,7 +278,7 @@ fn a_big_calendar_is_listed_once_and_then_every_frame_is_cheap() {
     let started = std::time::Instant::now();
     let first = listing(&ctx, &s);
     assert!(started.elapsed() < std::time::Duration::from_secs(3), "the first frame took {:?}", started.elapsed());
-    assert_eq!((first.items, first.sections.len()), (3_000, 16));
+    assert_eq!((first.listing.items, first.listing.sections.len()), (3_000, 16));
     // The frames after it (the window's, and the status bar's) only look it up.
     let started = std::time::Instant::now();
     for _ in 0..1_000 {

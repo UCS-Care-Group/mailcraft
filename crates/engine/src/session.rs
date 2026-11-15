@@ -1254,6 +1254,8 @@ pub struct Session {
     undo_said: Vec<String>,
     rev: u64,
     list_cache: Option<ListCache>,
+    /// The calendar's List view as of a revision and its settings ([`crate::cmd::calendar_list::cached`]).
+    pub(crate) calendar_list: crate::cmd::calendar_list::ListCache,
     /// What each folder holds, as of the revision and message count it was counted at
     /// ([`Session::folder_counts`]).
     pub(crate) counts_cache: Option<((u64, usize), Arc<crate::counts::FolderCounts>)>,
@@ -1426,6 +1428,7 @@ impl Session {
             counts_cache: None,
             conversation_cache: None,
             threads_cache: Default::default(),
+            calendar_list: Default::default(),
             list_builds: 0,
             opened: None,
             sender_checks: Default::default(),
