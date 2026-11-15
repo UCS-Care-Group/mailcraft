@@ -327,3 +327,49 @@ fn a_certificate_that_is_not_for_servers_is_refused_even_when_pinned() {
 
 #[path = "https_held_tests.rs"]
 mod held;
+
+#[test]
+fn a_calendar_server_s_dav_and_etag_headers_come_back() {
+    let answer =
+        b"HTTP/1.1 401 Unauthorized\r\nDAV: 1, 2, calendar-access\r\ndav: addressbook\r\nETag: \"abc\"\r\nContent-Length: 0\r\n\r\n".to_vec();
+    let server = FakeHttp::answering(answer);
+    let response = get(&server.url("/x"), "").unwrap();
+    assert_eq!(
+        (response.status, response.dav.as_slice(), response.etag.as_deref()),
+        (401, &["1, 2, calendar-access".to_owned(), "addressbook".to_owned()][..], Some("\"abc\""))
+    );
+    // A server that sends none gives none; too many, and too long, are cut.
+    let none = FakeHttp::answering(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
+    let response = get(&none.url("/x"), "").unwrap();
+    assert!(response.dav.is_empty() && response.etag.is_none());
+    let many = format!("HTTP/1.1 200 OK\r\n{}ETag: {}\r\nContent-Length: 0\r\n\r\n", "DAV: 1\r\n".repeat(40), "x".repeat(2_000));
+    let server = FakeHttp::answering(many.into_bytes());
+    let response = get(&server.url("/x"), "").unwrap();
+    assert_eq!((response.dav.len(), response.etag), (16, None));
+}
+
+#[test]
+fn a_calendar_server_s_certificate_is_pinned_before_anything_is_sent() {
+    let (config, der) = self_signed(&["localhost"], year() - 1, year() + 1);
+    let server = Server::start(config);
+    let propfind = |connection: &mut Connection| {
+        let fields = [("Depth", "0"), ("Content-Type", "application/xml"), ("Authorization", "Basic c2VjcmV0OnNlY3JldA==")];
+        connection.send(&Request { method: "PROPFIND", url: &server.url(), fields: &fields, body: b"<propfind/>", max_response: 4096, trusted: "" })
+    };
+    // Not trusted, and not chosen: the handshake stops at the certificate and nothing, the
+    // password included, has gone.
+    let error = Connection::open(&server.url(), "").unwrap_err();
+    assert!(matches!(certificate_problem(&error), Some(CertificateProblem::NotTrusted(_))), "{error:?}");
+    assert_eq!(server.asked(), 0);
+    // Chosen: the request goes as written, with the method of a calendar server.
+    let mut connection = Connection::open(&server.url(), &cert::fingerprint(&der)).unwrap();
+    assert_eq!(propfind(&mut connection).unwrap().status, 200);
+    let seen = server.last.lock().unwrap().clone();
+    assert!(seen.starts_with("PROPFIND /autodiscover/autodiscover.xml HTTP/1.1\r\n") && seen.contains("Depth: 0\r\n"), "{seen}");
+    // Another certificate than the chosen one asks again, before anything is sent.
+    let (other, _) = self_signed(&["localhost"], year() - 1, year() + 1);
+    let elsewhere = Server::start(other);
+    let error = Connection::open(&elsewhere.url(), &cert::fingerprint(&der)).unwrap_err();
+    assert!(matches!(certificate_problem(&error), Some(CertificateProblem::Changed(_))), "{error:?}");
+    assert_eq!(elsewhere.asked(), 0);
+}

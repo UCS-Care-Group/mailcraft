@@ -364,6 +364,14 @@ impl TrustedOrigin {
     pub fn origin(&self) -> &Origin {
         &self.0
     }
+
+    /// An origin that discovery's own rules have let the credential go to (`discovery.rs`: the
+    /// host answered with its own challenge and is the owner's, the mail server, a host the
+    /// domain's SRV record names, a known provider's, or one the owner agreed to). Nothing else
+    /// may call this, which is why it is not public; never one that is not `https` (or loopback).
+    pub(crate) fn granted(origin: &Origin) -> Option<Self> {
+        (origin.secure() || origin.is_loopback()).then(|| Self(origin.clone()))
+    }
 }
 
 impl fmt::Debug for TrustedOrigin {

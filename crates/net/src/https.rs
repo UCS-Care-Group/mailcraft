@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! One HTTPS exchange with an Exchange server (#252): Autodiscover and Exchange Web Services.
+//! One HTTPS exchange with an Exchange server (#252: Autodiscover and Exchange Web Services) or a
+//! calendar and contacts server (#209: CalDAV and CardDAV, which use the methods `PROPFIND`,
+//! `REPORT`, `PUT` and `DELETE`; the `DAV` and `ETag` headers of the answer are kept).
 //!
 //! The rules are those of every connection of this crate (TLS, or plain only to this machine;
 //! no redirect followed, no cookie, nothing logged of the request, answers read within limits),
@@ -38,7 +40,7 @@ const PATIENCE: Duration = Duration::from_secs(30);
 /// A request to an Exchange server.
 #[derive(Clone, Copy)]
 pub struct Request<'a> {
-    /// `GET` or `POST`.
+    /// `GET` or `POST`; for a calendar server also `OPTIONS`, `PROPFIND`, `REPORT`, `PUT` or `DELETE`.
     pub method: &'a str,
     /// An `https://` address (`http://` only to this machine, for tests). No user name in it.
     pub url: &'a str,
@@ -75,6 +77,11 @@ pub struct Response {
     pub retry_after: Option<String>,
     /// `X-EWS-Policy-Reason`.
     pub policy_reason: Option<String>,
+    /// Every `DAV` header, in order (at most 16, each short): what a calendar or contacts server
+    /// says it is (RFC 4918 §10.1).
+    pub dav: Vec<String>,
+    /// `ETag`, as written; none when it was longer than a token should be.
+    pub etag: Option<String>,
 }
 
 impl std::fmt::Debug for Response {
@@ -225,6 +232,8 @@ fn response(reply: http::Reply) -> Response {
         challenges: reply.challenges,
         retry_after: reply.retry_after,
         policy_reason: reply.policy_reason,
+        dav: reply.dav,
+        etag: reply.etag,
     }
 }
 

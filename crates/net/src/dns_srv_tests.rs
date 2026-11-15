@@ -309,3 +309,88 @@ proptest! {
         }
     }
 }
+
+/// A name server that answers the SRV question with `srv` and the TXT one with `txt`.
+fn dav_answering(srv: &'static str, txt: &'static str) -> FakeHttp {
+    FakeHttp::start(move |_, request| json_answer("200 OK", if request.contains("type=TXT") { txt } else { srv }))
+}
+
+const DAV_SRV: &str = r#"{"Status":0,"Answer":[{"type":33,"data":"0 1 8443 dav.example.net."},{"type":33,"data":"0 5 443 Cal.Example.NET."}]}"#;
+
+#[test]
+fn a_dav_server_is_found_by_the_secure_services_only_and_a_txt_path_comes_with_it() {
+    let server = dav_answering(DAV_SRV, r#"{"Status":0,"Answer":[{"type":16,"data":"\"path=/dav/cal/\""}]}"#);
+    let found = lookup_dav_at(&[&server.url("/dns-query")], DavService::CalDav, " Example.ORG. ").unwrap();
+    assert_eq!(found.targets.iter().map(|t| (t.host.as_str(), t.port)).collect::<Vec<_>>(), [("cal.example.net", 443), ("dav.example.net", 8443)]);
+    assert_eq!(found.path.as_deref(), Some("/dav/cal/"));
+    assert!(!format!("{found:?}").contains("example"));
+    let questions = [server.request(0), server.request(1)];
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=_caldavs._tcp.example.org&type=SRV HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=_caldavs._tcp.example.org&type=TXT HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().all(|q| !q.contains("_caldav._tcp") && !q.contains('@') && !q.to_lowercase().contains("cookie")), "{questions:?}");
+    let book = dav_answering(DAV_SRV, r#"{"Status":0}"#);
+    let found = lookup_dav_at(&[&book.url("/q")], DavService::CardDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (2, None));
+    assert!(book.request(0).contains("name=_carddavs._tcp.example.org&type=SRV"));
+}
+
+#[test]
+fn no_srv_record_asks_nothing_more_and_a_failed_txt_question_is_no_error() {
+    let none = dav_answering(r#"{"Status":3}"#, r#"{"Status":0}"#);
+    let found = lookup_dav_at(&[&none.url("/q")], DavService::CalDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (0, None));
+    assert_eq!(none.asked(), 1);
+    let broken =
+        FakeHttp::start(
+            |_, request| {
+                if request.contains("type=TXT") { json_answer("500 Internal Server Error", "{}") } else { json_answer("200 OK", DAV_SRV) }
+            },
+        );
+    let found = lookup_dav_at(&[&broken.url("/q")], DavService::CalDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (2, None));
+    // The SRV question failing everywhere is an error, as for Autodiscover.
+    let down = FakeHttp::answering(json_answer("500 Internal Server Error", "{}"));
+    assert!(lookup_dav_at(&[&down.url("/q")], DavService::CalDav, "example.org").is_err());
+    assert!(matches!(lookup_dav_at(&[&down.url("/q")], DavService::CalDav, "ada@example.org"), Err(NetError::Config(_))));
+}
+
+fn path(data: &str) -> Option<String> {
+    let body = format!(r#"{{"Status":0,"Answer":[{{"type":16,"data":{data}}}]}}"#);
+    path_of(&Answer { status: 200, body: body.into_bytes() }).unwrap()
+}
+
+#[test]
+fn a_txt_path_is_taken_only_when_it_is_a_plain_absolute_path() {
+    assert_eq!(path(r#""\"path=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    // Strings of one record are joined (RFC 1035), and an unquoted one is read as it is.
+    assert_eq!(path(r#""\"path=/cal\" \"dav/\"""#).as_deref(), Some("/caldav/"));
+    assert_eq!(path(r#""path=/caldav/""#).as_deref(), Some("/caldav/"));
+    for bad in [
+        r#""\"path=\"""#,
+        r#""\"path=caldav/\"""#,
+        r#""\"path=//evil.example.net/\"""#,
+        r#""\"path=/a?b=c\"""#,
+        r#""\"path=/a#b\"""#,
+        r#""\"path=/a b\"""#,
+        r#""\"path=/a\\\\b\"""#,
+        r#""\"path=https://evil.example.net/\"""#,
+        r#""\"other=/caldav/\"""#,
+        r#""\"path=/a\u0000b\"""#,
+        r#"5"#,
+    ] {
+        assert_eq!(path(bad), None, "{bad}");
+    }
+    assert_eq!(path(&format!(r#""\"path=/{}\"""#, "a".repeat(300))), None);
+    // A record of another type is passed over, and a later record may give the path.
+    let two = br#"{"Status":0,"Answer":[{"type":16,"data":"\"v=spf1\""},{"type":16,"data":"\"path=/x/\""}]}"#;
+    assert_eq!(path_of(&Answer { status: 200, body: two.to_vec() }).unwrap().as_deref(), Some("/x/"));
+}
+
+proptest! {
+    #[test]
+    fn a_txt_answer_of_any_bytes_gives_nothing_or_a_plain_path(body in proptest::collection::vec(any::<u8>(), 0..600)) {
+        if let Ok(Some(path)) = path_of(&Answer { status: 200, body }) {
+            prop_assert!(path.starts_with('/') && path.len() <= 256 && !path.contains(['?', '#', ' ', '\\']));
+        }
+    }
+}

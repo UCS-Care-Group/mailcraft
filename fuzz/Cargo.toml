@@ -178,6 +178,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "dav_discovery"
+path = "fuzz_targets/dav_discovery.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "dav_document"
 path = "fuzz_targets/dav_document.rs"
 test = false

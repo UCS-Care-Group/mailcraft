@@ -10,6 +10,11 @@
 //! alias of `autodiscover.<domain>`, so that Add Account can tell an address on an Exchange server
 //! from one on an IMAP server before anything is sent to any of the hosts named.
 //!
+//! [`lookup_dav`] asks for a domain's calendar or contacts server: the SRV record of a fixed list
+//! of services ([`DavService`]: `_caldavs._tcp` and `_carddavs._tcp`, RFC 6764 §3; the plain
+//! `_caldav._tcp` is never asked, it would be an unencrypted server) and the TXT record beside it,
+//! whose `path=` says where on the host the service is (§4), under the same caps.
+//!
 //! The answer is a name server's JSON and as hostile as anything from the network: its size is
 //! capped by the HTTP layer, the records looked at and the hosts handed back are capped, and a
 //! target that isn't a plain host name is passed over.
@@ -180,6 +185,124 @@ pub fn autodiscover_targets_at(endpoints: &[&str], domain: &str) -> Result<Autod
         }
     }
     Ok(found)
+}
+
+/// The services a calendar or contacts server is looked for by: a fixed list, never a name a
+/// caller or an answer made up. Both are the secure kinds (RFC 6764 §3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DavService {
+    /// `_caldavs._tcp`: CalDAV over TLS.
+    CalDav,
+    /// `_carddavs._tcp`: CardDAV over TLS.
+    CardDav,
+}
+
+impl DavService {
+    /// The label pair the record is under (`_caldavs._tcp`).
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::CalDav => "_caldavs._tcp",
+            Self::CardDav => "_carddavs._tcp",
+        }
+    }
+}
+
+/// The type of a text record.
+const TXT: u64 = 16;
+/// The longest `path=` value kept.
+const MAX_PATH: usize = 256;
+
+/// What a domain's DNS says about its calendar or contacts server.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct DavRecords {
+    /// The SRV record's targets, best first.
+    pub targets: Vec<SrvTarget>,
+    /// The `path=` of the TXT record beside it: an absolute path, as plain as an address's.
+    pub path: Option<String>,
+}
+
+/// The hosts are the organisation's own: not for a log.
+impl std::fmt::Debug for DavRecords {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavRecords").field("targets", &self.targets.len()).field("path", &self.path.is_some()).finish()
+    }
+}
+
+/// The calendar or contacts server `domain` names: the SRV targets of `service` and the TXT
+/// `path=` beside them. Empty when the domain names none. An error only when the SRV question
+/// couldn't be answered by any name server; the TXT question is a help, and fails quietly. Only
+/// the domain is sent (inside the fixed name of the service), over HTTPS, to a public name server.
+/// Blocks, for some seconds at most per question and name server.
+pub fn lookup_dav(service: DavService, domain: &str) -> Result<DavRecords, NetError> {
+    lookup_dav_at(&RESOLVERS, service, domain)
+}
+
+/// [`lookup_dav`], asking the name servers at `endpoints` instead.
+pub fn lookup_dav_at(endpoints: &[&str], service: DavService, domain: &str) -> Result<DavRecords, NetError> {
+    let targets = lookup_srv_at(endpoints, service.label(), domain)?;
+    // (The domain passed the SRV question's check: it is a name.)
+    let mut path = None;
+    if !targets.is_empty()
+        && let Some(domain) = domain_name(domain)
+    {
+        let name = format!("{}.{domain}", service.label());
+        for endpoint in endpoints.iter().take(MAX_RESOLVERS) {
+            match question(endpoint, &name, "TXT").and_then(|answer| path_of(&answer)) {
+                Ok(found) => {
+                    path = found;
+                    break;
+                }
+                Err(e) => log::debug!("a name server couldn't be asked: {e}"),
+            }
+        }
+    }
+    Ok(DavRecords { targets, path })
+}
+
+/// The `path=` an answer about a text record gives: `{"type":16,"data":"\"path=/caldav/\""}`. The
+/// data is one or more quoted character strings (RFC 1035 §3.3, joined as the RFC says); the
+/// first record that has a `path=` with a usable value gives it, and anything else is passed over.
+pub(crate) fn path_of(answer: &Answer) -> Result<Option<String>, NetError> {
+    for record in records(answer)? {
+        if record.get("type").and_then(Value::as_u64) != Some(TXT) {
+            continue;
+        }
+        let Some(data) = record.get("data").and_then(Value::as_str) else { continue };
+        let text = joined_strings(data);
+        let Some(value) = text.strip_prefix("path=") else { continue };
+        // An absolute path of plain characters: it is put in an address, and an address that a
+        // name server made up must not climb out of its host or carry a query to somebody.
+        let plain = value.len() <= MAX_PATH
+            && value.starts_with('/')
+            && !value.starts_with("//")
+            && value.bytes().all(|b| b.is_ascii_graphic() && !matches!(b, b'?' | b'#' | b'\\' | b'"'));
+        if plain {
+            return Ok(Some(value.to_owned()));
+        }
+    }
+    Ok(None)
+}
+
+/// A text record's data as one string: the quoted pieces of `"path=/a" "b"` joined (`path=/ab`),
+/// or the whole of it when nothing is quoted. At most [`MAX_PATH`] and a margin of characters.
+fn joined_strings(data: &str) -> String {
+    let data = data.trim();
+    if !data.contains('"') {
+        return data.chars().take(MAX_PATH + 8).collect();
+    }
+    let mut out = String::new();
+    let mut inside = false;
+    for c in data.chars().take(4 * MAX_PATH) {
+        match (c, inside) {
+            ('"', _) => inside = !inside,
+            (c, true) => out.push(c),
+            _ => {}
+        }
+        if out.len() > MAX_PATH + 8 {
+            break;
+        }
+    }
+    out
 }
 
 fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
