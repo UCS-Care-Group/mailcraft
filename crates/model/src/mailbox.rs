@@ -3155,7 +3155,8 @@ impl Mailbox {
     }
 
     pub fn default_calendar(&self) -> Option<Id> {
-        self.calendars.first().map(|c| c.id)
+        // (A copy of a calendar on the web is read-only: never where an event goes unasked.)
+        self.calendars.iter().find(|c| !c.is_subscribed()).or(self.calendars.first()).map(|c| c.id)
     }
 
     /// Add an event; without a (known) calendar it goes to the default one.
