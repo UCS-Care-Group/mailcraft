@@ -294,6 +294,30 @@ fn a_contact_has_their_picture_in_people_without_any_mail() {
 }
 
 #[test]
+fn back_online_only_who_is_on_screen_then_is_asked_for() {
+    let (mut app, asked, _) = window(|_| Ok(png()));
+    app.session.mailbox.add_contact(Contact {
+        display_name: "Lin".into(),
+        emails: vec![Labeled::new("work", "lin@studio.example")],
+        ..Default::default()
+    });
+    let ctx = egui::Context::default();
+    let [ada, lin] = [Address::new("Ada", "ada@example.org"), Address::new("Lin", "lin@studio.example")];
+    // Working offline, Ada is on screen, then scrolled away for Lin; back online, Lin alone is.
+    app.session.prefs.offline = true;
+    for _ in 0..4 {
+        people(&mut app, &ctx, std::slice::from_ref(&ada));
+    }
+    people(&mut app, &ctx, std::slice::from_ref(&lin));
+    assert!(asked.lock().unwrap().is_empty());
+    app.session.prefs.offline = false;
+    for _ in 0..4 {
+        people(&mut app, &ctx, std::slice::from_ref(&lin));
+    }
+    assert_eq!(*asked.lock().unwrap(), ["lin@studio.example"]);
+}
+
+#[test]
 fn a_contacts_picture_in_people_lends_nothing_to_mail_the_server_doesnt_vouch_for() {
     let (mut app, asked, mut shown) = window(|_| Ok(png()));
     shown[0].headers.clear();

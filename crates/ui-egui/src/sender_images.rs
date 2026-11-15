@@ -133,10 +133,12 @@ fn tick(app: &mut MailApp, ctx: &egui::Context) {
         };
         ctx.request_repaint();
     }
+    // Taken every frame, offline too: back online, only what is on screen then is asked for.
+    let wanted = std::mem::take(&mut state.wanted);
     // (Working offline, nobody is asked: senders keep their initials.)
     if !offline && let Some(look_up) = &app.services.sender_images {
         // The rest is wanted again by its row, for as long as that is on screen.
-        for address in std::mem::take(&mut state.wanted).into_iter().take(AT_A_TIME.saturating_sub(flying)) {
+        for address in wanted.into_iter().take(AT_A_TIME.saturating_sub(flying)) {
             if state.looks.contains_key(&address) {
                 continue;
             }
