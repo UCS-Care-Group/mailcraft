@@ -10,13 +10,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
+use mailcraft_engine::Session;
 use mailcraft_host::sync::Adopted;
 use mailcraft_i18n::Lang;
 use mailcraft_model::AccountKind;
 
 use crate::core::CancelOnDrop;
 use crate::queue::Queue;
-use crate::sync::{SyncAnswer, SyncStatus, SyncSummary, Wake};
+use crate::sync::{SyncAnswer, SyncHost, SyncStatus, SyncSummary, Wake};
 use crate::{Core, CoreError, SignInOutcome, SignInsForgotten};
 
 /// The shortest and the longest time a background sync is given (the system gives a worker some
@@ -49,19 +50,7 @@ impl Core {
         // its answer still on its way back included.
         let mut stop_on_drop = StopOnDrop { core: self, shared: Arc::new(Started::default()), armed: true };
         let (sync, waiter, shared) = (self.sync.clone(), replies.clone(), stop_on_drop.shared.clone());
-        let answer = self
-            .call(move |session| {
-                let answer = sync.ask(session, Some(waiter));
-                if answer.started {
-                    shared.round.store(sync.round().saturating_add(1), Ordering::SeqCst);
-                    // Dropped while this ran: the drop may not have seen the round, so it is called off here.
-                    if shared.dropped.load(Ordering::SeqCst) {
-                        sync.stop(session);
-                    }
-                }
-                Ok(answer)
-            })
-            .await?;
+        let answer = self.call(move |session| Ok(start_attached(&sync, session, waiter, &shared))).await?;
         if !answer.started {
             stop_on_drop.armed = false;
             return Ok(SyncSummary { ran: false, finished: true, errors: vec![answer.message], ..Default::default() });
@@ -212,12 +201,29 @@ struct StopOnDrop<'a> {
     armed: bool,
 }
 
+/// Start (or join) a round for a `background_sync`, on the session's thread, and note in `shared`
+/// the round the call is attached to. The round is read before `ask`, which may end it before it
+/// returns (nothing to run): read after, it would name the next round, which a later drop would
+/// then call off in its place.
+pub(crate) fn start_attached(sync: &SyncHost, session: &mut Session, waiter: Arc<Queue<Wake>>, shared: &Started) -> SyncAnswer {
+    let round = sync.round();
+    let answer = sync.ask(session, Some(waiter));
+    if answer.started {
+        shared.round.store(round.saturating_add(1), Ordering::SeqCst);
+        // Dropped while this ran: the drop may not have seen the round, so it is called off here.
+        if shared.dropped.load(Ordering::SeqCst) {
+            sync.stop(session);
+        }
+    }
+    answer
+}
+
 /// What the call's job and its drop tell each other: whichever comes second calls the round off.
 #[derive(Default)]
-struct Started {
+pub(crate) struct Started {
     /// The round the call started, plus one; 0 until it has started one.
-    round: AtomicU64,
-    dropped: AtomicBool,
+    pub(crate) round: AtomicU64,
+    pub(crate) dropped: AtomicBool,
 }
 
 impl Drop for StopOnDrop<'_> {

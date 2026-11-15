@@ -3,7 +3,7 @@
 //! Send/Receive through the binding: a core over a fake platform, a Microsoft account, and a
 //! runner that plays the Graph stand-in (it asks no server). Nothing here leaves this machine.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
@@ -17,6 +17,7 @@ use mailcraft_model::{Address, FolderKind};
 use serde_json::json;
 
 use crate::fake_tests::{FakePlatform, block_on};
+use crate::queue::Queue;
 use crate::{Core, CoreError, Event, NetworkKind, NotificationTopic};
 
 const EMAIL: &str = "owner@example.org";
@@ -256,6 +257,67 @@ fn a_background_sync_that_is_dropped_calls_its_round_off() {
     let deadline = Instant::now() + Duration::from_secs(8);
     while block_on(core.sync_status()).unwrap().running {
         assert!(Instant::now() < deadline, "the round outlived the call that started it");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_background_sync_whose_round_ends_at_once_is_attached_to_that_round() {
+    // No sign-in kept: the round ends inside `ask`, before it returns.
+    let (runner, _) = stand_in();
+    let core = core_with(FakePlatform::new(), session, runner);
+    let sync = core.sync.clone();
+    let (attached, after) = block_on(core.call(move |session| {
+        let shared = crate::sync_api::Started::default();
+        let answer = crate::sync_api::start_attached(&sync, session, Queue::new(), &shared);
+        assert!(answer.started, "{answer:?}");
+        Ok((shared.round.load(Ordering::SeqCst), sync.round()))
+    }))
+    .unwrap();
+    // Round 0 (stored plus one) ended there; the call is not attached to round 1, the next.
+    assert_eq!((attached, after), (1, 1));
+}
+
+#[test]
+fn a_stale_stop_request_never_replaces_the_current_rounds() {
+    let hang = Arc::new(AtomicBool::new(false));
+    let (quick, _) = stand_in();
+    let hanging = hang.clone();
+    let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
+        if !hanging.load(Ordering::SeqCst) {
+            return quick(req);
+        }
+        // A server that never answers, until it is called off.
+        let until = Instant::now() + Duration::from_secs(30);
+        while !req.cancel.load(Ordering::Relaxed) && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        GraphResult { account: req.account.id, ..Default::default() }
+    });
+    let (core, _, _) = signed_in(runner);
+    // Round 0 ends; round 1 is the one under way.
+    assert!(block_on(core.background_sync(10_000)).unwrap().finished);
+    hang.store(true, Ordering::SeqCst);
+    assert!(block_on(core.sync_now()).unwrap().started);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "the round never started");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Round 1's call is dropped, then a call still holding round 0 is: both on the session's
+    // thread, so that no wake comes between them.
+    let sync = core.sync.clone();
+    block_on(core.call(move |_| {
+        assert_eq!(sync.round(), 1);
+        sync.stop_later(1);
+        sync.stop_later(0);
+        Ok(())
+    }))
+    .unwrap();
+    core.enqueue_tick();
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while block_on(core.sync_status()).unwrap().running {
+        assert!(Instant::now() < deadline, "round 1 was not called off");
         std::thread::sleep(Duration::from_millis(10));
     }
 }

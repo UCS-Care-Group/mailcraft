@@ -602,9 +602,11 @@ impl SyncHost {
     }
 
     /// Call `round` off at the next wake of the driver, if it is still under way then (a round
-    /// that has ended, and any after it, are left alone). Never waits: for a `Drop`.
+    /// that has ended, and any after it, are left alone). Never waits: for a `Drop`. A request for
+    /// an older round never replaces one for a newer that is still waiting (the newer is the one
+    /// that may still be under way).
     pub(crate) fn stop_later(&self, round: u64) {
-        self.stop_asked.store(round.saturating_add(1), Ordering::Release);
+        self.stop_asked.fetch_max(round.saturating_add(1), Ordering::AcqRel);
         self.pacer.poke();
     }
 
