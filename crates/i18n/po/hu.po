@@ -9752,14 +9752,8 @@ msgstr "okt."
 msgid "October"
 msgstr "október"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Off"
-msgstr "Ki"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Off"
 msgstr "Ki"
@@ -15223,12 +15217,6 @@ msgstr "Az egyesített kapcsolat {field} túl nagy ({now}, a legtöbb {max}), í
 #, fuzzy
 msgid "The message could not be read."
 msgstr "Az üzenetet nem sikerült beolvasni."
-
-#. what a command says
-#: crates/mobile/src/fetch.rs
-#, fuzzy
-msgid "The message couldn't be downloaded. Try again in a few minutes."
-msgstr "Az üzenetet nem sikerült letölteni. Próbálja újra néhány perc múlva."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs

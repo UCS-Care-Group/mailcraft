@@ -8085,13 +8085,8 @@ msgstr ""
 msgid "October"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Off"
-msgstr ""
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
 msgid "Off"
 msgstr ""
 
