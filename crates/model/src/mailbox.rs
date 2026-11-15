@@ -2969,6 +2969,14 @@ impl Mailbox {
         list
     }
 
+    /// All bookmarks across the mailbox, newest first (bounded by `MAX_BOOKMARKS`).
+    pub fn all_bookmarks(&self) -> Vec<crate::Bookmark> {
+        let mut list: Vec<crate::Bookmark> = self.bookmarks.values().cloned().collect();
+        list.sort_by_key(|b| std::cmp::Reverse((b.created, b.id)));
+        list.truncate(crate::MAX_BOOKMARKS);
+        list
+    }
+
     /// Add a bookmark. Returns `true` if added, `false` if limit [`crate::MAX_BOOKMARKS`] was reached.
     pub fn add_bookmark(&mut self, bookmark: crate::Bookmark) -> bool {
         if self.bookmarks.len() >= crate::MAX_BOOKMARKS && !self.bookmarks.contains_key(&bookmark.id) {

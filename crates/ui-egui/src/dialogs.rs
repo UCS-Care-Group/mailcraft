@@ -1444,12 +1444,14 @@ pub(crate) fn all_commands(app: &MailApp) -> Vec<(String, String, String, String
             )
         })
         .collect();
-    out.extend(UI_COMMANDS.iter().filter(|c| matches!(c.0, "ui.sync" | "ui.open" | "ui.import" | "ui.attach" | "ui.collapseRibbon")).map(
-        |(id, label, location, _)| {
-            let on = app.enabled(id) && crate::windows::compose_window::acts_here(app, id);
-            ((*id).to_string(), tl!(label).to_string(), crate::i18n::location(location), String::new(), on)
-        },
-    ));
+    out.extend(
+        UI_COMMANDS.iter().filter(|c| matches!(c.0, "ui.sync" | "ui.open" | "ui.import" | "ui.attach" | "ui.collapseRibbon" | "ui.bookmarks")).map(
+            |(id, label, location, _)| {
+                let on = app.enabled(id) && crate::windows::compose_window::acts_here(app, id);
+                ((*id).to_string(), tl!(label).to_string(), crate::i18n::location(location), String::new(), on)
+            },
+        ),
+    );
     out
 }
 

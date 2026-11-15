@@ -400,6 +400,7 @@ const SAFE: &[&str] = &[
     "ui.collapseRibbon",
     "ui.ribbonMode",
     "ui.dialog",
+    "ui.bookmarks",
     "ui.closeDialog",
     "ui.theme",
     "ui.highContrast",

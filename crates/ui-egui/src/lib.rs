@@ -59,6 +59,7 @@ pub mod auto_replies;
 #[cfg(test)]
 mod auto_replies_tests;
 pub mod backstage;
+pub mod bookmarks;
 mod calendar_sync;
 pub mod calendar_view;
 pub mod chrome;
@@ -1046,8 +1047,9 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"bookmarks"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (bookmarks: the non-modal All Bookmarks window; account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
+    ("ui.bookmarks", "All Bookmarks", "Home › Tags", r#"{"open"?: bool (default: true)} — opens or closes the non-modal All Bookmarks window"#),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
@@ -1781,6 +1783,8 @@ pub struct MailApp {
     pub(crate) text_selection: reading::Selections,
     /// Pending jump to a bookmark in a reading surface.
     pub(crate) bookmark_target: Option<reading::BookmarkTarget>,
+    /// The non-modal All Bookmarks window (#951).
+    pub(crate) bookmarks: bookmarks::State,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
     /// it went: an appointment window whose save had to ask first learns from it what came of
     /// the question once it is answered.
@@ -1960,6 +1964,7 @@ impl MailApp {
             out_of_sight: Default::default(),
             text_selection: Default::default(),
             bookmark_target: None,
+            bookmarks: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
             updates: Default::default(),
@@ -2319,8 +2324,10 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
-        // Jump to bookmark (#951): remember target place/quote/offset when the reading pane is open.
+        // Jump to bookmark (#951): reveal selection in Mail and remember target quote/offset.
         if let (Ok(jumped), "bookmark.jump") = (&r, id) {
+            self.ui.backstage = false;
+            self.reveal_selection = true;
             if self.session.view.reading_pane == mailcraft_engine::Pane::Off {
                 self.bookmark_target = None;
             } else if let Some(mid) = jumped.get("message").and_then(Value::as_u64) {
@@ -2504,8 +2511,22 @@ impl MailApp {
                 }
                 None => Err("`value` is simplified or classic".into()),
             },
+            "ui.bookmarks" => {
+                if b("open") == Some(false) {
+                    self.bookmarks.close();
+                } else {
+                    self.bookmarks.open_window();
+                    self.ui.backstage = false;
+                }
+                Ok(json!({"window": "bookmarks", "open": self.bookmarks.open}))
+            }
             "ui.dialog" => {
                 let Some(name) = s("name") else { return Some(Err("missing `name`".into())) };
+                if name == "bookmarks" {
+                    self.bookmarks.open_window();
+                    self.ui.backstage = false;
+                    return Some(Ok(json!({"window": "bookmarks", "open": true})));
+                }
                 // Send/Receive Progress is a panel in the window, not a dialog; the problems are
                 // in it, under each account.
                 if let Some(panel) = sync_panel::Panel::named(name) {
@@ -5209,6 +5230,7 @@ impl MailApp {
         // The main window acts on the reading pane's message being written (#286).
         let fronted = windows::compose_window::front_pane(self);
         sync_panel::escape(self, &ctx);
+        bookmarks::keys(self, &ctx);
         // Advanced Search closes when what it was opened for has gone, and on Escape, before the
         // window's Escape ends the search (#329).
         advanced_search::follow(self);
@@ -5241,6 +5263,7 @@ impl MailApp {
         }
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);
+        bookmarks::show(self, &ctx);
         dialogs::show(self, &ctx);
         close_to_tray::show(&ctx, self);
         reminders::show(self, &ctx);

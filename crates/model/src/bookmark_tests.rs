@@ -198,3 +198,28 @@ fn cascading_deletes_drop_bookmarks_on_all_paths() {
     assert_eq!(mb.bookmarks().len(), 1);
     assert_eq!(mb.bookmarks_for_message(m_keep).len(), 1);
 }
+
+#[test]
+fn all_bookmarks_orders_newest_first_with_id_tiebreak_and_respects_cap() {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(crate::Account::default());
+    let folder = mb.inbox().unwrap();
+    let mid = mb.add_message(crate::Message { folder, account, ..Default::default() }).unwrap();
+
+    // Older, newer, and equal-timestamp tiebreak by higher id first.
+    mb.add_bookmark(Bookmark::new(1, mid, "First", "q1", 0, 100));
+    mb.add_bookmark(Bookmark::new(2, mid, "Second", "q2", 10, 200));
+    mb.add_bookmark(Bookmark::new(3, mid, "Third tie", "q3", 20, 200));
+    mb.add_bookmark(Bookmark::new(4, mid, "Oldest", "q4", 30, 50));
+
+    let ordered_ids: Vec<u64> = mb.all_bookmarks().into_iter().map(|b| b.id).collect();
+    assert_eq!(ordered_ids, vec![3, 2, 1, 4]);
+
+    // If stale/corrupt map exceeds MAX_BOOKMARKS, all_bookmarks bounds to MAX_BOOKMARKS.
+    for i in 10..=(crate::MAX_BOOKMARKS as u64 + 25) {
+        mb.bookmarks.insert(i, Bookmark::new(i, mid, "Bulk", "q", 0, i as i64));
+    }
+    let all = mb.all_bookmarks();
+    assert_eq!(all.len(), crate::MAX_BOOKMARKS);
+    assert_eq!(all[0].id, crate::MAX_BOOKMARKS as u64 + 25);
+}

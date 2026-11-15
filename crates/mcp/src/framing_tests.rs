@@ -321,3 +321,20 @@ fn what_an_import_report_names_from_the_file_is_framed() {
     assert_eq!((&answer["added"], &answer["untrusted"]), (&json!(1), &json!(true)));
     assert_eq!(answer["notes"][0]["what"].as_str().unwrap().matches(UNTRUSTED_OPEN).count(), 1, "framed once: {answer}");
 }
+
+#[test]
+fn bookmark_list_all_frames_subject_name_and_quote() {
+    let mut f = fixture();
+    let mut h = Headless::new(std::mem::replace(&mut f.session, Session::empty()), Vec::new());
+    let pol = Policy::default();
+    let _ = exec(&mut h, &pol, "bookmark.add", json!({"id": f.message, "name": marked("name"), "quote": marked("quote")})).unwrap();
+    let answer = exec(&mut h, &pol, "bookmark.list", json!({"all": true})).unwrap();
+    assert_eq!(answer["untrusted"], json!(true));
+    let mut bare = Vec::new();
+    bare_marks(&answer, "", &mut bare);
+    assert!(bare.is_empty(), "markers outside a frame: {bare:?}\n{answer}");
+    let first = &answer["bookmarks"][0];
+    assert!(first["subject"].as_str().is_some_and(|t| t.starts_with(UNTRUSTED_OPEN) && t.ends_with(UNTRUSTED_CLOSE)), "{first}");
+    assert!(first["name"].as_str().is_some_and(|t| t.starts_with(UNTRUSTED_OPEN) && t.ends_with(UNTRUSTED_CLOSE)), "{first}");
+    assert!(first["quote"].as_str().is_some_and(|t| t.starts_with(UNTRUSTED_OPEN) && t.ends_with(UNTRUSTED_CLOSE)), "{first}");
+}

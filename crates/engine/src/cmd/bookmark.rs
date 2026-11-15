@@ -18,8 +18,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"id": number} — removes the bookmark by its unique id"#),
         CommandSpec::new("bookmark.list", "List Bookmarks", "Home › Tags", list)
             .reads()
-            .params(r#"{"id"?: number (message id, default focused), "conversation"?: bool (if true, lists for whole conversation)} — answers {"bookmarks": [{"id", "message", "name", "quote", "offset", "created"}]}"#)
-            .selection(needs_message),
+            .params(r#"{"all"?: bool (if true, lists all bookmarks across the mailbox, newest first), "id"?: number (message id, default focused), "conversation"?: bool (if true, lists for whole conversation)} — answers {"bookmarks": [{"id", "message", "subject", "name", "quote", "offset", "created"}]}"#),
         CommandSpec::new("bookmark.jump", "Jump to Bookmark", "Home › Tags", jump)
             .reads()
             .params(r#"{"id": number} — selects the message and jumps to the bookmark's position"#),
@@ -77,22 +76,33 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
-    let message_id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let conversation = p::bool(v, "conversation").unwrap_or(false);
-
-    let bookmarks = if conversation {
-        let conversation_ids = s.conversation(message_id);
-        if conversation_ids.is_empty() { s.mailbox.bookmarks_for_message(message_id) } else { s.mailbox.bookmarks_for_messages(&conversation_ids) }
+    let all = p::bool(v, "all").unwrap_or(false);
+    let bookmarks = if all {
+        s.mailbox.all_bookmarks()
     } else {
-        s.mailbox.bookmarks_for_message(message_id)
+        let message_id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+        let conversation = p::bool(v, "conversation").unwrap_or(false);
+
+        if conversation {
+            let conversation_ids = s.conversation(message_id);
+            if conversation_ids.is_empty() {
+                s.mailbox.bookmarks_for_message(message_id)
+            } else {
+                s.mailbox.bookmarks_for_messages(&conversation_ids)
+            }
+        } else {
+            s.mailbox.bookmarks_for_message(message_id)
+        }
     };
 
     let list: Vec<Value> = bookmarks
         .into_iter()
         .map(|b| {
+            let subject = s.mailbox.message(b.message).map(|m| m.subject.as_str()).unwrap_or("");
             json!({
                 "id": b.id,
                 "message": b.message,
+                "subject": subject,
                 "name": b.name,
                 "quote": b.quote,
                 "offset": b.offset,
@@ -113,6 +123,7 @@ fn jump(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.message(message_id).is_none() {
         return Err(fail(format!("message {message_id} no longer exists")));
     }
+    s.view.module = crate::Module::Mail;
     // Select the message if not already uniquely selected, or if it sits outside the current view.
     let in_view = !s.in_list(&[message_id]).is_empty();
     if s.sel.focus() != Some(message_id) || s.sel.messages.len() != 1 || !in_view {

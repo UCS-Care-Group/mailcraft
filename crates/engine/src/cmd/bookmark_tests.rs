@@ -210,3 +210,57 @@ fn jump_selects_message_in_another_folder_outside_current_view() {
     assert_eq!(jumped["message"], sent_msg);
     assert_eq!(s.sel.focus(), Some(sent_msg));
 }
+
+#[test]
+fn list_all_returns_newest_first_with_subject_without_selection() {
+    let mut s = Session::at(sample::mailbox(NOW, 0), NOW, 0);
+    let inbox = s.mailbox.inbox().unwrap();
+    let sent = s.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Sent).unwrap().id;
+    let m1 = s.mailbox.messages.values().find(|m| m.folder == inbox).unwrap().id;
+    let m2 = s.mailbox.messages.values().find(|m| m.folder == sent).unwrap().id;
+    let subj1 = s.mailbox.message(m1).unwrap().subject.clone();
+    let subj2 = s.mailbox.message(m2).unwrap().subject.clone();
+
+    // Add older bookmark at NOW, then newer at NOW + 100.
+    let b1 = s.run("bookmark.add", &json!({"id": m1, "name": "Older", "quote": "first quote", "offset": 0})).unwrap();
+    s.clock.now = Some(NOW + 100);
+    let b2 = s.run("bookmark.add", &json!({"id": m2, "name": "Newer", "quote": "second quote", "offset": 10})).unwrap();
+
+    // Clear selection completely; bookmark.list without all fails, with all:true succeeds.
+    s.sel.messages.clear();
+    assert!(s.run("bookmark.list", &json!({})).is_err());
+
+    let listed = s.run("bookmark.list", &json!({"all": true})).unwrap();
+    let arr = listed["bookmarks"].as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["id"], b2["id"]);
+    assert_eq!(arr[0]["name"], "Newer");
+    assert_eq!(arr[0]["subject"], subj2);
+    assert_eq!(arr[1]["id"], b1["id"]);
+    assert_eq!(arr[1]["name"], "Older");
+    assert_eq!(arr[1]["subject"], subj1);
+}
+
+#[test]
+fn jump_switches_to_mail_from_calendar_and_unread_filter() {
+    let mut s = Session::at(sample::mailbox(NOW, 0), NOW, 0);
+    let sent = s.mailbox.folders.iter().find(|f| f.kind == mailcraft_model::FolderKind::Sent).unwrap().id;
+    let inbox = s.mailbox.inbox().unwrap();
+    let sent_msg = s.mailbox.messages.values().find(|m| m.folder == sent).unwrap().id;
+    let inbox_msg = s.mailbox.messages.values().find(|m| m.folder == inbox).unwrap().id;
+
+    let added = s.run("bookmark.add", &json!({"id": sent_msg, "quote": "target quote", "offset": 2})).unwrap();
+    let bid = added["id"].as_u64().unwrap();
+
+    // Focus another folder, filter by unread, and switch module to Calendar.
+    s.run("folder.select", &json!({"id": inbox})).unwrap();
+    s.run("mail.select", &json!({"id": inbox_msg})).unwrap();
+    s.run("view.filter", &json!({"value": "unread"})).unwrap();
+    s.run("view.calendar", &json!({})).unwrap();
+    assert_eq!(s.view.module, crate::Module::Calendar);
+
+    s.run("bookmark.jump", &json!({"id": bid})).unwrap();
+    assert_eq!(s.view.module, crate::Module::Mail);
+    assert_eq!(s.sel.focus(), Some(sent_msg));
+    assert_eq!(s.view.folder, sent);
+}

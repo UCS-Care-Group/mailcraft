@@ -1557,7 +1557,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     }
 }
 
-/// The bookmarks menu for the focused message and its conversation.
+/// The short Bookmarks menu: add one to the focused message, or open the All Bookmarks window.
 pub(crate) fn bookmarks_menu(ui: &mut Ui, app: &mut MailApp) {
     let mid = app.session.sel.focus().unwrap_or(0);
     let enabled = mid != 0;
@@ -1567,52 +1567,9 @@ pub(crate) fn bookmarks_menu(ui: &mut Ui, app: &mut MailApp) {
         ui.close();
     }
     ui.separator();
-
-    let marks = if enabled {
-        let conversation_ids = app.session.conversation(mid);
-        if conversation_ids.is_empty() {
-            app.session.mailbox.bookmarks_for_message(mid)
-        } else {
-            app.session.mailbox.bookmarks_for_messages(&conversation_ids)
-        }
-    } else {
-        Vec::new()
-    };
-
-    if marks.is_empty() {
-        ui.add_enabled(false, egui::Button::new(tl!("No bookmarks")));
-    } else {
-        let mut remove_id = None;
-        let mut jump_id = None;
-        for bm in marks {
-            let label = if bm.name.is_empty() {
-                if bm.quote.is_empty() {
-                    let num = bm.id;
-                    crate::i18n::fmt(tl!("Bookmark #{n}"), &[("n", &num.to_string())])
-                } else {
-                    bm.quote.clone()
-                }
-            } else {
-                bm.name.clone()
-            };
-            let short: String = label.chars().take(25).collect();
-            ui.horizontal(|ui| {
-                if ui.add(egui::Button::new(short).min_size(vec2(150.0, 0.0))).clicked() {
-                    jump_id = Some(bm.id);
-                }
-                if widgets::icon_button(ui, "close", tl!("Remove"), 12.0, true).clicked() {
-                    remove_id = Some(bm.id);
-                }
-            });
-        }
-        if let Some(id) = jump_id {
-            let _ = app.run("bookmark.jump", json!({"id": id}));
-            ui.close();
-        }
-        if let Some(id) = remove_id {
-            let _ = app.run("bookmark.remove", json!({"id": id}));
-            ui.close();
-        }
+    if ui.add(egui::Button::new(tl!("All Bookmarks…")).min_size(vec2(190.0, 0.0))).clicked() {
+        let _ = app.run("ui.bookmarks", json!({}));
+        ui.close();
     }
 }
 
