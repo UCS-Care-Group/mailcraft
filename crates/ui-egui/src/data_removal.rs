@@ -158,18 +158,20 @@ impl MailApp {
         // saver is waited for, and when it is not idle by then nothing has been touched.
         if let Some(saver) = &self.services.saver {
             saver.flush();
-            let until = std::time::Instant::now() + IDLE_WAIT;
+            let waited = mailcraft_time::Stopwatch::start();
             while saver.progress().is_some() {
-                if std::time::Instant::now() >= until {
+                // (The browser can't sleep, #1337: there a save still running is said at once.)
+                if cfg!(target_arch = "wasm32") || waited.so_far() >= IDLE_WAIT {
                     return Err(tl!("A save of the mailbox is still running: try again in a moment").to_string());
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
         }
         // Nothing writes any more: no Send/Receive, no mailbox file, nothing remembered.
         self.data_removed = true;
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.sync_queue.clear();
+        self.session.driver.round.queue.clear();
         let mailbox = self.session.path.take();
         self.autosave = false;
         self.session.close_all_composing();
@@ -189,7 +191,7 @@ impl MailApp {
         self.tokens.clear();
         self.graph_tokens.clear();
         if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
-            report.failed.push((tl!("The system's credential store").to_string(), Why::Io(trouble.notice())));
+            report.failed.push((tl!("The system's credential store").to_string(), Why::Io(crate::store_trouble_notice(trouble))));
         }
         if !report.failed.is_empty() || !report.left.is_empty() {
             self.dialog = Some(Dialog::Report { name: "dataRemoval", title: tl!("Remove MailCraft's Data").to_string(), lines: lines(&report) });

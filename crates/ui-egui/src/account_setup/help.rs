@@ -275,7 +275,7 @@ impl AccountSetup {
             }
             ui.add_space(8.0);
             ui.vertical_centered(|ui| {
-                ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+                crate::software::spinner(ui, 30.0, Some(t.accent));
                 ui.add_space(8.0);
                 let open = fmt(tl!("{provider}'s sign-in page is open in your browser"), &[("provider", provider)]);
                 ui.label(RichText::new(open).font(medium(13.5)).color(t.text));
@@ -497,7 +497,7 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             ui.add_space(14.0);
             ui.vertical_centered(|ui| {
-                ui.add(egui::Spinner::new().size(30.0).color(t.accent));
+                crate::software::spinner(ui, 30.0, Some(t.accent));
                 ui.add_space(8.0);
                 ui.label(RichText::new(tl!("Microsoft's approval page is open in your browser")).font(medium(13.5)).color(t.text));
                 let then = tl!("Sign in there with an administrator account and accept. This window carries on by itself.");

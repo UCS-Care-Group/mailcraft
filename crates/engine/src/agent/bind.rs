@@ -84,10 +84,14 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.neverBlockDomain"
         | "rules.fromMessage"
         | "ui.downloadPictures"
+        | "ui.unsubscribe"
+        | "mail.unsubscribe"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,
-        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        // (The clean-up of #1401 reaches every folder when it names none: its question counts
+        // what goes, and is described again on the yes.)
+        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
@@ -135,11 +139,13 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.downloadPicturesAutomatically"
         | "ui.senderImages"
         | "ui.desktopAlerts"
+        | "ui.closeToTray"
         | "ui.repliesInWindow"
         | "ui.updateCheck"
         | "ui.updateInstall"
         | "ui.dismissUpdateNotice"
         | "ui.dismissSettingsNotice"
+        | "ui.dismissSoftwareNotice"
         | "ui.reportProblem"
         // The Public keys kept (File › Options › Security, #30): the question names the key.
         | "keys.import"

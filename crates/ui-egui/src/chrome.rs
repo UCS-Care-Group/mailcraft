@@ -64,10 +64,14 @@ fn pill(ui: &mut Ui, app: &mut MailApp, h: f32, icon: &str, label: &str, tip: &s
     }
 }
 
-/// The title row: its height, the height of the search box in it, and the side of a quick button
-/// (the buttons stand 30 apart, their icons 16 across).
-pub const TITLE_BAR: f32 = 48.0;
-const SEARCH_BOX: f32 = 34.0;
+/// The title row: its height, the height of the search box and of the account's picture in it, and
+/// the side of a quick button (the buttons stand 30 apart, their icons 16 across). Compact, as
+/// classic Outlook's, so that the list and the reading pane keep the height (#1158).
+pub const TITLE_BAR: f32 = 36.0;
+const SEARCH_BOX: f32 = 28.0;
+const AVATAR: f32 = 26.0;
+/// The most a pill (Report a Problem, Copy Diagnostics) stands in the row.
+const PILL: f32 = 24.0;
 const QAT_BUTTON: f32 = 28.0;
 
 /// Height of the macOS integrated title bar: AppKit draws the traffic lights itself, centred in
@@ -157,7 +161,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         Module::Mail => tl!("Search mail (try from:, has:attachment, is:unread)"),
     };
     // The tabs' size in the tall box of the title row; the small one in the macOS title bar.
-    let font = if rect.height() >= 30.0 { regular(13.0) } else { TypeRung::Control.regular() };
+    let font = if rect.height() >= SEARCH_BOX { regular(13.0) } else { TypeRung::Control.regular() };
     // Keywords as pills (#196), drawn under the text in a place kept for them.
     let cursor = if focused { egui::TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index.0) } else { None };
     // A held Enter or Tab is one press in the box (#391, #393): its repeats would take one
@@ -318,7 +322,7 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
     let mac = app.integrated_titlebar;
     // The first button stands over the module bar's icons.
     let left = if mac { MAC_CONTENT_LEFT as i8 } else { 10 };
-    let (search_h, avatar_h) = if mac { (22.0, 22.0) } else { (SEARCH_BOX, 30.0) };
+    let (search_h, avatar_h) = if mac { (22.0, 22.0) } else { (SEARCH_BOX, AVATAR) };
     egui::Panel::top("title_bar")
         .exact_size(if mac { MAC_TITLE_BAR } else { TITLE_BAR })
         // One colour with the tabs under it, and no line between the two.
@@ -341,7 +345,9 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 // MailCraft's mark, then the Quick Access Toolbar: Send/Receive, Undo, Redo.
                 let (mark, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-                icons::app_mark(ui.painter(), mark);
+                if let Some(icon) = title_icon(ui.ctx()) {
+                    ui.painter().image(icon.id(), mark, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                }
                 ui.add_space(8.0);
                 let sync_tip = if app.syncing() { tl!("Sending and receiving…") } else { tl!("Send/Receive All Folders") };
                 qat_button(ui, app, "sync", sync_tip, "ui.sync");
@@ -366,9 +372,9 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                         let _ = app.run("ui.backstage", json!({"value": true, "page": "info"}));
                     }
                     ui.add_space(8.0);
-                    diagnostics_pill(ui, app, avatar_h.min(26.0));
+                    diagnostics_pill(ui, app, avatar_h.min(PILL));
                     ui.add_space(4.0);
-                    report_pill(ui, app, avatar_h.min(26.0));
+                    report_pill(ui, app, avatar_h.min(PILL));
                     right_start = ui.min_rect().min.x;
                 });
             });
@@ -705,9 +711,30 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
     }
 }
 
+/// The app icon itself, the same picture the system shows for MailCraft, for the title bar: made
+/// once and kept in the context. `None` when it can't be read (the title bar then shows no mark).
+fn title_icon(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    /// The 64 px icon every build ships (`assets/app-icon`, attributed in `ATTRIBUTION.md`).
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/io.github.billsecond.mailcraft.png");
+    let id = egui::Id::unique("mailcraft-title-icon");
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let rgba = image::load_from_memory_with_format(PNG, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    // Drawn at 22 points: mipmaps keep it smooth at 100 % as well as on a sharper screen.
+    let options = egui::TextureOptions { mipmap_mode: Some(egui::TextureFilter::Linear), ..egui::TextureOptions::LINEAR };
+    let texture = ctx.load_texture("mailcraft-title-icon", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), options);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
+}
+
 #[cfg(test)]
 #[path = "search_box_tests.rs"]
 mod search_box_tests;
+#[cfg(test)]
+#[path = "title_bar_tests.rs"]
+mod title_bar_tests;
 
 #[cfg(test)]
 mod tests {

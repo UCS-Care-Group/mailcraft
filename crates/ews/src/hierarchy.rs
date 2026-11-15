@@ -78,10 +78,12 @@ impl SyncFolderHierarchy {
     /// The operation as the schema has it: `FolderShape`, `SyncFolderId`, `SyncState`.
     pub fn element(&self) -> Element {
         // (The class is asked for by name: some servers leave it out of the Default shape, and a
-        // folder with none would be taken for a folder of mail.)
+        // folder with none would be taken for a folder of mail. So is the folder above: Exchange
+        // leaves it out of the Default shape, and without it every folder is at the top.)
+        let field = |uri: &str| Element::new("t:FieldURI").attr("FieldURI", uri);
         let shape = Element::new("m:FolderShape")
             .child(Element::new("t:BaseShape").text("Default"))
-            .child(Element::new("t:AdditionalProperties").child(Element::new("t:FieldURI").attr("FieldURI", "folder:FolderClass")));
+            .child(Element::new("t:AdditionalProperties").child(field("folder:FolderClass")).child(field("folder:ParentFolderId")));
         let root = Element::new("m:SyncFolderId").child(Element::new("t:DistinguishedFolderId").attr("Id", "msgfolderroot"));
         let mut operation = Element::new("m:SyncFolderHierarchy").child(shape).child(root);
         if !self.state.is_empty() {

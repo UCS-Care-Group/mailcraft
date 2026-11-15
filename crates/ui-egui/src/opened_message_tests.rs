@@ -19,7 +19,7 @@ const EML: &str = "From: Maya Lin <maya@lumen.example>\r\nTo: avery@lumen.exampl
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 

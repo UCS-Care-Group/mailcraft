@@ -141,7 +141,8 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     request.drafts = super::graph_drafts::draft_changes(s, account, MAX_DRAFTS).0;
     request.sends = super::graph_send::sends(s, account);
     request.list_folders = !light || !listed;
-    request.hierarchy = server.hierarchy.clone();
+    // (A folder list read before the folder above each was asked for is read afresh, once.)
+    request.hierarchy = if server.parents { server.hierarchy.clone() } else { String::new() };
     let wanted = |id: &str| match &request.scope {
         EwsScope::All => true,
         EwsScope::Light { also } => inbox.as_deref() == Some(id) || also.iter().any(|a| a == id),
@@ -274,6 +275,13 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String
 /// `busyFor`, `summary`), `authRefused` when the server turned the password down and `untrusted`
 /// (the certificate's fingerprint) when the run stopped at a certificate the owner is to be asked about.
 pub fn apply_ews_mail(s: &mut Session, result: EwsMailResult) -> CmdResult {
+    let mut taken = apply_ews_news(s, result);
+    let said = super::snooze::after(s);
+    super::snooze::tell(&mut taken, said);
+    taken
+}
+
+fn apply_ews_news(s: &mut Session, result: EwsMailResult) -> CmdResult {
     let account = result.account;
     let taken = take_in(s, result);
     // A piece that was refused is a piece lost: the end of its run removes nothing.
@@ -353,11 +361,15 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         let lost;
         (down.removed, lost) = ews_down::take_folders(&mut s.mailbox, account, deltas, &mut taken);
         // The folder list goes on from here (with the folders it brought, in one step), or from
-        // its start when one of the server's own folders is missing here (#779).
+        // its start when one of the server's own folders is missing here (#779). (A read from its
+        // start past a folder it couldn't read goes on from where it ended too: what is deleted
+        // after it comes in the deltas, #1108.)
         if (lost || !result.hierarchy.is_empty())
             && let Some(server) = s.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut())
         {
             server.hierarchy = if lost { String::new() } else { result.hierarchy.clone() };
+            // A list read from its start has each folder's parent, and so has what goes on from it.
+            server.parents |= !lost && deltas.afresh;
         }
     }
     let mut index = std::mem::take(&mut s.graph_index);
@@ -499,7 +511,7 @@ mod tests;
 
 #[cfg(test)]
 #[path = "ews_up_tests.rs"]
-mod up_tests;
+pub(crate) mod up_tests;
 
 #[cfg(test)]
 #[path = "ews_well_known_tests.rs"]

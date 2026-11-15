@@ -28,7 +28,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.kept.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         *self.writes.lock().unwrap() += 1;
         self.kept.lock().unwrap().insert(key.to_string(), secret.to_string());
         Ok(())

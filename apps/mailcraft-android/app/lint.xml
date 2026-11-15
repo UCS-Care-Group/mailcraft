@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<lint>
+    <!-- Depend on the date, not on the source: versions are pinned and hashed on purpose. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="OldTargetApi" severity="ignore" />
+    <!-- The program draws no launcher icon from any vendor's art; one drawn in code comes later. -->
+    <issue id="MissingApplicationIcon" severity="ignore" />
+    <!-- Hand-picked never-crash checks, as errors: -->
+    <issue id="Range" severity="fatal" />
+    <issue id="NewApi" severity="fatal" />
+    <issue id="MissingPermission" severity="fatal" />
+    <issue id="ExportedReceiver" severity="fatal" />
+    <issue id="HardcodedText" severity="fatal" />
+    <issue id="UnsafeIntentLaunch" severity="fatal" />
+    <issue id="AllowBackup" severity="fatal" />
+    <!-- JNA names java.awt for desktop use only; Android never loads that path. -->
+    <issue id="InvalidPackage">
+        <ignore regexp="net\.java\.dev\.jna" />
+    </issue>
+</lint>

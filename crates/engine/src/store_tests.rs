@@ -173,10 +173,10 @@ fn the_split_form_round_trips() {
     let saved = save(&path, &mb).unwrap();
     assert!(saved.bytes > 0 && saved.blobs > 0 && !saved.unchanged);
 
-    // The mailbox file is format 3 and holds no content; each content file is named by the
+    // The mailbox file is format 4 and holds no content; each content file is named by the
     // SHA-256 of what is in it, in the folder of its first two digits.
     let head = fs::read(&path).unwrap();
-    assert_eq!((&head[..16], &head[16..24]), (&b"MailCraft index\n"[..], &[3u8, 0, 0, 0, 0, 0, 0, 0][..]));
+    assert_eq!((&head[..16], &head[16..24]), (&b"MailCraft index\n"[..], &[4u8, 0, 0, 0, 0, 0, 0, 0][..]));
     assert!(saved.compacted && saved.bytes == head.len() as u64);
     let content: u64 = mb.messages.values().map(|m| m.size()).sum();
     assert!(saved.bytes < content / 4, "{} of {content}", saved.bytes);
@@ -1046,7 +1046,7 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     saver.submit(&path, &states[0], 6);
     until(|| lock(&saver.queue.jobs).writing.is_some());
     mb.message_mut(ids[0]).unwrap().read = true;
-    write_index(&mut gate, &path, &mb, &held.progress).unwrap();
+    write_index(&mut gate, &path, &mb, &[], &held.progress).unwrap();
     gate.newest = next_seq();
     drop(gate);
     saver.flush();
@@ -1358,7 +1358,7 @@ fn save_v2(path: &Path, mb: &Mailbox) {
     let mut hashes = HashMap::new();
     let (mut messages, mut blobs) = (serde_json::Map::new(), serde_json::Map::new());
     for (id, m) in &mb.messages {
-        let p = prepare(*id, m, &mut hashes).unwrap();
+        let p = prepare(*id, m, &mut hashes, None).unwrap();
         for (r, bytes) in p.parts.content(m) {
             let _ = make_dir(&dir);
             put(&dir, &r, bytes).unwrap();
@@ -1605,7 +1605,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
 
     // Exported as .eml: the files are in it.
     let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
-    let parsed = mailcraft_mime::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+    let parsed = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
     assert_eq!(
         parsed.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>(),
         was.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>()
@@ -1613,7 +1613,7 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     assert_eq!(parsed.body.text.trim(), was.body.text.trim());
     // A folder as .mbox too.
     let mbox = s.run("file.exportFolder", &json!({"id": was.folder})).unwrap();
-    let all = mailcraft_mime::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+    let all = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
     assert_eq!(all.len(), 24);
     assert!(all.iter().all(|m| m.attachments.iter().all(|a| !a.data.is_empty())));
 
@@ -1751,7 +1751,7 @@ fn every_content_name_in_a_damaged_file_is_found_wherever_it_falls() {
     // Not names: too short, upper case, not closed.
     bytes.extend_from_slice(format!("\"{}\" \"{}\" \"{}", &names[0].hex()[1..], names[1].hex().to_uppercase(), names[2].hex()).as_bytes());
     let mut found = HashSet::new();
-    names_in(&bytes[..], &mut found).unwrap();
+    names_in(&bytes[..], &mut found, &mut HashSet::new()).unwrap();
     assert_eq!(found, names.iter().copied().collect::<HashSet<_>>());
 }
 
@@ -2022,6 +2022,9 @@ mod undo_body;
 #[path = "store_budget_tests.rs"]
 mod budget;
 
+#[path = "store_history_memory_tests.rs"]
+mod history_memory;
+
 /// The folders and files the app keeps beside the mailbox (pictures, logs, its settings) are its
 /// owner's alone too: made so, and an open folder from an earlier version closed.
 #[cfg(unix)]
@@ -2093,6 +2096,12 @@ mod launch;
 #[path = "store_hidden_tests.rs"]
 mod hidden;
 
+#[path = "store_headers_tests.rs"]
+mod headers;
+
+#[path = "store_pack_tests.rs"]
+mod pack_tests;
+
 #[path = "store_original_tests.rs"]
 mod original;
 
@@ -2156,4 +2165,97 @@ fn a_content_folder_that_is_a_link_is_never_written_through_or_emptied() {
     let bytes = noise(5, 3000);
     assert!(stash(&path, &Digest::of(&bytes), &bytes).is_err());
     assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 1);
+}
+
+#[test]
+fn content_a_virus_scanner_takes_away_is_told_apart_from_a_failed_write() {
+    let t = Temp::new("scanner");
+    let dir = blob_dir(&t.file());
+    let r = Ref { hash: Digest::of(b"a part a scanner dislikes"), len: 25 };
+    let gone = std::io::Error::from(std::io::ErrorKind::NotFound);
+    // The folder went too: that is no scanner, and the save fails.
+    assert!(!refused_by_scanner(&dir, &r, &gone));
+    // The file went and its folder stayed: a scanner took it.
+    let (sub, _) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    assert!(refused_by_scanner(&dir, &r, &gone));
+    // "Access denied" for this one file while another can be made beside it: a scanner (Windows;
+    // elsewhere a refusal is the folder's own, and fails the save).
+    let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(refused_by_scanner(&dir, &r, &denied), cfg!(windows));
+    assert!(fs::read_dir(&sub).unwrap().next().is_none(), "the file tried beside it is gone");
+    // A folder in the file's place is no scanner, whatever Windows calls it.
+    let (_, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir(&file).unwrap();
+    assert!(!refused_by_scanner(&dir, &r, &denied));
+    fs::remove_dir(&file).unwrap();
+    fs::remove_dir(&sub).unwrap();
+    // A full disk, or anything else, still fails the save.
+    assert!(!refused_by_scanner(&dir, &r, &std::io::Error::other("no space left")));
+    assert!(!refused_by_scanner(&dir, &r, &std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
+    // Windows says it in so many words.
+    assert_eq!(refused_by_scanner(&t.0, &r, &std::io::Error::from_raw_os_error(225)), cfg!(windows));
+}
+
+/// #1311: a virus scanner holding a content file's name for a moment (Bitdefender) doesn't fail
+/// the save: the write is tried again until it lets go.
+#[cfg(windows)]
+#[test]
+fn content_a_scanner_holds_for_a_moment_is_written_when_it_lets_go() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let t = Temp::new("scanner-holds");
+    let dir = blob_dir(&t.file());
+    let bytes = b"a part a scanner looks at a while";
+    let r = Ref { hash: Digest::of(bytes), len: bytes.len() as u64 };
+    let (sub, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    // Something at the name, held with no sharing at all, as a scanner may hold it.
+    fs::write(&file, b"x").unwrap();
+    let held = fs::OpenOptions::new().read(true).share_mode(0).open(&file).unwrap();
+    let scanner = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(700));
+        drop(held);
+    });
+    assert!(put(&dir, &r, bytes).unwrap());
+    scanner.join().unwrap();
+    assert_eq!(fs::read(&file).unwrap(), bytes);
+}
+
+/// #1311: a file a scanner never lets go of (Bitdefender refusing what it flags, "access
+/// denied" at every save) is told apart from a folder that can't be written to: that one part is
+/// left out and the rest of the mailbox saved.
+#[cfg(windows)]
+#[test]
+fn content_a_scanner_never_lets_go_of_is_left_out() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    let t = Temp::new("scanner-keeps");
+    let dir = blob_dir(&t.file());
+    let bytes = b"a part a scanner refuses for good";
+    let r = Ref { hash: Digest::of(bytes), len: bytes.len() as u64 };
+    let (sub, file) = blob_path(&dir, &r.hash).unwrap();
+    fs::create_dir_all(&sub).unwrap();
+    fs::write(&file, b"x").unwrap();
+    let _held = fs::OpenOptions::new().read(true).share_mode(0).open(&file).unwrap();
+    let e = put(&dir, &r, bytes).unwrap_err();
+    assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(refused_by_scanner(&dir, &r, &e));
+}
+
+/// #1311: a part whose file a save left out (a virus scanner refused or took it away) is not
+/// let go of from memory, where it is then the only copy.
+#[test]
+fn a_part_whose_file_is_missing_is_never_let_go_of() {
+    let mut mb = mailbox(24);
+    let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    if let Some(m) = mb.messages.get_mut(&id) {
+        Arc::make_mut(m).attachments.clear();
+    }
+    let t = Temp::new("missing-part");
+    let path = t.file();
+    save(&path, &mb).unwrap();
+    let m = mb.message(id).unwrap();
+    assert!(evictable(&path, id, m).is_some(), "safely on disk, it can go");
+    fs::remove_file(blob_file(&path, m.body.text.as_bytes())).unwrap();
+    let kept = evictable(&path, id, m);
+    assert!(kept.is_none_or(|lean| lean.body.text == m.body.text), "the only copy stays in memory");
 }

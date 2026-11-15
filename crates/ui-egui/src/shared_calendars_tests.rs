@@ -41,8 +41,8 @@ fn window(page: Result<Tokens, String>) -> (MailApp, Id, Id, Answers, Jobs, Sign
     let owner = app.execute("account.add", json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     app.tokens.insert(owner, tokens("own-access", "ref-1"));
     // (The owner's own calendar and contacts are not what these look at.)
-    app.graph_checked.insert(owner, f64::MAX);
-    app.calendar.checked.insert(owner, f64::MAX);
+    app.session.driver.calendar.checked.insert(owner, f64::MAX);
+    app.session.driver.calendar.book.started(owner, f64::MAX);
     let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
     app.session.view.module = Module::Calendar;
     let (answers, jobs, sign_ins): (Answers, Jobs, SignIns) = Default::default();
@@ -126,7 +126,7 @@ fn nothing_of_a_shared_mailboxs_calendars_is_asked_until_one_is_ticked() {
     // It has a calendar to tick, unticked; and nothing asks any server for it.
     assert!(!calendar_of(&app, shared, SHARED).visible);
     assert!(!tick(&mut app) && jobs.lock().unwrap().is_empty() && sign_ins.lock().unwrap().is_empty());
-    assert!(app.shared_calendar_accounts().is_empty());
+    assert!(app.session.shared_calendar_accounts().is_empty());
 }
 
 #[test]
@@ -161,18 +161,18 @@ fn ticking_one_reads_the_list_and_what_is_ticked_with_the_owners_sign_in_and_not
     assert_eq!(app.shared_calendar_tokens.get(&shared).map(|t| t.access.as_str()), Some("cal-access"));
     assert_eq!(app.tokens.get(&owner).map(|t| (t.access.as_str(), t.refresh.as_str())), Some(("own-access", "ref-9")));
     assert!(!app.graph_tokens.contains_key(&shared), "not mixed with the mail's");
-    assert_eq!(app.shared_calendar_perm.get(&shared), Some(&Permission::Given));
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Given));
     // Nothing of it is a reminder; and a change to it is refused, so nothing waits to go.
     assert!(mailcraft_engine::cmd::view::due_reminders(&app.session, app.session.local_now()).is_empty());
     let event = app.session.mailbox.events.values().find(|e| e.title == "Stand-up").map(|e| e.id).unwrap();
     assert!(app.execute("calendar.edit", json!({"id": event, "title": "Changed"})).is_err());
-    assert!(app.calendar_changes(shared).is_none());
+    assert!(app.session.calendar_changes(shared).is_none());
 
     // Tick the other one: it is asked for with the next look, with the main one, and not before.
     let rota = calendar_of(&app, shared, "Rota").id;
     app.execute("calendar.showCalendar", json!({"id": rota})).unwrap();
-    app.calendar.checked.remove(&shared);
-    app.graph_checked.insert(shared, f64::MAX);
+    app.session.driver.calendar.book.forget_checked(shared);
+    app.session.driver.calendar.checked.insert(shared, f64::MAX);
     answers.lock().unwrap().push_back(GraphResult { account: shared, more_events: vec![events(shared, "sh-rota", "Rota")], ..Default::default() });
     assert!(tick(&mut app));
     let asked: Vec<String> = jobs.lock().unwrap()[1].5.iter().map(|ask| ask.calendar.clone()).collect();
@@ -180,7 +180,7 @@ fn ticking_one_reads_the_list_and_what_is_ticked_with_the_owners_sign_in_and_not
     app.poll_calendar();
     assert!(app.session.mailbox.events.values().any(|e| e.title == "Rota" && e.origin.account == shared));
     // (A job that brought only another calendar is no failure.)
-    assert!(!app.calendar.failures.contains_key(&shared));
+    assert!(app.session.driver.calendar.book.failures(shared) == 0);
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_shared_cale
     assert!(tick(&mut app));
     app.poll_calendar();
     // Found missing: nothing is asked of any server again until the owner answers; the window asks.
-    assert_eq!(app.shared_calendar_perm.get(&shared), Some(&Permission::Needed));
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Needed));
     assert!(!tick(&mut app) || jobs.lock().unwrap().len() == 1);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
     assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedCalendars", Some(shared)));
@@ -211,14 +211,14 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_shared_cale
     // Allowed: read at once, with what came back, and never asked again. File › Info says it was
     // allowed (not "not asked yet") until the job that reads them says more.
     assert_eq!(app.shared_calendar_tokens.get(&shared).map(|t| t.access.as_str()), Some("cal-access"));
-    assert_eq!(app.shared_calendar_perm.get(&shared), Some(&Permission::Allowed));
-    assert!(!app.shared_calendars_blocked(shared));
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Allowed));
+    assert!(!app.session.shared_calendars_blocked(shared));
     assert_eq!(app.shared_calendar_line(shared), Some(("Calendars: allowed, reading them…".to_string(), false)));
     answers.lock().unwrap().push_back(GraphResult { account: shared, events: Some(events(shared, "", "Stand-up")), ..Default::default() });
     assert!(tick(&mut app));
     assert_eq!(jobs.lock().unwrap()[1].3, "cal-access", "the token that covers it goes along");
     app.poll_calendar();
-    assert_eq!(app.shared_calendar_perm.get(&shared), Some(&Permission::Given));
+    assert_eq!(app.session.driver.calendar.shared_perm.get(&shared), Some(&Permission::Given));
     assert_eq!(sign_ins.lock().unwrap().len(), 1);
     assert!(app.dialog.is_none());
 }
@@ -236,7 +236,9 @@ fn a_no_is_said_and_an_administrators_approval_has_its_page_and_ask_again_asks_a
     app.dialog = None;
     app.run("ui.allowSharedCalendars", json!({"account": shared, "confirmed": true})).unwrap();
     app.poll_sign_in();
-    assert!(matches!(app.shared_calendar_perm.get(&shared), Some(Permission::Refused(why)) if why.contains("administrator has to approve")));
+    assert!(
+        matches!(app.session.driver.calendar.shared_perm.get(&shared), Some(Permission::Refused(why)) if why.contains("administrator has to approve"))
+    );
     assert_eq!(app.dialog.as_ref().map(|d| d.name()), Some("account"), "the page that says what to do next");
     // Nothing is asked of the server meanwhile, and File › Info says so, with a way to ask again.
     app.dialog = None;
@@ -260,7 +262,7 @@ fn file_info_says_where_the_permission_stands() {
         (Permission::Asking, "Calendars: asking for your permission…", false),
         (Permission::Refused("by the organisation".into()), "Calendars: not allowed (by the organisation)", true),
     ] {
-        app.shared_calendar_perm.insert(shared, perm);
+        app.session.driver.calendar.shared_perm.insert(shared, perm);
         assert_eq!(say(&app), (line.to_string(), again));
     }
     // Only a shared mailbox has one.
@@ -286,8 +288,8 @@ fn removing_the_shared_mailbox_takes_its_calendars_and_events_off_this_computer(
     assert!(app.session.mailbox.calendars.iter().all(|c| c.origin.account != shared));
     assert!(app.session.mailbox.events.values().all(|e| e.origin.account != shared));
     // And nothing more is asked for it.
-    app.calendar.checked.clear();
-    assert!(app.shared_calendar_accounts().is_empty());
+    app.session.driver.calendar.book.forget_all_checked();
+    assert!(app.session.shared_calendar_accounts().is_empty());
 }
 
 #[test]

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use mailcraft_charset::base64::STANDARD;
 use mailcraft_engine::model::digital_signature::SignatureFormat;
-use mailcraft_ui_egui::SecretStore;
+use mailcraft_host::SecretStore;
 use mailcraft_ui_egui::own_keys::{Imported, KeyFile, KeyPlace, OwnKeysAnswer, OwnKeysJob, Passphrase};
 use zeroize::Zeroizing;
 
@@ -24,7 +24,7 @@ impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.0.lock().unwrap().get(key).cloned()
     }
-    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+    fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
         self.0.lock().unwrap().insert(key.into(), secret.into());
         Ok(())
     }

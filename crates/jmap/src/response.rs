@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mailcraft_jmap_types::method_error;
 use serde_json::{Map, Value};
 
 use crate::classify::parse_json;
@@ -74,25 +75,25 @@ pub enum MethodErrorKind {
 impl MethodErrorKind {
     fn from_type(kind: Option<&str>) -> Self {
         match kind.unwrap_or("") {
-            "serverUnavailable" => Self::ServerUnavailable,
-            "serverFail" => Self::ServerFail,
-            "serverPartialFail" => Self::ServerPartialFail,
-            "unknownMethod" => Self::UnknownMethod,
-            "invalidArguments" => Self::InvalidArguments,
-            "invalidResultReference" => Self::InvalidResultReference,
-            "forbidden" => Self::Forbidden,
-            "accountNotFound" => Self::AccountNotFound,
-            "accountNotSupportedByMethod" => Self::AccountNotSupportedByMethod,
-            "accountReadOnly" => Self::AccountReadOnly,
-            "requestTooLarge" => Self::RequestTooLarge,
-            "cannotCalculateChanges" => Self::CannotCalculateChanges,
-            "stateMismatch" => Self::StateMismatch,
-            "fromAccountNotFound" => Self::FromAccountNotFound,
-            "fromAccountNotSupportedByMethod" => Self::FromAccountNotSupportedByMethod,
-            "anchorNotFound" => Self::AnchorNotFound,
-            "unsupportedSort" => Self::UnsupportedSort,
-            "unsupportedFilter" => Self::UnsupportedFilter,
-            "tooManyChanges" => Self::TooManyChanges,
+            method_error::SERVER_UNAVAILABLE => Self::ServerUnavailable,
+            method_error::SERVER_FAIL => Self::ServerFail,
+            method_error::SERVER_PARTIAL_FAIL => Self::ServerPartialFail,
+            method_error::UNKNOWN_METHOD => Self::UnknownMethod,
+            method_error::INVALID_ARGUMENTS => Self::InvalidArguments,
+            method_error::INVALID_RESULT_REFERENCE => Self::InvalidResultReference,
+            method_error::FORBIDDEN => Self::Forbidden,
+            method_error::ACCOUNT_NOT_FOUND => Self::AccountNotFound,
+            method_error::ACCOUNT_NOT_SUPPORTED_BY_METHOD => Self::AccountNotSupportedByMethod,
+            method_error::ACCOUNT_READ_ONLY => Self::AccountReadOnly,
+            method_error::REQUEST_TOO_LARGE => Self::RequestTooLarge,
+            method_error::CANNOT_CALCULATE_CHANGES => Self::CannotCalculateChanges,
+            method_error::STATE_MISMATCH => Self::StateMismatch,
+            method_error::FROM_ACCOUNT_NOT_FOUND => Self::FromAccountNotFound,
+            method_error::FROM_ACCOUNT_NOT_SUPPORTED_BY_METHOD => Self::FromAccountNotSupportedByMethod,
+            method_error::ANCHOR_NOT_FOUND => Self::AnchorNotFound,
+            method_error::UNSUPPORTED_SORT => Self::UnsupportedSort,
+            method_error::UNSUPPORTED_FILTER => Self::UnsupportedFilter,
+            method_error::TOO_MANY_CHANGES => Self::TooManyChanges,
             other if other.len() <= MAX_ERROR_TYPE_LEN && other.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') => {
                 Self::Other(other.to_owned())
             }
@@ -103,25 +104,25 @@ impl MethodErrorKind {
     /// The type's name as the server sent it (empty for an unrecognisable one).
     pub fn as_str(&self) -> &str {
         match self {
-            Self::ServerUnavailable => "serverUnavailable",
-            Self::ServerFail => "serverFail",
-            Self::ServerPartialFail => "serverPartialFail",
-            Self::UnknownMethod => "unknownMethod",
-            Self::InvalidArguments => "invalidArguments",
-            Self::InvalidResultReference => "invalidResultReference",
-            Self::Forbidden => "forbidden",
-            Self::AccountNotFound => "accountNotFound",
-            Self::AccountNotSupportedByMethod => "accountNotSupportedByMethod",
-            Self::AccountReadOnly => "accountReadOnly",
-            Self::RequestTooLarge => "requestTooLarge",
-            Self::CannotCalculateChanges => "cannotCalculateChanges",
-            Self::StateMismatch => "stateMismatch",
-            Self::FromAccountNotFound => "fromAccountNotFound",
-            Self::FromAccountNotSupportedByMethod => "fromAccountNotSupportedByMethod",
-            Self::AnchorNotFound => "anchorNotFound",
-            Self::UnsupportedSort => "unsupportedSort",
-            Self::UnsupportedFilter => "unsupportedFilter",
-            Self::TooManyChanges => "tooManyChanges",
+            Self::ServerUnavailable => method_error::SERVER_UNAVAILABLE,
+            Self::ServerFail => method_error::SERVER_FAIL,
+            Self::ServerPartialFail => method_error::SERVER_PARTIAL_FAIL,
+            Self::UnknownMethod => method_error::UNKNOWN_METHOD,
+            Self::InvalidArguments => method_error::INVALID_ARGUMENTS,
+            Self::InvalidResultReference => method_error::INVALID_RESULT_REFERENCE,
+            Self::Forbidden => method_error::FORBIDDEN,
+            Self::AccountNotFound => method_error::ACCOUNT_NOT_FOUND,
+            Self::AccountNotSupportedByMethod => method_error::ACCOUNT_NOT_SUPPORTED_BY_METHOD,
+            Self::AccountReadOnly => method_error::ACCOUNT_READ_ONLY,
+            Self::RequestTooLarge => method_error::REQUEST_TOO_LARGE,
+            Self::CannotCalculateChanges => method_error::CANNOT_CALCULATE_CHANGES,
+            Self::StateMismatch => method_error::STATE_MISMATCH,
+            Self::FromAccountNotFound => method_error::FROM_ACCOUNT_NOT_FOUND,
+            Self::FromAccountNotSupportedByMethod => method_error::FROM_ACCOUNT_NOT_SUPPORTED_BY_METHOD,
+            Self::AnchorNotFound => method_error::ANCHOR_NOT_FOUND,
+            Self::UnsupportedSort => method_error::UNSUPPORTED_SORT,
+            Self::UnsupportedFilter => method_error::UNSUPPORTED_FILTER,
+            Self::TooManyChanges => method_error::TOO_MANY_CHANGES,
             Self::Other(name) => name,
         }
     }
@@ -233,7 +234,14 @@ impl fmt::Display for CallFailure {
 
 impl std::error::Error for CallFailure {}
 
-type CallResult = Result<Vec<MethodResponse>, MethodError>;
+/// What a response holds for one call id: its responses in order, and the error that ended it, if one did.
+/// A call may answer and then fail in something it does besides (RFC 8620 §3.2: an implicit call answers
+/// under the same call id), so what it answered before the error is kept.
+#[derive(Clone, Default, PartialEq)]
+struct CallResult {
+    responses: Vec<MethodResponse>,
+    error: Option<MethodError>,
+}
 
 /// A parsed API response.
 #[derive(Clone, PartialEq)]
@@ -291,11 +299,11 @@ impl ApiResponse {
             if call_id.len() > MAX_CALL_ID_LEN {
                 return Err(shape("a method response has an overlong call id"));
             }
-            let entry = calls.entry(call_id).or_insert_with(|| Ok(Vec::new()));
-            let Ok(list) = entry else {
+            let entry = calls.entry(call_id).or_default();
+            if entry.error.is_some() {
                 // RFC 8620 §3.6.2: after an error, nothing more happens within that call.
                 continue;
-            };
+            }
             if name == "error" {
                 let mut kind = MethodErrorKind::from_type(arguments.get("type").and_then(Value::as_str));
                 if let MethodErrorKind::Other(name) = &kind
@@ -304,9 +312,9 @@ impl ApiResponse {
                     kind = MethodErrorKind::Other(String::new());
                 }
                 let description = arguments.get("description").and_then(Value::as_str).map(|text| redactor.excerpt(text));
-                *entry = Err(MethodError { kind, description, arguments });
+                entry.error = Some(MethodError { kind, description, arguments });
             } else {
-                list.push(MethodResponse { name, arguments });
+                entry.responses.push(MethodResponse { name, arguments });
             }
         }
         Ok(Self { session_state, created_ids, calls })
@@ -325,15 +333,42 @@ impl ApiResponse {
     /// Takes every response of a call; a method-level error makes the call fail.
     pub fn take(&mut self, call: &CallId) -> Result<Vec<MethodResponse>, CallFailure> {
         match self.calls.remove(call.as_str()) {
-            Some(Ok(responses)) if !responses.is_empty() => Ok(responses),
-            Some(Ok(_)) | None => Err(CallFailure::Missing),
-            Some(Err(error)) => Err(CallFailure::Method(error)),
+            Some(CallResult { error: Some(error), .. }) => Err(CallFailure::Method(error)),
+            Some(CallResult { responses, error: None }) if !responses.is_empty() => Ok(responses),
+            Some(_) | None => Err(CallFailure::Missing),
         }
     }
 
     /// Takes the arguments of the call's response named `name` (for a plain call, the method's own name).
     pub fn take_named(&mut self, call: &CallId, name: &str) -> Result<Map<String, Value>, CallFailure> {
         self.take(call)?.into_iter().find(|response| response.name == name).map(MethodResponse::into_arguments).ok_or(CallFailure::UnexpectedResponse)
+    }
+
+    /// Takes the arguments of the call's response named `name`, as [`ApiResponse::take_named`] does, but for a
+    /// call that answered and failed afterwards: what it answered stands, and the error that came after it
+    /// is handed back beside it. That is a method whose own work was done and whose implicit call then failed
+    /// (RFC 8621 §7.5: the `Email/set` of `onSuccessUpdateEmail` is answered after the `EmailSubmission/set`,
+    /// under the same call id). An error with no response named `name` before it is the failure of the call.
+    /// What else the call answered is handed back between the two, in the order it came: the implicit call
+    /// may answer as a response of its own, which says what it did and what it would not do.
+    pub fn take_named_before_error(
+        &mut self,
+        call: &CallId,
+        name: &str,
+    ) -> (Result<Map<String, Value>, CallFailure>, Vec<MethodResponse>, Option<MethodError>) {
+        let Some(CallResult { mut responses, error }) = self.calls.remove(call.as_str()) else {
+            return (Err(CallFailure::Missing), Vec::new(), None);
+        };
+        let nothing = responses.is_empty();
+        match (responses.iter().position(|response| response.name == name), error) {
+            (Some(at), after) => {
+                let response = responses.remove(at);
+                (Ok(response.into_arguments()), responses, after)
+            }
+            (None, Some(error)) => (Err(CallFailure::Method(error)), Vec::new(), None),
+            (None, None) if nothing => (Err(CallFailure::Missing), Vec::new(), None),
+            (None, None) => (Err(CallFailure::UnexpectedResponse), Vec::new(), None),
+        }
     }
 
     /// The call ids present in the response, untaken.

@@ -14,7 +14,7 @@ workspace = true
 # crate (lower layers, both wasm-ready).
 mailcraft-model = { workspace = true }
 mailcraft-time = { workspace = true }
-mailcraft-mime = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true }
 # NTLMv2 (`ntlm`): MD4 of the password, then HMAC-MD5.

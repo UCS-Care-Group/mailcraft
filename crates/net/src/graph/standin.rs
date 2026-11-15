@@ -72,6 +72,9 @@
 //!   create-reply, create-reply-all and create-forward, a draft's subject, body and recipients
 //!   changed in place, attachments added, listed and deleted, large ones through upload
 //!   sessions, and answers lost on demand ([`State::lose_next`]): [`drafts`].
+//! - **To Do and categories.** `/me/todo/lists[/{id}/tasks[/{id}]]` and
+//!   `/me/outlook/masterCategories[/{id}]` as the reference has them, each property of its type
+//!   ([`State::add_todo_list`], [`State::add_todo`], [`State::add_category`]).
 //! - **Time.** [`State::stale_views`] calendar views after a change are answered as the calendar
 //!   was before it: an answer may be older than the last change. [`State::keeps_times`] makes it
 //!   say yes to a change of time and not make it, which no client should take for done.
@@ -85,12 +88,14 @@ mod messages;
 mod people;
 mod search;
 mod send;
+mod todo;
 
 pub use changes::Fault;
 pub use drafts::Attached;
 pub use messages::{Mail, Message};
 pub use people::{Access, Person};
 pub use send::Sent;
+pub use todo::{Category, TodoList, TodoTask};
 
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -461,6 +466,10 @@ pub struct State {
     pub prefixes: (String, String),
     /// The messages of every folder, and the rounds of their delta ([`messages`]).
     pub mailbox: Mail,
+    /// The owner's lists of Microsoft To Do, with their tasks ([`todo`]).
+    pub todo: Vec<TodoList>,
+    /// The owner's colour categories ([`todo`]).
+    pub categories: Vec<Category>,
     /// The mailboxes other than the owner's that it knows (#70); any other address is 404
     /// (`ErrorInvalidUser`).
     pub others: Vec<OtherMailbox>,
@@ -2160,7 +2169,9 @@ impl State {
             ["messages", id, "attachments", attachment] => self.attachments_at(asked, method, id, Some(attachment)),
             ["messages", id] => self.message_at(asked, method, id, None),
             ["messages", id, action] => self.message_at(asked, method, id, Some(action)),
-            ["contacts"] | ["outlook", "masterCategories"] if method == "GET" => self.page(asked, Vec::new()),
+            ["todo", tail @ ..] => self.todo_at(asked, method, tail),
+            ["outlook", "masterCategories", tail @ ..] => self.categories_at(asked, method, tail),
+            ["contacts"] if method == "GET" => self.page(asked, Vec::new()),
             ["mailboxSettings", "workingHours"] if method == "GET" => Ok((
                 200,
                 Some(json!({
@@ -2546,9 +2557,37 @@ fn parse_target(method: &str, target: &str, headers: Vec<(String, String)>, body
     }
 }
 
+/// How long one connection may take to send its whole request, and to take the answer.
+const REQUEST_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
+const WRITE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// A stream that gives up at a deadline for the whole request, or when told to stop, however
+/// slowly its client trickles bytes in.
+struct Bounded<'a> {
+    stream: TcpStream,
+    until: std::time::Instant,
+    stop: &'a std::sync::atomic::AtomicBool,
+}
+
+impl Read for Bounded<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if self.stop.load(std::sync::atomic::Ordering::SeqCst) || std::time::Instant::now() >= self.until {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
+            match self.stream.read(buf) {
+                Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => continue,
+                other => return other,
+            }
+        }
+    }
+}
+
 /// Read one request from `stream`: the request line, the headers, and as much body as it says.
-fn read_request(stream: &TcpStream) -> Option<Asked> {
-    let mut reader = BufReader::new(stream.try_clone().ok()?);
+fn read_request(stream: &TcpStream, stop: &std::sync::atomic::AtomicBool) -> Option<Asked> {
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(100)));
+    let until = std::time::Instant::now() + REQUEST_DEADLINE;
+    let mut reader = BufReader::new(Bounded { stream: stream.try_clone().ok()?, until, stop });
     let mut line = String::new();
     reader.read_line(&mut line).ok().filter(|n| *n > 0)?;
     let mut words = line.split_whitespace();
@@ -2577,13 +2616,33 @@ fn read_request(stream: &TcpStream) -> Option<Asked> {
 pub struct StandIn {
     pub port: u16,
     state: Arc<Mutex<State>>,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for StandIn {
+    /// Let go of the port: say stop, wake the thread blocked in `accept` with a connection of
+    /// our own, and wait for it, so that the port is free again when this returns.
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], self.port)), std::time::Duration::from_secs(2));
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 impl StandIn {
     /// Start one: a main calendar called "Calendar" with nothing in it, for the owner
     /// `owner@example.org`, taking [`TOKEN`].
     pub fn start() -> std::io::Result<StandIn> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
+        StandIn::start_on(0)
+    }
+
+    /// The same on a port of this computer's loopback address (0: one it picks). Never on any
+    /// other address: nothing here is for anybody else to reach.
+    pub fn start_on(port: u16) -> std::io::Result<StandIn> {
+        let listener = TcpListener::bind(("127.0.0.1", port))?;
         let port = listener.local_addr()?.port();
         let mut state = State {
             token: TOKEN.into(),
@@ -2614,11 +2673,21 @@ impl StandIn {
             }
         }
         state.add_hidden_folders();
+        // The lists of To Do every account has: its own, and the one that holds flagged mail.
+        state.add_todo_list("Tasks", "defaultList");
+        state.add_todo_list("Flagged Email", "flaggedEmails");
         let state = Arc::new(Mutex::new(state));
         let shared = state.clone();
-        std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stopped = stop.clone();
+        let thread = std::thread::Builder::new().name("graph stand-in".into()).spawn(move || {
             for mut stream in listener.incoming().flatten() {
-                let Some(mut asked) = read_request(&stream) else { continue };
+                if stopped.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+                // A client that says nothing, or trickles, or never reads must not keep the thread, and so the port, for good.
+                let _ = stream.set_write_timeout(Some(WRITE_DEADLINE));
+                let Some(mut asked) = read_request(&stream, &stopped) else { continue };
                 let mut state = shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                 let (status, body) = match state.answer(&asked) {
                     Ok(answer) => answer,
@@ -2673,7 +2742,7 @@ impl StandIn {
                 let _ = stream.write_all(answer.as_bytes());
             }
         })?;
-        Ok(StandIn { port, state })
+        Ok(StandIn { port, state, stop, thread: Some(thread) })
     }
 
     /// `http://127.0.0.1:{port}`.

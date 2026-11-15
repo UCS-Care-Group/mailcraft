@@ -26,9 +26,14 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     // Segoe UI has Hebrew and Arabic; Thai and the scripts of India come from these.
     &["LeelawUI.ttf", "leelawad.ttf", "tahoma.ttf"],
     &["Nirmala.ttf", "mangal.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort, for when Segoe UI isn't there: Arial has Hebrew and Arabic.
     &["arial.ttf"],
 ];
+
+/// Georgian (#1010): Sylfaen, the system's Georgian face since Windows XP, then Segoe UI.
+#[cfg(windows)]
+pub const GEORGIAN_FACES: &[&str] = &["sylfaen.ttf", "segoeui.ttf"];
 
 /// As on Windows, the faces macOS keeps in its fonts folders (`/System/Library/Fonts` and its
 /// `Supplemental`). PingFang is no longer among them on recent systems, so it comes last; Arial
@@ -42,7 +47,13 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["GeezaPro.ttc", "Arial Unicode.ttf"],
     &["Thonburi.ttc", "Arial Unicode.ttf"],
     &["Kohinoor.ttc", "DevanagariMT.ttc", "Arial Unicode.ttf"],
+    GEORGIAN_FACES,
 ];
+
+/// Georgian (#1010): Apple's own face (`SFGeorgian.ttf`, macOS 11 and later), then a Noto face the
+/// owner installed, then Arial Unicode, which has Mkhedruli alone.
+#[cfg(target_os = "macos")]
+pub const GEORGIAN_FACES: &[&str] = &["SFGeorgian.ttf", "NotoSansGeorgian-Regular.ttf", "Arial Unicode.ttf"];
 
 /// As on Windows, the faces the free desktops' packages install (Noto, Source Han, WenQuanYi,
 /// Nanum, DejaVu), in any of their fonts folders.
@@ -69,9 +80,15 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
     &["NotoSansThai-Regular.ttf"],
     &["NotoSansDevanagari-Regular.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort: Hebrew, Arabic, Armenian, Georgian and more.
     &["DejaVuSans.ttf", "FreeSans.ttf"],
 ];
+
+/// Georgian (#1010): Noto Sans Georgian (the packages of the free desktops), then DejaVu Sans and
+/// FreeSans, which have Mkhedruli but no Mtavruli.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+pub const GEORGIAN_FACES: &[&str] = &["NotoSansGeorgian-Regular.ttf", "DejaVuSans.ttf", "FreeSans.ttf"];
 
 /// Where this system keeps its fonts: the owner's own folders first, then the system's.
 #[cfg(all(not(windows), not(target_arch = "wasm32")))]
