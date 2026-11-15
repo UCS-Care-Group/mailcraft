@@ -254,6 +254,43 @@ class MailListControllerTest {
     }
 
     @Test
+    fun commandsAreMadeInTurnSoTheUndoOfferIsTheLastChangesOwn() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox.copy(conversations = true))
+        // Mark as read on a long conversation waits for its whole list; Delete is asked for meanwhile.
+        val long = FakeMailSource.row(2, members = 3).let { it.copy(memberIds = it.memberIds.take(2)) }
+        source.memberLists = mapOf(2uL to listOf(200uL, 201uL, 202uL))
+        source.membersGate = CompletableDeferred()
+        val now = CoroutineStart.UNDISPATCHED
+        val read = launch(start = now) { c.triage(Triage.MarkRead(true), listOf(long)) }
+        val delete = launch(start = now) { c.triage(Triage.Delete, listOf(FakeMailSource.row(1))) }
+        assertTrue(source.commands.isEmpty())
+        source.membersGate?.complete(Unit)
+        read.join()
+        delete.join()
+        // Delete was made last, so its offer stands and Undo takes it back.
+        assertEquals(listOf("mail.markRead", "mail.delete"), source.commands.map { it.first })
+        val notice = c.ui.value.notice?.notice
+        assertTrue(notice is ListNotice.Done && notice.triage == Triage.Delete)
+    }
+
+    @Test
+    fun aCalledOffQueryWhoseRowsAReloadBroughtKeepsThem() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(30))
+        val c = controller(source)
+        c.show(inbox)
+        val unread = inbox.copy(filter = ListFilter.Unread)
+        source.waitCall = 1
+        source.gate = CompletableDeferred()
+        val pending = launch(start = CoroutineStart.UNDISPATCHED) { c.show(unread) }
+        c.reload()
+        pending.cancel()
+        pending.join()
+        assertEquals(unread, c.ui.value.query)
+    }
+
+    @Test
     fun aPageThatCouldNotBeReadIsTriedAgain() = runBlocking {
         val source = FakeMailSource(FakeMailSource.rows(120))
         val c = controller(source)

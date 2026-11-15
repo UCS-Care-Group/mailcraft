@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import uniffi.mailcraft_mobile.Event
 
 /**
@@ -41,8 +43,11 @@ internal class MailListController(
     @Volatile
     private var freshFor = -1
 
-    /** Moves on with each command, so that only the last one's completion offers an undo. */
+    /** Moves on with each command the core made, in the order it made them: only the last one offers an undo. */
     private val commands = AtomicInteger()
+
+    /** Commands are made one at a time, so that their count follows the order the core made them in. */
+    private val commandLock = Mutex()
 
     /** Pulls to refresh under way. */
     private val refreshes = AtomicInteger()
@@ -76,7 +81,8 @@ internal class MailListController(
         } catch (cancelled: CancellationException) {
             // Called off: the rows kept are the last query's, so the list goes on being that one's
             // (paging then reads that query's pages), until it is shown again.
-            if (mine == generation.get() && sameFolder) {
+            // (Unless a reload brought this query's own rows meanwhile: they stay, as this query's.)
+            if (mine == generation.get() && sameFolder && freshFor != mine) {
                 state.update { it.copy(query = before.query, load = before.load) }
             }
             throw cancelled
@@ -207,8 +213,11 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
-        val mine = commands.incrementAndGet()
-        val count = state.value.query?.let { source.focusedRun(triage, it, rows) }
+        val query = state.value.query
+        val (count, mine) = commandLock.withLock {
+            val done = query?.let { source.focusedRun(triage, it, rows) }
+            done to (if (done != null) commands.incrementAndGet() else commands.get())
+        }
         // Undo takes back the last change: once this one is made, an earlier offer would undo it instead.
         if (count != null) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
         reload()
@@ -223,8 +232,10 @@ internal class MailListController(
 
     /** Takes back the last change. */
     suspend fun undo() {
-        commands.incrementAndGet()
-        if (!source.run("edit.undo", "{}")) notify(ListNotice.Failed)
+        val undone = commandLock.withLock {
+            source.run("edit.undo", "{}").also { commands.incrementAndGet() }
+        }
+        if (!undone) notify(ListNotice.Failed)
         reload()
     }
 

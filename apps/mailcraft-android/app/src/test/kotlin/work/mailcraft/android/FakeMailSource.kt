@@ -58,8 +58,12 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var memberLists: Map<ULong, List<ULong>> = emptyMap()
     val memberAsks = mutableListOf<ULong>()
 
+    /** When set, a look-up of a row's whole list waits for it. */
+    var membersGate: CompletableDeferred<Unit>? = null
+
     override suspend fun members(query: MailQuery, id: ULong): List<ULong> {
         memberAsks += id
+        membersGate?.await()
         return memberLists[id].orEmpty()
     }
 
