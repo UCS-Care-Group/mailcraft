@@ -118,10 +118,27 @@ fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     // The host names it, as Save As does ([`opening::save_name`]); said as it named it.
     let path = write(&name, bytes.as_slice())?;
     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| opening::save_name(&name));
-    board.put_files(std::slice::from_ref(&path))?;
+    // The clipboard refused it: the copy goes now, not when the cap tidies it, so that what was in
+    // a private message isn't kept on disk for nothing.
+    if let Err(e) = board.put_files(std::slice::from_ref(&path)) {
+        discard_copy(&path);
+        return Err(e);
+    }
     app.copies.remember(what, path);
     app.status(crate::i18n::fmt(tl!("Copied {name}"), &[("name", &file)]));
     Ok(json!({"name": file, "copied": true}))
+}
+
+/// Remove the copy the host just wrote for `path`, and the folder it made for it when that is left
+/// empty. Never through a link: a link is removed, not what it points to.
+fn discard_copy(path: &std::path::Path) {
+    if std::fs::symlink_metadata(path).is_ok_and(|m| !m.is_dir()) {
+        let _ = std::fs::remove_file(path);
+    }
+    if let Some(folder) = path.parent() {
+        // (Only if empty: the folder may be shared with nothing else, but is never emptied here.)
+        let _ = std::fs::remove_dir(folder);
+    }
 }
 
 fn open(app: &mut MailApp, p: &Value) -> Result<Value, String> {

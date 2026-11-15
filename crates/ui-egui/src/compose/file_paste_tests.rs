@@ -131,6 +131,7 @@ fn a_paste_of_files_attaches_them_and_leaves_the_text() {
 }
 
 #[test]
+#[cfg(windows)]
 fn ctrl_v_of_files_alone_attaches_them() {
     // Explorer's files: the backend has no text or picture to hand over, and keeps the press.
     let folder = Folder::new("lost");
@@ -168,10 +169,10 @@ fn a_signature_takes_no_files() {
     let mut h = writing(&board);
     *board.0.borrow_mut() = vec![folder.file("logo.png", b"png")];
     // Only the message being written attaches: the signature's body is no message.
-    assert!(super::files(h.state(), super::super::Which::Signature, "").is_none());
-    assert!(super::files(h.state(), super::super::Which::Message, "").is_some());
+    assert!(super::files_on(h.state(), super::super::Which::Signature, "", true).is_none());
+    assert!(super::files_on(h.state(), super::super::Which::Message, "", true).is_some());
     h.state_mut().services.clipboard = None;
-    assert!(super::files(h.state(), super::super::Which::Message, "").is_none());
+    assert!(super::files_on(h.state(), super::super::Which::Message, "", true).is_none());
     let _ = &mut h;
 }
 
@@ -217,14 +218,14 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
     // Nothing (Explorer): all of them. Paths, addresses (spaces as %20, a local host, a drive) and
     // names (Finder): the ones named.
     for text in ["", "  \n"] {
-        assert_eq!(super::named_by(text, &files), both, "{text:?}");
+        assert_eq!(super::named_by(text, &files, true), both, "{text:?}");
     }
     for text in [
         "/home/ada/My Files/report.pdf\r\nC:\\Users\\ada\\notes.txt\r\n",
         "report.pdf\nnotes.txt",
         "file:///home/ada/My%20Files/report.pdf\nfile:///C:/Users/ada/notes.txt",
     ] {
-        assert_eq!(super::named_by(text, &files), both, "{text:?}");
+        assert_eq!(super::named_by(text, &files, true), both, "{text:?}");
     }
     for (text, only) in [
         ("/home/ada/My Files/report.pdf", &report),
@@ -234,7 +235,7 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
         ("notes.txt\nnotes.txt", &notes),
         ("report.pdf", &report),
     ] {
-        assert_eq!(super::named_by(text, &files), Some(vec![only.clone()]), "{text:?}");
+        assert_eq!(super::named_by(text, &files, true), Some(vec![only.clone()]), "{text:?}");
     }
     // Anything else, however much of it names a file.
     for text in [
@@ -245,7 +246,7 @@ fn what_a_file_manager_leaves_beside_the_files_is_told_by_what_it_names() {
         "/home/ada/My Files/other.pdf",
         "file:///home/ada/My%2",
     ] {
-        assert_eq!(super::named_by(text, &files), None, "{text:?}");
+        assert_eq!(super::named_by(text, &files, true), None, "{text:?}");
     }
 }
 
@@ -270,4 +271,55 @@ fn the_status_line_names_the_files_a_paste_attached() {
     h.run_steps(2);
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
     assert!(said.contains("Attached 1 file") && said.contains("(report.pdf)"), "{said}");
+}
+
+/// Files alone on the clipboard, with no text, are Explorer's: attached on Windows only (#807). Where
+/// a file manager puts the names beside the files, a clipboard of files alone may be a page's
+/// `text/uri-list` listing paths it guessed, and one Ctrl+V would attach whichever exist.
+#[test]
+fn files_alone_are_attached_on_windows_only() {
+    let folder = Folder::new("alone");
+    let board = Files::default();
+    let h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("photo.jpg", b"jpg")];
+    let path = folder.0.join("photo.jpg").to_str().unwrap().to_string();
+    let message = super::super::Which::Message;
+    assert_eq!(super::files_on(h.state(), message, "", true), Some(vec![path.clone()]));
+    assert_eq!(super::files_on(h.state(), message, "  \n", false), None);
+    assert_eq!(super::files_on(h.state(), message, "", false), None);
+    // The names beside them, as a file manager leaves them, still attach them anywhere.
+    assert_eq!(super::files_on(h.state(), message, "photo.jpg", false), Some(vec![path.clone()]));
+    assert_eq!(super::files_on(h.state(), message, &path, true), Some(vec![path]));
+    // And what the real thing does here.
+    assert_eq!(super::files(h.state(), message, "").is_some(), cfg!(windows));
+}
+
+/// A key press the backend kept, with files alone on the clipboard, attaches nothing off Windows.
+#[test]
+#[cfg(not(windows))]
+fn ctrl_v_of_files_alone_attaches_nothing_here() {
+    let folder = Folder::new("lost-here");
+    let board = Files::default();
+    let mut h = writing(&board);
+    *board.0.borrow_mut() = vec![folder.file("photo.jpg", b"jpg")];
+    h.event(release(Modifiers::COMMAND));
+    h.run_steps(2);
+    assert!(attached(&h).is_empty());
+}
+
+/// A path of the network on the clipboard is never looked at on Windows: no file of it goes in,
+/// and nothing asks its host about it (#807).
+#[test]
+fn a_network_path_is_left_out_on_windows() {
+    let folder = Folder::new("unc");
+    let board = Files::default();
+    let h = writing(&board);
+    let local = folder.file("local.txt", b"x");
+    let paths = ["\\\\host\\share\\a.txt", "//host/share/b.txt", "\\\\?\\UNC\\host\\share\\c.txt", "\\\\.\\pipe\\d"];
+    *board.0.borrow_mut() = paths.iter().map(PathBuf::from).chain([local.clone()]).collect();
+    let message = super::super::Which::Message;
+    assert_eq!(super::files_on(h.state(), message, "", true), Some(vec![local.to_str().unwrap().to_string()]));
+    *board.0.borrow_mut() = paths.iter().map(PathBuf::from).collect();
+    assert_eq!(super::files_on(h.state(), message, "", true), None);
+    assert!(super::on_the_network("\\\\host\\share") && !super::on_the_network("C:\\share") && !super::on_the_network("/home/a"));
 }

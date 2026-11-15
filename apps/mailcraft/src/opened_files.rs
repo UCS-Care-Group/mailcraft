@@ -35,7 +35,7 @@ use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use mailcraft_engine::opening::{self, Verdict};
@@ -77,11 +77,27 @@ pub struct Opened {
     count: AtomicU32,
     /// How many bytes the copies may keep ([`MAX_COPIED`]).
     max_copied: u64,
+    /// What the copies keep, as far as is known: counted at the last look at the folders and
+    /// added to by each copy since, so that the folders are looked at only when this says the cap
+    /// may be passed, not for every copy. `u64::MAX` before the first look.
+    kept: AtomicU64,
+    /// How many times the folders were looked at (for tests).
+    #[cfg(test)]
+    looked: AtomicU32,
 }
 
 impl Opened {
     pub fn at(base: PathBuf) -> Opened {
-        Opened { base, run: Mutex::new(None), copies: Mutex::new(None), count: AtomicU32::new(0), max_copied: MAX_COPIED }
+        Opened {
+            base,
+            run: Mutex::new(None),
+            copies: Mutex::new(None),
+            count: AtomicU32::new(0),
+            max_copied: MAX_COPIED,
+            kept: AtomicU64::new(u64::MAX),
+            #[cfg(test)]
+            looked: AtomicU32::new(0),
+        }
     }
 
     /// As [`at`](Self::at), the copies keeping at most `bytes` (for tests).
@@ -137,7 +153,15 @@ impl Opened {
         let run = self.run_folder(&self.copies, COPIES).map_err(failed)?;
         let path = self.write_into(&run, &opening::save_name(name), bytes, false).map_err(failed)?;
         // Holding Ctrl+C or copying file after file must not fill the disk: the oldest copies go.
-        self.trim_copies(Some(&path));
+        // (Looked for only when what is kept may be past the cap: this is the window's thread.)
+        let added = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        let kept = self
+            .kept
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |k| Some(k.saturating_add(added)))
+            .map_or(u64::MAX, |k| k.saturating_add(added));
+        if kept > self.max_copied {
+            self.trim_copies(Some(&path));
+        }
         Ok(path)
     }
 
@@ -145,6 +169,8 @@ impl Opened {
     /// no more than the cap; `keep` (the file just written) is never one of them. A link is never
     /// followed, and a copy that can't be removed (Windows, still open) stays.
     fn trim_copies(&self, keep: Option<&Path>) {
+        #[cfg(test)]
+        self.looked.fetch_add(1, Ordering::Relaxed);
         let Ok(runs) = fs::read_dir(&self.base) else { return };
         let mut copies: Vec<(SystemTime, u64, PathBuf)> = Vec::new();
         for run in runs.flatten().take(10_000) {
@@ -160,6 +186,7 @@ impl Opened {
             }
         }
         let mut total = copies.iter().fold(0u64, |sum, (_, bytes, _)| sum.saturating_add(*bytes));
+        self.kept.store(total, Ordering::Relaxed);
         if total <= self.max_copied {
             return;
         }
@@ -178,6 +205,7 @@ impl Opened {
                 total = total.saturating_sub(bytes);
             }
         }
+        self.kept.store(total, Ordering::Relaxed);
     }
 
     /// Write `bytes` as `name` (already made safe) into a new numbered folder of `run`, so that

@@ -66,25 +66,45 @@ impl Keys {
 
 /// The files on the clipboard that a paste into the message being written attaches: none for a
 /// signature, without a clipboard that has files, or when what is on it is no files. With the text
-/// that came with the paste (`text`; empty for a Ctrl+V the backend kept, which is Explorer's files
-/// alone) only the files that text names, and none when it names anything else: a file manager
-/// leaves beside the files it copies their paths, addresses or names, but a page can put a list of
-/// `file://` addresses on the clipboard beside the text the owner copied from it, and that text is
-/// then pasted as text, and no file of the owner's goes into the message.
+/// that came with the paste (`text`) only the files that text names, and none when it names
+/// anything else: a file manager leaves beside the files it copies their paths, addresses or
+/// names, but a page can put a list of `file://` addresses on the clipboard beside the text the
+/// owner copied from it, and that text is then pasted as text, and no file of the owner's goes
+/// into the message.
+///
+/// With no text at all (a Ctrl+V the backend kept) that is Explorer's files alone, on Windows.
+/// Elsewhere files alone on the clipboard are not attached: a page can't be told from a file
+/// manager by what is on the clipboard (a browser may put a page's `text/uri-list` there as that
+/// real type, listing paths it guessed), and the file managers there put the names beside the
+/// files as text. And on Windows a path of the network (`\\host\share\…`) is left out: looking
+/// at it would contact that host.
 pub(super) fn files(app: &MailApp, which: super::Which, text: &str) -> Option<Vec<String>> {
+    files_on(app, which, text, cfg!(windows))
+}
+
+/// [`files`], as it is on Windows (`windows`) or not.
+fn files_on(app: &MailApp, which: super::Which, text: &str, windows: bool) -> Option<Vec<String>> {
     if which != super::Which::Message {
         return None;
     }
     let board = app.services.clipboard.as_ref()?;
-    let files: Vec<String> = board.files().iter().filter_map(|p| p.to_str().map(str::to_string)).collect();
-    let named = named_by(text, &files)?;
+    let files: Vec<String> =
+        board.files().iter().filter_map(|p| p.to_str()).filter(|p| !(windows && on_the_network(p))).map(str::to_string).collect();
+    let named = named_by(text, &files, windows)?;
     (!named.is_empty()).then_some(named)
 }
 
-/// Of `files`, those that `text` names: all of them for no text at all; else each line of it must
-/// be the path of one of them, its `file://` address or its name, and the files named are the
-/// ones that are attached. `None` when a line names no file.
-fn named_by(text: &str, files: &[String]) -> Option<Vec<String>> {
+/// Whether a Windows path is of the network (`\\host\share`, or a device's `\\.\`, `\\?\`):
+/// asking about it for its size would contact the host.
+fn on_the_network(path: &str) -> bool {
+    path.starts_with("\\\\") || path.starts_with("//")
+}
+
+/// Of `files`, those that `text` names: all of them for no text at all where `alone` (Explorer's
+/// on Windows), else none; else each line of it must be the path of one of them, its `file://`
+/// address or its name, and the files named are the ones that are attached. `None` when a line
+/// names no file.
+fn named_by(text: &str, files: &[String], alone: bool) -> Option<Vec<String>> {
     // (Slashes either way: a Windows path in an address has them forward.)
     let slashed = |text: &str| text.replace('\\', "/");
     let names = |file: &str, line: &str, decoded: &str| {
@@ -95,7 +115,7 @@ fn named_by(text: &str, files: &[String]) -> Option<Vec<String>> {
     // (A paste of more lines than files can name is no list of them.)
     let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
     if lines.is_empty() {
-        return Some(files.to_vec());
+        return alone.then(|| files.to_vec());
     }
     if lines.len() > files.len() {
         return None;

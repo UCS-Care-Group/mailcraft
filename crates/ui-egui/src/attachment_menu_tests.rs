@@ -306,6 +306,8 @@ struct Copied {
     /// Where the host writes the files, as a folder of its own: they are real files, for the
     /// window to find the one it wrote before.
     dir: std::rc::Rc<Dir>,
+    /// The clipboard refuses the files.
+    refuse: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
 /// A folder of its own for a test, removed with it.
@@ -336,6 +338,9 @@ impl crate::RichClipboard for Copied {
         None
     }
     fn put_files(&self, paths: &[std::path::PathBuf]) -> Result<(), String> {
+        if self.refuse.get() {
+            return Err("the clipboard took no file".into());
+        }
         self.put.borrow_mut().push(paths.to_vec());
         Ok(())
     }
@@ -527,6 +532,24 @@ fn the_menu_bars_copy_copies_a_picked_attachment_but_the_control_channels_does_n
     assert_eq!(put(&c).len(), 1, "nothing more on the clipboard");
     let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
     assert!(said.contains("Only you can copy"), "{said}");
+}
+
+/// A clipboard that refuses the file leaves no copy of it on disk (#807): what was in a private
+/// message isn't kept for nothing, and the next Copy writes it anew.
+#[test]
+fn a_copy_the_clipboard_refuses_is_removed_at_once() {
+    let (mut h, c) = copying(&["notes.pdf"]);
+    c.refuse.set(true);
+    let e = h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap_err();
+    assert!(e.contains("the clipboard took no file"), "{e}");
+    assert_eq!(c.written.borrow().len(), 1, "it was written for the clipboard");
+    assert!(!written(&c, 1, "notes.pdf").exists(), "and is gone");
+    assert!(!written(&c, 1, "notes.pdf").parent().unwrap().exists(), "with its folder");
+    // Nothing remembers it: the next Copy that the clipboard takes writes it anew.
+    c.refuse.set(false);
+    h.state_mut().run("mail.copyAttachment", json!({"id": A, "index": 0})).unwrap();
+    assert_eq!(c.written.borrow().len(), 2);
+    assert!(written(&c, 2, "notes.pdf").is_file());
 }
 
 /// Programs are copied as Save As saves them (nothing is opened), and where there is no host to

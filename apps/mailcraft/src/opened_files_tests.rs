@@ -87,6 +87,35 @@ fn the_copies_kept_are_capped_and_the_oldest_go_first() {
     let _ = fs::remove_dir_all(base.parent().unwrap().parent().unwrap());
 }
 
+/// The folders of copies are looked at once, and again only when the copies may have passed the
+/// cap, not for every copy: that is the window's thread.
+#[test]
+fn the_folders_are_not_walked_for_every_copy() {
+    let base = scratch("walks");
+    let opened = Opened::at(base.clone()).keeping_at_most(1_000);
+    let looked = |o: &Opened| o.looked.load(Ordering::Relaxed);
+    // The first copy looks: what earlier runs left is not known.
+    opened.copy("a.txt", &[1; 10]).unwrap();
+    assert_eq!(looked(&opened), 1);
+    for _ in 0..50 {
+        opened.copy("b.txt", &[2; 10]).unwrap();
+    }
+    assert_eq!(looked(&opened), 1, "51 copies of 10 bytes under a cap of 1000");
+    // Close to the cap it looks, and the cap holds.
+    let big = opened.copy("big.bin", &[3; 600]).unwrap();
+    assert_eq!(looked(&opened), 2);
+    let kept = |p: &Path| -> u64 { fs::read_dir(p.parent().unwrap().parent().unwrap()).unwrap().flatten().map(|e| tree_bytes(&e.path(), 1)).sum() };
+    assert!(kept(&big) <= 1_000, "{}", kept(&big));
+    assert!(big.exists());
+    // What it counted then is what it goes on from: well under the cap, nothing is looked at.
+    let small = Opened::at(scratch("walks-small")).keeping_at_most(1_000);
+    small.copy("a.txt", &[1; 10]).unwrap();
+    small.copy("b.txt", &[1; 989]).unwrap();
+    assert_eq!(looked(&small), 1);
+    let _ = fs::remove_dir_all(small.base.parent().unwrap().parent().unwrap());
+    let _ = fs::remove_dir_all(base.parent().unwrap().parent().unwrap());
+}
+
 #[cfg(unix)]
 #[test]
 fn a_copy_never_goes_through_a_link() {
