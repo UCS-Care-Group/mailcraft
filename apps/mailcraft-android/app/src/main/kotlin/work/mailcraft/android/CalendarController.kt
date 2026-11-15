@@ -60,14 +60,18 @@ internal data class EventDetailModel(
      * The start and the end of the time on [occurrence]: a series' times are on their own days, which
      * are not the day the series began; any other event's are its own.
      */
-    fun span(occurrence: LocalDate?): Pair<LocalDateTime, LocalDateTime> {
+    fun span(occurrence: LocalDate?, resolved: Moments? = null): Pair<LocalDateTime, LocalDateTime> {
+        // The core has worked out a timed occurrence's clock times (a zone's clock may have changed since
+        // the series began): the row that was opened has them, so they are used as they are.
+        val own = resolved?.takeIf { repeats && !allDay && occurrence != null }
+        if (own != null) return own
         val shift = occurrence?.takeIf { repeats }?.let { ChronoUnit.DAYS.between(start.toLocalDate(), it) } ?: 0L
         return start.plusDays(shift) to end.plusDays(shift)
     }
 
     /** The time on [occurrence] as the agenda's row of it, for the answer commands. */
-    fun asEvent(occurrence: LocalDate?): CalendarEvent {
-        val (from, to) = span(occurrence)
+    fun asEvent(occurrence: LocalDate?, resolved: Moments? = null): CalendarEvent {
+        val (from, to) = span(occurrence, resolved)
         return CalendarEvent(
             id = id,
             calendar = calendar,
@@ -85,11 +89,12 @@ internal data class EventDetailModel(
         )
     }
 
-    fun draft(occurrence: LocalDate?): EventDraft {
-        val last = if (allDay) end.minusNanos(1).toLocalDate().coerceAtLeast(start.toLocalDate()) else end.toLocalDate()
+    fun draft(occurrence: LocalDate?, resolved: Moments? = null): EventDraft {
         val only = occurrence?.takeIf { repeats }
         // One time of a series shows its own days; the draft gives the command the series' days back.
         val shift = only?.let { ChronoUnit.DAYS.between(start.toLocalDate(), it) } ?: 0L
+        val (from, to) = if (only != null) span(only, resolved) else start to end
+        val last = if (allDay) to.minusNanos(1).toLocalDate().coerceAtLeast(from.toLocalDate()) else to.toLocalDate()
         val required = attendees.filterNot { it.optional }.joinToString("; ") { it.address }
         val optional = attendees.filter { it.optional }.joinToString("; ") { it.address }
         return EventDraft(
@@ -101,19 +106,32 @@ internal data class EventDetailModel(
             attendees = required,
             optional = optional,
             allDay = allDay,
-            startDate = start.toLocalDate().plusDays(shift),
-            startTime = if (allDay) DEFAULT_START else start.toLocalTime(),
-            endDate = last.plusDays(shift),
-            endTime = if (allDay) DEFAULT_END else end.toLocalTime(),
+            startDate = from.toLocalDate(),
+            startTime = if (allDay) DEFAULT_START else from.toLocalTime(),
+            endDate = last,
+            endTime = if (allDay) DEFAULT_END else to.toLocalTime(),
             reminder = reminder,
             repeat = repeat,
             occurrence = only,
             repeatText = repeatText,
             seriesShift = shift,
             loaded = LoadedText(title, location, description, required, optional, peopleCut),
-        )
+        ).let { d ->
+            // What was shown is what a save compares with: times left alone aren't sent.
+            val shown = d.loaded?.copy(
+                start = d.start,
+                end = d.end,
+                allDay = allDay,
+                seriesStart = start,
+                seriesEnd = end,
+            )
+            d.copy(loaded = shown)
+        }
     }
 }
+
+/** A start and an end. */
+internal typealias Moments = Pair<LocalDateTime, LocalDateTime>
 
 /** What a command came to: nothing to say, or the words to show. */
 internal sealed interface Outcome {
@@ -148,7 +166,8 @@ internal sealed interface Loaded {
 internal sealed interface CalendarPage {
     data object Browse : CalendarPage
 
-    data class Detail(val event: EventDetailModel, val occurrence: LocalDate) : CalendarPage
+    /** [times] are the opened row's own start and end, as the core worked them out. */
+    data class Detail(val event: EventDetailModel, val occurrence: LocalDate, val times: Moments? = null) : CalendarPage
 
     data class Editor(val draft: EventDraft, val problem: String? = null) : CalendarPage
 }
@@ -167,6 +186,18 @@ internal data class CalendarUiState(
     val saving: Boolean = false,
 ) {
     fun range(weekStart: DayOfWeek): DateRange = CalendarPaging.range(mode, anchor, weekStart)
+
+    /**
+     * A new event opened before the calendars were read has no calendar of its own, while the editor
+     * shows the first it can write to: the draft takes that one, so what is shown is what is saved.
+     */
+    fun withCalendarChosen(): CalendarUiState {
+        val editor = page as? CalendarPage.Editor ?: return this
+        val d = editor.draft
+        val first = calendars.firstOrNull { it.editable }
+        val chosen = if (d.isNew && calendars.none { it.editable && it.id == d.calendar }) first?.id else null
+        return if (chosen == null) this else copy(page = editor.copy(draft = d.copy(calendar = chosen)))
+    }
 }
 
 /**
@@ -226,7 +257,7 @@ internal class CalendarController(
                         events = events?.let { Loaded.Ready(it) }
                             ?: Loaded.Failed(texts.t("The calendar could not be read.")),
                         calendars = calendars,
-                    )
+                    ).withCalendarChosen()
                 }
             }
         }
@@ -259,7 +290,7 @@ internal class CalendarController(
                 if (detail == null) {
                     it.copy(notice = texts.t("The event is gone."))
                 } else {
-                    it.copy(page = CalendarPage.Detail(detail, event.firstDay), notice = null)
+                    it.copy(page = CalendarPage.Detail(detail, event.firstDay, event.start to event.end), notice = null)
                 }
             }
         }
@@ -274,8 +305,8 @@ internal class CalendarController(
         go { it.copy(page = CalendarPage.Editor(draft), notice = null) }
     }
 
-    fun edit(detail: EventDetailModel, occurrence: LocalDate?) {
-        go { it.copy(page = CalendarPage.Editor(detail.draft(occurrence))) }
+    fun edit(detail: EventDetailModel, occurrence: LocalDate?, times: Moments? = null) {
+        go { it.copy(page = CalendarPage.Editor(detail.draft(occurrence, times))) }
     }
 
     /** The editor as it was before the window was made again (the draft the owner was writing). */
@@ -300,7 +331,8 @@ internal class CalendarController(
             return
         }
         val account = _state.value.calendars.firstOrNull { it.id == draft.calendar }?.account ?: 0uL
-        if (draft.hasPeople && account != 0uL) {
+        // Whoever was invited before is written to as well when the owner takes them all off.
+        if ((draft.hasPeople || draft.hadPeople) && account != 0uL) {
             _state.update { it.copy(ask = Ask.Invite(draft)) }
         } else {
             commit(draft, send = if (draft.hasPeople) false else null)

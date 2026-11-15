@@ -398,4 +398,61 @@ class CalendarControllerTest {
         // Nobody to tell: the plain choices, which send nothing.
         assertTrue(deleteOptions(detail(), EnglishTexts).all { it.second == null })
     }
+
+    @Test
+    fun takingEveryoneOffAServerMeetingStillAsksBeforeWritingToThem() {
+        val c = controller()
+        backend.calendars = listOf(CalendarInfo(1uL, 5uL, "Work", 0, true))
+        c.refresh()
+        val meeting = detail(people = true, onServer = true)
+        c.edit(meeting, null)
+        val bare = (c.state.value.page as CalendarPage.Editor).draft.copy(attendees = "")
+        assertTrue(bare.hadPeople)
+        c.change(bare)
+        c.save()
+        assertTrue(backend.commands.isEmpty())
+        assertTrue(c.state.value.ask is Ask.Invite)
+        c.answerAsk(send = true)
+        assertTrue(backend.commands.single().second.contains("\"send\":true"))
+    }
+
+    @Test
+    fun onlyANewMeetingMayBeKeptHereAndInviteNobody() {
+        val fresh = EventDraft.blank(LocalDate.parse("2026-11-03"), NOW, 1uL)
+        assertEquals(2, inviteLabels(Ask.Invite(fresh)).size)
+        val changed = detail(people = true, onServer = true).draft(null)
+        assertEquals(listOf("Send invitations"), inviteLabels(Ask.Invite(changed)))
+    }
+
+    @Test
+    fun aNewEventOpenedBeforeTheCalendarsLoadedSubmitsTheCalendarItShows() {
+        val c = controller()
+        c.newEvent()
+        assertEquals(0uL, (c.state.value.page as CalendarPage.Editor).draft.calendar)
+        backend.calendars = listOf(CalendarInfo(7uL, 0uL, "Personal", 0, true))
+        c.refresh()
+        val draft = (c.state.value.page as CalendarPage.Editor).draft
+        assertEquals(7uL, draft.calendar)
+        assertTrue(draft.params(null).contains("\"calendar\":7"))
+    }
+
+    @Test
+    fun theOpenedRowsOwnTimesAreCarriedIntoTheDetailAndTheEditor() {
+        val c = controller()
+        backend.detail = detail().copy(
+            start = LocalDateTime.parse("2026-03-01T10:00"),
+            end = LocalDateTime.parse("2026-03-01T11:00"),
+            repeat = RepeatDraft(Repeat.Weekly, 1, setOf(DayOfWeek.SUNDAY)),
+        )
+        c.open(event(1, "2026-04-05T11:00", "2026-04-05T12:00"))
+        val page = c.state.value.page as CalendarPage.Detail
+        assertEquals(LocalDateTime.parse("2026-04-05T11:00"), page.event.span(page.occurrence, page.times).first)
+        c.edit(page.event, page.occurrence, page.times)
+        val draft = (c.state.value.page as CalendarPage.Editor).draft
+        assertEquals(java.time.LocalTime.of(11, 0), draft.startTime)
+        // Not touched, so not sent: the series is not moved an hour by looking at it.
+        assertFalse(draft.copy(title = "Renamed").params(null).contains("\"start\""))
+    }
+
+    private fun inviteLabels(ask: Ask.Invite): List<String> = inviteOptions(EnglishTexts, ask).map { it.first }
 }

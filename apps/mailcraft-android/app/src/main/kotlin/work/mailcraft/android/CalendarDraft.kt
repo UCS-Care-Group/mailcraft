@@ -79,7 +79,21 @@ internal data class LoadedText(
     val optional: String,
     /** The people given are not all of them: the list can't be changed here, and is never sent back. */
     val peopleCut: Boolean = false,
-)
+    /** The times and whole-day-ness the editor showed first: a save sends times only when they were changed. */
+    val start: LocalDateTime? = null,
+    val end: LocalDateTime? = null,
+    val allDay: Boolean = false,
+    /** The series' own first start and end, which one time of a series is moved from. */
+    val seriesStart: LocalDateTime? = null,
+    val seriesEnd: LocalDateTime? = null,
+) {
+    /** The event had people: taking them all off still writes to them. */
+    val hadPeople: Boolean get() = peopleCut || attendees.contains('@') || optional.contains('@')
+
+    /** The editor still has the times it was given, so a save has none to send. */
+    fun keepsTimes(allDay: Boolean, start: LocalDateTime, end: LocalDateTime): Boolean =
+        this.start != null && this.allDay == allDay && this.start == start && this.end == end
+}
 
 /** An event being made or changed, by the owner's clock; a whole-day event's [endDate] is its last day. */
 internal data class EventDraft(
@@ -123,6 +137,9 @@ internal data class EventDraft(
     /** Whether the meeting names people (so that a server would write to them). */
     val hasPeople: Boolean get() = attendees.any { it == '@' } || optional.any { it == '@' }
 
+    /** The event had people when the editor was given it: taking them all off still writes to them. */
+    val hadPeople: Boolean get() = !isNew && loaded?.hadPeople == true
+
     /** Moves the start to [date], keeping the length of the event. */
     fun withStartDate(date: LocalDate): EventDraft {
         val shift = java.time.temporal.ChronoUnit.DAYS.between(startDate, date)
@@ -147,7 +164,7 @@ internal data class EventDraft(
         val was = loaded?.takeIf { !isNew }
         if (was == null || title != was.title) parts.add("\"title\":${jsonString(title.trim())}")
         parts.add("\"allDay\":$allDay")
-        parts.addAll(timesJson())
+        parts.addAll(timesJson(was))
         parts.addAll(wordsJson(was))
         parts.add("\"reminder\":${reminder?.toString() ?: "null"}")
         if (occurrence != null) {
@@ -162,7 +179,9 @@ internal data class EventDraft(
     }
 
     /** The start and end; one time of a series is written as the series' days, which the command moves it by. */
-    private fun timesJson(): List<String> {
+    private fun timesJson(was: LoadedText?): List<String> {
+        // Times the owner left alone are not sent: what the core holds (seconds, a zone's own clock) stays.
+        if (was?.keepsTimes(allDay, start, end) == true) return emptyList()
         if (allDay) {
             return listOf(
                 "\"start\":${jsonString(startDate.minusDays(seriesShift).toString())}",
@@ -170,8 +189,19 @@ internal data class EventDraft(
             )
         }
         val fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-        val from = start.minusDays(seriesShift).withSecond(0).withNano(0)
-        val to = end.minusDays(seriesShift).withSecond(0).withNano(0)
+        // One time of a series moves from the series' own start by as much as the owner moved it, on the clock.
+        val seriesFrom = was?.seriesStart
+        val seriesTo = was?.seriesEnd
+        val from = if (occurrence != null && was?.start != null && seriesFrom != null) {
+            seriesFrom.plus(java.time.Duration.between(was.start, start))
+        } else {
+            start.minusDays(seriesShift)
+        }.withSecond(0).withNano(0)
+        val to = if (occurrence != null && was?.end != null && seriesTo != null) {
+            seriesTo.plus(java.time.Duration.between(was.end, end))
+        } else {
+            end.minusDays(seriesShift)
+        }.withSecond(0).withNano(0)
         return listOf(
             "\"start\":${jsonString(from.format(fmt).take(DATETIME_LENGTH))}",
             "\"end\":${jsonString(to.format(fmt).take(DATETIME_LENGTH))}",

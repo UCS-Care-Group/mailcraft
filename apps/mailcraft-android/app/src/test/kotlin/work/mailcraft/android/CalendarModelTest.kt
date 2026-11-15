@@ -238,5 +238,14 @@ class CalendarEventTest {
         assertEquals(at("2026-11-03T14:00", "2026-11-03T15:00"), detail().span(day("2026-11-17")))
     }
 
+    @Test
+    fun aMonthCellSaysItsDateItsTodayAndItsEvents() {
+        val en = java.util.Locale.ENGLISH
+        val d = day("2026-11-03")
+        assertEquals("Tuesday, November 3, 2026, No events", monthCellDescription(EnglishTexts, d, false, 0, en))
+        assertEquals("Tuesday, November 3, 2026, Today, 1 event", monthCellDescription(EnglishTexts, d, true, 1, en))
+        assertEquals("Tuesday, November 3, 2026, 5 events", monthCellDescription(EnglishTexts, d, false, 5, en))
+    }
+
     private fun at(from: String, to: String) = LocalDateTime.parse(from) to LocalDateTime.parse(to)
 }

@@ -90,13 +90,13 @@ internal fun EventDetailPage(
         if (e.invited && !e.cancelled) {
             HorizontalDivider()
             Text(answerText(e.answer, texts), style = MaterialTheme.typography.titleSmall)
-            val asEvent = e.asEvent(page.occurrence)
+            val asEvent = e.asEvent(page.occurrence, page.times)
             AnswerButtons(texts) { actions.onAnswer(asEvent, it) }
         }
         if (e.editable) {
             HorizontalDivider()
             Row(horizontalArrangement = Arrangement.spacedBy(Small)) {
-                Button(onClick = { actions.onEdit(e, page.occurrence) }) { Text(texts.t("Edit")) }
+                Button(onClick = { actions.onEdit(e, page.occurrence, page.times) }) { Text(texts.t("Edit")) }
                 OutlinedButton(onClick = { actions.onDelete(e, page.occurrence) }) { Text(texts.t("Delete")) }
             }
         }
@@ -111,7 +111,7 @@ private fun DetailFacts(texts: Texts, page: CalendarPage.Detail) {
     val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
     // The day of the time that was opened, which for a series is not the day it began; and the day it
     // ends on as well when that is another.
-    val whenText = whenText(e.span(page.occurrence), e.allDay, texts.t("All day"), date, time)
+    val whenText = whenText(e.span(page.occurrence, page.times), e.allDay, texts.t("All day"), date, time)
     Text(whenText)
     if (e.repeatText.isNotBlank()) Text(e.repeatText, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (e.location.isNotBlank()) Labelled(texts.t("Location"), e.location)
@@ -462,10 +462,9 @@ private const val DEFAULT_COUNT = 10
 @Composable
 internal fun AskDialog(texts: Texts, ask: Ask, actions: CalendarActions) {
     val (title, buttons) = when (ask) {
-        is Ask.Invite -> texts.t("Send the invitations?") to listOf(
-            texts.t("Send invitations") to { actions.onAnswerAsk(true, false) },
-            texts.t("Keep it here, invite nobody") to { actions.onAnswerAsk(false, false) },
-        )
+        is Ask.Invite -> texts.t("Send the invitations?") to inviteOptions(texts, ask).map { (label, send) ->
+            label to { actions.onAnswerAsk(send, false) }
+        }
         is Ask.Reply -> texts.t("Send a response?") to listOf(
             texts.t("Send the response now") to { actions.onAnswerAsk(true, false) },
             texts.t("Don't send a response") to { actions.onAnswerAsk(false, false) },
@@ -520,4 +519,14 @@ internal fun deleteOptions(detail: EventDetailModel, texts: Texts): List<Triple<
         if (detail.repeats) out.add(Triple(texts.t("Only this time"), null, true))
     }
     return out
+}
+
+/**
+ * What saving a meeting on a server's calendar offers: each choice's words and whether the people are
+ * written to. Only a new event can be kept here and invite nobody; a change to one the server keeps is
+ * refused unless the people are written to, so the owner says yes to that or cancels.
+ */
+internal fun inviteOptions(texts: Texts, ask: Ask.Invite): List<Pair<String, Boolean>> {
+    val send = texts.t("Send invitations") to true
+    return if (ask.draft.isNew) listOf(send, texts.t("Keep it here, invite nobody") to false) else listOf(send)
 }

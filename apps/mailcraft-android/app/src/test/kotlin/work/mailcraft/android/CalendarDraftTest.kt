@@ -164,13 +164,14 @@ class EventDraftTest {
         val json = draft.withStartDate(day("2026-11-09")).params(null)
         assertTrue(json.contains("\"start\":\"2026-11-02T14:00\",\"end\":\"2026-11-02T15:00\""))
         assertTrue(json.contains("\"occurrence\":\"2026-11-08\""))
-        // Left as it was, the series' own days go back.
-        assertTrue(draft.params(null).contains("\"start\":\"2026-11-01T14:00\""))
+        // Left as it was, no times are sent at all: the series stays where it is.
+        assertFalse(draft.params(null).contains("\"start\""))
         // A whole-day series the same way.
         val days = series.copy(allDay = true, start = LocalDateTime.parse("2026-11-01T00:00"), end = LocalDateTime.parse("2026-11-02T00:00"))
         val whole = days.draft(day("2026-11-15"))
         assertEquals(day("2026-11-15"), whole.startDate)
-        assertTrue(whole.params(null).contains("\"start\":\"2026-11-01\",\"end\":\"2026-11-01\""))
+        assertFalse(whole.params(null).contains("\"start\""))
+        assertTrue(whole.withStartDate(day("2026-11-16")).params(null).contains("\"start\":\"2026-11-02\",\"end\":\"2026-11-02\""))
     }
 
     @Test
@@ -196,6 +197,37 @@ class EventDraftTest {
         assertFalse(draft.copy(attendees = "ada@example.org; new@example.org").params(null).contains("attendees"))
         val whole = detail(people = true).draft(null)
         assertTrue(whole.copy(attendees = "ada@example.org; new@example.org").params(null).contains("\"attendees\""))
+        assertEquals(draft, SavedDraft.read(SavedDraft.write(draft)))
+    }
+
+    @Test
+    fun aTitleOnlyEditKeepsTheLoadedTimesWhateverSecondsTheyHave() {
+        val precise = detail().copy(start = LocalDateTime.parse("2026-11-03T14:00:30"), end = LocalDateTime.parse("2026-11-03T15:00:45"))
+        val draft = precise.draft(null)
+        assertFalse(draft.copy(title = "Renamed").params(null).contains("\"start\""))
+        assertFalse(draft.copy(title = "Renamed").params(null).contains("\"end\""))
+        // A time the owner changed is sent.
+        assertTrue(draft.withStartTime(java.time.LocalTime.of(9, 0)).params(null).contains("\"start\":\"2026-11-03T09:00\""))
+        // So is a switch to a whole day.
+        assertTrue(draft.copy(allDay = true).params(null).contains("\"start\":\"2026-11-03\""))
+        assertEquals(draft, SavedDraft.read(SavedDraft.write(draft)))
+    }
+
+    @Test
+    fun oneTimeOfASeriesAcrossAClockChangeShowsItsOwnClockAndMovesFromTheSeriesStart() {
+        val series = detail().copy(
+            start = LocalDateTime.parse("2026-03-01T10:00"),
+            end = LocalDateTime.parse("2026-03-01T11:00"),
+            repeat = RepeatDraft(Repeat.Weekly, days = setOf(DayOfWeek.SUNDAY)),
+        )
+        val row = LocalDateTime.parse("2026-04-05T11:00") to LocalDateTime.parse("2026-04-05T12:00")
+        val draft = series.draft(day("2026-04-05"), row)
+        assertEquals(java.time.LocalTime.of(11, 0), draft.startTime)
+        assertEquals(row, series.span(day("2026-04-05"), row))
+        // An hour later: the series' own 10:00 moves by that hour, not by the clock change as well.
+        val json = draft.withStartTime(java.time.LocalTime.of(12, 0)).params(null)
+        assertTrue(json.contains("\"start\":\"2026-03-01T11:00\""))
+        assertTrue(json.contains("\"end\":\"2026-03-01T12:00\""))
         assertEquals(draft, SavedDraft.read(SavedDraft.write(draft)))
     }
 }

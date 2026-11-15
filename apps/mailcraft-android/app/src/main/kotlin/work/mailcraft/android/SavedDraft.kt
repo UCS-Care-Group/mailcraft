@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeParseException
 
@@ -47,6 +48,11 @@ internal object SavedDraft {
             out["was.attendees"] = it.attendees
             out["was.optional"] = it.optional
             out["was.peopleCut"] = it.peopleCut.toString()
+            it.start?.let { t -> out["was.start"] = t.toString() }
+            it.end?.let { t -> out["was.end"] = t.toString() }
+            out["was.allDay"] = it.allDay.toString()
+            it.seriesStart?.let { t -> out["was.seriesStart"] = t.toString() }
+            it.seriesEnd?.let { t -> out["was.seriesEnd"] = t.toString() }
         }
         return out
     }
@@ -89,15 +95,22 @@ internal object SavedDraft {
             occurrence = m["occurrence"]?.let { LocalDate.parse(it) },
             repeatText = m["repeatText"].orEmpty(),
             seriesShift = m["seriesShift"]?.toLong() ?: 0L,
-            loaded = m["was.title"]?.let {
-                LoadedText(
-                    title = it,
-                    location = m["was.location"].orEmpty(),
-                    description = m["was.description"].orEmpty(),
-                    attendees = m["was.attendees"].orEmpty(),
-                    optional = m["was.optional"].orEmpty(),
-                    peopleCut = m["was.peopleCut"] == "true",
-                )
-            },
+            loaded = readLoaded(m),
         )
+
+    private fun readLoaded(m: Map<String, String>): LoadedText? = m["was.title"]?.let {
+        LoadedText(
+            title = it,
+            location = m["was.location"].orEmpty(),
+            description = m["was.description"].orEmpty(),
+            attendees = m["was.attendees"].orEmpty(),
+            optional = m["was.optional"].orEmpty(),
+            peopleCut = m["was.peopleCut"] == "true",
+            start = m["was.start"]?.let { t -> LocalDateTime.parse(t) },
+            end = m["was.end"]?.let { t -> LocalDateTime.parse(t) },
+            allDay = m["was.allDay"] == "true",
+            seriesStart = m["was.seriesStart"]?.let { t -> LocalDateTime.parse(t) },
+            seriesEnd = m["was.seriesEnd"]?.let { t -> LocalDateTime.parse(t) },
+        )
+    }
 }

@@ -50,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -95,10 +97,17 @@ internal fun CalendarScreen(
 ) {
     BackHandler(enabled = state.page != CalendarPage.Browse) { actions.onClose() }
     LaunchedEffect(Unit) { actions.onShown() }
-    when (val page = state.page) {
-        is CalendarPage.Detail -> EventDetailPage(texts, page, state, actions, modifier)
-        is CalendarPage.Editor -> EventEditorPage(texts, page, state, actions, modifier)
-        CalendarPage.Browse -> Browse(texts, state, actions, modifier)
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
+            when (val page = state.page) {
+                is CalendarPage.Detail -> EventDetailPage(texts, page, state, actions, Modifier)
+                is CalendarPage.Editor -> EventEditorPage(texts, page, state, actions, Modifier)
+                CalendarPage.Browse -> Browse(texts, state, actions, Modifier)
+            }
+        }
+        // Below the page, so that nothing on it (the new-event button) covers the notice's OK. The editor
+        // shows a refusal in its own place.
+        if (state.page !is CalendarPage.Editor) state.notice?.let { Notice(texts, it, actions.onDismissNotice) }
     }
     state.ask?.let { AskDialog(texts, it, actions) }
 }
@@ -125,11 +134,10 @@ private fun Browse(
                     is Loaded.Ready -> when (state.mode) {
                         CalendarMode.Agenda -> Agenda(texts, loaded.events, state, locale, actions)
                         CalendarMode.Day -> DayView(texts, loaded.events, state, zone, locale, actions)
-                        CalendarMode.Month -> MonthView(loaded.events, state, weekStart, locale, actions)
+                        CalendarMode.Month -> MonthView(texts, loaded.events, state, weekStart, locale, actions)
                     }
                 }
             }
-            state.notice?.let { Notice(texts, it, actions.onDismissNotice) }
         }
         FloatingActionButton(
             onClick = actions.onNew,
@@ -457,6 +465,7 @@ private fun widestLabel(labels: List<String>, style: androidx.compose.ui.text.Te
 
 @Composable
 private fun MonthView(
+    texts: Texts,
     events: List<CalendarEvent>,
     state: CalendarUiState,
     weekStart: DayOfWeek,
@@ -481,7 +490,7 @@ private fun MonthView(
         grid.forEach { week ->
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Small)) {
                 week.forEach { day ->
-                    MonthCell(day, events.filter { it.isOn(day) }, state, Modifier.weight(1f), actions)
+                    MonthCell(texts, day, events.filter { it.isOn(day) }, state, locale, Modifier.weight(1f), actions)
                 }
             }
         }
@@ -490,9 +499,11 @@ private fun MonthView(
 
 @Composable
 private fun MonthCell(
+    texts: Texts,
     day: LocalDate,
     here: List<CalendarEvent>,
     state: CalendarUiState,
+    locale: Locale,
     modifier: Modifier,
     actions: CalendarActions,
 ) {
@@ -500,7 +511,12 @@ private fun MonthCell(
     val today = day == state.today
     val badge = if (today) MaterialTheme.colorScheme.primary else Color.Transparent
     Column(
-        modifier = modifier.height(MonthCell).clickable { actions.onOpenDay(day) }.padding(vertical = Bar),
+        modifier = modifier.height(MonthCell)
+            .clickable { actions.onOpenDay(day) }
+            .semantics(mergeDescendants = true) {
+                contentDescription = monthCellDescription(texts, day, today, here.size, locale)
+            }
+            .padding(vertical = Bar),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
