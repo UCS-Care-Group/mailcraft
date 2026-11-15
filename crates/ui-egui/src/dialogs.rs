@@ -41,6 +41,9 @@ pub enum Dialog {
     /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
     /// it was run without one; runs `mail.move` or `mail.copy`.
     MoveItems(crate::move_items::MoveItems),
+    /// Delay Delivery, Send Later and Change Send Time (#950): a date and a time; runs
+    /// `compose.delay`, `compose.sendLater` or `mail.setSendTime`.
+    SendLater(crate::send_later::Ask),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -246,6 +249,7 @@ impl Dialog {
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::MoveItems(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
+            Dialog::SendLater(d) => d.name(),
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
@@ -318,6 +322,14 @@ impl Dialog {
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
             "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
+            "delay" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Delay)?),
+            "sendLater" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Send)?),
+            "sendTime" => {
+                let queued = id("id")
+                    .or(app.session.sel.focus())
+                    .filter(|id| app.session.mailbox.message(*id).is_some_and(|m| crate::send_later::waits(app, m)))?;
+                Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Change(queued))?)
+            }
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -1315,6 +1327,9 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
+        "compose.delay" if !has("at") && !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("delay"),
+        "compose.sendLater" if !has("at") => Some("sendLater"),
+        "mail.setSendTime" if !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("sendTime"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
@@ -1638,6 +1653,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
                 }
+            }
+        }
+        Dialog::SendLater(d) => {
+            if matches!(crate::send_later::show(ctx, d, app, &t, enter), crate::send_later::Outcome::Close) {
+                close = true;
             }
         }
         Dialog::ReplyTo { text, error } => {

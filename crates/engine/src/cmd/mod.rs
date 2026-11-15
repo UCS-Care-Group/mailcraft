@@ -30,6 +30,11 @@ pub mod compose;
 mod compose_trust_tests;
 #[cfg(test)]
 mod conversation_thread_tests;
+pub mod device_limits;
+#[cfg(test)]
+mod device_limits_relist_tests;
+#[cfg(test)]
+mod device_limits_tests;
 pub mod edit;
 mod ews_down;
 pub mod ews_mail;
@@ -133,6 +138,7 @@ mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;
+pub mod send_later;
 pub mod send_receive;
 pub mod shared;
 pub mod signature;
@@ -210,7 +216,9 @@ pub fn registry() -> Registry {
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(offline::specs());
+    v.extend(device_limits::specs());
     v.extend(send_receive::specs());
+    v.extend(send_later::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
