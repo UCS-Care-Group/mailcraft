@@ -30,7 +30,7 @@ use mailcraft_net::oauth::{
 pub use mailcraft_net::NetError;
 pub use mailcraft_net::oauth::{Ending, Endpoints, FavoritesRefusal, Permission, Resource, admin_consent_url, permission_endpoints};
 
-use crate::secrets::microsoft_secret_key;
+use crate::secrets::{SecretError, microsoft_secret_key};
 use crate::{Platform, Redirect};
 
 /// The application (client) id this build presents to Microsoft's page: the project's own
@@ -264,11 +264,14 @@ pub fn page(
     };
     match why {
         Why::Account => match sign_in_ending_via(endpoints, &oauth, hint, &open, cancel, &via) {
+            // (Called off while the tokens were being traded: the owner's Cancel stands.)
+            Ok(_) if cancel.load(Ordering::Acquire) => Page::Ended(Ending::Cancelled),
             Ok(tokens) => Page::Tokens(tokens),
             Err(_) if no_browser.load(Ordering::Acquire) => Page::NoBrowser,
             Err(end) => Page::Ended(end),
         },
         Why::Permission => match sign_in_for_permission_at(endpoints, &oauth, hint, &open, cancel, &via) {
+            Ok(_) if cancel.load(Ordering::Acquire) => Page::Refused(FavoritesRefusal::Other(NetError::SignInCancelled)),
             Ok(tokens) => Page::Tokens(tokens),
             Err(_) if no_browser.load(Ordering::Acquire) => Page::NoBrowser,
             Err(refusal) => Page::Refused(refusal),
@@ -304,12 +307,18 @@ pub fn restore_refresh(platform: &dyn Platform, email: &str, before: Option<&str
 }
 
 /// Take back every sign-in kept for the account at `email`.
-pub fn forget(platform: &dyn Platform, email: &str) {
-    if let Some(store) = platform.secrets() {
-        for kind in ["refresh", "password"] {
-            store.delete(&microsoft_secret_key(kind, email));
+pub fn forget(platform: &dyn Platform, email: &str) -> Result<(), SecretError> {
+    let Some(store) = platform.secrets() else { return Ok(()) };
+    let mut first = Ok(());
+    // (Every kind is tried, a refusal of one or not: the first refusal is what is said.)
+    for kind in ["refresh", "password"] {
+        if let Err(error) = store.remove(&microsoft_secret_key(kind, email))
+            && first.is_ok()
+        {
+            first = Err(error);
         }
     }
+    first
 }
 
 /// Whether an account's sign-in covers a permission.

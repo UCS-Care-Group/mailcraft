@@ -145,3 +145,20 @@ fn a_window_closed_while_opening_writes_no_settings() {
     crate::save_prefs_at(&open, &file);
     assert!(file.exists(), "a window with its mailbox writes them");
 }
+
+/// A mailbox file whose presence can't be told is no first start: nothing is kept in its place,
+/// so nothing can be saved over it (#1425). (A file standing where its folder should be makes
+/// the look fail on Unix; Windows says "not found" for that.)
+#[cfg(unix)]
+#[test]
+fn a_mailbox_that_cant_be_looked_at_is_never_taken_for_a_first_start() {
+    let tmp = Temp::new("cant-look");
+    let not_a_folder = tmp.0.join("settings");
+    std::fs::write(&not_a_folder, b"a file, not a folder").unwrap();
+    let path = not_a_folder.join("mailbox.mailcraft");
+    let arrival = first_mailbox(false, Some(path), &OpenProgress::default());
+    assert!(arrival.path.is_none(), "an empty mailbox is never kept where the real one may be");
+    assert!(matches!(arrival.trouble, Some(Trouble::Unreadable(_))), "the owner is told: {:?}", arrival.trouble);
+    // Nothing was written or made.
+    assert_eq!(std::fs::read(&not_a_folder).unwrap(), b"a file, not a folder");
+}

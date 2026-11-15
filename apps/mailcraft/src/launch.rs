@@ -42,12 +42,23 @@ pub fn first_mailbox(sample: bool, chosen: Option<PathBuf>, progress: &OpenProgr
     let ours = chosen.is_none();
     let path = chosen.or_else(|| crate::default_mailbox_path().filter(|_| crate::prefs_enabled()));
     let Some(path) = path else { return Arrival::opened(Mailbox::with_local_account("", ""), None) };
-    if !path.exists() {
-        // A first start: the settings folder has to be there for the mailbox to be saved in it.
-        if ours && let Some(dir) = path.parent() {
-            let _ = mailcraft_engine::store::create_private_dir_all(dir);
+    match path.try_exists() {
+        Ok(true) => {}
+        Ok(false) => {
+            // A first start: the settings folder has to be there for the mailbox to be saved in it.
+            if ours && let Some(dir) = path.parent() {
+                let _ = mailcraft_engine::store::create_private_dir_all(dir);
+            }
+            return Arrival::opened(Mailbox::with_local_account("", ""), Some(path));
         }
-        return Arrival::opened(Mailbox::with_local_account("", ""), Some(path));
+        // Whether the file is there can't be told (access refused, a folder on another computer
+        // out of reach, …): it may well be, so this is no first start. An empty mailbox kept in
+        // its place would be saved over it as soon as anything changed (#1425).
+        Err(e) => {
+            let why = format!("{}: MailCraft couldn't look at the mailbox file ({e})", path.display());
+            log::error!("{why}");
+            return Arrival::unreadable(Trouble::Unreadable(why));
+        }
     }
     match mailcraft_engine::store::open_for_window(&path, progress) {
         Ok(opened) => {
