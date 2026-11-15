@@ -116,6 +116,76 @@ class EventDraftTest {
         assertFalse(base.copy(attendees = "  ;  ").hasPeople)
         assertTrue(base.copy(attendees = "a@example.org").hasPeople)
     }
+
+    @Test
+    fun aChangeSendsBackOnlyTheWordsTheOwnerChanged() {
+        // The core hands over a long description cut short; a save that leaves it alone must not send it.
+        val loaded = detail(people = true).copy(description = "Cut short by the core")
+        val json = loaded.draft(null).copy(location = "Room 5").params(null)
+        assertTrue(json.contains("\"location\":\"Room 5\""))
+        assertFalse(json.contains("\"description\""))
+        assertFalse(json.contains("\"title\""))
+        assertFalse(json.contains("\"attendees\""))
+        assertFalse(json.contains("\"optional\""))
+        val changed = loaded.draft(null).copy(description = "New notes", title = " Renamed ").params(null)
+        assertTrue(changed.contains("\"description\":\"New notes\""))
+        assertTrue(changed.contains("\"title\":\"Renamed\""))
+    }
+
+    @Test
+    fun optionalPeopleStayOptional() {
+        val people = listOf(
+            AttendeeItem("Ada Example", "ada@example.org", false, Answer.Accepted),
+            AttendeeItem("Bo Example", "bo@example.org", true, Answer.None),
+        )
+        val draft = detail().copy(attendees = people).draft(null)
+        assertEquals("ada@example.org", draft.attendees)
+        assertEquals("bo@example.org", draft.optional)
+        assertTrue(draft.hasPeople)
+        // A change of the people sends both lists, each with its own people.
+        val json = draft.copy(attendees = "ada@example.org; cy@example.org").params(false)
+        assertTrue(json.contains("\"attendees\":\"ada@example.org; cy@example.org\",\"optional\":\"bo@example.org\""))
+        // Optional people alone are people too.
+        assertTrue(base.copy(optional = "bo@example.org").hasPeople)
+        assertTrue(base.copy(optional = "bo@example.org").params(null).contains("\"optional\":\"bo@example.org\""))
+    }
+
+    @Test
+    fun oneTimeOfASeriesShowsItsOwnDaysAndIsSentAsTheSeriesDays() {
+        val series = detail().copy(
+            start = LocalDateTime.parse("2026-11-01T14:00"),
+            end = LocalDateTime.parse("2026-11-01T15:00"),
+            repeat = RepeatDraft(Repeat.Weekly, days = setOf(DayOfWeek.SUNDAY)),
+        )
+        val draft = series.draft(day("2026-11-08"))
+        assertEquals(day("2026-11-08"), draft.startDate)
+        assertEquals(day("2026-11-08"), draft.endDate)
+        // Moved a day later: the command is told the series' day a day later, and moves that time by as much.
+        val json = draft.withStartDate(day("2026-11-09")).params(null)
+        assertTrue(json.contains("\"start\":\"2026-11-02T14:00\",\"end\":\"2026-11-02T15:00\""))
+        assertTrue(json.contains("\"occurrence\":\"2026-11-08\""))
+        // Left as it was, the series' own days go back.
+        assertTrue(draft.params(null).contains("\"start\":\"2026-11-01T14:00\""))
+        // A whole-day series the same way.
+        val days = series.copy(allDay = true, start = LocalDateTime.parse("2026-11-01T00:00"), end = LocalDateTime.parse("2026-11-02T00:00"))
+        val whole = days.draft(day("2026-11-15"))
+        assertEquals(day("2026-11-15"), whole.startDate)
+        assertTrue(whole.params(null).contains("\"start\":\"2026-11-01\",\"end\":\"2026-11-01\""))
+    }
+
+    @Test
+    fun aDraftKeptAsWordsReadsBackWholeAndJunkGivesNone() {
+        val series = detail(people = true).copy(repeat = RepeatDraft(Repeat.Weekly, 2, setOf(DayOfWeek.MONDAY), RepeatEnd.On(day("2027-01-31"))))
+        val draft = series.draft(null).copy(title = "Half written", optional = "bo@example.org", reminder = 30)
+        assertEquals(draft, SavedDraft.read(SavedDraft.write(draft)))
+        val counted = base.copy(repeat = RepeatDraft(Repeat.Daily, end = RepeatEnd.After(4)), occurrence = day("2026-11-05"), seriesShift = 3)
+        assertEquals(counted, SavedDraft.read(SavedDraft.write(counted)))
+        assertEquals(base, SavedDraft.read(SavedDraft.write(base)))
+        assertNull(SavedDraft.read(emptyMap()))
+        assertNull(SavedDraft.read(SavedDraft.write(base) + ("startDate" to "not a day")))
+        assertNull(SavedDraft.read(SavedDraft.write(base) + ("id" to "-1")))
+        assertNull(SavedDraft.read(SavedDraft.write(base) + ("days" to "FUNDAY")))
+    }
 }
 
 class JsonTextTest {

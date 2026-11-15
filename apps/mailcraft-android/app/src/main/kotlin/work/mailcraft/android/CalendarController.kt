@@ -6,6 +6,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,22 +53,30 @@ internal data class EventDetailModel(
 
     fun draft(occurrence: LocalDate?): EventDraft {
         val last = if (allDay) end.minusNanos(1).toLocalDate().coerceAtLeast(start.toLocalDate()) else end.toLocalDate()
+        val only = occurrence?.takeIf { repeat.repeat != null || repeat.kept }
+        // One time of a series shows its own days; the draft gives the command the series' days back.
+        val shift = only?.let { ChronoUnit.DAYS.between(start.toLocalDate(), it) } ?: 0L
+        val required = attendees.filterNot { it.optional }.joinToString("; ") { it.address }
+        val optional = attendees.filter { it.optional }.joinToString("; ") { it.address }
         return EventDraft(
             id = id,
             calendar = calendar,
             title = title,
             location = location,
             description = description,
-            attendees = attendees.joinToString("; ") { it.address },
+            attendees = required,
+            optional = optional,
             allDay = allDay,
-            startDate = start.toLocalDate(),
+            startDate = start.toLocalDate().plusDays(shift),
             startTime = if (allDay) DEFAULT_START else start.toLocalTime(),
-            endDate = last,
+            endDate = last.plusDays(shift),
             endTime = if (allDay) DEFAULT_END else end.toLocalTime(),
             reminder = reminder,
             repeat = repeat,
-            occurrence = occurrence?.takeIf { repeat.repeat != null || repeat.kept },
+            occurrence = only,
             repeatText = repeatText,
+            seriesShift = shift,
+            loaded = LoadedText(title, location, description, required, optional),
         )
     }
 }
@@ -120,6 +129,8 @@ internal data class CalendarUiState(
     val page: CalendarPage = CalendarPage.Browse,
     val ask: Ask? = null,
     val notice: String? = null,
+    /** A save of the editor on screen is on its way: Save waits for it. */
+    val saving: Boolean = false,
 ) {
     fun range(weekStart: DayOfWeek): DateRange = CalendarPaging.range(mode, anchor, weekStart)
 }
@@ -146,18 +157,35 @@ internal class CalendarController(
 
     val firstDay: DayOfWeek get() = weekStart()
 
+    /** The latest read of the range: an earlier one that comes back later is not kept. */
+    private var reads = 0L
+
+    /**
+     * Which page the owner is on, counted up whenever they go to another (an event opened, the editor
+     * opened or closed). What comes back from the core for an earlier page is not put on a later one.
+     */
+    private var visit = 0L
+
+    private fun go(change: (CalendarUiState) -> CalendarUiState) {
+        visit += 1
+        _state.update { change(it).copy(saving = false) }
+    }
+
     /** Reads what the views need again (after a change, a sync, or coming back to the tab). */
     fun refresh() {
         val today = now().toLocalDate()
         _state.update { it.copy(today = today) }
         val shown = _state.value
         val range = shown.range(weekStart())
+        reads += 1
+        val read = reads
         scope.launch {
             val events = backend.events(range)
             val calendars = backend.calendars()
             _state.update { current ->
-                // Only a read of the range still shown is kept: the owner may have turned the page since.
-                if (current.range(weekStart()) != range) {
+                // Only the latest read of the range still shown is kept: the owner may have turned the
+                // page since, or a change may have been read again after this read began.
+                if (read != reads || current.range(weekStart()) != range) {
                     current
                 } else {
                     current.copy(
@@ -187,8 +215,12 @@ internal class CalendarController(
     fun dismissNotice() = _state.update { it.copy(notice = null) }
 
     fun open(event: CalendarEvent) {
+        go { it }
+        val opened = visit
         scope.launch {
             val detail = backend.detail(event.id)
+            // The owner may have gone elsewhere (a new event, say) while the event was read.
+            if (opened != visit) return@launch
             _state.update {
                 if (detail == null) {
                     it.copy(notice = texts.t("The event is gone."))
@@ -199,17 +231,22 @@ internal class CalendarController(
         }
     }
 
-    fun close() = _state.update { it.copy(page = CalendarPage.Browse, ask = null) }
+    fun close() = go { it.copy(page = CalendarPage.Browse, ask = null) }
 
     fun newEvent(day: LocalDate? = null) {
         val current = _state.value
         val calendar = current.calendars.firstOrNull { it.editable }?.id ?: 0uL
         val draft = EventDraft.blank(day ?: current.anchor, now(), calendar)
-        _state.update { it.copy(page = CalendarPage.Editor(draft), notice = null) }
+        go { it.copy(page = CalendarPage.Editor(draft), notice = null) }
     }
 
     fun edit(detail: EventDetailModel, occurrence: LocalDate?) {
-        _state.update { it.copy(page = CalendarPage.Editor(detail.draft(occurrence))) }
+        go { it.copy(page = CalendarPage.Editor(detail.draft(occurrence))) }
+    }
+
+    /** The editor as it was before the window was made again (the draft the owner was writing). */
+    fun restore(draft: EventDraft) {
+        go { it.copy(page = CalendarPage.Editor(draft), ask = null) }
     }
 
     fun change(draft: EventDraft) {
@@ -221,6 +258,7 @@ internal class CalendarController(
 
     /** Saves the draft, asking first when saving would make a server write to the people invited. */
     fun save() {
+        if (_state.value.saving) return
         val page = _state.value.page as? CalendarPage.Editor ?: return
         val draft = page.draft
         if (draft.endBeforeStart) {
@@ -236,6 +274,9 @@ internal class CalendarController(
     }
 
     private fun commit(draft: EventDraft, send: Boolean?) {
+        // One save at a time: a second press while the first is on its way would make the event twice.
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
         val command = if (draft.isNew) "calendar.new" else "calendar.edit"
         run(command, draft.params(send), done = CalendarPage.Browse)
     }
@@ -275,41 +316,49 @@ internal class CalendarController(
     fun importIcs(name: String, bytes: ByteArray) {
         scope.launch {
             val outcome = backend.importIcs(name, bytes)
-            report(outcome)
+            report(outcome, editor = false)
             refresh()
         }
     }
 
     private fun run(command: String, params: String, done: CalendarPage?) {
+        val from = visit
         scope.launch {
             val outcome = backend.run(command, params)
-            if (outcome is Outcome.Done && done != null) _state.update { it.copy(page = done) }
-            if (outcome is Outcome.Done && done == null) {
+            // The page the command was given on is left only while the owner is still on it: a later
+            // editor (another event being written) stays as it is.
+            val still = from == visit
+            if (still) _state.update { it.copy(saving = false) }
+            if (outcome is Outcome.Done && done != null && still) go { it.copy(page = done) }
+            if (outcome is Outcome.Done && done == null && still) {
                 // An answer given from the detail page or the agenda: the page shows it afresh.
                 reopen()
             }
-            report(outcome)
+            report(outcome, editor = still)
             refresh()
         }
     }
 
     private suspend fun reopen() {
         val page = _state.value.page as? CalendarPage.Detail ?: return
+        val from = visit
         val detail = backend.detail(page.event.id)
+        // The owner may have left the page while it was read again.
+        if (from != visit) return
         _state.update { it.copy(page = if (detail == null) CalendarPage.Browse else page.copy(event = detail)) }
     }
 
     /** Says [note] to the owner. */
     fun report(note: String) = _state.update { it.copy(notice = note) }
 
-    private fun report(outcome: Outcome) {
+    private fun report(outcome: Outcome, editor: Boolean = true) {
         val note = when (outcome) {
             is Outcome.Done -> outcome.note
             is Outcome.Refused -> outcome.reason
         }
         if (note != null) _state.update { it.copy(notice = note) }
         // A refused save keeps the editor open, with the reason on it.
-        if (outcome is Outcome.Refused) {
+        if (outcome is Outcome.Refused && editor) {
             _state.update { current ->
                 val page = current.page
                 if (page is CalendarPage.Editor) current.copy(page = page.copy(problem = outcome.reason)) else current

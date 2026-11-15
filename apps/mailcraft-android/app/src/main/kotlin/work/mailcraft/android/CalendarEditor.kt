@@ -9,10 +9,10 @@ import android.app.TimePickerDialog
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -113,7 +113,8 @@ private fun DetailFacts(texts: Texts, page: CalendarPage.Detail) {
         page.occurrence.format(date) + " – " + texts.t("All day")
     } else {
         val from = e.start.toLocalTime().format(time)
-        e.start.toLocalDate().format(date) + ", " + from + " – " + e.end.toLocalTime().format(time)
+        // The day of the time that was opened, which for a series is not the day it began.
+        page.occurrence.format(date) + ", " + from + " – " + e.end.toLocalTime().format(time)
     }
     Text(whenText)
     if (e.repeatText.isNotBlank()) Text(e.repeatText, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -201,7 +202,7 @@ internal fun EventEditorPage(
             texts = texts,
             title = if (d.isNew) texts.t("New event") else texts.t("Edit event"),
             onClose = actions.onClose,
-            content = { TextButton(onClick = actions.onSave) { Text(texts.t("Save")) } },
+            content = { TextButton(onClick = actions.onSave, enabled = !state.saving) { Text(texts.t("Save")) } },
         )
         page.problem?.let {
             Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = Small))
@@ -244,6 +245,13 @@ private fun EditorTextFields(texts: Texts, d: EventDraft, actions: CalendarActio
             value = d.attendees,
             onValueChange = { actions.onChange(d.copy(attendees = it)) },
             label = { Text(texts.t("People to invite")) },
+            supportingText = { Text(texts.t("Addresses, separated by semicolons")) },
+            modifier = Modifier.fillMaxWidth().padding(top = Small),
+        )
+        OutlinedTextField(
+            value = d.optional,
+            onValueChange = { actions.onChange(d.copy(optional = it)) },
+            label = { Text(texts.t("Optional")) },
             supportingText = { Text(texts.t("Addresses, separated by semicolons")) },
             modifier = Modifier.fillMaxWidth().padding(top = Small),
         )
@@ -370,9 +378,10 @@ private fun RepeatEditor(texts: Texts, d: EventDraft, locale: Locale, context: C
         actions.onChange(d.copy(repeat = r.copy(repeat = picked, days = days)))
     }
     if (r.repeat == Repeat.Weekly) {
-        Row(
+        // The days wrap onto a second line when they don't fit (a narrow phone, a large font).
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(Small),
-            modifier = Modifier.padding(top = Small).horizontalScroll(rememberScrollState()),
+            modifier = Modifier.padding(top = Small),
         ) {
             CalendarPaging.weekDays(DayOfWeek.MONDAY).forEach { day ->
                 FilterChip(

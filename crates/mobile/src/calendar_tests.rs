@@ -171,3 +171,40 @@ fn an_invitation_shows_as_to_answer_and_each_answer_is_kept() {
         }
     }
 }
+
+#[test]
+fn a_long_description_is_cut_for_the_editor_and_a_save_that_leaves_it_alone_keeps_it_whole() {
+    let core = sample_core();
+    let long = "Notes. ".repeat(4_000);
+    let made = exec(&core, "calendar.new", json!({"title": "Review", "start": "2026-11-02T09:00", "description": long})).unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let e = block_on(core.event(id)).unwrap();
+    assert_eq!(e.description.chars().count(), 20_000);
+    // The editor sends only what the owner changed: here the location, with no description.
+    exec(&core, "calendar.edit", json!({"id": id, "allDay": false, "start": "2026-11-02T09:00", "end": "2026-11-02T09:30", "location": "Room 5"}))
+        .unwrap();
+    let whole = exec(&core, "calendar.get", json!({"id": id})).unwrap();
+    assert_eq!(whole["description"].as_str(), Some(long.as_str()));
+    assert_eq!(whole["location"].as_str(), Some("Room 5"));
+}
+
+#[test]
+fn optional_people_sent_apart_stay_optional_and_a_save_without_people_keeps_them() {
+    let core = sample_core();
+    let made = exec(
+        &core,
+        "calendar.new",
+        json!({"title": "Sync", "start": "2026-11-02T09:00", "attendees": "ada@example.org", "optional": "bo@example.org", "send": false}),
+    )
+    .unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let roles = |core: &Core| {
+        let e = block_on(core.event(id)).unwrap();
+        e.attendees.iter().map(|a| (a.address.clone(), a.optional)).collect::<Vec<_>>()
+    };
+    let both = vec![("ada@example.org".to_string(), false), ("bo@example.org".to_string(), true)];
+    assert_eq!(roles(&core), both);
+    // A title-only save sends no people: their roles stay as they were.
+    exec(&core, "calendar.edit", json!({"id": id, "title": "Weekly sync"})).unwrap();
+    assert_eq!(roles(&core), both);
+}

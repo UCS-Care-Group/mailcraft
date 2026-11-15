@@ -66,6 +66,19 @@ internal val DEFAULT_END: LocalTime = LocalTime.of(10, 0)
 /** The minutes before the start that the reminder choices offer; null is no reminder. */
 internal val reminderChoices: List<Int?> = listOf(null, 0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080)
 
+/**
+ * The words of an event as the editor was given them. The core hands over a long description, title or
+ * list of people cut to size; a field the owner left as it was is not sent back, so that a save never
+ * cuts what is kept.
+ */
+internal data class LoadedText(
+    val title: String,
+    val location: String,
+    val description: String,
+    val attendees: String,
+    val optional: String,
+)
+
 /** An event being made or changed, by the owner's clock; a whole-day event's [endDate] is its last day. */
 internal data class EventDraft(
     val id: ULong? = null,
@@ -73,7 +86,9 @@ internal data class EventDraft(
     val title: String = "",
     val location: String = "",
     val description: String = "",
+    /** The people whose coming is asked for, and [optional] those who may come. */
     val attendees: String = "",
+    val optional: String = "",
     val allDay: Boolean = false,
     val startDate: LocalDate,
     val startTime: LocalTime = DEFAULT_START,
@@ -85,6 +100,13 @@ internal data class EventDraft(
     val occurrence: LocalDate? = null,
     /** The series' rule, in words, for an event whose rule is [RepeatDraft.kept]. */
     val repeatText: String = "",
+    /**
+     * For one time of a series: how many days after the series' first time it is. The draft shows that
+     * time's own days; the command takes the series' days, and is given them back.
+     */
+    val seriesShift: Long = 0,
+    /** What the editor was given, for a change; null for a new event. */
+    val loaded: LoadedText? = null,
 ) {
     val isNew: Boolean get() = id == null
 
@@ -97,7 +119,7 @@ internal data class EventDraft(
     val endBeforeStart: Boolean get() = end.isBefore(start)
 
     /** Whether the meeting names people (so that a server would write to them). */
-    val hasPeople: Boolean get() = attendees.any { it == '@' }
+    val hasPeople: Boolean get() = attendees.any { it == '@' } || optional.any { it == '@' }
 
     /** Moves the start to [date], keeping the length of the event. */
     fun withStartDate(date: LocalDate): EventDraft {
@@ -119,19 +141,12 @@ internal data class EventDraft(
     fun params(send: Boolean?): String {
         val parts = ArrayList<String>()
         id?.let { parts.add("\"id\":$it") }
-        parts.add("\"title\":${jsonString(title.trim())}")
+        // A change sends back only the words the owner changed: what the core handed over may be cut.
+        val was = loaded?.takeIf { !isNew }
+        if (was == null || title != was.title) parts.add("\"title\":${jsonString(title.trim())}")
         parts.add("\"allDay\":$allDay")
-        val fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-        if (allDay) {
-            parts.add("\"start\":${jsonString(startDate.toString())}")
-            parts.add("\"end\":${jsonString(endDate.toString())}")
-        } else {
-            parts.add("\"start\":${jsonString(start.withSecond(0).withNano(0).format(fmt).take(DATETIME_LENGTH))}")
-            parts.add("\"end\":${jsonString(end.withSecond(0).withNano(0).format(fmt).take(DATETIME_LENGTH))}")
-        }
-        parts.add("\"location\":${jsonString(location.trim())}")
-        parts.add("\"description\":${jsonString(description)}")
-        parts.add("\"attendees\":${jsonString(attendees.trim())}")
+        parts.addAll(timesJson())
+        parts.addAll(wordsJson(was))
         parts.add("\"reminder\":${reminder?.toString() ?: "null"}")
         if (occurrence != null) {
             parts.add("\"scope\":\"occurrence\"")
@@ -142,6 +157,36 @@ internal data class EventDraft(
         if (isNew && calendar != 0uL) parts.add("\"calendar\":$calendar")
         send?.let { parts.add("\"send\":$it") }
         return "{" + parts.joinToString(",") + "}"
+    }
+
+    /** The start and end; one time of a series is written as the series' days, which the command moves it by. */
+    private fun timesJson(): List<String> {
+        if (allDay) {
+            return listOf(
+                "\"start\":${jsonString(startDate.minusDays(seriesShift).toString())}",
+                "\"end\":${jsonString(endDate.minusDays(seriesShift).toString())}",
+            )
+        }
+        val fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+        val from = start.minusDays(seriesShift).withSecond(0).withNano(0)
+        val to = end.minusDays(seriesShift).withSecond(0).withNano(0)
+        return listOf(
+            "\"start\":${jsonString(from.format(fmt).take(DATETIME_LENGTH))}",
+            "\"end\":${jsonString(to.format(fmt).take(DATETIME_LENGTH))}",
+        )
+    }
+
+    /** The location, notes and people: for a change ([was] not null), only those the owner changed. */
+    private fun wordsJson(was: LoadedText?): List<String> {
+        val parts = ArrayList<String>()
+        if (was == null || location != was.location) parts.add("\"location\":${jsonString(location.trim())}")
+        if (was == null || description != was.description) parts.add("\"description\":${jsonString(description)}")
+        // The core rebuilds the list from both fields together, so a change of either sends both.
+        if (was == null || attendees != was.attendees || optional != was.optional) {
+            parts.add("\"attendees\":${jsonString(attendees.trim())}")
+            if (was != null || optional.isNotBlank()) parts.add("\"optional\":${jsonString(optional.trim())}")
+        }
+        return parts
     }
 
     companion object {

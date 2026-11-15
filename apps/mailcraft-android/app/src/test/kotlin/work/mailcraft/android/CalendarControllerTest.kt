@@ -12,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,19 +49,28 @@ private class FakeBackend : CalendarBackend {
     var detail: EventDetailModel? = detail()
     var outcome: Outcome = Outcome.Done()
     var gate: CompletableDeferred<Unit>? = null
+    var detailGate: CompletableDeferred<Unit>? = null
+    var runGate: CompletableDeferred<Unit>? = null
 
     override suspend fun events(range: DateRange): List<CalendarEvent>? {
         ranges.add(range)
+        // What the calendar held when the read began, however long it takes to come back.
+        val held = events
         gate?.takeIf { ranges.size == 1 }?.await()
-        return events
+        return held
     }
 
     override suspend fun calendars() = calendars
 
-    override suspend fun detail(id: ULong) = detail
+    override suspend fun detail(id: ULong): EventDetailModel? {
+        val held = detail
+        detailGate?.await()
+        return held
+    }
 
     override suspend fun run(command: String, params: String): Outcome {
         commands.add(command to params)
+        runGate?.await()
         return outcome
     }
 
@@ -270,5 +280,92 @@ class CalendarControllerTest {
         assertEquals("1 event added to the calendar.", c.state.value.notice)
         c.dismissNotice()
         assertNull(c.state.value.notice)
+    }
+
+    @Test
+    fun anEarlierReadOfTheSameRangeThatComesBackLaterIsDropped() {
+        val c = controller()
+        backend.gate = CompletableDeferred()
+        backend.events = listOf(event(1, "2026-11-03T09:00", "2026-11-03T10:00", title = "Before the change"))
+        c.refresh()
+        val after = listOf(event(2, "2026-11-03T11:00", "2026-11-03T12:00", title = "After the change"))
+        backend.events = after
+        c.refresh()
+        assertEquals(Loaded.Ready(after), c.state.value.events)
+        backend.gate?.complete(Unit)
+        assertEquals(Loaded.Ready(after), c.state.value.events)
+    }
+
+    @Test
+    fun anEventReadAfterTheOwnerWentElsewhereIsNotShown() {
+        val c = controller()
+        c.refresh()
+        backend.detailGate = CompletableDeferred()
+        c.open(event(1, "2026-11-03T14:00", "2026-11-03T15:00"))
+        c.newEvent()
+        c.change((c.state.value.page as CalendarPage.Editor).draft.copy(title = "Being written"))
+        backend.detailGate?.complete(Unit)
+        assertEquals("Being written", (c.state.value.page as CalendarPage.Editor).draft.title)
+    }
+
+    @Test
+    fun saveWaitsForTheSaveOnItsWaySoAnEventIsNeverMadeTwice() {
+        val c = controller()
+        c.refresh()
+        c.newEvent()
+        c.change((c.state.value.page as CalendarPage.Editor).draft.copy(title = "Lunch"))
+        backend.runGate = CompletableDeferred()
+        c.save()
+        assertTrue(c.state.value.saving)
+        c.save()
+        assertEquals(1, backend.commands.size)
+        backend.runGate?.complete(Unit)
+        assertFalse(c.state.value.saving)
+        assertEquals(CalendarPage.Browse, c.state.value.page)
+    }
+
+    @Test
+    fun anEarlierSaveThatFinishesLeavesALaterEditorAsItIs() {
+        val c = controller()
+        c.refresh()
+        c.newEvent()
+        c.change((c.state.value.page as CalendarPage.Editor).draft.copy(title = "A"))
+        backend.runGate = CompletableDeferred()
+        c.save()
+        c.close()
+        c.newEvent()
+        c.change((c.state.value.page as CalendarPage.Editor).draft.copy(title = "B"))
+        assertFalse(c.state.value.saving)
+        backend.outcome = Outcome.Refused("No.")
+        backend.runGate?.complete(Unit)
+        val page = c.state.value.page as CalendarPage.Editor
+        assertEquals("B", page.draft.title)
+        // A's refusal is said, but not written on B's editor.
+        assertNull(page.problem)
+        assertEquals("No.", c.state.value.notice)
+    }
+
+    @Test
+    fun anEventReadAgainAfterAnAnswerIsNotShownOverALaterPage() {
+        val c = controller()
+        c.refresh()
+        backend.detail = detail(guest = true)
+        val invite = event(1, "2026-11-03T14:00", "2026-11-03T15:00", invited = true)
+        c.open(invite)
+        backend.detailGate = CompletableDeferred()
+        c.answer(invite, Answer.Accepted)
+        c.answerAsk(send = false)
+        c.close()
+        c.newEvent()
+        backend.detailGate?.complete(Unit)
+        assertTrue(c.state.value.page is CalendarPage.Editor)
+    }
+
+    @Test
+    fun aDraftKeptWhileTheAppWasAwayOpensTheEditorAgain() {
+        val c = controller()
+        val draft = detail().draft(null).copy(title = "Half written")
+        c.restore(draft)
+        assertEquals(draft, (c.state.value.page as CalendarPage.Editor).draft)
     }
 }
