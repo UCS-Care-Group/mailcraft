@@ -23,14 +23,14 @@ fn every_body_is_well_formed_xml_in_the_right_shape() {
         (e.propfind_collections("/cal/owner/").unwrap(), "propfind", "1"),
         (e.propfind_state(COLL).unwrap(), "propfind", "0"),
         (e.calendar_query(COLL, &start, &end).unwrap(), "calendar-query", "1"),
-        (e.multiget(Kind::Calendar, COLL, &["/cal/owner/work/a.ics"]).unwrap(), "calendar-multiget", "1"),
-        (e.multiget(Kind::AddressBook, COLL, &["/cal/owner/work/a.vcf"]).unwrap(), "addressbook-multiget", "1"),
+        (e.multiget(Kind::Calendar, COLL, &["/cal/owner/work/a.ics"]).unwrap(), "calendar-multiget", ""),
+        (e.multiget(Kind::AddressBook, COLL, &["/cal/owner/work/a.vcf"]).unwrap(), "addressbook-multiget", ""),
         (e.sync_collection(COLL, None, Some(50)).unwrap(), "sync-collection", "0"),
     ];
     for (r, root, depth) in &all {
         let doc = crate::xml::parse_document(r.body()).unwrap();
         assert_eq!(doc.name, *root);
-        assert_eq!(r.field("depth"), Some(*depth));
+        assert_eq!(r.field("depth"), if depth.is_empty() { None } else { Some(*depth) }, "a multiget leaves Depth out");
         assert_eq!(r.field("authorization"), Some(Secret::basic("u", "p").expose()));
         assert!(r.is_repeatable());
     }
@@ -152,4 +152,13 @@ fn anonymous_probes_carry_no_credential_and_debug_hides_it() {
 #[test]
 fn escape_covers_markup() {
     assert_eq!(escape("a&b<c>\"d'\u{0}\u{7}"), "a&amp;b&lt;c&gt;&quot;d&apos;");
+}
+
+#[test]
+fn a_user_name_with_a_colon_makes_no_credential_and_authorization_is_endpoint_only() {
+    assert_eq!(Secret::basic("a:b", "pw").expose(), "Basic ");
+    // `HttpRequest::new` is crate-private: a credential reaches a request only through an Endpoint,
+    // which has checked the address. (Checked by the crate not compiling otherwise.)
+    let anon = Endpoint::anonymous(Origin::parse("https://dav.example.org").unwrap());
+    assert!(anon.get("/x").unwrap().field("authorization").is_none());
 }

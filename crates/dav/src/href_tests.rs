@@ -17,7 +17,7 @@ fn resolves_the_forms_of_an_href() {
         ("https://DAV.example.org:443/x/y", "https://dav.example.org/x/y"),
         ("//dav.example.org/x", "https://dav.example.org/x"),
         ("/a/./b//c/../d", "https://dav.example.org/a/b/d"),
-        ("/a%2fb/%7euser/%41", "https://dav.example.org/a%2Fb/~user/A"),
+        ("/a%2db/%7euser/%41", "https://dav.example.org/a-b/~user/A"),
         ("/o%40example.org/", "https://dav.example.org/o%40example.org/"),
         ("/caf\u{e9}", "https://dav.example.org/caf%C3%A9"),
     ] {
@@ -80,4 +80,27 @@ fn within_means_below_and_never_equal() {
     assert!(!o.is_within(BASE, "/cal/owner/work2/a.ics"));
     assert!(!o.is_within(BASE, "/cal/owner/work/../other/a.ics"));
     assert!(!o.is_within(BASE, "https://evil.example.net/cal/owner/work/a.ics"));
+}
+
+#[test]
+fn encoded_separators_and_dot_segments_with_parameters_are_refused() {
+    let o = o();
+    for href in [
+        "/cal/owner/work/..%2F..%2Fother/a.ics",
+        "/cal/owner/work/..%2f..%2fother/a.ics",
+        "/cal/owner/work/a%5Cb",
+        "/cal/owner/work/a%5cb",
+        "/cal/owner/work/a%00b",
+        "/cal/owner/work/%2e%2e%2Fx",
+    ] {
+        assert_eq!(o.resolve(BASE, href), Err(HrefError::Malformed), "{href}");
+        assert!(!o.is_within(BASE, href), "{href}");
+    }
+    for href in ["/cal/owner/work/..;/..;/other/a.ics", "/cal/owner/work/.;x/a.ics", "/cal/owner/work/..;a=b"] {
+        assert_eq!(o.resolve(BASE, href), Err(HrefError::Escapes), "{href}");
+        assert!(!o.is_within(BASE, href), "{href}");
+    }
+    // A semicolon elsewhere is an ordinary character, and an encoded slash in a query is left alone.
+    assert!(o.resolve(BASE, "a;b.ics").is_ok());
+    assert!(o.resolve(BASE, "a.ics?x=%2F").is_ok());
 }

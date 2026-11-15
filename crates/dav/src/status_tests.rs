@@ -22,7 +22,7 @@ fn the_table_of_statuses() {
     assert_eq!(classify(&r(410), 0), Verdict::Gone);
     assert_eq!(classify(&r(412), 0), Verdict::PreconditionFailed);
     assert_eq!(classify(&r(428), 0), Verdict::PreconditionRequired);
-    assert_eq!(classify(&r(507), 0), Verdict::Truncated);
+    assert_eq!(classify(&r(507), 0), Verdict::InsufficientStorage);
     assert_eq!(classify(&r(302), 0), Verdict::Redirect(302));
     assert_eq!(classify(&r(500), 0), Verdict::Other(500));
 }
@@ -88,4 +88,11 @@ fn challenges_and_classes_are_lowercased_and_capped() {
 #[test]
 fn multistatus_wants_a_207() {
     assert!(multistatus(&r(200), &o(), "https://dav.example.org/").is_err());
+}
+
+#[test]
+fn challenges_reads_every_scheme_in_one_header() {
+    let resp = r(401).with_field("WWW-Authenticate", "Negotiate, Basic realm=\"a, b\", charset=\"UTF-8\", Digest realm=\"x\", nonce=\"n\"");
+    assert_eq!(challenges(&resp), ["negotiate", "basic", "digest"]);
+    assert_eq!(challenges(&r(401).with_field("WWW-Authenticate", "Basic")), ["basic"]);
 }

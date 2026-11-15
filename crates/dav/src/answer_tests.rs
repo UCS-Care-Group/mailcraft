@@ -184,3 +184,54 @@ fn hostile_documents_are_refused_whole() {
     assert!(Multistatus::parse(b"<d:multistatus xmlns:d=\"DAV:\"/>", &o, "https://evil.example.net/").is_err());
     assert!(status_code("HTTP/1.1 700 x").is_none() && status_code("200").is_none());
 }
+
+#[test]
+fn only_the_asked_addresses_507_means_truncated() {
+    let other = "<d:response><d:href>/cal/owner/member.ics</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>";
+    let m = ms(other);
+    assert!(!m.truncated);
+    assert_eq!(m.entries.len(), 1);
+    assert_eq!(m.entries[0].status, 507);
+    let own = "<d:response><d:href>/cal/owner/</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>";
+    assert!(ms(own).truncated);
+    assert!(ms(own).entries.is_empty());
+}
+
+#[test]
+fn empty_and_later_invalid_tokens_never_replace_a_valid_one() {
+    assert_eq!(ms("<d:sync-token/>").sync_token, None);
+    assert_eq!(ms("<d:sync-token></d:sync-token>").sync_token, None);
+    let long = "x".repeat(crate::request::MAX_TOKEN + 1);
+    let e = ms(&format!(
+        "<d:response><d:href>/a/</d:href><d:propstat><d:prop><d:sync-token>good</d:sync-token><cs:getctag>c1</cs:getctag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>\
+         <d:propstat><d:prop><d:sync-token>{long}</d:sync-token><cs:getctag></cs:getctag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+    ))
+    .entries
+    .remove(0);
+    assert_eq!((e.sync_token.as_deref(), e.ctag.as_deref()), (Some("good"), Some("c1")));
+}
+
+#[test]
+fn reports_must_be_in_their_own_namespace() {
+    let set = "<d:supported-report-set>\
+        <d:supported-report><d:report><c:sync-collection/></d:report></d:supported-report>\
+        <d:supported-report><d:report><d:calendar-multiget/></d:report></d:supported-report>\
+        <d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>\
+        <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>";
+    assert_eq!(ms(&prop("/a/", set)).entries[0].reports, ["sync-collection", "calendar-multiget"]);
+    let wrong = "<d:supported-report-set><d:supported-report><d:report><c:sync-collection/></d:report></d:supported-report></d:supported-report-set>";
+    assert!(!ms(&prop("/a/", wrong)).entries[0].supports_sync());
+}
+
+#[test]
+fn debug_shows_counts_and_flags_only() {
+    let m = ms(&prop(
+        "/cal/owner/secret-name/",
+        "<d:displayname>Private Name</d:displayname><d:getetag>\"etag-secret\"</d:getetag><c:calendar-data>BEGIN:VCALENDAR SECRETDATA</c:calendar-data>\
+         <d:current-user-principal><d:href>/principal-secret/</d:href></d:current-user-principal>",
+    ));
+    let shown = format!("{m:?} {:?} {:?}", m.entries[0], Collections::from_listing(m.clone()));
+    for secret in ["secret-name", "Private", "etag-secret", "SECRETDATA", "principal-secret"] {
+        assert!(!shown.contains(secret), "{secret}");
+    }
+}

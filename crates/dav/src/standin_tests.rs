@@ -311,3 +311,49 @@ fn another_origin_is_not_served() {
     let r = s.exchange(&HttpRequest::new(Method::Options, "https://other.example.org/", &[], Vec::new()).unwrap()).unwrap();
     assert_eq!(r.status(), 421);
 }
+
+#[test]
+fn a_report_without_depth_is_depth_zero_and_a_multiget_ignores_depth() {
+    let (s, _) = server();
+    let c = s.collection_url("work");
+    s.put_directly("work", "a.ics", &event("a", "20260601T100000Z")).unwrap();
+    let xml = [("Content-Type", "application/xml")];
+    let sync = "<d:sync-collection xmlns:d=\"DAV:\"><d:sync-token/><d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>";
+    assert_eq!(raw(&s, Method::Report, &c, &xml, sync).status(), 207);
+    let query = "<c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop></c:calendar-query>";
+    let r = raw(&s, Method::Report, &c, &xml, query);
+    assert_eq!(r.status(), 207);
+    assert!(!String::from_utf8_lossy(r.body()).contains("a.ics"), "Depth 0 asks about the collection only");
+    let get = "<c:calendar-multiget xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag/></d:prop><d:href>a.ics</d:href></c:calendar-multiget>";
+    for depth in [None, Some("0"), Some("1"), Some("infinity")] {
+        let mut f = xml.to_vec();
+        if let Some(d) = depth {
+            f.push(("Depth", d));
+        }
+        let r = raw(&s, Method::Report, &c, &f, get);
+        assert!(String::from_utf8_lossy(r.body()).contains("200 OK"), "{depth:?}: a relative href resolves against the collection");
+    }
+    assert!(s.violations().is_empty());
+    let r = raw(&s, Method::Report, &c, &[xml[0], ("Depth", "1")], sync);
+    assert_eq!(r.status(), 400);
+}
+
+#[test]
+fn a_put_may_come_back_without_an_etag() {
+    let (s, e) = server();
+    s.set_quirks(Quirks { no_put_etag: true, ..Quirks::default() });
+    let c = s.collection_url("work");
+    let (_, put) = e.put_create(Kind::Calendar, &c, "n", &event("n", "20260301T100000Z")).unwrap();
+    let r = run(&s, put);
+    assert_eq!(r.status(), 201);
+    assert!(r.header("etag").is_none());
+    assert!(s.etag_of("work", "n.ics").is_some());
+}
+
+#[test]
+fn a_vcard_is_served_as_text_vcard() {
+    let (s, e) = server();
+    s.put_directly("people", "p.vcf", "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\nEND:VCARD\r\n").unwrap();
+    let r = run(&s, e.get(&format!("{}p.vcf", s.collection_url("people"))).unwrap());
+    assert_eq!(r.header("content-type"), Some("text/vcard"));
+}

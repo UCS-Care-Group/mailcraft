@@ -44,7 +44,7 @@ impl std::fmt::Display for AnswerError {
 impl std::error::Error for AnswerError {}
 
 /// One `response` of a multistatus.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Entry {
     /// The resource's address: absolute, normalised, on the account's origin.
     pub href: String,
@@ -89,6 +89,34 @@ pub struct Entry {
     pub addressbook_homes: Vec<String>,
 }
 
+impl std::fmt::Debug for Entry {
+    /// Status and flags only: no address, name, principal, home or calendar data.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entry")
+            .field("status", &self.status)
+            .field("is_base", &self.is_base)
+            .field("is_collection", &self.is_collection)
+            .field("is_calendar", &self.is_calendar)
+            .field("is_addressbook", &self.is_addressbook)
+            .field("has_etag", &self.etag.is_some())
+            .field("has_data", &self.data.is_some())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for Multistatus {
+    /// Counts and flags only.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Multistatus")
+            .field("entries", &self.entries.len())
+            .field("has_sync_token", &self.sync_token.is_some())
+            .field("truncated", &self.truncated)
+            .field("skipped", &self.skipped)
+            .field("capped", &self.capped)
+            .finish()
+    }
+}
+
 impl Entry {
     /// Whether a collection holds events: `VEVENT` is in its component set, or the set was not
     /// given (RFC 4791 §5.2.3: absent means every kind).
@@ -106,7 +134,7 @@ impl Entry {
 }
 
 /// A read multistatus.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Multistatus {
     /// The responses that were usable, in order, at most [`MAX_ENTRIES`].
     pub entries: Vec<Entry>,
@@ -130,7 +158,7 @@ impl Multistatus {
         let base = origin.resolve(&origin.base(), base).map_err(|_| AnswerError::Invalid)?;
         let mut out = Self::default();
         if let Some(token) = root.child(DAV, "sync-token") {
-            out.sync_token = Some(token_of(&token.text).ok_or(AnswerError::Token)?);
+            out.sync_token = Some(token_of(&token.text).ok_or(AnswerError::Token)?).filter(|t| !t.is_empty());
         }
         for response in root.children.iter().filter(|n| n.is(DAV, "response")) {
             if out.entries.len() >= MAX_ENTRIES {
@@ -166,10 +194,6 @@ fn read_response(response: &Node, origin: &Origin, base: &str, out: &mut Multist
     let hrefs: Vec<&Node> = response.children.iter().filter(|n| n.is(DAV, "href")).take(MAX_HOMES).collect();
     let status = response.value(DAV, "status").and_then(status_code);
     let has_props = response.children.iter().any(|n| n.is(DAV, "propstat"));
-    if status == Some(507) && !has_props {
-        out.truncated = true;
-        return;
-    }
     let first_only = if has_props || status.is_none() { 1 } else { MAX_HOMES };
     for href in hrefs.into_iter().take(first_only) {
         let Ok(url) = origin.resolve(base, &href.text) else {
@@ -182,6 +206,11 @@ fn read_response(response: &Node, origin: &Origin, base: &str, out: &mut Multist
             status: status.unwrap_or(200),
             ..Entry::default()
         };
+        if status == Some(507) && !has_props && entry.is_base {
+            // RFC 6578 §3.6: only the request-URI's own 507 says the answer is cut short.
+            out.truncated = true;
+            continue;
+        }
         if has_props && !read_props(response, origin, base, &mut entry, &mut out.skipped) {
             out.skipped += 1;
             continue;
@@ -214,8 +243,16 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
                 e.is_calendar = p.child(CALDAV, "calendar").is_some();
                 e.is_addressbook = p.child(CARDDAV, "addressbook").is_some();
             }
-            (DAV, "sync-token") => e.sync_token = token_of(&p.text).filter(|t| !t.is_empty()),
-            (CALSERVER, "getctag") => e.ctag = token_of(&p.text).filter(|t| !t.is_empty()),
+            (DAV, "sync-token") => {
+                if let Some(t) = token_of(&p.text).filter(|t| !t.is_empty()) {
+                    e.sync_token.get_or_insert(t);
+                }
+            }
+            (CALSERVER, "getctag") => {
+                if let Some(t) = token_of(&p.text).filter(|t| !t.is_empty()) {
+                    e.ctag.get_or_insert(t);
+                }
+            }
             (APPLE, "calendar-color") => e.color = color(&p.text),
             (CALDAV, "supported-calendar-component-set") => {
                 e.components = Some(
@@ -235,6 +272,12 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
                     .filter(|r| r.is(DAV, "supported-report"))
                     .filter_map(|r| r.child(DAV, "report"))
                     .flat_map(|r| r.children.iter())
+                    .filter(|r| match r.namespace.as_str() {
+                        DAV => r.name == "sync-collection",
+                        CALDAV => matches!(r.name.as_str(), "calendar-query" | "calendar-multiget"),
+                        CARDDAV => matches!(r.name.as_str(), "addressbook-query" | "addressbook-multiget"),
+                        _ => false,
+                    })
                     .map(|r| r.name.clone())
                     .take(MAX_LIST)
                     .collect();
@@ -322,22 +365,16 @@ impl Collections {
     pub fn from_listing(listing: Multistatus) -> Self {
         let mut out = Self { skipped: listing.skipped, ..Self::default() };
         for entry in listing.entries {
-            if entry.is_base || entry.is_gone() {
+            let book = entry.is_addressbook && entry.is_collection;
+            let usable = !entry.is_base && !entry.is_gone() && entry.is_collection && (book || entry.holds_events());
+            if !usable {
                 out.passed_over += 1;
-            } else if entry.holds_events() && entry.is_collection {
-                if out.calendars.len() + out.address_books.len() >= MAX_COLLECTIONS {
-                    out.capped = true;
-                } else {
-                    out.calendars.push(entry);
-                }
-            } else if entry.is_addressbook && entry.is_collection {
-                if out.calendars.len() + out.address_books.len() >= MAX_COLLECTIONS {
-                    out.capped = true;
-                } else {
-                    out.address_books.push(entry);
-                }
+            } else if out.calendars.len() + out.address_books.len() >= MAX_COLLECTIONS {
+                out.capped = true;
+            } else if book {
+                out.address_books.push(entry);
             } else {
-                out.passed_over += 1;
+                out.calendars.push(entry);
             }
         }
         out

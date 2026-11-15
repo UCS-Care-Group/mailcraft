@@ -50,6 +50,8 @@ pub struct Quirks {
     pub token_expiry: bool,
     /// The 401 has no `DAV` header: a web front that is not a DAV server.
     pub bare_401: bool,
+    /// A `PUT` answers without an `ETag` (RFC 4791 §5.3.4: the server may change what it stored).
+    pub no_put_etag: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -324,7 +326,9 @@ impl StandIn {
             Method::Propfind => propfind(&mut s, &layout, request, &path),
             Method::Report => report(&mut s, &layout, request, &path),
             Method::Get => match locate(&s, &layout, &path) {
-                Some(Res::Member(_, _, m)) => reply(200, "text/calendar", m.body.clone()).with_field("ETag", &m.etag),
+                Some(Res::Member(c, _, m)) => {
+                    reply(200, if c.address_book { "text/vcard" } else { "text/calendar" }, m.body.clone()).with_field("ETag", &m.etag)
+                }
                 _ => HttpResponse::new(404, Vec::new()),
             },
             Method::Put => put(&mut s, &layout, request, &path),
@@ -548,7 +552,8 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
     };
     let Some(Res::Coll(coll)) = locate(s, layout, path) else { return HttpResponse::new(404, Vec::new()) };
     let want = wanted(&body);
-    let depth = request.field("depth");
+    // RFC 3253 §3.6: no Depth is Depth 0. A multiget ignores it (RFC 4791 §7.9, RFC 6352 §8.7).
+    let depth = request.field("depth").unwrap_or("0");
     let is = |ns, n| body.is(ns, n);
     if (is(DAV, "sync-collection") && s.quirks.no_sync_collection)
         || ((is(CALDAV, "calendar-query") || is(CALDAV, "calendar-multiget")) && coll.address_book)
@@ -557,14 +562,14 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
         return error_body(403, "d:supported-report");
     }
     if is(DAV, "sync-collection") {
-        if depth != Some("0") {
-            violations.push("sync-collection without Depth: 0".into());
+        if depth != "0" {
+            violations.push("sync-collection with a Depth other than 0".into());
             return HttpResponse::new(400, Vec::new());
         }
         return sync(s, layout, coll, &body, &want, path);
     }
-    if depth != Some("0") && depth != Some("1") {
-        violations.push("REPORT without a finite Depth".into());
+    if !matches!(depth, "0" | "1") && !is(CALDAV, "calendar-multiget") && !is(CARDDAV, "addressbook-multiget") {
+        violations.push("REPORT with a Depth that is not 0 or 1".into());
         return HttpResponse::new(400, Vec::new());
     }
     let mut out = String::new();
@@ -575,7 +580,7 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
             .and_then(|f| f.child(CALDAV, "comp-filter"))
             .and_then(|f| f.child(CALDAV, "time-range"));
         let (start, end) = range.map_or((None, None), |r| (r.attribute("start").map(str::to_owned), r.attribute("end").map(str::to_owned)));
-        for (n, m) in &coll.members {
+        for (n, m) in coll.members.iter().filter(|_| depth == "1") {
             let d = dtstart(&m.body);
             let inside = match (&d, &start, &end) {
                 (Some(d), Some(a), Some(b)) => d.as_str() >= a.as_str() && d.as_str() < b.as_str(),
@@ -587,8 +592,10 @@ fn report_inner(s: &State, layout: &Layout, request: &HttpRequest, path: &str, v
         }
     } else {
         for href in hrefs_of(&body) {
-            let abs = format!("{}{href}", s.host);
-            let inside = s.origin.is_within(&path_of(layout, &Res::Coll(coll)), &abs);
+            let coll_url = format!("{}{}", s.host, path_of(layout, &Res::Coll(coll)));
+            let resolved = s.origin.resolve(&coll_url, &href).ok();
+            let abs = resolved.clone().unwrap_or_default();
+            let inside = resolved.is_some() && s.origin.is_within(&coll_url, &abs);
             if !inside {
                 violations.push("multiget names an href outside the collection".into());
                 out.push_str(&format!("<d:response><d:href>{}</d:href><d:status>{}</d:status></d:response>", escape(&href), status_line(404)));
@@ -708,7 +715,8 @@ fn put(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> Htt
         x.members.insert(name.clone(), Member { etag: etag.clone(), body: data });
         x.log.push((rev, name, true));
     }
-    HttpResponse::new(if exists { 204 } else { 201 }, Vec::new()).with_field("ETag", &etag)
+    let answer = HttpResponse::new(if exists { 204 } else { 201 }, Vec::new());
+    if s.quirks.no_put_etag { answer } else { answer.with_field("ETag", &etag) }
 }
 
 fn delete(s: &mut State, layout: &Layout, request: &HttpRequest, path: &str) -> HttpResponse {

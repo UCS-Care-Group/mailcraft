@@ -248,6 +248,11 @@ fn escape(text: &str, query: bool) -> Result<String, HrefError> {
             let lo = bytes.get(i + 2).copied().and_then(unhex);
             let (Some(hi), Some(lo)) = (hi, lo) else { return Err(HrefError::Malformed) };
             let v = hi * 16 + lo;
+            // An encoded slash, backslash or NUL is read as a separator by some servers: refused
+            // in a path, so that what is "within" a collection is within it for them too.
+            if !query && matches!(v, b'/' | b'\\' | 0) {
+                return Err(HrefError::Malformed);
+            }
             if v.is_ascii_alphanumeric() || matches!(v, b'-' | b'.' | b'_' | b'~') {
                 out.push(char::from(v));
             } else {
@@ -284,6 +289,11 @@ fn normal_path(path: &str) -> Result<String, HrefError> {
             continue;
         }
         let segment = escape(raw, false)?;
+        // A path parameter does not hide a dot segment (`..;x` is `..` to some servers).
+        let base = segment.split(';').next().unwrap_or("");
+        if segment.contains(';') && (base == "." || base == "..") {
+            return Err(HrefError::Escapes);
+        }
         match segment.as_str() {
             "." => trailing = i == last,
             ".." => {

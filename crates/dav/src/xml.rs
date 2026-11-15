@@ -28,7 +28,8 @@ pub struct Node {
     pub namespace: String,
     pub name: String,
     pub component_name: Option<String>,
-    /// Unprefixed attributes other than `xmlns` (at most eight, each value at most `MAX_NAME`).
+    /// Unprefixed attributes other than `xmlns` of `address-data-type`, `time-range` and `comp`
+    /// only (at most eight, each value at most `MAX_NAME`).
     pub attributes: Vec<(String, String)>,
     pub text: String,
     pub children: Vec<Node>,
@@ -110,6 +111,13 @@ pub fn parse_document(bytes: &[u8]) -> Result<Node, InvalidXml> {
                 if count > MAX_NODES || stack.len() > MAX_DEPTH {
                     return Err(InvalidXml);
                 }
+                let local = e.local_name();
+                let name = AsRef::<str>::as_ref(&local);
+                if name.len() > MAX_NAME {
+                    return Err(InvalidXml);
+                }
+                // Attributes are kept only for the elements whose attributes are read.
+                let keeps = matches!(name, "address-data-type" | "time-range" | "comp");
                 let mut component_name = None;
                 let mut attributes: Vec<(String, String)> = Vec::new();
                 for a in e.attributes() {
@@ -119,24 +127,15 @@ pub fn parse_document(bytes: &[u8]) -> Result<Node, InvalidXml> {
                         return Err(InvalidXml);
                     }
                     let key = a.key.as_ref();
-                    if value.len() > MAX_NAME {
-                        if key == "name" {
-                            return Err(InvalidXml);
-                        }
-                    } else if attributes.len() < 8 && !key.contains(':') && key != "xmlns" && key.len() <= MAX_NAME {
-                        attributes.push((key.to_owned(), value.to_string()));
-                    }
-                    if a.key.as_ref() == "name" {
+                    if key == "name" {
                         if value.len() > MAX_NAME {
                             return Err(InvalidXml);
                         }
-                        component_name = Some(value.into_owned());
+                        component_name = Some(value.to_string());
                     }
-                }
-                let local = e.local_name();
-                let name = AsRef::<str>::as_ref(&local);
-                if name.len() > MAX_NAME {
-                    return Err(InvalidXml);
+                    if keeps && value.len() <= MAX_NAME && attributes.len() < 8 && !key.contains(':') && key != "xmlns" && key.len() <= MAX_NAME {
+                        attributes.push((key.to_owned(), value.to_string()));
+                    }
                 }
                 let node = Node { namespace, name: name.to_string(), component_name, attributes, ..Default::default() };
                 if stack.len() == 1 && !stack.first().ok_or(InvalidXml)?.children.is_empty() {

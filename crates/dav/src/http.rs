@@ -34,7 +34,12 @@ impl Secret {
         Self(value.chars().filter(|c| !c.is_control()).collect())
     }
     /// `Basic <base64(user:password)>` (RFC 7617, UTF-8).
+    /// A user name with a `:` in it cannot be told from the password, and is refused: the result
+    /// then holds no credential at all (`Basic ` and nothing), which no server accepts.
     pub fn basic(user: &str, password: &str) -> Self {
+        if user.contains(':') {
+            return Self::new("Basic ");
+        }
         const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let raw = format!("{user}:{password}");
         let mut out = String::from("Basic ");
@@ -143,7 +148,7 @@ impl HttpRequest {
     /// A request of `method` to `url` with `fields` (at most [`MAX_FIELDS`]; a name that is no
     /// token is left out; control characters are taken out of a value) and `body`. Whether it may
     /// be sent again follows the method: everything but `PUT` and `DELETE` may.
-    pub fn new(method: Method, url: &str, fields: &[(&str, &str)], body: Vec<u8>) -> Result<Self, EndpointError> {
+    pub(crate) fn new(method: Method, url: &str, fields: &[(&str, &str)], body: Vec<u8>) -> Result<Self, EndpointError> {
         check_endpoint(url)?;
         let headers = fields
             .iter()

@@ -33,8 +33,9 @@ pub enum Verdict {
     PreconditionRequired,
     /// 429 or 503: wait this many seconds (at most [`MAX_WAIT`], 60 when the server says none).
     Wait(u64),
-    /// 507 on a sync: the page is cut short; ask again from its token.
-    Truncated,
+    /// 507 as the status of the whole response: the server is out of room. (RFC 6578 truncation
+    /// is a 507 response element inside a 207, which [`crate::answer::Multistatus::truncated`] says.)
+    InsufficientStorage,
     /// A redirect (301, 302, 307, 308) to `Location`; never followed here.
     Redirect(u16),
     /// Any other code.
@@ -55,7 +56,7 @@ pub fn classify(response: &HttpResponse, now: i64) -> Verdict {
         412 => Verdict::PreconditionFailed,
         428 => Verdict::PreconditionRequired,
         429 | 503 => Verdict::Wait(retry_after(response.header("retry-after"), now)),
-        507 => Verdict::Truncated,
+        507 => Verdict::InsufficientStorage,
         c @ (301 | 302 | 307 | 308) => Verdict::Redirect(c),
         c => Verdict::Other(c),
     }
@@ -106,7 +107,7 @@ pub fn http_date(text: &str) -> Option<i64> {
 
 /// The authentication schemes a 401 offers (`Basic`, `Digest`, `Bearer`…), lower-cased.
 pub fn challenges(response: &HttpResponse) -> Vec<String> {
-    response.headers_named("www-authenticate").filter_map(|v| v.split_whitespace().next()).map(str::to_ascii_lowercase).take(16).collect()
+    response.headers_named("www-authenticate").flat_map(schemes).take(16).collect()
 }
 
 /// The compliance classes a `DAV` header names (RFC 4918 §10.1), lower-cased.
@@ -137,3 +138,36 @@ pub fn multistatus(response: &HttpResponse, origin: &Origin, base: &str) -> Resu
 #[cfg(test)]
 #[path = "status_tests.rs"]
 mod tests;
+
+/// Every scheme in one `WWW-Authenticate` value (RFC 9110 §11.6.1: a value may hold several
+/// challenges): a token that starts a challenge is one followed by a space and then an auth-param
+/// or a token68, not the parameters inside it. Quoted strings are skipped.
+fn schemes(value: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut quoted = false;
+    let mut part = String::new();
+    let mut parts = Vec::new();
+    for c in value.chars() {
+        match c {
+            '"' => {
+                quoted = !quoted;
+                part.push(c);
+            }
+            ',' if !quoted => parts.push(std::mem::take(&mut part)),
+            _ => part.push(c),
+        }
+    }
+    parts.push(part);
+    for p in parts {
+        let p = p.trim();
+        let mut words = p.splitn(2, ' ');
+        let first = words.next().unwrap_or("");
+        let rest = words.next().unwrap_or("").trim_start();
+        // `Basic realm="x"` starts a challenge; `realm="x"` (a parameter) does not; a bare
+        // `Negotiate` does.
+        if !first.is_empty() && !first.contains('=') && (rest.is_empty() || rest.contains('=') || !first.contains('"')) {
+            out.push(first.to_ascii_lowercase());
+        }
+    }
+    out
+}

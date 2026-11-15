@@ -199,13 +199,12 @@ impl Endpoint {
         Ok(HttpRequest::new(method, &url, &all, body)?)
     }
 
-    fn xml(&self, method: Method, url: &str, depth: &str, body: Vec<u8>) -> Result<HttpRequest, RequestError> {
-        self.build(
-            method,
-            url,
-            &[("Content-Type", "application/xml; charset=utf-8"), ("Depth", depth), ("Accept", "application/xml, text/xml")],
-            body,
-        )
+    fn xml(&self, method: Method, url: &str, depth: Option<&str>, body: Vec<u8>) -> Result<HttpRequest, RequestError> {
+        let mut fields = vec![("Content-Type", "application/xml; charset=utf-8"), ("Accept", "application/xml, text/xml")];
+        if let Some(depth) = depth {
+            fields.push(("Depth", depth));
+        }
+        self.build(method, url, &fields, body)
     }
 
     /// `OPTIONS`, whose `DAV` header says what the server is (RFC 4918 §10.1).
@@ -216,14 +215,14 @@ impl Endpoint {
     /// `PROPFIND` Depth 0 for the current user's principal (RFC 5397) and the resource type.
     pub fn propfind_principal(&self, url: &str) -> Result<HttpRequest, RequestError> {
         let body = document("d:propfind", "<d:prop><d:current-user-principal/><d:resourcetype/></d:prop>");
-        self.xml(Method::Propfind, url, "0", body)
+        self.xml(Method::Propfind, url, Some("0"), body)
     }
 
     /// `PROPFIND` Depth 0 of a principal for its calendar and address book homes (RFC 4791 §6.2.1,
     /// RFC 6352 §7.1.1).
     pub fn propfind_homes(&self, principal: &str) -> Result<HttpRequest, RequestError> {
         let body = document("d:propfind", "<d:prop><c:calendar-home-set/><card:addressbook-home-set/><d:displayname/></d:prop>");
-        self.xml(Method::Propfind, principal, "0", body)
+        self.xml(Method::Propfind, principal, Some("0"), body)
     }
 
     /// `PROPFIND` Depth 1 of a home for its collections and what they are and allow.
@@ -233,14 +232,14 @@ impl Endpoint {
             "<d:prop><d:resourcetype/><d:displayname/><a:calendar-color/><c:supported-calendar-component-set/>\
              <card:supported-address-data/><d:supported-report-set/><d:current-user-privilege-set/><cs:getctag/><d:sync-token/></d:prop>",
         );
-        self.xml(Method::Propfind, home, "1", body)
+        self.xml(Method::Propfind, home, Some("1"), body)
     }
 
     /// `PROPFIND` Depth 0 of a collection for its change tag and sync token: the cheap "has
     /// anything changed" question.
     pub fn propfind_state(&self, collection: &str) -> Result<HttpRequest, RequestError> {
         let body = document("d:propfind", "<d:prop><cs:getctag/><d:sync-token/></d:prop>");
-        self.xml(Method::Propfind, collection, "0", body)
+        self.xml(Method::Propfind, collection, Some("0"), body)
     }
 
     /// `calendar-query` for the events that overlap `start`..`end`, asking for `getetag` only
@@ -257,7 +256,7 @@ impl Endpoint {
                 end.as_str()
             ),
         );
-        self.xml(Method::Report, collection, "1", body)
+        self.xml(Method::Report, collection, Some("1"), body)
     }
 
     /// `calendar-multiget` or `addressbook-multiget` of at most [`MAX_MULTIGET`] resources, each
@@ -279,7 +278,7 @@ impl Endpoint {
             Kind::Calendar => ("c:calendar-multiget", format!("<d:prop><d:getetag/>{}</d:prop>{list}", kind.data())),
             Kind::AddressBook => ("card:addressbook-multiget", format!("<d:prop><d:getetag/>{}</d:prop>{list}", kind.data().replace("c:", "card:"))),
         };
-        self.xml(Method::Report, collection, "1", document(root, &body))
+        self.xml(Method::Report, collection, None, document(root, &body))
     }
 
     /// `sync-collection` with `token` (none: the first sync) and a page size (RFC 6578 §3.2).
@@ -294,7 +293,7 @@ impl Endpoint {
             "d:sync-collection",
             &format!("<d:sync-token>{token}</d:sync-token><d:sync-level>1</d:sync-level>{limit}<d:prop><d:getetag/></d:prop>"),
         );
-        self.xml(Method::Report, collection, "0", body)
+        self.xml(Method::Report, collection, Some("0"), body)
     }
 
     /// `GET` of a resource on this origin.
