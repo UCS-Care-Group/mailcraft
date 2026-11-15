@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -68,18 +69,17 @@ internal class MailListController(
         val before = state.value
         val sameFolder = before.query?.folder == query.folder
         switching = true
-        state.update {
-            val keep = sameFolder && it.snapshot.total > 0
-            it.copy(
-                query = query,
-                load = if (keep) it.load else LoadState.Loading,
-                snapshot = if (sameFolder) it.snapshot else ListSnapshot.Empty,
-                tabs = if (sameFolder) it.tabs else emptyList(),
-            )
-        }
+        state.update { it.switchedTo(query, sameFolder) }
         visible = 0..0
         val first = try {
             source.window(query, 0, PAGE_SIZE)
+        } catch (cancelled: CancellationException) {
+            // Called off: the rows kept are the last query's, so the list goes on being that one's
+            // (paging then reads that query's pages), until it is shown again.
+            if (mine == generation.get() && sameFolder) {
+                state.update { it.copy(query = before.query, load = before.load) }
+            }
+            throw cancelled
         } finally {
             // (Called off too: paging is never left waiting for a first page that will not come.)
             if (mine == generation.get()) switching = false
@@ -96,6 +96,8 @@ internal class MailListController(
         state.update {
             it.copy(load = LoadState.Ready, snapshot = if (it.snapshot.rev > first.rev) it.snapshot else snapshot)
         }
+        // The screen may have reported rows further down while the first page was on its way.
+        showRange(visible.first, visible.last)
         if (query.search.isBlank()) loadTabs(mine, query.folder)
     }
 
@@ -110,23 +112,27 @@ internal class MailListController(
         val query = state.value.query ?: return
         val mine = generation.get()
         val ahead = last + PAGE_SIZE / 2
-        val missing = if (switching) emptyList() else state.value.snapshot.missing(first, ahead)
-        val wanted = missing.filter { reading.add(mine to it) }
+        // The pages this call reads (another call reading a page leaves it to that one).
+        val mineToRead = mutableSetOf<Int>()
         try {
-            // A page that could not be read is tried again a few times, a while apart (and a pull to
-            // refresh reads the pages on screen again).
-            var left = wanted
-            var tries = 0
-            while (left.isNotEmpty() && mine == generation.get() && tries <= PAGE_RETRIES) {
-                if (tries > 0) pause(RETRY_MILLIS * tries)
+            // Read until nothing in the range is missing: a page that could not be read is tried again
+            // a while later, and pages a newer revision dropped are read again, a few rounds at most
+            // (a pull to refresh reads the pages on screen again).
+            var failed = false
+            var rounds = 0
+            while (!switching && mine == generation.get() && rounds <= PAGE_RETRIES) {
+                val left = state.value.snapshot.missing(first, ahead)
+                    .filter { it in mineToRead || (reading.add(mine to it) && mineToRead.add(it)) }
+                if (left.isEmpty()) break
+                if (failed) pause(RETRY_MILLIS * rounds)
                 val windows = source.pages(query, left)
                 val got = windows.values.filterNotNull().takeIf { mine == generation.get() }.orEmpty()
                 state.update { ui -> got.fold(ui) { acc, w -> acc.merged(w) } }
-                left = windows.filterValues { it == null }.keys.toList()
-                tries++
+                failed = windows.values.any { it == null }
+                rounds++
             }
         } finally {
-            wanted.forEach { reading.remove(mine to it) }
+            mineToRead.forEach { reading.remove(mine to it) }
         }
     }
 
@@ -268,22 +274,53 @@ internal fun MailListController.handle(event: Event, scope: CoroutineScope) {
  * messages the command named, or null when it was not done.
  */
 internal suspend fun MailSource.focusedRun(triage: Triage, query: MailQuery, rows: List<InboxRow>): Int? {
-    val ids = rows.flatMap { row ->
-        if (row.members > row.memberIds.size && row.members > 1) {
-            members(query, row.id)?.takeIf { it.isNotEmpty() } ?: return null
-        } else {
-            row.memberIds.ifEmpty { listOf(row.id) }
-        }
-    }.distinct()
-    val withIds = mapOf("ids" to ids)
-    val (command, params) = when (triage) {
-        is Triage.MarkRead -> (if (triage.read) "mail.markRead" else "mail.markUnread") to withIds
-        is Triage.Flag -> (if (triage.on) "mail.flag" else "mail.clearFlag") to withIds
-        Triage.Archive -> "mail.archive" to withIds
-        Triage.Delete -> "mail.delete" to withIds
-        Triage.Junk -> "mail.junk" to withIds
-        is Triage.MoveTo -> "mail.move" to (withIds + ("folder" to triage.folder))
-        is Triage.Category -> "mail.categorize" to (withIds + mapOf("category" to triage.name, "value" to triage.on))
+    val ids = rows.flatMap { row -> idsOf(query, row) ?: return null }.distinct()
+    return if (run(triage.command(), jsonText(triage.params(ids)))) ids.size else null
+}
+
+/**
+ * The messages [row] stands for: the ids it carries, or, when it stands for more, its whole list
+ * read from the core (all of it or nothing: a list shorter than the row's count, cut or changed, is
+ * null, as is a row the list no longer has).
+ */
+internal suspend fun MailSource.idsOf(query: MailQuery, row: InboxRow): List<ULong>? =
+    if (row.members > row.memberIds.size && row.members > 1) {
+        members(query, row.id)?.takeIf { it.isNotEmpty() && it.size >= row.members }
+    } else {
+        row.memberIds.ifEmpty { listOf(row.id) }
     }
-    return if (run(command, jsonText(params))) ids.size else null
+
+/** The engine's command for this triage. */
+internal fun Triage.command(): String = when (this) {
+    is Triage.MarkRead -> if (read) "mail.markRead" else "mail.markUnread"
+    is Triage.Flag -> if (on) "mail.flag" else "mail.clearFlag"
+    Triage.Archive -> "mail.archive"
+    Triage.Delete -> "mail.delete"
+    Triage.Junk -> "mail.junk"
+    is Triage.MoveTo -> "mail.move"
+    is Triage.Category -> "mail.categorize"
+}
+
+/** The command's parameters, naming [ids]. */
+internal fun Triage.params(ids: List<ULong>): Map<String, Any> {
+    val withIds = mapOf<String, Any>("ids" to ids)
+    return when (this) {
+        is Triage.MoveTo -> withIds + ("folder" to folder)
+        is Triage.Category -> withIds + mapOf("category" to name, "value" to on)
+        else -> withIds
+    }
+}
+
+/**
+ * The list as it is while [query]'s first page is read: in the same folder the rows, tabs and state
+ * of the last query stay (rows there, the list stays as it was); another folder starts empty and loading.
+ */
+internal fun MailListUi.switchedTo(query: MailQuery, sameFolder: Boolean): MailListUi {
+    val keep = sameFolder && snapshot.total > 0
+    return copy(
+        query = query,
+        load = if (keep) load else LoadState.Loading,
+        snapshot = if (sameFolder) snapshot else ListSnapshot.Empty,
+        tabs = if (sameFolder) tabs else emptyList(),
+    )
 }

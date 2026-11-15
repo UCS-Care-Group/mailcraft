@@ -9,6 +9,7 @@ import kotlinx.coroutines.CompletableDeferred
 internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSource {
     var rev = 1uL
     val windows = mutableListOf<Pair<Int, Int>>()
+    val asked = mutableListOf<MailQuery>()
     val commands = mutableListOf<Pair<String, String>>()
     var tabs: List<SplitTabItem> = emptyList()
     var failWindows = false
@@ -35,6 +36,7 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
 
     override suspend fun window(query: MailQuery, offset: Int, count: Int): RowsWindow? {
         windows += offset to count
+        asked += query
         val call = calls++
         val waiting = waitCall
         if (waiting == null || waiting == call) gate?.await()

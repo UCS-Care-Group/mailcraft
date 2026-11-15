@@ -289,8 +289,37 @@ class MailListControllerTest {
         pending.join()
         source.gate = null
         source.windows.clear()
+        source.asked.clear()
+        // The rows kept are the last query's, and the list goes on being that one's.
+        assertEquals(inbox, c.ui.value.query)
         c.showRange(100, 110)
         assertTrue(source.windows.map { it.first }.contains(2 * PAGE_SIZE))
+        assertTrue(source.asked.all { it == inbox })
+    }
+
+    @Test
+    fun aPageOfANewerRevisionReadsTheRestOfWhatIsOnScreenAgain() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(120))
+        val c = controller(source)
+        c.show(inbox)
+        source.change(FakeMailSource.rows(120))
+        // Rows 40 to 55 span pages 0 and 1; page 1 comes at a newer revision, which drops page 0.
+        c.showRange(40, 55)
+        assertEquals(source.rev, c.ui.value.snapshot.rev)
+        assertNotNull(c.ui.value.snapshot.row(40))
+        assertNotNull(c.ui.value.snapshot.row(55))
+    }
+
+    @Test
+    fun rowsReportedWhileTheFirstPageLoadsAreReadOnceItIsIn() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(300))
+        val c = controller(source)
+        source.gate = CompletableDeferred()
+        val showing = launch(start = CoroutineStart.UNDISPATCHED) { c.show(inbox) }
+        c.showRange(260, 270)
+        source.gate?.complete(Unit)
+        showing.join()
+        assertNotNull(c.ui.value.snapshot.row(260))
     }
 
     @Test
@@ -320,6 +349,11 @@ class MailListControllerTest {
         source.memberLists = mapOf(2uL to listOf(200uL, 201uL, 202uL))
         c.triage(Triage.Archive, listOf(row))
         assertEquals(listOf("mail.archive" to """{"ids":[200,201,202]}"""), source.commands)
+        // A whole list shorter than the row's count (cut, or changed) is not acted on by halves either.
+        source.commands.clear()
+        source.memberLists = mapOf(2uL to listOf(200uL, 201uL))
+        c.triage(Triage.Archive, listOf(row))
+        assertTrue(source.commands.isEmpty())
         // A row the list no longer has is not acted on by halves: nothing is run, and it is said.
         source.commands.clear()
         source.memberLists = emptyMap()
