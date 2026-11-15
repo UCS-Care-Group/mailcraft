@@ -120,9 +120,7 @@ private fun CoreShell(
     chosenLanguage: String,
     onLanguage: (String) -> Unit,
 ) {
-    val core = opened.core
-    val hub = opened.hub
-    val list = opened.mail
+    val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
@@ -140,17 +138,14 @@ private fun CoreShell(
     val outline = outlined?.outline
     val folder = chosenFolder(outline, query.folder)
     val accounts = outline?.accounts.orEmpty()
-
     val now = rememberTicks(list)
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
-
     SideEffect { hub.showing(accounts) }
     // The right to notify is asked for once there is an account to bring mail, never at a first start.
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
     }
-    val controller = hub.controller
-    val accountsUi by controller.ui.collectAsState()
+    val accountsUi by hub.controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
     // The message being read is this window's own; marking it read goes through the list, which makes
     // the owner's commands in turn, so that an undo it offers is never taken by the mark.
@@ -171,11 +166,7 @@ private fun CoreShell(
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
-            outline = when {
-                outlined == null -> OutlineStatus.Loading
-                outline == null -> OutlineStatus.Failed
-                else -> OutlineStatus.Ready
-            },
+            outline = outlineStatus(outlined != null, outline != null),
             categories = categories,
             nowMillis = now,
             swipe = swipe,
@@ -184,18 +175,22 @@ private fun CoreShell(
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
-            accounts = controller.actions(),
+            accounts = hub.controller.actions(),
             mail = mailActions,
             onSwipe = {
                 swipe = it
                 prefs.save(it)
             },
-            reading = ReadingActions(
-                onOpen = { id, width, dark -> reading.open(id, width, dark) },
-                onLink = links::open,
-            ),
+            reading = ReadingActions(onOpen = reading::open, onLink = links::open),
         ),
     )
+}
+
+/** Whether the outline is still being read, could not be, or is there. */
+private fun outlineStatus(read: Boolean, found: Boolean) = when {
+    !read -> OutlineStatus.Loading
+    !found -> OutlineStatus.Failed
+    else -> OutlineStatus.Ready
 }
 
 /**

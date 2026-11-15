@@ -27,7 +27,7 @@ import uniffi.mailcraft_mobile.Event
  * window; the windows only read [ui].
  */
 internal class MailListController(
-    private val source: MailSource,
+    internal val source: MailSource,
     private val clock: () -> Long = System::currentTimeMillis,
     /** Waits between tries of a page that could not be read. */
     private val pause: suspend (Long) -> Unit = { delay(it) },
@@ -198,9 +198,6 @@ internal class MailListController(
         }
     }
 
-    /** The categories mail can be given, with their colours. */
-    suspend fun categories(): List<CategoryItem> = source.categories()
-
     /** A synchronisation finished: the list is as fresh as now. */
     fun updated() {
         val now = clock()
@@ -275,6 +272,9 @@ internal class MailListController(
         return copy(snapshot = next, load = LoadState.Ready)
     }
 }
+
+/** The categories mail can be given, with their colours. */
+internal suspend fun MailListController.categories(): List<CategoryItem> = source.categories()
 
 /** The [pages] of the list [query] asks for, read together: each page's window, or null when it couldn't be read. */
 internal suspend fun MailSource.pages(query: MailQuery, pages: List<Int>): Map<Int, RowsWindow?> = coroutineScope {
