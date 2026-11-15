@@ -98,8 +98,10 @@ internal fun AskForNotificationsOnce(hasAccount: Boolean, answered: () -> Unit) 
  * Shows the core's new-mail notifications. What one says is the core's own (a sender and subject
  * when it gives them, made plain and short there, else a count), and the core sends none when the
  * owner turned new-mail notifications off (`Core.setNotifyNewMail`, which follows the system's
- * switch for the app and for the channel). On the lock screen only "New mail" shows; what the
- * message says waits until the phone is unlocked. Tapping one opens the app.
+ * switch for the app and for the channel). The notification is private: where the system hides
+ * private content on the lock screen (its sensitive-content setting), only "New mail" shows there
+ * and what the message says waits until the phone is unlocked; where the owner lets the lock
+ * screen show all of it, the sender and subject show there too. Tapping one opens the app.
  */
 internal class MailNotifier(private val context: Context, private val t: (String) -> String) {
     fun handle(event: Event) {

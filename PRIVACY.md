@@ -251,9 +251,11 @@ not in a release yet are marked "when the app is released".
   mail.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
-  as the account's setting says). A switch in Settings shows "New mail" and nothing else, and on a lock
-  screen the system hides private content from, a public version that says only "New mail"
-  stands in for the notification. Reminders for meetings
+  as the account's setting says). A switch in Settings shows "New mail" and nothing else. On the
+  lock screen what shows follows the phone's own setting for sensitive content: where the system
+  hides private content there, a public version that says only "New mail" stands in for the
+  notification; where you let the lock screen show all notification content, the sender and the
+  subject show there too. Reminders for meetings
   and tasks are notifications raised on the phone from what the last check brought. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
