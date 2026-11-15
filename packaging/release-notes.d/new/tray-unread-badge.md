@@ -1,0 +1,1 @@
+- With Close to system tray enabled, MailCraft’s icon now shows a little red circle at the top left while there is unread mail, on Windows, macOS and Linux/BSD. Reading or removing the last unread message clears it, even when desktop alerts are turned off.

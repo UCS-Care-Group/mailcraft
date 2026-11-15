@@ -1,0 +1,1 @@
+| 2026-11-15 | The optional system tray icon shows a red circle at its top left while any account has unread mail in Inbox, Archive or custom folders. Reading or removing the last unread message clears the badge; reopening the window does not. Windows, macOS and Linux/BSD use the same artwork, independently of desktop-alert settings, with the folder pane’s cached counts. |

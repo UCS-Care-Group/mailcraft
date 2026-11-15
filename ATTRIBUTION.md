@@ -8,6 +8,7 @@ Generated-in-code art is original and has no file to list: the UI icon set (`cra
 
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
+| `docs/images/tray-unread-badge.png` | MailCraft contributors | Rendered preview of MailCraft’s own tray icon, exported from `apps/mailcraft/src/tray.rs` and shown at enlarged and 24 px sizes on light and dark backgrounds; not a desktop capture | MIT OR Apache-2.0 | Unread tray badge documentation and pull request |
 | `docs/images/mail-dark.png` | MailCraft contributors | screenshot of MailCraft itself showing its sample mailbox (invented people and text), made with `crates/ui-egui/examples/ui_shot.rs` | MIT OR Apache-2.0 | README: the Inbox and reading pane, dark theme |
 | `docs/images/html-mail.png` | MailCraft contributors | screenshot of MailCraft itself showing its sample mailbox (invented people and text), made with `crates/ui-egui/examples/ui_shot.rs` | MIT OR Apache-2.0 | README: an HTML message with a table and a quoted thread |
 | `docs/images/calendar-week.png` | MailCraft contributors | screenshot of MailCraft itself showing its sample mailbox (invented people and text), made with `crates/ui-egui/examples/ui_shot.rs` | MIT OR Apache-2.0 | README: the calendar's week view |

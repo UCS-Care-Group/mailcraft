@@ -20,6 +20,8 @@ pub struct Backend {
     sync: MenuItem,
     quit: MenuItem,
     lang: Lang,
+    icons: Option<[tray_icon::Icon; 2]>,
+    badged: bool,
 }
 
 impl Backend {
@@ -28,23 +30,25 @@ impl Backend {
         let show = MenuItem::with_id("mailcraft.tray.show", show, true, None);
         let sync = MenuItem::with_id("mailcraft.tray.sync", sync, true, None);
         let quit = MenuItem::with_id("mailcraft.tray.quit", quit, true, None);
-        let build = || -> Result<TrayIcon, Box<dyn std::error::Error>> {
-            let image = crate::app_icon().ok_or("MailCraft icon couldn't be read")?;
-            let image = tray_icon::Icon::from_rgba(image.rgba, image.width, image.height)?;
+        let build = || -> Result<_, Box<dyn std::error::Error>> {
+            let [plain, badged] = super::icons().ok_or("MailCraft icon couldn't be read")?;
+            let plain = tray_icon::Icon::from_rgba(plain.rgba, plain.width, plain.height)?;
+            let badged = tray_icon::Icon::from_rgba(badged.rgba, badged.width, badged.height)?;
             let menu = Menu::new();
             menu.append_items(&[&show, &sync, &PredefinedMenuItem::separator(), &quit])?;
-            Ok(TrayIconBuilder::new()
-                .with_icon(image)
+            let icon = TrayIconBuilder::new()
+                .with_icon(plain.clone())
                 .with_tooltip("MailCraft")
                 .with_menu(Box::new(menu))
                 .with_menu_on_left_click(cfg!(target_os = "macos"))
-                .build()?)
+                .build()?;
+            Ok((icon, [plain, badged]))
         };
-        let icon = match build() {
-            Ok(icon) => Some(icon),
+        let (icon, icons) = match build() {
+            Ok((icon, icons)) => (Some(icon), Some(icons)),
             Err(e) => {
                 log::warn!("system tray unavailable; closing will exit MailCraft: {e}");
-                None
+                (None, None)
             }
         };
         signals.online(icon.is_some());
@@ -64,10 +68,18 @@ impl Backend {
                 clicks.send(SHOW);
             }
         }));
-        Self { icon, show, sync, quit, lang: i18n::current() }
+        Self { icon, show, sync, quit, lang: i18n::current(), icons, badged: false }
     }
 
-    pub fn poll(&mut self) {
+    pub fn poll(&mut self, badged: bool) {
+        if self.badged != badged
+            && let (Some(icon), Some([plain, unread])) = (&self.icon, &self.icons)
+        {
+            match icon.set_icon(Some(if badged { unread } else { plain }.clone())) {
+                Ok(()) => self.badged = badged,
+                Err(e) => log::debug!("tray icon couldn't be updated: {e}"),
+            }
+        }
         let lang = i18n::current();
         if self.lang != lang {
             self.lang = lang;
