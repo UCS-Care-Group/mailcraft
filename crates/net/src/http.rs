@@ -165,8 +165,8 @@ pub(crate) struct Reply {
     pub(crate) challenges: Vec<String>,
     /// Its `X-EWS-Policy-Reason` header (why an organisation shuts Exchange Web Services).
     pub(crate) policy_reason: Option<String>,
-    /// Its `DAV` headers (the compliance classes of a calendar or contacts server, RFC 4918
-    /// §10.1), as written.
+    /// The compliance classes its `DAV` headers name (RFC 4918 §10.1): one entry for each, however
+    /// the server wrote them (one header with a long list, or several).
     pub(crate) dav: Vec<String>,
     /// Its `ETag` header, as written.
     pub(crate) etag: Option<String>,
@@ -179,8 +179,10 @@ const MAX_CHALLENGES: usize = 16;
 const MAX_CHALLENGE: usize = 24 * 1024;
 /// The longest `X-EWS-Policy-Reason` kept.
 const MAX_REASON: usize = 1_024;
-/// Most `DAV` headers kept of one answer, and the longest; and the longest `ETag`.
-const MAX_DAV: usize = 16;
+/// Most compliance classes kept of one answer's `DAV` headers, and the longest one (a class is a
+/// token or a `<URL>`; a longer one is dropped, never cut); and the longest `ETag`. The cap is on
+/// the classes, not on the header: Nextcloud sends one header of some forty classes.
+const MAX_DAV: usize = 64;
 const MAX_DAV_VALUE: usize = 256;
 const MAX_ETAG: usize = 1_024;
 
@@ -760,8 +762,10 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
         } else if name.eq_ignore_ascii_case("x-ews-policy-reason") {
             head.policy_reason = Some(tidy(value).chars().take(MAX_REASON).collect());
         } else if name.eq_ignore_ascii_case("dav") {
-            if head.dav.len() < MAX_DAV {
-                head.dav.push(tidy(value).chars().take(MAX_DAV_VALUE).collect());
+            for class in value.split(',').map(str::trim).filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
+                if head.dav.len() < MAX_DAV && !class.chars().any(char::is_control) {
+                    head.dav.push(class.to_owned());
+                }
             }
         } else if name.eq_ignore_ascii_case("etag") {
             // (Kept whole or not at all: a cut ETag is another ETag.)

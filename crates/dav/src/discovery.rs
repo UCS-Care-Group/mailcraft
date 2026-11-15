@@ -26,21 +26,28 @@
 //!   a mail filter's web front answers it to everything, and the password would go to it.
 //! - **Redirects** (301, 302, 303, 307, 308) are followed one at a time, at most
 //!   [`MAX_REDIRECTS`] in a row, and only to `https://` (plain `http` only between loopback
-//!   addresses, for tests). One to another host is followed **without credentials**.
+//!   addresses, for tests). One to another host is followed **without credentials**; and when that
+//!   host is outside the owner's mail domain and is nobody's (see below), the owner is asked
+//!   **before the first request to it**, and a no sends nothing at all. A host given as a number
+//!   (`192.168.1.1`, `[fd00::1]`) is never followed unless the owner typed it.
 //! - **The password** (the [`Secret`] the machine was made with) goes only in answer to a host's
-//!   own 401 offering Basic, only to a host that is the owner's: the one typed, the account's mail
+//!   own 401 offering Basic, only to a host that is the owner's: the one typed (which a bare Basic
+//!   401 is enough for, a proxy that signs everybody in first: what answers must then be a DAV
+//!   multistatus, or the search ends there with [`Failure::NotDavServer`]), the account's mail
 //!   server (at 443), one the domain's SRV record names, the known provider's own DAV hosts (for
 //!   that provider's accounts only), or one the owner agreed to when the machine asked
-//!   ([`Step::NeedsYes`], naming the host whole). Any other host asks first, a host in the owner's
-//!   own domain included (the domain's own name is often a web site somebody else runs). A no
-//!   sends nothing there, and it is not asked again. Digest and the rest are not offered the
+//!   ([`Step::NeedsYes`], naming the host whole). Any other host asks first: outside the owner's
+//!   domain before the first request, inside it before the password (the domain's own name is
+//!   often a web site somebody else runs). A no sends nothing there, and it is not asked again. Digest and the rest are not offered the
 //!   password; nor is any host over plain `http`.
 //! - **Never to Microsoft or Google.** A Microsoft host (`is_exchange_online`,
 //!   `is_microsoft_domain`) ends the search with [`Outcome::Microsoft`] (the Microsoft account
 //!   signs in on Microsoft's page, ADR 0002) and a Google host with [`Outcome::Google`] (signing in
 //!   with Google, C11); nothing is sent there.
 //! - **A refused password ends the search at once** ([`Failure::SignInRefused`]): trying other
-//!   hosts with a wrong password is how an account gets locked.
+//!   hosts with a wrong password is how an account gets locked. What was found before a search is
+//!   stopped (by that, by Microsoft's or Google's host, by the request cap) is still given back.
+//!   A chain of redirects that does not end fails that one place only.
 //! - **Then** `current-user-principal`, the `calendar-home-set` or `addressbook-home-set` of it, and
 //!   Depth 1 on the home for the collections (RFC 4791 §6.2.1, RFC 6352 §7.1.1). A home or a
 //!   principal on another host (iCloud's) is another origin: asked without credentials first and
@@ -57,11 +64,12 @@
 use std::collections::VecDeque;
 use std::fmt;
 
+use mailcraft_link::WebLink;
 use mailcraft_model::provider::{self, DavPreset};
 use mailcraft_model::{is_exchange_online, is_google_host, is_microsoft_domain, is_within};
 
 use crate::answer::{Collections, Entry, Multistatus};
-use crate::href::{HrefError, Origin, TrustedOrigin};
+use crate::href::{HrefError, Origin};
 use crate::http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, MAX_ADDRESS, Secret, TransportError, check_endpoint};
 use crate::request::{Endpoint, Kind};
 use crate::status;
@@ -104,7 +112,13 @@ fn is_name(text: &str) -> bool {
 /// angle bracket, a domain that is a name.
 fn domain_of(address: &str) -> Option<String> {
     let (local, domain) = address.trim().rsplit_once('@')?;
-    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    let mut domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    // A name in other letters is written as its ASCII form (Punycode, RFC 3492), as an address on
+    // the wire has it, by the link crate's own reader: no host name that it refuses is looked for.
+    if !domain.is_ascii() {
+        let shown = WebLink::parse(&format!("https://{domain}/"))?;
+        domain = shown.host().to_owned();
+    }
     let local_ok =
         !local.is_empty() && local.len() <= 64 && !local.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>' | '@'));
     (local_ok && is_name(&domain)).then_some(domain)
@@ -231,6 +245,9 @@ pub enum Failure {
     Unreadable,
     /// A redirect to an address that is not `https://`, or no address at all.
     InsecureRedirect,
+    /// The search was sent to a host given as a number (`192.168.1.1`, `[fd00::1]`), which a
+    /// server's word is never taken for; only an address the owner typed may be one.
+    PrivateAddress,
     /// The server or the organisation refused (403).
     ServerRefused,
     /// The server answered without the current user's principal.
@@ -258,6 +275,7 @@ impl Failure {
             Self::SecureConnection => 3,
             Self::Unreadable => 4,
             Self::InsecureRedirect => 5,
+            Self::PrivateAddress => 5,
             Self::ServerRefused => 6,
             Self::SignInNotSupported => 7,
             Self::NoPrincipal => 8,
@@ -278,6 +296,7 @@ impl fmt::Display for Failure {
             Self::SecureConnection => "A secure connection to the server could not be set up, for instance because its certificate is not trusted. Check the address, or type the server's address.",
             Self::Unreadable => "The server's answer could not be read. Type the server's address.",
             Self::InsecureRedirect => "The server sent the setup somewhere that is not encrypted, which is never followed. Type the server's address.",
+            Self::PrivateAddress => "The search was sent to a server given by its number, which is not followed unless you typed it. Type the server's address.",
             Self::ServerRefused => "The server or the organisation would not give its calendars or contacts. Ask your administrator for the server's address and type it.",
             Self::NoPrincipal => "The server did not say who you are on it. Type the server's address.",
             Self::NoHome => "The server did not say where your calendars or contacts are. Type the server's address.",
@@ -380,6 +399,9 @@ struct Ask {
     options: bool,
     /// The 401 that led to the `OPTIONS` offered Basic.
     basic: bool,
+    /// The owner is asked before the request is made (a host outside the mail domain that is
+    /// nobody's), not before the password goes.
+    before: bool,
 }
 
 /// What the machine waits for.
@@ -427,8 +449,16 @@ pub struct Discovery {
     domain: String,
     mail_host: Option<String>,
     preset: Option<DavPreset>,
+    /// The kinds the caller asked for.
+    wanted: [bool; 2],
     /// The addresses the owner typed, calendars' and contacts'.
     typed: [Option<String>; 2],
+    /// The origins of those addresses.
+    typed_origins: Vec<String>,
+    /// Origins the password went to without a `DAV` header having said what they are (the host
+    /// the owner typed, behind a proxy that asks for a sign-in first): until an answer is a DAV
+    /// multistatus, nothing else is believed of them.
+    unproven: Vec<String>,
     /// The kinds still to search for, the first being the one in hand.
     todo: VecDeque<Kind>,
     job: Option<Job>,
@@ -476,7 +506,10 @@ impl Discovery {
             preset: provider::dav_by_domain(&domain),
             domain,
             mail_host: None,
+            wanted: [calendars, contacts],
             typed: [None, None],
+            typed_origins: Vec::new(),
+            unproven: Vec::new(),
             todo,
             job: None,
             found: Discovered::default(),
@@ -513,14 +546,21 @@ impl Discovery {
 
     /// The address the owner typed for calendars or for contacts: that address only (and the
     /// redirects it gives), and the host of it is the owner's. When any is typed, only the kinds
-    /// typed are searched for.
+    /// typed **and** asked for in [`Discovery::new`] are searched for: an address for a kind that
+    /// was not asked for is ignored (and its host is not the owner's for anything).
     pub fn typed(mut self, kind: Kind, url: &str) -> Result<Self, EndpointError> {
         let url = url.trim();
         check_endpoint(url)?;
         let origin = Origin::parse(url)?;
+        if !self.wanted.get(kind_index(kind)).copied().unwrap_or(false) {
+            return Ok(self);
+        }
         let key = origin.base();
         if !self.trusted.contains(&key) && self.trusted.len() < MAX_TRUSTED {
-            self.trusted.push(key);
+            self.trusted.push(key.clone());
+        }
+        if !self.typed_origins.contains(&key) && self.typed_origins.len() < MAX_TRUSTED {
+            self.typed_origins.push(key);
         }
         if let Some(slot) = self.typed.get_mut(kind_index(kind)) {
             *slot = Some(url.to_owned());
@@ -546,7 +586,19 @@ impl Discovery {
         }
     }
 
+    /// What the search is over with: `outcome`, unless a kind was found, which is then what is
+    /// given back: a host that stops the search (Microsoft's, Google's, a refused password, the
+    /// request cap) stops further asking, never what was found before it.
+    fn settle(&self, outcome: Outcome) -> Outcome {
+        if matches!(outcome, Outcome::Found(_)) || (self.found.calendars.is_none() && self.found.contacts.is_none()) {
+            outcome
+        } else {
+            Outcome::Found(self.found.clone())
+        }
+    }
+
     fn finish(&mut self, outcome: Outcome) {
+        let outcome = self.settle(outcome);
         self.waiting = Waiting::Done(outcome);
     }
 
@@ -635,30 +687,49 @@ impl Discovery {
         if is_within(origin.host(), &self.domain) { ConsentReason::OwnDomain } else { ConsentReason::Elsewhere }
     }
 
+    /// The proof that the password may go to `origin`, which only this machine makes: the origin
+    /// has answered a challenge and been allowed ([`Self::sign_in`]), and is `https` (or loopback).
+    fn grant(&self, origin: &Origin) -> Option<Grant> {
+        (self.signed_in.contains(&origin.base()) && (origin.secure() || origin.is_loopback())).then(|| Grant { origin: origin.clone() })
+    }
+
     /// Asks the server at `url` the question of `stage`: without the password unless its origin
     /// has answered a challenge and been allowed. `options` asks for the `DAV` header instead.
+    ///
+    /// Before anything is sent: Microsoft's and Google's hosts get nothing; a host given as a
+    /// number is refused unless the owner typed it; and a host outside the owner's mail domain
+    /// that is nobody's (not typed, not the mail server, not the provider's, not named by the
+    /// domain's SRV record, not agreed to) is asked about first, and a no sends nothing at all.
     fn issue(&mut self, stage: Stage, url: String, options: bool) {
         let Ok(origin) = Origin::parse(&url) else { return self.fail_candidate(Failure::Unreadable) };
-        // Microsoft's and Google's hosts get nothing, not even a probe.
         if is_exchange_online(origin.host()) || is_microsoft_domain(origin.host()) {
             return self.finish(Outcome::Microsoft);
         }
         if is_google_host(origin.host()) {
             return self.finish(Outcome::Google);
         }
+        let key = origin.base();
+        if is_number_host(origin.host()) && !origin.is_loopback() && !self.typed_origins.contains(&key) {
+            return self.fail_candidate(Failure::PrivateAddress);
+        }
+        if self.declined.contains(&key) {
+            return self.fail_candidate(Failure::Declined);
+        }
+        if !is_within(origin.host(), &self.domain) && !self.may_sign_in(&origin) && !origin.is_loopback() {
+            let host = label(&origin);
+            let ask = Ask { stage, url, origin: key, authed: false, options, basic: false, before: true };
+            self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::Elsewhere }, ask);
+            return;
+        }
         if self.requests >= MAX_REQUESTS {
             let why = self.reason.unwrap_or(Failure::TooManyRedirects);
             return self.finish(Outcome::Failed(why));
         }
-        let key = origin.base();
-        let authed = !options && self.signed_in.contains(&key);
-        let endpoint = if authed {
-            match TrustedOrigin::granted(&origin) {
-                Some(trusted) => Endpoint::new(trusted, Some(self.authorization.clone())),
-                None => return self.fail_candidate(Failure::InsecureRedirect),
-            }
-        } else {
-            Endpoint::anonymous(origin)
+        let grant = if options { None } else { self.grant(&origin) };
+        let authed = grant.is_some();
+        let endpoint = match grant {
+            Some(grant) => Endpoint::granted(&grant, self.authorization.clone()),
+            None => Endpoint::anonymous(origin),
         };
         let built = match (options, stage) {
             (true, _) => endpoint.options(&url),
@@ -669,7 +740,7 @@ impl Discovery {
         match built {
             Ok(request) => {
                 let limit = if stage == Stage::Collections { LISTING_ANSWER } else { SMALL_ANSWER };
-                let ask = Ask { stage, url, origin: key, authed, options, basic: false };
+                let ask = Ask { stage, url, origin: key, authed, options, basic: false, before: false };
                 self.requests = self.requests.saturating_add(1);
                 self.waiting = Waiting::Request(request.with_response_limit(limit), ask);
             }
@@ -696,6 +767,9 @@ impl Discovery {
                 301 | 302 | 303 | 307 | 308 => self.redirected(&ask, &response),
                 207 => self.answered(&ask, &response),
                 403 => self.fail_candidate(Failure::ServerRefused),
+                // The password went to a host that never said what it is, and what answered is
+                // not a DAV multistatus: not a calendar server, and the search ends there.
+                _ if ask.authed && self.unproven.contains(&ask.origin) => self.fail_candidate(Failure::NotDavServer),
                 _ => self.fail_candidate(Failure::NotFound),
             },
         }
@@ -719,7 +793,16 @@ impl Discovery {
         if self.says_dav(response) {
             return self.evidence_found(ask);
         }
-        // A bare 401 is not evidence. Ask the host what it is, once, without the password.
+        // The host the owner typed: they named it, so its Basic challenge is enough for the
+        // password to go (a proxy that signs everybody in first answers every request with a
+        // bare 401). What answers must then be a DAV multistatus, or it is no calendar server.
+        if ask.basic && self.typed_origins.contains(&ask.origin) {
+            if !self.unproven.contains(&ask.origin) && self.unproven.len() < MAX_TRUSTED {
+                self.unproven.push(ask.origin.clone());
+            }
+            return self.evidence_found(ask);
+        }
+        // For any other host, a bare 401 is not evidence. Ask the host what it is, once, without the password.
         let (stage, url, basic) = (ask.stage, ask.url.clone(), ask.basic);
         self.issue(stage, url, true);
         if let Waiting::Request(_, options) = &mut self.waiting {
@@ -754,12 +837,7 @@ impl Discovery {
         if self.may_sign_in(&origin) {
             return self.sign_in(ask);
         }
-        let host = if origin.port() == if origin.secure() { 443 } else { 80 } {
-            origin.host().to_owned()
-        } else {
-            format!("{}:{}", origin.host(), origin.port())
-        };
-        let consent = Consent { host, reason: self.reason_for(&origin) };
+        let consent = Consent { host: label(&origin), reason: self.reason_for(&origin) };
         self.waiting = Waiting::Consent(consent, ask);
     }
 
@@ -780,8 +858,10 @@ impl Discovery {
             job.chain = job.chain.saturating_add(1);
             job.chain
         });
+        // A chain that does not end is this place's failing (a looping web site), not the search's:
+        // the places after it, the mail server and the SRV targets, are still asked.
         if chain > MAX_REDIRECTS {
-            return self.finish(Outcome::Failed(Failure::TooManyRedirects));
+            return self.fail_candidate(Failure::TooManyRedirects);
         }
         let Ok(origin) = Origin::parse(&ask.url) else { return self.fail_candidate(Failure::Unreadable) };
         let next = response.header("location").and_then(|location| {
@@ -810,6 +890,8 @@ impl Discovery {
             Err(_) => return self.fail_candidate(if ask.stage == Stage::Probe { Failure::NotDavServer } else { Failure::Unreadable }),
         };
         let kind = self.kind();
+        // (A DAV multistatus is the proof a host that was never asked what it is lacked.)
+        self.unproven.retain(|origin| *origin != ask.origin);
         // (Each question that is answered starts the redirects over.)
         if let Some(job) = self.job.as_mut() {
             job.chain = 0;
@@ -894,7 +976,12 @@ impl Discovery {
         if !self.trusted.contains(&ask.origin) && self.trusted.len() < MAX_TRUSTED {
             self.trusted.push(ask.origin.clone());
         }
-        self.sign_in(ask);
+        if !self.trusted.contains(&ask.origin) {
+            return self.fail_candidate(Failure::Declined);
+        }
+        // Asked before the request: it is made, without the password, and the host's own challenge
+        // comes first. Asked before the password: the password goes.
+        if ask.before { self.issue(ask.stage, ask.url, ask.options) } else { self.sign_in(ask) }
     }
 
     /// The owner does not agree: nothing is sent to that host with the password, it is not asked
@@ -942,7 +1029,31 @@ impl Discovery {
                 Step::Done(outcome) => return outcome,
             }
         }
-        Outcome::Failed(self.reason.unwrap_or(Failure::TooManyRedirects))
+        self.settle(Outcome::Failed(self.reason.unwrap_or(Failure::TooManyRedirects)))
+    }
+}
+
+/// The host of `origin` as the owner is asked about it: with its port when that is not the scheme's.
+fn label(origin: &Origin) -> String {
+    if origin.port() == if origin.secure() { 443 } else { 80 } { origin.host().to_owned() } else { format!("{}:{}", origin.host(), origin.port()) }
+}
+
+/// Whether `host` is an address by number (`10.0.0.1`, `[fd00::1]`) and not a name.
+fn is_number_host(host: &str) -> bool {
+    host.starts_with('[') || host.rsplit('.').next().is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The proof that the password may go to an origin. Only [`Discovery`] makes one (the field is
+/// private to this module), when the host has answered its own challenge and has been allowed;
+/// [`Endpoint::granted`] takes it, and nothing else pairs a password with an origin a server named.
+pub(crate) struct Grant {
+    origin: Origin,
+}
+
+impl Grant {
+    /// The origin the password may go to.
+    pub(crate) fn origin(&self) -> &Origin {
+        &self.origin
     }
 }
 

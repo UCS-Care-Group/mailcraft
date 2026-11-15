@@ -381,6 +381,13 @@ fn a_txt_path_is_taken_only_when_it_is_a_plain_absolute_path() {
         assert_eq!(path(bad), None, "{bad}");
     }
     assert_eq!(path(&format!(r#""\"path=/{}\"""#, "a".repeat(300))), None);
+    // The key is read in any case; a piece that is too long to be a path is refused whole, never
+    // cut and joined into another path.
+    assert_eq!(path(r#""\"PATH=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    assert_eq!(path(r#""\"Path=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    assert_eq!(path(&format!(r#""\"path=/{}\" \"/ok\"""#, "a".repeat(2_000))), None);
+    assert_eq!(path(&format!(r#""\"path=/ok\" \"{}\"""#, "b".repeat(300))), None);
+    assert_eq!(path(&format!(r#""path=/{}""#, "c".repeat(400))), None);
     // A record of another type is passed over, and a later record may give the path.
     let two = br#"{"Status":0,"Answer":[{"type":16,"data":"\"v=spf1\""},{"type":16,"data":"\"path=/x/\""}]}"#;
     assert_eq!(path_of(&Answer { status: 200, body: two.to_vec() }).unwrap().as_deref(), Some("/x/"));

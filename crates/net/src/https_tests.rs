@@ -329,23 +329,41 @@ fn a_certificate_that_is_not_for_servers_is_refused_even_when_pinned() {
 mod held;
 
 #[test]
-fn a_calendar_server_s_dav_and_etag_headers_come_back() {
+fn a_calendar_server_s_dav_and_etag_headers_come_back_as_classes() {
     let answer =
         b"HTTP/1.1 401 Unauthorized\r\nDAV: 1, 2, calendar-access\r\ndav: addressbook\r\nETag: \"abc\"\r\nContent-Length: 0\r\n\r\n".to_vec();
     let server = FakeHttp::answering(answer);
     let response = get(&server.url("/x"), "").unwrap();
-    assert_eq!(
-        (response.status, response.dav.as_slice(), response.etag.as_deref()),
-        (401, &["1, 2, calendar-access".to_owned(), "addressbook".to_owned()][..], Some("\"abc\""))
-    );
-    // A server that sends none gives none; too many, and too long, are cut.
+    assert_eq!(response.status, 401);
+    assert_eq!(response.dav, ["1", "2", "calendar-access", "addressbook"]);
+    assert_eq!(response.etag.as_deref(), Some("\"abc\""));
     let none = FakeHttp::answering(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
     let response = get(&none.url("/x"), "").unwrap();
     assert!(response.dav.is_empty() && response.etag.is_none());
-    let many = format!("HTTP/1.1 200 OK\r\n{}ETag: {}\r\nContent-Length: 0\r\n\r\n", "DAV: 1\r\n".repeat(40), "x".repeat(2_000));
+    // An ETag too long is dropped, not cut.
+    let long = format!("HTTP/1.1 200 OK\r\nETag: {}\r\nContent-Length: 0\r\n\r\n", "x".repeat(2_000));
+    let server = FakeHttp::answering(long.into_bytes());
+    assert_eq!(get(&server.url("/x"), "").unwrap().etag, None);
+}
+
+#[test]
+fn one_long_dav_header_keeps_all_its_classes_and_the_cap_is_on_the_classes() {
+    // Nextcloud's: one header of many classes, `addressbook` far along it, over 256 characters.
+    let classes: Vec<String> = (0..30).map(|n| format!("extension-{n:02}")).chain(["calendar-access".to_owned(), "addressbook".to_owned()]).collect();
+    let header = classes.join(", ");
+    assert!(header.len() > 256);
+    let server = FakeHttp::answering(format!("HTTP/1.1 207 Multi-Status\r\nDAV: {header}\r\nContent-Length: 0\r\n\r\n").into_bytes());
+    let response = get(&server.url("/x"), "").unwrap();
+    assert_eq!(response.dav, classes);
+    // At most 64 classes whatever the headers, and a class that is too long is dropped whole.
+    let many = format!("HTTP/1.1 200 OK\r\n{}DAV: {}, ok\r\nContent-Length: 0\r\n\r\n", "DAV: 1, 2, 3\r\n".repeat(40), "y".repeat(300));
     let server = FakeHttp::answering(many.into_bytes());
     let response = get(&server.url("/x"), "").unwrap();
-    assert_eq!((response.dav.len(), response.etag), (16, None));
+    assert_eq!(response.dav.len(), 64);
+    assert!(response.dav.iter().all(|class| class.len() <= 256));
+    let long = format!("HTTP/1.1 200 OK\r\nDAV: {}, ok, addressbook\r\nContent-Length: 0\r\n\r\n", "y".repeat(300));
+    let server = FakeHttp::answering(long.into_bytes());
+    assert_eq!(get(&server.url("/x"), "").unwrap().dav, ["ok", "addressbook"]);
 }
 
 #[test]

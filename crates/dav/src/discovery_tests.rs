@@ -274,10 +274,10 @@ fn off_domain() -> World {
 }
 
 #[test]
-fn an_off_domain_redirect_asks_and_a_no_sends_the_password_nowhere() {
+fn an_off_domain_redirect_asks_before_any_request_and_a_no_sends_nothing() {
     let world = off_domain();
     let mut disc = search(USER, true, false);
-    // Step by step: the question names the host whole, and nothing has gone with the password.
+    // Step by step: the question names the host whole, before anything is sent to it.
     let mut asked = None;
     loop {
         match disc.step() {
@@ -288,7 +288,7 @@ fn an_off_domain_redirect_asks_and_a_no_sends_the_password_nowhere() {
             Step::LookupSrv(_) => disc.srv(None),
             Step::NeedsYes(consent) => {
                 assert_eq!((consent.host(), consent.reason()), ("dav.example.net", ConsentReason::Elsewhere));
-                assert!(world.credentialed().is_empty());
+                assert!(world.to("dav.example.net").is_empty(), "asked first");
                 asked = Some(consent.host().to_owned());
                 disc.decline();
             }
@@ -299,9 +299,8 @@ fn an_off_domain_redirect_asks_and_a_no_sends_the_password_nowhere() {
         }
     }
     assert!(asked.is_some());
-    // The host was asked what it is, without the password; it was not asked again.
-    assert!(world.credentialed().is_empty());
-    assert_eq!(world.to("dav.example.net").len(), 1);
+    // A no sends nothing at all to that host, and it is not asked again.
+    assert!(world.to("dav.example.net").is_empty());
 }
 
 #[test]
@@ -337,15 +336,15 @@ fn a_host_that_was_declined_is_not_asked_again_for_the_other_kind() {
 }
 
 #[test]
-fn a_bare_401_is_not_a_calendar_server_and_the_password_stays_home() {
-    let world = World::new(&["https://dav.example.net"]);
+fn a_bare_401_from_a_found_host_is_not_a_calendar_server_and_the_password_stays_home() {
+    let world = World::new(&["https://imap.example.org"]);
     world.servers[0].set_quirks(Quirks { bare_401: true, ..Quirks::default() });
-    let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
+    let mut disc = search(USER, true, false).mail_host("imap.example.org");
     assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer));
     assert!(world.credentialed().is_empty());
     // It was asked what it is, once, with an OPTIONS and without the password.
-    let methods: Vec<String> = world.sent().into_iter().map(|s| s.method).collect();
-    assert_eq!(methods, ["PROPFIND", "OPTIONS"]);
+    let methods: Vec<String> = world.to("imap.example.org").into_iter().map(|s| s.method).collect();
+    assert_eq!(methods, ["PROPFIND", "PROPFIND", "OPTIONS"]);
 }
 
 #[test]
@@ -368,7 +367,7 @@ fn the_dav_header_must_name_the_service_that_is_looked_for() {
         [("1, 2", Kind::Calendar), ("1, addressbook", Kind::Calendar), ("1, calendar-access", Kind::AddressBook), ("", Kind::Calendar)]
     {
         let world = World::new(&[]).with(move |_| Some(Ok(challenge(&[("DAV", header)]))));
-        let mut disc = typed(kind, "https://web.example.net/");
+        let mut disc = search(USER, kind == Kind::Calendar, kind == Kind::AddressBook).mail_host("imap.example.org");
         assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer), "{header:?}");
         assert!(world.credentialed().is_empty(), "{header:?}");
     }
@@ -485,7 +484,7 @@ fn a_provider_s_password_does_not_go_to_another_provider_s_hosts_without_asking(
     });
     assert_eq!(outcome, Outcome::Failed(Failure::Declined));
     assert_eq!(asked, ["caldav.icloud.com"]);
-    assert!(world.credentialed().is_empty());
+    assert!(world.to("icloud.com").is_empty(), "nothing at all went to the host that was declined");
 }
 
 /// A server at `provider` that names a principal and, in it, a home on `shard`, as iCloud does;
@@ -607,8 +606,8 @@ fn redirects_are_followed_one_at_a_time_to_https_only_and_a_chain_ends() {
 #[test]
 fn a_redirect_from_a_host_with_the_password_to_another_host_does_not_take_it_along() {
     // The typed host has been signed in to; its next answer redirects to another host.
-    let world = World::new(&["https://dav.example.net", "https://other.example.org"])
-        .with(|r| (r.url().starts_with("https://dav.example.net/dav/cal/")).then(|| Ok(redirect("https://other.example.org/dav/cal/owner/"))));
+    let world = World::new(&["https://dav.example.net", "https://other.example.com"])
+        .with(|r| (r.url().starts_with("https://dav.example.net/dav/cal/")).then(|| Ok(redirect("https://other.example.com/dav/cal/owner/"))));
     let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
     let mut asked = Vec::new();
     let outcome = disc.run(&world, no_srv, |consent| {
@@ -616,8 +615,8 @@ fn a_redirect_from_a_host_with_the_password_to_another_host_does_not_take_it_alo
         false
     });
     assert_eq!(outcome, Outcome::Failed(Failure::Declined));
-    assert_eq!(asked, ["other.example.org"]);
-    assert!(world.to("other.example.org").iter().all(|s| !s.credential));
+    assert_eq!(asked, ["other.example.com"]);
+    assert!(world.to("other.example.com").is_empty());
 }
 
 #[test]
@@ -757,4 +756,187 @@ fn a_search_ends_whatever_the_server_says() {
         assert!(matches!(outcome, Outcome::Failed(_)), "{outcome:?}");
         assert!(world.sent().len() <= usize::from(MAX_REQUESTS));
     }
+}
+
+#[test]
+fn a_host_outside_the_domain_that_is_nobody_s_is_asked_about_before_it_is_probed() {
+    // Only the hosts the owner has a claim on are asked without a question: the typed host, the
+    // mail server, the provider's, the SRV record's; and what is in the owner's own domain.
+    let world = World::new(&["https://dav.example.com"])
+        .with(|r| r.url().starts_with("https://example.org/.well-known/").then(|| Ok(redirect("https://dav.example.com/dav/"))));
+    let mut asked = Vec::new();
+    let outcome = search(USER, true, false).run(&world, no_srv, |consent| {
+        asked.push((consent.host().to_owned(), consent.reason()));
+        false
+    });
+    assert_eq!(outcome, Outcome::Failed(Failure::Declined));
+    assert_eq!(asked, [("dav.example.com".to_owned(), ConsentReason::Elsewhere)]);
+    assert!(world.to("example.com").is_empty(), "a no sends nothing at all");
+    // A yes lets the probe go, and the password after the host's own challenge.
+    let world = World::new(&["https://dav.example.com"])
+        .with(|r| r.url().starts_with("https://example.org/.well-known/").then(|| Ok(redirect("https://dav.example.com/dav/"))));
+    assert!(found(search(USER, true, false).run(&world, no_srv, |_| true)).calendars().is_some());
+    only_after_a_challenge(&world);
+    // The question is not asked about what is in the domain.
+    let world = World::new(&["https://dav.example.org"])
+        .with(|r| r.url().starts_with("https://example.org/.well-known/").then(|| Ok(redirect("https://dav.example.org/dav/"))));
+    let mut questions = Vec::new();
+    let outcome = search(USER, true, false).run(&world, no_srv, |consent| {
+        questions.push(consent.reason());
+        true
+    });
+    assert!(found(outcome).calendars().is_some());
+    assert_eq!(questions, [ConsentReason::OwnDomain], "asked for the password, not before the probe");
+}
+
+#[test]
+fn a_looping_web_site_does_not_hide_the_mail_server_or_the_srv_targets() {
+    let world = World::new(&["https://dav.example.net"]).with(|r| r.url().starts_with("https://example.org/").then(|| Ok(redirect("/again/"))));
+    let outcome = search(USER, true, false).run(
+        &world,
+        |_| Some(SrvAnswer { targets: vec![("dav.example.net".into(), 443)], path: Some("/dav/".into()) }),
+        never_asked,
+    );
+    assert!(found(outcome).calendars().is_some());
+    assert_eq!(world.to("example.org").len(), usize::from(MAX_REDIRECTS) + 1);
+}
+
+#[test]
+fn what_was_found_is_kept_when_a_later_step_stops_the_search() {
+    // Calendars by the SRV record; the contacts' well-known address leads to Google: not Google's
+    // outcome, the calendars found, and nothing more asked.
+    let world = World::new(&["https://dav.example.net"])
+        .with(|r| r.url().starts_with("https://example.org/.well-known/carddav").then(|| Ok(redirect("https://sites.google.com/x"))));
+    let srv = |name: &SrvName| {
+        (name.as_str().starts_with("_caldavs")).then(|| SrvAnswer { targets: vec![("dav.example.net".into(), 443)], path: Some("/dav/".into()) })
+    };
+    let done = found(search(USER, true, true).run(&world, srv, never_asked));
+    assert!(done.calendars().is_some() && done.contacts().is_none());
+    assert!(world.to("google.com").is_empty());
+    // A wrong password for the second kind's host keeps the first kind too, and stops there.
+    let world = World::new(&["https://cal.example.net"]);
+    let other = StandIn::new("https://book.example.net", USER, "another-test-only-password").unwrap();
+    let world = World { servers: world.servers.into_iter().chain([other]).collect(), ..World::new(&[]) };
+    let mut disc = search(USER, true, true)
+        .typed(Kind::Calendar, "https://cal.example.net/dav/")
+        .unwrap()
+        .typed(Kind::AddressBook, "https://book.example.net/dav/")
+        .unwrap();
+    let done = found(disc.run(&world, no_srv, never_asked));
+    assert!(done.calendars().is_some() && done.contacts().is_none());
+}
+
+#[test]
+fn the_request_cap_keeps_what_was_found_too() {
+    let mut disc = search(USER, true, true);
+    disc.found.calendars = Some(Located { home: "https://dav.example.net/dav/".into(), collections: Collections::default() });
+    disc.requests = MAX_REQUESTS;
+    disc.job = Some(Job { kind: Kind::AddressBook, queue: VecDeque::new(), chain: 0 });
+    disc.issue(Stage::Probe, "https://imap.example.org/".into(), false);
+    assert!(matches!(disc.step(), Step::Done(Outcome::Found(_))));
+}
+
+#[test]
+fn a_typed_host_behind_a_proxy_that_signs_in_first_can_be_added_and_only_it_gets_the_password() {
+    let world = World::new(&["https://dav.example.net"]);
+    world.servers[0].set_quirks(Quirks { bare_401: true, ..Quirks::default() });
+    let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
+    let done = found(disc.run(&world, no_srv, never_asked));
+    assert_eq!(names(done.calendars().unwrap()), ["Work", "Shared"]);
+    // Its bare 401 was answered with the password once, and the answer was a DAV multistatus.
+    let sent = world.sent();
+    assert!(!sent[0].credential && sent[1].credential, "{sent:?}");
+    assert!(world.sent().iter().all(|s| s.origin == "https://dav.example.net"));
+    // Not so when the server is not a DAV server: the password went to the typed host only, and
+    // the search ends there.
+    let world = World::new(&[]).with(|r| {
+        Some(Ok(if r.field("authorization").is_some() {
+            HttpResponse::new(200, b"<html>welcome</html>".to_vec())
+        } else {
+            HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic realm=\"proxy\"")
+        }))
+    });
+    let mut disc = typed(Kind::Calendar, "https://web.example.net/");
+    assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer));
+    assert_eq!(world.credentialed(), [("https://web.example.net".to_owned(), "/".to_owned())]);
+    // A 207 that is no DAV multistatus is no proof either.
+    let world = World::new(&[]).with(|r| {
+        Some(Ok(if r.field("authorization").is_some() {
+            HttpResponse::new(207, b"<ok/>".to_vec())
+        } else {
+            HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic")
+        }))
+    });
+    let mut disc = typed(Kind::Calendar, "https://web.example.net/");
+    assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer));
+    assert_eq!(world.credentialed().len(), 1);
+    // The host the owner typed still wants Basic: nothing else is sent a password for a bare 401.
+    let world = World::new(&[]).with(|_| Some(Ok(HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Digest realm=\"x\""))));
+    let mut disc = typed(Kind::Calendar, "https://web.example.net/");
+    assert!(matches!(disc.run(&world, no_srv, never_asked), Outcome::Failed(_)));
+    assert!(world.credentialed().is_empty());
+}
+
+#[test]
+fn a_host_given_by_number_is_never_followed_unless_the_owner_typed_it() {
+    for target in
+        ["https://192.168.1.10/dav/", "https://10.0.0.1/", "https://169.254.169.254/latest/", "https://[fd00::1]/dav/", "https://[::ffff:10.0.0.1]/"]
+    {
+        let world = World::new(&[]).with(move |r| r.url().starts_with("https://imap.example.org/").then(|| Ok(redirect(target))));
+        let outcome = search(USER, true, false).mail_host("imap.example.org").run(&world, no_srv, |_| true);
+        assert_eq!(outcome, Outcome::Failed(Failure::PrivateAddress), "{target}");
+        assert!(world.sent().iter().all(|s| s.origin.contains("example.org")), "{target}");
+    }
+    // A principal or a home that names one is refused the same way.
+    let world = shard_world("https://dav.example.net", "https://192.168.1.10");
+    let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
+    assert_eq!(disc.run(&world, no_srv, |_| true), Outcome::Failed(Failure::PrivateAddress));
+    assert!(world.to("192.168.1.10").is_empty());
+    // An address the owner typed is theirs, a NAS on their network included.
+    let world = World::new(&["https://192.168.1.5"]);
+    let mut disc = typed(Kind::Calendar, "https://192.168.1.5/dav/");
+    assert!(found(disc.run(&world, no_srv, never_asked)).calendars().is_some());
+}
+
+#[test]
+fn an_address_typed_for_a_kind_that_was_not_asked_for_is_ignored() {
+    let world = World::new(&["https://dav.example.net", "https://imap.example.org"]);
+    let mut disc = search(USER, true, false).typed(Kind::AddressBook, "https://dav.example.net/dav/").unwrap().mail_host("imap.example.org");
+    let done = found(disc.run(&world, no_srv, never_asked));
+    assert!(done.calendars().is_some() && done.contacts().is_none());
+    // The ignored address's host is nobody's: nothing went there.
+    assert!(world.to("dav.example.net").is_empty());
+}
+
+#[test]
+fn a_domain_in_other_letters_is_looked_up_by_its_ascii_form() {
+    let world = World::new(&[]);
+    let mut asked = Vec::new();
+    let mut disc = Discovery::new("ada@Bücher.example", secret(), true, false).unwrap();
+    disc.run(
+        &world,
+        |name| {
+            asked.push(name.as_str().to_owned());
+            None
+        },
+        never_asked,
+    );
+    assert_eq!(asked, ["_caldavs._tcp.xn--bcher-kva.example"]);
+    assert!(world.sent()[0].origin.contains("xn--bcher-kva.example"));
+    // What no host name can be is still no address.
+    for bad in ["ada@exa mple.org", "ada@\u{202e}evil.example", "ada@a\u{0}b.example", "ada@.", "ada@ünï"] {
+        assert!(Discovery::new(bad, secret(), true, false).is_err(), "{bad:?}");
+    }
+    assert!(AddressError.to_string().contains("e-mail address"));
+}
+
+#[test]
+fn an_anonymous_answer_without_a_principal_is_a_failure_to_say_so_and_sends_no_password() {
+    // (A server that says nothing of who asks without a sign-in, `<unauthenticated/>`, is left
+    // as it is: the password goes only to a host's own challenge.)
+    let body = b"<d:multistatus xmlns:d=\"DAV:\"><d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:current-user-principal><d:unauthenticated/></d:current-user-principal></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>";
+    let world = World::new(&[]).with(move |_| Some(Ok(HttpResponse::new(207, body.to_vec()))));
+    let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
+    assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NoPrincipal));
+    assert!(world.credentialed().is_empty());
 }

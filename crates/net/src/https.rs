@@ -77,8 +77,9 @@ pub struct Response {
     pub retry_after: Option<String>,
     /// `X-EWS-Policy-Reason`.
     pub policy_reason: Option<String>,
-    /// Every `DAV` header, in order (at most 16, each short): what a calendar or contacts server
-    /// says it is (RFC 4918 §10.1).
+    /// The compliance classes of every `DAV` header, in order (at most 64, each a token or a short
+    /// `<URL>`): what a calendar or contacts server says it is (RFC 4918 §10.1). A host that
+    /// builds a header from them joins them with `, `.
     pub dav: Vec<String>,
     /// `ETag`, as written; none when it was longer than a token should be.
     pub etag: Option<String>,
