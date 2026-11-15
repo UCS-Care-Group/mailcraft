@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @file:Suppress("MaxLineLength")
 
 package work.mailcraft.android
@@ -8,6 +8,8 @@ package work.mailcraft.android
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -25,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +50,7 @@ import androidx.compose.ui.window.Dialog
 private val Gutter = 16.dp
 private val Gap = 12.dp
 private val Spinner = 28.dp
+private val ChipGap = 8.dp
 
 /** Add Account: Microsoft first. Its three faces are the form, the wait, and what to do when an administrator has to approve. */
 @Composable
@@ -92,9 +96,33 @@ private fun AddAccountForm(texts: Texts, state: AddAccountState.Form, actions: A
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
     )
+    KeepOnPhone(texts, state.keep, actions)
     state.notice?.let { NoticeCard(it.text(texts)) }
     Button(onClick = actions.onSignIn, modifier = Modifier.fillMaxWidth()) {
         Text(texts.t("Sign in with Microsoft"))
+    }
+}
+
+/** What the phone keeps of the new account's mail: the defaults chosen, so the owner can just go on. */
+@Composable
+private fun KeepOnPhone(texts: Texts, keep: KeepChoice, actions: AccountActions) {
+    Text(texts.t("Mail on this phone"), style = MaterialTheme.typography.titleSmall)
+    Text(
+        texts.t("Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(texts.t("Keep mail from the last"), style = MaterialTheme.typography.bodyLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(ChipGap)) {
+        KeepSpan.entries.forEach { span ->
+            FilterChip(selected = keep.span == span, onClick = { actions.onKeepSpan(span) }, label = { Text(span.label(texts)) })
+        }
+    }
+    Text(texts.t("Space for mail, at most"), style = MaterialTheme.typography.bodyLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(ChipGap)) {
+        KeepChoice.STORAGE_STEPS.forEach { mb ->
+            FilterChip(selected = keep.storageMb == mb, onClick = { actions.onStorage(mb) }, label = { Text(KeepChoice.storageLabel(texts, mb)) })
+        }
     }
 }
 
