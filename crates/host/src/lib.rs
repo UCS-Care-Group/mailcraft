@@ -8,11 +8,15 @@
 
 pub mod calendar;
 pub mod fetch;
+#[cfg(test)]
+mod fetch_tests;
 pub mod graph;
 pub mod init;
 #[cfg(test)]
 mod init_tests;
 pub mod jobs;
+#[cfg(test)]
+mod mail_scope_tests;
 pub mod platform;
 pub mod secrets;
 #[cfg(test)]

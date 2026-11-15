@@ -159,6 +159,10 @@ impl Platform for Phone {
         Err(HostError::Unsupported)
     }
 
+    fn open_link(&self, _: String) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+
     fn now(&self) -> Result<i64, HostError> {
         Ok(now())
     }
