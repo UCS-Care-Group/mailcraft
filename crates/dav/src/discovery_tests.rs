@@ -1029,6 +1029,9 @@ fn a_trailing_dot_is_the_same_host() {
     assert_eq!(Origin::parse("https://Example.ORG./x").unwrap().host(), "example.org");
     assert!(Origin::parse("https://LOCALHOST./").unwrap().is_loopback());
     assert!(Origin::parse("https://a.localhost./").unwrap().is_loopback());
+    // Only one root dot: an empty label is no name, so "localhost.." can't slip past as another.
+    assert!(Origin::parse("https://localhost../").is_err());
+    assert!(Origin::parse("https://a..localhost/").is_err());
 }
 
 #[test]

@@ -94,7 +94,7 @@ impl Origin {
             _ => host,
         };
         let name_ok = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']' | ':');
-        if host.is_empty() || host.starts_with('.') || !host.chars().all(name_ok) {
+        if host.is_empty() || host.starts_with('.') || host.ends_with('.') || host.contains("..") || !host.chars().all(name_ok) {
             return Err(EndpointError::Malformed);
         }
         Ok(Self { secure, host, port })
