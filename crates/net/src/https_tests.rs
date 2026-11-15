@@ -391,3 +391,11 @@ fn a_calendar_server_s_certificate_is_pinned_before_anything_is_sent() {
     assert!(matches!(certificate_problem(&error), Some(CertificateProblem::Changed(_))), "{error:?}");
     assert_eq!(elsewhere.asked(), 0);
 }
+
+#[test]
+fn a_comma_inside_a_coded_url_does_not_split_a_dav_class() {
+    let server =
+        FakeHttp::answering(b"HTTP/1.1 207 Multi-Status\r\nDAV: 1, <http://example.org/a,b>, addressbook, , \r\nContent-Length: 0\r\n\r\n".to_vec());
+    let response = get(&server.url("/x"), "").unwrap();
+    assert_eq!(response.dav, ["1", "<http://example.org/a,b>", "addressbook"]);
+}

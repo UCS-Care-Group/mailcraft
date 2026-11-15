@@ -107,10 +107,10 @@ impl Origin {
     pub fn port(&self) -> u16 {
         self.port
     }
-    /// `localhost`, `127.0.0.0/8` or `[::1]`.
+    /// `localhost` and the names under it (RFC 6761 §6.3), `127.0.0.0/8` or `[::1]`.
     pub fn is_loopback(&self) -> bool {
         let host = self.host.as_str();
-        host == "localhost" || host == "[::1]" || {
+        host == "localhost" || host.ends_with(".localhost") || host == "[::1]" || {
             let mut parts = host.split('.');
             parts.next() == Some("127")
                 && parts.clone().count() == 3

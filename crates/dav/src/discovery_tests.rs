@@ -940,3 +940,132 @@ fn an_anonymous_answer_without_a_principal_is_a_failure_to_say_so_and_sends_no_p
     assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NoPrincipal));
     assert!(world.credentialed().is_empty());
 }
+
+#[test]
+fn this_machine_and_numbers_are_never_followed_from_the_owner_s_domain_or_mail_server() {
+    // A web site in the domain, or the mail server, sending the search to this machine or to a
+    // host written as a number gets nothing, not even a probe, and no question.
+    for target in [
+        "https://127.0.0.1:631/x",
+        "https://localhost/x",
+        "https://foo.localhost/",
+        "https://[::1]/",
+        "https://0x7f000001/",
+        "https://0x7f.0x1/",
+        "https://0X7F.0.0.1/",
+        "https://10.0.0.1./",
+        "https://2130706433/",
+        "https://0177.0.0.1/",
+    ] {
+        for from in ["https://example.org/", "https://imap.example.org/"] {
+            let world = World::new(&[]).with(move |r| r.url().starts_with(from).then(|| Ok(redirect(target))));
+            let outcome = search(USER, true, false).mail_host("imap.example.org").run(&world, no_srv, never_asked);
+            assert_eq!(outcome, Outcome::Failed(Failure::PrivateAddress), "{from} -> {target}");
+            assert!(world.sent().iter().all(|s| s.origin.contains("example.org")), "{from} -> {target}");
+        }
+    }
+    // A loopback server may lead to loopback (a test), and what was typed is the owner's.
+    let world = World::new(&["http://127.0.0.1:8080", "http://127.0.0.1:8081"])
+        .with(|r| r.url().starts_with("http://127.0.0.1:8080/start/").then(|| Ok(redirect("http://127.0.0.1:8081/dav/"))));
+    let mut disc = typed(Kind::Calendar, "http://127.0.0.1:8080/start/");
+    // (The other port is another origin: the password for it is asked about.)
+    assert!(found(disc.run(&world, no_srv, |_| true)).calendars().is_some());
+    let world = World::new(&["http://localhost:8080"]);
+    assert!(found(typed(Kind::Calendar, "http://localhost:8080/dav/").run(&world, no_srv, never_asked)).calendars().is_some());
+}
+
+#[test]
+fn a_class_far_along_the_dav_header_is_still_read() {
+    let filler: Vec<String> = (0..40).map(|n| format!("extension-{n:02}")).collect();
+    let header = format!("{}, calendar-access", filler.join(", "));
+    let response = HttpResponse::new(401, Vec::new()).with_field("DAV", &header);
+    let classes = status::dav_classes(&response);
+    assert_eq!(classes.len(), 41);
+    assert_eq!(classes.get(40).map(String::as_str), Some("calendar-access"));
+    let world = World::new(&["https://imap.example.org"]).with(move |r| {
+        (r.field("authorization").is_none() && r.method().as_str() == "PROPFIND" && r.url().ends_with("/dav/"))
+            .then(|| Ok(challenge(&[("DAV", header.as_str())])))
+    });
+    let outcome = search(USER, true, false).mail_host("imap.example.org").run(&world, no_srv, never_asked);
+    assert!(found(outcome).calendars().is_some());
+    // A comma inside a coded URL is part of it, and the classes either side are read.
+    let response = HttpResponse::new(401, Vec::new()).with_field("DAV", "1, <http://example.org/a,b>, Addressbook");
+    assert_eq!(status::dav_classes(&response), ["1", "<http://example.org/a,b>", "addressbook"]);
+}
+
+#[test]
+fn a_host_that_had_the_password_unproven_gets_it_once_and_ends_the_search_unless_it_answers_as_dav() {
+    // 302 to a login page that answers 200: both kinds typed, one credentialed request in all.
+    let world = World::new(&[]).with(|r| {
+        Some(Ok(if r.field("authorization").is_none() {
+            HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic realm=\"proxy\"")
+        } else if r.url().ends_with("/dav/") {
+            redirect("/login")
+        } else {
+            HttpResponse::new(200, b"<html>login</html>".to_vec())
+        }))
+    });
+    let mut disc = search(USER, true, true)
+        .typed(Kind::Calendar, "https://web.example.net/dav/")
+        .unwrap()
+        .typed(Kind::AddressBook, "https://web.example.net/dav/")
+        .unwrap();
+    assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer));
+    assert_eq!(world.credentialed().len(), 1);
+    assert!(world.sent().iter().all(|s| s.path != "/login"), "the redirect was not followed");
+    // A 207 that is no DAV multistatus, or an error, ends it the same way, and a 401 is a refusal.
+    for (status, body) in [(207, "<ok/>"), (500, ""), (404, "")] {
+        let world = World::new(&[]).with(move |r| {
+            Some(Ok(if r.field("authorization").is_none() {
+                HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic")
+            } else {
+                HttpResponse::new(status, body.as_bytes().to_vec())
+            }))
+        });
+        let mut disc = search(USER, true, true)
+            .typed(Kind::Calendar, "https://web.example.net/")
+            .unwrap()
+            .typed(Kind::AddressBook, "https://web.example.net/")
+            .unwrap();
+        assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::NotDavServer), "{status}");
+        assert_eq!(world.credentialed().len(), 1, "{status}");
+    }
+}
+
+#[test]
+fn the_request_cap_is_checked_before_the_owner_is_asked() {
+    let mut disc = search(USER, true, false);
+    disc.requests = MAX_REQUESTS;
+    disc.job = Some(Job { kind: Kind::Calendar, queue: VecDeque::new(), chain: 0 });
+    disc.issue(Stage::Probe, "https://dav.example.com/".into(), false);
+    assert!(matches!(disc.step(), Step::Done(Outcome::Failed(_))));
+}
+
+#[test]
+fn a_domain_in_other_letters_is_looked_up_only_as_what_it_is() {
+    assert!(Discovery::new("ada@bücher.example", secret(), true, false).is_ok());
+    for bad in [
+        "ada@bücher.example/path",
+        "ada@bücher.example?x=1",
+        "ada@bücher.example#f",
+        "ada@bücher.example:8443",
+        "ada@bücher\\.example",
+        "ada@bücher .example",
+        // Full-width letters, a composed letter written in two, and a ligature are other names than
+        // the ones they look like.
+        "ada@ｅｘａｍｐｌｅ.org",
+        "ada@bu\u{308}cher.example",
+        "ada@ﬁle.example",
+        "ada@𝐞xample.org",
+    ] {
+        assert!(Discovery::new(bad, secret(), true, false).is_err(), "{bad:?}");
+    }
+}
+
+#[test]
+fn a_looping_web_site_does_not_outrank_what_a_server_said() {
+    let world = World::new(&["https://imap.example.org"]).with(|r| r.url().starts_with("https://example.org/").then(|| Ok(redirect("/again/"))));
+    world.servers[0].set_quirks(Quirks { bare_401: true, ..Quirks::default() });
+    let outcome = search(USER, true, false).mail_host("imap.example.org").run(&world, no_srv, never_asked);
+    assert_eq!(outcome, Outcome::Failed(Failure::NotDavServer));
+}

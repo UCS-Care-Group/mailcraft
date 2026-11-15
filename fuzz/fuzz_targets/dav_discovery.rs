@@ -84,6 +84,8 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                 let host = origin.trim_start_matches("https://").split(':').next().unwrap_or("").to_owned();
                 assert!(!is_exchange_online(&host) && !is_google_host(&host), "{host}");
                 assert!(host.rsplit('.').next().is_some_and(|last| !last.bytes().all(|b| b.is_ascii_digit())) && !host.starts_with('['), "{host}");
+                // Never this machine, nor a name written in hexadecimal: no owner typed one here.
+                assert!(host != "localhost" && !host.ends_with(".localhost") && !host.starts_with("127.") && !host.split('.').any(|l| l.starts_with("0x")), "{host}");
                 // Where a request may go at all: before the owner's yes, only to the owner's own.
                 let known = host == "example.org"
                     || host.ends_with(".example.org")
@@ -119,7 +121,20 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                     piece.get(1..).unwrap_or(&[]).to_vec()
                 };
                 let rest = String::from_utf8_lossy(piece.get(1..).unwrap_or(&[])).into_owned();
-                let mut response = HttpResponse::new(status, body).with_field("Location", &rest);
+                // Where a redirect leads: what the input says, or one of the places no server may send
+                // the search to (this machine, by name or number, a private network).
+                const PLACES: [&str; 8] = [
+                    "https://127.0.0.1:631/x",
+                    "https://localhost/x",
+                    "https://foo.localhost/",
+                    "https://[::1]/",
+                    "https://0x7f000001/",
+                    "https://10.0.0.1./",
+                    "https://2130706433/",
+                    "https://169.254.169.254/",
+                ];
+                let place = if kind % 4 == 0 { PLACES[usize::from(kind / 4) % PLACES.len()] } else { rest.as_str() };
+                let mut response = HttpResponse::new(status, body).with_field("Location", place);
                 response = response.with_field("WWW-Authenticate", if kind % 2 == 0 { "Basic realm=\"x\"" } else { rest.as_str() });
                 response = response.with_field("DAV", if dav_ok { "1, calendar-access, addressbook" } else { rest.as_str() });
                 // (What the machine takes for evidence: an answer to a request without the

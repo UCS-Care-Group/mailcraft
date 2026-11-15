@@ -116,12 +116,50 @@ fn domain_of(address: &str) -> Option<String> {
     // A name in other letters is written as its ASCII form (Punycode, RFC 3492), as an address on
     // the wire has it, by the link crate's own reader: no host name that it refuses is looked for.
     if !domain.is_ascii() {
+        if !idn_ok(&domain) {
+            return None;
+        }
         let shown = WebLink::parse(&format!("https://{domain}/"))?;
         domain = shown.host().to_owned();
+        // (What it was written as must be what it reads back as.)
+        if !domain.split('.').all(round_trips) {
+            return None;
+        }
     }
     let local_ok =
         !local.is_empty() && local.len() <= 64 && !local.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>' | '@'));
     (local_ok && is_name(&domain)).then_some(domain)
+}
+
+/// Whether a domain in other letters is one that can be written in ASCII without being another
+/// name: nothing that ends a host name (`/ ? # : @ \\` or a space), none of the forms a name
+/// normalises (Unicode's compatibility forms: full- and half-width, letter-like, enclosed and
+/// mathematical letters, ligatures, and combining marks, which must be in their composed form).
+// shortcut: the common compatibility forms, not the whole of UTS 46's table (none is in the tree);
+// what is not NFC or is not covered here is refused, never looked up under another name.
+fn idn_ok(domain: &str) -> bool {
+    domain.chars().all(|c| {
+        let n = u32::from(c);
+        !(c.is_control()
+            || c.is_whitespace()
+            || matches!(c, '/' | '?' | '#' | ':' | '@' | '\\')
+            || (0x300..=0x36f).contains(&n)
+            || (0x2000..=0x2bff).contains(&n)
+            || (0xfb00..=0xfb4f).contains(&n)
+            || (0xfe00..=0xfe6f).contains(&n)
+            || (0xff00..=0xffef).contains(&n)
+            || (0x1d400..=0x1d7ff).contains(&n))
+    })
+}
+
+/// Whether a label that is Punycode (`xn--…`) decodes to letters that encode back to the same label.
+fn round_trips(label: &str) -> bool {
+    match label.strip_prefix("xn--") {
+        None => true,
+        Some(code) => mailcraft_link::punycode::decode(code).is_some_and(|chars| {
+            chars.iter().all(|c| c.is_alphanumeric() || *c == '-') && mailcraft_link::punycode::encode(&chars).as_deref() == Some(code)
+        }),
+    }
 }
 
 /// An address the owner gave that is not an e-mail address a domain can be taken from.
@@ -271,18 +309,19 @@ impl Failure {
         match self {
             Self::Unreachable => 0,
             Self::NotFound => 1,
-            Self::NotDavServer => 2,
-            Self::SecureConnection => 3,
-            Self::Unreadable => 4,
-            Self::InsecureRedirect => 5,
-            Self::PrivateAddress => 5,
-            Self::ServerRefused => 6,
-            Self::SignInNotSupported => 7,
-            Self::NoPrincipal => 8,
-            Self::NoHome => 9,
-            Self::Declined => 10,
-            Self::SignInRefused => 11,
-            Self::TooManyRedirects => 12,
+            // (A web site that loops says less than a server that answered.)
+            Self::TooManyRedirects => 2,
+            Self::NotDavServer => 3,
+            Self::SecureConnection => 4,
+            Self::Unreadable => 5,
+            Self::InsecureRedirect => 6,
+            Self::PrivateAddress => 6,
+            Self::ServerRefused => 7,
+            Self::SignInNotSupported => 8,
+            Self::NoPrincipal => 9,
+            Self::NoHome => 10,
+            Self::Declined => 11,
+            Self::SignInRefused => 12,
         }
     }
 }
@@ -455,6 +494,9 @@ pub struct Discovery {
     typed: [Option<String>; 2],
     /// The origins of those addresses.
     typed_origins: Vec<String>,
+    /// The request that was answered last was to this machine (a loopback test server): only then
+    /// may a redirect lead to this machine too, as [`Origin::foreign`] has it.
+    via_loopback: bool,
     /// Origins the password went to without a `DAV` header having said what they are (the host
     /// the owner typed, behind a proxy that asks for a sign-in first): until an answer is a DAV
     /// multistatus, nothing else is believed of them.
@@ -509,6 +551,7 @@ impl Discovery {
             wanted: [calendars, contacts],
             typed: [None, None],
             typed_origins: Vec::new(),
+            via_loopback: false,
             unproven: Vec::new(),
             todo,
             job: None,
@@ -646,6 +689,7 @@ impl Discovery {
                     return;
                 }
                 Target::Probe(url) => {
+                    self.via_loopback = false;
                     self.issue(Stage::Probe, url, false);
                     if !matches!(self.waiting, Waiting::Idle) {
                         return;
@@ -709,21 +753,26 @@ impl Discovery {
             return self.finish(Outcome::Google);
         }
         let key = origin.base();
-        if is_number_host(origin.host()) && !origin.is_loopback() && !self.typed_origins.contains(&key) {
+        // This machine, and addresses by number, are only the owner's own to type; a redirect or
+        // an address a server names may lead to this machine only from a request to this machine
+        // (a test server on loopback), as `Origin::foreign` has it.
+        let typed = self.typed_origins.contains(&key);
+        let this_machine = origin.is_loopback();
+        if (this_machine && !typed && !self.via_loopback) || (is_number_host(origin.host()) && !this_machine && !typed) {
             return self.fail_candidate(Failure::PrivateAddress);
         }
         if self.declined.contains(&key) {
             return self.fail_candidate(Failure::Declined);
         }
-        if !is_within(origin.host(), &self.domain) && !self.may_sign_in(&origin) && !origin.is_loopback() {
+        if self.requests >= MAX_REQUESTS {
+            let why = self.reason.unwrap_or(Failure::TooManyRedirects);
+            return self.finish(Outcome::Failed(why));
+        }
+        if !is_within(origin.host(), &self.domain) && !self.may_sign_in(&origin) && !this_machine {
             let host = label(&origin);
             let ask = Ask { stage, url, origin: key, authed: false, options, basic: false, before: true };
             self.waiting = Waiting::Consent(Consent { host, reason: ConsentReason::Elsewhere }, ask);
             return;
-        }
-        if self.requests >= MAX_REQUESTS {
-            let why = self.reason.unwrap_or(Failure::TooManyRedirects);
-            return self.finish(Outcome::Failed(why));
         }
         let grant = if options { None } else { self.grant(&origin) };
         let authed = grant.is_some();
@@ -757,19 +806,25 @@ impl Discovery {
         let Waiting::Request(_, ask) = std::mem::replace(&mut self.waiting, Waiting::Idle) else {
             return;
         };
+        self.via_loopback = Origin::parse(&ask.url).is_ok_and(|origin| origin.is_loopback());
         match result {
             Err(TransportError::Certificate) => self.fail_candidate(Failure::SecureConnection),
             Err(_) => self.fail_candidate(Failure::Unreachable),
             Ok(response) if ask.options => self.options_answered(ask, &response),
+            // The password went to a host that never said what it is: what answers with it must be
+            // a DAV multistatus, or the search is over. No redirect is followed with it, no other
+            // place is asked, and nothing is sent to it again.
+            Ok(response) if ask.authed && self.unproven.contains(&ask.origin) => match response.status() {
+                207 => self.answered(&ask, &response),
+                401 => self.finish(Outcome::Failed(Failure::SignInRefused)),
+                _ => self.finish(Outcome::Failed(Failure::NotDavServer)),
+            },
             Ok(response) => match response.status() {
                 401 if ask.authed => self.finish(Outcome::Failed(Failure::SignInRefused)),
                 401 => self.challenged(ask, &response),
                 301 | 302 | 303 | 307 | 308 => self.redirected(&ask, &response),
                 207 => self.answered(&ask, &response),
                 403 => self.fail_candidate(Failure::ServerRefused),
-                // The password went to a host that never said what it is, and what answered is
-                // not a DAV multistatus: not a calendar server, and the search ends there.
-                _ if ask.authed && self.unproven.contains(&ask.origin) => self.fail_candidate(Failure::NotDavServer),
                 _ => self.fail_candidate(Failure::NotFound),
             },
         }
@@ -886,7 +941,9 @@ impl Discovery {
         let Ok(origin) = Origin::parse(&ask.url) else { return self.fail_candidate(Failure::Unreadable) };
         let listing = match status::multistatus(response, &origin, &ask.url) {
             Ok(listing) => listing,
-            // (A 207 that is no DAV multistatus is no evidence of anything.)
+            // (A 207 that is no DAV multistatus is no evidence of anything; from a host that had the
+            // password unproven it ends the search.)
+            Err(_) if self.unproven.contains(&ask.origin) => return self.finish(Outcome::Failed(Failure::NotDavServer)),
             Err(_) => return self.fail_candidate(if ask.stage == Stage::Probe { Failure::NotDavServer } else { Failure::Unreadable }),
         };
         let kind = self.kind();
@@ -1038,9 +1095,17 @@ fn label(origin: &Origin) -> String {
     if origin.port() == if origin.secure() { 443 } else { 80 } { origin.host().to_owned() } else { format!("{}:{}", origin.host(), origin.port()) }
 }
 
-/// Whether `host` is an address by number (`10.0.0.1`, `[fd00::1]`) and not a name.
+/// Whether `host` is an address by number and not a name: an IPv6 address in brackets, or a name
+/// of which a label is written as a number in hexadecimal (`0x7f000001`, `0x7f.0x1`) or the last
+/// label is all digits (`10.0.0.1`, `10.0.0.1.`, `2130706433`, octal `0177.0.0.1`): the forms that
+/// a program's resolver reads as an address.
 fn is_number_host(host: &str) -> bool {
-    host.starts_with('[') || host.rsplit('.').next().is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()))
+    if host.starts_with('[') {
+        return true;
+    }
+    let host = host.strip_suffix('.').unwrap_or(host);
+    let hex = |label: &str| label.get(..2).is_some_and(|start| start.eq_ignore_ascii_case("0x"));
+    host.split('.').any(hex) || host.rsplit('.').next().is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The proof that the password may go to an origin. Only [`Discovery`] makes one (the field is

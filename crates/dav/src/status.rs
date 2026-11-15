@@ -137,9 +137,40 @@ pub fn challenges(response: &HttpResponse) -> Vec<String> {
     response.headers_named("www-authenticate").flat_map(schemes).take(16).collect()
 }
 
-/// The compliance classes a `DAV` header names (RFC 4918 §10.1), lower-cased.
+/// Most compliance classes read from a response's `DAV` headers: the cap `mailcraft_net` keeps them
+/// at, so that a class it kept is a class that is read.
+pub const MAX_DAV_CLASSES: usize = 64;
+
+/// The compliance classes a `DAV` header names (RFC 4918 §10.1), lower-cased: the comma-separated
+/// list of `compliance-class = "1" | "2" | "3" | extend`, an extension being a token or a
+/// `<Coded-URL>` (RFC 4918 §10.1), in which a comma is part of the URL.
 pub fn dav_classes(response: &HttpResponse) -> Vec<String> {
-    response.headers_named("dav").flat_map(|v| v.split(',')).map(|c| c.trim().to_ascii_lowercase()).filter(|c| !c.is_empty()).take(32).collect()
+    response
+        .headers_named("dav")
+        .flat_map(split_classes)
+        .map(|c| c.trim().to_ascii_lowercase())
+        .filter(|c| !c.is_empty())
+        .take(MAX_DAV_CLASSES)
+        .collect()
+}
+
+/// `value` cut at the commas that are outside `<…>`.
+fn split_classes(value: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let (mut depth, mut start) = (false, 0);
+    for (at, c) in value.char_indices() {
+        match c {
+            '<' => depth = true,
+            '>' => depth = false,
+            ',' if !depth => {
+                parts.push(value.get(start..at).unwrap_or(""));
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(value.get(start..).unwrap_or(""));
+    parts
 }
 
 /// Whether a probe's response is evidence that a CalDAV or CardDAV server answered: a 207 whose

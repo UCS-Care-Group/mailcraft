@@ -177,13 +177,32 @@ pub(crate) struct Reply {
 /// or tidied; the whole head is bounded by [`MAX_HEAD`] in any case.
 const MAX_CHALLENGES: usize = 16;
 const MAX_CHALLENGE: usize = 24 * 1024;
+/// The classes of a `DAV` header's value, cut at the commas outside `<…>` (a coded URL may hold one).
+fn dav_classes(value: &str) -> Vec<&str> {
+    let mut classes = Vec::new();
+    let (mut inside, mut start) = (false, 0);
+    for (at, c) in value.char_indices() {
+        match c {
+            '<' => inside = true,
+            '>' => inside = false,
+            ',' if !inside => {
+                classes.push(value.get(start..at).unwrap_or("").trim());
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    classes.push(value.get(start..).unwrap_or("").trim());
+    classes
+}
+
 /// The longest `X-EWS-Policy-Reason` kept.
 const MAX_REASON: usize = 1_024;
 /// Most compliance classes kept of one answer's `DAV` headers, and the longest one (a class is a
 /// token or a `<URL>`; a longer one is dropped, never cut); and the longest `ETag`. The cap is on
 /// the classes, not on the header: Nextcloud sends one header of some forty classes.
 const MAX_DAV: usize = 64;
-const MAX_DAV_VALUE: usize = 256;
+const MAX_DAV_VALUE: usize = 96;
 const MAX_ETAG: usize = 1_024;
 
 /// `text` as one piece of a URL or a form: everything but letters, digits and `-._~` as `%XX`.
@@ -762,7 +781,7 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
         } else if name.eq_ignore_ascii_case("x-ews-policy-reason") {
             head.policy_reason = Some(tidy(value).chars().take(MAX_REASON).collect());
         } else if name.eq_ignore_ascii_case("dav") {
-            for class in value.split(',').map(str::trim).filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
+            for class in dav_classes(value).into_iter().filter(|class| !class.is_empty() && class.len() <= MAX_DAV_VALUE) {
                 if head.dav.len() < MAX_DAV && !class.chars().any(char::is_control) {
                     head.dav.push(class.to_owned());
                 }
