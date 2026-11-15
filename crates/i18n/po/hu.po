@@ -1038,8 +1038,8 @@ msgstr "Miután elfogadod, előre megfontoltan elfogadod vagy visszautasítod a 
 msgid "Agenda"
 msgstr ""
 
-#. interface, name
-#: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "All"
 msgstr "Mind"
@@ -1068,8 +1068,8 @@ msgstr "Összes kategória…"
 msgid "All Mailboxes"
 msgstr "Minden postafiók"
 
-#. interface
-#: crates/ui-egui/src/widgets.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "All accounts"
 msgstr "Minden fiók"
@@ -1594,8 +1594,8 @@ msgstr "ápr."
 msgid "April"
 msgstr "április"
 
-#. command label, interface, name, ribbon
-#: crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/model/src/mailbox.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Archive"
 msgstr "Archiválás"
@@ -2443,6 +2443,11 @@ msgstr "Kategóriák"
 msgid "Categories:"
 msgstr "Kategóriák:"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+msgid "Categories…"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -2863,14 +2868,14 @@ msgstr "A legutóbbi keresések törlése"
 msgid "Clear filters"
 msgstr "Szűrők törlése"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Clear flag"
 msgstr "Jelölő törlése"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Clear search"
 msgstr "Keresés törlése"
@@ -3157,6 +3162,11 @@ msgstr "Hozzájárulók"
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "A hozzájárulók maguk választják meg a nevüket; lásd: dokumentációk/befektetők.md."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "Conversations"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -3684,7 +3694,7 @@ msgid "Default"
 msgstr "Alapértelmezett"
 
 #. android, command label, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Delete"
 msgstr "Törlés"
@@ -4922,8 +4932,8 @@ msgstr "Fájl:"
 msgid "Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."
 msgstr "Az ilyen fájlok makrókat hordozhatnak, amik programként futnak. Csak akkor nyissa ki, ha tudja, ki küldte és számít rá."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. android, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Filter"
 msgstr "Szűrő"
@@ -5038,8 +5048,8 @@ msgstr "Keresztnév"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Először mentse el a Google szokásos IMAP és SMTP beállításait és a megfelelő e-mail felhasználónevet, mielőtt bejelentkezési módszereket váltana."
 
-#. name
-#: crates/ui-egui/src/forms.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Jelölő"
@@ -5056,8 +5066,8 @@ msgstr "Lobogóüzenet"
 msgid "Flag for follow-up"
 msgstr "Megjelölés elintézendőként"
 
-#. name
-#: crates/engine/src/session.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
 msgid "Flagged"
 msgstr "Megjelölve"
@@ -5806,6 +5816,11 @@ msgstr "A mellékleteket"
 #, fuzzy
 msgid "Has an attachment"
 msgstr "Van melléklete"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+msgid "Has attachments"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6830,8 +6845,8 @@ msgstr "jún."
 msgid "June"
 msgstr "június"
 
-#. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/cmd/junk.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Junk"
 msgstr "Levélszemét"
@@ -7200,7 +7215,7 @@ msgid "List Tasks"
 msgstr "Listafeladatok"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/InboxScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
 msgid "Loading…"
 msgstr "Betöltés…"
@@ -7847,14 +7862,14 @@ msgstr "Megjelölés olvasottként"
 msgid "Mark as Unread"
 msgstr "Megjelölés olvasatlanként"
 
-#. interface, name
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Megjelölés olvasottként"
 
-#. interface
-#: crates/ui-egui/src/mail_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Mark as unread"
 msgstr "Megjelölés olvasatlanként"
@@ -8213,6 +8228,11 @@ msgstr "További eredmények a kiszolgálón"
 msgid "More about this"
 msgstr "Erről bővebben"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+msgid "More actions"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8359,8 +8379,8 @@ msgstr "Átköltözés a kategóriába"
 msgid "Move to Folder"
 msgstr "Áthelyezés mappába"
 
-#. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Junk"
 msgstr "Áthelyezés a Levélszemét mappába"
@@ -8388,6 +8408,11 @@ msgstr "Áthelyezés mappába"
 #, fuzzy
 msgid "Move to the Account's Calendar"
 msgstr "Áthelyezés a fiók naptárába"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+msgid "Move to…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9008,6 +9033,16 @@ msgstr "Nem változtattak postafiókon vagy meglévő igazolványokon. Próbálj
 msgid "No message is being read there"
 msgstr "Nem olvasnak itt üzenetet."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "No messages match."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "No messages."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -9484,6 +9519,11 @@ msgstr "okt."
 #, fuzzy
 msgid "October"
 msgstr "október"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Offline"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -10769,6 +10809,11 @@ msgstr "Távolság"
 msgid "Read"
 msgstr "Olvasott"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+msgid "Read / unread"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11122,6 +11167,11 @@ msgstr ""
 #, fuzzy
 msgid "Remove attendees"
 msgstr "A résztvevők eltávolítása"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "Remove filter"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12076,8 +12126,8 @@ msgstr "Keresés a mappákban"
 msgid "Search in"
 msgstr "Keresés helye"
 
-#. interface
-#: crates/ui-egui/src/chrome.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Search mail"
 msgstr "Keresés a levelekben"
@@ -13675,6 +13725,21 @@ msgstr "V"
 msgid "Sunday"
 msgstr "vasárnap"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Swipe actions"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Swipe to the left"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+msgid "Swipe to the right"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
@@ -14001,6 +14066,11 @@ msgstr "Az nem nyitható ki a saját ablakán."
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
 msgid "That could not be done."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "That did not work."
 msgstr ""
 
 #. android
@@ -14753,7 +14823,7 @@ msgid "The mailbox at {address} can't be reached through Microsoft Graph."
 msgstr "A {address} postafiókáját nem lehet elérni a Microsoft Graphon keresztül."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
 msgid "The mailbox could not be read."
 msgstr "A postafiókát nem lehetett elolvasni."
@@ -15936,6 +16006,11 @@ msgstr "Ez a fájl nem importálható: {why}"
 msgid "This file has a password. Nothing is imported without it."
 msgstr "Ez a fájl jelszóval rendelkezik, és semmi sem importálható nélküle."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+msgid "This folder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -16578,6 +16653,11 @@ msgstr ""
 "\n"
 "A Microsoft oldala egyszer megnyílik a böngészőjében, hogy kérje Önt. Amíg nem engedi, a feladatok ezen a számítógépen maradnak, és semmi sem kerül a Microsoftba."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+msgid "To me"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
@@ -16848,8 +16928,8 @@ msgstr "A számítógép mappája alatt:"
 msgid "Underline"
 msgstr "Aláhúzott"
 
-#. command label, name
-#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Visszavonás"
@@ -16866,8 +16946,8 @@ msgstr "Gépelés visszavonása"
 msgid "Undo {what}"
 msgstr "Visszavonás: {what}"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Unread"
 msgstr "Olvasatlan"
@@ -16968,11 +17048,37 @@ msgstr "Naprakész"
 msgid "Upcoming"
 msgstr "Közelgő"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated just now"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Updated {folder} on the server"
 msgstr "Frissített {folder} a kiszolgálón"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} day ago"
+msgid_plural "Updated {n} days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} hour ago"
+msgid_plural "Updated {n} hours ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+msgid "Updated {n} minute ago"
+msgid_plural "Updated {n} minutes ago"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -21691,16 +21797,23 @@ msgid_plural "{n} mailbox files"
 msgstr[0] "{n} postafiókfájl"
 msgstr[1] "{n} postafiókfájl"
 
-#. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Inbox.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{n} message"
 msgid_plural "{n} messages"
 msgstr[0] "{n} üzenet"
 msgstr[1] "{n} üzenet"
 
-#. interface
-#: crates/ui-egui/src/lib.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message archived"
+msgid_plural "{n} messages archived"
+msgstr[0] ""
+msgstr[1] ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -21731,6 +21844,20 @@ msgid_plural "{n} messages couldn't be moved between Gmail's categories this run
 msgstr[0] "{n} üzenetet nem sikerült áthelyezni a Gmail kategóriái között. Ezek a következő szinkronizálásig várnak."
 msgstr[1] "{n} üzenetet nem sikerült áthelyezni a Gmail kategóriái között. Ezek a következő szinkronizálásig várnak."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message deleted"
+msgid_plural "{n} messages deleted"
+msgstr[0] ""
+msgstr[1] ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+msgid "{n} message in the conversation"
+msgid_plural "{n} messages in the conversation"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
@@ -21755,6 +21882,13 @@ msgid_plural "{n} messages matched"
 msgstr[0] "{n} üzenet felel meg a keresésnek"
 msgstr[1] "{n} üzenet felel meg a keresésnek"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message moved"
+msgid_plural "{n} messages moved"
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -21762,6 +21896,13 @@ msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's s
 msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] "{n} üzenet átkerült a fiókba. A Küldés/fogadás feltölti őket a Microsoft kiszolgálójára a legtöbb fejléc, például a Received nélkül."
 msgstr[1] "{n} üzenet átkerült a fiókba. A Küldés/fogadás feltölti őket a Microsoft kiszolgálójára a legtöbb fejléc, például a Received nélkül."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+msgid "{n} message moved to Junk"
+msgid_plural "{n} messages moved to Junk"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

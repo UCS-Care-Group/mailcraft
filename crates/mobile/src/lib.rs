@@ -30,6 +30,7 @@ mod core;
 mod error;
 mod events;
 mod keep;
+mod list;
 mod message;
 mod platform;
 mod queries;
@@ -51,6 +52,8 @@ mod host_failure_tests;
 mod junk_tests;
 #[cfg(test)]
 mod keep_tests;
+#[cfg(test)]
+mod list_tests;
 #[cfg(test)]
 mod preview_tests;
 #[cfg(test)]

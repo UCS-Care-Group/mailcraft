@@ -21,11 +21,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,11 +35,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
 /**
@@ -114,10 +117,7 @@ internal fun Root(
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
-        is Phase.Ready -> {
-            val ready = started.value
-            CoreShell(ready.core, ready.hub, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
-        }
+        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
@@ -132,25 +132,19 @@ internal fun Opening() {
 /** What reading the mailbox's outline came to; [outline] is null when it could not be read. */
 private class Outlined(val outline: MailboxOutline?)
 
-/** The folder the Mail tab shows: the one the owner picked if it is still there, else the first Inbox. */
-private fun chosenFolder(outline: MailboxOutline?, picked: Long?): FolderItem? {
-    val all = outline?.accounts?.flatMap { it.folders }.orEmpty()
-    val wanted = picked?.toULong()?.takeIf { id -> all.any { it.id == id } } ?: outline?.inboxId
-    return all.firstOrNull { it.id == wanted }
-}
+/** How often the clock and the network are looked at again: the "Updated N min ago" line follows it. */
+private const val TICK_MILLIS = 30_000L
 
-/** The messages of [folder] for the Mail tab, or why there are none yet. */
-private suspend fun loadMail(core: Core, outlined: Outlined?, folder: FolderItem?): InboxState = when {
-    outlined == null -> InboxState.Loading
-    outlined.outline == null -> InboxState.Failed(core.t("The mailbox could not be read."))
-    folder == null -> InboxState.Loading
-    else -> loadFolder(core, folder.id, folder.name)
+/** The folder the Mail tab shows: the one the owner picked if it is still there, else the first Inbox. */
+private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
+    val all = outline?.accounts?.flatMap { it.folders }.orEmpty()
+    val wanted = picked.takeIf { id -> id != 0uL && all.any { it.id == id } } ?: outline?.inboxId
+    return all.firstOrNull { it.id == wanted }
 }
 
 @Composable
 private fun CoreShell(
-    core: Core,
-    hub: AccountsHub,
+    opened: Opened,
     version: String,
     chosenLanguage: String,
     handedOver: IcsRead?,
@@ -158,100 +152,121 @@ private fun CoreShell(
     window: WindowModel?,
     onLanguage: (String) -> Unit,
 ) {
+    val core = opened.core
+    val hub = opened.hub
+    val list = opened.mail
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
-    // announced, a synchronisation's among them), and so are the messages of the folder on screen.
+    // announced, a synchronisation's among them). The list reads its own pages again on a revision
+    // (`MailListController.handle`), only those on screen.
     val reload by hub.reloads.collectAsState()
-    val outlined by produceState<Outlined?>(null, core, reload) {
-        value = Outlined(loadOutline(core))
-    }
-    var picked by rememberSaveable { mutableStateOf<Long?>(null) }
-    val folder = chosenFolder(outlined?.outline, picked)
-    val shownFolder = remember { arrayOfNulls<ULong>(1) }
-    val mail by produceState<InboxState>(InboxState.Loading, core, outlined, folder) {
-        // The last folder's messages must not stay under the new folder's name while it loads; the same
-        // folder read again keeps what it shows until the new list is in.
-        if (folder?.id != shownFolder[0]) value = InboxState.Loading
-        shownFolder[0] = folder?.id
-        value = loadMail(core, outlined, folder)
-    }
-    val calendar = rememberCalendar(core, texts, window)
-    val calendarState by calendar.state.collectAsState()
-    // The calendar is read again when the mailbox changed (a sync, an account, a command of its own).
-    LaunchedEffect(calendar, reload, LocalMessageZone.current) { calendar.refresh() }
-    var requestTab by remember { mutableStateOf<Tab?>(null) }
-    // A calendar file is taken in once the mailbox is there to take it.
-    LaunchedEffect(handedOver, outlined) {
-        val read = handedOver
-        if (read != null && outlined != null) {
-            when (read) {
-                is IcsRead.Got -> calendar.importIcs(read.file.name, read.file.bytes)
-                else -> calendar.report(texts.t("That file could not be read as a calendar."))
-            }
-            requestTab = Tab.Calendar
-            onHandled()
-        }
-    }
-    val accounts = outlined?.outline?.accounts.orEmpty()
+    val (outlined, retryOutline) = rememberOutline(core, reload)
+    val categories by produceState(emptyList<CategoryItem>(), list, reload) { value = list.categories() }
+    val appContext = LocalContext.current.applicationContext
+    val prefs = remember { DeviceSwipePrefs(appContext) }
+    var swipe by remember { mutableStateOf(prefs.load()) }
+    // (A folder of 0 is the first Inbox.)
+    var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
+    val ui by list.ui.collectAsState()
+    val outline = outlined?.outline
+    val folder = chosenFolder(outline, query.folder)
+    val accounts = outline?.accounts.orEmpty()
+
+    val now = rememberTicks(list)
+    LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
+    val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
     val controller = hub.controller
     val accountsUi by controller.ui.collectAsState()
+    val scope = rememberCoroutineScope()
+    val mailActions = remember(list, scope) {
+        mailListActions(list, scope, retryOutline) { change -> query = change(query) }
+    }
     AppShell(
         texts = texts,
         data = ShellData(
             accounts = accounts,
             folderName = folder?.name ?: texts.t("Mail"),
             folderId = folder?.id,
-            mail = mail,
+            // (An outline that could not be read, or has no folder to show, has no list to wait for.)
+            mail = if (outlined != null && folder == null) ui.copy(load = LoadState.Failed) else ui,
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
             outline = when {
                 outlined == null -> OutlineStatus.Loading
-                outlined?.outline == null -> OutlineStatus.Failed
+                outline == null -> OutlineStatus.Failed
                 else -> OutlineStatus.Ready
             },
+            categories = categories,
+            nowMillis = now,
+            swipe = swipe,
         ),
         actions = ShellActions(
-            onFolder = { _, selected -> picked = selected.id.toLong() },
+            onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
             accounts = controller.actions(),
+            mail = mailActions,
+            onSwipe = {
+                swipe = it
+                prefs.save(it)
+            },
         ),
-        calendar = CalendarPane(calendarState, CalendarActions.of(calendar)),
-        requestTab = requestTab,
-        onTabRequested = { requestTab = null },
+        calendar = calendar.pane,
+        requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
 }
 
 /**
- * The Calendar tab's controller. Its dates are the phone's zone and language ([DeviceDateSettings]);
- * the core shows its calendar in the phone's zone by itself. The [window]'s controller outlives the
- * window, so that an event being written survives the phone being turned; without one (a preview)
- * it lives as long as the composition.
+ * The mailbox's outline, read when [reload] moves on, and what reads it again when it could not be read
+ * (a pull to refresh: without an outline the list has no query of its own to refresh).
  */
 @Composable
-private fun rememberCalendar(core: Core, texts: Texts, window: WindowModel?): CalendarController {
-    val zone by rememberUpdatedState(LocalMessageZone.current)
-    val locale by rememberUpdatedState(LocalMessageLocale.current)
-    if (window != null) {
-        // Plain fields the controller reads when it needs them; the first read has them already.
-        window.zone = zone
-        window.locale = locale
-        return remember(window, core) { window.calendar(core, texts) }
+private fun rememberOutline(core: Core, reload: Int): Pair<Outlined?, () -> Unit> {
+    var tries by remember { mutableIntStateOf(0) }
+    val outlined by produceState<Outlined?>(null, core, reload, tries) {
+        value = Outlined(loadOutline(core))
     }
-    val scope = rememberCoroutineScope()
-    return remember(core, texts) {
-        CalendarController(
-            backend = CoreCalendarBackend(core, texts),
-            scope = scope,
-            zone = { zone },
-            weekStart = { weekStartOf(locale) },
-            now = { LocalDateTime.now(zone) },
-            texts = texts,
-        )
-    }
+    return outlined to { if (outlined?.let { it.outline == null } == true) tries++ }
 }
+
+/** The time now, read again every [TICK_MILLIS] together with what the device says of the network. */
+@Composable
+private fun rememberTicks(list: MailListController): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(list) {
+        while (true) {
+            list.checkNetwork()
+            now = System.currentTimeMillis()
+            delay(TICK_MILLIS)
+        }
+    }
+    return now
+}
+
+/** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
+private fun mailListActions(
+    controller: MailListController,
+    scope: CoroutineScope,
+    /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
+    retryOutline: () -> Unit,
+    change: ((MailQuery) -> MailQuery) -> Unit,
+) = MailListActions(
+    onSearch = { text -> change { it.copy(search = text.trim()) } },
+    onEverywhere = { on -> change { it.copy(everywhere = on) } },
+    onFilter = { filter -> change { it.copy(filter = filter) } },
+    onConversations = { on -> change { it.copy(conversations = on) } },
+    onSplit = { code -> change { it.copy(split = code) } },
+    onRefresh = {
+        retryOutline()
+        scope.launch { controller.refresh() }
+    },
+    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
+    onUndo = { command -> scope.launch { controller.undo(command) } },
+    onNoticeShown = { seq -> controller.noticeShown(seq) },
+)
 
 /** Puts a plain text on the clipboard; what can't be is left. */
 internal fun copyToClipboard(context: Context, text: String) {

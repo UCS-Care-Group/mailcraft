@@ -547,6 +547,16 @@ fn removing_an_account_removes_its_mail_and_its_sign_in_and_nothing_else() {
 }
 
 #[test]
+fn a_sign_in_the_store_won_t_remove_is_said_and_the_account_stays_removed() {
+    let rig = Rig::new(&good_server());
+    let account = signed_in(&rig);
+    rig.phone.secrets.stuck.store(true, Ordering::Relaxed);
+    let removed = block_on(rig.core.remove_account(account));
+    assert!(matches!(&removed, Err(CoreError::Failed { reason }) if reason.contains("removed")), "{removed:?}");
+    assert!(rig.accounts().is_empty());
+}
+
+#[test]
 fn the_message_for_an_administrator_has_the_page_and_nothing_of_the_owner() {
     let rig = Rig::new(&good_server());
     let link = rig.core.admin_approval_link("ada@lumen.example".to_string()).unwrap();
