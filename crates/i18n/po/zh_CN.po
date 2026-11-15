@@ -8014,6 +8014,11 @@ msgstr "邮件以发件人选择的颜色显示在白色页面上，窗口其他
 msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
 msgstr "从“{name}”移到“{to}”的邮件在“{name}”中仍有一份"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9404,6 +9409,11 @@ msgstr "服务器上没有找到更多结果"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Nothing of this search can be asked of the server."
 msgstr ""
 
 #. android
@@ -14199,6 +14209,11 @@ msgstr "无法添加账户"
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr "无法设置该账户。请检查详细信息，或在“服务器设置”中输入服务器地址。"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The account has to be signed in again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -14264,6 +14279,11 @@ msgstr "发送会议时，账户服务器会创建会议，并返回加入链接
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "审批没有通过。"
+
+#. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "The attachment is too large to open on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -14562,6 +14582,11 @@ msgstr ""
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The download was called off."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -14815,6 +14840,11 @@ msgstr "合并后联系人的证书和密钥数量将超过上限（最多 {max}
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "合并后联系人的 {field} 将超出大小上限（当前 {now}，上限 {max}），因此未合并联系人。请为其选择某个联系人的 {field}，或先缩短内容。"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "The message for your administrator could not be made."
@@ -14826,11 +14856,21 @@ msgstr ""
 msgid "The message has no such attachment"
 msgstr "该邮件没有此附件"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is no longer on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The message is on the clipboard: paste it into mail or chat for your organisation's administrator"
 msgstr "消息已复制到剪贴板，请将其粘贴到发给组织管理员的邮件或聊天中"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is too large to download on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -15102,6 +15142,11 @@ msgstr "服务器的响应中未提供 Exchange Web 服务地址。请向管理�
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "服务器已响应，但响应与 Exchange 服务器不符。请在服务器设置中检查地址。"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -15155,6 +15200,11 @@ msgstr "服务器至少有 {total} 个文件夹：列表太长，无法完整读
 #, fuzzy
 msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
 msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，余下 {left} 个从“{first}”开始的文件夹未读取"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server is busy. Try again in a few minutes."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15506,6 +15556,11 @@ msgstr "这里没有可打开的数据文件夹"
 #, fuzzy
 msgid "There is no earlier version to go back to."
 msgstr "没有可以返回的早期版本。"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "There is no network connection."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -19622,6 +19677,11 @@ msgid "the app's own code failed"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "the attachment could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
@@ -19868,7 +19928,7 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
 msgid "the message could not be read"
 msgstr ""
 

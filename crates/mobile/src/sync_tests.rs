@@ -135,6 +135,11 @@ fn until_finished(core: &Core) -> Vec<Event> {
     loop {
         all.extend(drain(core));
         if all.iter().any(|e| matches!(e, Event::SyncFinished { .. })) {
+            // The round's end is pushed from inside the job that finished it, and the session
+            // thread pushes that job's `RevChanged` only after the job returns. A call is a job
+            // behind it, so once it has answered that push has been made.
+            let _ = block_on(core.call(|_| Ok(())));
+            all.extend(drain(core));
             return all;
         }
         assert!(Instant::now() < deadline, "the round never ended: {all:?}");

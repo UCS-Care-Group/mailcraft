@@ -7960,6 +7960,11 @@ msgstr "Berichten behouden de kleuren die hun afzenders hebben gekozen, op een w
 msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
 msgstr "Van \"{name}\" naar \"{to}\" verplaatste berichten staan ook nog in \"{name}\""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9352,6 +9357,11 @@ msgstr "Er is niets meer gevonden op de server"
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Nothing of this search can be asked of the server."
 msgstr ""
 
 #. android
@@ -14116,6 +14126,11 @@ msgstr "Het account kon niet worden toegevoegd"
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr "Het account kon niet worden ingesteld. Controleer de gegevens, of typ het adres van de server bij Serverinstellingen."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The account has to be signed in again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -14181,6 +14196,11 @@ msgstr "De server van het account maakt deze aan wanneer de vergadering wordt ve
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "De goedkeuring is niet doorgekomen."
+
+#. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "The attachment is too large to open on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -14474,6 +14494,11 @@ msgstr ""
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The download was called off."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -14714,6 +14739,11 @@ msgstr "De samengevoegde contactpersoon zou meer certificaten en sleutels hebben
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "Het veld {field} van de samengevoegde contactpersoon zou te groot zijn ({now}, hoogstens {max}), dus de contactpersonen worden niet samengevoegd. Kies het veld {field} van één contactpersoon, of kort ze eerst in."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "The message for your administrator could not be made."
@@ -14725,11 +14755,21 @@ msgstr ""
 msgid "The message has no such attachment"
 msgstr "Het bericht heeft niet zo'n bijlage"
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is no longer on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The message is on the clipboard: paste it into mail or chat for your organisation's administrator"
 msgstr "Het bericht staat op het klembord: plak het in e-mail of chat voor de beheerder van uw organisatie"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is too large to download on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -14992,6 +15032,11 @@ msgstr "De server antwoordde zonder het adres van Exchange Web Services. Vraag h
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "De server antwoordde, maar niet zoals een Exchange-server dat doet. Controleer het adres bij Serverinstellingen."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -15041,6 +15086,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server is busy. Try again in a few minutes."
 msgstr ""
 
 #. interface
@@ -15390,6 +15440,11 @@ msgstr "Er is hier geen gegevensmap om te openen"
 #, fuzzy
 msgid "There is no earlier version to go back to."
 msgstr "Er is geen eerdere versie om naar terug te gaan."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "There is no network connection."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -19475,6 +19530,11 @@ msgid "the app's own code failed"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "the attachment could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
@@ -19712,7 +19772,7 @@ msgid "the message can't hold that much text"
 msgstr "het bericht kan niet zoveel tekst bevatten"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
 msgid "the message could not be read"
 msgstr ""
 

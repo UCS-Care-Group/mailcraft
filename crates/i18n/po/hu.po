@@ -8049,6 +8049,11 @@ msgstr "Az üzenetek a színeket a küldőiknek egy fehér oldalon tartják, mí
 msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
 msgstr "A \"{name}\" és a \"{to}\" között még mindig vannak üzenetek a \"{name}\" között."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9451,6 +9456,11 @@ msgstr "Semmi mást nem találtak a szerveren."
 #, fuzzy
 msgid "Nothing new imported: {already}"
 msgstr "Semmi új import: {already}"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Nothing of this search can be asked of the server."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
@@ -14261,6 +14271,11 @@ msgstr "Nem sikerült hozzáadni a fiókot"
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr "A fiókot nem sikerült beállítani. Ellenőrizze a részleteket, vagy írja be a szerver címét a kiszolgáló beállításaiba."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The account has to be signed in again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -14326,6 +14341,11 @@ msgstr "A fiók kiszolgálója a meghívó elküldésekor hozza létre az értek
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "A jóváhagyás nem ment át."
+
+#. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "The attachment is too large to open on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -14626,6 +14646,11 @@ msgstr "A domain {domain} névre ad egy szervert Exchange automatikus beállít�
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr "A domain {domain} névre szerver automatikus beállítás (Autodiscover). Csere szerverek találhatók így, és néhány hosting szolgáltatók használja azt a IMAP posta is. Melyik a tiéd? Csak a DNS-t kérték, hogy találja meg, soha a szerver maga."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The download was called off."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -14881,6 +14906,11 @@ msgstr "Az egyesített kapcsolatnak több tanúsítványa és kulcsa lenne, mint
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "Az egyesített kapcsolat {field} túl nagy ({now}, a legtöbb {max}), így a kapcsolatok nem egyesülnek. Válassza ki az egyik kapcsolat {field} érte, vagy lerövidíti őket először."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "The message for your administrator could not be made."
@@ -14892,11 +14922,21 @@ msgstr ""
 msgid "The message has no such attachment"
 msgstr "Az üzenetnek nincs ilyen mellékleta."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is no longer on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The message is on the clipboard: paste it into mail or chat for your organisation's administrator"
 msgstr "Az üzenet a vágólapon található: illessze be a szervezet adminisztrátorának postába vagy csevegőbe"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is too large to download on the phone."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -15163,6 +15203,11 @@ msgstr "A kiszolgáló a Web Szolgáltatások cseréje nélkül válaszolt. Kér
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "A kiszolgáló válaszolt, de nem úgy, mint egy Exchange szerver. Ellenőrizze a címét a kiszolgáló beállításaiban."
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -15216,6 +15261,11 @@ msgstr "A szervernek legalább {total} mappái vannak: a listájuk túl hosszú 
 #, fuzzy
 msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
 msgstr "A szerverben {total} mappa vannak: az egyik fut az első {max}-t olvassa, a másik {left} pedig a \"{first}\"-tól marad ki."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server is busy. Try again in a few minutes."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15574,6 +15624,11 @@ msgstr "Nincs itt kinyitható adatmappa"
 #, fuzzy
 msgid "There is no earlier version to go back to."
 msgstr "Nincs korábbi verzió, amihez visszamehetnénk."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "There is no network connection."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -19700,6 +19755,11 @@ msgid "the app's own code failed"
 msgstr "az alkalmazás saját kódja nem sikerült"
 
 #. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "the attachment could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
@@ -19946,7 +20006,7 @@ msgid "the message can't hold that much text"
 msgstr "Az üzenet nem tud ennyi szöveget tartani."
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "az üzenet nem olvasható"

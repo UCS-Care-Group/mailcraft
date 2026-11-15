@@ -6738,6 +6738,11 @@ msgstr ""
 msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Messages on a Light Background"
@@ -7911,6 +7916,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Nothing new imported: {already}"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "Nothing of this search can be asked of the server."
 msgstr ""
 
 #. android
@@ -11934,6 +11944,11 @@ msgstr ""
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The account has to be signed in again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "The account is gone"
@@ -11987,6 +12002,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "The approval didn't go through."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "The attachment is too large to open on the phone."
 msgstr ""
 
 #. interface
@@ -12235,6 +12255,11 @@ msgstr ""
 msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The download was called off."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The e-mail address of the person whose calendar you want to open"
@@ -12452,6 +12477,11 @@ msgstr ""
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "The message for your administrator could not be made."
@@ -12462,9 +12492,19 @@ msgstr ""
 msgid "The message has no such attachment"
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is no longer on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "The message is on the clipboard: paste it into mail or chat for your organisation's administrator"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message is too large to download on the phone."
 msgstr ""
 
 #. interface
@@ -12692,6 +12732,11 @@ msgstr ""
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr ""
 
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
@@ -12735,6 +12780,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The server is busy. Try again in a few minutes."
 msgstr ""
 
 #. interface
@@ -13035,6 +13085,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "There is no earlier version to go back to."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "There is no network connection."
 msgstr ""
 
 #. what a command says
@@ -16485,6 +16540,11 @@ msgid "the app's own code failed"
 msgstr ""
 
 #. what a command says
+#: crates/mobile/src/fetch_api.rs
+msgid "the attachment could not be read"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/save_all.rs
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
 msgstr ""
@@ -16690,7 +16750,7 @@ msgid "the message can't hold that much text"
 msgstr ""
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
 msgid "the message could not be read"
 msgstr ""
 

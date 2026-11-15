@@ -515,6 +515,8 @@ impl Core {
     /// `next_event` ends. The session thread ends with its last job.
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
+        // What is being fetched is called off: nothing it brings is taken in.
+        self.sync.cancel_fetches(None);
         self.sync.pacer.poke();
         // (A sign-in waiting for its page is called off; none begins after this.)
         self.signins.cancel();
