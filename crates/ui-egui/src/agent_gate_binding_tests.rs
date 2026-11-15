@@ -138,6 +138,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
     ("folder.delete", "{}", Setup::Folder),
     ("folder.empty", r#"{"id": $deleted}"#, Setup::None),
+    ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),

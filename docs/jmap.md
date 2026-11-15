@@ -1,6 +1,6 @@
 # JMAP accounts
 
-> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** major
+> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-11-14 · **Change:** minor
 
 A JMAP account is one whose server speaks JMAP (RFC 8620 and RFC 8621) over HTTPS. MailCraft reads
 such an account in the browser build, takes what you change in its mail up to its server, and sends
@@ -63,6 +63,12 @@ sync` refuses it.
   try after one that ended early uploads the same message; a copy the server has from that earlier
   try is sent instead, and filed in Sent as well wherever else it lies (moved into Sent on a server
   that keeps an email in one mailbox).
+  The identity is the one the server has for the account's own address, or failing that one for
+  its whole domain (`*@domain`); an alias the server keeps an identity of its own for is not used,
+  so a message written from that alias is refused by the server (`forbiddenFrom`) and held. The
+  copy in Sent names no Bcc recipients either, and once the server has the message this
+  computer's own copy is let go of, so after sending nothing here records who got a blind copy
+  (an IMAP account's copy in Sent keeps them).
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
@@ -185,4 +191,12 @@ then serve it (`trunk serve` in `apps/mailcraft-web`) and open it: Send/Receive 
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | #1074: which identity a message is sent as (not an alias with an identity of its own), and that who got a blind copy isn't kept after sending |
+| 2026-11-13 | patch | #1074 part 2: a copy still marked as a draft may have gone too, and it may be in Drafts; what is read or flagged here is not in the message sent; a copy is moved into Sent on a server that keeps an email in one mailbox |
+| 2026-11-13 | patch | #1074 part 2: a message whose answer was lost says to look in Sent for a copy no longer marked as a draft, since a copy is there either way |
+| 2026-11-13 | patch | #1074 part 2: a message never dated keeps the date of its first try; a copy left by an earlier try is filed in Sent as well |
+| 2026-11-13 | patch | #1074 part 2: a message moved into a JMAP account's Outbox is held there until Send Again; a copy doesn't go into it |
+| 2026-11-12 | patch | #1074 part 1: a flag is the server's `$flagged` alone (a due date and "complete" stay here, and a flag not changed here follows the server); why a move names two mailboxes and not all of them, and what follows from it |
+| 2026-11-11 | minor | #1074 part 2: mail is sent from a JMAP account through its server; what the server has to allow for an upload |
+| 2026-11-11 | minor | #1074 part 1: what you change in a JMAP account's mail goes up (marks, moves between the server's mailboxes, deletions for good); what is still refused |
 | 2026-10-28 | major | First version: reading a JMAP account in the browser build (M6, #226) |

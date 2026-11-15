@@ -32,7 +32,7 @@ fn a_flood_of_progress_keeps_the_question_and_the_revision() {
     let core = sample_core();
     let sink = core.sink();
     sink.push(Event::RevChanged { rev: 7 });
-    sink.push(Event::PermissionQuestion { account: 1, question: "To Do".into() });
+    sink.push(Event::PermissionQuestion { account: 1, permission: crate::Permission::Tasks });
     for n in 0..(MOST_QUEUED as u64 * 2) {
         sink.push(progress(n));
     }

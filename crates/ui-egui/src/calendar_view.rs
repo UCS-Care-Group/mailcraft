@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod event_color_tests;
+
 /// Height of the strip with Today, Back and Forward and the days in view.
 const HEADER_H: f32 = 46.0;
 /// Width of the hour labels beside the time grid.
@@ -1788,8 +1791,8 @@ struct Look {
 
 /// An event is a block tinted with its colour `base` (its category's, or its calendar's) with a
 /// stronger edge down its left in its calendar's colour, which also says how the time shows:
-/// busy is solid, tentative hatched, working elsewhere dotted, free hollow (and the block
-/// outlined and nearly empty), out of office purple whatever the calendar's colour. Cancelled
+/// busy is solid, tentative hatched, working elsewhere dotted, free hollow and outlined.
+/// Free events without a category use a faint calendar tint. Out of office is purple. Cancelled
 /// events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
     let soft = t.data_soft(hovered);
@@ -1798,7 +1801,7 @@ fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool,
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
         ShowAs::WorkingElsewhere => (calendar, 0.8, Edge::Dotted, false),
         ShowAs::Tentative => (calendar, 0.6, Edge::Hatched, false),
-        ShowAs::Free => (calendar, 0.2, Edge::Hollow, true),
+        ShowAs::Free => (calendar, if ev.categories.is_empty() { 0.2 } else { 1.0 }, Edge::Hollow, true),
         ShowAs::OutOfOffice => (purple, 1.0, Edge::Solid, false),
     };
     if dim && !ev.cancelled {

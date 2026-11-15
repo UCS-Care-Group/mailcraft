@@ -134,8 +134,11 @@ fn sync_pack(dir: &Path, n: u32) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Whether a pack of `dir` an opening wrote into is still to be flushed.
-#[cfg(test)]
+/// Whether a pack of `dir` an opening wrote into is still to be flushed. For the one test that
+/// asks it, which takes a file's permissions away to keep a flush from working and is Unix's
+/// alone: without that cfg the function has no caller on Windows, and `-D warnings` makes dead
+/// code an error (#1396).
+#[cfg(all(test, unix))]
 pub(super) fn unsynced(dir: &Path) -> bool {
     lock(known()).get(dir).is_some_and(|k| k.unsynced)
 }

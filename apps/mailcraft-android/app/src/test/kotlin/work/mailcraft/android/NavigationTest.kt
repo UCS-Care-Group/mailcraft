@@ -51,16 +51,32 @@ class NavigationTest {
     }
 
     @Test
+    fun addAccountOpensOverWhereTheOwnerWasAndBackLeavesTheWayItCame() {
+        val tab = NavState(tab = Tab.Calendar)
+        assertEquals(tab, tab.openAddAccount().back())
+        val settings = NavState(tab = Tab.Mail, settings = true, page = SettingsPage.Accounts)
+        assertEquals(settings, settings.openAddAccount().back())
+        assertEquals(settings, settings.openAddAccount().leaveAddAccount())
+        assertNull(tab.back())
+        // Opening Settings or choosing a tab leaves it.
+        assertEquals(false, tab.openAddAccount().openSettings().adding)
+        assertEquals(false, tab.openAddAccount().select(Tab.Today).adding)
+    }
+
+    @Test
     fun whatIsSavedComesBack() {
         val states = listOf(
             NavState(),
             NavState(tab = Tab.People),
             NavState(tab = Tab.Today, settings = true),
             NavState(tab = Tab.Mail, settings = true, page = SettingsPage.SenderImages),
+            NavState(tab = Tab.Today, adding = true),
         )
         states.forEach { s ->
-            val saved = listOf<Any?>(s.tab.ordinal, s.settings, s.page?.ordinal ?: -1)
+            val saved = listOf<Any?>(s.tab.ordinal, s.settings, s.page?.ordinal ?: -1, s.adding)
             assertEquals(s, NavState.fromSaved(saved))
+            // (What was saved before Add Account existed has three parts and is read as before.)
+            assertEquals(s.copy(adding = false), NavState.fromSaved(saved.take(3)))
         }
     }
 

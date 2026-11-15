@@ -431,7 +431,7 @@ fn the_card_says_when_a_contact_is_the_agents() {
     assert!(note.contains("Until you edit it"), "{note}");
 
     // And the window draws it on that contact's card only.
-    let mut w = crate::testing::window("view.people");
+    let mut w = testing::window("view.people");
     w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
     let ids = people::sorted(&w.state().session, "");
     let (agents, owners) = (ids[0], ids[1]);

@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-11 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -292,6 +292,21 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1384: `ui.darkStyle` (`neutral` or `blue`), the greys of the dark theme |
+| 2026-11-14 | patch | #1347: the reading pane's `alwaysDownloadPictures` link is listed only when the server vouches for the sender; `alwaysDownloadPicturesDomain` likewise |
+| 2026-11-13 | minor | #276: `FolderState` and `FolderDelta` in `sync.request`/`sync.apply` carry an optional `status` (`messages`, `uidNext`, `unseen`, `limit`, `at`), the STATUS an IMAP folder was last read whole under; `skipped` also counts IMAP folders passed over for having it unchanged |
+| 2026-11-13 | minor | `ui.minimize {minimized}` (not for agents); `MAILCRAFT_FLUSH_AFTER_SECS` sets how long the window waits out of sight before it lets go of memory |
+| 2026-11-13 | minor | #1200: `mail.list` and `folder.select` take `folder`: an id, a standard folder's kind (`inbox`, `sent`…) in any language of the mailbox, or a path, with `account` for whose it is: an account that is there, whose folder it has to be, a path without it taken from the account in view first; `mailcraft-cli --folder` goes through it |
+| 2026-11-13 | minor | #1174: `view.navigationBar` puts the switch between the modules at the foot of the pane on the left or back on the bar; the hit map lists `moduleFoot` |
+| 2026-11-13 | minor | `ui.closeToTray` sets the General option; `app.quit` exits even while closing to the tray is enabled |
+| 2026-11-12 | patch | `ui.parity`: what its counts are over (in-scope rows, out of scope rows left out) |
+| 2026-11-12 | patch | software-render: `ui.dismissSoftwareNotice` |
+| 2026-11-12 | patch | #1199: the control key file is named by the port in Flatpak too (`control-key.local-<port>`), so the MCP bridge finds the key of the app on its port |
+| 2026-11-12 | minor | #1183: `ui.animations` beside `ui.highContrast` |
+| 2026-11-12 | minor | #1135: `ui.language` takes `ro`; Romanian is a preview, and Automatic follows `ro-RO` |
+| 2026-11-12 | minor | #1031: `ui.language` takes `zh_CN` for the Simplified Chinese preview |
+| 2026-11-11 | minor | #1074 part 2: `sync.jmapRequest` carries `sends`, and `sync.applyJmap` takes in what became of them and answers `sent` |
+| 2026-11-11 | minor | #1074 part 1: `sync.jmapRequest` carries `changes`, and `sync.applyJmap` takes in what became of them and answers `pushed` and `refused` |
 | 2026-11-11 | minor | #815 part 5: `notes.list`, `notes.get`, `journal.list`, `journal.get` |
 | 2026-11-11 | minor | Preview a selected attachment with an optional local PdfCraft or PhotoCraft renderer (#1053) |
 | 2026-11-11 | minor | #956 part 3: `ui.reportProblem {"via": "send", "username"?}` fills the Report a Problem window and never sends; only the owner's click on Send report does |
