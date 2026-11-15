@@ -245,8 +245,10 @@ impl Core {
     /// may be empty. On success the account is in the mailbox, its sign-in is in the platform's
     /// credential store (when the owner lets sign-ins be remembered) and Send/Receive has it for
     /// the session; nothing is kept if the store refuses, nor if the call is dropped before the
-    /// account is in.
-    pub async fn sign_in_microsoft(&self, email: String) -> Result<SignInOutcome, CoreError> {
+    /// account is in. `settings` is what the owner chose in Add Account of what the phone keeps
+    /// of a new account's mail (its window, and the phone's storage cap); an account the owner
+    /// had already keeps its own.
+    pub async fn sign_in_microsoft(&self, email: String, settings: crate::limits::DownloadSettings) -> Result<SignInOutcome, CoreError> {
         let (address, tokens) = match self.account_sign_in(signin::hint_of(&email)).await? {
             Ok(signed) => signed,
             Err(outcome) => return Ok(outcome),
@@ -263,7 +265,6 @@ impl Core {
         // One job on the session's thread: the sign-in is kept, the account is added and
         // Send/Receive takes the sign-in, or none of it. A call dropped (or a core shut down) before
         // the job runs keeps nothing, and a job that runs needs nobody waiting for it to finish.
-        let settings = crate::limits::DownloadSettings::default();
         let (platform, sync, for_call, lang) = (self.native.clone(), self.sync.clone(), address.clone(), self.lang());
         let added = self
             .call(move |s| {

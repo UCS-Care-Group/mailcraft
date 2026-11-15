@@ -15,6 +15,8 @@
 //!   later stands.
 
 use mailcraft_engine::Session;
+
+use crate::Core;
 use mailcraft_model::{AccountKind, DeviceLimits, KeepOffline, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 
 /// Move the mailbox to the phone's defaults if it hasn't been yet: its limits, and each Microsoft
@@ -156,5 +158,46 @@ impl Trimming {
                 false
             }
         }
+    }
+}
+
+/// The Microsoft account `account` of the mailbox, not a shared mailbox (it follows its owner's).
+fn own_account(session: &Session, account: u64) -> Result<(), crate::CoreError> {
+    let found = session.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft && !a.is_shared());
+    if found { Ok(()) } else { Err(crate::CoreError::BadRequest { reason: "there is no such account".to_string() }) }
+}
+
+#[uniffi::export]
+impl Core {
+    /// What the phone keeps unless the owner chooses otherwise: what Add Account offers first.
+    pub fn default_download_settings(&self) -> DownloadSettings {
+        DownloadSettings::default()
+    }
+
+    /// What the phone keeps of `account`'s mail: its window, and the phone's storage cap.
+    pub async fn download_settings(&self, account: u64) -> Result<DownloadSettings, crate::CoreError> {
+        self.call(move |s| {
+            own_account(s, account)?;
+            let storage = s.mailbox.device_limits.map_or(PHONE_STORAGE, |l| l.storage);
+            Ok(DownloadSettings { window: s.mailbox.keep_offline_of(account).into(), storage_mb: storage >> 20 })
+        })
+        .await
+    }
+
+    /// Change what the phone keeps of `account`'s mail. A shorter window or a smaller cap takes
+    /// what is now outside it off the phone (never off the server) between runs; a longer window
+    /// lists the account's folders afresh, bringing the older mail it now covers. The cap is the
+    /// phone's, for every account, brought within 50 MB to 64 GB.
+    pub async fn set_download_settings(&self, account: u64, settings: DownloadSettings) -> Result<(), crate::CoreError> {
+        self.call(move |s| {
+            own_account(s, account)?;
+            let keep = KeepOffline::from(settings.window).code();
+            s.run("account.edit", &serde_json::json!({"id": account, "keepOffline": keep}))?;
+            set_storage(s, settings.storage_mb)?;
+            Ok(())
+        })
+        .await?;
+        self.sync.trim_soon();
+        Ok(())
     }
 }

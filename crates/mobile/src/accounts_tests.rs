@@ -211,7 +211,7 @@ impl Rig {
     }
 
     fn sign_in(&self, hint: &str) -> SignInOutcome {
-        block_on(self.core.sign_in_microsoft(hint.to_string())).unwrap()
+        block_on(self.core.sign_in_microsoft(hint.to_string(), Default::default())).unwrap()
     }
 
     fn secret(&self, key: &str) -> Option<String> {
@@ -682,7 +682,7 @@ fn a_sign_in_dropped_before_its_account_is_in_keeps_no_sign_in_and_makes_no_acco
     rig.page_comes_back_with(CODE_BACK);
     // The session is busy when the page comes back: the account waits for it.
     let release = hold_session(&rig.core);
-    drop_when(rig.core.sign_in_microsoft(String::new()), || server.asked() == 1);
+    drop_when(rig.core.sign_in_microsoft(String::new(), Default::default()), || server.asked() == 1);
     // (A moment for anything the dropped call might still do on its own.)
     std::thread::sleep(std::time::Duration::from_millis(200));
     assert_eq!(rig.secrets_kept(), 0, "a sign-in was kept for no account");
@@ -771,7 +771,7 @@ fn no_sign_in_begins_once_the_core_is_shut_down() {
     let rig = Rig::new(&server);
     rig.page_comes_back_with(CODE_BACK);
     rig.core.shutdown();
-    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new())), Err(CoreError::Cancelled)));
+    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new(), Default::default())), Err(CoreError::Cancelled)));
     assert!(rig.phone.pages.lock().unwrap().is_empty());
 }
 
