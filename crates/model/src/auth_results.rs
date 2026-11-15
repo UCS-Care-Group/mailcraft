@@ -404,6 +404,50 @@ pub(crate) fn dkim_passed(account: Option<&Account>, m: &Message) -> Vec<(String
         .collect()
 }
 
+/// What the account's own server says of a message's checks, short and safe to hand to an agent
+/// (#1472): each method's result as a lower-case word (`pass`, `fail`, `softfail`, `none` …) and,
+/// when a signature passed, whose domain signed it. A word the server writes that is not a plain
+/// short one is left out, never passed on.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Summary {
+    pub spf: Option<String>,
+    pub dkim: Option<String>,
+    pub dkim_domain: Option<String>,
+    pub dmarc: Option<String>,
+}
+
+/// Longest result word and longest signer's domain a [`Summary`] carries.
+const MAX_RESULT_WORD: usize = 16;
+const MAX_SUMMARY_DOMAIN: usize = 100;
+
+/// A result word as it goes into a [`Summary`]: letters and dashes, in lower case, at most
+/// [`MAX_RESULT_WORD`] of them; `None` for anything else (a result is the first thing a clause
+/// says, but a sender can put anything into a value).
+fn result_word(word: &str) -> Option<String> {
+    let ok = !word.is_empty() && word.len() <= MAX_RESULT_WORD && word.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
+    ok.then(|| word.to_ascii_lowercase())
+}
+
+/// What the server of `account` says of `m`'s SPF, DKIM and DMARC checks: read from the one
+/// `Authentication-Results` header it wrote ([`own_results`]: the topmost, and only when it is the
+/// server's), never from a lower one, which the sender could have written. `None` when there is
+/// no such header or it says nothing of the three: nothing is guessed.
+pub fn summary(account: Option<&Account>, m: &Message) -> Option<Summary> {
+    let value = own_results(account, m, false)?.first().copied()?;
+    let (parsed, _) = clauses(value);
+    let first_of =
+        |wanted: &str| parsed.iter().filter_map(|words| result(words)).find(|(method, _)| method == wanted).and_then(|(_, word)| result_word(&word));
+    let signer = dkim_passed(account, m).into_iter().next().map(|(d, _)| d).filter(|d| d.len() <= MAX_SUMMARY_DOMAIN);
+    let found = Summary {
+        spf: first_of("spf"),
+        // A signature that passed is the news, whatever order the server listed them in.
+        dkim: if signer.is_some() { Some("pass".into()) } else { first_of("dkim") },
+        dkim_domain: signer,
+        dmarc: first_of("dmarc"),
+    };
+    (found.spf.is_some() || found.dkim.is_some() || found.dmarc.is_some()).then_some(found)
+}
+
 /// Whether the `Authentication-Results` value `value` gives a DMARC verdict: a `dmarc` (or
 /// `compauth`) clause of any result, or a part not read ([`clauses`]) where one may stand.
 fn dmarc_verdict(value: &str) -> bool {

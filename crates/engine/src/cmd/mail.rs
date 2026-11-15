@@ -600,6 +600,17 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(o) = v.as_object_mut() {
         o.insert("warnings".into(), Value::Array(warnings.iter().map(mailcraft_model::sender_warnings::Warning::json).collect()));
         o.insert("digitalSignature".into(), signature);
+        // What the account's own server says of SPF, DKIM and DMARC (#1472), from its topmost
+        // `Authentication-Results` alone; left out when it says nothing, never guessed.
+        if let Some(a) = mailcraft_model::auth_results::summary(s.mailbox.account(m.account), &m) {
+            let mut auth = serde_json::Map::new();
+            for (key, value) in [("spf", a.spf), ("dkim", a.dkim), ("dkimDomain", a.dkim_domain), ("dmarc", a.dmarc)] {
+                if let Some(value) = value {
+                    auth.insert(key.into(), json!(value));
+                }
+            }
+            o.insert("authentication".into(), Value::Object(auth));
+        }
         // The signature file is the result's, not one of the message's files, as in the window.
         if let (Some(part), Some(Value::Array(files))) = (part, o.get_mut("attachments")) {
             files.retain(|f| f["index"].as_u64() != Some(part as u64));

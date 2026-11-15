@@ -103,6 +103,8 @@ impl Backend for Headless {
 }
 
 #[cfg(test)]
+mod authentication_tests;
+#[cfg(test)]
 mod files_tests;
 #[cfg(test)]
 mod framing_tests;

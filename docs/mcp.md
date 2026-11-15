@@ -191,6 +191,8 @@ well-known brands, and the message's links ([control protocol](control-protocol.
 address, a domain, a link) is the message's own, framed as untrusted like the text above: a
 warning says a message may not be what it seems, never what to do about it.
 
+**Authentication.** `read_message` and `mail.get` answer `authentication` (#1472) when the account's own mail server wrote an `Authentication-Results` header: `spf`, `dkim` and `dmarc` as the server's result in one lower-case word (`pass`, `fail`, `softfail`, `none` ...) and `dkimDomain`, the domain of a signature that passed. Only the topmost such header is read, and only when it is the account's server's own (the same rule as the sender warnings): a lower one was written before it, and a sender can write any of those. Nothing is checked by MailCraft itself, a header that says nothing of the three leaves the field out, and a result that is not a plain short word is left out too, so the field holds nothing a sender wrote beyond those words. It is MailCraft's reading of the server's word, not message text, so it isn't framed. For every header line of a message run `execute mail.viewSource {id}`; `list_commands {query: "header"}` finds it, since `query` also searches the params text.
+
 **Send/Receive Progress.** `sync.progress` (class `safe`, through `execute`) answers what the
 Send/Receive under way is doing, or what the last one did, account by account: its state, phase,
 folder and counts, what it brought, its problems, and for a Microsoft account how far its messages have been fetched whole (`fullMessages`: done, total, paused), and how long its part of the run took, by phase, with the requests made and the folders skipped (`timings`: numbers only, #276) ([control protocol](control-protocol.md#commands-worth-knowing)).
@@ -220,7 +222,7 @@ app's Send/Receive) delivers it.
 | `import_file` | bring in `.eml`, `.mbox`, `.ics`, `.vcf` |
 | `inspect_mailbox` / `list_folders` | accounts and counts; the folder tree |
 | `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are. The folder is an id, a standard folder's kind (`inbox`, `sent`, `drafts`, `deleted`, `junk`, `archive`, `outbox`), which works whatever the mailbox's language calls it, or a path of the names `list_folders` shows. A kind is of the account `account` names, else of the account the window shows, and comes before a folder of the owner's own called that, which is still reached by its id or its full path. A path without `account` is looked for in the account the window shows before any other. `account` goes with `folder`: an account that is there, whose folder it has to be, and on its own it is refused rather than left unused (#1200) |
-| `read_message` | one message in full |
+| `read_message` | one message in full, with `authentication` (SPF, DKIM, DMARC as its server says) |
 | `send_message` | write and send a new message |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people and to-dos of every account, whichever one the window shows, unless `account` names one (`all`, `here` or an account's id: for people, one whose contacts are read from its server; for to-dos, one with To Do; another is refused) |
 | `parity` | feature coverage |

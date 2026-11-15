@@ -168,6 +168,8 @@ mod account_order_tests;
 #[cfg(test)]
 mod auth_results_tests;
 #[cfg(test)]
+mod auth_summary_tests;
+#[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
 mod calendar_rights_tests;
