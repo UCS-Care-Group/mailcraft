@@ -24,7 +24,8 @@ fn microsoft(core: &Core, email: &str) -> u64 {
 fn device_settings_start_off_and_round_trip() {
     let off = default_device_settings();
     assert!(!off.download_pictures && !off.sender_images && !off.new_mail_only && !off.primary_only);
-    let on = DeviceSettings { download_pictures: true, sender_images: true, new_mail_only: true, primary_only: false };
+    assert!(off.reminders);
+    let on = DeviceSettings { download_pictures: true, sender_images: true, new_mail_only: true, primary_only: false, reminders: false };
     assert_eq!(parse_device_settings(device_settings_json(on)), on);
     assert_eq!(parse_device_settings(device_settings_json(off)), off);
 }
@@ -170,4 +171,14 @@ fn a_signature_that_is_too_long_or_for_nobody_is_refused() {
     // Multi-byte text is counted in characters and never cut in the middle of one.
     block_on(core.set_account_signature(ada, "é".repeat(MAX_SIGNATURE))).unwrap();
     assert_eq!(block_on(core.account_signature(ada)).unwrap().text.chars().count(), MAX_SIGNATURE);
+}
+
+#[test]
+fn reminders_start_on_and_the_choice_to_turn_them_off_is_kept() {
+    assert!(parse_device_settings(String::new()).reminders);
+    assert!(parse_device_settings("{\"senderImages\":true}".to_string()).reminders);
+    assert!(parse_device_settings("{\"reminders\":\"no\"}".to_string()).reminders);
+    let off = DeviceSettings { reminders: false, ..default_device_settings() };
+    assert!(!parse_device_settings(device_settings_json(off)).reminders);
+    assert!(parse_device_settings(device_settings_json(default_device_settings())).reminders);
 }

@@ -18,6 +18,8 @@ internal data class Switches(
     val newMailOnly: Boolean = false,
     /** Notify only for mail that would alert: Primary or Focused. Off. */
     val primaryOnly: Boolean = false,
+    /** Post a notification for each calendar reminder as it falls due. On: the one switch that starts on. */
+    val reminders: Boolean = true,
 )
 
 /** The windows of Mail to keep offline, shortest first, as the engine's `account.edit` takes them. */

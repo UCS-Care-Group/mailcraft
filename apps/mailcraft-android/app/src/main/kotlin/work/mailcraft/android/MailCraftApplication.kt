@@ -143,7 +143,8 @@ class MailCraftApplication : Application() {
             handback.interrupted = opened.hub.controller::signInInterrupted
             events.register(opened.hub::handle)
             val onlyNewMail = { DeviceSwitches(applicationContext).load().newMailOnly }
-            events.register(MailNotifier(applicationContext, opened.core::t, onlyNewMail)::handle)
+            val remindersOn = { DeviceSwitches(applicationContext).load().reminders }
+            events.register(MailNotifier(applicationContext, opened.core::t, onlyNewMail, remindersOn)::handle)
             // The words of what a background round says (a notification's "New mail") are the
             // window's language even when no window has opened (the owner's saved choice first).
             opened.core.setLanguage(LanguageChoice.inUse(this))

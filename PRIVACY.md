@@ -266,7 +266,8 @@ not in a release yet are marked "when the app is released".
   hides private content there, a public version that says only "New mail" stands in for the
   notification; where you let the lock screen show all notification content, the sender and the
   subject show there too. Reminders for meetings
-  and tasks are notifications raised on the phone from what the last check brought. Nothing about
+  and tasks are notifications raised on the phone from what the last check brought; the switch
+  Reminders in Settings (on) stops those, and New mail only does not change them. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
 - **Pictures on the web.** The rules are the desktop's, as in the table above: a message's

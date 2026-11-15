@@ -32,6 +32,9 @@ import uniffi.mailcraft_mobile.NotificationTopic
 /** The tag every new-mail notification carries, so that its number never meets another kind's. */
 internal const val MAIL_NOTIFICATION_TAG = "mail"
 
+/** The tag every calendar-reminder notification carries. */
+internal const val REMINDER_NOTIFICATION_TAG = "reminder"
+
 /** The system's number for the core's notification [key]: both halves folded in, so nearby keys stay apart. */
 internal fun notificationId(key: ULong): Int = (key xor (key shr Int.SIZE_BITS)).toInt()
 
@@ -45,7 +48,7 @@ internal fun shouldAskForNotifications(sdk: Int, hasAccount: Boolean, askedBefor
     sdk >= Build.VERSION_CODES.TIRAMISU && hasAccount && !askedBefore && !granted
 
 /** Whether the app may post a new-mail notification: the right given, notifications on, the channel not off. */
-internal fun mailNotificationsAllowed(context: Context): Boolean {
+internal fun mailNotificationsAllowed(context: Context, channelId: String = CHANNEL_MAIL): Boolean {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
         PackageManager.PERMISSION_GRANTED
@@ -54,7 +57,7 @@ internal fun mailNotificationsAllowed(context: Context): Boolean {
     }
     val manager = NotificationManagerCompat.from(context)
     if (!manager.areNotificationsEnabled()) return false
-    val channel = manager.getNotificationChannel(CHANNEL_MAIL)
+    val channel = manager.getNotificationChannel(channelId)
     return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
 }
 
@@ -108,15 +111,23 @@ internal class MailNotifier(
     private val t: (String) -> String,
     /** The owner's privacy switch, read as each one is shown. */
     private val onlyNewMail: () -> Boolean = { false },
+    /** The owner's Reminders switch, read as each one is shown: off, no calendar reminder is posted. */
+    private val remindersOn: () -> Boolean = { true },
 ) {
     fun handle(event: Event) {
-        if (event is Event.Notification && event.notification.topic == NotificationTopic.MAIL) show(event.notification)
+        if (event !is Event.Notification) return
+        val sent = event.notification
+        if (!postsNotification(sent.topic, remindersOn())) return
+        show(sent)
     }
 
     private fun show(sent: NotificationRecord) {
+        val reminder = sent.topic == NotificationTopic.REMINDER
+        val channel = if (reminder) CHANNEL_REMINDERS else CHANNEL_MAIL
         // Checked again here: the owner may have turned them off since the core was told.
-        if (!mailNotificationsAllowed(context)) return
-        val record = privateRecord(sent, onlyNewMail(), t("New mail"))
+        if (!mailNotificationsAllowed(context, channel)) return
+        // The "New mail only" privacy switch is about mail; a reminder says what the core says.
+        val record = if (reminder) sent else privateRecord(sent, onlyNewMail(), t("New mail"))
         val icon = IconCompat.createWithBitmap(envelope())
         val open = PendingIntent.getActivity(
             context,
@@ -124,15 +135,15 @@ internal class MailNotifier(
             Intent.makeMainActivity(ComponentName(context, MainActivity::class.java)),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val hidden = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        val hidden = NotificationCompat.Builder(context, channel)
             .setSmallIcon(icon)
-            .setContentTitle(t("New mail"))
+            .setContentTitle(if (reminder) t("Reminders") else t("New mail"))
             .build()
-        val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        val notification = NotificationCompat.Builder(context, channel)
             .setSmallIcon(icon)
             .setContentTitle(record.title)
             .setContentText(record.body)
-            .setCategory(NotificationCompat.CATEGORY_EMAIL)
+            .setCategory(if (reminder) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EMAIL)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(hidden)
             .setContentIntent(open)
@@ -140,12 +151,19 @@ internal class MailNotifier(
             .build()
         try {
             NotificationManagerCompat.from(context)
-                .notify(MAIL_NOTIFICATION_TAG, notificationId(record.key), notification)
+                .notify(if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG, notificationId(record.key), notification)
         } catch (_: SecurityException) {
             // The right was taken away between the check and the post: nothing is shown.
         }
     }
 }
+
+/**
+ * Whether a notification of [topic] is posted at all: new mail always (its own switches are the
+ * system's and the core's), a calendar reminder only while the owner's Reminders switch is [remindersOn].
+ */
+internal fun postsNotification(topic: NotificationTopic, remindersOn: Boolean): Boolean =
+    topic != NotificationTopic.REMINDER || remindersOn
 
 /**
  * What a notification says: the core's words, or with the owner's privacy switch on only

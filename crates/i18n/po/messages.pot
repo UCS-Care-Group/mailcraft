@@ -9399,7 +9399,7 @@ msgid "Reminder for new appointments"
 msgstr ""
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 msgid "Reminders"
 msgstr ""
 
@@ -10973,6 +10973,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/alerts.rs
 msgid "Show a desktop alert when new mail arrives"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 msgstr ""
 
 #. interface

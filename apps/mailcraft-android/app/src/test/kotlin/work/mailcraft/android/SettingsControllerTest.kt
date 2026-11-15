@@ -124,6 +124,22 @@ class SettingsControllerTest {
     }
 
     @Test
+    fun remindersStartOnAndTurningThemOffIsKeptBesideTheOtherSwitches() {
+        assertTrue(Switches().reminders)
+        val api = FakeSettings()
+        val c = controller(api)
+        assertTrue(c.ui.value.switches.reminders)
+        c.actions().onSwitches(Switches(newMailOnly = true, reminders = false))
+        assertFalse(api.kept.reminders)
+        assertTrue(api.kept.newMailOnly)
+        assertFalse(c.ui.value.switches.reminders)
+        // What the store kept is what the next start reads.
+        val restarted = controller(FakeSettings().apply { kept = api.kept })
+        assertFalse(restarted.ui.value.switches.reminders)
+        assertTrue(restarted.ui.value.switches.newMailOnly)
+    }
+
+    @Test
     fun aLongerWindowIsAppliedAtOnceWhenThereIsRoom() {
         val api = FakeSettings()
         val c = controller(api)

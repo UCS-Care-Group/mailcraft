@@ -33,7 +33,7 @@ const MAX_SETTINGS_BYTES: usize = 16 * 1024;
 const MAX_THIN: u32 = 2_000;
 
 /// The switches that belong to this device.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, uniffi::Record)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct DeviceSettings {
     /// Download the pictures of every message without asking (off).
     pub download_pictures: bool,
@@ -44,9 +44,18 @@ pub struct DeviceSettings {
     pub new_mail_only: bool,
     /// Notify only for mail that would alert: Primary or Focused (off).
     pub primary_only: bool,
+    /// Post notifications for calendar reminders (on); the one switch that starts on, because
+    /// it is a notification the owner asked for with the reminder, and sends nothing anywhere.
+    pub reminders: bool,
 }
 
-/// The settings of nothing yet: every switch off.
+impl Default for DeviceSettings {
+    fn default() -> Self {
+        Self { download_pictures: false, sender_images: false, new_mail_only: false, primary_only: false, reminders: true }
+    }
+}
+
+/// The settings of nothing yet: every switch that sends or shows something off, reminders on.
 #[uniffi::export]
 pub fn default_device_settings() -> DeviceSettings {
     DeviceSettings::default()
@@ -67,6 +76,8 @@ pub fn parse_device_settings(json: String) -> DeviceSettings {
         sender_images: on("senderImages"),
         new_mail_only: on("newMailOnly"),
         primary_only: on("primaryOnly"),
+        // Missing or not true/false: the default, on.
+        reminders: map.get("reminders").and_then(Value::as_bool).unwrap_or(true),
     }
 }
 
@@ -78,6 +89,7 @@ pub fn device_settings_json(settings: DeviceSettings) -> String {
         "senderImages": settings.sender_images,
         "newMailOnly": settings.new_mail_only,
         "primaryOnly": settings.primary_only,
+        "reminders": settings.reminders,
     })
     .to_string()
 }

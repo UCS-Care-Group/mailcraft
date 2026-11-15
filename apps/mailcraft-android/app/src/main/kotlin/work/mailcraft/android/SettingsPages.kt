@@ -168,7 +168,7 @@ private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
     HorizontalDivider()
 }
 
-/** Notifications: the two switches, and the system's own settings for each channel. */
+/** Notifications: the switches, and the system's own settings for each channel. */
 @Composable
 internal fun NotificationsPage(texts: Texts, switches: Switches, actions: SettingsActions) {
     SwitchRow(
@@ -181,6 +181,11 @@ internal fun NotificationsPage(texts: Texts, switches: Switches, actions: Settin
         texts.t("Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."),
         switches.primaryOnly,
     ) { actions.onSwitches(switches.copy(primaryOnly = it)) }
+    SwitchRow(
+        texts.t("Reminders"),
+        texts.t("Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."),
+        switches.reminders,
+    ) { actions.onSwitches(switches.copy(reminders = it)) }
     Hint(
         texts.t(
             "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting.",

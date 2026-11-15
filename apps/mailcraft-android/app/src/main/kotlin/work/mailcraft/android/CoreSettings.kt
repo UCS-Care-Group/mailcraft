@@ -34,7 +34,7 @@ internal class DeviceSwitches(context: Context) : SwitchesStore {
 
     override fun load(): Switches = runCatching {
         val settings = parseDeviceSettings(prefs.getString(KEY, null).orEmpty())
-        Switches(settings.downloadPictures, settings.senderImages, settings.newMailOnly, settings.primaryOnly)
+        Switches(settings.downloadPictures, settings.senderImages, settings.newMailOnly, settings.primaryOnly, settings.reminders)
     }.getOrDefault(Switches())
 
     // (The KTX `edit {}` would be a dependency for one line.)
@@ -46,6 +46,7 @@ internal class DeviceSwitches(context: Context) : SwitchesStore {
                 senderImages = switches.senderImages,
                 newMailOnly = switches.newMailOnly,
                 primaryOnly = switches.primaryOnly,
+                reminders = switches.reminders,
             )
             val text = deviceSettingsJson(settings)
             prefs.edit().putString(KEY, text).apply()
