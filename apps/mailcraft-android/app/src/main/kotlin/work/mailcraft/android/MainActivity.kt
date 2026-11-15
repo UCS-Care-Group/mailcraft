@@ -177,11 +177,15 @@ private fun CoreShell(
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
     val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
+    // The right to notify is asked for once there is an account to bring mail, never at a first start.
+    AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
+        (appContext as? MailCraftApplication)?.followNotificationSwitch()
+    }
     val controller = hub.controller
     val accountsUi by controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
-    val mailActions = remember(list, scope) {
-        mailListActions(list, scope, retryOutline) { change -> query = change(query) }
+    val mailActions = remember(list, scope, hub) {
+        mailListActions(list, scope, retryOutline, hub::syncNow) { change -> query = change(query) }
     }
     AppShell(
         texts = texts,
@@ -251,6 +255,8 @@ private fun mailListActions(
     scope: CoroutineScope,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
+    /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
+    syncNow: () -> Unit,
     change: ((MailQuery) -> MailQuery) -> Unit,
 ) = MailListActions(
     onSearch = { text -> change { it.copy(search = text.trim()) } },
@@ -260,7 +266,9 @@ private fun mailListActions(
     onSplit = { code -> change { it.copy(split = code) } },
     onRefresh = {
         retryOutline()
-        scope.launch { controller.refresh() }
+        syncNow()
+        // (The pages on screen are read again now too; the round's own changes come as revisions.)
+        scope.launch { controller.reload() }
     },
     onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },

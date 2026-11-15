@@ -10,18 +10,6 @@ import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.ListQuery
 import uniffi.mailcraft_mobile.NetworkKind
 
-/** What asking the core to send and receive came to. */
-internal sealed interface RefreshOutcome {
-    /** A round is under way (or was already): its end comes as an event. */
-    data object Started : RefreshOutcome
-
-    /** The core would not start one, and says why in the owner's language (no account, no network…). */
-    class Refused(val message: String) : RefreshOutcome
-
-    /** The core could not be asked. */
-    data object Failed : RefreshOutcome
-}
-
 /**
  * What the mail list needs of the core, so that its logic runs without the native library. Every
  * call may take long and is made off the main thread; a failure is an answer (null, false), never a throw.
@@ -43,9 +31,6 @@ internal interface MailSource {
     suspend fun members(query: MailQuery, id: ULong): List<ULong>?
 
     suspend fun categories(): List<CategoryItem>
-
-    /** Asks the core to send and receive now, as the owner did. */
-    suspend fun refresh(): RefreshOutcome
 
     /** Whether the device is online. */
     suspend fun offline(): Boolean
@@ -95,15 +80,6 @@ internal class CoreMailSource(
             core.categories(0uL).categories.map { CategoryItem(it.name, it.color.toInt()) }
         } catch (_: CoreException) {
             emptyList()
-        }
-    }
-
-    override suspend fun refresh(): RefreshOutcome = withContext(dispatcher) {
-        try {
-            val answer = core.syncNow()
-            if (answer.started) RefreshOutcome.Started else RefreshOutcome.Refused(answer.message)
-        } catch (_: CoreException) {
-            RefreshOutcome.Failed
         }
     }
 
