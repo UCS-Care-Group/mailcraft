@@ -124,4 +124,5 @@ internal fun ShellData.withMail(ui: MailListUi) = ShellData(
     categories = categories,
     nowMillis = nowMillis,
     swipe = swipe,
+    reading = reading,
 )

@@ -485,6 +485,9 @@ const ACCOUNTS: &[&str] = &[
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
+    // Device limits (MB3.16): what a phone keeps; the server keeps it all.
+    "account.deviceLimits",
+    "account.trimDevice",
     "calendar.moveToAccount",
     "ui.connectMicrosoft",
     "ui.automaticRepliesSignIn",
