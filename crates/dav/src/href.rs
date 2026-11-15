@@ -88,6 +88,11 @@ impl Origin {
                 Some((host, port)) => (host.to_ascii_lowercase(), parse_port(port).ok_or(EndpointError::Malformed)?),
             }
         };
+        // A name with its root dot is the same name: one form for every check that follows.
+        let host = match host.strip_suffix('.') {
+            Some(bare) if !host.starts_with('[') => bare.to_owned(),
+            _ => host,
+        };
         let name_ok = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']' | ':');
         if host.is_empty() || host.starts_with('.') || !host.chars().all(name_ok) {
             return Err(EndpointError::Malformed);

@@ -143,7 +143,9 @@ fn idn_ok(domain: &str) -> bool {
         !(c.is_control()
             || c.is_whitespace()
             || matches!(c, '/' | '?' | '#' | ':' | '@' | '\\')
+            || matches!(n, 0xaa | 0xb2 | 0xb3 | 0xb9 | 0xba)
             || (0x300..=0x36f).contains(&n)
+            || (0x3200..=0x33ff).contains(&n)
             || (0x2000..=0x2bff).contains(&n)
             || (0xfb00..=0xfb4f).contains(&n)
             || (0xfe00..=0xfe6f).contains(&n)
@@ -808,6 +810,12 @@ impl Discovery {
         };
         self.via_loopback = Origin::parse(&ask.url).is_ok_and(|origin| origin.is_loopback());
         match result {
+            // The password went to a host that never said what it is, and no answer came: the
+            // search is over, so that the other kind cannot send it again.
+            Err(TransportError::Certificate) if ask.authed && self.unproven.contains(&ask.origin) => {
+                self.finish(Outcome::Failed(Failure::SecureConnection))
+            }
+            Err(_) if ask.authed && self.unproven.contains(&ask.origin) => self.finish(Outcome::Failed(Failure::Unreachable)),
             Err(TransportError::Certificate) => self.fail_candidate(Failure::SecureConnection),
             Err(_) => self.fail_candidate(Failure::Unreachable),
             Ok(response) if ask.options => self.options_answered(ask, &response),
@@ -891,6 +899,10 @@ impl Discovery {
         }
         if self.may_sign_in(&origin) {
             return self.sign_in(ask);
+        }
+        if self.requests >= MAX_REQUESTS {
+            let why = self.reason.unwrap_or(Failure::TooManyRedirects);
+            return self.finish(Outcome::Failed(why));
         }
         let consent = Consent { host: label(&origin), reason: self.reason_for(&origin) };
         self.waiting = Waiting::Consent(consent, ask);
@@ -1096,16 +1108,19 @@ fn label(origin: &Origin) -> String {
 }
 
 /// Whether `host` is an address by number and not a name: an IPv6 address in brackets, or a name
-/// of which a label is written as a number in hexadecimal (`0x7f000001`, `0x7f.0x1`) or the last
-/// label is all digits (`10.0.0.1`, `10.0.0.1.`, `2130706433`, octal `0177.0.0.1`): the forms that
-/// a program's resolver reads as an address.
+/// whose last label is all digits or `0x` and hex digits (`10.0.0.1`, `10.0.0.1.`, `2130706433`,
+/// `0x7f000001`, `0x7f.0x1`, octal `0177.0.0.1`): what a resolver reads as an address (WHATWG URL
+/// "ends in a number"; `crates/link/src/host.rs`). `0xacab.org` and `0x00sec.org` are names.
 fn is_number_host(host: &str) -> bool {
     if host.starts_with('[') {
         return true;
     }
     let host = host.strip_suffix('.').unwrap_or(host);
-    let hex = |label: &str| label.get(..2).is_some_and(|start| start.eq_ignore_ascii_case("0x"));
-    host.split('.').any(hex) || host.rsplit('.').next().is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()))
+    host.rsplit('.').next().is_some_and(|last| {
+        let hex = last.get(..2).is_some_and(|p| p.eq_ignore_ascii_case("0x"))
+            && last.get(2..).is_some_and(|rest| rest.bytes().all(|b| b.is_ascii_hexdigit()));
+        !last.is_empty() && (hex || last.bytes().all(|b| b.is_ascii_digit()))
+    })
 }
 
 /// The proof that the password may go to an origin. Only [`Discovery`] makes one (the field is

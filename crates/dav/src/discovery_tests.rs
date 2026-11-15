@@ -949,9 +949,13 @@ fn this_machine_and_numbers_are_never_followed_from_the_owner_s_domain_or_mail_s
         "https://127.0.0.1:631/x",
         "https://localhost/x",
         "https://foo.localhost/",
+        "https://localhost./x",
+        "https://foo.localhost./",
+        "https://LOCALHOST./",
         "https://[::1]/",
         "https://0x7f000001/",
         "https://0x7f.0x1/",
+        "https://0x7f.1/",
         "https://0X7F.0.0.1/",
         "https://10.0.0.1./",
         "https://2130706433/",
@@ -972,6 +976,59 @@ fn this_machine_and_numbers_are_never_followed_from_the_owner_s_domain_or_mail_s
     assert!(found(disc.run(&world, no_srv, |_| true)).calendars().is_some());
     let world = World::new(&["http://localhost:8080"]);
     assert!(found(typed(Kind::Calendar, "http://localhost:8080/dav/").run(&world, no_srv, never_asked)).calendars().is_some());
+}
+
+#[test]
+fn a_name_that_starts_like_a_hex_number_is_a_name() {
+    for domain in ["0x00sec.org", "0xacab.org", "0x7f.example.org"] {
+        let world = World::new(&[&format!("https://{domain}")]);
+        let found = search(&format!("ada@{domain}"), true, true).run(&world, no_srv, |_| true);
+        assert!(!matches!(found, Outcome::Failed(Failure::PrivateAddress)), "{domain}: {found:?}");
+        assert!(!world.sent().is_empty(), "{domain}");
+    }
+}
+
+#[test]
+fn a_dropped_connection_after_the_password_went_to_an_unproven_host_ends_the_search() {
+    let world = World::new(&[]).with(|r| {
+        if r.field("authorization").is_none() {
+            Some(Ok(HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic")))
+        } else {
+            Some(Err(TransportError::Failed))
+        }
+    });
+    let mut disc = search(USER, true, true)
+        .typed(Kind::Calendar, "https://web.example.net/dav/")
+        .unwrap()
+        .typed(Kind::AddressBook, "https://web.example.net/dav/")
+        .unwrap();
+    assert_eq!(disc.run(&world, no_srv, never_asked), Outcome::Failed(Failure::Unreachable));
+    assert_eq!(world.credentialed().len(), 1);
+}
+
+#[test]
+fn the_request_cap_is_checked_before_the_password_question() {
+    let mut disc = search(USER, true, false);
+    disc.requests = MAX_REQUESTS;
+    disc.job = Some(Job { kind: Kind::Calendar, queue: VecDeque::new(), chain: 0 });
+    let ask = Ask {
+        stage: Stage::Probe,
+        url: "https://dav.example.com/".into(),
+        origin: "https://dav.example.com".into(),
+        authed: false,
+        options: false,
+        basic: true,
+        before: false,
+    };
+    disc.evidence_found(ask);
+    assert!(matches!(disc.step(), Step::Done(Outcome::Failed(_))));
+}
+
+#[test]
+fn a_trailing_dot_is_the_same_host() {
+    assert_eq!(Origin::parse("https://Example.ORG./x").unwrap().host(), "example.org");
+    assert!(Origin::parse("https://LOCALHOST./").unwrap().is_loopback());
+    assert!(Origin::parse("https://a.localhost./").unwrap().is_loopback());
 }
 
 #[test]
@@ -1057,6 +1114,11 @@ fn a_domain_in_other_letters_is_looked_up_only_as_what_it_is() {
         "ada@bu\u{308}cher.example",
         "ada@ﬁle.example",
         "ada@𝐞xample.org",
+        "ada@exampleª.org",
+        "ada@example².org",
+        "ada@example¹.org",
+        "ada@㎾.example",
+        "ada@㈱.example",
     ] {
         assert!(Discovery::new(bad, secret(), true, false).is_err(), "{bad:?}");
     }
