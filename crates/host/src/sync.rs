@@ -26,7 +26,7 @@
 //! [`Platform::open_sign_in_page`], exchange the code) and is handed in with
 //! [`SendReceive::adopt_tokens`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, sync_channel};
@@ -80,6 +80,9 @@ impl Context<'_> {
 pub struct SendReceive {
     /// A Graph access token of the session, with the account's newest refresh token.
     tokens: HashMap<Id, Tokens>,
+    /// The accounts whose kept access token is known to cover Graph mail: only such a token is
+    /// handed to a mail job as it is ([`Self::mail_access`]); any other is renewed first.
+    mail_covered: HashSet<Id>,
     /// Set to stop the run under way at its next safe place.
     cancel: Arc<AtomicBool>,
     running: Option<Running>,
@@ -97,6 +100,7 @@ impl Default for SendReceive {
     fn default() -> Self {
         SendReceive {
             tokens: HashMap::new(),
+            mail_covered: HashSet::new(),
             cancel: Arc::default(),
             running: None,
             opening: None,
@@ -248,6 +252,7 @@ impl SendReceive {
     /// signed out). A run under way is called off and let go of.
     pub fn forget(&mut self) {
         self.tokens.clear();
+        self.mail_covered.clear();
         self.drop_run();
     }
 
@@ -276,6 +281,13 @@ impl SendReceive {
     /// (the account is not signed in as another person), kept for the session otherwise, with the
     /// refresh token in the credential store when the owner lets it be.
     pub fn adopt_tokens(&mut self, session: &Session, ctx: &Context, account: Id, tokens: Tokens) -> Adopted {
+        self.adopt_tokens_covering(session, ctx, account, tokens, true)
+    }
+
+    /// [`adopt_tokens`](Self::adopt_tokens) saying whether the access token covers Graph mail (a
+    /// mail sign-in or a mail refresh does; what a calendar-only run got may not): a token that
+    /// doesn't is never handed to a mail job as it is, but its refresh token is kept all the same.
+    pub fn adopt_tokens_covering(&mut self, session: &Session, ctx: &Context, account: Id, tokens: Tokens, covers_mail: bool) -> Adopted {
         self.follow_opening(session);
         let Some(a) = session.mailbox.account(account) else { return Adopted::Refused };
         if ctx.held() {
@@ -289,6 +301,11 @@ impl SendReceive {
             self.remember(session, ctx, account, &tokens.refresh);
         }
         self.tokens.insert(account, mailcraft_engine::sync_driver::kept_for_session(tokens, ctx.now_s));
+        if covers_mail {
+            self.mail_covered.insert(account);
+        } else {
+            self.mail_covered.remove(&account);
+        }
         Adopted::Kept
     }
 
@@ -401,7 +418,7 @@ impl SendReceive {
             return None;
         }
         let a = session.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft && !a.is_shared())?;
-        if let Some(kept) = self.tokens.get(&account).filter(|t| t.fresh(ctx.now_s)) {
+        if let Some(kept) = self.tokens.get(&account).filter(|t| t.fresh(ctx.now_s) && self.mail_covered.contains(&account)) {
             return Some(crate::fetch::Access::Held(kept.access.clone()));
         }
         let oauth = a.oauth.clone()?;
@@ -603,10 +620,13 @@ impl SendReceive {
         errors.append(&mut result.errors);
         if result.token_refused {
             self.tokens.remove(&account);
+            self.mail_covered.remove(&account);
         }
         let mut wrong_person = false;
+        // A run that read mail got its token for it; one that only did calendars may not have.
+        let covers_mail = result.mail.is_some();
         if let Some(tokens) = result.tokens.take() {
-            wrong_person = self.adopt_tokens(session, ctx, account, tokens) == Adopted::WrongPerson;
+            wrong_person = self.adopt_tokens_covering(session, ctx, account, tokens, covers_mail) == Adopted::WrongPerson;
         }
         // Whether the calendar and contacts need the owner's permission is known from the answer.
         if result.consent_needed {
