@@ -80,7 +80,7 @@ internal fun followSwitches(core: Core, switches: Switches) {
     runCatching { core.setNotifyNewMailOnly(switches.newMailOnly) }
 }
 
-private fun DeviceStorage.use() = StorageUse(
+internal fun DeviceStorage.toUse() = StorageUse(
     capMb = capMb.toLong(),
     usedBytes = usedBytes.toLong().coerceAtLeast(0L),
     messages = messages.toLong(),
@@ -139,13 +139,13 @@ internal class CoreSettings(
     }
 
     override suspend fun storage(): StorageUse? = try {
-        core.deviceStorage().use()
+        core.deviceStorage().toUse()
     } catch (_: CoreException) {
         null
     }
 
     override suspend fun setStorageCap(megabytes: Long): StorageUse? = try {
-        val kept = core.setStorageCap(megabytes.coerceAtLeast(0L).toULong()).use()
+        val kept = core.setStorageCap(megabytes.coerceAtLeast(0L).toULong()).toUse()
         keep()
         kept
     } catch (_: CoreException) {
