@@ -50,8 +50,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -72,6 +74,8 @@ private val MonthCell = 64.dp
 private val Dot = 6.dp
 private val DayBadge = 32.dp
 private const val LARGE_TEXT = 1.3f
+/** The hours' column takes at most this share of the day view's width (a third). */
+private const val MAX_GUTTER_SHARE = 3
 private const val MAX_DOTS = 3
 private const val BLOCK_ALPHA = 0.22f
 private const val DIM_ALPHA = 0.45f
@@ -367,26 +371,34 @@ private fun DayView(
 private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Locale, actions: CalendarActions) {
     val total = HourHeight * (layout.totalMinutes.toFloat() / MINUTES_IN_HOUR)
     val fmt = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+    val labels = layout.hours.map { LocalTime.of(it.hour, 0).format(fmt) }
+    val labelStyle = MaterialTheme.typography.labelSmall
+    val labelWidth = widestLabel(labels, labelStyle)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(total + FabClearance)) {
-        layout.hours.forEach { mark ->
+        // The hours' column is as wide as its widest label at the owner's font size ("12:00 PM" at 200%
+        // is wider than the usual column), and never more than a third of the width; a label wider than
+        // that wraps rather than being cut.
+        val widest = (maxWidth / MAX_GUTTER_SHARE).coerceAtLeast(HourGutter)
+        val hourGutter = (labelWidth + Bar * 2).coerceIn(HourGutter, widest)
+        layout.hours.forEachIndexed { i, mark ->
             val top = HourHeight * (mark.minute.toFloat() / MINUTES_IN_HOUR)
             Text(
-                text = LocalTime.of(mark.hour, 0).format(fmt),
-                style = MaterialTheme.typography.labelSmall,
+                text = labels.getOrElse(i) { "" },
+                style = labelStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                modifier = Modifier.offset(y = top).width(HourGutter).padding(horizontal = Bar),
+                maxLines = 2,
+                modifier = Modifier.offset(y = top).width(hourGutter).padding(horizontal = Bar),
             )
-            HorizontalDivider(modifier = Modifier.offset(x = HourGutter, y = top + Small), thickness = Hairline)
+            HorizontalDivider(modifier = Modifier.offset(x = hourGutter, y = top + Small), thickness = Hairline)
         }
-        val width = maxWidth - HourGutter - Gutter
+        val width = maxWidth - hourGutter - Gutter
         layout.placed.forEach { p ->
             val columnWidth = width / p.columns
             val top = HourHeight * (p.startMinute.toFloat() / MINUTES_IN_HOUR)
             val height = HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR)
             Column(
                 modifier = Modifier
-                    .offset(x = HourGutter + columnWidth * p.column, y = top + Small)
+                    .offset(x = hourGutter + columnWidth * p.column, y = top + Small)
                     .size(columnWidth - Bar, height)
                     .clip(RoundedCornerShape(Bar))
                     .background(Color(p.event.color).copy(alpha = BLOCK_ALPHA))
@@ -417,6 +429,14 @@ private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Lo
             }
         }
     }
+}
+
+/** How wide the widest of [labels] is on one line, in [style] at the owner's font size. */
+@Composable
+private fun widestLabel(labels: List<String>, style: androidx.compose.ui.text.TextStyle): Dp {
+    val measurer = rememberTextMeasurer()
+    val widest = labels.maxOfOrNull { measurer.measure(it, style, maxLines = 1).size.width } ?: 0
+    return with(LocalDensity.current) { widest.toDp() }
 }
 
 @Composable
