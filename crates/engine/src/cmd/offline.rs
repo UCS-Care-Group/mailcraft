@@ -132,7 +132,7 @@ pub(crate) fn content_bytes(m: &Message) -> u64 {
 
 /// The preview message `id` keeps: the first words of its text (read from disk when only that
 /// is kept there).
-fn preview_of(s: &Session, id: Id) -> String {
+pub(crate) fn preview_of(s: &Session, id: Id) -> String {
     let Some(m) = s.mailbox.message(id) else { return String::new() };
     if !m.body.text.trim().is_empty() || m.body.html.is_some() {
         return crate::list::preview(m, PREVIEW);
@@ -155,11 +155,22 @@ fn preview_of(s: &Session, id: Id) -> String {
 /// preview, `most` messages at most. Not an undo step.
 pub fn thin(s: &mut Session, account: Option<Id>, most: usize) -> Thinned {
     let waiting = outside(s, account);
-    let mut done = Thinned { left: waiting.len().saturating_sub(most), ..Default::default() };
+    let left = waiting.len().saturating_sub(most);
+    let done = thin_these(s, waiting.into_iter().take(most));
+    if done.messages > 0 {
+        log::info!("{} message(s) outside their mail to keep offline went back to their headers and preview ({} bytes)", done.messages, done.bytes);
+    }
+    Thinned { left, ..done }
+}
+
+/// The messages `ids` go back to their headers and preview, their content files leaving the disk
+/// with the next save. Not an undo step.
+pub(crate) fn thin_these(s: &mut Session, ids: impl IntoIterator<Item = Id>) -> Thinned {
+    let mut done = Thinned::default();
     let mut thinned = HashSet::new();
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     let mut refs: Vec<mailcraft_model::ContentRef> = Vec::new();
-    for id in waiting.into_iter().take(most) {
+    for id in ids {
         let preview = preview_of(s, id);
         let Some(m) = s.mailbox.messages.get(&id) else { continue };
         done.bytes = done.bytes.saturating_add(content_bytes(m));
@@ -184,6 +195,5 @@ pub fn thin(s: &mut Session, account: Option<Id>, most: usize) -> Thinned {
     }
     #[cfg(target_arch = "wasm32")]
     drop(refs);
-    log::info!("{} message(s) outside their mail to keep offline went back to their headers and preview ({} bytes)", done.messages, done.bytes);
     done
 }
