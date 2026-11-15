@@ -9,7 +9,7 @@
 //! remembered between runs, as on systems without a store, and the window is told why
 //! ([`SecretStore::take_trouble`]) so that it can say so once.
 
-use mailcraft_ui_egui::SecretStore;
+use mailcraft_host::SecretStore;
 
 /// The store on systems that have one.
 pub fn store() -> Option<std::sync::Arc<dyn SecretStore>> {
@@ -45,7 +45,7 @@ mod os {
     use std::sync::{Arc, Mutex};
 
     use keyring_core::{CredentialStore, Entry, Error};
-    use mailcraft_ui_egui::{SecretStore, StoreTrouble};
+    use mailcraft_host::{SecretError, SecretStore, StoreTrouble};
 
     use super::{MAX_PIECES, pieces};
 
@@ -155,17 +155,17 @@ mod os {
             Some(secret)
         }
 
-        fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
             // Platform errors may echo the attempted secret, so never return their words.
             let refused = |e: Error| {
                 self.note(&e);
-                "the system's credential store could not keep this sign-in".to_string()
+                SecretError::Refused
             };
             if secret.is_empty() {
                 self.delete(key);
                 return Ok(());
             }
-            let pieces = pieces(secret).ok_or("it is too long for the system's credential store")?;
+            let pieces = pieces(secret).ok_or(SecretError::TooLong)?;
             self.delete(key);
             for (i, piece) in pieces.iter().enumerate() {
                 if let Err(e) = self.build(key, &i.to_string()).and_then(|entry| entry.set_password(piece)) {

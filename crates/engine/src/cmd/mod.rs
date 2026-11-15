@@ -6,6 +6,8 @@ pub mod account;
 #[cfg(test)]
 mod account_color_tests;
 #[cfg(test)]
+mod account_name_tests;
+#[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]
 mod agent_leaves_compose_tests;
@@ -39,6 +41,8 @@ pub mod folder;
 #[cfg(test)]
 mod folder_empty_tests;
 #[cfg(test)]
+mod folder_kind_tests;
+#[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
@@ -67,10 +71,14 @@ mod hidden_selection_tests;
 pub mod imap_again;
 #[cfg(test)]
 mod imap_outbox_tests;
+pub mod imported_dupes;
+#[cfg(test)]
+mod imported_dupes_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+pub mod jmap_up;
 pub mod junk;
 #[cfg(test)]
 mod junk_tests;
@@ -84,6 +92,8 @@ mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod moves_between_accounts_tests;
+#[cfg(test)]
+mod navigation_bar_tests;
 #[cfg(test)]
 mod newer_account_tests;
 pub mod notes;
@@ -128,6 +138,13 @@ pub mod shared;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
+pub mod snooze;
+#[cfg(test)]
+mod snooze_review_tests;
+#[cfg(test)]
+mod snooze_servers_tests;
+#[cfg(test)]
+mod snooze_tests;
 pub mod sync_progress;
 pub mod tasks;
 pub mod tasks_remote;
@@ -136,6 +153,9 @@ mod tasks_remote_tests;
 #[cfg(test)]
 mod tasks_tests;
 mod thread_ids;
+pub mod unsubscribe;
+#[cfg(test)]
+mod unsubscribe_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -163,6 +183,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(snooze::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
@@ -177,11 +198,13 @@ pub fn registry() -> Registry {
     v.extend(zones::specs());
     v.extend(people::specs());
     v.extend(people_merge::specs());
+    v.extend(imported_dupes::specs());
     v.extend(tasks::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
     v.extend(junk::specs());
+    v.extend(unsubscribe::specs());
     v.extend(keys::specs());
     v.extend(category::specs());
     v.extend(account::specs());
@@ -222,15 +245,6 @@ pub(crate) fn done() -> CmdResult {
 /// Enabled only with a message selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
-}
-
-/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
-/// which stays where it is until moves and deletions go up (M6).
-/// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon and menus.
-pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| {
-        (s.mailbox.has_jmap_account() && s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id))).then_some(mailcraft_model::NOT_MOVING_YET)
-    })
 }
 
 /// Enabled only while a message is being written.
@@ -353,6 +367,9 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
 /// A message as agents see it in lists. For a message of a Gmail account's Inbox, its
 /// `gmailCategory` too (#911): one of five words this program wrote, not message text, so it isn't
 /// framed as such.
+/// For a message of a Gmail account, its `gmailLabels` (#1153) when it has any: names the server
+/// gave, Gmail's own with their backslash (`\Inbox`); text from outside, which MCP frames as
+/// message data, never instructions.
 pub fn message_summary(s: &Session, m: &Message) -> Value {
     let mut v = json!({
         "id": m.id,
@@ -371,6 +388,9 @@ pub fn message_summary(s: &Session, m: &Message) -> Value {
     });
     if let (Some(category), Some(o)) = (m.gmail_category, v.as_object_mut()) {
         o.insert("gmailCategory".into(), json!(category.code()));
+    }
+    if let (false, Some(o)) = (m.gmail_labels.is_empty(), v.as_object_mut()) {
+        o.insert("gmailLabels".into(), json!(m.gmail_labels));
     }
     v
 }

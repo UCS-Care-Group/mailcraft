@@ -29,7 +29,7 @@ use std::sync::Arc;
 use mailcraft_engine::cmd::keys::key_facts;
 use mailcraft_engine::model::digital_signature::SignatureFormat;
 use mailcraft_engine::private_keys;
-use mailcraft_ui_egui::SecretStore;
+use mailcraft_host::SecretStore;
 use mailcraft_ui_egui::own_keys::{
     Gnupg, Imported, ImportedKey, KeyPlace, Listing, MAX_LISTED, OwnKey, OwnKeysAnswer, OwnKeysJob, Passphrase, SmimePlace, store_name,
 };

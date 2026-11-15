@@ -21,7 +21,7 @@ const NOW: i64 = 1_791_993_600;
 fn app() -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
-    a.auto_sync = false;
+    a.session.driver.set_auto_sync(false);
     a
 }
 
@@ -130,6 +130,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
+    ("ui.unsubscribe", "{}", Setup::None),
+    ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),
@@ -138,6 +140,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
     ("folder.delete", "{}", Setup::Folder),
     ("folder.empty", r#"{"id": $deleted}"#, Setup::None),
+    ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
@@ -224,6 +227,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
+    ("ui.closeToTray", r#"{"value": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
     ("ui.updateCheck", "{}", Setup::None),
     ("ui.updateInstall", "{}", Setup::None),
