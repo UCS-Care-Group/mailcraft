@@ -723,3 +723,21 @@ fn an_agents_pop_out_opens_behind() {
     assert_ne!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(w));
     assert_eq!(h.state().session.compose_id(), Some(mine));
 }
+
+/// A message in a window of its own switched to Plain Text while File › Signatures has a
+/// signature open: the signature isn't given the keyboard, and the message keeps its request
+/// while its editor can't take it (a signature is being edited), so that it has the keyboard once
+/// the signature is closed (#580).
+#[test]
+fn a_windows_format_switched_while_a_signature_is_open_gives_the_keyboard_back_to_its_message() {
+    let mut h = window(app());
+    let compose = new_window(&mut h);
+    script(&mut h, "ui.backstage", json!({"value": true, "page": "signatures"}));
+    assert!(h.state().session.signature_edit.is_some(), "a signature is open");
+    assert_eq!(h.state().session.compose_id(), Some(compose));
+    owner(&mut h, "compose.formatPlain", json!({}));
+    assert!(!h.state().signature_focus_wanted, "the signature isn't asked to take the keyboard");
+    assert_eq!(h.state().body_focus_wanted, Some(compose), "kept while its editor can't take it");
+    script(&mut h, "ui.backstage", json!({"value": false}));
+    assert_eq!(h.ctx.memory(|m| m.focused()), Some(crate::compose::editor::id_of(compose)), "the message has the keyboard");
+}

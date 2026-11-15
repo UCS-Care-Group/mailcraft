@@ -1016,6 +1016,21 @@ msgstr "之后"
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
 msgstr "在邮件中接受、暂定接受或拒绝会议请求，或从日历中移除已取消的会议后，邮件将移至“已删除邮件”。关闭此选项后，邮件会留在原处并显示您的答复。"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Left"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Align Right"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2433,6 +2448,11 @@ msgstr "抄送："
 #, fuzzy
 msgid "Cc: {names}"
 msgstr "抄送：{names}"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Center"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -5832,6 +5852,11 @@ msgstr "高重要性"
 #, fuzzy
 msgid "High on top"
 msgstr "高重要性在上"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Highlight"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/graph_send.rs
@@ -17904,6 +17929,11 @@ msgid "a message being written or waiting to be sent can't be snoozed"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a message holds at most {n} pictures"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "a message is saved in the background by the window's own timer alone"
@@ -18009,6 +18039,11 @@ msgstr "共享邮箱地址无法更改：请移除原邮箱并添加新的邮箱
 #, fuzzy
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "共享邮箱有自己的规则：此版本无法创建这些规则"
+
+#. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "a signature holds at most {n} pictures"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -19157,6 +19192,11 @@ msgid "that was only looked at, not read in full"
 msgstr "仅预览过，尚未完整读取"
 
 #. what a command says
+#: crates/model/src/rich.rs
+msgid "that would put the picture into the signature, which keeps only its own pictures: move the picture first"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "the .pst file couldn't be opened: {e}"
@@ -19939,6 +19979,11 @@ msgid "the signature has changes: save it, or close it with discard"
 msgstr "签名已有更改：请保存，或选择放弃更改后关闭"
 
 #. what a command says
+#: crates/engine/src/cmd/format.rs
+msgid "the signature in the message goes out with its own pictures only: put the picture outside it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature is no longer there"
@@ -20266,6 +20311,11 @@ msgstr "此重复日程中取消的日期过多"
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "此重复日程中更改的日期过多"
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs crates/model/src/signature.rs
+msgid "this signature has had as many pictures as it can"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

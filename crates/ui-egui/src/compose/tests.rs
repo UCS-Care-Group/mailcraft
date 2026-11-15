@@ -25,7 +25,13 @@ pub(super) fn app() -> MailApp {
 }
 
 pub(super) fn window(app: MailApp) -> Window {
-    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+    window_at(app, 1.0)
+}
+
+/// The window on a screen of `ppp` pixels to the point.
+pub(super) fn window_at(app: MailApp, ppp: f32) -> Window {
+    let builder = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0));
+    let mut harness = builder.with_pixels_per_point(ppp).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);
@@ -39,12 +45,17 @@ pub(super) fn window(app: MailApp) -> Window {
 
 /// A new message, with the keyboard in its body and nothing in it.
 pub(super) fn writing() -> Window {
+    writing_at(1.0)
+}
+
+/// [`writing`] on a screen of `ppp` pixels to the point.
+pub(super) fn writing_at(ppp: f32) -> Window {
     let mut a = app();
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"body": ""})).unwrap();
     a.execute("compose.select", json!({"from": 0})).unwrap();
     a.want_body_focus();
-    let mut h = window(a);
+    let mut h = window_at(a, ppp);
     h.run_steps(2);
     assert!(editor::has_focus(&h.ctx));
     h
@@ -252,8 +263,8 @@ fn the_clipboard_copies_cuts_and_pastes_through_commands() {
     assert_eq!(plain(&h), "alpha ");
 }
 
-/// Ctrl+U and Ctrl+Z are the body's only while it has the keyboard: elsewhere they mark the
-/// message unread and undo what was done to the mailbox.
+/// Ctrl+U, Ctrl+Z, Ctrl+R and Ctrl+E are the body's only while it has the keyboard: elsewhere
+/// they mark the message unread, undo what was done to the mailbox, reply and go to the search.
 #[test]
 fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     let mut a = app();
@@ -264,6 +275,7 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     let flagged = |h: &Window| h.state().session.mailbox.message(id).unwrap().flag == mailcraft_model::FlagStatus::Flagged;
     let read = |h: &Window| h.state().session.mailbox.message(id).unwrap().read;
     a.run("mail.reply", json!({"id": id})).unwrap();
+    a.run("compose.formatHtml", json!({})).unwrap();
     a.want_body_focus();
     let mut h = window(a);
     h.run_steps(2);
@@ -274,6 +286,20 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     key_with(&mut h, Modifiers::COMMAND, Key::Z);
     assert!(read(&h) && flagged(&h), "the mailbox is not touched from the body");
     assert_eq!(plain(&h), typed, "the typing was undone");
+    // Ctrl+R aligns right instead of replying, and Ctrl+E centres instead of going to the search.
+    let here = |h: &Window| {
+        let body = &h.state().session.compose.as_ref().unwrap().body;
+        body.text().align_at(body.selection().head)
+    };
+    let writing = |h: &Window| h.state().session.composing_count();
+    let (one, first) = (writing(&h), h.state().session.compose_id().unwrap());
+    key_with(&mut h, Modifiers::COMMAND, Key::R);
+    assert_eq!(here(&h), mailcraft_model::rich::Align::Right);
+    assert_eq!(writing(&h), one, "no other reply was started");
+    key_with(&mut h, Modifiers::COMMAND, Key::E);
+    assert_eq!(here(&h), mailcraft_model::rich::Align::Center);
+    let search = |h: &Window| h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id()));
+    assert!(editor::has_focus(&h.ctx) && !search(&h));
     // Out of the body: the same keys are the mailbox's.
     h.ctx.memory_mut(|m| m.surrender_focus(editor::id(h.state())));
     h.run_steps(2);
@@ -283,6 +309,55 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     key_with(&mut h, Modifiers::COMMAND, Key::U);
     assert!(!read(&h), "Ctrl+U marked the message unread");
     assert_eq!(plain(&h), typed);
+    key_with(&mut h, Modifiers::COMMAND, Key::E);
+    assert!(search(&h), "Ctrl+E gave the search box the keyboard");
+    key_with(&mut h, Modifiers::COMMAND, Key::R);
+    assert_eq!(writing(&h), one + 1, "Ctrl+R started a reply beside the message (#286)");
+    let current = h.state().session.compose.as_ref().unwrap();
+    assert!(current.id != first && current.mode == mailcraft_engine::ComposeMode::Reply, "a reply");
+    let typed_in = h.state().session.composing.iter().find(|c| c.id == first).unwrap();
+    assert_eq!(
+        typed_in.body.text().align_at(typed_in.body.selection().head),
+        mailcraft_model::rich::Align::Center,
+        "the message typed in is as it was"
+    );
+}
+
+/// Ctrl+Shift+R and Ctrl+Shift+E are not the body's: they reply to all and make a folder from it
+/// as from anywhere else, and leave the line as it was. (Ctrl+Alt+R replies with a meeting from
+/// the Calendar only, and is nothing in the body either.)
+#[test]
+fn the_alignment_keys_with_shift_or_alt_are_the_mailboxs_even_from_the_body() {
+    let mut a = app();
+    let id = a.session.rows().first().map(|r| r.id).unwrap();
+    a.run("mail.select", json!({"id": id})).unwrap();
+    a.run("mail.reply", json!({"id": id})).unwrap();
+    a.run("compose.formatHtml", json!({})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(editor::has_focus(&h.ctx));
+    let left = |h: &Window| {
+        let body = &h.state().session.compose.as_ref().unwrap().body;
+        body.text().paragraphs().iter().all(|p| p.align == mailcraft_model::rich::Align::Left)
+    };
+    let writing = |h: &Window| h.state().session.composing_count();
+    let (one, reply) = (writing(&h), h.state().session.compose_id().unwrap());
+    key_with(&mut h, Modifiers::COMMAND | Modifiers::ALT, Key::R);
+    assert!(h.state().dialog.is_none() && writing(&h) == one && left(&h), "Ctrl+Alt+R did nothing");
+    key_with(&mut h, Modifiers::COMMAND | Modifiers::SHIFT, Key::R);
+    assert_eq!(writing(&h), one + 1, "Ctrl+Shift+R started another message beside the reply (#286)");
+    let current = h.state().session.compose.as_ref().unwrap();
+    assert!(current.id != reply && current.mode == mailcraft_engine::ComposeMode::ReplyAll, "a reply to all");
+    let first = h.state().session.composing.iter().find(|c| c.id == reply).unwrap();
+    assert!(first.body.text().paragraphs().iter().all(|p| p.align == mailcraft_model::rich::Align::Left), "the reply typed in is as it was");
+    // In the body of the new reply.
+    h.state_mut().want_body_focus();
+    h.run_steps(2);
+    assert!(editor::has_focus(&h.ctx));
+    key_with(&mut h, Modifiers::COMMAND | Modifiers::SHIFT, Key::E);
+    assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::Folder { .. })), "Ctrl+Shift+E asked for the new folder's name");
+    assert!(left(&h));
 }
 
 #[test]
@@ -712,7 +787,7 @@ fn tab_takes_a_list_item_a_level_deeper_and_shift_tab_out() {
 }
 
 /// File › Signatures with "Standard" open and a message being written behind it.
-fn signature_page() -> Window {
+pub(super) fn signature_page() -> Window {
     let mut a = app();
     a.execute("mail.new", json!({})).unwrap();
     a.execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();

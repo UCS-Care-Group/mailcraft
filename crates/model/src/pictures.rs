@@ -24,6 +24,10 @@ pub const MAX_PICTURES_BYTES: usize = 20 * 1024 * 1024;
 pub const MAX_PICTURES: usize = 30;
 /// The widest a picture is made or shown, in pixels: a wider one is scaled down to this.
 pub const MAX_SHOWN_WIDTH: u16 = 1920;
+/// The narrowest a picture is shown, in pixels, in a message or a signature. HTML that makes a
+/// picture one pixel or two wide is read as hiding it (a tracker), so a copy of one that narrow
+/// would come back without it.
+pub const MIN_SHOWN_WIDTH: u16 = 3;
 /// Pictures above this many bytes together make the message noticeably heavy: the answer of
 /// `insert.picture` says so.
 pub const HEAVY_BYTES: usize = 2 * 1024 * 1024;
@@ -89,7 +93,7 @@ pub fn add(
         name: clean_name(name),
         mime: mime.to_string(),
         data: Arc::new(data),
-        width: width.map(|w| w.clamp(1, MAX_SHOWN_WIDTH)),
+        width: width.map(|w| w.clamp(MIN_SHOWN_WIDTH, MAX_SHOWN_WIDTH)),
         alt: alt.map(clean_alt).unwrap_or_default(),
     });
     Ok(id)
@@ -107,7 +111,7 @@ pub fn take(kept: &[Picture], id: u32, name: &str, data: Vec<u8>, alt: &str, wid
         name: clean_name(name),
         mime: mime.to_string(),
         data: Arc::new(data),
-        width: width.map(|w| w.clamp(1, MAX_SHOWN_WIDTH)),
+        width: width.map(|w| w.clamp(MIN_SHOWN_WIDTH, MAX_SHOWN_WIDTH)),
         alt: clean_alt(alt),
     })
 }

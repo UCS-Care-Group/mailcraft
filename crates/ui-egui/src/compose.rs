@@ -9,6 +9,8 @@ use serde_json::json;
 use crate::theme::{Tokens, paint_clipped, regular};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod align_tests;
 pub(crate) mod editor;
 #[cfg(test)]
 mod font_tests;
