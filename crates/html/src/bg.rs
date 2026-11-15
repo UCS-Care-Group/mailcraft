@@ -4,17 +4,17 @@
 //! `background-image`, `background-repeat`, `background-position`, `background-size` and the
 //! picture in `background`, from a `style` or the message's style sheets.
 //!
-//! A picture behind a box is a picture like any other: one attached to the message (`cid:`) or
-//! written into it (`data:`, within the caps a message's pictures share, `data.rs`) is shown;
-//! one on the web is shown only when the owner asked for the message's pictures, through the
-//! same request and the same limits as an `<img>`. Nothing here fetches anything: the address
-//! is kept, and a UI asks the host for it or not.
+//! Only a picture that is part of the message is shown behind a box: one attached to it (`cid:`)
+//! or written into it (`data:`, within the caps a message's pictures share, `data.rs`). One on
+//! the web (`http`, `https`) is never used, never kept and never asked for, whatever the owner
+//! allows: only an `<img>`'s address is fetched, and a background is not one (AGENTS.md). Nothing
+//! here fetches anything.
 //!
 //! What is read, and what isn't:
 //!
 //! | Read | As |
 //! |---|---|
-//! | the picture | the first `url()` in `background-image` or `background`; `none` and a gradient are no picture |
+//! | the picture | the first layer of `background-image` or `background` that has a `url()` (a gradient above it is passed over); `none` and a gradient alone are no picture |
 //! | repeating | `repeat`, `no-repeat`, `repeat-x`, `repeat-y` (`space` and `round` as `repeat`), or two of them |
 //! | where it starts | `left`, `center`, `right`, `top`, `bottom`, a percentage (0 to 100) or a length (0 to [`MAX_BG_OFFSET_PX`]; a negative one is 0); a four-value position is read for its keywords |
 //! | its size | `auto`, `cover`, `contain`, or a width and a height (a length, a percentage or `auto`) |
@@ -93,8 +93,8 @@ pub enum BgSize {
 /// A picture behind a box: its address and how it is laid behind what the box holds.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BgPicture {
-    /// A safe `http`, `https` or `cid:` address, or `data:` and its type for one written into
-    /// the message (never its content).
+    /// A `cid:` address, or `data:` and its type for one written into the message (never its
+    /// content). Never an address on the web.
     pub src: String,
     /// The bytes of a picture written into the message, when it can be shown.
     #[serde(skip)]
@@ -114,6 +114,9 @@ pub(crate) struct BgCss {
     /// The address as written; `Some(None)` where the style says there is none (`none`, a
     /// gradient, or a `background` without a picture).
     pub image: Option<Option<String>>,
+    /// Which layer of a list the picture is (the first one with a `url()`); the repeating,
+    /// position and size declared after it are read for that layer.
+    layer: usize,
     pub repeat: Option<BgRepeat>,
     pub position: Option<[BgOffset; 2]>,
     pub size: Option<BgSize>,
@@ -126,7 +129,8 @@ impl BgCss {
         match property {
             "background" => {
                 // The shorthand sets every part, to what it says or to the part's default.
-                let layer = first_layer(raw);
+                let (at, layer) = picture_layer(raw);
+                self.layer = at;
                 let (url, rest) = url_in(layer);
                 let rest = rest.to_ascii_lowercase();
                 // (A colour function is one word, and its own `/` is not the one before the size.)
@@ -143,19 +147,23 @@ impl BgCss {
                 let size_words: Vec<&str> = size.iter().copied().take_while(|w| is_size_word(w)).take(2).collect();
                 self.size = Some(sizes(&size_words).unwrap_or_default());
             }
-            "background-image" => self.image = Some(url_in(first_layer(raw)).0),
+            "background-image" => {
+                let (at, layer) = picture_layer(raw);
+                self.layer = at;
+                self.image = Some(url_in(layer).0);
+            }
             "background-repeat" => {
-                let lower = first_layer(raw).to_ascii_lowercase();
+                let lower = nth_layer(raw, self.layer).to_ascii_lowercase();
                 let words: Vec<&str> = lower.split_ascii_whitespace().collect();
                 self.repeat = repeat(&words).or(self.repeat);
             }
             "background-position" => {
-                let lower = first_layer(raw).to_ascii_lowercase();
+                let lower = nth_layer(raw, self.layer).to_ascii_lowercase();
                 let words: Vec<&str> = lower.split_ascii_whitespace().collect();
                 self.position = position(&words).or(self.position);
             }
             "background-size" => {
-                let lower = first_layer(raw).to_ascii_lowercase();
+                let lower = nth_layer(raw, self.layer).to_ascii_lowercase();
                 let words: Vec<&str> = lower.split_ascii_whitespace().take(2).collect();
                 self.size = sizes(&words).or(self.size);
             }
@@ -204,9 +212,11 @@ fn words<'a>(value: &'a str) -> Vec<&'a str> {
     out
 }
 
-/// The first layer of a value of several (`url(a), url(b)`): up to the first comma outside
-/// parentheses and quotes.
-fn first_layer(value: &str) -> &str {
+/// Most layers of a value of several that are looked at.
+const MAX_LAYERS: usize = 16;
+
+/// Where the first comma outside parentheses and quotes is.
+fn comma_at(value: &str) -> Option<usize> {
     let (mut depth, mut quote) = (0u32, 0u8);
     for (i, b) in value.bytes().enumerate() {
         match b {
@@ -214,11 +224,45 @@ fn first_layer(value: &str) -> &str {
             b if b == quote => quote = 0,
             b'(' if quote == 0 => depth = depth.saturating_add(1),
             b')' if quote == 0 => depth = depth.saturating_sub(1),
-            b',' if quote == 0 && depth == 0 => return value.get(..i).unwrap_or(value),
+            b',' if quote == 0 && depth == 0 => return Some(i),
             _ => {}
         }
     }
-    value
+    None
+}
+
+/// The layers of a value of several (`url(a), url(b)`), up to [`MAX_LAYERS`]: split at the
+/// commas outside parentheses and quotes.
+fn layers(value: &str) -> impl Iterator<Item = &str> {
+    let mut rest = Some(value);
+    std::iter::from_fn(move || {
+        let value = rest?;
+        match comma_at(value) {
+            Some(i) => {
+                rest = value.get(i + 1..);
+                Some(value.get(..i).unwrap_or(value))
+            }
+            None => {
+                rest = None;
+                Some(value)
+            }
+        }
+    })
+    .take(MAX_LAYERS)
+}
+
+/// The layer that holds the picture: the first with a `url()` (a gradient above a picture does
+/// not hide it from us), else the first; and its place in the list.
+fn picture_layer(value: &str) -> (usize, &str) {
+    let has_url = |layer: &&str| layer.as_bytes().windows(4).any(|w| w.eq_ignore_ascii_case(b"url("));
+    layers(value).enumerate().find(|(_, layer)| has_url(layer)).unwrap_or_else(|| (0, layers(value).next().unwrap_or(value)))
+}
+
+/// The layer of a list that the picture at `at` goes with: a list shorter than the one of
+/// pictures starts over, as in CSS.
+fn nth_layer(value: &str, at: usize) -> &str {
+    let count = layers(value).count().max(1);
+    layers(value).nth(at % count).unwrap_or(value)
 }
 
 /// The address of the first `url()` in a value (letter case kept, quotes and white space round
@@ -251,6 +295,19 @@ pub(crate) fn url_in(value: &str) -> (Option<String>, String) {
     let rest = format!("{} {}", value.get(..start).unwrap_or(""), value.get(end + 1..).unwrap_or(""));
     let url = unquoted.trim();
     ((!url.is_empty()).then(|| url.to_string()), rest)
+}
+
+/// A value without its `url()`s: the colour and the words of a `background` that is long for the
+/// picture written into it.
+pub(crate) fn without_urls(value: &str) -> String {
+    let mut value = value.to_string();
+    for _ in 0..MAX_LAYERS {
+        if !value.as_bytes().windows(4).any(|w| w.eq_ignore_ascii_case(b"url(")) {
+            break;
+        }
+        value = url_in(&value).1;
+    }
+    value
 }
 
 /// The repeating that words say, when they say any: one keyword, or two (across, then down).

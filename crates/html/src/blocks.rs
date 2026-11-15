@@ -1141,7 +1141,8 @@ impl Builder {
 
     /// The picture behind an element (#601), when it may have one: what its style says, else its
     /// `background` attribute where `attribute` (a table, a cell, the body), as written for one
-    /// written into the message (`data:`), else a safe `http`, `https` or `cid:` address. None for
+    /// written into the message (`data:`), else a `cid:` address (one attached to the message).
+    /// An address on the web is none: such a picture is never used, so never asked for. None for
     /// an element that is hidden or inside one that is (what is not shown is never asked for),
     /// and none for one that says it is 2 pixels or less across or high: a tracking pixel, as
     /// such an `<img>` is. Nothing is decoded here ([`Builder::bg_picture`]).
@@ -1165,25 +1166,39 @@ impl Builder {
     }
 
     /// The picture behind a box that is shown, from what [`Builder::bg_source`] gave: one attached
-    /// to the message or on the web kept by its address, under the same rules as an `<img>`'s;
-    /// one written into it decoded within the caps the message's pictures share, and no picture
-    /// when it can't be.
+    /// to the message kept by its address; one written into it decoded within the caps the
+    /// message's pictures share, and no picture when it can't be. For a table or a cell use
+    /// [`Builder::bg_pending`] and [`Builder::bg_decoded`] instead, which decode only for a box
+    /// that is kept.
     fn bg_picture(&mut self, source: Option<String>, css: &Css) -> Option<Box<BgPicture>> {
-        let source = source?;
-        let (src, data) = if data::is_data(&source) {
-            let (src, data) = data::picture(&source, self.decode, &mut self.budget);
-            (src, Some(data?))
-        } else {
-            (source, None)
-        };
+        let pending = Self::bg_pending(source, css);
+        self.bg_decoded(pending)
+    }
+
+    /// The picture behind a box as far as it is known before it is known that the box stays: a
+    /// picture written into the message is not yet decoded (`data` is `None` and `src` is all of
+    /// it), as that takes from the budget every picture of the message shares.
+    fn bg_pending(source: Option<String>, css: &Css) -> Option<Box<BgPicture>> {
         let bg = &css.bg;
         Some(Box::new(BgPicture {
-            src,
-            data,
+            src: source?,
+            data: None,
             repeat: bg.repeat.unwrap_or_default(),
             position: bg.position.unwrap_or_default(),
             size: bg.size.unwrap_or_default(),
         }))
+    }
+
+    /// What [`Builder::bg_pending`] made, for a box that is kept: a picture written into the
+    /// message is decoded now, and is no picture when it can't be.
+    fn bg_decoded(&mut self, pending: Option<Box<BgPicture>>) -> Option<Box<BgPicture>> {
+        let mut picture = pending?;
+        if data::is_data(&picture.src) && picture.data.is_none() {
+            let (src, data) = data::picture(&picture.src, self.decode, &mut self.budget);
+            picture.src = src;
+            picture.data = Some(data?);
+        }
+        Some(picture)
     }
 
     fn image(&mut self, tag: &Tag<'_>) {
@@ -1668,7 +1683,15 @@ impl Builder {
         if table.flat {
             return;
         }
-        let mut rows = table.rows;
+        let mut table = table;
+        let mut rows = std::mem::take(&mut table.rows);
+        // A cell's picture written into the message is decoded now that its table is made, and not
+        // before: a cell that was not kept (past the caps, or in a table that is flat) takes
+        // nothing from the budget. One that can't be decoded is no picture, so a cell without
+        // anything else is still one that only makes room.
+        for cell in rows.iter_mut().flat_map(|r| &mut r.cells) {
+            cell.bg_picture = self.bg_decoded(cell.bg_picture.take());
+        }
         let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
         rows.retain(|r| !r.cells.iter().all(empty));
@@ -1711,21 +1734,11 @@ impl Builder {
             }
             rows.retain(|r| !r.cells.is_empty());
         }
-        // The one cell left of a table that holds nothing has no picture behind it: there is
-        // nothing to read against it, and a picture on the web would only tell its server the
-        // message was read. (Looked at after the rows and columns that only make room are gone:
-        // a sender can add an empty cell or row beside it. An empty cell beside others that
-        // stay keeps its own: it is a part of their layout.)
-        if let [row] = &mut rows[..]
-            && let [cell] = &mut row.cells[..]
-            && cell.blocks.is_empty()
-        {
-            cell.bg_picture = None;
-            rows.retain(|r| !r.cells.iter().all(empty));
-        }
         if rows.is_empty() {
             return;
         }
+        // The table's own picture, now that there is a table to put it behind.
+        table.bg_picture = self.bg_decoded(table.bg_picture.take());
         let columns =
             rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS);
         // A table that only wraps a column of things is those things. Unless the things are
@@ -1848,7 +1861,8 @@ impl Builder {
         let inline = parent.is_some();
         let float = if inline { floated(tag, &css) } else { None };
         let source = if self.frames.len() < MAX_TABLE_DEPTH { self.bg_source(tag, &css, true) } else { None };
-        let bg_picture = self.bg_picture(source, &css);
+        // (Decoded when the table is made, if it stays: [`Builder::end_table`].)
+        let bg_picture = Self::bg_pending(source, &css);
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
@@ -1974,7 +1988,8 @@ impl Builder {
         let css = css_of(tag);
         let attr = |attribute: &str| if matches!(name, "td" | "th") { tag.attr(attribute) } else { None };
         let source = self.bg_source(tag, &css, matches!(name, "td" | "th"));
-        let bg_picture = self.bg_picture(source, &css);
+        // (Decoded when its table is made, if it stays: [`Builder::end_table`].)
+        let bg_picture = Self::bg_pending(source, &css);
         let span = |name: &str, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
         let build = CellBuild {
             header,
@@ -2765,12 +2780,12 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     is_safe_url(&url).then_some(url)
 }
 
-/// The address of a picture behind a box on the web or attached to the message, when it may be
-/// used: [`picture_url`], and `http`, `https` or `cid:` alone.
+/// The address of a picture behind a box attached to the message, when it may be used:
+/// [`picture_url`], and `cid:` alone. An address on the web is never used for one.
 fn bg_url(raw: String) -> Option<String> {
     let src = picture_url(Some(raw))?;
     let scheme = src.split_once(':').map_or("", |(scheme, _)| scheme);
-    ["http", "https", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s)).then_some(src)
+    scheme.eq_ignore_ascii_case("cid").then_some(src)
 }
 
 /// Where each cell of `rows` sits, as the reading pane places it: its first column and how many it

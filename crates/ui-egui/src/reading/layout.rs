@@ -173,8 +173,8 @@ pub enum ItemKind {
     Backdrop(BackdropItem),
 }
 
-/// A picture behind a box (`super::backdrop`): one of the message's own, or one from the web
-/// that the owner asked for and that has come.
+/// A picture behind a box (`super::backdrop`): one of the message's own, attached to it or
+/// written into it. Never one from the web.
 #[derive(Clone, Debug)]
 pub struct BackdropItem {
     pub data: Arc<Vec<u8>>,
@@ -468,8 +468,8 @@ impl Cx<'_> {
     }
 
     /// Keep a place in the painting order for the picture behind a box, when there is one to show
-    /// (#601): the message's own, or one from the web the owner asked for that has come, under the
-    /// caps of every other picture. Its size is known when the box's is ([`Cx::fill_behind`]).
+    /// (#601): the message's own (attached to it or written into it), under the caps of every
+    /// other picture. Its size is known when the box's is ([`Cx::fill_behind`]).
     fn behind_slot(&mut self, picture: Option<&BgPicture>) -> Option<Behind> {
         let picture = picture?;
         super::backdrop::tint(&self.t)?;
@@ -477,15 +477,8 @@ impl Cx<'_> {
             return None;
         }
         let src = picture.src.trim();
-        let mut bytes =
+        let bytes =
             picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
-        if bytes.is_none()
-            && self.remote
-            && images::is_remote(src)
-            && let Some(images::Remote::Ready(data)) = self.pictures.remote(src, self.frame)
-        {
-            bytes = Some(data);
-        }
         let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
         self.stats.behind += 1;
         Some(Behind { slot: self.slot(), data, size })

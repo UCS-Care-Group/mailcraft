@@ -6,8 +6,9 @@
 //! presentational facts as a `style` attribute ([`crate::style`]); a style sheet is one more
 //! source of the same values, never a new kind of presentation. Nothing in a sheet is run or
 //! fetched: `@import`, `@font-face`, `@media` (for now), every other at-rule, `url()` (but in a
-//! background, whose picture is kept as an address for the reading pane to show under the rules
-//! for pictures, `bg.rs`), `content` and everything else the whitelist doesn't name are ignored.
+//! background, whose picture is read only when it is attached to the message or written into it,
+//! never one on the web, `bg.rs`), `content` and everything else the whitelist doesn't name are
+//! ignored.
 //!
 //! What is read is CSS as a browser reads it, from our own code (no CSS crate):
 //!
@@ -1090,8 +1091,10 @@ fn read_declaration(text: &str, out: &mut Vec<Decl>) {
     let (value, important) = crate::style::strip_important(value);
     let lower = value.to_ascii_lowercase();
     let background = property.starts_with("background");
+    // (A `background` long for the picture written into it keeps its colour: see `style.rs`.)
+    let too_long = value.len() > MAX_VALUE && !(property == "background" && crate::bg::without_urls(value).len() <= MAX_VALUE);
     if value.is_empty()
-        || value.len() > MAX_VALUE
+        || too_long
         || (!background && lower.contains("url("))
         || lower.contains("expression(")
         || lower.contains("image-set(")

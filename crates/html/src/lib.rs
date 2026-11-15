@@ -16,7 +16,7 @@
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
 //! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
 //! paragraph has a margin or a table cell a border at all, and the picture behind a table, a cell
-//! or a block (`bg.rs`), kept by its address. The message's `<style>` blocks are
+//! or a block (`bg.rs`), when it is attached to the message or written into it (never one on the web). The message's `<style>` blocks are
 //! read for the same whitelist and nothing else (`sheet.rs`: selectors, specificity, order,
 //! `!important`, within caps); they are never run and nothing in them is fetched.
 //!

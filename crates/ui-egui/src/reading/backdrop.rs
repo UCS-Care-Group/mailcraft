@@ -3,10 +3,9 @@
 //! Pictures behind a box (#601): a table's, a cell's, a block's or the body's, from its
 //! `background` attribute or its style (`mailcraft_html::BgPicture`).
 //!
-//! The picture is one of the message's own (attached, `cid:`, or written into it, `data:`), shown
-//! always, or one on the web, shown only when the owner asked for the message's pictures and it
-//! has come: the same bytes, the same limits and the same request as an `<img>` (`images.rs`,
-//! `remote.rs`). It is painted over the box's colour and under what the box holds, clipped to
+//! The picture is one of the message's own (attached, `cid:`, or written into it, `data:`) and
+//! nothing else: one on the web is never fetched for a background, whatever the owner allows, as
+//! only an `<img>`'s address is (the parser keeps none, `mailcraft_html::BgPicture`). It is painted over the box's colour and under what the box holds, clipped to
 //! the box (to its rectangle: rounded corners are not cut off it), at the size and place its
 //! style asks, once or repeated across and down. The copies are counted for the part of the
 //! box in view: past [`MAX_TILES`] they are drawn larger, as few as cover it, so a picture of a

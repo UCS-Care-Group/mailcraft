@@ -1,23 +1,21 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #601: pictures behind a box: the message's own always, the ones on the web under the rules of
-//! every other picture on the web.
+//! #601: pictures behind a box: the message's own (attached or written into it) always, and none
+//! from the web ever: only an `<img>`'s address is asked for.
 //!
 //! The people, addresses and pictures are invented.
-
-use std::sync::Arc;
 
 use egui::Color32;
 use mailcraft_model::Attachment;
 
 use super::{html_message, in_frame, png};
 use crate::reading::backdrop::DARK_TINT;
-use crate::reading::images::{Pictures, Remote};
+use crate::reading::images::Pictures;
 use crate::reading::layout::{BackdropItem, ItemKind, Laid};
 use crate::reading::view::Doc;
 
 /// `m` laid out to the end at 820 points, showing the pictures from the web that have come when
-/// `remote`.
+/// `remote` (a picture behind a box is none of them).
 fn laid(ctx: &egui::Context, m: &mailcraft_model::Message, remote: bool) -> Laid {
     let doc = Doc::of(m);
     let pictures = Pictures::of(ctx);
@@ -116,26 +114,54 @@ fn a_picture_written_into_the_message_is_behind_the_body() {
     });
 }
 
+/// A message with a picture from the web behind a table, a cell, a block and the body (each a
+/// different address, by an attribute, a style and a style sheet), and one `<img>` from there.
+fn web_behind(n: usize, host: &str) -> mailcraft_model::Message {
+    let at = |what: &str| format!("https://{host}/{what}.png");
+    let html = format!(
+        "<style>.band{{background:#203040 url('{}') repeat-x}}</style>         <body background=\"{}\"><table width=600 background=\"{}\"><tr><td style=\"background-image:url('{}')\">One</td>         <td background=\"{}\" bgcolor=\"#f4efe6\">Two</td></tr></table>         <div class=\"band\" style=\"padding:8px\">Three</div>         <div style=\"background-image:url('{}');padding:8px\">Four</div>         <p>Five</p><img src=\"{}\" width=40 height=30 alt=\"A picture\"></body>",
+        at("sheet"),
+        at("body"),
+        at("table"),
+        at("cell-style"),
+        at("cell-attr"),
+        at("block"),
+        at("img")
+    );
+    html_message(n, ("Rowan Ash", "rowan@example.org"), "Backgrounds", &html)
+}
+
 #[test]
-fn a_picture_on_the_web_behind_a_box_waits_for_the_owner() {
-    let url = "https://img.example.org/2026/hero.png";
-    let m = hero(&format!("<td style=\"background:#203040 url('{url}') center / cover no-repeat\">"));
-    // It is one of the message's pictures on the web, asked for with the others.
-    let doc = Doc::of(&m);
-    assert_eq!((doc.remote.len(), doc.remote_pictures), (1, 1));
-    assert_eq!(&*doc.remote[0], url);
-    in_frame(false, |ctx| {
-        // The bytes are at hand (another message's, say): without the owner's say so they are not shown.
-        Pictures::of(ctx).lock().unwrap().set_remote(Arc::from(url), Remote::Ready(Arc::new(png(60, 20))), 0);
-        assert!(behind(&laid(ctx, &m, false)).is_empty());
-        let shown = laid(ctx, &m, true);
-        let behind = behind(&shown);
-        assert_eq!(behind.len(), 1);
-        // `cover`: as small as fills the cell, its shape kept.
-        let (rect, item) = behind[0];
-        assert!(item.tile.x >= rect.width() - 0.5 && item.tile.y >= rect.height() - 0.5, "{item:?} in {rect:?}");
-        assert!((item.tile.x / item.tile.y - 3.0).abs() < 0.01);
-    });
+fn a_picture_on_the_web_behind_a_box_is_never_asked_for() {
+    use serde_json::json;
+    let (inbox, junk) = (web_behind(0, "a.img.example"), web_behind(1, "b.img.example"));
+    // Nothing of it is one of the message's pictures on the web but the `<img>`.
+    for m in [&inbox, &junk] {
+        let doc = Doc::of(m);
+        assert_eq!((doc.remote.len(), doc.remote_pictures), (1, 1), "{:?}", doc.remote);
+        assert!(doc.remote[0].ends_with("/img.png"));
+    }
+    let (mut app, ids) = super::app_with(vec![inbox, junk]);
+    app.execute("mail.junk", json!({"ids": [ids[1]]})).unwrap();
+    let host = super::Host::answering(&mut app, |_| Ok(png(32, 32)));
+    // Pictures are downloaded for all mail at once, and the owner asks for the one in Junk E-mail.
+    app.execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap();
+    let mut harness = super::window(app, (1280.0, 1000.0));
+    super::select(&mut harness, ids[0]);
+    harness.run_steps(8);
+    super::select(&mut harness, ids[1]);
+    let download = harness.state().hit.rect("downloadPictures", ids[1]).expect("no way to ask for the pictures");
+    super::click_at(&mut harness, download.center());
+    harness.run_steps(8);
+    // Both asked for their `<img>`, and neither for a picture behind a box.
+    let mut asked = host.asked();
+    asked.sort();
+    assert_eq!(asked, ["https://a.img.example/img.png", "https://b.img.example/img.png"]);
+    // Nor is one painted: the boxes have their colours alone.
+    for id in [ids[0], ids[1]] {
+        let backdrops = crate::reading::view::kept(&harness.ctx, id, |laid, _| behind(laid).len()).unwrap();
+        assert_eq!(backdrops, 0);
+    }
 }
 
 #[test]
@@ -150,74 +176,6 @@ fn a_picture_that_is_missing_or_not_a_picture_leaves_the_colour() {
         // The cell's colour is there still.
         assert!(laid.items.iter().any(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == Color32::from_rgb(0x20, 0x30, 0x40))));
     });
-}
-
-#[test]
-fn an_address_an_img_shows_too_is_not_behind_only() {
-    let url = "https://img.example.org/2026/hero.png";
-    let only = "https://img.example.org/2026/paper.png";
-    let html = format!(
-        "<table width=600 style=\"background-image:url('{only}')\"><tr><td style=\"background-image:url('{url}')\">\
-         <img src=\"{url}\" width=60 height=20 alt=\"Hero\"><p>Autumn sale</p></td></tr></table>"
-    );
-    let m = html_message(0, ("Rowan Ash", "rowan@example.org"), "Autumn", &html);
-    let doc = Doc::of(&m);
-    assert_eq!(doc.remote.iter().map(|u| &**u).collect::<Vec<_>>(), [url, only]);
-    assert_eq!(doc.behind_only.iter().map(|u| &**u).collect::<Vec<_>>(), [only]);
-    // With high contrast no picture behind a box is painted: the one the `<img>` shows is still asked for.
-    assert_eq!(doc.wanted(false).count(), 2);
-    assert_eq!(doc.wanted(true).map(|u| &**u).collect::<Vec<_>>(), [url]);
-}
-
-#[test]
-fn with_high_contrast_a_picture_only_behind_a_box_is_not_asked_for() {
-    use serde_json::json;
-    let (mut app, ids) = super::corpus_app(false);
-    app.execute("ui.highContrast", json!({"on": true})).unwrap();
-    // The host holds its answers: the newsletter's pictures wait their turn, a few at a time.
-    let host = super::Host::holding(&mut app);
-    let id = super::id_of(&ids, "newsletter");
-    let mut harness = super::window(app, (1280.0, 1000.0));
-    super::select(&mut harness, id);
-    let download = harness.state().hit.rect("downloadPictures", id).expect("no way to ask for the pictures");
-    super::click_at(&mut harness, download.center());
-    for _ in 0..12 {
-        host.release(usize::MAX, || Ok(png(32, 32)));
-        harness.run_steps(2);
-    }
-    // Its eight `<img>`s, and not the picture behind the whole message, which is not painted.
-    assert_eq!(host.asked(), super::NEWSLETTER_PICTURES[..8]);
-    assert!(!super::says(&harness, "Downloading pictures"));
-
-    // High contrast off: it is painted again, so it is asked for.
-    harness.state_mut().execute("ui.highContrast", json!({"on": false})).unwrap();
-    for _ in 0..4 {
-        host.release(usize::MAX, || Ok(png(32, 32)));
-        harness.run_steps(2);
-    }
-    assert_eq!(host.asked(), super::NEWSLETTER_PICTURES);
-
-    // Turned on while it waits its turn, it is not asked for after all: four `<img>`s on their
-    // way, the picture behind the message waiting for one of them to come.
-    let pictures = super::web_pictures("img.example.org", 4);
-    let behind = "https://img.example.org/bg/paper.png";
-    let imgs: String = pictures.iter().map(|src| format!("<p>Picture:</p><img src=\"{src}\" width=40 height=30 alt=\"A picture\">")).collect();
-    let html = format!("<body style=\"background-image:url('{behind}')\">{imgs}</body>");
-    let m = html_message(0, ("Rowan Ash", "rowan@example.org"), "Paper", &html);
-    let (mut app, ids) = super::app_with(vec![m]);
-    let host = super::Host::holding(&mut app);
-    let mut harness = super::window(app, (1280.0, 1000.0));
-    super::select(&mut harness, ids[0]);
-    let download = harness.state().hit.rect("downloadPictures", ids[0]).expect("no way to ask for the pictures");
-    super::click_at(&mut harness, download.center());
-    harness.run_steps(2);
-    assert_eq!(host.asked(), pictures);
-    // The four come, and high contrast is turned on before the next frame takes up what waits.
-    host.release(usize::MAX, || Ok(png(32, 32)));
-    harness.state_mut().execute("ui.highContrast", json!({"on": true})).unwrap();
-    harness.run_steps(6);
-    assert_eq!(host.asked(), pictures);
-    assert!(!super::says(&harness, "Downloading pictures"));
 }
 
 #[test]

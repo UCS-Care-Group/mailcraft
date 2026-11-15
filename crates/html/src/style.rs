@@ -12,8 +12,8 @@
 //! | Read | From |
 //! |---|---|
 //! | text colour | `color` |
-//! | background colour | `background-color`, the colour in `background` |
-//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): one in the message always, one on the web only when the owner asks for the message's pictures |
+//! | background colour | `background-color`, the colour in `background` (also in one too long for the picture written into it) |
+//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): only one that is attached to the message or written into it, never one on the web |
 //! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
 //! | alignment | `text-align` |
@@ -51,7 +51,7 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
-use crate::bg::{BgCss, is_bg_property};
+use crate::bg::{BgCss, is_bg_property, without_urls};
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
     MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
@@ -201,6 +201,15 @@ impl Css {
             if is_bg_property(&property) {
                 css.bg.read(&property, strip_important(value).0);
             }
+            // (A `background` that is long for the picture written into it keeps its colour: the
+            // pictures are taken out of it before its length is held to the cap.)
+            let shorn;
+            let value = if property == "background" && value.len() > MAX_VALUE {
+                shorn = without_urls(value);
+                shorn.as_str()
+            } else {
+                value
+            };
             if value.len() > MAX_VALUE {
                 continue;
             }
