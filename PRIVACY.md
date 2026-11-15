@@ -39,6 +39,9 @@ send ([Problem reports](#problem-reports)).
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.
+- **Recent files for attachments** on Windows are read from Windows Recent Items when the menu
+  opens. The list stays on the computer. Files behind reparse points, including OneDrive
+  Files On-Demand entries, are omitted.
 - **Attachment previews** are off until you enable them in File › Options. Previewing passes a
   temporary copy of the selected attachment and rendering arguments to a local executable, which
   runs with your operating system permissions. For PDFs or images respectively, MailCraft uses
