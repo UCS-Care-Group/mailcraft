@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The stand-in held against the client side of this crate, and the stand-in's own strictness.
 use super::*;
+
+const USER: &str = "owner@example.org";
 use crate::answer::{Collections, Multistatus};
 use crate::request::{Endpoint, Kind, Stamp};
 use crate::status::{Verdict, classify};
@@ -11,7 +13,7 @@ fn event(uid: &str, start: &str) -> String {
 }
 
 fn server() -> (StandIn, Endpoint) {
-    let s = StandIn::new("https://dav.example.org").unwrap();
+    let s = StandIn::new("https://dav.example.org", USER, "test-only-not-a-secret").unwrap();
     s.add_calendar("work", "Work", false);
     s.add_calendar("shared", "Shared", true);
     s.add_task_list("tasks", "Tasks");

@@ -31,10 +31,6 @@ use crate::xml::{self, CALDAV, CARDDAV, DAV, Node};
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
-/// The user name a stand-in takes unless it is told another.
-pub const USER: &str = "owner@example.org";
-/// The password a stand-in takes.
-pub const PASSWORD: &str = "standin-password-only-for-tests";
 /// The `DAV` header of a server that does CalDAV and CardDAV.
 pub const DAV_HEADER: &str = "1, 2, 3, calendar-access, addressbook, extended-mkcol";
 
@@ -126,16 +122,16 @@ enum Res<'a> {
 }
 
 impl StandIn {
-    /// A server at `origin` (`https://dav.example.org`), with a user and a password and no
-    /// collections.
-    pub fn new(origin: &str) -> Result<Self, crate::http::EndpointError> {
+    /// A server at `origin` (`https://dav.example.org`) that takes `user` and `password` (the
+    /// tests' own, never a real one) and has no collections.
+    pub fn new(origin: &str, user: &str, password: &str) -> Result<Self, crate::http::EndpointError> {
         let parsed = Origin::parse(origin)?;
         let state = State {
             origin: parsed.clone(),
             quirks: Quirks::default(),
             host: parsed.base(),
-            user: USER.into(),
-            password: PASSWORD.into(),
+            user: user.into(),
+            password: password.into(),
             colls: Vec::new(),
             next_etag: 1,
             violations: Vec::new(),
@@ -151,7 +147,8 @@ impl StandIn {
     }
     /// The credential the stand-in takes.
     pub fn credential(&self) -> Secret {
-        Secret::basic(USER, PASSWORD)
+        let s = self.lock();
+        Secret::basic(&s.user, &s.password)
     }
     /// Sets the quirks.
     pub fn set_quirks(&self, quirks: Quirks) {

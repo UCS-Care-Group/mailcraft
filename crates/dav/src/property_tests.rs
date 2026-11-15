@@ -123,7 +123,7 @@ proptest! {
     #[test]
     fn stand_in_takes_any_request_body(body in proptest::collection::vec(any::<u8>(), 0..200), which in 0usize..5, depth in "[01x]") {
         use crate::http::{HttpExchange, HttpRequest, Method};
-        let s = crate::standin::StandIn::new("https://dav.example.org").unwrap();
+        let s = crate::standin::StandIn::new("https://dav.example.org", "u", "test-only-not-a-secret").unwrap();
         s.add_calendar("work", "Work", false);
         let method = [Method::Propfind, Method::Report, Method::Put, Method::Delete, Method::Get][which];
         let auth = s.credential();

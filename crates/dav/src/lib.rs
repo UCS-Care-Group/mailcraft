@@ -12,7 +12,8 @@ pub mod document;
 pub mod href;
 pub mod http;
 #[cfg(test)]
-mod proptests;
+#[path = "property_tests.rs"]
+mod property_tests;
 pub mod request;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;
