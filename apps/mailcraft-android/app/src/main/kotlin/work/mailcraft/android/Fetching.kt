@@ -12,21 +12,21 @@ import uniffi.mailcraft_mobile.OpenState
 import uniffi.mailcraft_mobile.ServerSearchAnswer
 
 /** What opening a message found: the reading pane shows it, waits for it, or says why it can't. */
-internal sealed interface Opened {
+internal sealed interface OpenResult {
     /** On the phone whole: read it. */
-    data object Here : Opened
+    data object Here : OpenResult
 
     /** Being downloaded: [FetchOutcome] follows through the event stream. */
-    data object Downloading : Opened
+    data object Downloading : OpenResult
 
     /** Only its headers are here, and the phone is offline. */
-    data object Offline : Opened
+    data object Offline : OpenResult
 
     /** It can't be downloaded: [reason] is the core's, in the owner's language. */
-    class Unavailable(val reason: String) : Opened
+    class Unavailable(val reason: String) : OpenResult
 
     companion object {
-        fun of(state: OpenState): Opened = when (state) {
+        fun of(state: OpenState): OpenResult = when (state) {
             is OpenState.Here -> Here
             is OpenState.Fetching -> Downloading
             is OpenState.Offline -> Offline
@@ -105,7 +105,7 @@ internal enum class AttachmentUse {
  * run without the library. A message's text and attachments are the sender's: shown, never run.
  */
 internal interface FetchApi {
-    suspend fun open(message: ULong): Opened
+    suspend fun open(message: ULong): OpenResult
 
     /** The attachment's file, waiting for its message when it isn't on the phone yet; null when it can't be had. */
     suspend fun attachment(message: ULong, index: UInt): AttachmentFile?
@@ -118,11 +118,11 @@ internal interface FetchApi {
 
 /** [FetchApi] over the Rust core. */
 internal class CoreFetching(private val core: Core) : FetchApi {
-    override suspend fun open(message: ULong): Opened =
+    override suspend fun open(message: ULong): OpenResult =
         try {
-            Opened.of(core.openMessage(message))
+            OpenResult.of(core.openMessage(message))
         } catch (e: CoreException) {
-            Opened.Unavailable(e.message ?: "")
+            OpenResult.Unavailable(e.message.orEmpty())
         }
 
     override suspend fun attachment(message: ULong, index: UInt): AttachmentFile? =

@@ -15,11 +15,11 @@ import uniffi.mailcraft_mobile.OpenState
 class FetchingTest {
     @Test
     fun theCoresAnswersAreReadIntoTheAppsOwnTypes() {
-        assertEquals(Opened.Here, Opened.of(OpenState.Here))
-        assertEquals(Opened.Downloading, Opened.of(OpenState.Fetching))
-        assertEquals(Opened.Offline, Opened.of(OpenState.Offline))
-        val unavailable = Opened.of(OpenState.Unavailable("no sign-in"))
-        assertTrue(unavailable is Opened.Unavailable && unavailable.reason == "no sign-in")
+        assertEquals(OpenResult.Here, OpenResult.of(OpenState.Here))
+        assertEquals(OpenResult.Downloading, OpenResult.of(OpenState.Fetching))
+        assertEquals(OpenResult.Offline, OpenResult.of(OpenState.Offline))
+        val unavailable = OpenResult.of(OpenState.Unavailable("no sign-in"))
+        assertTrue(unavailable is OpenResult.Unavailable && unavailable.reason == "no sign-in")
         for (failure in FetchFailure.entries) {
             assertEquals(failure.name.replace("_", ""), FetchProblem.of(failure).name.uppercase())
         }
