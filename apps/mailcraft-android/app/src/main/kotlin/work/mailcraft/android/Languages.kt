@@ -62,5 +62,6 @@ internal object LanguageChoice {
      * choice, which before Android 13 is not in the application's own configuration, else the
      * system's language.
      */
-    fun inUse(context: Context): String = inUse(ContextCompat.getContextForLanguage(context).resources.configuration.locales)
+    fun inUse(context: Context): String =
+        inUse(ContextCompat.getContextForLanguage(context).resources.configuration.locales)
 }
