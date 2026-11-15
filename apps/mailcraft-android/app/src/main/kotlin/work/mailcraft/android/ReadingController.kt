@@ -180,43 +180,45 @@ internal class ReadingController(
         if (state != null) put(mine, url, state)
     }
 
+    /** Why a download did not go ahead, once its permit was in hand. */
+    private enum class Turn { Go, Gone, Revoked, Saving, LeftOut }
+
+    /** The owner's word and the budget, looked at again with the permit in hand (a long wait may have passed). */
+    private suspend fun admit(mine: Int, id: ULong): Turn = when {
+        mine != generation.get() -> Turn.Gone
+        state.value.access != PictureAccess.Allowed -> Turn.Revoked
+        // Data saving may have been switched on meanwhile: without a tap the picture waits for one.
+        PicturePolicy.waits(source.dataSaving(), synchronized(this) { id in tapped }) -> Turn.Saving
+        !budget.take(id) -> Turn.LeftOut
+        else -> Turn.Go
+    }
+
     /** The picture's state, or null when the owner left the message first (nothing is asked, nothing is kept). */
     private suspend fun download(mine: Int, id: ULong, url: String): PictureState? {
         if (mine != generation.get()) return null
-        // Checked again with the permit in hand: a download queued behind others may be a long wait.
-        var leftOut = false
-        var held = false
+        var turn = Turn.Go
         val got = flights.withPermit {
-            when {
-                mine != generation.get() -> null
-                // The owner may have taken the permission back while this waited its turn: nothing is
-                // asked, and the claim is let go, so that a later yes in this generation asks again.
-                state.value.access != PictureAccess.Allowed -> {
-                    held = true
-                    null
-                }
-                !budget.take(id) -> {
-                    leftOut = true
-                    null
-                }
-                else -> source.download(url, stopOf(mine))
-            }
+            turn = admit(mine, id)
+            if (turn == Turn.Go) source.download(url, stopOf(mine)) else null
         }
-        if (held) release(mine, url)
+        // A claim let go of: a later yes in this generation asks again.
+        if (turn == Turn.Revoked) release(mine, url)
+        if (turn == Turn.Saving && mine == generation.get()) state.update { it.copy(waiting = true) }
         return when {
-            leftOut -> PictureState.LeftOut
+            turn == Turn.Saving -> PictureState.Waiting
+            turn == Turn.LeftOut -> PictureState.LeftOut
             got == null || mine != generation.get() -> null
-            got is Fetched.Got -> {
-                budget.add(id, got.bytes.size)
-                if (cache.accepts(got.bytes)) {
-                    withContext(io) { cache.put(url, got.bytes) }
-                    PictureState.Ready(got.bytes)
-                } else {
-                    PictureState.Failed
-                }
-            }
+            got is Fetched.Got -> keep(mine, id, url, got.bytes)
             else -> PictureState.Failed
         }
+    }
+
+    private suspend fun keep(mine: Int, id: ULong, url: String, bytes: ByteArray): PictureState? {
+        budget.add(id, bytes.size)
+        if (!cache.accepts(bytes)) return PictureState.Failed
+        // (The generation is read again where the write happens, on the cache's own thread.)
+        withContext(io) { if (mine == generation.get()) cache.put(url, bytes) }
+        return if (mine == generation.get()) PictureState.Ready(bytes) else null
     }
 
     /** The signal of generation [mine]; one already given when that generation is past. */

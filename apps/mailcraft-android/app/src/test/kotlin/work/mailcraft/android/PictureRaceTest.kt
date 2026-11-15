@@ -126,4 +126,74 @@ class PictureRaceTest {
         images.revChanged(2uL)
         assertNull(images.images.value[1uL])
     }
+
+    @Test
+    fun aDownloadQueuedBehindOthersWaitsForATapOnceDataSaverIsOn() {
+        val (source, _, c) = reading(PicturePrefs(all = true))
+        val gate = CompletableDeferred<Unit>()
+        source.onDownload = { gate.await() }
+        c.open(7uL, 360, dark = false)
+        assertEquals(4, source.stops.size)
+        source.dataSaver = true
+        gate.complete(Unit)
+        assertEquals("the two that waited must not ask", 4, source.downloads.size)
+        assertTrue(c.ui.value.waiting)
+        assertEquals(2, c.ui.value.pictures.values.count { it is PictureState.Waiting })
+    }
+
+    @Test
+    fun aCacheWriteQueuedWhenTheMessageIsClosedIsNotMade() {
+        val source = FakeReadSource(message())
+        urls.forEach { source.web[it] = B.png }
+        val store = MemoryPicturePrefs(PicturePrefs(all = true))
+        val queued = mutableListOf<Runnable>()
+        val deferred = object : kotlinx.coroutines.CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+                queued += block
+            }
+        }
+        val cache = PictureCache(dir, SniffingCheck)
+        val c = ReadingController(source, cache, store, CoroutineScope(Dispatchers.Unconfined), deferred)
+        c.open(7uL, 360, dark = false)
+        // Run what is queued (the cache reads) until downloads have come and their writes are queued.
+        var guard = 0
+        while (source.downloads.size < 4 && queued.isNotEmpty() && guard++ < 100) queued.removeAt(0).run()
+        c.close(7uL)
+        while (queued.isNotEmpty() && guard++ < 1000) queued.removeAt(0).run()
+        assertNull("closed before the write ran", cache.get(urls[0]))
+    }
+
+    @Test
+    fun aSenderLookUpQueuedBehindOthersAsksNothingOnceDataSaverIsOn() {
+        val source = FakeReadSource()
+        val store = MemoryPicturePrefs(PicturePrefs(senderImages = true))
+        val images = SenderImages(source, PictureCache(dir, SniffingCheck), store, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
+        val gate = CompletableDeferred<Unit>()
+        source.onSenderDownload = { gate.await() }
+        images.onScreen((1..5).map { row.copy(id = it.toULong(), address = "p$it@example.org") })
+        assertEquals(4, source.senderDownloads.size)
+        source.dataSaver = true
+        gate.complete(Unit)
+        assertEquals(4, source.senderDownloads.size)
+    }
+
+    @Test
+    fun aRowTurnedAwayForWantOfRoomIsLookedAtAgain() {
+        val source = FakeReadSource()
+        val store = MemoryPicturePrefs(PicturePrefs(senderImages = true))
+        val images = SenderImages(source, PictureCache(dir, SniffingCheck), store, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
+        val gate = CompletableDeferred<Unit>()
+        source.onSenderDownload = { gate.await() }
+        // 64 addresses fill the room (four hold permits, the rest wait); a 65th is turned away.
+        val rows = (1..64).map { row.copy(id = it.toULong(), address = "p$it@example.org") }
+        images.onScreen(rows)
+        val late = row.copy(id = 99u, address = "late@example.org")
+        images.onScreen(listOf(late))
+        assertTrue(source.senderDownloads.none { it.contains("late") || it.contains("example.org") && false })
+        source.onSenderDownload = {}
+        gate.complete(Unit)
+        val before = source.senderDownloads.size
+        images.onScreen(listOf(late))
+        assertTrue("the turned-away row is asked for after room is made", source.senderDownloads.size > before)
+    }
 }

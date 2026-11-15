@@ -297,9 +297,11 @@ private fun mailListActions(
         scope.launch { controller.reload() }
     },
     onRange = { first, last ->
-        scope.launch { controller.showRange(first, last) }
-        val rows = controller.ui.value.snapshot
-        senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+        scope.launch {
+            controller.showRange(first, last)
+            val rows = controller.ui.value.snapshot
+            senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+        }
     },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
     onUndo = { command -> scope.launch { controller.undo(command) } },

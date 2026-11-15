@@ -125,7 +125,11 @@ internal class SenderImages(
         // (The list moved to a newer revision while this was decided: the rows are decided again.)
         if (rev != synchronized(lock) { revision }) scope.launch { onScreen(synchronized(lock) { lastRows }) }
         if (!allowed || kept) return publish()
-        if (!claimAddress(address)) return
+        if (!claimAddress(address)) {
+            // Turned away for want of room (no look-up of this address is on its way): asked again at the next look.
+            synchronized(lock) { if (address !in fetching && address !in pictures) decisions.remove(id) }
+            return
+        }
         try {
             val answer = find(mine, address)
             // (What data saving kept from asking is asked again at the next look.)
@@ -165,25 +169,43 @@ internal class SenderImages(
         if (kept != null || places.isEmpty()) return Answer(kept, final = true)
         // With data saving on only what is kept is shown; the rest is asked again at the next look.
         if (source.dataSaving()) return Answer(null, final = false)
-        return Answer(askEach(mine, places), final = true)
+        return askEach(mine, places)
     }
 
     /** Asks the places in turn until one has a picture, for as long as the owner wants sender images. */
-    private suspend fun askEach(mine: Int, places: List<String>): ByteArray? {
+    private suspend fun askEach(mine: Int, places: List<String>): Answer {
         for (place in places) {
-            // Checked again with the permit in hand: the owner may have turned sender images off, or
-            // pressed Clear, while this waited behind the others.
-            val got = flights.withPermit {
-                if (mine != generation.get() || !prefsStore.load().senderImages) null else source.downloadSender(place)
-            } ?: return null
-            if (got is Fetched.Got && cache.accepts(got.bytes, icons = true) && got.bytes.size <= MAX_BYTES) {
+            val answer = askPlace(mine, place)
+            if (answer != null) return answer
+        }
+        return Answer(null, final = true)
+    }
+
+    /** What asking [place] came to; null when the next place is to be tried. */
+    private suspend fun askPlace(mine: Int, place: String): Answer? {
+        val got = askOne(mine, place)
+        return when {
+            got == null -> Answer(null, final = true)
+            got === SAVING -> Answer(null, final = false)
+            got is Fetched.Got && cache.accepts(got.bytes, icons = true) && got.bytes.size <= MAX_BYTES -> {
                 // (Not kept when the switch went off, or Clear was pressed, while it came.)
                 // The generation is read again where the write happens, on the cache's own thread.
                 withContext(io) { if (mine == generation.get()) cache.put(place, got.bytes, icons = true) }
-                return got.bytes
+                Answer(got.bytes, final = true)
             }
+            else -> null
         }
-        return null
+    }
+
+    /** One place asked, or null when the look-up is stale, or [SAVING] when data saving came on meanwhile. */
+    private suspend fun askOne(mine: Int, place: String): Fetched? = flights.withPermit {
+        // Checked again with the permit in hand: the owner may have turned sender images off, pressed
+        // Clear, or switched data saving on, while this waited behind the others.
+        when {
+            mine != generation.get() || !prefsStore.load().senderImages -> null
+            source.dataSaving() -> SAVING
+            else -> source.downloadSender(place)
+        }
     }
 
     private fun trimPictures() {
@@ -196,6 +218,7 @@ internal class SenderImages(
 
     private companion object {
         const val AT_A_TIME = 4
+        val SAVING = Fetched.Refused("data saving")
         const val MAX_IN_FLIGHT = 64
         const val MAX_ROWS = 64
         const val MAX_KEPT = 500
