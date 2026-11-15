@@ -1055,6 +1055,12 @@ msgid "After"
 msgstr "Utána"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
+msgstr "A Küldés után az üzenet ennyi ideig vár a Postázandó üzenetek között, és megjelenik a Visszavonás. Kikapcsolva a következő Küldés/Fogadással megy."
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
@@ -2448,6 +2454,12 @@ msgstr "A találkozó törlése"
 msgid "Cancel Opening the Mailbox"
 msgstr "Postafiók megnyitásának megszakítása"
 
+#. command label, interface
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Cancel Send"
+msgstr "Küldés megszakítása"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -2539,6 +2551,12 @@ msgstr "Automatikus válasz módosítása"
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "A visszatérő elem módosítása"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Change Send Time"
+msgstr "Küldési idő módosítása"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3637,7 +3655,7 @@ msgid "Data on this computer"
 msgstr "Adatok a számítógépről"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Dátum"
@@ -3745,6 +3763,26 @@ msgstr "Behúzás csökkentése"
 #, fuzzy
 msgid "Default"
 msgstr "Alapértelmezett"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delay Delivery"
+msgstr "Késleltetett kézbesítés"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] "A késleltetett üzenet ekkor megy: {when}"
+msgstr[1] "{n} késleltetett üzenet: a következő ekkor megy: {when}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Delayed until {when}"
+msgstr "Késleltetve eddig: {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4095,6 +4133,18 @@ msgstr "Megjelenítendő név"
 #, fuzzy
 msgid "Do"
 msgstr "Művelet"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Do not deliver before a date and time"
+msgstr "Ne kézbesítse ennél korábban: dátum és időpont"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Do not deliver before:"
+msgstr "Ne kézbesítse előbb:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4653,6 +4703,12 @@ msgstr "Befejezés dátuma"
 #, fuzzy
 msgid "Ends on a day"
 msgstr "Egy napon ér véget"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Enter a date and a time."
+msgstr "Adjon meg dátumot és időpontot."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6489,6 +6545,12 @@ msgid "In the Outbox: it is on its way"
 msgstr "Az Outboxban: úton van"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "In the Outbox: it waits for its time"
+msgstr "A Postázandó üzenetek között: az idejére vár"
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "In the folder pane's order"
@@ -7451,7 +7513,7 @@ msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Készült egy másik program vagy a weben, alkatrészek MailCraft nem mutat"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "Levelezés"
@@ -8091,7 +8153,7 @@ msgstr[0] "{n} névjegy egyesítése…"
 msgstr[1] "{n} névjegy egyesítése…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Üzenet"
@@ -8365,7 +8427,7 @@ msgid "Month"
 msgstr "Hónap"
 
 #. ribbon location
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "More Options"
 msgstr "További lehetőségek"
@@ -9697,7 +9759,7 @@ msgid "Numbering"
 msgstr "Számozás"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9719,6 +9781,12 @@ msgstr "okt."
 #, fuzzy
 msgid "October"
 msgstr "október"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Off"
+msgstr "Ki"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -10283,7 +10351,7 @@ msgid "Optional"
 msgstr "Opcionális"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Beállítások"
@@ -10777,7 +10845,7 @@ msgid "Postal code"
 msgstr "Irányítószám"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Preferences"
 msgstr "Beállítások"
@@ -11453,6 +11521,12 @@ msgstr "Eltávolítás a Kedvencekből"
 #, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Eltávolítás a biztonságos vagy blokkolt feladóktól"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Remove the delay"
+msgstr "Késleltetés eltávolítása"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12515,7 +12589,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "Válassza ki az üzenetet, mielőtt megtekintené a csatolását."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "Küldés"
@@ -12527,7 +12601,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -12543,6 +12617,18 @@ msgstr "Újraküldés"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "Törlés küldése"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later"
+msgstr "Küldés később"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later…"
+msgstr "Küldés később…"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -12637,6 +12723,12 @@ msgid "Send my sign-in"
 msgstr "Küldje be a beiratkozásomat!"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send options"
+msgstr "Küldési beállítások"
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Send report"
@@ -12689,6 +12781,12 @@ msgstr "Válasz küldése most"
 #, fuzzy
 msgid "Send the update to them? The account's server sends them the change by mail."
 msgstr "A fiók szerverén küldött egy üzenetet."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send this message, but not before:"
+msgstr "Az üzenet elküldése, de nem előbb:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12839,6 +12937,12 @@ msgstr "Küldés és fogadás…"
 #, fuzzy
 msgid "Sending from a shared mailbox"
 msgstr "Küldés megosztott postafiókból"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Sending in {n} s"
+msgstr "Küldés {n} mp múlva"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15217,6 +15321,12 @@ msgid "The message isn't there any more"
 msgstr "Az üzenet már nincs ott."
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
+msgstr "Az üzenet a Postázandó üzenetek között vár, ahol módosíthatja vagy megszakíthatja. A MailCraft abban az időpontban elküldi; ha akkor nem fut, a következő futáskor megy."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
@@ -16704,6 +16814,18 @@ msgstr "Az üzenet webes képeket tartalmaz. A MailCraft ezen verziója nem tudj
 msgid "This message hasn't been sent."
 msgstr "Ezt az üzenetet nem küldték el."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is delayed. It goes {when}."
+msgstr "Ez az üzenet késleltetett. Ekkor megy: {when}."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is due and goes with the next Send/Receive."
+msgstr "Ennek az üzenetnek lejárt az ideje, és a következő Küldés/Fogadással megy."
+
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -16913,7 +17035,7 @@ msgid "Tighter Spacing"
 msgstr "Szorosabb szúrás"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "Idő"
@@ -17328,11 +17450,17 @@ msgstr "A számítógép mappája alatt:"
 msgid "Underline"
 msgstr "Aláhúzott"
 
-#. android, command label, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Visszavonás"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Undo Send"
+msgstr "Küldés visszavonása"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -17685,6 +17813,18 @@ msgstr "Forrás megtekintése"
 #, fuzzy
 msgid "Violet"
 msgstr "Ibolya"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Wait Before Sending"
+msgstr "Várakozás küldés előtt"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Wait before sending"
+msgstr "Várakozás küldés előtt"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18993,6 +19133,12 @@ msgid "cancelled"
 msgstr "Törölve"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "choose a time within a year"
+msgstr "válasszon egy évnyi időn belüli időpontot"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
@@ -19565,13 +19711,13 @@ msgid "no message being written has the id {id}"
 msgstr "Nincs olyan üzenet, amiben megírnák az azonosító {id}-t."
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nincs megnyitva szerkesztésre üzenet"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "nincs ilyen azonosítójú üzenet: {id}"
@@ -19713,6 +19859,12 @@ msgstr "nincs kijelölés az üzenetben"
 #, fuzzy
 msgid "nothing is waiting to be imported"
 msgstr "Semmi sem vár arra, hogy behozzák."
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "nothing is waiting to be sent: it is on its way already"
+msgstr "semmi sem vár küldésre: már úton van"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -19931,6 +20083,12 @@ msgid "sign-in failed: {reason}"
 msgstr "nem sikerült beiratkozni: {reason}"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "sign-in needed"
+msgstr "bejelentkezés szükséges"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
@@ -19959,6 +20117,12 @@ msgstr "ez a fiók saját címe. Adja meg a megosztott postafiók címét."
 #, fuzzy
 msgid "that is too much to paste into one message"
 msgstr "Ez túl sok ahhoz, hogy egyetlen üzenetbe beleillessünk"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that is too soon: pick a time at least a minute from now (or send it now)"
+msgstr "ez túl korai: válasszon legalább egy perc múlva lévő időpontot (vagy küldje el most)"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19991,6 +20155,12 @@ msgid "that message is a draft: open it to send it"
 msgstr "Ez az üzenet egy vázlat: nyissa meg, hogy küldje el"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message is being sent now"
+msgstr "ezt az üzenetet most küldik"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message isn't a draft"
@@ -20007,6 +20177,24 @@ msgstr "Az üzenet nincs megtartva."
 #, fuzzy
 msgid "that message isn't here"
 msgstr "az az üzenet nincs itt"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message isn't waiting in the Outbox"
+msgstr "ez az üzenet nem vár a Postázandó üzenetek között"
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "that step changes a message that is open for writing: close it first"
+msgstr "ez a lépés egy írásra megnyitott üzenetet módosít: előbb zárja be"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that time has passed: choose a time in the future"
+msgstr "ez az időpont elmúlt: válasszon jövőbeli időpontot"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20308,6 +20496,12 @@ msgstr "az importot leállították"
 msgid "the key is larger than a contact's card keeps one"
 msgstr "A kulcs nagyobb, mint a kapcsolati kártya."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the last Send/Receive had problems"
+msgstr "az utolsó Küldés/Fogadás során problémák voltak"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20337,6 +20531,12 @@ msgstr "a postafiókának nincs mappája"
 #, fuzzy
 msgid "the mailbox isn't kept in a file, so content outside memory can't be read"
 msgstr "A postafiókát nem tartják egy fájlban, így a külső memória tartalma nem olvasható"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the mailbox wasn't opened"
+msgstr "a postafiók nem nyílt meg"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/find.rs
@@ -21023,7 +21223,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "Ez a Send/Receive a {name} nevű kiszolgálónak volt."
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
 msgstr "Ez a fiók nem rendelkezik vázlatok mappával"
@@ -21051,6 +21251,12 @@ msgstr "Ez a fiók nem rendelkezik {folder} mappával"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "a fióknak nincs engedélye a mentéshez"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr "ez a fiók nem küld levelet, ezért az üzenet nem várhat időpontra: küldje el most, vagy mentse piszkozatként"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -21315,6 +21521,12 @@ msgstr "Ez a másolat nem a MailCraft alkalmazásból fut."
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "Ez a példány a MailCraft nem telepítette a telepítő (.msi), így Windows nem tudja."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "working offline"
+msgstr "kapcsolat nélkül"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -22093,6 +22305,14 @@ msgstr[0] "{n} elutasította"
 msgstr[1] "{n} elutasította"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
+msgstr[0] "{n} késleltetett üzenet nem ment el a megadott időben"
+msgstr[1] "{n} késleltetett üzenet nem ment el a megadott időben"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} distribution list, kept as a contact listing its members"
@@ -22657,6 +22877,14 @@ msgstr[1] "{n} itt törölt szabály addig megmarad a kiszolgálón, amíg a Mai
 #, fuzzy
 msgid "{n} s"
 msgstr "{n} mp"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] "{n} másodperc"
+msgstr[1] "{n} másodperc"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs

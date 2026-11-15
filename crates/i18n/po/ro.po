@@ -1052,6 +1052,12 @@ msgid "After"
 msgstr "După"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
+msgstr "După Trimite, un mesaj așteaptă atât în Mesaje de trimis și arată Anulare. Dezactivat îl trimite la următorul Trimitere/Primire."
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered."
@@ -2449,6 +2455,12 @@ msgstr "Anulare întâlnire"
 msgid "Cancel Opening the Mailbox"
 msgstr "Anulare deschidere cutie poștală"
 
+#. command label, interface
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Cancel Send"
+msgstr "Anulează trimiterea"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -2542,6 +2554,12 @@ msgstr "Modificare răspunsuri automate"
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "Modificare element recurent"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Change Send Time"
+msgstr "Schimbă ora trimiterii"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3642,7 +3660,7 @@ msgid "Data on this computer"
 msgstr "Date pe acest computer"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Dată"
@@ -3752,6 +3770,27 @@ msgstr "Micșorare indent"
 #, fuzzy
 msgid "Default"
 msgstr "Implicit"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delay Delivery"
+msgstr "Întârzie livrarea"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] "Mesajul întârziat pleacă {when}"
+msgstr[1] "{n} mesaje întârziate: următorul pleacă {when}"
+msgstr[2] "{n} de mesaje întârziate: următorul pleacă {when}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Delayed until {when}"
+msgstr "Întârziat până {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4104,6 +4143,18 @@ msgstr "Nume afișat"
 #, fuzzy
 msgid "Do"
 msgstr "De făcut"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Do not deliver before a date and time"
+msgstr "Nu livra înainte de o dată și o oră"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Do not deliver before:"
+msgstr "Nu livra înainte de:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4666,6 +4717,12 @@ msgstr "Se termină la"
 #, fuzzy
 msgid "Ends on a day"
 msgstr "Se termină într-o zi"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Enter a date and a time."
+msgstr "Introduceți o dată și o oră."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6517,6 +6574,12 @@ msgid "In the Outbox: it is on its way"
 msgstr "În Mesaje de trimis: este pe drum"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "In the Outbox: it waits for its time"
+msgstr "În Mesaje de trimis: așteaptă ora lui"
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "In the folder pane's order"
@@ -7480,7 +7543,7 @@ msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Creat în alt program sau pe web, cu părți pe care MailCraft nu le poate afișa"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "E-mail"
@@ -8122,7 +8185,7 @@ msgstr[1] "Îmbinare {n} contacte…"
 msgstr[2] "Îmbinare {n} de contacte…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mesaj"
@@ -8396,7 +8459,7 @@ msgid "Month"
 msgstr "Lună"
 
 #. ribbon location
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "More Options"
 msgstr "Mai multe opțiuni"
@@ -9732,7 +9795,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9754,6 +9817,12 @@ msgstr "oct."
 #, fuzzy
 msgid "October"
 msgstr "octombrie"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Off"
+msgstr "Dezactivat"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -10318,7 +10387,7 @@ msgid "Optional"
 msgstr "Opțional"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opțiuni"
@@ -10812,7 +10881,7 @@ msgid "Postal code"
 msgstr "Cod poștal"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Preferences"
 msgstr "Preferințe"
@@ -11492,6 +11561,12 @@ msgstr "Eliminare din Favorite"
 #, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Eliminare din Expeditori siguri sau blocați"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Remove the delay"
+msgstr "Elimină întârzierea"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12558,7 +12633,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "Selectați mesajul înainte de a-i previzualiza atașamentul."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "Trimitere"
@@ -12570,7 +12645,7 @@ msgid "Send & Receive"
 msgstr "Trimitere și primire"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Trimitere / primire"
@@ -12586,6 +12661,18 @@ msgstr "Trimitere din nou"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "Trimitere anulare"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later"
+msgstr "Trimite mai târziu"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later…"
+msgstr "Trimite mai târziu…"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -12682,6 +12769,12 @@ msgid "Send my sign-in"
 msgstr "Trimite conectarea mea"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send options"
+msgstr "Opțiuni de trimitere"
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Send report"
@@ -12734,6 +12827,12 @@ msgstr "Trimite răspunsul acum"
 #, fuzzy
 msgid "Send the update to them? The account's server sends them the change by mail."
 msgstr "Le trimiteți actualizarea? Serverul contului le trimite modificarea prin e-mail."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send this message, but not before:"
+msgstr "Trimite acest mesaj, dar nu înainte de:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12885,6 +12984,12 @@ msgstr "Se trimite și se primește…"
 #, fuzzy
 msgid "Sending from a shared mailbox"
 msgstr "Trimitere dintr-o cutie poștală partajată"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Sending in {n} s"
+msgstr "Se trimite în {n} s"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -15267,6 +15372,12 @@ msgid "The message isn't there any more"
 msgstr "Mesajul nu mai există"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
+msgstr "Mesajul așteaptă în Mesaje de trimis, unde îl puteți schimba sau anula. MailCraft îl trimite la acea oră; dacă MailCraft nu rulează atunci, pleacă la următoarea rulare."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
@@ -16760,6 +16871,18 @@ msgstr "Acest mesaj are imagini pe web. Această versiune nu le poate descărca.
 msgid "This message hasn't been sent."
 msgstr "Acest mesaj nu a fost trimis."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is delayed. It goes {when}."
+msgstr "Acest mesaj este întârziat. Pleacă {when}."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is due and goes with the next Send/Receive."
+msgstr "Acest mesaj a ajuns la timp și pleacă la următorul Trimitere/Primire."
+
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -16969,7 +17092,7 @@ msgid "Tighter Spacing"
 msgstr "Spațiere mai strânsă"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "Oră"
@@ -17386,11 +17509,17 @@ msgstr "Într-un dosar de pe acest computer:"
 msgid "Underline"
 msgstr "Subliniat"
 
-#. android, command label, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Anulare"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Undo Send"
+msgstr "Anulează trimiterea"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -17746,6 +17875,18 @@ msgstr "Vizualizare sursă"
 #, fuzzy
 msgid "Violet"
 msgstr "Violet"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Wait Before Sending"
+msgstr "Așteaptă înainte de trimitere"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Wait before sending"
+msgstr "Așteaptă înainte de trimitere"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -19061,6 +19202,12 @@ msgid "cancelled"
 msgstr "anulat"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "choose a time within a year"
+msgstr "alegeți o oră în decurs de un an"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "close a conversation first: each of the 1,000 open has a message selected"
@@ -19632,13 +19779,13 @@ msgid "no message being written has the id {id}"
 msgstr "niciun mesaj în curs de scriere nu are ID-ul {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nu se scrie niciun mesaj"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "nu există mesaj cu ID-ul {id}"
@@ -19780,6 +19927,12 @@ msgstr "nu este selectat nimic în mesaj"
 #, fuzzy
 msgid "nothing is waiting to be imported"
 msgstr "nimic nu așteaptă să fie importat"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "nothing is waiting to be sent: it is on its way already"
+msgstr "nimic nu așteaptă să fie trimis: este deja pe drum"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -19998,6 +20151,12 @@ msgid "sign-in failed: {reason}"
 msgstr "conectarea a eșuat: {reason}"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "sign-in needed"
+msgstr "este necesară autentificarea"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
@@ -20026,6 +20185,12 @@ msgstr "aceasta este adresa proprie a contului: numiți-o pe cea a cutiei poșta
 #, fuzzy
 msgid "that is too much to paste into one message"
 msgstr "este prea mult pentru a fi lipit într-un singur mesaj"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that is too soon: pick a time at least a minute from now (or send it now)"
+msgstr "e prea devreme: alegeți o oră la cel puțin un minut de acum (sau trimiteți acum)"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20058,6 +20223,12 @@ msgid "that message is a draft: open it to send it"
 msgstr "acel mesaj este o ciornă: deschideți-l ca să-l trimiteți"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message is being sent now"
+msgstr "acel mesaj se trimite acum"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message isn't a draft"
@@ -20074,6 +20245,24 @@ msgstr "acel mesaj nu este reținut"
 #, fuzzy
 msgid "that message isn't here"
 msgstr "acel mesaj nu este aici"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message isn't waiting in the Outbox"
+msgstr "acel mesaj nu așteaptă în Mesaje de trimis"
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "that step changes a message that is open for writing: close it first"
+msgstr "acest pas schimbă un mesaj deschis pentru scriere: închideți-l mai întâi"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that time has passed: choose a time in the future"
+msgstr "acea oră a trecut: alegeți o oră viitoare"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20375,6 +20564,12 @@ msgstr "importul a fost oprit"
 msgid "the key is larger than a contact's card keeps one"
 msgstr "cheia este mai mare decât o păstrează fișa unui contact"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the last Send/Receive had problems"
+msgstr "ultima Trimitere/Primire a avut probleme"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20404,6 +20599,12 @@ msgstr "cutia poștală nu are dosare"
 #, fuzzy
 msgid "the mailbox isn't kept in a file, so content outside memory can't be read"
 msgstr "cutia poștală nu este păstrată într-un fișier, deci conținutul din afara memoriei nu poate fi citit"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the mailbox wasn't opened"
+msgstr "căsuța poștală nu a fost deschisă"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/find.rs
@@ -21090,7 +21291,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "această Trimitere/primire era pentru serverul pe care {name} îl numea înainte"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
 msgstr "acest cont nu are dosar Ciorne"
@@ -21118,6 +21319,12 @@ msgstr "acest cont nu are dosarul {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "acest cont nu are voie să-l salveze"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr "acest cont nu trimite poștă, deci un mesaj nu poate aștepta o oră: trimiteți-l acum sau salvați-l ca schiță"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -21383,6 +21590,12 @@ msgstr "această copie nu rulează din aplicația MailCraft."
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "această copie a MailCraft nu a fost instalată cu programul de instalare (.msi), deci Windows nu o cunoaște."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "working offline"
+msgstr "offline"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -22180,6 +22393,15 @@ msgstr[1] "{n} au refuzat"
 msgstr[2] "{n} au refuzat"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
+msgstr[0] "{n} mesaj întârziat nu a plecat la ora lui"
+msgstr[1] "{n} mesaje întârziate nu au plecat la ora lor"
+msgstr[2] "{n} de mesaje întârziate nu au plecat la ora lor"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} distribution list, kept as a contact listing its members"
@@ -22811,6 +23033,15 @@ msgstr[2] "{n} de reguli șterse aici sunt încă pe server până când MailCra
 #, fuzzy
 msgid "{n} s"
 msgstr "{n} s"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] "{n} secundă"
+msgstr[1] "{n} secunde"
+msgstr[2] "{n} de secunde"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs

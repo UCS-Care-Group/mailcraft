@@ -286,6 +286,20 @@ fn mail_waiting_in_a_shared_mailbox_is_held_with_why_when_sending_from_it_isnt_a
     assert!(s.mailbox.message(one).is_some_and(|m| m.held.is_empty()));
 }
 
+/// A delayed message that isn't due isn't waiting to go, so holding the Outbox leaves it (#950).
+#[test]
+fn holding_a_shared_mailboxs_sends_leaves_a_delayed_message_that_is_not_due() {
+    let (mut s, _, shared) = both();
+    s.view.folder = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    s.run("mail.new", &json!({"to": "bob@example.org", "subject": "Later"})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    let at = s.now() + 3600;
+    s.mailbox.message_mut(id).unwrap().send_at = Some(at);
+    let held = s.run("sync.holdSends", &json!({"account": shared, "why": "declined"})).unwrap();
+    assert_eq!(held["held"], json!([]));
+    assert!(s.mailbox.message(id).unwrap().held.is_empty());
+}
+
 #[test]
 fn a_shared_mailbox_keeps_its_address_and_its_owners_sign_in() {
     let (mut s, _, _) = session();

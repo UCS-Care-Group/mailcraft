@@ -302,6 +302,11 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
+    // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
+    // and redo leave it as it is now, or its mark would be lost and it could be sent twice (#950).
+    for m in now.messages.values().filter(|m| m.sending) {
+        out.messages.insert(m.id, m.clone());
+    }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {

@@ -554,6 +554,7 @@ fn message() -> impl Strategy<Value = Message> {
             incomplete: false,
             server_draft: None,
             held: String::new(),
+            send_at: None,
             sending: false,
             sent_here: false,
             answers: None,

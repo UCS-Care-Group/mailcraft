@@ -416,6 +416,12 @@ pub struct Message {
     /// what to check. It isn't sent again until the owner says so. Empty for every other message.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub held: String,
+    /// Send later (#950): for a message in an Outbox, the time (seconds since 1970) before which
+    /// it is not sent. It is due once the clock says that time or a later one, judged at each run
+    /// ([`Message::waits_until`]); there is no timer that decides. `None` for mail that goes at
+    /// the next run, and for every message that is not waiting in an Outbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<i64>,
     /// The message was handed to a server to be sent and what became of it hasn't been taken in
     /// yet (AU3-26). Saved before the send leaves; cleared when the run's answer is applied. A
     /// message still marked when the next run of its account begins is **held** (it may have
@@ -577,6 +583,13 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// Whether the message waits for its Send time (#950) at the clock's `now`: it has one and it
+    /// has not come. The one test every run asks before it sends from an Outbox, so that nothing
+    /// delayed goes early, whatever the account; a clock set back only makes it wait longer.
+    pub fn waits_until(&self, now: i64) -> bool {
+        self.send_at.is_some_and(|at| at > now)
+    }
+
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
     /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
