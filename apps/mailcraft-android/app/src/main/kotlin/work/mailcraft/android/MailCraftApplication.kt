@@ -15,7 +15,7 @@ import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
 /** The Rust core and what the app built on it, once both are ready. */
-internal class Opened(val core: Core, val hub: AccountsHub)
+internal class Opened(val core: Core, val hub: AccountsHub, val mail: MailListController)
 
 /** What starting the Rust core has come to: under way, the core, or why there is none. */
 internal typealias Started = Phase<Opened>
@@ -96,7 +96,7 @@ class MailCraftApplication : Application() {
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
             )
-            Opened(core, hub)
+            Opened(core, hub, MailListController(CoreMailSource(core)))
         } catch (_: CoreException) {
             null
         } catch (_: LinkageError) {
@@ -113,6 +113,7 @@ class MailCraftApplication : Application() {
             handback.sink = opened.core::handBackRedirect
             handback.interrupted = opened.hub.controller::signInInterrupted
             events.register(opened.hub::handle)
+            events.register { event -> opened.mail.handle(event, scope) }
             events.launchIn(scope) { nextEvent(opened.core) }
             true
         } catch (_: RuntimeException) {
