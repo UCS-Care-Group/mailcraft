@@ -50,6 +50,9 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_properties_tests;
+pub mod followup;
+#[cfg(test)]
+mod followup_tests;
 pub mod format;
 #[cfg(test)]
 mod format_tests;
@@ -191,6 +194,7 @@ pub fn registry() -> Registry {
     v.extend(edit::specs());
     v.extend(mail::specs());
     v.extend(snooze::specs());
+    v.extend(followup::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());

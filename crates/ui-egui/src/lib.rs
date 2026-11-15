@@ -96,6 +96,7 @@ mod field_drag_tests;
 pub mod files;
 mod find_replace;
 mod folder_properties;
+mod follow_up_tick;
 mod font_index;
 pub mod forms;
 #[cfg(test)]
@@ -178,6 +179,7 @@ mod platform_tests;
 mod problem_log;
 pub mod reading;
 mod recent_attachments;
+mod reminder_dialog;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
@@ -1704,6 +1706,8 @@ pub struct MailApp {
     idle: idle_watch::IdleWatches,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
+    /// When follow-up reminders were last settled ([`follow_up_tick`]), in seconds.
+    follow_up_last: i64,
     /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
     /// for it once, when nothing else is under way ([`MailApp::ask_for_jmap_send`]).
     jmap_send_asks: std::collections::HashSet<Id>,
@@ -1928,6 +1932,7 @@ impl MailApp {
             inbox_check: Default::default(),
             idle: Default::default(),
             snooze_last: 0,
+            follow_up_last: 0,
             jmap_send_asks: Default::default(),
             jmap_made: 0,
             last_autosave: 0.0,
@@ -4762,6 +4767,8 @@ impl MailApp {
         }
         // Snoozed mail whose Return time has come (#949).
         self.snooze_tick();
+        // Follow-up reminders that are due, or answered (#948).
+        self.follow_up_tick();
         reminders::tick(self, ctx);
         // What was done in the Reminders window, which has passes of its own (#771).
         reminders::carry_out(self, ctx);
