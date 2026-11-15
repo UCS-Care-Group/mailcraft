@@ -14077,14 +14077,14 @@ msgstr ""
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr ""
 
-#. what a command says
-#: crates/mobile/src/fetch.rs
-msgid "The message couldn't be downloaded. Try again in a few minutes."
-msgstr ""
-
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
 msgid "The message could not be read."
+msgstr ""
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+msgid "The message couldn't be downloaded. Try again in a few minutes."
 msgstr ""
 
 #. android

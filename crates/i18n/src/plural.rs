@@ -18,6 +18,9 @@ pub enum Rule {
     /// One for 1; another for 0 and for 2 to 19 past the hundreds (101, 119); the third, written
     /// with "de", for the rest (20, 100, 120).
     Romanian,
+    /// Three forms (`plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`): Polish.
+    /// One for 1; another for counts ending 2 to 4 except 12 to 14 (2, 22, 104); the third for the rest.
+    Polish,
 }
 
 impl Rule {
@@ -27,6 +30,11 @@ impl Rule {
             Rule::Single => 0,
             Rule::NotOne => usize::from(n != 1),
             Rule::AboveOne => usize::from(n > 1),
+            Rule::Polish => match n {
+                1 => 0,
+                n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
+                _ => 2,
+            },
             Rule::Romanian => match n {
                 1 => 0,
                 0 => 1,
@@ -41,7 +49,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Romanian => 3,
+            Rule::Romanian | Rule::Polish => 3,
         }
     }
 
@@ -62,6 +70,7 @@ impl Rule {
             (Some(1), Some("0")) => Rule::Single,
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
+            (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
             _ => Rule::NotOne,
         }
     }
@@ -102,6 +111,11 @@ mod tests {
         let forms: Vec<usize> = [1, 0, 2, 19, 20, 100, 101, 119, 120, 1001].iter().map(|n| ro.index(*n)).collect();
         assert_eq!(forms, [0, 1, 1, 1, 2, 2, 1, 1, 2, 1]);
         assert_eq!(ro.forms(), 3);
+        let pl = Rule::from_header("nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");
+        assert_eq!(pl, Rule::Polish);
+        let forms: Vec<usize> = [1, 0, 2, 4, 5, 12, 14, 21, 22, 24, 25, 100, 101, 112, 122, 1000].iter().map(|n| pl.index(*n)).collect();
+        assert_eq!(forms, [0, 2, 1, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 2]);
+        assert_eq!(pl.forms(), 3);
         assert_eq!(Rule::from_header("nplurals=2; plural=n>1;"), Rule::AboveOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n != 1);"), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=1; plural=0;"), Rule::Single);

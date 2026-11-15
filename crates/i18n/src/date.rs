@@ -105,6 +105,7 @@ impl Lang {
             Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian => {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
+            Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }
@@ -448,7 +449,7 @@ mod tests {
     fn each_language_has_its_own_clock_and_week() {
         assert_eq!(Lang::English.conventions(), Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false });
         assert_eq!(Lang::Pseudo.conventions(), Lang::English.conventions());
-        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian] {
+        for lang in [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Romanian, Lang::Polish] {
             let c = lang.conventions();
             assert_eq!((c.twelve_hour, c.week_start, c.pad_numeric), (false, 0, true), "{lang:?}");
         }
@@ -505,6 +506,7 @@ mod tests {
         assert!(long(&Lang::French, SUN).contains("dimanche") && long(&Lang::French, SUN).contains("octobre"));
         assert_eq!(said(Lang::Dutch), ("zondag 11 oktober 2026".into(), "03-10-2025".into(), "21:05".into()));
         assert_eq!(said(Lang::Romanian), ("duminică, 11 octombrie 2026".into(), "03.10.2025".into(), "21:05".into()));
+        assert_eq!(said(Lang::Polish), ("niedziela, 11 października 2026".into(), "03.10.2025".into(), "21:05".into()));
         assert_eq!(said(Lang::Hungarian), ("2026. október 11., vasárnap".into(), "2025. 10. 03.".into(), "21:05".into()));
     }
 }
