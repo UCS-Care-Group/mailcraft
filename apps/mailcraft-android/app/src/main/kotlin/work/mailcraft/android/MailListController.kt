@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -48,9 +49,6 @@ internal class MailListController(
 
     /** Commands are made one at a time, so that their count follows the order the core made them in. */
     private val commandLock = Mutex()
-
-    /** Pulls to refresh under way. */
-    private val refreshes = AtomicInteger()
 
     /** The rows last on screen, kept to read the same ones again after a change. */
     @Volatile
@@ -180,24 +178,23 @@ internal class MailListController(
     }
 
     /**
-     * Pull to refresh: asks the core to send and receive. A round that starts needs no word (the
-     * freshness line moves when it ends); one the core won't start says why, in its own words.
+     * Follows the Send/Receive the owner asks for through the hub ([AccountsHub.syncNow], the one path
+     * a pull to refresh takes), in [scope]: the spinner is [syncing] (the hub outlives every window, so
+     * it stops when the round does), and each [notice], why a round didn't start in the owner's
+     * language, is said once, then [noticeTaken] puts it away.
      */
-    suspend fun refresh() {
-        // The controller outlives the window whose pull started this: however it ends (the window's
-        // work called off among them), the spinner stops once the last refresh under way is over.
-        refreshes.incrementAndGet()
-        state.update { it.copy(refreshing = true) }
-        try {
-            when (val outcome = source.refresh()) {
-                RefreshOutcome.Started -> Unit
-                is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
-                RefreshOutcome.Failed -> notify(ListNotice.Failed)
+    fun follow(
+        syncing: StateFlow<Boolean>,
+        notice: StateFlow<String?>,
+        noticeTaken: () -> Unit,
+        scope: CoroutineScope,
+    ) {
+        scope.launch { syncing.collect { on -> state.update { it.copy(refreshing = on) } } }
+        scope.launch {
+            notice.filterNotNull().collect {
+                notify(ListNotice.Said(it))
+                noticeTaken()
             }
-            reload()
-        } finally {
-            refreshes.decrementAndGet()
-            state.update { it.copy(refreshing = refreshes.get() > 0) }
         }
     }
 

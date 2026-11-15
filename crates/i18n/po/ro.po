@@ -8568,7 +8568,7 @@ msgid "New items go to the calendar that is picked here"
 msgstr "Elementele noi merg în calendarul ales aici"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt crates/mobile/src/sync.rs crates/model/src/sync/progress.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "New mail"
 msgstr "E-mail nou"
@@ -12286,6 +12286,11 @@ msgstr "Trimitere/primire toate dosarele"
 #, fuzzy
 msgid "Send/Receive Progress"
 msgstr "Progres Trimitere/primire"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountsHub.kt
+msgid "Send/Receive couldn't start. Try again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
