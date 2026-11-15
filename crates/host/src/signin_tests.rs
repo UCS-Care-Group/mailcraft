@@ -6,7 +6,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use mailcraft_model::sync::Tokens;
 
-use crate::signin::{Endpoints, Page, SignIns, Why, forget, hint_of, keep_refresh, page, renewed, sensible_email, signed_in_address, tenant_of};
+use crate::signin::{
+    Ending, Endpoints, FavoritesRefusal, NetError, Page, SignIns, Why, forget, hint_of, keep_refresh, page, renewed, sensible_email,
+    signed_in_address, tenant_of,
+};
 use crate::{Platform, PlatformError, Redirect, SecretError, SecretStore};
 
 #[derive(Default)]
@@ -86,8 +89,51 @@ fn a_refresh_token_is_kept_under_the_graph_name_and_forgotten_with_it() {
     keep_refresh(&phone, "Ada@Lumen.Example", "r1").unwrap();
     assert_eq!(kept.get("refresh:ada@lumen.example|graph").as_deref(), Some("r1"));
     kept.set("password:ada@lumen.example|graph", "p").unwrap();
-    forget(&phone, "ada@lumen.example");
+    forget(&phone, "ada@lumen.example").unwrap();
     assert!(kept.0.lock().unwrap().is_empty());
+}
+
+/// A store that refuses to remove the refresh token, and removes everything else.
+struct Clings(Kept);
+
+impl SecretStore for Clings {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.get(key)
+    }
+
+    fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+        self.0.set(key, secret)
+    }
+
+    fn delete(&self, key: &str) {
+        let _ = self.remove(key);
+    }
+
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        if key.starts_with("refresh:") {
+            return Err(SecretError::Refused);
+        }
+        self.0.delete(key);
+        Ok(())
+    }
+}
+
+struct ClingyPhone(Arc<Clings>);
+
+impl Platform for ClingyPhone {
+    fn secrets(&self) -> Option<Arc<dyn SecretStore>> {
+        Some(self.0.clone())
+    }
+}
+
+#[test]
+fn a_store_that_refuses_to_forget_is_said_and_the_other_kinds_still_go() {
+    let store = Arc::new(Clings(Kept::default()));
+    store.set("refresh:ada@lumen.example|graph", "r1").unwrap();
+    store.set("password:ada@lumen.example|graph", "p").unwrap();
+    assert!(forget(&ClingyPhone(store.clone()), "ada@lumen.example").is_err());
+    assert_eq!(store.get("refresh:ada@lumen.example|graph").as_deref(), Some("r1"));
+    assert_eq!(store.get("password:ada@lumen.example|graph"), None);
 }
 
 #[test]
@@ -142,12 +188,12 @@ impl Platform for Bouncing {
     }
 }
 
-#[test]
-fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
+/// A token endpoint on this machine that answers one request with tokens, after `meanwhile`;
+/// gives its port and, joined, the request it was sent.
+// (A helper, not a test: clippy counts only test functions as tests.)
+#[allow(clippy::unwrap_used)]
+fn token_endpoint_once(meanwhile: impl FnOnce() + Send + 'static) -> (u16, std::thread::JoinHandle<String>) {
     use std::io::{Read, Write};
-    use std::sync::atomic::AtomicBool;
-
-    // A token endpoint that answers once.
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let server = std::thread::spawn(move || {
@@ -172,12 +218,20 @@ fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
                 Ok(n) => seen.extend_from_slice(&chunk[..n]),
             }
         }
-        let n = seen.len();
+        meanwhile();
         let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"acc-ess.tok_en","refresh_token":"re-fresh.tok_en"}"#;
         let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
         conn.write_all(reply.as_bytes()).unwrap();
-        String::from_utf8_lossy(&seen[..n]).into_owned()
+        String::from_utf8_lossy(&seen).into_owned()
     });
+    (port, server)
+}
+
+#[test]
+fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
+    use std::sync::atomic::AtomicBool;
+
+    let (port, server) = token_endpoint_once(|| {});
     let signins = Arc::new(SignIns::default());
     let gave_up = Arc::new(AtomicBool::new(false));
     let phone = Bouncing { signins: signins.clone(), opened: Mutex::new(0), gave_up: gave_up.clone() };
@@ -215,6 +269,57 @@ fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
     assert!(!gave_up.load(std::sync::atomic::Ordering::Acquire));
     assert_eq!(*phone.opened.lock().unwrap(), 2);
     assert!(server.join().unwrap().contains("second-code"));
+}
+
+/// A phone whose browser sends the owner straight back with a code.
+struct Straight {
+    signins: Arc<SignIns>,
+}
+
+impl Platform for Straight {
+    fn redirect(&self) -> Redirect {
+        Redirect::CustomScheme("work.mailcraft.android".to_string())
+    }
+
+    fn open_sign_in_page(&self, url: &str) -> Result<(), PlatformError> {
+        let state = url.split(['?', '&']).find_map(|f| f.strip_prefix("state=")).unwrap_or_default().to_string();
+        self.signins.deliver(format!("work.mailcraft.android://oauth2redirect?code=the-code&state={state}"));
+        Ok(())
+    }
+}
+
+#[test]
+fn a_sign_in_called_off_while_its_tokens_are_traded_gives_no_tokens() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    for why in [Why::Account, Why::Permission] {
+        let cancel = Arc::new(AtomicBool::new(false));
+        // (The owner presses Cancel while the token endpoint is answering.)
+        let (port, server) = {
+            let cancel = cancel.clone();
+            token_endpoint_once(move || cancel.store(true, Ordering::Release))
+        };
+        let signins = Arc::new(SignIns::default());
+        let phone = Straight { signins: signins.clone() };
+        let endpoints = Endpoints {
+            authorize: "http://127.0.0.1:9/authorize".into(),
+            token: format!("http://127.0.0.1:{port}/token"),
+            scope: "mail.read offline_access".into(),
+            consent: "graph.send".into(),
+            lesser: String::new(),
+        };
+        let place = signins.begin().unwrap();
+        let landed = signins.arm();
+        let result = page(&phone, landed, &signins.armer(), &endpoints, "", why, &cancel);
+        drop(place);
+        assert!(server.join().unwrap().contains("the-code"));
+        match (why, result) {
+            (Why::Account, Page::Ended(Ending::Cancelled)) => {}
+            (Why::Permission, Page::Refused(FavoritesRefusal::Other(NetError::SignInCancelled))) => {}
+            (_, Page::Tokens(_)) => panic!("{why:?}: tokens were taken after Cancel"),
+            _ => panic!("{why:?}: not ended as called off"),
+        }
+    }
 }
 
 #[test]
