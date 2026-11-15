@@ -358,6 +358,11 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Whole: what the mailbox keeps outside memory goes into the file.
     let m = s.loaded_message(id)?;
+    // A preview is not the message (#653): the window fetches it first when it can; where it
+    // can't (offline, a headless run, no UID after a move), nothing is written in its place.
+    if m.unfetched || m.incomplete {
+        return Err(fail("this message isn't downloaded yet: open it once you're online, then save it"));
+    }
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime_model::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
     let name = eml_name(&m);
@@ -377,6 +382,16 @@ fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
     for m in s.mailbox.messages_in(id) {
         whole.push(s.loaded_message(m.id)?);
+    }
+    // A preview is not the message (#653): a folder kept as a backup and then deleted on its
+    // server would leave stubs. Nothing is written, and the owner is told how many are missing.
+    let stubs = whole.iter().filter(|m| m.unfetched || m.incomplete).count();
+    if stubs > 0 {
+        return Err(failed!(
+            "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again",
+            n = stubs,
+            folder = folder.name.clone()
+        ));
     }
     whole.sort_by_key(|m| (m.date, m.id));
     let messages: Vec<&mailcraft_model::Message> = whole.iter().map(|m| m.as_ref()).collect();

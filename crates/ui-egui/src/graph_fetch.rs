@@ -33,6 +33,9 @@ use crate::{MailApp, now_ms};
 
 /// Messages asked for at a time: in the background, and for a forward of several (#360).
 const BATCH: usize = FETCH_BATCH;
+/// Most messages of an IMAP account one background request asks for (the server is signed in to
+/// once for them, and a request brings at most 64 MB).
+const IMAP_BATCH: usize = 100;
 // How long the background waits before looking again when there was nothing to fetch, and how
 // long at most after batches that brought nothing, one after another, are the engine's
 // ([`mailcraft_engine::sync_driver::fetch`]), as are the decisions about which messages a command
@@ -279,7 +282,10 @@ impl MailApp {
         for account in self.session.fetch_background_accounts(|kind| self.fetched_kind(kind), now) {
             let Some(way) = way(self, account) else { continue };
             let cancel = Arc::new(AtomicBool::new(false));
-            let Some(answer) = self.hand_over(account, way, &[], BATCH, cancel.clone()) else { continue };
+            // An IMAP request signs in once for all it brings: more at a time, so that a long
+            // window isn't thousands of sign-ins (#653). What it brings is capped by size too.
+            let most = if matches!(way, Way::Imap(_)) { IMAP_BATCH } else { BATCH };
+            let Some(answer) = self.hand_over(account, way, &[], most, cancel.clone()) else { continue };
             self.fetching.cancel = cancel;
             self.fetching.background = Some((account, self.session.openings(), answer));
             return;

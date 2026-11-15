@@ -19726,6 +19726,16 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "此邮件尚未下载：请联网后打开，再重新发送"
@@ -20926,6 +20936,11 @@ msgstr[0] "{n} 人未回复"
 msgid "{n} note"
 msgid_plural "{n} notes"
 msgstr[0] "{n} 条便笺"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

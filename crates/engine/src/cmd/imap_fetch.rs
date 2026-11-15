@@ -90,7 +90,7 @@ pub fn full_counts(mb: &Mailbox, account: Id, now: Timestamp) -> FullCounts {
 }
 
 /// Take in IMAP messages fetched whole. Not an undo step.
-pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
+pub fn apply_imap_fetch(s: &mut Session, mut result: GraphFetchResult) -> CmdResult {
     let account = result.account;
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Imap {
@@ -118,8 +118,19 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
     // In the order they came, and a set beside it: `result.fetched` is as long as the host sends.
     let mut taken: Vec<Id> = Vec::new();
     let mut seen: HashSet<Id> = HashSet::new();
+    let mut another: Vec<String> = Vec::new();
     for fetched in &result.fetched {
         let here = ImapFetchKey::read(&fetched.id).and_then(|key| by_key.get(&key).copied());
+        // A server that numbers its UIDs anew without saying so (a UIDVALIDITY of 0 on either side
+        // isn't compared) would give another message under this key: never written over this one.
+        if let Some(id) = here
+            && let (Some(came), Some(mine)) = (raw_message_id(&fetched.mime), s.mailbox.message(id).map(|m| plain_id(&m.message_id)))
+            && !mine.is_empty()
+            && came != mine
+        {
+            another.push(fetched.id.clone());
+            continue;
+        }
         // Whole, the bytes it came as with it when it is protected (#30): an IMAP message asks
         // for those alone by its UID instead ([`super::imap_again`]).
         if let Some(id) = here.filter(|id| !seen.contains(id))
@@ -136,6 +147,7 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
     s.kept_for_now.extend(outside);
     // Refused although there, or numbered anew: not asked for again in the background this session.
     // Gone from the server: not asked for again either, until a Send/Receive takes it away here.
+    result.failed.extend(another);
     s.graph_unfetchable.extend(result.failed.iter().chain(&result.missing).take(1_000).map(|id| (account, id.clone())));
     if !taken.is_empty() {
         s.mailbox_changed();
@@ -147,6 +159,36 @@ pub fn apply_imap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult 
     Ok(
         json!({"fetched": taken.len(), "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline}),
     )
+}
+
+/// A Message-ID as it is compared: without its angle brackets and spaces, in lower case.
+fn plain_id(id: &str) -> String {
+    id.trim().trim_start_matches('<').trim_end_matches('>').trim().to_ascii_lowercase()
+}
+
+/// The Message-ID of `mime`, read from its header block alone (the whole message is parsed once,
+/// when it is taken in). `None` when it has none.
+fn raw_message_id(mime: &[u8]) -> Option<String> {
+    let blank = |pattern: &[u8]| mime.windows(pattern.len()).position(|w| w == pattern);
+    let end = blank(b"\r\n\r\n").into_iter().chain(blank(b"\n\n")).min().unwrap_or(mime.len());
+    let head = String::from_utf8_lossy(mime.get(..end).unwrap_or_default());
+    let mut value: Option<String> = None;
+    for line in head.lines() {
+        if let Some(v) = value.as_mut() {
+            // A folded line goes on with the same field.
+            if line.starts_with([' ', '\t']) {
+                v.push_str(line.trim());
+                continue;
+            }
+            break;
+        }
+        if let Some((name, rest)) = line.split_once(':')
+            && name.trim().eq_ignore_ascii_case("message-id")
+        {
+            value = Some(rest.trim().to_string());
+        }
+    }
+    value.map(|v| plain_id(&v)).filter(|v| !v.is_empty())
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {

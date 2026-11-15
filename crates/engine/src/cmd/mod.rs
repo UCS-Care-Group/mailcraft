@@ -35,6 +35,8 @@ mod ews_down;
 pub mod ews_mail;
 mod ews_up;
 #[cfg(test)]
+mod export_preview_tests;
+#[cfg(test)]
 mod favorites_tests;
 pub mod file;
 pub mod folder;
@@ -124,6 +126,8 @@ pub mod remote;
 mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
+#[cfg(test)]
+mod respond_preview_tests;
 pub mod rules;
 pub mod rules_remote;
 #[cfg(test)]

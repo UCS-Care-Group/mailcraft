@@ -19561,6 +19561,18 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "dit bericht is nog niet gedownload: open het zodra je online bent en beantwoord of doorstuur het dan"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "dit bericht is nog niet gedownload: open het zodra je online bent en sla het dan op"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
 
@@ -20812,6 +20824,12 @@ msgid "{n} note"
 msgid_plural "{n} notes"
 msgstr[0] ""
 msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+msgstr "{n} van de berichten in “{folder}” zijn nog niet gedownload, dus de map kan niet volledig worden geëxporteerd: open ze zodra je online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer dan opnieuw"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

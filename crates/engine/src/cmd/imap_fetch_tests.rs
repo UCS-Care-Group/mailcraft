@@ -316,3 +316,28 @@ fn a_rule_that_cant_move_a_preview_out_of_its_account_says_so_once() {
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert!(lines[0].contains("couldn't move 30 messages; the first:"), "{}", lines[0]);
 }
+
+#[test]
+fn another_messages_content_never_lands_in_this_one() {
+    let (mut s, account, ids) = aged("1m", &[1, 400]);
+    s.run("account.thinOffline", &json!({})).unwrap();
+    s.mailbox.message_mut(ids[1]).unwrap().message_id = "<mine@example.org>".into();
+    let came = |mime: Vec<u8>| GraphFetchResult {
+        account,
+        email: "ada@mail.example".into(),
+        fetched: vec![GraphFetched { id: key(2), mime }],
+        ..Default::default()
+    };
+    // The server's UID 2 is another message now (its Message-ID is not this one's).
+    let said = s.run("sync.applyImapFetch", &json!({"result": came(mime("Day 400"))})).unwrap();
+    assert_eq!((said["fetched"].as_u64(), said["failed"].as_u64()), (Some(0), Some(1)), "{said}");
+    let m = s.mailbox.message(ids[1]).unwrap();
+    assert!(m.unfetched && !m.body.text.contains("fetched again") && m.message_id == "<mine@example.org>");
+    // The same message, its Message-ID written another way (case, brackets, a folded line), is taken.
+    let same =
+        b"From: Bob <bob@example.org>\r\nSubject: Day 400\r\nMessage-ID:\r\n <MINE@Example.org>\r\n\r\nThe whole of it, fetched again.\r\n".to_vec();
+    s.graph_unfetchable.clear();
+    let said = s.run("sync.applyImapFetch", &json!({"result": came(same)})).unwrap();
+    assert_eq!(said["fetched"], 1, "{said}");
+    assert!(!s.mailbox.message(ids[1]).unwrap().unfetched);
+}
