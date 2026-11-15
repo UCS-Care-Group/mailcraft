@@ -10,7 +10,8 @@ Unknown collection permissions default to read-only. These types are not yet add
 mailbox file, account settings, or a sync command, and contain no passwords or tokens.
 
 `mailcraft_dav` currently contains pure document helpers only. Nothing calls a server,
-opens a socket, reads a file or schedules a job. There is no discovery or upload implementation.
+opens a socket, reads a file or schedules a job. There is no upload implementation, and the
+search for a server (below) is not yet called by Add Account or anything else.
 
 ## Editing a document
 
@@ -59,6 +60,26 @@ fail the whole response. Budgets are 16 MiB, 100,000 elements, 32 nested element
 per namespace, element or component name (so inherited namespace names cannot amplify memory). Errors
 contain no input text. The XML dependency is already used by the workspace; no third-party dependency is added.
 
+## Finding a server
+
+`mailcraft_net::lookup_dav` asks for the records of RFC 6764: a domain's `_caldavs._tcp` or
+`_carddavs._tcp` SRV record and the `path` of the TXT record beside it, over the same
+DNS-over-HTTPS name servers as the mail servers' records. Only the domain goes out. The
+services without TLS (`_caldav._tcp`, `_carddav._tcp`) are never asked for, and a path is taken
+only when it is at most 250 bytes of printable ASCII starting with one slash.
+
+`mailcraft_dav::discovery::probe` then says whether a CalDAV or CardDAV server answers at a
+`Start`: the place the records name, the domain's own `/.well-known/caldav` or
+`/.well-known/carddav` when it has no record, or an address the owner typed. It performs
+nothing itself: the host's `HttpExchange` does. Its rules:
+
+- No credential is sent: every request is an anonymous `PROPFIND` for the principal.
+- A redirect is followed on the starting origin only, one step at a time, at most five. A
+  redirect to another server is not followed; its address is handed back (`Found::Elsewhere`),
+  so that the owner can be asked before anything goes there. `https` only.
+- A server counts as one by `status::is_dav_evidence` alone: a DAV multistatus, or a 401 whose
+  `DAV` header names `calendar-access` or `addressbook`. A bare 401 proves nothing.
+
 ## Validation and sources
 
 Tests include parse/edit/write round trips through the real iCalendar and vCard writers,
@@ -75,6 +96,7 @@ missing END lines).
 Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 [CalDAV, RFC 4791](https://www.rfc-editor.org/rfc/rfc4791),
 [CardDAV, RFC 6352](https://www.rfc-editor.org/rfc/rfc6352),
+[locating CalDAV and CardDAV services, RFC 6764](https://www.rfc-editor.org/rfc/rfc6764),
 [iCalendar, RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) and
 [vCard, RFC 6350](https://www.rfc-editor.org/rfc/rfc6350).
 

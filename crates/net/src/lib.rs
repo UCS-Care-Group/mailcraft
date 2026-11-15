@@ -33,6 +33,8 @@ mod autoconfig;
 #[cfg(not(target_arch = "wasm32"))]
 mod cert;
 #[cfg(not(target_arch = "wasm32"))]
+mod dav_srv;
+#[cfg(not(target_arch = "wasm32"))]
 mod discover;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns;
@@ -115,6 +117,7 @@ mod native {
 
     pub use crate::anchors::system_trust_anchors;
     pub use crate::cert::{CertificateFault, CertificateInfo, CertificateProblem, describe as describe_certificate};
+    pub use crate::dav_srv::{DavPlace, DavService, lookup_dav, lookup_dav_at};
     pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{

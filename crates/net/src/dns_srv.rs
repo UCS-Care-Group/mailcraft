@@ -187,7 +187,7 @@ fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
 }
 
 /// One question of one name server: `name` and the record type.
-fn question(endpoint: &str, name: &str, kind: &str) -> Result<Answer, NetError> {
+pub(crate) fn question(endpoint: &str, name: &str, kind: &str) -> Result<Answer, NetError> {
     let endpoint = endpoint.trim();
     let question = http::form(&[("name", name), ("type", kind)]);
     let url = Url::parse(&format!("{endpoint}{}{question}", if endpoint.contains('?') { '&' } else { '?' }))?;
@@ -195,7 +195,7 @@ fn question(endpoint: &str, name: &str, kind: &str) -> Result<Answer, NetError> 
 }
 
 /// The records of a name server's answer, once its status says there are any to look at.
-fn records(answer: &Answer) -> Result<Vec<Value>, NetError> {
+pub(crate) fn records(answer: &Answer) -> Result<Vec<Value>, NetError> {
     let nonsense = |text: String| NetError::Proto(ProtoError::Protocol(text.into()));
     if answer.status != 200 {
         return Err(nonsense(format!("the name server answered with status {}", answer.status)));

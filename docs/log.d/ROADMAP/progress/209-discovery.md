@@ -1,0 +1,1 @@
+| 2026-11-15 | #209: finding a domain's CalDAV and CardDAV servers (RFC 6764): the SRV and TXT records in `crates/net`, and in `crates/dav` a probe without credentials that follows redirects on one origin only; not called by Add Account yet, nothing user-visible |
