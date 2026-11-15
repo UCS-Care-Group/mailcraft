@@ -2300,7 +2300,7 @@ msgid "Categorize"
 msgstr "Categorizza"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 msgid "Cc"
 msgstr ""
 
@@ -15417,7 +15417,7 @@ msgid "Title"
 msgstr "Titolo"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "A"
