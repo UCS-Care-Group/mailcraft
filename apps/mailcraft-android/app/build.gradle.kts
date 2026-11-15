@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation("${libs.jna.get()}@aar")
     implementation(libs.platform.verifier)
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
 }

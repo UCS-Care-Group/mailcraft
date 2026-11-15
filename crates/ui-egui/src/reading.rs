@@ -47,6 +47,7 @@ mod signature;
 mod signature_tests;
 #[cfg(test)]
 mod tests;
+pub(crate) mod unsubscribe;
 mod view;
 mod warnings;
 #[cfg(test)]
@@ -466,6 +467,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // That it comes from a mailing list, and Unsubscribe (#1207).
+        unsubscribe::bar(app, ui, m, place, &t);
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
@@ -650,6 +653,9 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     let thread = app.session.conversation(m.id);
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+            ui.spacing_mut().button_padding = vec2(10.0, 4.0);
+            ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
             ui.label(
                 egui::RichText::new(tln!(thread.len(), "{n} message in this conversation:", "{n} messages in this conversation:"))
                     .font(regular(11.5))
@@ -662,7 +668,10 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                     other.from.display(),
                     crate::dates::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
-                let button = ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small());
+                let button = ui.add_enabled(
+                    *id != m.id,
+                    egui::Button::new(egui::RichText::new(label).font(regular(11.5))).min_size(vec2(0.0, 22.0)).corner_radius(6),
+                );
                 app.hit.add("conversationMessage", *id, button.rect);
                 if button.clicked() {
                     // The newest message of a conversation open in the list, by its own row there,

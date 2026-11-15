@@ -43,7 +43,7 @@ internal class SignInPage(
             .build()
             .intent
         intent.data = url.toUri()
-        handback.arm()
+        val armed = handback.arm()
         val activity = foreground()
         try {
             if (activity != null) {
@@ -52,11 +52,11 @@ internal class SignInPage(
                 context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         } catch (_: ActivityNotFoundException) {
-            handback.disarm()
+            handback.disarm(armed)
             throw HostException.Failed()
         } catch (_: RuntimeException) {
             // A SecurityException or anything else: nobody will wait for a redirect now.
-            handback.disarm()
+            handback.disarm(armed)
             throw HostException.Failed()
         }
     }
