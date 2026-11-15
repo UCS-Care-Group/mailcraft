@@ -60,6 +60,17 @@ fn settle(h: &mut Window) {
     }
 }
 
+/// The job and the PDF are made off the window thread: run frames (bounded) until `done`.
+fn until(h: &mut Window, done: impl Fn() -> bool) {
+    for _ in 0..400 {
+        if done() {
+            return;
+        }
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 fn press(h: &mut Window, kind: &str) {
     let r = h.state().hit.rect_in(0, kind, 0).unwrap_or_else(|| panic!("no {kind}"));
     click(h, r.center(), PointerButton::Primary, 1);
@@ -79,6 +90,7 @@ fn the_job_goes_to_the_default_printer_as_the_owner_set_it_up() {
     press(&mut h, "printLetter");
     settle(&mut h);
     press(&mut h, "printGo");
+    until(&mut h, || !jobs.lock().unwrap().is_empty());
     settle(&mut h);
     assert!(h.state().dialog.is_none());
     let jobs = jobs.lock().unwrap();
@@ -98,14 +110,7 @@ fn without_a_printer_the_pdf_opens_in_the_viewer() {
     h.state_mut().run("file.print", json!({})).unwrap();
     settle(&mut h);
     press(&mut h, "printGo");
-    // The PDF is made off the window thread: wait (bounded) for the viewer to be asked.
-    for _ in 0..400 {
-        if !opened.lock().unwrap().is_empty() {
-            break;
-        }
-        h.run_steps(1);
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    until(&mut h, || !opened.lock().unwrap().is_empty());
     assert_eq!(*opened.lock().unwrap(), ["Your October invoice is ready.pdf"]);
 }
 
@@ -144,7 +149,7 @@ fn the_dialog_prints_what_it_counted_though_the_selection_moves_on() {
     let Some(crate::dialogs::Dialog::Print(d)) = &h.state().dialog else { panic!("no dialog") };
     assert_eq!(d.ids(), [INVOICE]);
     press(&mut h, "printGo");
-    settle(&mut h);
+    until(&mut h, || !jobs.lock().unwrap().is_empty());
     assert_eq!(jobs.lock().unwrap()[0].title, "Your October invoice is ready");
 }
 
