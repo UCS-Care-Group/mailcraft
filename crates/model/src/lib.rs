@@ -11,6 +11,7 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
@@ -172,6 +173,8 @@ mod auto_replies_tests;
 mod calendar_rights_tests;
 #[cfg(test)]
 mod contact_key_tests;
+#[cfg(test)]
+mod gmail_labels_tests;
 #[cfg(test)]
 mod gmail_tests;
 #[cfg(test)]

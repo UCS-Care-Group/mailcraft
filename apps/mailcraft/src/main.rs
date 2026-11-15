@@ -58,6 +58,8 @@ mod favorites_flow;
 mod favorites_organisation_flow;
 mod file_dialogs;
 mod file_launcher;
+#[cfg(windows)]
+mod recent_attachments;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -1079,6 +1081,7 @@ fn services(
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
+    let idle_ctx = tasks_ctx.clone();
     // The host: what the platform gives the program, held by the threads that run its jobs. The
     // desktop's platform asks the window, by message, for what only the window may do.
     let platform_calls = mailcraft_ui_egui::platform::PlatformCalls::default();
@@ -1096,6 +1099,8 @@ fn services(
     Services {
         platform_calls,
         file_dialog: Some(file_dialog),
+        #[cfg(windows)]
+        recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
         // channel short enough that a busy window holds the run back instead of piling pieces up.
         sync: Some(Box::new(move |request| {
@@ -1119,6 +1124,32 @@ fn services(
             rx
         })),
         sync_cancel,
+        // Waiting for new mail in IDLE (#276): one thread an account, which ends when its flag is set.
+        idle: Some(Box::new(move |request| {
+            let (tx, notes) = std::sync::mpsc::sync_channel(16);
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let (flag, wake) = (stop.clone(), idle_ctx.clone());
+            let spawned = std::thread::Builder::new().name("idle".into()).spawn(move || {
+                mailcraft_net::idle::watch(&request, &flag, &mut |note| {
+                    use mailcraft_model::sync::IdleNote;
+                    match note {
+                        // What matters is that there is news, not how often it was said.
+                        IdleNote::Arrived => {
+                            let _ = tx.try_send(note);
+                        }
+                        IdleNote::Ended(_) => {
+                            let _ = tx.send(note);
+                        }
+                    }
+                    wake.request_repaint();
+                });
+            });
+            // A dropped sender reads as "ended without a word" in the app.
+            if let Err(e) = spawned {
+                log::error!("couldn't start the wait for new mail: {e}");
+            }
+            mailcraft_ui_egui::IdleWatch { stop, notes }
+        })),
         sign_in: Some(Box::new(move |request| {
             let ctx = sign_in_ctx.clone();
             background(&sign_in_ctx, "sign-in", move || sign_in(&ctx, request))

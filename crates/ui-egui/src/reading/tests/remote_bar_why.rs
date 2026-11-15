@@ -3,11 +3,13 @@
 //! The pictures bar says why "Always download pictures from" can't be used when the server
 //! didn't vouch for the sender (#1347). Addresses are invented.
 
+use egui_kittest::kittest::Queryable;
 use serde_json::json;
 
 use super::{Host, app_with, png, says, select, web_message, window};
 
 const ALWAYS: &str = "Always download pictures from news@shop.example";
+const BESIDE: &str = "(the server didn't confirm the sender)";
 
 fn pictures() -> Vec<String> {
     vec!["https://a.shop.example/p/0.png".to_string(), "https://a.shop.example/p/1.png".to_string()]
@@ -67,4 +69,36 @@ fn an_unvouched_sender_is_shown_greyed_out_without_the_domain() {
         assert!(harness.state().hit.rect("alwaysDownloadPictures", id).is_none());
         assert!(harness.state().hit.rect("downloadPictures", id).is_some());
     }
+}
+
+/// Pointing at the greyed option shows why it can't be used (#1386), and without pointing the
+/// option is still there to read.
+#[test]
+fn pointing_at_the_greyed_option_says_why() {
+    let mut unvouched = web_message(0, "news@shop.example", "Not vouched", &pictures());
+    unvouched.headers.clear();
+    let (mut app, ids) = app_with(vec![unvouched]);
+    let _host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    select(&mut harness, ids[0]);
+    let why = "Your mail server didn't confirm that this message came from news@shop.example";
+    assert!(!says(&harness, why), "the reason is a tooltip, not on the bar");
+    // (As for a link that can be clicked, whose tip shows the same way.)
+    point_at(&mut harness, "Download pictures");
+    assert!(says(&harness, "Show this message's pictures, this once"), "a tip shows when pointed at");
+    point_at(&mut harness, ALWAYS);
+    assert!(says(&harness, why), "pointing at the option says why");
+    // Without pointing, a few words beside it say why; pointing at them says it whole.
+    point_at(&mut harness, "Download pictures");
+    assert!(!says(&harness, why));
+    assert!(says(&harness, BESIDE));
+    point_at(&mut harness, BESIDE);
+    assert!(says(&harness, why), "pointing at the words beside it says why");
+}
+
+/// Rest the pointer on what says `label` for long enough for its tip to show.
+fn point_at(harness: &mut super::Window, label: &str) {
+    let at = harness.get_by_label(label).rect().center();
+    harness.event(egui::Event::PointerMoved(at));
+    harness.run_steps(60);
 }
