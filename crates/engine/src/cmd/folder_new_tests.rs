@@ -41,7 +41,8 @@ fn a_folder_is_made_in_the_account_named() {
 #[test]
 fn the_folder_in_view_is_below_when_it_is_that_account_s() {
     let (mut s, _, inbox, _) = setup();
-    let id = made(&mut s, json!({"name": "Projects", "account": s.mailbox.folder(inbox).unwrap().account}))["id"].as_u64().unwrap();
+    let first = s.mailbox.folder(inbox).unwrap().account;
+    let id = made(&mut s, json!({"name": "Projects", "account": first}))["id"].as_u64().unwrap();
     assert_eq!(s.mailbox.folder(id).unwrap().parent, Some(inbox), "under the folder in view of that account");
 
     let (mut s, _, _, theirs) = setup();
