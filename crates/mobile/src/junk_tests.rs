@@ -131,12 +131,12 @@ fn every_query_with_junk_answers_and_never_panics() {
     for t in texts.iter().copied().chain(["https://127.0.0.1/x", "http://[::1]/", "mailto:a@b.example", "tel:1", "cid:x", "http://exa mple.org/"]) {
         let _ = crate::links::link_target(t.to_string());
         let _ = crate::pictures::sender_picture_urls(t.to_string());
-        not_internal("fetch_picture", &crate::pictures::fetch_picture(t.to_string()));
+        not_internal("fetch_picture", &crate::pictures::fetch_picture(t.to_string(), crate::pictures::PictureStop::new()));
         not_internal("fetch_sender_picture", &crate::pictures::fetch_sender_picture(t.to_string()));
     }
     let _ = crate::links::link_target(huge.clone());
     let _ = crate::pictures::sender_picture_urls(huge.clone());
-    not_internal("fetch_picture", &crate::pictures::fetch_picture(huge.clone()));
+    not_internal("fetch_picture", &crate::pictures::fetch_picture(huge.clone(), crate::pictures::PictureStop::new()));
     for a in dates {
         for b in dates {
             not_internal("calendar", &block_on(core.calendar(a.to_string(), b.to_string())));

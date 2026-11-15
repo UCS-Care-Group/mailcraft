@@ -38,6 +38,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
@@ -105,6 +106,9 @@ pub enum PictureError {
     /// The whole of [`PATIENCE`] went by, or the server said nothing for too long.
     #[error("the server took too long")]
     TimedOut,
+    /// The owner no longer wants it ([`Cancel`]): nothing more was asked or read.
+    #[error("it was stopped")]
+    Cancelled,
     /// It came packed in a way that isn't unpacked here, or what was packed is damaged.
     #[error("the server sent it packed in a way that can't be read")]
     Packed,
@@ -130,6 +134,36 @@ fn status_text(status: u16) -> String {
 pub fn fetch(url: &str) -> Result<Vec<u8>, PictureError> {
     fetch_with(url, &Reach::web(), &Limits::default())
 }
+
+/// [`fetch`] that stops when `cancel` is signalled, from any thread: no connection is begun, no
+/// redirect followed, no retry made after it, and a read or write waiting ends within a moment
+/// ([`PictureError::Cancelled`]). What had arrived is dropped.
+pub fn fetch_cancellable(url: &str, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
+    fetch_with_cancel(url, &Reach::web(), &Limits::default(), cancel)
+}
+
+/// A signal to stop a download: cheap to clone, every clone is the same signal, and once given
+/// it stays given.
+#[derive(Clone, Debug, Default)]
+pub struct Cancel(Arc<AtomicBool>);
+
+impl Cancel {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Give the signal.
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+/// How long a wait goes by before the signal is looked at again.
+const SLICE: Duration = Duration::from_millis(100);
 
 /// How much one picture may cost.
 #[derive(Clone, Copy, Debug)]
@@ -519,7 +553,14 @@ fn addresses(host: &str, port: u16, reach: &Reach<'_>, deadline: Instant) -> Res
 /// one that answers at once is the only one tried, one that refuses makes way at once, and one
 /// that says nothing (an address of a kind this machine has no way to) costs the head start and
 /// no more. A thread that is left behind ends with its own time, and closes what it opened.
-fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Limits, deadline: Instant) -> Result<TcpStream, PictureError> {
+fn connect(
+    addresses: &[SocketAddr],
+    host: &str,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    deadline: Instant,
+    cancel: &Cancel,
+) -> Result<TcpStream, PictureError> {
     #[cfg(not(test))]
     let _ = reach;
     let mut reason = "no address was found for the name";
@@ -527,6 +568,9 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
     let mut waiting = addresses.iter().copied();
     let (mut tried, mut failed) = (0usize, 0usize);
     loop {
+        if cancel.is_cancelled() {
+            return Err(PictureError::Cancelled);
+        }
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
             reason = "the server didn't answer";
@@ -562,7 +606,7 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
         // While there is another address to try, this one has its head start; the last ones
         // have all the time that is left.
         let wait = if more { left.min(limits.head_start) } else { left };
-        match rx.recv_timeout(wait) {
+        match receive(&rx, wait, cancel) {
             Ok(Ok(tcp)) => {
                 let _ = tcp.set_nodelay(true);
                 return Ok(tcp);
@@ -588,10 +632,23 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
     Err(unreachable_host(host, reason))
 }
 
+/// `rx.recv_timeout(wait)`, in slices, ending early (as a timeout) when `cancel` is given.
+fn receive<T>(rx: &mpsc::Receiver<T>, wait: Duration, cancel: &Cancel) -> Result<T, mpsc::RecvTimeoutError> {
+    let until = Instant::now() + wait;
+    loop {
+        let left = until.saturating_duration_since(Instant::now());
+        match rx.recv_timeout(left.min(SLICE)) {
+            Err(mpsc::RecvTimeoutError::Timeout) if !left.is_zero() && left > SLICE && !cancel.is_cancelled() => {}
+            done => return done,
+        }
+    }
+}
+
 /// A socket that gives up when the picture's time is up: no read or write waits past it.
 struct Timed {
     tcp: TcpStream,
     deadline: Instant,
+    cancel: Cancel,
 }
 
 impl Timed {
@@ -600,8 +657,11 @@ impl Timed {
         if left.is_zero() {
             return Err(ErrorKind::TimedOut.into());
         }
-        // No time at all would mean "wait for ever".
-        let wait = Some(left.min(IO).max(Duration::from_millis(1)));
+        if self.cancel.is_cancelled() {
+            return Err(ErrorKind::ConnectionAborted.into());
+        }
+        // No time at all would mean "wait for ever". A wait is cut into slices, so that the signal is seen.
+        let wait = Some(left.min(SLICE).max(Duration::from_millis(1)));
         self.tcp.set_read_timeout(wait)?;
         self.tcp.set_write_timeout(wait)
     }
@@ -609,15 +669,27 @@ impl Timed {
 
 impl Read for Timed {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.ready()?;
-        self.tcp.read(buf)
+        let began = Instant::now();
+        loop {
+            self.ready()?;
+            match self.tcp.read(buf) {
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) && began.elapsed() < IO => {}
+                done => return done,
+            }
+        }
     }
 }
 
 impl Write for Timed {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.ready()?;
-        self.tcp.write(buf)
+        let began = Instant::now();
+        loop {
+            self.ready()?;
+            match self.tcp.write(buf) {
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) && began.elapsed() < IO => {}
+                done => return done,
+            }
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -743,15 +815,29 @@ struct Answer {
 
 /// One GET, on a connection of its own, to an address that was checked first; a POST of `form`
 /// (`application/x-www-form-urlencoded`) instead when there is one.
-fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline: Instant, form: Option<&str>) -> Result<Answer, PictureError> {
+fn ask(
+    url: &Url,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    max_bytes: usize,
+    deadline: Instant,
+    form: Option<&str>,
+    cancel: &Cancel,
+) -> Result<Answer, PictureError> {
+    if cancel.is_cancelled() {
+        return Err(PictureError::Cancelled);
+    }
     let port = match (url.port, url.secure) {
         (0, true) => 443,
         (0, false) => 80,
         (port, _) => port,
     };
     let addresses = addresses(&url.host, port, reach, deadline)?;
-    let tcp = connect(&addresses, &url.host, reach, limits, deadline)?;
-    let line = Timed { tcp, deadline };
+    let tcp = connect(&addresses, &url.host, reach, limits, deadline, cancel)?;
+    if cancel.is_cancelled() {
+        return Err(PictureError::Cancelled);
+    }
+    let line = Timed { tcp, deadline, cancel: cancel.clone() };
     let mut line = if url.secure { secure(line, &url.host)? } else { Line::Plain(line) };
     // The address was checked when it was read: nothing in it can end a line early. And this is
     // all that is ever said: what to send, to whom, how, and that nothing more will be asked.
@@ -783,6 +869,16 @@ fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline
 
 /// [`fetch`], with the reach and the limits said.
 fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, PictureError> {
+    fetch_with_cancel(url, reach, limits, &Cancel::new())
+}
+
+/// [`fetch_with`] that ends with [`PictureError::Cancelled`] once `cancel` is given, whatever it was doing.
+fn fetch_with_cancel(url: &str, reach: &Reach<'_>, limits: &Limits, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
+    let result = fetch_loop(url, reach, limits, cancel);
+    if cancel.is_cancelled() { Err(PictureError::Cancelled) } else { result }
+}
+
+fn fetch_loop(url: &str, reach: &Reach<'_>, limits: &Limits, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
     let deadline = Instant::now() + limits.patience;
     let mut at = address(url)?;
     let mut left = limits.max_bytes;
@@ -790,7 +886,7 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
     // The address itself, then as many redirects as are followed, and one asking again: every
     // turn but the last of these is one or the other, so the turns are counted.
     loop {
-        let answer = ask(&at, reach, limits, left, deadline, None)?;
+        let answer = ask(&at, reach, limits, left, deadline, None, cancel)?;
         match answer.status {
             // What came packed (nobody asked for that) is unpacked, to no more than may be taken.
             200 => {
@@ -815,7 +911,11 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
                 if deadline.saturating_duration_since(Instant::now()) <= wait {
                     return Err(PictureError::Status(status));
                 }
-                std::thread::sleep(wait);
+                // (In slices, so that a stop is not waited for.)
+                let until = Instant::now() + wait;
+                while !cancel.is_cancelled() && Instant::now() < until {
+                    std::thread::sleep(until.saturating_duration_since(Instant::now()).min(SLICE));
+                }
                 left = left.saturating_sub(answer.body.len());
             }
             status => return Err(PictureError::Status(status)),
@@ -846,7 +946,7 @@ pub fn unsubscribe(url: &str) -> Result<(), String> {
 fn unsubscribe_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<(), String> {
     let at = address(url).map_err(|_| "its address isn't one MailCraft sends to".to_string())?;
     let deadline = Instant::now() + limits.patience;
-    match ask(&at, reach, limits, limits.max_bytes, deadline, Some("List-Unsubscribe=One-Click")) {
+    match ask(&at, reach, limits, limits.max_bytes, deadline, Some("List-Unsubscribe=One-Click"), &Cancel::new()) {
         Ok(answer) if (200..300).contains(&answer.status) => Ok(()),
         Ok(answer) if (300..400).contains(&answer.status) => Err(format!("the list's server sent it on elsewhere ({})", answer.status)),
         Ok(answer) => Err(format!("the list's server answered {}", answer.status)),
@@ -859,6 +959,10 @@ fn unsubscribe_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<(),
 #[cfg(test)]
 #[path = "unsubscribe_tests.rs"]
 mod unsubscribe_tests;
+
+#[cfg(test)]
+#[path = "cancel_tests.rs"]
+mod cancel_tests;
 
 #[cfg(test)]
 mod tests {
