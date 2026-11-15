@@ -100,6 +100,7 @@ fn a_longer_window_on_a_phone_lists_the_folders_afresh_and_a_shorter_one_does_no
         folder: "in".into(),
         link: "https://graph.microsoft.com/v1.0/x?$deltatoken=2".into(),
         afresh: true,
+        relist_gen: link.relist_gen,
         caught_up: true,
         ..Default::default()
     };
@@ -187,4 +188,82 @@ fn the_message_shown_never_leaves() {
     s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
     s.run("account.trimDevice", &json!({})).unwrap();
     assert!(s.mailbox.message(old).is_some());
+}
+
+#[test]
+fn a_page_of_an_earlier_listing_never_meets_a_later_request_to_list_afresh() {
+    use mailcraft_model::sync::MessagePage;
+    let (mut s, account, inbox) = graph_session();
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    let relisting = |s: &Session| s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().relist;
+    let take = |s: &mut Session, page: &MessagePage| {
+        let mut index = crate::cmd::graph_down::ServerIndex::default();
+        crate::cmd::graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut Default::default());
+    };
+    let page = |afresh: bool, relist_gen: u32| MessagePage {
+        folder: "in".into(),
+        link: "https://graph.microsoft.com/v1.0/x?$skiptoken=2".into(),
+        afresh,
+        relist_gen,
+        ..Default::default()
+    };
+    // A month's sync is under way; the window is made six months before its next page comes.
+    s.run("account.edit", &json!({"id": account, "keepOffline": "6m"})).unwrap();
+    assert!(relisting(&s));
+    take(&mut s, &page(false, 0));
+    assert!(relisting(&s), "a page that followed a link says nothing of the new request");
+    // The first page of a listing afresh begun for an earlier request.
+    let first = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().relist_gen;
+    s.run("account.edit", &json!({"id": account, "keepOffline": "12m"})).unwrap();
+    assert!(relisting(&s));
+    take(&mut s, &page(true, first));
+    assert!(relisting(&s), "nor does one made for the request before it");
+    let now = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().relist_gen;
+    take(&mut s, &page(true, now));
+    assert!(!relisting(&s));
+}
+
+#[test]
+fn a_device_with_no_limits_starts_from_the_phones_when_one_is_set() {
+    let mut s = Session::empty();
+    s.run("account.deviceLimits", &json!({"storage": MIN_STORAGE})).unwrap();
+    let l = s.mailbox.device_limits.unwrap();
+    assert_eq!(l.defaults, mailcraft_model::PHONE_DEFAULTS, "not moved to the defaults again at the next open");
+    assert_eq!(l.messages, mailcraft_model::DeviceLimits::phone(None).messages);
+}
+
+#[test]
+fn a_message_with_a_change_waiting_stays_however_many_changes_wait() {
+    let (mut s, account, inbox) = graph_session();
+    // One more than a request carries: the last in line is as safe as the first.
+    let ids: Vec<u64> = (0..=mailcraft_model::sync::MAX_MESSAGE_CHANGES)
+        .map(|_| {
+            let id = add(&mut s, account, inbox, 60, 0);
+            s.mailbox.message_mut(id).unwrap().read = true; // the server still has it unread
+            id
+        })
+        .collect();
+    s.run("account.deviceLimits", &json!({"storage": PHONE_STORAGE})).unwrap();
+    let said = s.run("account.trimDevice", &json!({})).unwrap();
+    assert_eq!(said["dropped"], 0);
+    assert!(ids.iter().all(|id| s.mailbox.message(*id).is_some()));
+}
+
+#[test]
+fn thinning_counts_only_what_it_releases_so_the_cap_is_met() {
+    let (mut s, account, inbox) = graph_session();
+    s.run("account.edit", &json!({"id": account, "keepOffline": "all"})).unwrap();
+    s.run("account.deviceLimits", &json!({"storage": MIN_STORAGE})).unwrap();
+    // Many short bodies, each keeping most of its text as the preview, and a recent big one that
+    // takes the mailbox 10,000 bytes over the cap.
+    let small = 100;
+    for n in 0..small {
+        add(&mut s, account, inbox, 30 + n, 1000);
+    }
+    let held: u64 = s.mailbox.messages.values().map(|m| super::device_limits::local_bytes(m)).sum();
+    let big = usize::try_from(MIN_STORAGE + 10_000 - held - super::device_limits::HEADER_BYTES).unwrap();
+    add(&mut s, account, inbox, 1, big);
+    let said = s.run("account.trimDevice", &json!({})).unwrap();
+    assert!(said["thinned"].as_u64().unwrap() >= 14, "{said}");
+    assert!(said["bytes"].as_u64().unwrap() <= MIN_STORAGE, "{said}");
 }

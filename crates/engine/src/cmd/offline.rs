@@ -133,7 +133,7 @@ pub(crate) fn content_bytes(m: &Message) -> u64 {
 
 /// The preview message `id` keeps: the first words of its text (read from disk when only that
 /// is kept there).
-fn preview_of(s: &Session, id: Id) -> String {
+pub(crate) fn preview_of(s: &Session, id: Id) -> String {
     let Some(m) = s.mailbox.message(id) else { return String::new() };
     if !m.body.text.trim().is_empty() || m.body.html.is_some() {
         return crate::list::preview(m, PREVIEW);

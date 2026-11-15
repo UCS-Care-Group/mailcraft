@@ -1325,6 +1325,10 @@ pub struct GraphLink {
     /// lists its folders so (MB3.16), to bring the older mail the window now covers.
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// Which request for a listing afresh this is ([`crate::ServerFolder::relist_gen`]), echoed by
+    /// the first page of the listing it began.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
 }
 
 /// A message as a folder's delta gives it: what the message list needs (R3 spec S9).
@@ -1378,6 +1382,10 @@ pub struct MessagePage {
     /// (R3 spec S11).
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// For a page that begins a listing afresh that a request for one asked for: the request's
+    /// number ([`GraphLink::relist_gen`]), so that only that request is met by it.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub relist_gen: u32,
     /// For a page that ends a round begun after this run's listing: the folder's counts in that
     /// listing, kept with the link ([`crate::ServerFolder::counts`], #276). Otherwise `None`,
     /// and the counts kept for the folder are forgotten with its old link.

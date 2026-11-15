@@ -912,6 +912,22 @@ fn add_account_whose_sign_in_send_receive_refuses_says_so_and_leaves_nothing() {
 }
 
 #[test]
+fn a_refused_add_account_puts_back_the_phones_storage_cap() {
+    let rig = Rig::new(&good_server());
+    let cap = |rig: &Rig| block_on(rig.core.call(|s| Ok(s.mailbox.device_limits.map(|l| l.storage)))).unwrap();
+    block_on(rig.core.call(|s| crate::limits::set_storage(s, 5 << 10).map_err(CoreError::from))).unwrap();
+    let before = cap(&rig);
+    assert_eq!(before, Some(5 << 30));
+    // The new account's own choice (the least the phone takes) is the mailbox's cap while it is
+    // being set up; a sign-in Send/Receive refuses leaves what the owner had.
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert!(rig.accounts().is_empty());
+    assert_eq!(cap(&rig), before);
+}
+
+#[test]
 fn a_refused_add_account_puts_back_only_the_refresh_token() {
     let rig = Rig::new(&good_server());
     // Something else kept under the address (a password) is not the sign-in's to take.

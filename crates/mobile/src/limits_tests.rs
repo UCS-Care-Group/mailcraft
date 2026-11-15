@@ -37,7 +37,9 @@ fn a_mailbox_from_before_the_limits_is_moved_to_the_phones_defaults_once() {
 #[test]
 fn a_storage_cap_the_owner_had_chosen_is_kept_by_the_move() {
     let (mut s, _) = before_the_limits();
-    s.run("account.deviceLimits", &serde_json::json!({"storage": 2u64 << 30})).unwrap();
+    // (A cap from before the phone had defaults: its record says none were applied. The command
+    // starts a new record at the phone's defaults, so that is made here as such a file has it.)
+    s.mailbox.device_limits = Some(mailcraft_model::DeviceLimits { storage: 2u64 << 30, ..Default::default() });
     assert!(settle(&mut s, None));
     assert_eq!(s.mailbox.device_limits.unwrap().storage, 2 << 30);
 }

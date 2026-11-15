@@ -14,7 +14,7 @@
 //!   and nothing goes from it: what left is listed again only if it comes within the window. Not
 //!   an undo step.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::device_limits::{MAX_MESSAGES, MAX_STORAGE, MIN_MESSAGES, MIN_STORAGE};
 use mailcraft_model::sync::MessageChange;
@@ -75,7 +75,9 @@ fn device_limits(s: &mut Session, v: &Value) -> CmdResult {
         return Ok(shown(s));
     }
     let before = s.mailbox.device_limits;
-    let mut l = before.unwrap_or_default();
+    // (A device with no limits yet starts from the phone's: a zero record would be moved to them
+    // again at the next open, undoing what is set here.)
+    let mut l = before.unwrap_or_else(|| mailcraft_model::DeviceLimits::phone(None));
     if let Some(n) = storage {
         l.storage = n;
     }
@@ -111,7 +113,7 @@ fn waiting_to_go(s: &Session) -> HashSet<Id> {
     let mut ids = HashSet::new();
     let accounts: Vec<Id> = s.mailbox.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect();
     for account in accounts {
-        for change in super::graph_up::message_changes(s, account, mailcraft_model::sync::MAX_MESSAGE_CHANGES).0 {
+        for change in super::graph_up::message_changes(s, account, usize::MAX).0 {
             match change {
                 MessageChange::Update { message, .. } | MessageChange::Move { message, .. } | MessageChange::MovedOut { message, .. } => {
                     ids.insert(message);
@@ -186,23 +188,25 @@ fn plan(s: &Session) -> Vec<(Id, Step)> {
         t.leave(m, 0);
     }
     // Past the cap of storage: the oldest go back to their headers, then leave.
-    let mut thinned: HashSet<Id> = HashSet::new();
+    // (What thinning releases is the content less the preview it keeps.)
+    let mut thinned: HashMap<Id, u64> = HashMap::new();
     for m in &may {
         if t.bytes <= limits.storage {
             break;
         }
         let content = content_bytes(m);
         if content > 0 && !m.unfetched && !t.gone.contains(&m.id) {
-            thinned.insert(m.id);
+            let released = content.saturating_sub(super::offline::preview_of(s, m.id).len() as u64);
+            thinned.insert(m.id, released);
             t.steps.push((m.id, Step::Thin));
-            t.bytes = t.bytes.saturating_sub(content);
+            t.bytes = t.bytes.saturating_sub(released);
         }
     }
     for m in &may {
         if t.bytes <= limits.storage {
             break;
         }
-        let already = if thinned.contains(&m.id) { content_bytes(m) } else { 0 };
+        let already = thinned.get(&m.id).copied().unwrap_or(0);
         t.leave(m, already);
     }
     let Tally { mut steps, gone, .. } = t;

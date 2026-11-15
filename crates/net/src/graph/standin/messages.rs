@@ -231,6 +231,10 @@ fn shown(id: &str, immutable: bool) -> String {
     }
 }
 
+/// Most messages a delta round with a filter holds (Microsoft Learn, "Get incremental changes to
+/// messages in a folder").
+const FILTERED_CAP: usize = 5_000;
+
 /// What a round of a folder's delta goes through, in order.
 #[derive(Clone, Debug)]
 enum Key {
@@ -268,7 +272,7 @@ struct Seen {
 }
 
 /// The earliest received time `receivedDateTime ge <time>` (or `gt`, a second later) names.
-fn received_from(filter: &str) -> Option<Timestamp> {
+pub(super) fn received_from(filter: &str) -> Option<Timestamp> {
     let mut words = filter.split_whitespace();
     let (name, op, value) = (words.next()?, words.next()?, words.next()?);
     if words.next().is_some() || name != "receivedDateTime" {
@@ -304,6 +308,9 @@ pub struct Mail {
     pub resets: usize,
     /// Most messages a page of delta holds, whatever is asked for; 0 for as asked.
     pub page_cap: usize,
+    /// Most messages a first round of delta with a `$filter` holds, as Microsoft Learn documents
+    /// ("Applying `$filter` in a delta query returns only up to 5,000 messages"); 0 for that.
+    pub filtered_cap: usize,
     /// The top of every folder's delta is refused (`400 ErrorInvalidRequest`), whatever it asks.
     pub refuse_delta: bool,
     /// A change of nothing but a message's read state comes in the next round as its id and
@@ -569,7 +576,10 @@ impl State {
                     }
                 };
                 let upto = self.mailbox.changes;
-                let keys = self.mailbox.keys(&folder, None, upto, newest_first, from);
+                let mut keys = self.mailbox.keys(&folder, None, upto, newest_first, from);
+                if from.is_some() {
+                    keys.truncate(if self.mailbox.filtered_cap == 0 { FILTERED_CAP } else { self.mailbox.filtered_cap });
+                }
                 Round { folder: folder.clone(), upto, keys: Arc::new(keys), at: 0, page, select, newest_first, size: false, from }
             }
         };
