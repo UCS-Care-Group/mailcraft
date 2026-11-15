@@ -248,11 +248,19 @@ not in a release yet are marked "when the app is released".
   system grants one (BGAppRefreshTask); the app also checks when you open it and when you pull the list down. A check
   asks your own provider (Microsoft) for the headers of each account's Inbox and for changes to
   its calendar and To Do tasks. The bodies of new mail within how long you keep mail offline come
-  only on a connection that is not metered. Pictures, sender images and other folders come only
+  only on a connection that is not metered (when the phone can't tell, it counts as metered). Pictures, sender images and other folders come only
   when you open the app. The system decides when a check runs and may skip it: the app says
   "Updated N min ago" and "Offline" instead of promising. The app asks for no battery exemption
   and runs no foreground service, and exact alarms are used for reminders only, never to check
   mail.
+- **Opening a message, its attachments and a search.** A message whose body isn't on the phone
+  yet is fetched whole from your own provider (Microsoft) when you open it, on any connection,
+  attachments and all, and so is one whose attachment you open; the bodies the phone fetches by
+  itself, between checks, are those of recent mail up to the size you chose (1 MB unless you
+  change it), only on a connection that is not metered (when the phone can't tell, it counts as metered) and not while Data Saver is on. Search on
+  the server, only when you ask for it, sends your provider the words of your search, and the
+  headers of what it finds are kept on the phone until the app is next started. Nothing of this
+  goes anywhere else.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
   as the account's setting says). A switch in Settings shows "New mail" and nothing else. On the
