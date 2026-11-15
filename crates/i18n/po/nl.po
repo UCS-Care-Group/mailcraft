@@ -553,9 +553,8 @@ msgstr "Een regel heeft een naam nodig, en iets om naar te zoeken."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "A rule this editor doesn't show; it is kept as it is."
-msgstr "Een regel die deze editor niet toont; die blijft zoals hij is."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -995,9 +994,8 @@ msgstr "Adressen gescheiden door ; (leeg laten als antwoorden naar u moeten kome
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Addresses, separated by semicolons"
-msgstr "Adressen, gescheiden door puntkomma's"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -1025,9 +1023,8 @@ msgstr "Nadat u een vergaderverzoek in de e-mail hebt geaccepteerd, voorlopig he
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Agenda"
-msgstr "Lijst"
+msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -1786,9 +1783,8 @@ msgstr "Op hetzelfde moment: {items}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "At the time of the event"
-msgstr "Op het tijdstip van de afspraak"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs crates/ui-egui/src/pick_item.rs
@@ -3116,9 +3112,8 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Continues"
-msgstr "Loopt door"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3758,9 +3753,8 @@ msgstr "Uw exemplaar van deze vergadering verwijderen?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Delete and tell the people"
-msgstr "Verwijderen en de deelnemers laten weten"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -3782,9 +3776,8 @@ msgstr "Deze categorie verwijderen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Delete this event?"
-msgstr "Deze afspraak verwijderen?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3799,9 +3792,8 @@ msgstr "Deze regel verwijderen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Delete, tell nobody"
-msgstr "Verwijderen, niemand laten weten"
+msgstr ""
 
 #. name
 #: crates/model/src/mailbox.rs
@@ -4012,9 +4004,8 @@ msgstr "Actie"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Doesn't repeat"
-msgstr "Wordt niet herhaald"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -4072,9 +4063,8 @@ msgstr "Niet verzenden"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Don't send a response"
-msgstr "Geen antwoord verzenden"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -4411,9 +4401,8 @@ msgstr "Taak bewerken"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Edit event"
-msgstr "Afspraak bewerken"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -4538,11 +4527,10 @@ msgstr "Eindigt"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Ends after {n} time"
 msgid_plural "Ends after {n} times"
-msgstr[0] "Eindigt na {n} keer"
-msgstr[1] "Eindigt na {n} keer"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -4552,15 +4540,13 @@ msgstr "Eindigt voordat het begint"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Ends on"
-msgstr "Eindigt op"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Ends on a day"
-msgstr "Eindigt op een datum"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4570,9 +4556,8 @@ msgstr "Vergelijking"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Event"
-msgstr "Afspraak"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4588,9 +4573,8 @@ msgstr "Elke contactpersoon, als .vcf"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every day"
-msgstr "Elke dag"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4618,9 +4602,8 @@ msgstr "Elke minuut"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every month"
-msgstr "Elke maand"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -4630,9 +4613,8 @@ msgstr "Alle andere tijden die voor deze vergadering zijn voorgesteld."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every week"
-msgstr "Elke week"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4642,17 +4624,15 @@ msgstr "Elke werkdag"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every year"
-msgstr "Elk jaar"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every {n} day"
 msgid_plural "Every {n} days"
-msgstr[0] "Om de {n} dag"
-msgstr[1] "Om de {n} dagen"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4662,27 +4642,24 @@ msgstr "Elke {n} minuten"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every {n} month"
 msgid_plural "Every {n} months"
-msgstr[0] "Om de {n} maand"
-msgstr[1] "Om de {n} maanden"
+msgstr[0] ""
+msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every {n} week"
 msgid_plural "Every {n} weeks"
-msgstr[0] "Om de {n} week"
-msgstr[1] "Om de {n} weken"
+msgstr[0] ""
+msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "Every {n} year"
 msgid_plural "Every {n} years"
-msgstr[0] "Om de {n} jaar"
-msgstr[1] "Om de {n} jaar"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -6858,9 +6835,8 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Keep it here, invite nobody"
-msgstr "Hier houden, niemand uitnodigen"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8450,9 +8426,8 @@ msgstr "Domein van de afzender nooit blokkeren"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Never ends"
-msgstr "Eindigt nooit"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -8604,9 +8579,8 @@ msgstr "Nieuwe categorie"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "New event"
-msgstr "Nieuwe afspraak"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8959,9 +8933,8 @@ msgstr "Geen recente zoekopdrachten"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "No reminder"
-msgstr "Geen herinnering"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -9143,9 +9116,8 @@ msgstr "Geen e-mailadres: {names}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Not answered"
-msgstr "Niet beantwoord"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src
@@ -9323,15 +9295,13 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Nothing on in these days."
-msgstr "Niets gepland in deze dagen."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Nothing on."
-msgstr "Niets gepland."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -9583,9 +9553,8 @@ msgstr "Bevestig alleen als u deze servers kent."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Only for this time, and send it"
-msgstr "Alleen voor deze keer, en het antwoord verzenden"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9660,21 +9629,18 @@ msgstr "Alleen dit certificaat wordt vertrouwd, en alleen voor dit account. Als 
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Only this event is changed, not the series."
-msgstr "Alleen deze afspraak wordt gewijzigd, niet de reeks."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Only this time"
-msgstr "Alleen deze keer"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Only this time, and tell the people"
-msgstr "Alleen deze keer, en de deelnemers laten weten"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9967,9 +9933,8 @@ msgstr "Of is het een van deze?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Organiser"
-msgstr "Organisator"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10242,9 +10207,8 @@ msgstr "Personen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "People to invite"
-msgstr "Uit te nodigen personen"
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -12194,9 +12158,8 @@ msgstr "Een antwoord verzenden?"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Send a response?"
-msgstr "Een antwoord verzenden?"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12223,9 +12186,8 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Send invitations"
-msgstr "Uitnodigingen verzenden"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
@@ -12269,15 +12231,13 @@ msgstr "De uitnodiging naar hen verzenden? De server van het account verzendt de
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Send the invitations?"
-msgstr "De uitnodigingen verzenden?"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "Send the response now"
-msgstr "Het antwoord nu verzenden"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -13810,9 +13770,8 @@ msgstr "Voorlopig: {title}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt
-#, fuzzy
 msgid "Tentatively accepted"
-msgstr "Voorlopig geaccepteerd"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -13898,9 +13857,8 @@ msgstr "Dat kan niet in een eigen venster worden geopend"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
-#, fuzzy
 msgid "That could not be done."
-msgstr "Dat kon niet worden gedaan."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -13909,9 +13867,8 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt
-#, fuzzy
 msgid "That file could not be read as a calendar."
-msgstr "Dat bestand kon niet als agenda worden gelezen."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -14185,9 +14142,8 @@ msgstr "De agendaverbinding werkt: wat is verzonden, is aangekomen, en de server
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
-#, fuzzy
 msgid "The calendar could not be read."
-msgstr "De agenda kon niet worden gelezen."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -14415,15 +14371,13 @@ msgstr "Het e-mailadres van de persoon van wie u de agenda wilt openen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
-#, fuzzy
 msgid "The event ends before it starts."
-msgstr "De afspraak eindigt voordat hij begint."
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt
-#, fuzzy
 msgid "The event is gone."
-msgstr "De afspraak bestaat niet meer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -14442,9 +14396,8 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "The file holds no events."
-msgstr "Het bestand bevat geen afspraken."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -19081,9 +19034,8 @@ msgstr "alleen uw eigen agenda's kunnen in een bericht worden gezet"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
-#, fuzzy
 msgid "optional"
-msgstr "optioneel"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -21295,11 +21247,10 @@ msgstr[1] "{n} dagen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} day before"
 msgid_plural "{n} days before"
-msgstr[0] "{n} dag van tevoren"
-msgstr[1] "{n} dagen van tevoren"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -21335,19 +21286,17 @@ msgstr[1] "{n} gebeurtenissen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} event added to the calendar, and the tasks in the file."
 msgid_plural "{n} events added to the calendar, and the tasks in the file."
-msgstr[0] "{n} afspraak aan de agenda toegevoegd, en de taken uit het bestand."
-msgstr[1] "{n} afspraken aan de agenda toegevoegd, en de taken uit het bestand."
+msgstr[0] ""
+msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} event added to the calendar."
 msgid_plural "{n} events added to the calendar."
-msgstr[0] "{n} afspraak aan de agenda toegevoegd."
-msgstr[1] "{n} afspraken aan de agenda toegevoegd."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -21399,11 +21348,10 @@ msgstr[1] "{n} uur"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} hour before"
 msgid_plural "{n} hours before"
-msgstr[0] "{n} uur van tevoren"
-msgstr[1] "{n} uur van tevoren"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -21632,11 +21580,10 @@ msgstr[1] "{n} minuten"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} minute before"
 msgid_plural "{n} minutes before"
-msgstr[0] "{n} minuut van tevoren"
-msgstr[1] "{n} minuten van tevoren"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -21918,11 +21865,10 @@ msgstr[1] "{n} waren er al"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
-#, fuzzy
 msgid "{n} week before"
 msgid_plural "{n} weeks before"
-msgstr[0] "{n} week van tevoren"
-msgstr[1] "{n} weken van tevoren"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
