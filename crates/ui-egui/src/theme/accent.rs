@@ -160,6 +160,7 @@ impl Tokens {
     /// borders, no hairline that disappears. Fixed colours (a flag, the categories, calendars,
     /// avatars) are left alone but for the few of the interface's own that were not strong
     /// enough. The accent is set by [`Tokens::with_accent`].
+    #[allow(clippy::duplicated_code)]
     pub fn high_contrast(mut self) -> Tokens {
         self.high_contrast = true;
         if self.dark {
