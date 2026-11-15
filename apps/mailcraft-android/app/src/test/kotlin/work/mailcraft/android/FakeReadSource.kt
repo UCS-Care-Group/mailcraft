@@ -6,6 +6,7 @@ package work.mailcraft.android
 internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     val opened = mutableListOf<Triple<ULong, Int, Boolean>>()
     val marked = mutableListOf<ULong>()
+    var marks = true
 
     override suspend fun open(id: ULong, widthDp: Int, dark: Boolean): OpenedMessage? {
         opened += Triple(id, widthDp, dark)
@@ -14,6 +15,6 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun markRead(id: ULong): Boolean {
         marked += id
-        return true
+        return marks
     }
 }

@@ -146,8 +146,8 @@ class BodySemanticsTest {
     }
 
     @Test
-    fun aMessageOfManyLinksOffersAHandfulOfActions() {
+    fun everyDistinctLinkOfAMessageIsOfferedAsAnAction() {
         val many = (1..40).map { LinkRange(it, it + 1, LinkInfo(LinkGoes.Browser, "https://x$it.example/")) }
-        assertEquals(MAX_LINK_ACTIONS, linkActionLabels(EnglishTexts, many).size)
+        assertEquals(40, linkActionLabels(EnglishTexts, many).size)
     }
 }

@@ -72,7 +72,9 @@ private fun alignOf(align: AlignView): Alignment = when (align) {
 internal fun sectionsOf(grid: Grid): List<Grid> {
     val byRow = grid.placed.groupBy { it.row }
     val ragged = byRow.values.map { cells -> cells.sumOf { it.cols } }.distinct().size > 1
-    if (!ragged) return listOf(grid)
+    // Rows joined by a row span stay one section: their cells keep the columns they have.
+    val joined = grid.placed.any { it.cell.rowspan.toInt() > 1 }
+    if (!ragged || joined) return listOf(grid)
     return byRow.values.map { cells ->
         Grid(1, cells.sumOf { it.cols }, cells.map { Placed(it.cell, 0, it.col, it.cols) })
     }

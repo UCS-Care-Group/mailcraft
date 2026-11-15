@@ -68,7 +68,7 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper) {
         Layout(
             content = {
                 grid.placed.forEach { p ->
-                    val info = CollectionItemInfo(p.row, 1, p.col, p.cols)
+                    val info = CollectionItemInfo(p.row, rowSpanOf(p, grid.rows), p.col, p.cols)
                     val plain = p.cell.header && p.cell.background == null
                     val tint = if (plain) Modifier.background(headerTint(paper)) else Modifier
                     val head = p.cell.header

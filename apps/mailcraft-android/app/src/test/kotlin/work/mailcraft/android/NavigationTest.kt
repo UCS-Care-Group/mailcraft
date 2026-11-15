@@ -79,6 +79,15 @@ class NavigationTest {
         val saved = listOf<Any?>(Tab.Mail.ordinal, false, -1, false, 9L)
         assertEquals(NavState(message = 9L), NavState.fromSaved(saved))
         assertEquals(NavState(tab = Tab.People), NavState.fromSaved(listOf(Tab.People.ordinal, false, -1, false, 9L)))
+        // The message beneath Settings or Add Account is still there after a restore.
+        val under = NavState().openMessage(9uL)
+        val settings = under.openSettings()
+        val adding = under.openAddAccount()
+        listOf(settings, adding).forEach { s ->
+            val back = NavState.fromSaved(listOf(s.tab.ordinal, s.settings, s.page?.ordinal ?: -1, s.adding, s.message))
+            assertEquals(s, back)
+            assertEquals(under, back.back())
+        }
         assertEquals(NavState(), NavState.fromSaved(listOf(Tab.Mail.ordinal, false, -1, false, -1L)))
     }
 

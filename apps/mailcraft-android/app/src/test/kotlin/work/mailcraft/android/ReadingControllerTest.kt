@@ -33,6 +33,19 @@ class ReadingControllerTest {
     }
 
     @Test
+    fun aMarkThatFailedIsTriedAgainWhenTheMessageIsOpenedAgain() {
+        val (source, c) = rig()
+        source.marks = false
+        c.open(7uL, 360, dark = false)
+        c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL), source.marked)
+        source.marks = true
+        c.open(7uL, 360, dark = false)
+        c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL, 7uL), source.marked)
+    }
+
+    @Test
     fun aMessageThatCannotBeReadIsFailedAndClosingForgetsIt() {
         val (_, c) = rig(null)
         c.open(7uL, 360, dark = false)

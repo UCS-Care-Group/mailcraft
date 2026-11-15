@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,10 +50,12 @@ private const val RGB_MASK = 0xFFFFFF
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
     val onOpen: (ULong, Int, Boolean) -> Unit,
+    /** The owner left the message: a read still pending is dropped. */
+    val onClose: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, { LinkResult.Ignored })
+        val None = ReadingActions({ _, _, _ -> }, {}, { LinkResult.Ignored })
     }
 }
 
@@ -82,6 +85,7 @@ internal fun ReadingPane(
             notice = null
         }
     }
+    DisposableEffect(Unit) { onDispose { actions.onClose() } }
     Box(modifier = modifier.fillMaxSize()) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val bodyWidth = maxWidth - Gutter * 2

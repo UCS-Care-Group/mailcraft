@@ -181,7 +181,7 @@ private fun CoreShell(
                 swipe = it
                 prefs.save(it)
             },
-            reading = ReadingActions(onOpen = reading::open, onLink = links::open),
+            reading = ReadingActions(onOpen = reading::open, onClose = reading::close, onLink = links::open),
         ),
     )
 }

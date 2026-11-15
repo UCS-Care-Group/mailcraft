@@ -109,8 +109,7 @@ internal data class NavState(
             val adding = saved.getOrNull(ADDING_AT) as? Boolean ?: false
             val message = (saved.getOrNull(MESSAGE_AT) as? Long)?.takeIf { it >= 0 && tab == Tab.Mail }
             val shown = settings || page != null
-            val read = message?.takeIf { !shown && !adding }
-            return NavState(tab = tab, settings = shown, page = page, adding = adding, message = read)
+            return NavState(tab = tab, settings = shown, page = page, adding = adding, message = message)
         }
     }
 }

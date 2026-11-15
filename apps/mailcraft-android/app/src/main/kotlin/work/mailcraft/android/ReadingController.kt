@@ -37,7 +37,7 @@ internal class ReadingController(
                 return@launch
             }
             state.update { it.copy(load = LoadState.Ready, opened = opened) }
-            if (opened.view.unread && remember(id)) source.markRead(id)
+            if (opened.view.unread && remember(id) && !source.markRead(id)) forget(id)
         }
     }
 
@@ -52,6 +52,12 @@ internal class ReadingController(
         val added = marked.add(id)
         if (marked.size > MAX_REMEMBERED_MESSAGES) marked.remove(marked.first())
         return added
+    }
+
+    /** A mark that failed is tried again when the message is opened again. */
+    @Synchronized
+    private fun forget(id: ULong) {
+        marked.remove(id)
     }
 
     private companion object {

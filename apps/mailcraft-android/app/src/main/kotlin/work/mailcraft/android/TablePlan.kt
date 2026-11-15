@@ -56,6 +56,9 @@ private fun place(taken: MutableSet<Pair<Int, Int>>, cell: CellView, r: Int, col
     return Placed(cell, r, col, cols)
 }
 
+/** The rows [p] covers as a screen reader is told: its row span, within the rows of [rows] that are left. */
+internal fun rowSpanOf(p: Placed, rows: Int): Int = p.cell.rowspan.toInt().coerceIn(1, (rows - p.row).coerceAtLeast(1))
+
 /** What a column of a layout table asks for. */
 internal class ColumnSpec(
     /** Some cell of one column wide holds something. A column that holds nothing only makes room. */
@@ -69,8 +72,10 @@ internal class ColumnSpec(
 internal fun columnSpecs(grid: Grid): List<ColumnSpec> = (0 until grid.columns).map { c ->
     val own = grid.placed.filter { it.col == c && it.cols == 1 }
     val widths = own.mapNotNull { it.cell.width }
+    // A column that only a spanning cell covers holds what that cell holds, so that it is not left at nothing.
+    val spanned = own.isEmpty() && grid.placed.any { it.cell.blocks.isNotEmpty() && c in it.col until it.col + it.cols }
     ColumnSpec(
-        holds = own.any { it.cell.blocks.isNotEmpty() },
+        holds = spanned || own.any { it.cell.blocks.isNotEmpty() },
         fixed = widths.filterIsInstance<LengthView.Px>().maxOfOrNull { it.px.toFloat() },
         percent = widths.filterIsInstance<LengthView.Percent>().maxOfOrNull { it.percent.toInt() },
     )

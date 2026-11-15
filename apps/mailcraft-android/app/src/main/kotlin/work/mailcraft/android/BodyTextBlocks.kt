@@ -42,7 +42,14 @@ private val HEADING_SIZES = intArrayOf(26, 22, 19, 17)
 
 /** A paragraph, a heading (when [heading] is its level) or preformatted text, with its links. */
 @Composable
-internal fun TextBlock(block: BlockView, env: BodyEnv, paper: Paper, heading: Int = 0, mono: Boolean = false) {
+internal fun TextBlock(
+    block: BlockView,
+    env: BodyEnv,
+    paper: Paper,
+    heading: Int = 0,
+    mono: Boolean = false,
+    fill: Boolean = true,
+) {
     val text = styled(block.spans, paper, env.links)
     if (text.text.isEmpty()) return
     val base = if (heading > 0) headingSize(heading) else BASE_SIZE
@@ -55,7 +62,7 @@ internal fun TextBlock(block: BlockView, env: BodyEnv, paper: Paper, heading: In
         fontFamily = if (mono) FontFamily.Monospace else null,
     )
     val semantic = if (heading > 0) Modifier.semantics { heading() } else Modifier
-    LinkedText(text, style, env, semantic.fillMaxWidth())
+    LinkedText(text, style, env, if (fill) semantic.fillMaxWidth() else semantic)
 }
 
 /** The line height the message asks for, or one that reads well. */

@@ -55,9 +55,9 @@ internal object B {
     fun image(src: String, alt: String, width: UShort? = null, height: UShort? = null, picture: String? = null, link: String? = null) =
         block(BlockKindView.Image(src, width, height, link, picture), span(alt), space = 0u)
 
-    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u) =
+    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u, rowspan: UShort = 1u) =
         CellView(
-            blocks.toList(), header, colspan, 1u, background, width, noSides, emptyList(),
+            blocks.toList(), header, colspan, rowspan, background, width, noSides, emptyList(),
             padding?.let { InsetsView(it, it, it, it) }, 0u, null,
         )
 

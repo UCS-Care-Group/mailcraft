@@ -119,15 +119,17 @@ internal fun styled(spans: List<SpanView>, paper: Paper, links: Map<String, Link
     return StyledText(text.toAnnotatedString(), found)
 }
 
-/** Most links of one text that a screen reader is offered as actions. */
-internal const val MAX_LINK_ACTIONS = 8
-
 /** What a screen reader says for each link of a text: where it really goes. */
 internal fun linkActionLabels(texts: Texts, links: List<LinkRange>): List<String> =
-    links.map { it.link }.distinctBy { it.shown }.take(MAX_LINK_ACTIONS).map { "${texts.t("Open link")}: ${it.shown}" }
+    links.map { it.link }.distinctBy { it.shown }.map { "${texts.t("Open link")}: ${it.shown}" }
 
-private fun linkAt(layout: TextLayoutResult?, text: StyledText, at: Offset): LinkInfo? =
-    layout?.let { text.linkAt(it.getOffsetForPosition(at)) }
+/** The link whose drawn text [at] is on: the nearest character is a hit only when the tap is on it. */
+private fun linkAt(layout: TextLayoutResult?, text: StyledText, at: Offset): LinkInfo? {
+    val shown = layout ?: return null
+    val offset = shown.getOffsetForPosition(at)
+    if (offset !in 0 until shown.layoutInput.text.length) return null
+    return if (shown.getBoundingBox(offset).contains(at)) text.linkAt(offset) else null
+}
 
 /**
  * Text that has links in it. A tap on a link follows it (the owner's phone opens it in the
@@ -146,7 +148,7 @@ internal fun LinkedText(
     var base = modifier
     if (links.isNotEmpty()) {
         val labels = linkActionLabels(env.texts, links)
-        val distinct = links.map { it.link }.distinctBy { it.shown }.take(MAX_LINK_ACTIONS)
+        val distinct = links.map { it.link }.distinctBy { it.shown }
         base = base
             .pointerInput(styledText) {
                 detectTapGestures(
