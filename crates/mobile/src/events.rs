@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-use crate::NotificationRecord;
 use crate::queue::{Queue, Shed, Weight};
+use crate::{NotificationRecord, Permission};
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum Event {
@@ -22,8 +22,9 @@ pub enum Event {
     /// The account's sign-in has to be done again: the app opens the provider's page.
     SignInNeeded { account: u64 },
     /// The owner is asked to allow something before it is done (a permission for To Do, a shared
-    /// mailbox, sending as one): `question` is the program's name for it. Never answered for them.
-    PermissionQuestion { account: u64, question: String },
+    /// mailbox, sending as one). The app asks in its own words and, on a yes, calls
+    /// `Core::grant_permission`: never answered for the owner.
+    PermissionQuestion { account: u64, permission: Permission },
     /// Raise this notification now.
     Notification { notification: NotificationRecord },
     /// The reminders to schedule changed: ask for the schedule again.

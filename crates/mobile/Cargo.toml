@@ -37,4 +37,5 @@ rustls-platform-verifier = { workspace = true }
 
 [dev-dependencies]
 mailcraft-engine = { workspace = true, features = ["test-support"] }
+mailcraft-charset = { workspace = true }
 
