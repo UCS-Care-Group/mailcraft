@@ -319,8 +319,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "A file dialog is already open."
-msgstr ""
+msgstr "תיבת דו־שיח לבחירת קובץ כבר פתוחה."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -411,8 +412,9 @@ msgstr "הערה מצורפת (לא חובה)"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "A note to the organizer (optional)"
-msgstr ""
+msgstr "הערה למארגן (לא חובה)"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -427,8 +429,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "A picture couldn't be downloaded."
-msgstr ""
+msgstr "לא ניתן להוריד את התמונה."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -454,8 +457,9 @@ msgstr "דוח יישמר לצד קובץ תיבת הדואר שלך."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A rule needs a name, and something to look for."
-msgstr ""
+msgstr "יש לציין שם לכלל ולהגדיר מה לחפש."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -496,8 +500,9 @@ msgstr "לפנה״צ"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "About"
-msgstr ""
+msgstr "אודות"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -520,8 +525,9 @@ msgstr "כ־{size} של דואר שגילו עולה על {window} יוסר מה
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Above the status bar"
-msgstr ""
+msgstr "מעל שורת המצב"
 
 #. interface
 #, fuzzy
@@ -531,18 +537,21 @@ msgstr "צבע הדגשה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Accent Colour"
-msgstr ""
+msgstr "צבע הדגשה"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Accept"
-msgstr ""
+msgstr "קבל"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "Accept Proposal"
-msgstr ""
+msgstr "קבל את ההצעה"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -614,13 +623,15 @@ msgstr "פעולות"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Active"
-msgstr ""
+msgstr "פעיל"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
 msgid "Actual Size"
-msgstr ""
+msgstr "גודל בפועל"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
@@ -855,8 +866,9 @@ msgstr "אפשרויות מתקדמות"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "After"
-msgstr ""
+msgstr "אחרי"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -865,18 +877,21 @@ msgstr ""
 
 #. interface, name
 #: crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "הכול"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
+#, fuzzy
 msgid "All Attendees"
-msgstr ""
+msgstr "כל המשתתפים"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
+#, fuzzy
 msgid "All Categories"
-msgstr ""
+msgstr "כל הקטגוריות"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -892,8 +907,9 @@ msgstr "כל תיבות הדואר"
 
 #. interface
 #: crates/ui-egui/src/widgets.rs
+#, fuzzy
 msgid "All accounts"
-msgstr ""
+msgstr "כל החשבונות"
 
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -909,13 +925,15 @@ msgstr "כולם"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "All the conditions must hold"
-msgstr ""
+msgstr "כל התנאים חייבים להתקיים"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
 msgid "Allow"
-msgstr ""
+msgstr "אפשר"
 
 #. command label, interface
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/lib.rs
@@ -990,8 +1008,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Already in your contacts"
-msgstr ""
+msgstr "כבר נמצא באנשי הקשר שלך"
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1000,8 +1019,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Always Download Pictures from Sender"
-msgstr ""
+msgstr "הורד תמיד תמונות מהשולח"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -1010,8 +1030,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Always Move Messages From This Sender"
-msgstr ""
+msgstr "העבר תמיד הודעות מהשולח הזה"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -1100,8 +1121,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "An import is under way"
-msgstr ""
+msgstr "מתבצע ייבוא"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
