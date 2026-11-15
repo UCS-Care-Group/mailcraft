@@ -30,7 +30,7 @@ class PictureCacheTest {
         B.png.copyOf(B.png.size + extra).also { if (extra > 0) it[it.size - 1] = mark.toByte() }
 
     private fun cache(maxPictures: Int = PictureCache.MAX_PICTURES, maxTotal: Long = PictureCache.MAX_TOTAL) =
-        PictureCache(dir, { now }, maxPictures, maxTotal)
+        PictureCache(dir, SniffingCheck, { now }, maxPictures, maxTotal)
 
     @Test
     fun theCapsAreTheDesktops() {
@@ -71,7 +71,7 @@ class PictureCacheTest {
         assertTrue(c.put("$url#gif", "GIF89a....".toByteArray()))
         assertTrue(c.put("$url#webp", "RIFF\u0000\u0000\u0000\u0000WEBPVP8 ".toByteArray(Charsets.ISO_8859_1)))
         assertFalse(c.put("$url#ico", byteArrayOf(0, 0, 1, 0, 1, 0, 0, 0)))
-        assertTrue(c.put("$url#ico", byteArrayOf(0, 0, 1, 0, 1, 0, 0, 0), ::looksLikeASenderPicture))
+        assertTrue(c.put("$url#ico", byteArrayOf(0, 0, 1, 0, 1, 0, 0, 0), icons = true))
     }
 
     @Test
@@ -155,7 +155,7 @@ class PictureCacheTest {
     fun aFolderThatCannotBeUsedIsACacheThatIsAlwaysEmpty() {
         val blocked = File(dir, "file")
         blocked.writeText("a file where the folder should be")
-        val c = PictureCache(File(blocked, "inside"), { now })
+        val c = PictureCache(File(blocked, "inside"), SniffingCheck, { now })
         assertFalse(c.put(url, png()))
         assertNull(c.get(url))
         assertEquals(0 to 0L, c.usage())

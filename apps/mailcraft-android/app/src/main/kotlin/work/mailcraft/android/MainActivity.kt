@@ -41,6 +41,8 @@ import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
@@ -265,6 +267,9 @@ private fun rememberPictures(core: Core, list: MailListController, scope: Corout
     val reading by stack.reading.ui.collectAsState()
     val avatars by stack.senderImages.images.collectAsState()
     val settings by stack.settings.collectAsState()
+    // A message may have moved (to Junk, say) or been judged differently: the rows are decided again.
+    val rev by remember(list) { list.ui.map { it.snapshot.rev }.distinctUntilChanged() }.collectAsState(0uL)
+    LaunchedEffect(stack, rev) { stack.senderImages.revChanged(rev) }
     return Pictured(stack, reading, settings, if (settings.prefs.senderImages) avatars else null)
 }
 

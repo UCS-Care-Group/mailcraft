@@ -37,6 +37,9 @@ internal class ReadingController(
 
     /** Moves on when another message is opened, so that an answer to an earlier question is dropped. */
     private val generation = AtomicInteger()
+
+    /** Given when the generation moves on: a download already on its way ends, and nothing more is begun. */
+    private var stop = Stop()
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -49,7 +52,7 @@ internal class ReadingController(
 
     /** Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed). */
     fun open(id: ULong, widthDp: Int, dark: Boolean) {
-        val mine = generation.incrementAndGet()
+        val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         state.update {
             if (it.id != id) {
@@ -73,6 +76,13 @@ internal class ReadingController(
         }
     }
 
+    /** Moves to the next generation; what was on its way for the last is stopped. */
+    private fun advance(): Int = synchronized(this) {
+        stop.give()
+        stop = Stop()
+        generation.incrementAndGet()
+    }
+
     /**
      * The owner left message [id] (back, another tab or folder, or the selection cleared). What is still
      * on its way is not asked for any more, and what arrives is dropped and not kept. When another message
@@ -80,7 +90,7 @@ internal class ReadingController(
      */
     fun close(id: ULong) {
         if (state.value.id != id) return
-        generation.incrementAndGet()
+        advance()
         state.value = ReadingUi()
     }
 
@@ -175,22 +185,30 @@ internal class ReadingController(
         if (mine != generation.get()) return null
         // Checked again with the permit in hand: a download queued behind others may be a long wait.
         var leftOut = false
+        var held = false
         val got = flights.withPermit {
             when {
                 mine != generation.get() -> null
+                // The owner may have taken the permission back while this waited its turn: nothing is
+                // asked, and the claim is let go, so that a later yes in this generation asks again.
+                state.value.access != PictureAccess.Allowed -> {
+                    held = true
+                    null
+                }
                 !budget.take(id) -> {
                     leftOut = true
                     null
                 }
-                else -> source.download(url)
+                else -> source.download(url, stopOf(mine))
             }
         }
+        if (held) release(mine, url)
         return when {
             leftOut -> PictureState.LeftOut
             got == null || mine != generation.get() -> null
             got is Fetched.Got -> {
                 budget.add(id, got.bytes.size)
-                if (looksLikeAPicture(got.bytes)) {
+                if (cache.accepts(got.bytes)) {
                     withContext(io) { cache.put(url, got.bytes) }
                     PictureState.Ready(got.bytes)
                 } else {
@@ -199,6 +217,16 @@ internal class ReadingController(
             }
             else -> PictureState.Failed
         }
+    }
+
+    /** The signal of generation [mine]; one already given when that generation is past. */
+    private fun stopOf(mine: Int): Stop = synchronized(this) {
+        if (mine == generation.get()) stop else Stop().also { it.give() }
+    }
+
+    /** Lets go of a claim on [url] that was not fetched, so that it may be claimed again. */
+    private fun release(mine: Int, url: String) {
+        if (mine == generation.get()) state.update { it.copy(pictures = it.pictures - url) }
     }
 
     @Synchronized

@@ -41,8 +41,11 @@ internal interface ReadSource {
     /** The bytes of a picture that is part of message [id] (by the reference a block names). */
     suspend fun part(id: ULong, reference: String): ByteArray?
 
-    /** Downloads a picture from the web, through the checked downloader and nothing else. */
-    suspend fun download(url: String): Fetched
+    /**
+     * Downloads a picture from the web, through the checked downloader and nothing else. When [stop]
+     * is given the download ends within a moment and brings nothing.
+     */
+    suspend fun download(url: String, stop: Stop): Fetched
 
     /** The facts the rules for message [id]'s sender need. */
     suspend fun facts(id: ULong): MessageFacts?
@@ -58,6 +61,37 @@ internal interface ReadSource {
 
     /** Whether the system's data saving holds back this connection. */
     suspend fun dataSaving(): Boolean
+}
+
+/**
+ * A signal that the owner left a message: given once, it tells everything that registered with
+ * [onStop] (a registration made after it runs at once). Thread-safe.
+ */
+internal class Stop {
+    private val lock = Any()
+    private var given = false
+    private val hooks = ArrayList<() -> Unit>()
+
+    val isStopped: Boolean get() = synchronized(lock) { given }
+
+    /** Runs [hook] when the signal is given, or now when it has been. */
+    fun onStop(hook: () -> Unit) {
+        val now = synchronized(lock) {
+            if (!given) hooks.add(hook)
+            given
+        }
+        if (now) hook()
+    }
+
+    /** Gives the signal. */
+    fun give() {
+        val run = synchronized(lock) {
+            if (given) return
+            given = true
+            hooks.toList().also { hooks.clear() }
+        }
+        run.forEach { hook -> runCatching(hook) }
+    }
 }
 
 /** Most links of one message that are looked at for their destination. */
@@ -96,11 +130,15 @@ internal class CoreReadSource(
         }
     }
 
-    override suspend fun download(url: String): Fetched = withContext(io) {
+    override suspend fun download(url: String, stop: Stop): Fetched = withContext(io) {
+        val handle = uniffi.mailcraft_mobile.PictureStop()
+        stop.onStop(handle::stop)
         try {
-            Fetched.Got(uniffi.mailcraft_mobile.fetchPicture(url).bytes)
+            Fetched.Got(uniffi.mailcraft_mobile.fetchPicture(url, handle).bytes)
         } catch (e: CoreException) {
             Fetched.Refused(e.message.orEmpty())
+        } finally {
+            handle.close()
         }
     }
 

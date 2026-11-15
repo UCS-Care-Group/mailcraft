@@ -29,7 +29,7 @@ internal class PictureStack(
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     val prefs: PicturePrefsStore = DevicePicturePrefs(context)
-    val cache = PictureCache(File(context.cacheDir, FOLDER))
+    val cache = PictureCache(File(context.cacheDir, FOLDER), CorePictureCheck)
     private val source = CoreReadSource(core, mark)
     val reading = ReadingController(source, cache, prefs, scope, io)
     val senderImages = SenderImages(source, cache, prefs, scope, reading::isAsked, io)
@@ -75,6 +75,8 @@ internal class PictureStack(
         onClose = reading::close,
         onAllow = {
             reading.allow(it)
+            // Settings reads the choices from here: a sender or domain just allowed must be in them.
+            state.update { s -> s.copy(prefs = prefs.load()) }
             senderImages.redecide()
         },
         onDownloadNow = reading::downloadNow,

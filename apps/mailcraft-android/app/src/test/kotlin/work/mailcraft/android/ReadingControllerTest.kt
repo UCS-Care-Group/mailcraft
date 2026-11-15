@@ -49,7 +49,7 @@ class ReadingControllerTest {
         source.web["https://img.shop.example/second.png"] = B.png
         source.web[tracker] = B.png
         source.parts["cid:logo"] = B.png
-        val cache = PictureCache(dir)
+        val cache = PictureCache(dir, SniffingCheck)
         val store = MemoryPicturePrefs(prefs)
         return Rig(source, cache, store, ReadingController(source, cache, store, CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined))
     }

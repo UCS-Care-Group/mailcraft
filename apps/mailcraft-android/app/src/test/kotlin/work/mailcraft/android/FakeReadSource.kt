@@ -17,6 +17,7 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
     /** The facts of particular messages, where they differ from [factsAnswer]. */
     val factsById = mutableMapOf<ULong, MessageFacts?>()
     var onDownload: suspend () -> Unit = {}
+    var onSenderDownload: suspend () -> Unit = {}
 
     /** What a download of an address gives; a missing address is refused. */
     val web = mutableMapOf<String, ByteArray>()
@@ -30,7 +31,11 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun part(id: ULong, reference: String): ByteArray? = parts[reference]
 
-    override suspend fun download(url: String): Fetched {
+    /** The signal each download was given. */
+    val stops = mutableListOf<Stop>()
+
+    override suspend fun download(url: String, stop: Stop): Fetched {
+        stops += stop
         onDownload()
         downloads += url
         return web[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("it is no longer there (404)")
@@ -43,6 +48,7 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
 
     override suspend fun downloadSender(url: String): Fetched {
         senderDownloads += url
+        onSenderDownload()
         return senderWeb[url]?.let { Fetched.Got(it) } ?: Fetched.Refused("404")
     }
 

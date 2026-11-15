@@ -34,8 +34,8 @@ internal class SenderImages(
     private val asked: (ULong) -> Boolean = { false },
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    /** What the rules said of one row, and whose address it is. */
-    private class Decision(val address: String, val allowed: Boolean)
+    /** What the rules said of one row, whose address it is, and the mailbox revision it was said at. */
+    private class Decision(val address: String, val allowed: Boolean, val rev: ULong)
 
     private val shown = MutableStateFlow<Map<ULong, ByteArray>>(emptyMap())
     private val flights = Semaphore(AT_A_TIME)
@@ -49,6 +49,9 @@ internal class SenderImages(
     private val fetching = HashSet<String>()
     private var lastRows: List<InboxRow> = emptyList()
 
+    /** The mailbox revision the list is at: an older decision is made again (a move to Junk, a verdict). */
+    private var revision = 0uL
+
     /** By the row's id: the sender's picture, only for the rows whose own message may show it. */
     val images: StateFlow<Map<ULong, ByteArray>> get() = shown
 
@@ -57,10 +60,25 @@ internal class SenderImages(
         synchronized(lock) { lastRows = rows.take(MAX_ROWS) }
         if (!prefsStore.load().senderImages) return
         val mine = generation.get()
+        val rev = synchronized(lock) { revision }
         for (row in rows.take(MAX_ROWS)) {
             val address = PictureAddresses.sender(row.address) ?: continue
-            if (claimRow(row.id)) scope.launch { decide(mine, row.id, address) }
+            if (claimRow(row.id, rev)) scope.launch { decide(mine, row.id, address, rev) }
         }
+    }
+
+    /**
+     * The list is at mailbox revision [rev]. What a row's message is (its folder, what vouches for
+     * it) may have changed since it was decided: it is decided again, and its picture stays as it
+     * was until that is done, so a sync does not make pictures blink.
+     */
+    fun revChanged(rev: ULong) {
+        val rows = synchronized(lock) {
+            if (rev == revision) return
+            revision = rev
+            lastRows
+        }
+        onScreen(rows)
     }
 
     /** What the rules say may have changed (the owner allowed pictures, or a choice changed): decide again. */
@@ -85,25 +103,27 @@ internal class SenderImages(
         shown.value = emptyMap()
     }
 
-    private fun claimRow(id: ULong): Boolean = synchronized(lock) {
-        if (id in decisions || id in deciding || deciding.size >= MAX_IN_FLIGHT) false else deciding.add(id)
+    private fun claimRow(id: ULong, rev: ULong): Boolean = synchronized(lock) {
+        if (decisions[id]?.rev == rev || id in deciding || deciding.size >= MAX_IN_FLIGHT) false else deciding.add(id)
     }
 
     private fun claimAddress(address: String): Boolean = synchronized(lock) {
         address !in pictures && fetching.size < MAX_IN_FLIGHT && fetching.add(address)
     }
 
-    private suspend fun decide(mine: Int, id: ULong, address: String) {
+    private suspend fun decide(mine: Int, id: ULong, address: String, rev: ULong) {
         val facts = source.facts(id)
         val allowed = facts != null &&
             PicturePolicy.senderImage(prefsStore.load(), facts.copy(address = address), asked(id))
         val kept = synchronized(lock) {
             deciding.remove(id)
             if (mine != generation.get() || !prefsStore.load().senderImages) return
-            decisions[id] = Decision(address, allowed)
+            decisions[id] = Decision(address, allowed, rev)
             trimDecisions()
             address in pictures
         }
+        // (The list moved to a newer revision while this was decided: the rows are decided again.)
+        if (rev != synchronized(lock) { revision }) scope.launch { onScreen(synchronized(lock) { lastRows }) }
         if (!allowed || kept) return publish()
         if (!claimAddress(address)) return
         try {
@@ -141,7 +161,7 @@ internal class SenderImages(
 
     private suspend fun find(mine: Int, address: String): Answer {
         val places = source.senderPlaces(address)
-        val kept = places.firstNotNullOfOrNull { withContext(io) { cache.get(it, ::looksLikeASenderPicture) } }
+        val kept = places.firstNotNullOfOrNull { withContext(io) { cache.get(it, icons = true) } }
         if (kept != null || places.isEmpty()) return Answer(kept, final = true)
         // With data saving on only what is kept is shown; the rest is asked again at the next look.
         if (source.dataSaving()) return Answer(null, final = false)
@@ -151,11 +171,15 @@ internal class SenderImages(
     /** Asks the places in turn until one has a picture, for as long as the owner wants sender images. */
     private suspend fun askEach(mine: Int, places: List<String>): ByteArray? {
         for (place in places) {
-            if (mine != generation.get() || !prefsStore.load().senderImages) return null
-            val got = flights.withPermit { source.downloadSender(place) }
-            if (got is Fetched.Got && looksLikeASenderPicture(got.bytes) && got.bytes.size <= MAX_BYTES) {
+            // Checked again with the permit in hand: the owner may have turned sender images off, or
+            // pressed Clear, while this waited behind the others.
+            val got = flights.withPermit {
+                if (mine != generation.get() || !prefsStore.load().senderImages) null else source.downloadSender(place)
+            } ?: return null
+            if (got is Fetched.Got && cache.accepts(got.bytes, icons = true) && got.bytes.size <= MAX_BYTES) {
                 // (Not kept when the switch went off, or Clear was pressed, while it came.)
-                if (mine == generation.get()) withContext(io) { cache.put(place, got.bytes, ::looksLikeASenderPicture) }
+                // The generation is read again where the write happens, on the cache's own thread.
+                withContext(io) { if (mine == generation.get()) cache.put(place, got.bytes, icons = true) }
                 return got.bytes
             }
         }
