@@ -54,7 +54,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
         CommandSpec::new("mail.toggleRead", "Unread/ Read", "Home › Tags", toggle_read).params(IDS).selection(needs_message),
         CommandSpec::new("mail.markAllRead", "Mark All as Read", "Folder › Clean Up", mark_all_read)
-            .params(r#"{"folder"?: number} (default: the folder in view)"#),
+            .params(r#"{"folder"?: number} — a folder that is there, read strictly: an id as text, `null`, `0` or a fraction is refused rather than taken for the folder in view (default: the folder in view). Answers {"folder", "changed"}"#),
         CommandSpec::new("mail.flag", "Follow Up", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"due"?: "YYYY-MM-DD", "ids"?: [number]}"#)
@@ -834,7 +834,9 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
+    // folder in view, which would mark all of another folder's mail read without a word.
+    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
@@ -842,7 +844,7 @@ fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"changed": ids.len()}))
+    Ok(json!({"folder": folder, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -1021,3 +1023,6 @@ mod from_sender_tests;
 #[cfg(test)]
 #[path = "mail_actions_tests.rs"]
 mod mail_actions_tests;
+#[cfg(test)]
+#[path = "mark_all_read_tests.rs"]
+mod mark_all_read_tests;
