@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-21 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+27 crates, 4 apps (the Android app is a Gradle project, not a Cargo member) and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -32,6 +32,7 @@ egui, eframe, winit or rfd.
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L2 | `pst` | Reader of Outlook personal folders files (`.pst`, ANSI and Unicode) from [MS-PST]: over any `Read + Seek`, a block at a time, never the whole file in memory; offsets checked; items, folders, recipients, attachments and attached messages counted against caps; what one item, one folder walk or one listing reads and keeps held to a budget for the whole call, and all that is read to a multiple of the file's size; trees that lead back to themselves, blocks named twice and keys out of order refused; damaged pages named, to a cap; what is left out named with its reason; no I/O of its own, builds for wasm |
 | L2 | `openpgp` | Checking OpenPGP Digital signatures (#30) on rPGP: a PGP/MIME message over its signed part's canonical bytes (RFC 3156) or a cleartext-signed text (RFC 9580 §7), with the four results (verified, valid but not verified, changed after signing, can't be checked; MD5, SHA-1, DSA and RSA under 2048 bits refused), and what of the message it covers: only a whole message is Verified; Public keys from attached `application/pgp-keys` parts and the `Autocrypt:` header, their self-signatures checked; whether a key is Verified is the caller's answer (no web of trust). MIME, armour and the cleartext framework read here with every size, count and depth capped; no I/O and no clock of its own, builds for wasm |
+| L2 | `smime` | S/MIME (RFC 8551) Digital signatures checked (#30), from RFC 5652 (CMS), RFC 5280 (X.509) and the algorithms' RFCs: the signer's digest against the message's, the signature (RSA of 2048 bits or more, ECDSA on P-256 or P-384, over SHA-2), and whether the certificate rests on a trust anchor the host hands in, is for signing mail and is for the From address; the same four results as OpenPGP; revocation isn't checked. No I/O, hostile input bounded |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
 | L3 | `assuan` | The Assuan protocol and gpg-agent over any `Read + Write` stream, so that OpenPGP keys stay in GnuPG (smartcards included) and MailCraft never sees a PIN: lines of at most 1000 bytes, percent-escaping, `D`/`S`/`OK`/`ERR`/`INQUIRE`, every size and count capped; gpg-agent's `HAVEKEY`, `KEYINFO`, `READKEY`, signing a SHA-256/384/512 digest (`PKSIGN`) and decrypting a session key (`PKDECRYPT`, answering `INQUIRE CIPHERTEXT`), with the hints its own pinentry needs; a bounded canonical S-expression reader; Assuan's socket files (a redirect, Windows' loopback port and nonce). No sockets: the desktop program finds the agent with `gpgconf` and opens it (`apps/mailcraft/src/gpg_agent.rs`); builds for wasm, which never uses it (#30) |
@@ -42,6 +43,7 @@ egui, eframe, winit or rfd.
 | L5 | `host` | What a platform gives the program, below the window and without egui: the `Platform` trait (credential store, opening the sign-in page and files, notifications, a bounded connection, a memory budget), `init`, and `run_job`, which runs a background job on a thread of its own with the platform in hand; the Microsoft To Do, Graph, message-fetch and calendar runs, which build for wasm only as their plain request and result types. The desktop's platform is `crates/ui-egui/src/platform.rs` |
 | L5 | `mcp` | MCP server: tools over the command registry; headless or bridged to the running app |
 | L6 | `ui-egui` | The front end: title bar with search, ribbon, module bar, folder pane, message list, reading pane, composer, calendar, people, tasks, Backstage, dialogs, themes, control channel, headless `ui_shot` example |
+| L6 | `mobile` | The binding for the phone apps (ADR 0023): the Rust core as one object that Kotlin and Swift hold, exported through UniFFI; commands run by id through `Session::run`, typed queries read windows of the mailbox, an event stream the app pulls; no UI toolkit; not part of the browser build |
 | apps | `mailcraft` | Desktop app (eframe + wgpu; logging, window geometry, native dialogs, Send/Receive thread, control server; leaving, `quit.rs`: unsaved work asks first on every platform, then on macOS the process ends through `-[NSApplication terminate:]` (`quit_macos.rs`, MailCraft's own) rather than by closing the window, which can crash AppKit, and the macOS menu bar (`menubar.rs`, `muda`; its table of command ids is `ui-egui`'s `menubar`) has Quit (⌘Q) asking like the close button) |
 | apps | `mailcraft-cli` | `info`, `folders`, `list`, `show`, `import`, `export`, `convert`, `run`, `sync`, `commands`, `parity`, `mcp` |
 | apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads) |
@@ -289,7 +291,7 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
   `ical`, `vcard`, `pst`, `openpgp`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `openpgp`, `charset`, `dav_xml`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `openpgp`, `charset`, `dav_xml`, `dav_answers`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,

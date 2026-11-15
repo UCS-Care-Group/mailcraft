@@ -38,7 +38,14 @@ fn the_inbox_delta_is_asked_before_any_folder_walk_and_the_run_after_it_reads_no
     let links = pieces
         .iter()
         .flat_map(|p| &p.pages)
-        .map(|p| GraphLink { folder: p.folder.clone(), link: p.link.clone(), caught_up: p.caught_up, counts: p.counts })
+        .map(|p| GraphLink {
+            folder: p.folder.clone(),
+            link: p.link.clone(),
+            caught_up: p.caught_up,
+            counts: p.counts,
+            afresh: false,
+            ..Default::default()
+        })
         .collect();
     let rest = GraphMailRequest { account: 3, email: "owner@example.org".into(), links, ..Default::default() };
     let run = run_of(&server, &rest);

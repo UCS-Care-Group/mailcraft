@@ -723,6 +723,21 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             .response
             .on_hover_text(tl!("For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."));
     });
+    // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
+    row(ui, tl!("Wait before sending"), |ui| {
+        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        egui::ComboBox::from_id_salt("opt_wait_before_sending")
+            .selected_text(wait(prefs.undo_send()))
+            .show_ui(ui, |ui| {
+                for n in mailcraft_engine::Prefs::UNDO_SEND_CHOICES {
+                    if ui.selectable_label(n == prefs.undo_send(), wait(n)).clicked() {
+                        let _ = app.run("sync.waitBeforeSending", json!({"seconds": n}));
+                    }
+                }
+            })
+            .response
+            .on_hover_text(tl!("After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."));
+    });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
     // Where the system can show them (not in the browser).

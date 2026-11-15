@@ -36,7 +36,7 @@ internal object AccountShots {
         accounts = accounts,
         folderName = "Inbox",
         folderId = 1uL,
-        mail = InboxState.Loading,
+        mail = MailListUi.Start,
         version = "0.12.0",
         chosenLanguage = "",
         accountsUi = ui,
@@ -50,6 +50,11 @@ internal object AccountShots {
     @Composable
     fun AddForm(notice: Notice? = null) = Themed {
         AddAccountScreen(EnglishTexts, AddAccountState.Form("ada@lumen.example", notice), none, onBack = {})
+    }
+
+    @Composable
+    fun AddFormChosen() = Themed {
+        AddAccountScreen(EnglishTexts, AddAccountState.Form("", null, KeepChoice(KeepSpan.Months3, 2048L)), none, onBack = {})
     }
 
     @Composable
@@ -96,7 +101,7 @@ internal object AccountShots {
     fun NoAccountMail() = Themed {
         AppShell(
             EnglishTexts,
-            data(AccountsUi(), accounts = emptyList()).let { ShellData(emptyList(), "Mail", null, InboxState.Loading, it.version, "") },
+            data(AccountsUi(), accounts = emptyList()).let { ShellData(emptyList(), "Mail", null, MailListUi.Start, it.version, "") },
             ShellActions(onFolder = { _, _ -> }, onLanguage = {}),
         )
     }

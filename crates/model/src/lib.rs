@@ -11,10 +11,14 @@
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
+pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+pub mod device_limits;
+#[cfg(test)]
+mod device_limits_tests;
 pub mod digital_signature;
 mod ews_server;
 pub mod gmail;
@@ -62,6 +66,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use headers::{HeaderBlock, HeaderLine};
