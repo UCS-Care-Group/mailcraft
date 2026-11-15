@@ -154,7 +154,7 @@ fn a_send_whose_answer_never_came_is_held_at_the_next_run() {
     assert!(hold_unanswered(&mut s.mailbox, account, mailcraft_i18n::Lang::default(), &mut said));
     let m = s.mailbox.message(first).unwrap();
     assert_eq!((m.sending, m.held.as_str()), (false, MAY_HAVE_GONE));
-    assert_eq!(said.len(), 1);
+    assert_eq!(said, ["'First' may have been sent: look in Sent Items. It is held in the Outbox."]);
     assert!(s.mailbox.message(second).unwrap().held.is_empty());
     // Not sent again by itself: only the one never handed over goes.
     assert_eq!(subjects(&s, account), ["Second"]);
@@ -223,6 +223,20 @@ fn each_send_the_answer_accounts_for_loses_its_mark() {
         assert!(!s.mailbox.message(message).unwrap().sending);
     }
     assert!(s.mailbox.message(untold).unwrap().sending, "one the answer doesn't name keeps its mark");
+}
+
+/// A Microsoft account whose answer was lost is told to look in Sent Items: Microsoft files the
+/// copy only once it is sent (a JMAP account's advice is another, `jmap_sending_tests`).
+#[test]
+fn a_lost_answer_says_to_look_in_sent_items() {
+    let (mut s, account, outbox) = setup();
+    let lost = queued(&mut s, account, outbox, "Lost", None);
+    let done = SendDone { message: lost, outcome: SendOutcome::Held { lost: true, why: String::new() }, draft: None, draft_left: String::new() };
+    let mut said = Vec::new();
+    assert!(send_done(&mut s.mailbox, account, &done, mailcraft_i18n::Lang::default(), &mut said));
+    assert_eq!(said, ["'Lost' may have been sent: look in Sent Items. It is held in the Outbox."]);
+    let held = &s.mailbox.message(lost).unwrap().held;
+    assert_eq!(held, "It may have been sent: the answer from Microsoft was lost. Look in Sent Items before you send it again.");
 }
 
 /// What the server put in the Outbox and an answer names anyway (`sync.holdSends` holds all that

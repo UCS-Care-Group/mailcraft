@@ -90,9 +90,6 @@ internal interface CalendarBackend {
     suspend fun run(command: String, params: String): Outcome
 
     suspend fun importIcs(name: String, bytes: ByteArray): Outcome
-
-    /** The zone the owner's clock is in; the core's calendar is shown by it. */
-    suspend fun useZone(id: String)
 }
 
 /** What the browse views have of the range: loading, the events, or a failure. */
@@ -145,8 +142,6 @@ internal class CalendarController(
     private val _state = MutableStateFlow(CalendarUiState(anchor = now().toLocalDate(), today = now().toLocalDate()))
     val state: StateFlow<CalendarUiState> = _state
 
-    private var appliedZone: String? = null
-
     val zoneId: ZoneId get() = zone()
 
     val firstDay: DayOfWeek get() = weekStart()
@@ -158,11 +153,6 @@ internal class CalendarController(
         val shown = _state.value
         val range = shown.range(weekStart())
         scope.launch {
-            val zoneId = zone().id
-            if (zoneId != appliedZone) {
-                backend.useZone(zoneId)
-                appliedZone = zoneId
-            }
             val events = backend.events(range)
             val calendars = backend.calendars()
             _state.update { current ->
@@ -416,14 +406,6 @@ internal class CoreCalendarBackend(private val core: Core, private val texts: Te
         Outcome.Done()
     } catch (e: CoreException) {
         Outcome.Refused(reasonOf(e) ?: texts.t("That could not be done."))
-    }
-
-    override suspend fun useZone(id: String) {
-        try {
-            core.execute("view.timeZone", "{\"zone\":${jsonString(id)}}")
-        } catch (_: CoreException) {
-            // A zone the core doesn't know: the calendar stays in the one it had.
-        }
     }
 
     override suspend fun importIcs(name: String, bytes: ByteArray): Outcome = try {

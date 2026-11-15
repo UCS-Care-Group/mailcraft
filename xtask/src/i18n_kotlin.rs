@@ -41,8 +41,7 @@ pub fn scan(src: &str) -> Vec<Said> {
             }
             _ => {}
         }
-        if let Some((name_len, tn)) = call_at(&chars, i) {
-            let open = i + name_len;
+        if let Some((open, tn)) = call_at(&chars, i) {
             if let Some(said) = arguments(&chars, open + 1, tn) {
                 out.push(said);
             }
@@ -54,16 +53,56 @@ pub fn scan(src: &str) -> Vec<Said> {
     out
 }
 
-/// `t(` or `tn(` at `i`, as a word of its own (not `get(`, `format(`, `x.at(`): its length and whether it is `tn`.
+/// `t(` or `tn(` at `i` (white space may stand before the `(`), as a word of its own (not `get(`,
+/// `format(`, `x.at(`): the index of the `(` and whether it is `tn`.
 fn call_at(chars: &[char], i: usize) -> Option<(usize, bool)> {
     let word = |c: Option<&char>| c.is_some_and(|c| c.is_alphanumeric() || *c == '_');
     if i > 0 && word(chars.get(i - 1)) {
         return None;
     }
-    match (chars.get(i), chars.get(i + 1), chars.get(i + 2)) {
-        (Some('t'), Some('('), _) => Some((1, false)),
-        (Some('t'), Some('n'), Some('(')) => Some((2, true)),
-        _ => None,
+    let (len, tn) = match (chars.get(i), chars.get(i + 1)) {
+        (Some('t'), Some('n')) => (2, true),
+        (Some('t'), _) => (1, false),
+        _ => return None,
+    };
+    if word(chars.get(i + len)) {
+        return None;
+    }
+    let open = skip_trivia(chars, i + len);
+    (chars.get(open) == Some(&'(')).then_some((open, tn))
+}
+
+/// The index of the first character at or after `i` that is neither white space nor inside a comment.
+fn skip_trivia(chars: &[char], mut i: usize) -> usize {
+    loop {
+        match (chars.get(i), chars.get(i + 1)) {
+            (Some(c), _) if c.is_whitespace() => i += 1,
+            (Some('/'), Some('/')) => {
+                while chars.get(i).is_some_and(|c| *c != '\n') {
+                    i += 1;
+                }
+            }
+            (Some('/'), Some('*')) => {
+                // Kotlin block comments nest: the outer one ends at the `*/` that matches its `/*`.
+                i += 2;
+                let mut depth = 1usize;
+                while i < chars.len() && depth > 0 {
+                    match (chars.get(i), chars.get(i + 1)) {
+                        (Some('/'), Some('*')) => {
+                            depth += 1;
+                            i += 2;
+                        }
+                        (Some('*'), Some('/')) => {
+                            depth -= 1;
+                            i += 2;
+                        }
+                        _ => i += 1,
+                    }
+                }
+                i = i.min(chars.len());
+            }
+            _ => return i,
+        }
     }
 }
 
@@ -80,19 +119,31 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
             '"' => {
                 let (s, end) = literal(chars, i);
                 if depth == 0 && piece_start {
-                    let alone = chars[end..].iter().find(|c| !c.is_whitespace()).is_some_and(|c| *c == ',' || *c == ')');
+                    let alone = chars.get(skip_trivia(chars, end)).is_some_and(|c| *c == ',' || *c == ')');
                     texts.push(if alone { s } else { None });
                     piece_start = false;
                 }
                 i = end;
                 continue;
             }
-            '(' | '[' | '{' => depth += 1,
+            '(' | '[' | '{' => {
+                // An argument that opens with a bracket still holds its slot.
+                if depth == 0 && piece_start {
+                    texts.push(None);
+                    piece_start = false;
+                }
+                depth += 1;
+            }
             ')' | ']' | '}' => {
                 if depth == 0 {
                     break;
                 }
                 depth -= 1;
+            }
+            '/' if matches!(chars.get(i + 1), Some('/' | '*')) => {
+                // A comment holds no argument and does not end one.
+                i = skip_trivia(chars, i);
+                continue;
             }
             ',' if depth == 0 => {
                 piece_start = true;
@@ -122,8 +173,26 @@ fn arguments(chars: &[char], at: usize, tn: bool) -> Option<Said> {
 fn literal(chars: &[char], start: usize) -> (Option<String>, usize) {
     let mut out = String::new();
     let mut template = false;
-    let mut i = start + 1;
+    let triple = chars.get(start + 1) == Some(&'"') && chars.get(start + 2) == Some(&'"');
+    let mut i = if triple { start + 3 } else { start + 1 };
     while i < chars.len() {
+        if triple {
+            // A raw string: no escapes, and it ends at the last of a run of three or more quotes.
+            if chars[i] == '"' && chars.get(i + 1) == Some(&'"') && chars.get(i + 2) == Some(&'"') {
+                let mut end = i + 3;
+                while chars.get(end) == Some(&'"') {
+                    out.push('"');
+                    end += 1;
+                }
+                return (if template { None } else { Some(out) }, end);
+            }
+            if chars[i] == '$' && chars.get(i + 1).is_some_and(|c| c.is_alphabetic() || *c == '{' || *c == '_') {
+                template = true;
+            }
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
         match chars[i] {
             '"' => return (if template { None } else { Some(out) }, i + 1),
             '\\' => {

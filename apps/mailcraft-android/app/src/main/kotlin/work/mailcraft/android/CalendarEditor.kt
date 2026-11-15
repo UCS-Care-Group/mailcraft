@@ -106,7 +106,7 @@ internal fun EventDetailPage(
 @Composable
 private fun DetailFacts(texts: Texts, page: CalendarPage.Detail) {
     val e = page.event
-    val locale = rememberLocale()
+    val locale = LocalMessageLocale.current
     val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
     val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
     val whenText = if (e.allDay) {
@@ -194,7 +194,7 @@ internal fun EventEditorPage(
     modifier: Modifier,
 ) {
     val d = page.draft
-    val locale = rememberLocale()
+    val locale = LocalMessageLocale.current
     val context = LocalContext.current
     Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Gutter)) {
         PageBar(

@@ -48,7 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,16 +77,11 @@ private const val BLOCK_ALPHA = 0.22f
 private const val DIM_ALPHA = 0.45f
 private const val DEFAULT_SCROLL_MINUTE = 7 * MINUTES_IN_HOUR
 
-@Composable
-internal fun rememberLocale(): Locale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
-
 /** The Calendar tab: the page that is open, or the three views with their bar. */
 @Composable
 internal fun CalendarScreen(
     texts: Texts,
     state: CalendarUiState,
-    weekStart: DayOfWeek,
-    zone: ZoneId,
     actions: CalendarActions,
     modifier: Modifier = Modifier,
 ) {
@@ -96,7 +90,7 @@ internal fun CalendarScreen(
     when (val page = state.page) {
         is CalendarPage.Detail -> EventDetailPage(texts, page, state, actions, modifier)
         is CalendarPage.Editor -> EventEditorPage(texts, page, state, actions, modifier)
-        CalendarPage.Browse -> Browse(texts, state, weekStart, zone, actions, modifier)
+        CalendarPage.Browse -> Browse(texts, state, actions, modifier)
     }
     state.ask?.let { AskDialog(texts, it, actions) }
 }
@@ -105,12 +99,13 @@ internal fun CalendarScreen(
 private fun Browse(
     texts: Texts,
     state: CalendarUiState,
-    weekStart: DayOfWeek,
-    zone: ZoneId,
     actions: CalendarActions,
     modifier: Modifier,
 ) {
-    val locale = rememberLocale()
+    // Dates in the phone's zone and language, as the mail list has them.
+    val locale = LocalMessageLocale.current
+    val zone = LocalMessageZone.current
+    val weekStart = weekStartOf(locale)
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Controls(texts, state, locale, actions)

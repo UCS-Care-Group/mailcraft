@@ -6,16 +6,17 @@ package work.mailcraft.android
 
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.Locale
 
 /** Invented people and meetings (example.org) for the Calendar screenshots; the day is fixed. */
 internal object CalendarShots {
     val today: LocalDate = LocalDate.parse("2026-11-04")
-    private val zone = ZoneId.of("UTC")
     private const val GREEN = 0xFF2E8B57.toInt()
     private const val ORANGE = 0xFFE07B1F.toInt()
     private const val PURPLE = 0xFF7E57C2.toInt()
@@ -117,11 +118,13 @@ internal object CalendarShots {
 
     @Composable
     fun Shell(state: CalendarUiState) {
-        MailCraftTheme {
-            Surface {
-                val base = ShellShots.data
-                val pane = CalendarPane(state, DayOfWeek.MONDAY, zone, CalendarActions())
-                AppShell(EnglishTexts, base, ShellShots.actions, pane, initialNav = NavState(tab = Tab.Calendar))
+        // Dates are drawn in one zone and language, whatever machine records or checks the shot.
+        CompositionLocalProvider(LocalMessageZone provides ZoneOffset.UTC, LocalMessageLocale provides Locale.US) {
+            MailCraftTheme {
+                Surface {
+                    val pane = CalendarPane(state, CalendarActions())
+                    AppShell(EnglishTexts, ShellShots.data, ShellShots.actions, pane, initialNav = NavState(tab = Tab.Calendar))
+                }
             }
         }
     }

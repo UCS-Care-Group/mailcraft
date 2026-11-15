@@ -74,7 +74,7 @@ fn the_message_goes_whole_as_an_eml_with_nothing_quoted() {
     // The message itself, as it came: its headers, its text and its files.
     let (name, mime, bytes) = attached(&s);
     assert_eq!((name.as_str(), mime.as_str()), ("Homepage mockups, round three.eml", "message/rfc822"));
-    let back = mailcraft_mime::parse(&bytes);
+    let back = mailcraft_mime_model::parse(&bytes);
     assert_eq!((&back.from, &back.to, &back.cc), (&original.from, &original.to, &original.cc));
     assert_eq!((back.subject.as_str(), back.message_id.as_str(), back.date), (MOCKUPS, original.message_id.as_str(), original.date));
     assert_eq!(back.body.text.trim_end(), original.body.text.trim_end());
@@ -162,7 +162,7 @@ fn a_bcc_never_goes_with_it_not_even_a_drafts() {
         s.run("mail.forwardAsAttachment", &json!({"id": id})).unwrap();
         let (name, _, bytes) = attached(&s);
         assert_eq!(name, "Budget.eml");
-        let back = mailcraft_mime::parse(&bytes);
+        let back = mailcraft_mime_model::parse(&bytes);
         assert!(back.bcc.is_empty() && !String::from_utf8_lossy(&bytes).contains("quiet@example.org"), "{kind:?}");
         assert_eq!(back.to, [Address::new("Kit", "kit@example.org")]);
         // Save Message As keeps a draft's, for the owner's own file.
@@ -344,7 +344,7 @@ fn the_original_is_marked_forwarded_once_it_has_gone() {
     assert_eq!(sent.subject, format!("FW: {MOCKUPS}"));
     assert!(matches!(sent.attachments.as_slice(), [eml] if eml.mime == "message/rfc822" && eml.name.ends_with(".eml")));
     // As it goes out, the attached message is in it whole.
-    let out = mailcraft_mime::write(&s.loaded_message(sent.id).unwrap(), &mailcraft_mime::WriteOptions::default());
-    let back = mailcraft_mime::parse(&out);
-    assert!(matches!(back.attachments.as_slice(), [eml] if mailcraft_mime::parse(&eml.data).subject == MOCKUPS));
+    let out = mailcraft_mime_model::write(&s.loaded_message(sent.id).unwrap(), &mailcraft_mime_model::WriteOptions::default());
+    let back = mailcraft_mime_model::parse(&out);
+    assert!(matches!(back.attachments.as_slice(), [eml] if mailcraft_mime_model::parse(&eml.data).subject == MOCKUPS));
 }

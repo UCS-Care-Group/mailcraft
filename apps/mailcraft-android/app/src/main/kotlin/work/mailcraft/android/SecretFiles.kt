@@ -25,13 +25,30 @@ internal class SecretFiles(private val dir: File, private val sealer: Sealer) : 
     @Volatile
     private var trouble: TroubleKind? = null
 
+    init {
+        sweepTemporaries()
+    }
+
     override fun get(key: String): String? = guarded {
         val file = fileFor(key)
         if (!file.isFile) return@guarded null
-        if (file.length() > MAX_FILE) throw HostException.Failed()
+        if (file.length() > MAX_FILE) {
+            trouble = TroubleKind.UNAVAILABLE
+            throw HostException.Failed()
+        }
+        val sealed = try {
+            file.readBytes()
+        } catch (e: IOException) {
+            // A file that is there and cannot be read is a store in trouble, not a missing credential.
+            trouble = TroubleKind.UNAVAILABLE
+            throw e
+        }
         try {
-            String(sealer.open(aadOf(key), file.readBytes()), StandardCharsets.UTF_8)
+            String(sealer.open(aadOf(key), sealed), StandardCharsets.UTF_8)
         } catch (_: GeneralSecurityException) {
+            trouble = TroubleKind.UNAVAILABLE
+            throw HostException.Failed()
+        } catch (_: RuntimeException) {
             trouble = TroubleKind.UNAVAILABLE
             throw HostException.Failed()
         }
@@ -45,6 +62,10 @@ internal class SecretFiles(private val dir: File, private val sealer: Sealer) : 
             val sealed = try {
                 sealer.seal(aadOf(key), plain)
             } catch (_: GeneralSecurityException) {
+                trouble = TroubleKind.UNAVAILABLE
+                throw HostException.Failed()
+            } catch (_: RuntimeException) {
+                // A provider or StrongBox failure: the Keystore is what is broken, not the secret.
                 trouble = TroubleKind.UNAVAILABLE
                 throw HostException.Failed()
             }
@@ -81,6 +102,15 @@ internal class SecretFiles(private val dir: File, private val sealer: Sealer) : 
     private fun sha256(bytes: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(bytes)
 
     private fun hex(bytes: ByteArray): String = bytes.joinToString("") { String.format(Locale.ROOT, "%02x", it) }
+
+    // A write killed between the temporary file and the move leaves sealed bytes behind: take them away.
+    private fun sweepTemporaries() {
+        try {
+            dir.listFiles { f -> f.name.endsWith(".tmp") }?.forEach { it.delete() }
+        } catch (_: RuntimeException) {
+            // Best effort: a folder that cannot be listed is dealt with when it is used.
+        }
+    }
 
     /** Takes away every file of a store (the owner removed the last account, or reset the app). */
     internal fun clear() {

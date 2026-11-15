@@ -43,7 +43,6 @@ internal fun detail(id: ULong = 1uL, answer: Answer = Answer.None, guest: Boolea
 private class FakeBackend : CalendarBackend {
     val ranges = ArrayList<DateRange>()
     val commands = ArrayList<Pair<String, String>>()
-    val zones = ArrayList<String>()
     var events: List<CalendarEvent> = emptyList()
     var calendars = listOf(CalendarInfo(1uL, 0uL, "Calendar", 0xFF2E8B57.toInt(), true))
     var detail: EventDetailModel? = detail()
@@ -69,15 +68,11 @@ private class FakeBackend : CalendarBackend {
         commands.add("import" to "$name:${bytes.size}")
         return outcome
     }
-
-    override suspend fun useZone(id: String) {
-        zones.add(id)
-    }
 }
 
 class CalendarControllerTest {
     private val backend = FakeBackend()
-    private var zone: ZoneId = ZoneId.of("Europe/Berlin")
+    private val zone: ZoneId = ZoneId.of("Europe/Berlin")
 
     private fun controller() = CalendarController(
         backend = backend,
@@ -89,18 +84,13 @@ class CalendarControllerTest {
     )
 
     @Test
-    fun theTabReadsTheAgendaRangeAndTheCalendarsAndTheZoneOnce() {
+    fun theTabReadsTheAgendaRangeAndTheCalendars() {
         val c = controller()
         backend.events = listOf(event(1, "2026-11-03T09:00", "2026-11-03T10:00"))
         c.refresh()
         assertEquals(listOf(DateRange(LocalDate.parse("2026-11-02"), LocalDate.parse("2026-12-01"))), backend.ranges)
         assertEquals(Loaded.Ready(backend.events), c.state.value.events)
         assertEquals(1, c.state.value.calendars.size)
-        c.refresh()
-        assertEquals(listOf("Europe/Berlin"), backend.zones)
-        zone = ZoneId.of("Asia/Tokyo")
-        c.refresh()
-        assertEquals(listOf("Europe/Berlin", "Asia/Tokyo"), backend.zones)
     }
 
     @Test

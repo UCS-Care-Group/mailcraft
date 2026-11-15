@@ -92,7 +92,11 @@ const MOST_ADDRESSES: usize = 8;
 /// What a platform gives the program. Every entry but the clock and the connection has no default
 /// that does anything: an entry that isn't overridden says [`PlatformError::Unsupported`] or that
 /// nothing is there.
-pub trait Platform {
+///
+/// It is `Send + Sync`: the host's worker threads hold it too (a job asks for the clock, the
+/// network state or a secret from its own thread). A platform whose parts belong to one thread
+/// (a window's) keeps them there and passes messages.
+pub trait Platform: Send + Sync {
     /// The system's credential store, where there is one.
     fn secrets(&self) -> Option<Arc<dyn SecretStore>> {
         None

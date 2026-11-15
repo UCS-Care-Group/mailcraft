@@ -41,10 +41,10 @@ fn a_highlight_goes_behind_the_text_and_out_in_the_html() {
     let text = compose(&s).body.text();
     assert!(text.all(0, 4, |st| st.highlight.as_deref() == Some("#ffff00")).unwrap());
     assert!(text.all(5, 9, |st| st.highlight.is_none()).unwrap());
-    let html = mailcraft_mime::rich::to_html(text);
+    let html = mailcraft_mime_model::rich::to_html(text);
     assert!(html.contains("<span style=\"background-color:#ffff00\">mark</span>"), "{html}");
     // And it comes back from the HTML (a draft opened again, a paste).
-    let back = mailcraft_mime::rich::from_html(&html);
+    let back = mailcraft_mime_model::rich::from_html(&html);
     assert!(back.all(0, 4, |st| st.highlight.as_deref() == Some("#ffff00")).unwrap());
     // Off again; one step each.
     run(&mut s, "format.highlight", json!({"value": null, "from": 0, "to": 4}));

@@ -12,6 +12,9 @@ pub struct AccountRecord {
     pub name: String,
     pub email: String,
     pub display_name: String,
+    /// `microsoft`, `imap`, `local`, `jmap`, `exchange` or `other`. The phone app v1 shows
+    /// `microsoft` accounts only.
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -58,8 +61,10 @@ pub struct MessageRow {
     /// Messages the row stands for (1 outside a conversation).
     pub members: u32,
     /// The heading above the row when it starts a group (`Today`, `Last Week`), in English: the
-    /// app translates it with `t`.
+    /// app translates it with `t`, unless `group_is_category` says it is a name the owner chose.
     pub group: Option<String>,
+    /// Whether `group` is one of the owner's categories (shown as spelt, never translated).
+    pub group_is_category: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -291,4 +296,26 @@ pub struct EventDetail {
     /// An account's server keeps it: a change to a meeting with people invited has to say
     /// whether they are written to (`send`).
     pub on_server: bool,
+}
+
+/// What "remove account and data" came to (`Core::delete_local_data`).
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum DataRemoved {
+    /// The mail and every sign-in kept are gone.
+    All,
+    /// The mail and every sign-in that could be found are gone, but the list of the sign-ins
+    /// kept was damaged (it was set aside): older ones may still be in the phone's credential
+    /// store. `message`, in the owner's language, says so and how to remove them; once it has
+    /// been shown, `Core::sign_ins_notice_shown` keeps later removals from saying it again.
+    SignInsMayRemain { message: String },
+}
+
+/// What `Core::forget_sign_ins` came to.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SignInsForgotten {
+    /// How many entries were looked for.
+    pub looked_for: u64,
+    /// Set when the list of the sign-ins kept was damaged (it was set aside), so older ones may
+    /// still be in the phone's credential store: the words to show the owner.
+    pub may_remain: Option<String>,
 }
