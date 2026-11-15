@@ -150,8 +150,8 @@ internal class MailNotifier(
             .setAutoCancel(true)
             .build()
         try {
-            NotificationManagerCompat.from(context)
-                .notify(if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG, notificationId(record.key), notification)
+            val tag = if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG
+            NotificationManagerCompat.from(context).notify(tag, notificationId(record.key), notification)
         } catch (_: SecurityException) {
             // The right was taken away between the check and the post: nothing is shown.
         }
