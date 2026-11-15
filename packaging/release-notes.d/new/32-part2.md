@@ -1,0 +1,1 @@
+- Print the calendar, contacts and tasks: File › Print prints what you have in view, the calendar as a month or day by day, contacts as cards, tasks as a table; Save as PDF too ([#32](https://github.com/GITHUB_REPOSITORY/issues/32)).

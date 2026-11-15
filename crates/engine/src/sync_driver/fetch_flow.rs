@@ -97,14 +97,18 @@ impl Session {
     pub fn fetch_first_plan(&mut self, id: &str, params: &Value) -> Result<Option<FetchFirst>, CmdError> {
         let tried = self.driver.fetch.tried.take();
         let forward = forwarded(self, id, params);
-        let several = forward.as_ref().is_some_and(|(ids, _)| ids.len() > 1);
-        let messages = match &forward {
-            Some((ids, _)) if several => {
+        // A print of messages waits for each of them, as a forward of several does (#32).
+        let printed = if forward.is_none() { crate::print::printed(self, id, params) } else { None };
+        let several = forward.as_ref().is_some_and(|(ids, _)| ids.len() > 1) || printed.as_ref().is_some_and(|ids| ids.len() > 1);
+        let messages = match (&forward, &printed) {
+            (Some((ids, _)), _) if several => {
                 compose::forward_check(self, ids, true)?;
                 still_to_fetch(self, ids, tried.as_deref().unwrap_or_default())
             }
-            Some((_, focus)) => to_fetch(self, id, *focus).into_iter().collect(),
-            None => needs_whole(self, id, params).into_iter().collect(),
+            (Some((_, focus)), _) => to_fetch(self, id, *focus).into_iter().collect(),
+            (None, Some(ids)) if several => still_to_fetch(self, ids, tried.as_deref().unwrap_or_default()),
+            (None, Some(ids)) => ids.first().and_then(|m| to_fetch(self, id, *m)).into_iter().collect(),
+            (None, None) => needs_whole(self, id, params).into_iter().collect(),
         };
         let Some(first) = messages.first().copied() else { return Ok(None) };
         let Some(account) = self.mailbox.message(first).map(|m| m.account) else { return Ok(None) };
@@ -112,18 +116,27 @@ impl Session {
         // `id`, if the call gave one, stays as it was, for the command to judge; a forward's
         // messages are named by `ids` instead, as the engine took them, the one in focus last.
         let mut then = params.as_object().cloned().unwrap_or_default();
-        match &forward {
-            Some((ids, focus)) => {
+        match (&forward, &printed) {
+            (Some((ids, focus)), _) => {
                 let named: Vec<Id> = ids.iter().copied().filter(|m| m != focus).chain([*focus]).collect();
                 then.remove("id");
                 then.insert("ids".into(), json!(named));
             }
-            None if then.get("id").is_none_or(Value::is_null) => {
+            // A print prints the messages it took, though the selection moves on.
+            (None, Some(ids)) => {
+                then.remove("id");
+                then.insert("ids".into(), json!(ids));
+            }
+            (None, None) if then.get("id").is_none_or(Value::is_null) => {
                 then.insert("id".into(), json!(first));
             }
-            None => {}
+            (None, None) => {}
         }
-        let waits = forward.as_ref().map_or_else(|| vec![first], |(ids, _)| ids.clone());
+        let waits = match (&forward, &printed) {
+            (Some((ids, _)), _) => ids.clone(),
+            (None, Some(ids)) => ids.clone(),
+            (None, None) => vec![first],
+        };
         let wait = Waiting {
             command: id.to_string(),
             params: Value::Object(then),
@@ -137,7 +150,7 @@ impl Session {
     /// Why a fetch for `plan` can't be asked for, when the engine names it: of several messages,
     /// the one that can't come.
     pub fn fetch_unavailable(&self, plan: &FetchFirst) -> Option<CmdError> {
-        if plan.several { compose::forward_check(self, &plan.messages, false).err() } else { None }
+        if plan.several && !crate::print::prints(&plan.wait.command) { compose::forward_check(self, &plan.messages, false).err() } else { None }
     }
 
     /// The fetch for `plan` was handed to the host: the command waits for it. What the owner is
@@ -207,11 +220,17 @@ impl Session {
             let here = !judged.is_empty() && judged.iter().all(|m| whole(self, m));
             let not_kept = came.sent.iter().find(|m| self.mailbox.message(**m).is_some_and(|m| m.unfetched)).copied();
             let at = |m: Id| judged.iter().position(|x| *x == m);
+            let printing = crate::print::prints(&command);
             let stop = match (came.not_sent, not_kept) {
                 // Not taken in as a whole: that is why, whatever it said of each.
                 _ if refused.is_some() => refused.take(),
-                (Some((m, gone)), k) if k.is_none_or(|k| at(m) < at(k)) => Some(compose::not_sent(self, m, gone)),
-                (_, Some(k)) => Some(compose::not_kept(self, k)),
+                (Some((m, gone)), k) if k.is_none_or(|k| at(m) < at(k)) => {
+                    Some(if printing { crate::print::not_sent(self, m, gone) } else { compose::not_sent(self, m, gone) })
+                }
+                (_, Some(k)) => Some(if printing { crate::print::not_kept(self, k) } else { compose::not_kept(self, k) }),
+                _ if came.answered.is_empty() && self.driver.fetch.offline && printing => {
+                    judged.iter().any(|m| !whole(self, m)).then(|| crate::cmd::fail(crate::print::NOT_HERE))
+                }
                 _ if came.answered.is_empty() && self.driver.fetch.offline => compose::forward_check(self, &judged, false).err(),
                 _ => None,
             };

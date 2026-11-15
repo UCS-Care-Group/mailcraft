@@ -1307,6 +1307,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             mi(ui, app, "Unsubscribe", "ui.unsubscribe", json!({"message": id}));
         }
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
+        mi(ui, app, "Print…", "file.print", json!({}));
+        mi(ui, app, "Save as PDF…", "file.saveAsPdf", json!({}));
         mi(ui, app, "View Source", "mail.viewSource", json!({}));
     });
 }
