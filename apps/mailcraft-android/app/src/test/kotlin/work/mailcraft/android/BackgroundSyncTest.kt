@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -22,12 +23,14 @@ private class FakeTarget(
     private val fails: Boolean = false,
     private val saves: Boolean = true,
     private val gate: CompletableDeferred<Unit>? = null,
+    private val started: CompletableDeferred<Unit>? = null,
 ) : SyncTarget {
     val budgets = mutableListOf<Long>()
     var saved = 0
 
     override suspend fun backgroundSync(budgetMs: Long): SyncSummary {
         budgets.add(budgetMs)
+        started?.complete(Unit)
         gate?.await()
         if (fails) throw CoreException.Cancelled()
         return SyncSummary(ran = true, finished = true, newMail = 2u, errors = emptyList(), signInNeeded = false)
@@ -76,10 +79,12 @@ class BackgroundSyncTest {
     fun aSecondRunWhileOneIsUnderWayLeavesItToFinish() = runBlocking {
         val lock = Mutex()
         val gate = CompletableDeferred<Unit>()
-        val first = FakeTarget(gate = gate)
+        val started = CompletableDeferred<Unit>()
+        val first = FakeTarget(gate = gate, started = started)
         val second = FakeTarget()
         val running = CoroutineScope(Dispatchers.Default).async { runBackgroundSync(first, SYNC_BUDGET_MS, lock) }
-        while (first.budgets.isEmpty()) kotlinx.coroutines.yield()
+        // The first round has begun (and holds the lock) before the second is asked for.
+        withTimeout(10_000) { started.await() }
         assertEquals(RunOutcome.Busy, runBackgroundSync(second, SYNC_BUDGET_MS, lock))
         assertTrue(second.budgets.isEmpty())
         assertEquals(0, second.saved)
