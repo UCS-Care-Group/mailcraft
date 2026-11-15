@@ -17,8 +17,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime_model::WriteOptions;
+use mailcraft_model::gmail::tidy_labels;
 use mailcraft_model::sync::{
-    FolderDelta, FolderState, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep,
+    FolderDelta, FolderState, GmailLabels, GmailSorted, MAX_GMAIL_MOVES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult, SyncStage,
+    SyncStep,
 };
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
 use mailcraft_proto::ProtoError;
@@ -753,8 +755,18 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
             run.out.timings.skipped = run.out.timings.skipped.saturating_add(1);
             continue;
         }
-        let folder =
-            FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, arrived, place: (at + 1, count), gmail, status };
+        let folder = FolderSync {
+            mailbox,
+            remote,
+            kind,
+            state,
+            max_new: request.max_per_folder as usize,
+            arrived,
+            place: (at + 1, count),
+            gmail,
+            labels: host.gmail,
+            status,
+        };
         if !folder.run(&mut imap, run) {
             // The connection is gone: the other mailboxes wait for the next run.
             return None;
@@ -789,6 +801,7 @@ fn inbox_first(run: &mut Run, imap: &mut Imap<Stream<'_>>, states: &States<'_>, 
         arrived: &[],
         place: (1, 1),
         gmail: host.gmail,
+        labels: host.gmail,
         status: None,
     };
     if !folder.run(imap, run) {
@@ -1070,6 +1083,9 @@ struct FolderSync<'a> {
     place: (usize, usize),
     /// It is a Gmail account's Inbox: Gmail's categories and ids of its messages are read too (#911).
     gmail: bool,
+    /// It is a folder of a Gmail account: Gmail's labels of its messages are read with their
+    /// flags (`X-GM-LABELS`, #1153), in the same command.
+    labels: bool,
     /// What the server said of the mailbox just before it is read, for what a reading in whole
     /// is kept with (#276).
     status: Option<FolderStatus>,
@@ -1110,7 +1126,15 @@ impl FolderSync<'_> {
         let uid_seen = self.state.filter(|_| !reset).map_or(0, |s| s.uid_seen);
         let uid_from = self.state.filter(|_| !reset).map_or(0, |s| s.uid_from);
 
-        let listed = match if self.gmail { imap.uid_fetch_flags_gmail("1:*") } else { imap.uid_fetch_flags("1:*") } {
+        // Gmail's ids for its Inbox alone (#911); its labels for every folder of it (#1153).
+        let listing = if self.gmail {
+            imap.uid_fetch_flags_gmail("1:*")
+        } else if self.labels {
+            imap.uid_fetch_flags_labels("1:*")
+        } else {
+            imap.uid_fetch_flags("1:*")
+        };
+        let listed = match listing {
             Ok(listed) => listed,
             // Some servers refuse `1:*` in an empty mailbox rather than answer with nothing.
             Err(ProtoError::Rejected(_)) if selected.exists == 0 => Vec::new(),
@@ -1160,6 +1184,16 @@ impl FolderSync<'_> {
             refetch_too_large: Vec::new(),
             refetch_refused: Vec::new(),
             gmail: Vec::new(),
+            // Gmail's labels of the messages already here, said once with their flags.
+            gmail_labels: if self.labels {
+                known
+                    .iter()
+                    .filter_map(|uid| present.get(uid))
+                    .filter_map(|m| m.gmail_labels.as_ref().map(|labels| GmailLabels { uid: m.uid, labels: tidy_labels(labels) }))
+                    .collect()
+            } else {
+                Vec::new()
+            },
         };
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
         let mut missed: Option<u32> = None;
@@ -1193,6 +1227,9 @@ impl FolderSync<'_> {
                     run.limits.bytes = run.limits.bytes.saturating_sub(bytes);
                     waiting = waiting.saturating_add(bytes);
                     let mut message = if large { too_large(fetched, size, run.limits.largest) } else { message_from(fetched) };
+                    if self.labels {
+                        message.gmail_labels = present.get(&uid).and_then(|m| m.gmail_labels.as_deref()).map(tidy_labels).unwrap_or_default();
+                    }
                     if let Some(sorted) = &sorted {
                         message.gmail_category = sorted.get(&uid).copied();
                         message.gmail_id = present.get(&uid).and_then(|m| m.gmail_id).unwrap_or(0);
@@ -1693,6 +1730,7 @@ mod tests {
             internal_date: Some(" 1-Jul-2003 09:52:37 +0000".into()),
             body: Some(header.to_vec()),
             gmail_id: None,
+            gmail_labels: None,
         };
         let m = too_large(fetched, 60 * 1024 * 1024 + 1, MAX_MESSAGE);
         assert_eq!(

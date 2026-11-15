@@ -200,6 +200,30 @@ impl std::fmt::Debug for SyncRequest {
     }
 }
 
+/// What the watch on an IMAP account's Inbox (IDLE, #276) tells the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleNote {
+    /// The server says the Inbox has more messages than it had: a Send/Receive of the account
+    /// brings them.
+    Arrived,
+    /// The watch is over, and why.
+    Ended(IdleEnd),
+}
+
+/// Why a watch on an Inbox ended ([`IdleNote::Ended`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleEnd {
+    /// It was told to stop.
+    Stopped,
+    /// The server can't do IDLE (or won't, for this mailbox): the account keeps to its timer.
+    NoIdle,
+    /// The server wouldn't have the sign-in, or there was nothing to sign in with: asking again
+    /// with the same credentials changes nothing.
+    Refused,
+    /// The connection kept dropping: the watch gave up for now, not to make a server's life hard.
+    TooOften,
+}
+
 /// What an OAuth sign-in brought back. Kept in memory only: it has no way to be written out, and
 /// it doesn't show in debug output.
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -575,6 +599,20 @@ pub struct FolderDelta {
     /// ends the folder's reading; empty from every other server and folder.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gmail: Vec<GmailSorted>,
+    /// For a folder of a Gmail account: Gmail's labels of the messages the mailbox already had
+    /// (`X-GM-LABELS`, #1153), as the server listed them with their flags; a new message comes
+    /// with its own in [`Message::gmail_labels`]. Empty from every other server.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gmail_labels: Vec<GmailLabels>,
+}
+
+/// Gmail's labels of one message the mailbox already had ([`FolderDelta::gmail_labels`], #1153).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GmailLabels {
+    pub uid: u32,
+    /// As the server wrote them; cleaned when they are taken in ([`crate::gmail::tidy_labels`]).
+    pub labels: Vec<String>,
 }
 
 /// What Gmail said of one message of a Gmail account's Inbox ([`FolderDelta::gmail`], #911).
@@ -902,6 +940,7 @@ impl SyncResult {
                         refetch_too_large,
                         refetch_refused,
                         gmail,
+                        gmail_labels,
                     } = delta;
                     folder.id = folder.id.or(id);
                     // The mailbox is read as far as the piece that got furthest says.
@@ -917,6 +956,7 @@ impl SyncResult {
                     folder.refetch_too_large.extend(refetch_too_large);
                     folder.refetch_refused.extend(refetch_refused);
                     folder.gmail.extend(gmail);
+                    folder.gmail_labels.extend(gmail_labels);
                     folder.complete |= complete;
                     if status.is_some() {
                         folder.status = status;

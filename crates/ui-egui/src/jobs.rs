@@ -114,6 +114,9 @@ impl MailApp {
                 JobKind::AdminConsent => self.forget_admin_consent(),
             }
         }
+        // What came of unsubscribing (#1207) is the old mailbox's: its message ids may name
+        // others here, and a request on its way is let go (its answer is no longer read).
+        self.unsubscribing = Default::default();
     }
 
     /// Call off every Send/Receive (IMAP, Graph, Exchange, JMAP, Inbox passes, shared mailboxes)
@@ -122,6 +125,8 @@ impl MailApp {
     pub(crate) fn forget_mail_runs(&mut self) {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
         self.inbox_check.forget();
+        // The watches on the Inboxes belong to the mailbox that was open (#276).
+        self.idle.stop_all();
         (self.sync_rx, self.graph_rx, self.graph_pieces, self.send_gate) = (None, None, None, None);
         self.session.driver.sending.forget_gate();
         (self.sync_run, self.inbox_run, self.graph_after_sign_in, self.shared_check_next) = (None, None, None, None);

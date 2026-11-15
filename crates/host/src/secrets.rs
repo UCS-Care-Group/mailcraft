@@ -9,6 +9,17 @@ pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
     fn set(&self, key: &str, secret: &str) -> Result<(), SecretError>;
     fn delete(&self, key: &str);
+    /// `get`, telling a store that couldn't be read from one that holds nothing under `key`. The
+    /// default can't tell them apart (`Ok(None)` for both); a store that can, says so.
+    fn read(&self, key: &str) -> Result<Option<String>, SecretError> {
+        Ok(self.get(key))
+    }
+    /// `delete`, saying whether the store removed the entry. The default can't tell (`Ok` always);
+    /// a store that can, says so.
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        self.delete(key);
+        Ok(())
+    }
     /// Why the store itself couldn't be used the last time something was asked of it (none is
     /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
     /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
@@ -64,6 +75,18 @@ pub enum StoreTrouble {
     Locked,
 }
 
+/// The name of a Microsoft account's secret of this kind (`password` or `refresh`): such an
+/// account is kept in step through Graph, which goes to Microsoft alone, so its name holds the
+/// address and nothing about servers.
+pub fn microsoft_secret_key(kind: &str, address: &str) -> String {
+    format!("{kind}:{}|graph", address.trim().to_ascii_lowercase())
+}
+
+/// The name secrets were kept under before they were bound to servers.
+pub fn legacy_secret_key(kind: &str, address: &str) -> String {
+    format!("{kind}:{}", address.trim().to_ascii_lowercase())
+}
+
 /// The name an account's secret of `kind` (`password` or `refresh`) is kept under in the credential
 /// store: bound to the address and to the server it is for, so that a secret remembered for one
 /// server is never handed to another.
@@ -74,7 +97,7 @@ pub fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
         None => "none".to_string(),
     };
     if a.kind == mailcraft_model::AccountKind::Microsoft {
-        format!("{kind}:{address}|graph")
+        microsoft_secret_key(kind, &address)
     } else if a.kind == mailcraft_model::AccountKind::Jmap {
         // (Its whole session address: another one, on the same server or not, is another server;
         // and a bearer token is no password.)
