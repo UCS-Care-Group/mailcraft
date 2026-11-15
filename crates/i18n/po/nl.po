@@ -333,6 +333,12 @@ msgstr "Er wordt een .pst-bestand geïmporteerd: probeer het opnieuw als het kla
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A brand's name on another address."
+msgstr "De naam van een merk op een ander adres."
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -420,6 +426,12 @@ msgstr "Een koppeling met de tekst {named} gaat naar {host}."
 #, fuzzy
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "Een koppeling waarvan de tekst vooral uit tekens bestaat die niet worden getoond, gaat naar {host}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "A made-up domain."
+msgstr "Een verzonnen domein."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -1251,6 +1263,12 @@ msgstr ""
 #: crates/mobile/src/sync.rs
 msgid "An account couldn't be sent and received."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "An address with no domain."
+msgstr "Een adres zonder domein."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -2160,6 +2178,11 @@ msgid "Bring in"
 msgstr "Inlezen"
 
 #. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Browse…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
@@ -2403,7 +2426,7 @@ msgid "Categorize"
 msgstr "Categoriseren"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Cc"
 msgstr "CC"
@@ -7170,6 +7193,12 @@ msgstr "Bezig met zoeken naar uw Exchange-server…"
 msgid "Looking… {folders}, {files}, {messages} so far"
 msgstr "Zoeken… {folders}, {files}, {messages} tot nu toe"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Looks like a brand."
+msgstr "Lijkt op een merk."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8889,6 +8918,11 @@ msgstr "Er staat geen nieuwe versie klaar om te installeren."
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "No preview helper is available for this attachment."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "No recent files"
 msgstr ""
 
 #. interface
@@ -10726,6 +10760,11 @@ msgstr ""
 #, fuzzy
 msgid "Recent Searches"
 msgstr "Recente zoekopdrachten"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+msgid "Recent files"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -14632,6 +14671,12 @@ msgstr "De naam verbergt tekens."
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The name is another domain."
+msgstr "De naam is een ander domein."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The name of someone you know."
 msgstr "De naam van iemand die u kent."
 
@@ -14785,14 +14830,38 @@ msgstr "De afzender gebruikt uw naam, maar dit bericht kwam van {real}, en dat i
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "Het adres van de afzender staat op {domain}, een internetadres zonder domeinnaam: echte organisaties versturen zelden vanaf zo'n adres."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's address is at {domain}."
 msgstr "Het adres van de afzender staat op {domain}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "Het domein van de afzender, {domain}, lijkt op dat van {brand}, maar het is geen van de domeinen van {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
 msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
 msgstr "Het domein van de afzender, {domain}, lijkt op {like}, waarmee u correspondeert, maar het is niet hetzelfde."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "Het domein van de afzender, {domain}, lijkt door een machine gemaakt of kan niet bestaan: echte organisaties versturen zelden vanaf zo'n domein."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "De naam van de afzender zegt {brand}, maar dit bericht kwam van {real}, en {domain} is geen van de domeinen van {brand}."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16245,7 +16314,7 @@ msgid "Title"
 msgstr "Titel"
 
 #. interface
-#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "Aan"

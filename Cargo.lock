@@ -3105,6 +3105,7 @@ dependencies = [
  "dispatch2",
  "eframe",
  "egui",
+ "encoding_rs",
  "fmv-macos-events",
  "image",
  "keyring-core",
@@ -3137,6 +3138,7 @@ dependencies = [
  "security-framework",
  "serde_json",
  "sha2 0.11.1",
+ "sysinfo",
  "tempfile",
  "tray-icon",
  "windows",
@@ -3524,6 +3526,7 @@ dependencies = [
  "serde",
  "serde_json",
  "skrifa 0.49.0",
+ "tempfile",
  "toml",
  "zeroize",
 ]
