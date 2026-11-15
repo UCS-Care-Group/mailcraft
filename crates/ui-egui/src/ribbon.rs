@@ -170,7 +170,7 @@ impl Menu {
 /// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
 pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
     match (&item.command, item.menu) {
-        (Some((command, _)), _) => app.enabled(command),
+        (Some((command, _)), _) => crate::text_menu::compose_clipboard_enabled(app, command).unwrap_or_else(|| app.enabled(command)),
         (None, Some(menu)) => menu_usable(app, menu),
         (None, None) => true,
     }
@@ -247,6 +247,8 @@ pub(crate) struct Item {
     /// One of classic Outlook's controls with no feature behind it yet: shown greyed, with
     /// "Pending development", and runs nothing.
     pub pending: bool,
+    /// Only the classic ribbon shows this control.
+    classic_only: bool,
 }
 
 impl Item {
@@ -265,6 +267,7 @@ impl Item {
             plain: false,
             under: None,
             pending: false,
+            classic_only: false,
         }
     }
 
@@ -303,6 +306,10 @@ impl Item {
         Item { key, ..self }
     }
 
+    fn classic_only(self) -> Item {
+        Item { classic_only: true, ..self }
+    }
+
     fn checked(self, checked: bool) -> Item {
         Item { checked, ..self }
     }
@@ -339,10 +346,18 @@ pub(crate) struct Group {
     /// Classic layout: how long it keeps its form as the window narrows, the higher the longer
     /// (set per tab in [`fit::prioritise`]).
     pub priority: u8,
+    /// An icon grid for the classic layout, in rows by item key.
+    classic_rows: &'static [&'static [&'static str]],
 }
 
 fn g(title: &'static str, items: Vec<Item>) -> Group {
-    Group { title, items, priority: 5 }
+    Group { title, items, priority: 5, classic_rows: &[] }
+}
+
+impl Group {
+    fn classic_rows(self, classic_rows: &'static [&'static [&'static str]]) -> Group {
+        Group { classic_rows, ..self }
+    }
 }
 
 /// A tab: its groups, and a line of explanation after them where there is something to explain.
@@ -719,7 +734,12 @@ fn message(app: &MailApp) -> Tab {
         g("Send", vec![Item::big("send", "Send", "compose.send", no()).at(0, 1)]),
         g(
             "Clipboard",
-            vec![Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain()],
+            vec![
+                Item::big("paste", "Paste", "edit.paste", no()).classic_only(),
+                Item::small("cut", "Cut", "Cut", "edit.cut", no()).classic_only(),
+                Item::small("copy", "Copy", "Copy", "edit.copy", no()).classic_only(),
+                Item::small("formatPainter", "Format Painter", "Format Painter", "edit.formatPainter", no()).checked(painting).at(1, 5).plain(),
+            ],
         ),
         g(
             "Basic Text",
@@ -737,14 +757,20 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(1, 4).plain(),
                 Item::small("clearFormatting", "Clear Formatting", "Clear All Formatting", "format.clear", no()).at(1, 5).plain(),
             ],
-        ),
+        )
+        .classic_rows(&[
+            &["font", "fontSize"],
+            &["format.bold", "format.italic", "format.underline", "format.bullets", "format.numbering", "format.clear"],
+            &["highlight", "fontColor", "format.outdent", "format.indent"],
+        ]),
         g("Names", vec![Item::big("checkNames", "Check\nNames", "compose.checkNames", no()).at(3, 4)]),
         g(
             "Include",
             vec![
-                Item::big("attach", "Attach\nFile", "ui.attach", no()).at(2, 2),
-                Item::big("insertLink", "Link", "compose.link", no()).checked(look.link && !look.plain).at(2, 3),
-                Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(2, 3),
+                Item::small("attach", "Attach\nFile", "", "ui.attach", no()).at(2, 2),
+                Item::small("open", "Attach Item", "", "compose.attachItem", no()).classic_only(),
+                Item::small_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(2, 3),
+                Item::small("insertLink", "Link", "Link", "compose.link", no()).checked(look.link && !look.plain).at(2, 3),
             ],
         ),
         g(
@@ -761,7 +787,8 @@ fn message(app: &MailApp) -> Tab {
                     .checked(read_receipt)
                     .at(4, 6),
             ],
-        ),
+        )
+        .classic_rows(&[&["compose.highImportance", "compose.readReceipt"], &["compose.lowImportance", "compose.replyTo"]]),
         g(
             "Format",
             vec![
@@ -779,9 +806,9 @@ fn message(app: &MailApp) -> Tab {
         g(
             "Draft",
             vec![
-                Item::big("saveDraft", "Save\nDraft", "compose.saveDraft", no()).at(6, 2),
-                Item::big("discard", "Discard", "compose.discard", no()).at(6, 3).plain(),
-                Item::big("close", "Close", "compose.close", no()).at(6, 3),
+                Item::small("saveDraft", "Save\nDraft", "", "compose.saveDraft", no()).at(6, 2),
+                Item::small("discard", "Discard", "", "compose.discard", no()).at(6, 3).plain(),
+                Item::small("close", "Close", "", "compose.close", no()).at(6, 3),
             ],
         ),
         // The reading pane's message into a window of its own (#286; a window's ribbon leaves it out).
@@ -1655,14 +1682,20 @@ pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
 /// when it is on.
 fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
     let Some((id, params)) = &item.command else { return };
-    let (key, enabled) = (shortcut_text(app, id), app.enabled(id));
+    let (key, enabled) = (shortcut_text(app, id), usable(app, item));
     let mut button = egui::Button::new(item.name()).selected(item.checked).min_size(vec2(190.0, 0.0));
     if !key.is_empty() {
         button = button.shortcut_text(key);
     }
     if ui.add_enabled(enabled, button).clicked() {
-        let _ = app.run(id, params.clone());
+        run_ribbon_command(app, ui, id, params);
         ui.close();
+    }
+}
+
+fn run_ribbon_command(app: &mut MailApp, ui: &Ui, command: &str, params: &Value) {
+    if !crate::text_menu::compose_clipboard(app, ui.ctx(), command) {
+        let _ = app.run(command, params.clone());
     }
 }
 
@@ -1692,7 +1725,7 @@ impl Button<'_> {
 pub(crate) fn row(tab: &Tab) -> Vec<Button<'_>> {
     let mut buttons: Vec<Button<'_>> = tab
         .items()
-        .filter(|item| item.under.is_none())
+        .filter(|item| !item.classic_only && item.under.is_none())
         .map(|item| Button { item, drops: tab.items().filter(|under| under.under == Some(item.key)).collect() })
         .collect();
     buttons.sort_by_key(|b| b.item.section);
@@ -1876,7 +1909,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
     if main.clicked() && on {
-        let _ = app.run(command, params.clone());
+        run_ribbon_command(app, ui, command, params);
     }
     if !b.has_drop() {
         return;
@@ -1962,13 +1995,13 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
     let label = tl!(item.label);
     match (&item.command, item.menu) {
         (Some((command, params)), _) => {
-            let on = app.enabled(command);
+            let on = usable(app, item);
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             let resp = command_tooltip(app, resp, &item.tip_text(), command);
             if resp.clicked() && on {
-                let _ = app.run(command, params.clone());
+                run_ribbon_command(app, ui, command, params);
             }
         }
         (None, Some(menu)) => {
@@ -1993,54 +2026,101 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
     }
 }
 
-/// A column of small buttons of the classic layout (up to three), with their labels or without
-/// (then each is named in its tooltip).
-fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: bool) {
-    if items.is_empty() {
-        return;
-    }
-    stack(ui, |ui| {
-        for item in items {
-            let name = item.name();
-            let label = labelled.then_some(name.as_str());
-            match (&item.command, item.menu) {
-                (Some((command, params)), _) => {
-                    let on = app.enabled(command);
-                    let resp = small_frame(ui, item.icon, label, on, item.checked, false);
-                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    let resp = command_tooltip(app, resp, &item.tip_text(), command);
-                    if resp.clicked() && on {
-                        let _ = app.run(command, params.clone());
-                    }
-                }
-                (None, Some(menu)) => {
-                    let on = usable(app, item);
-                    let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
-                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    if on {
-                        egui::Popup::menu(&resp).show(|ui| {
-                            ui.set_min_width(200.0);
-                            menu_contents(ui, app, menu);
-                        });
-                    }
-                }
-                (None, None) if item.pending => {
-                    let resp = small_frame(ui, item.icon, label, false, false, false);
-                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
-                    pending_tip(resp, item);
-                }
-                (None, None) => {}
+/// A small button of the classic layout. The icon keeps its tooltip even without a visible label.
+fn classic_small(app: &mut MailApp, ui: &mut Ui, item: &Item, labelled: bool, width: Option<f32>) {
+    let name = item.name();
+    let label = labelled.then_some(name.as_str());
+    let on = usable(app, item) && !item.pending;
+    let menu = fit::drops(item);
+    let resp = match width {
+        Some(width) => widgets::small_frame_with_width(ui, item.icon, label, on, item.checked, menu, width),
+        None => small_frame(ui, item.icon, label, on, item.checked, menu),
+    };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, on, &name));
+    app.hit.add("ribbon", hit_id(item.key), resp.rect);
+    match (&item.command, item.menu) {
+        (Some((command, params)), _) => {
+            let resp = command_tooltip(app, resp, &item.tip_text(), command);
+            if resp.clicked() && on {
+                run_ribbon_command(app, ui, command, params);
             }
         }
-    });
+        (None, Some(menu)) => {
+            let resp = menu_tooltip(app, resp, item, on);
+            show_classic_menu(app, resp, menu, on);
+        }
+        (None, None) if item.pending => {
+            pending_tip(resp, item);
+        }
+        (None, None) => {}
+    }
 }
 
-/// A group's controls laid out at `stage`: large buttons side by side and small ones three to a column.
-fn classic_cells(app: &mut MailApp, ui: &mut Ui, items: &[&Item], stage: Stage) {
+fn show_classic_menu(app: &mut MailApp, resp: egui::Response, menu: Menu, on: bool) {
+    if on {
+        egui::Popup::menu(&resp).show(|ui| {
+            ui.set_min_width(200.0);
+            menu_contents(ui, app, menu);
+        });
+    }
+}
+
+/// The values of an Outlook-style font or size picker, using the selection or the typing style.
+fn classic_picker(app: &mut MailApp, ui: &mut Ui, item: &Item, menu: Menu, width: f32) {
+    let look = look_now(app);
+    let value = match menu {
+        Menu::Font => match look.font {
+            Some(Some(font)) => tl!(font.label()).to_owned(),
+            Some(None) => tl!("Default").to_owned(),
+            None => String::new(),
+        },
+        _ => look.size.flatten().map_or_else(|| "—".to_owned(), |size| size.to_string()),
+    };
+    let on = usable(app, item);
+    let t = Tokens::get(ui.ctx());
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, 22.0), if on { Sense::click() } else { Sense::hover() });
+    let field = rect.shrink2(vec2(0.0, 1.0));
+    ui.painter().rect(field, 3.0, t.input, Stroke::new(1.0, t.input_border), egui::StrokeKind::Inside);
+    if on {
+        bg(ui, field, &resp, false, &t);
+    }
+    let color = if on { t.text } else { t.text_disabled };
+    paint_clipped(ui.painter(), pos2(field.min.x + 6.0, field.center().y), width - 20.0, &value, regular(11.5), color);
+    drop_mark(ui, pos2(field.max.x - 9.0, field.center().y), color);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, on, item.name()));
+    app.hit.add("ribbon", hit_id(item.key), rect);
+    let resp = menu_tooltip(app, resp, item, on);
+    show_classic_menu(app, resp, menu, on);
+}
+
+/// A group's controls at this stage. The formatting grid keeps its arrangement in a narrow
+/// window until the group folds, so its font and size fields stay together.
+fn classic_cells(app: &mut MailApp, ui: &mut Ui, group: &Group, items: &[&Item], stage: Stage) {
+    if !group.classic_rows.is_empty() {
+        stack(ui, |ui| {
+            for row in fit::packed_rows(group) {
+                ui.horizontal(|ui| {
+                    for item in row {
+                        if let Some((menu, width)) = fit::picker(item, stage) {
+                            classic_picker(app, ui, item, menu, width);
+                        } else {
+                            classic_small(app, ui, item, false, Some(fit::packed_icon_width(item, stage)));
+                        }
+                    }
+                });
+            }
+        });
+        return;
+    }
     for cell in fit::cells(items, stage) {
         match cell {
             Cell::Big(item) => classic_big(app, ui, item),
-            Cell::Column(column) => classic_column(app, ui, &column, stage != Stage::Icons),
+            Cell::Column(column) => stack(ui, |ui| {
+                for item in column {
+                    let labelled = fit::show_label(group, stage, item);
+                    classic_small(app, ui, item, labelled, None);
+                }
+            }),
         }
     }
 }
@@ -2087,7 +2167,7 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
             continue;
         }
         if stage != Stage::Folded {
-            group(ui, group_of.title, app, |ui, app| classic_cells(app, ui, &items, stage));
+            group(ui, group_of.title, app, |ui, app| classic_cells(app, ui, group_of, &items, stage));
             continue;
         }
         let top = ui.cursor().min.y;
@@ -2100,7 +2180,7 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
         egui::Popup::menu(&resp).show(|ui| {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing = vec2(1.0, 1.0);
-                classic_cells(app, ui, &items, open);
+                classic_cells(app, ui, group_of, &items, open);
             });
         });
         widgets::group_end(ui, top);
@@ -2148,7 +2228,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         return;
     }
     let tab = describe(app);
-    band(app, ui, &tab, egui::Id::unique("ribbon"));
+    band(app, ui, &tab, egui::Id::unique("ribbon"), 0);
 }
 
 /// The ribbon of a window of its own with a message being written (#286), numbered `window`:
@@ -2172,7 +2252,8 @@ pub(crate) fn show_window(app: &mut MailApp, ui: &mut Ui, window: u64, tab: &mut
         group.items.retain(|item| item.command.as_ref().is_none_or(|(id, _)| !matches!(*id, "compose.popOut" | "compose.send")));
     }
     described.groups.retain(|group| !group.items.is_empty());
-    band(app, ui, &described, egui::Id::unique(("ribbon", window)));
+    // Leave the same gutter at both edges of the composer window.
+    band(app, ui, &described, egui::Id::unique(("ribbon", window)), 8);
 }
 
 /// The row of tabs, `current` the one in view, with Search commands at its right end; `id` names
@@ -2236,7 +2317,7 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
 }
 
 /// The commands of `tab` under the row of tabs, in the layout chosen; `id` names its panel.
-fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
+fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id, left_inset: i8) {
     let t = Tokens::get(ui.ctx());
     let mode = app.ui.ribbon_mode;
     // The ribbon is a sheet on the window's own colour, with a gap under it before the panes. The
@@ -2245,7 +2326,7 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
         Mode::Classic => (CONTENT_H + LABEL_H + 10.0, 4.0),
         Mode::Simplified => (BAND_H, (BAND_H - BUTTON_H) / 2.0),
     };
-    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + TOP_GAP) as i8, bottom: (edge + SHEET_GAP) as i8 };
+    let margin = egui::Margin { left: 8 + left_inset, right: (16.0 + MODE_W) as i8, top: (edge + TOP_GAP) as i8, bottom: (edge + SHEET_GAP) as i8 };
     egui::Panel::top(id)
         .exact_size(height + TOP_GAP + SHEET_GAP)
         .show_separator_line(false)
@@ -2454,9 +2535,12 @@ mod tests {
                     assert!(host.under.is_none(), "{name}: {key} is under {}, which is under something itself", host.key);
                 }
             }
-            // The simplified row has every control: as a button, or under one.
+            // The simplified row has each control it offers once, as a button or under one.
             let buttons = row(&tab);
-            assert_eq!(buttons.len() + buttons.iter().map(|b| b.drops.len()).sum::<usize>(), items.len(), "{name}");
+            for item in items {
+                let shown = buttons.iter().flat_map(|b| std::iter::once(b.item).chain(b.drops.iter().copied())).filter(|shown| shown.key == item.key);
+                assert_eq!(shown.count(), usize::from(!item.classic_only), "{name}: {} in the simplified row", item.key);
+            }
             assert!(buttons.windows(2).all(|pair| pair[0].item.section <= pair[1].item.section), "{name}: the row is in its stretches' order");
             assert!(buttons.iter().all(|b| b.item.command.is_some() || b.has_drop() || b.item.pending), "{name}: a button does something");
             // The classic layout has all but what is only there for the row.
@@ -2880,8 +2964,8 @@ mod tests {
         }
     }
 
-    /// The classic layout is what it was: every control in its group, large buttons the height of
-    /// the band's content side by side, small ones three to a column, in the order described.
+    /// Every control is in its group. Large buttons and columns use the standard layout, while
+    /// Message also has formatting and tag rows.
     #[test]
     fn the_classic_layout_sets_every_control_in_its_group() {
         let mut harness = window(app(), 2400.0);
@@ -2898,6 +2982,32 @@ mod tests {
             assert!(app.hit.rect("ribbonMore", 0).is_none() && app.hit.rect("ribbonMode", 0).is_some(), "{name}");
             let mut end = band.min.x;
             for group in &tab.groups {
+                if !group.classic_rows.is_empty() {
+                    let mut drawn = std::collections::BTreeSet::new();
+                    let mut bottom = band.min.y;
+                    let mut right = end;
+                    for row in fit::packed_rows(group) {
+                        let mut next = end;
+                        let mut row_bottom = bottom;
+                        for item in row {
+                            assert!(drawn.insert(item.key), "{name}: {} appears twice", item.key);
+                            let r = app.hit.rect("ribbon", hit_id(item.key)).unwrap_or_else(|| panic!("{name}: {} isn't drawn", item.key));
+                            assert!(
+                                (r.height() - 22.0).abs() < 0.5 && r.min.x >= next - 0.5 && r.min.y >= bottom - 0.5,
+                                "{name}: {} at {r:?}",
+                                item.key
+                            );
+                            assert!(r.max.x <= band.max.x && r.max.y < band.max.y, "{name}: {} at {r:?}", item.key);
+                            next = r.max.x;
+                            row_bottom = row_bottom.max(r.max.y);
+                        }
+                        right = right.max(next);
+                        bottom = row_bottom;
+                    }
+                    assert_eq!(drawn.len(), fit::shown(group).len(), "{name}: {} dropped a control", group.title);
+                    end = right;
+                    continue;
+                }
                 let mut column: Vec<Rect> = Vec::new();
                 for item in &group.items {
                     let at = app.hit.rect("ribbon", hit_id(item.key));

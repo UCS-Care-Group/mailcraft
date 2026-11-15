@@ -42,6 +42,32 @@ enum Item {
     SelectAll,
 }
 
+/// Ribbon buttons use the composer's text-menu path for clipboard actions.
+fn compose_clipboard_item(command: &str) -> Option<Item> {
+    match command {
+        "edit.cut" => Some(Item::Cut),
+        "edit.copy" => Some(Item::Copy),
+        "edit.paste" => Some(Item::Paste),
+        _ => None,
+    }
+}
+
+pub(crate) fn compose_clipboard_enabled(app: &MailApp, command: &str) -> Option<bool> {
+    let item = compose_clipboard_item(command)?;
+    let compose = app.session.compose.as_ref()?;
+    Some(match item {
+        Item::Paste => app.services.clipboard.is_some(),
+        _ => !compose.body.selection().is_empty(),
+    })
+}
+
+pub(crate) fn compose_clipboard(app: &MailApp, ctx: &Context, command: &str) -> bool {
+    let Some(item) = compose_clipboard_item(command) else { return false };
+    let Some(compose) = app.session.compose_id() else { return false };
+    choose(ctx, crate::compose::editor::id_of(compose), item, Takes::Pictures);
+    true
+}
+
 /// What a text takes from the clipboard besides text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Takes {
@@ -250,9 +276,13 @@ fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
         None => ctx.data_mut(|d| d.remove::<Nested>(shown(resp.id))),
     }
     if let Some(item) = chosen {
-        let viewport = ctx.viewport_id();
-        ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target: resp.id, item, takes }));
+        choose(ctx, resp.id, item, takes);
     }
+}
+
+fn choose(ctx: &Context, target: Id, item: Item, takes: Takes) {
+    let viewport = ctx.viewport_id();
+    ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target, item, takes }));
 }
 
 /// Whether the text field `resp` was left in this pass, as its `lost_focus` says, but not for its

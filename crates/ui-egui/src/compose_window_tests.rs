@@ -248,6 +248,23 @@ fn two_windows_are_written_in_apart() {
 }
 
 #[test]
+fn the_pop_out_ribbon_has_equal_gutters_in_both_layouts() {
+    let mut h = window(app());
+    h.set_size(egui::vec2(800.0, 620.0));
+    let compose = new_window(&mut h);
+    let id = window_of(&h, compose);
+    for mode in ["classic", "simplified"] {
+        script(&mut h, "ui.ribbonMode", json!({"value": mode}));
+        let hit = &h.state().hit;
+        let window = hit.rect("window", id).unwrap();
+        let ribbon = hit.rect_in(id, "ribbonBand", 0).unwrap();
+        let left = ribbon.min.x - window.min.x;
+        let right = window.max.x - ribbon.max.x;
+        assert!(left >= 7.5 && (left - right).abs() < 1.0, "{mode}: left {left}, right {right}");
+    }
+}
+
+#[test]
 fn the_ribbon_of_a_window_acts_on_its_own_message() {
     let mut h = window(app());
     // (The classic layout, where Importance is in view in the window's width.)

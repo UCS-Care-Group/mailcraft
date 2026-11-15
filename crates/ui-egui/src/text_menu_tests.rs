@@ -339,6 +339,30 @@ fn the_subject_line_cuts_copies_and_pastes_through_its_menu() {
 }
 
 #[test]
+fn the_classic_composer_ribbon_copies_cuts_and_pastes_the_body() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 10})).unwrap();
+    settle(&mut h, 4);
+    for command in ["edit.copy", "edit.cut", "edit.paste"] {
+        let at = h.state().hit.rect("ribbon", crate::ribbon::hit_id(command)).unwrap().center();
+        click(&mut h, at, PointerButton::Primary);
+        settle(&mut h, 4);
+        let body = match command {
+            "edit.copy" => "draft text",
+            "edit.cut" => "",
+            _ => "replacement",
+        };
+        assert_eq!(plain(&h), body, "{command}");
+    }
+    let held = board.0.borrow();
+    assert_eq!(held.put.iter().map(|(_, text)| text.as_str()).collect::<Vec<_>>(), ["draft text", "draft text"]);
+    assert_eq!(held.reads, 1);
+}
+
+#[test]
 fn a_password_field_offers_paste_alone() {
     let board = Board::holding(TYPED);
     let mut a = app(Some(&board));

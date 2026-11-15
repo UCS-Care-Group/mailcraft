@@ -126,12 +126,18 @@ fn frame_sense(on: bool, menu: bool) -> Sense {
 
 /// Lay out and paint a small button of the classic ribbon: a 16 pt icon with its label beside it.
 pub(crate) fn small_frame(ui: &mut Ui, icon: &str, label: Option<&str>, on: bool, checked: bool, menu: bool) -> Response {
+    let width = small_width(label.map(|l| text_w(ui, l, 11.5)), menu);
+    small_frame_with_width(ui, icon, label, on, checked, menu, width)
+}
+
+pub(crate) fn small_frame_with_width(ui: &mut Ui, icon: &str, label: Option<&str>, on: bool, checked: bool, menu: bool, width: f32) -> Response {
     let t = Tokens::get(ui.ctx());
-    let (r, resp) = ui.allocate_exact_size(vec2(small_width(label.map(|l| text_w(ui, l, 11.5)), menu), 22.0), frame_sense(on, menu));
+    let (r, resp) = ui.allocate_exact_size(vec2(width, 22.0), frame_sense(on, menu));
     if on {
         bg(ui, r, &resp, checked, &t);
     }
-    let ic = Rect::from_center_size(pos2(r.min.x + 12.0, r.center().y), vec2(16.0, 16.0));
+    let icon_x = if label.is_some() { 12.0 } else { (width - if menu { 10.0 } else { 0.0 }) / 2.0 };
+    let ic = Rect::from_center_size(pos2(r.min.x + icon_x, r.center().y), vec2(16.0, 16.0));
     let (c, a) = if on { (t.icon, t.accent) } else { (t.text_disabled, t.text_disabled) };
     icons::paint(ui.painter(), ic, icon, c, a);
     if let Some(l) = label {

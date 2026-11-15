@@ -110,6 +110,9 @@ pub fn key_of(command: &str) -> Option<&'static str> {
         "compose.link" => "Mod+K",
         "compose.undo" => "Mod+Z",
         "compose.redo" => "Mod+Y",
+        "edit.cut" => "Mod+X",
+        "edit.copy" => "Mod+C",
+        "edit.paste" => "Mod+V",
         _ => return None,
     })
 }
