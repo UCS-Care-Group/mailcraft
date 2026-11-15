@@ -151,6 +151,7 @@ pub(crate) enum Menu {
     Highlight,
     Junk,
     RecentAttachments,
+    OpenCalendar,
 }
 
 impl Menu {
@@ -561,8 +562,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
-    // Somebody else's calendar, by their address (#70).
-    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
+    // Somebody else's calendar, by their address (#70), or one on the web (#209).
+    groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
         "Share",
         vec![
@@ -722,6 +723,7 @@ pub(crate) const FONT_SIZES: [u8; 12] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 2
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
     let read_receipt = app.session.compose.as_ref().is_some_and(|c| c.read_receipt);
+    let delayed = crate::send_later::delay_is_on(app);
     let look = look_now(app);
     let painting = app.session.doc().is_some_and(|(b, _)| b.painter().is_some());
     Tab::of(vec![
@@ -769,6 +771,7 @@ fn message(app: &MailApp) -> Tab {
                 Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
                     .checked(read_receipt)
                     .at(4, 6),
+                Item::small("clock", "Delay Delivery", "Do not deliver before a date and time", "compose.delay", no()).checked(delayed).at(4, 6),
             ],
         ),
         g(
@@ -1373,6 +1376,10 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::Junk => junk_menu(ui, app),
+        Menu::OpenCalendar => {
+            mi(ui, app, "Open Shared Calendar…", "calendar.openShared", json!({}));
+            mi(ui, app, "From Internet…", "calendar.subscribe", json!({}));
+        }
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
             let accounts = selected_accounts(app);

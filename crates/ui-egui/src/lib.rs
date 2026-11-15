@@ -212,6 +212,7 @@ pub mod security;
 mod security_fixtures_tests;
 #[cfg(test)]
 mod security_tests;
+mod send_later;
 mod send_receive;
 mod sender_images;
 mod sending;
@@ -226,6 +227,9 @@ mod signatures;
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
+mod subscribed;
+#[cfg(test)]
+mod subscribed_tests;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -271,6 +275,7 @@ pub use files::FileDialogRequest;
 pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
 pub use settings_notice::SettingsUnread;
+pub use subscribed::{SubscriptionDone, SubscriptionJob};
 pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
@@ -481,6 +486,13 @@ pub struct Services {
     /// public hosts only, no redirect, size and time capped). The answer, or why there is none,
     /// arrives through the channel. Absent in the browser and the tests: one click isn't offered.
     pub unsubscribe: Option<Box<dyn Fn(String) -> Receiver<Result<(), String>>>>,
+    /// Desktop: look at a subscribed calendar's file on the web (#209), on a background thread,
+    /// when the calendar is due: HTTPS only, public hosts only, no cookie, no referrer and no
+    /// credentials, size and time capped (`mailcraft_net::subscription::look`). The address is
+    /// the owner's and may hold a secret: it is never logged. What came back, or why nothing did,
+    /// arrives through the channel and the host wakes the UI. Absent in the browser and the
+    /// tests: subscribed calendars are then listed with what they held and not updated.
+    pub subscription: Option<Box<dyn Fn(SubscriptionJob) -> Receiver<SubscriptionDone>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -1034,7 +1046,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -1587,6 +1599,8 @@ pub struct MailApp {
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
+    /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
+    subscribed: subscribed::Subscribed,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1867,6 +1881,7 @@ impl MailApp {
             rules: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
+            subscribed: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
@@ -2081,6 +2096,10 @@ impl MailApp {
             self.say_refused(id, &e);
             return Err(e);
         }
+        // Undo (Ctrl+Z) while Undo Send's wait runs takes the message back, as the bar's button does (#950).
+        if id == "edit.undo" && self.session.undo_send_wait().is_some() && self.session.undo_send_latest() {
+            return self.run("compose.undoSend", json!({}));
+        }
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).
@@ -2165,7 +2184,7 @@ impl MailApp {
             self.show_source(v);
         }
         // Sent from a shared mailbox (#70): pressing Send is the owner asking for it to go.
-        if id == "compose.send"
+        if matches!(id, "compose.send" | "compose.sendLater")
             && let Ok(v) = &r
             && let Some(sent) = v.get("id").and_then(Value::as_u64)
         {
@@ -2289,6 +2308,8 @@ impl MailApp {
         let r = windows::compose_window::after_run(self, id, &before, r);
         // Work Offline, File › Account.
         send_receive::after(self, id, &r);
+        // A subscribed calendar's address, which only this window keeps (#209).
+        self.subscribed_after(id, &params, &r);
         // Asked for the reminders: their window comes up, due or not.
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
@@ -2569,7 +2590,14 @@ impl MailApp {
                 self.status(tl!("Diagnostics copied. Nothing was sent."));
                 Ok(json!({"text": text}))
             }
-            "ui.sync" => self.start_sync(p),
+            "ui.sync" => {
+                // The subscribed calendars are brought up to date with it, when the owner asked
+                // for the run (#209).
+                if p.get("quiet").and_then(Value::as_bool) != Some(true) {
+                    self.refresh_subscribed();
+                }
+                self.start_sync(p)
+            }
             "ui.checkCalendar" => self.check_calendar(p),
             "ui.microsoftClientId" => {
                 let id = s("value").unwrap_or_default().trim();
@@ -2952,6 +2980,9 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        // The addresses of subscribed calendars already read stay in memory for the session (the
+        // owner turned remembering off, not the calendars): they are off the store, not off the window.
+        self.keep_read_subscription_addresses();
         self.secret_cache.clear();
         left
     }
@@ -4720,6 +4751,8 @@ impl MailApp {
             self.idle_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // The calendars subscribed to, when they are due ([`subscribed`]).
+            self.subscribed_tick();
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
@@ -5176,6 +5209,8 @@ impl MailApp {
             settings_notice::bar(self, ui);
             software::bar(self, ui);
             unconfirmed::bar(self, ui);
+            // Undo Send's wait is running: "Sending in 5 s · Undo".
+            send_later::undo_bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {
@@ -5453,6 +5488,14 @@ pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
 fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
+        // Waiting for a time (Delay Delivery, Send Later): in the Outbox until then (#950). The wait of Undo Send has its own line.
+        "compose.send" | "compose.sendLater"
+            if v.get("queued").and_then(Value::as_bool) == Some(true)
+                && v.get("sendAt").is_some_and(|at| !at.is_null())
+                && v.get("wait").and_then(Value::as_bool) != Some(true) =>
+        {
+            Some(tl!("In the Outbox: it waits for its time").to_string())
+        }
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
         // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
         // most of the original's headers, which is said rather than hidden (#451).

@@ -31,7 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
+use mailcraft_model::{AccountKind, Calendar, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
@@ -294,6 +294,12 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
     returned(&mut out, now);
+    subscribed_stay(&mut out, now);
+    // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
+    // and redo leave it as it is now, or its mark would be lost and it could be sent twice (#950).
+    for m in now.messages.values().filter(|m| m.sending) {
+        out.messages.insert(m.id, m.clone());
+    }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
@@ -321,6 +327,30 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines(lang))
+}
+
+/// Subscribed calendars and their events are the web's and the refresh's, never the change's to
+/// undo: undoing a subscribe must not drop the calendar and orphan its address in the credential
+/// store, and undoing an unsubscribe must not bring one back without its address.
+fn subscribed_stay(out: &mut Mailbox, now: &Mailbox) {
+    let theirs: BTreeSet<Id> = out.calendars.iter().filter(|c| c.is_subscribed()).map(|c| c.id).collect();
+    out.events.retain(|_, e| !theirs.contains(&e.calendar));
+    // What the owner set on one (its colour, whether it is shown, a name given) is the change's to
+    // undo when the calendar is on both sides; the subscription and its events are as now.
+    let before: Vec<Calendar> = out.calendars.iter().filter(|c| c.is_subscribed()).cloned().collect();
+    out.calendars.retain(|c| !c.is_subscribed());
+    for c in now.calendars.iter().filter(|c| c.is_subscribed()) {
+        let mut c = c.clone();
+        if let Some(was) = before.iter().find(|b| b.id == c.id) {
+            (c.name, c.color, c.visible, c.own_color) = (was.name.clone(), was.color, was.visible, was.own_color);
+        }
+        out.calendars.push(c);
+    }
+    for (id, e) in &now.events {
+        if now.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
+            out.events.insert(*id, e.clone());
+        }
+    }
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name
