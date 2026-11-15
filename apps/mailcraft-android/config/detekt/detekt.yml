@@ -69,6 +69,13 @@ style:
   WildcardImport:
     active: true
 
+complexity:
+  LongParameterList:
+    active: true
+    # A screen takes what it draws and what it does as parameters; that is how Compose is written.
+    ignoreAnnotated:
+      - 'Composable'
+
 naming:
   FunctionNaming:
     active: true

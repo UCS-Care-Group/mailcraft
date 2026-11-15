@@ -1076,20 +1076,20 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
 
     // The next round by itself: the two it can do quietly, and still no prompt for the third.
     synced.lock().unwrap().clear();
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(*synced.lock().unwrap(), [known, signed]);
     assert!(a.dialog.is_none());
     // A sign-in that has run out is renewed quietly: no page is put in front of the owner.
     a.tokens.get_mut(&signed).unwrap().expires_at = 0;
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(sign_ins.lock().unwrap().last(), Some(&(signed, true)));
 
     // Not before it is due, not when switched off, and not when the owner wants to ask.
     synced.lock().unwrap().clear();
     settle(&mut a);
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     a.execute("file.options", json!({"syncMinutes": 0})).unwrap();
     settle(&mut a);
     a.execute("file.options", json!({"syncMinutes": 5})).unwrap();
@@ -1152,8 +1152,8 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let ids: Vec<u64> = a.session.mailbox.messages_in(inbox).map(|m| m.id).collect();
     // A look that is due now, with the round that starts by itself not due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         for _ in 0..6 {
             a.poll_sync();
             a.auto_sync();
@@ -1175,13 +1175,13 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     a.execute("mail.markRead", json!({"ids": [ids[1]]})).unwrap();
     look(&mut a);
     assert_eq!(runs.lock().unwrap().last(), Some(&(2, 0)));
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), 3);
 
     // The server takes them: nothing is left, so nothing more runs.
     accept.store(true, Ordering::Relaxed);
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(mailcraft_engine::cmd::account::unpushed(&a.session, id), 0);
     let done = runs.lock().unwrap().len();
@@ -1915,9 +1915,9 @@ fn mail_arrives_in_pieces_and_a_run_can_be_called_off() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     send(piece(&[6], 5, true, "Inbox: 1 of 3"));
     a.poll_sync();
-    a.sync_queue.push_back((id, true));
+    a.session.driver.round.queue.push_back((id, true));
     a.execute("ui.cancelSync", json!({})).unwrap();
-    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.sync_queue.is_empty());
+    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.session.driver.round.queue.is_empty());
     assert!(a.syncing(), "until the host has said it stopped");
     send(SyncResult { account: id, stopped: true, ..Default::default() });
     a.poll_sync();
@@ -1979,8 +1979,8 @@ fn a_change_made_during_a_long_download_goes_out_without_waiting_for_it() {
     let send = |p: SyncResult| pipe.lock().unwrap().as_ref().unwrap().send(p).unwrap();
     // A look that is due, with no round of its own due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         a.poll_sync();
         a.auto_sync();
     };

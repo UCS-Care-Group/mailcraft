@@ -194,7 +194,7 @@ jobs:
         run: cargo install cargo-ndk --locked --version 4.1.2
       - name: cargo xtask mobile
         run: |
-          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export JAVA_HOME="$JAVA_HOME_21_X64"  # Paparazzi 2 runs on 21; the app still targets 17
           cargo run --locked --package xtask -- mobile
 
   # The one check main's protection requires: passes when every platform passed, or when there

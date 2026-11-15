@@ -527,3 +527,17 @@ fn new_words_for_an_html_signature_make_it_rich_text_and_the_message_says_them_a
     run(&mut s, "signature.save", json!({}));
     assert_eq!(s.mailbox.signature("Generated").unwrap().html(), Some(GENERATED));
 }
+
+#[test]
+fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
+    // #969: text art in a signature keeps its font through a save and the mailbox file.
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "standard"}));
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "format.font", json!({"value": "courier new", "from": 0, "to": end}));
+    run(&mut s, "signature.save", json!({}));
+    let json = serde_json::to_string(&s.mailbox).unwrap();
+    let back: mailcraft_model::Mailbox = serde_json::from_str(&json).unwrap();
+    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
+    assert_eq!(first.map(|f| f.label()), Some("Courier New"));
+}

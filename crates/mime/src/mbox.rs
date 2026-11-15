@@ -75,6 +75,27 @@ impl Iterator for MboxMessages<'_> {
     }
 }
 
+/// How many messages an mbox file holds, by the separator lines [`mbox_messages`] cuts it at,
+/// without reading any of them (one that turns out empty is counted too): for a question asked
+/// before an import (#1401).
+pub fn count_mbox(bytes: &[u8]) -> usize {
+    let (mut pos, mut previous_blank, mut n, mut before) = (0usize, true, 0usize, false);
+    while pos < bytes.len() {
+        let (line, next) = header::line_at(bytes, pos);
+        if line.starts_with(b"From ") && (previous_blank || has_time(line)) {
+            n = n.saturating_add(1);
+        } else if n == 0 && !line.is_empty() {
+            before = true;
+        }
+        previous_blank = line.is_empty();
+        if next <= pos {
+            break;
+        }
+        pos = next;
+    }
+    n.saturating_add(usize::from(before))
+}
+
 /// Parse a message cut out of an mbox, without the empty line that ended it there.
 fn finish(message: Option<Vec<u8>>) -> Option<Message> {
     let mut bytes = message?;

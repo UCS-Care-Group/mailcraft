@@ -7,7 +7,9 @@
 //!
 //! The steps, in one Gradle run (`apps/mailcraft-android`): `cargo ndk` builds `crates/mobile` for
 //! arm64-v8a and x86_64, UniFFI's Kotlin bindings are generated from that library, then
-//! `assembleDebug assembleRelease lint detekt detektDebug testDebugUnitTest`. Then the dependency tree that ships
+//! `assembleDebug assembleRelease lint detekt detektDebug testDebugUnitTest verifyPaparazziDebug` (the
+//! last compares the shell's screenshots with the ones committed in `app/src/test/snapshots`; after a
+//! change to a screen, `./gradlew recordPaparazziDebug` draws them again). Then the dependency tree that ships
 //! is read: every artifact's licence must be on the permissive allowlist
 //! (`apps/mailcraft-android/licences-allowed.txt`), and no Google Play Services (`com.google.android.gms`)
 //! or Firebase (`com.google.firebase`) artifact may be anywhere in any configuration.
@@ -138,8 +140,9 @@ fn check_tools() -> Result<(), String> {
 
 pub fn run(root: &Path) -> Result<(), String> {
     check_tools()?;
-    let build = ["assembleDebug", "assembleRelease", "lint", "detekt", "detektDebug", "testDebugUnitTest", ":app:dependencyLicences"];
-    crate::run(gradle(root, &build), "gradlew assembleDebug assembleRelease lint detekt detektDebug testDebugUnitTest")?;
+    let build =
+        ["assembleDebug", "assembleRelease", "lint", "detekt", "detektDebug", "testDebugUnitTest", "verifyPaparazziDebug", ":app:dependencyLicences"];
+    crate::run(gradle(root, &build), "gradlew assembleDebug assembleRelease lint detekt detektDebug testDebugUnitTest verifyPaparazziDebug")?;
 
     let list =
         parse_allowlist(&std::fs::read_to_string(root.join(APP).join("licences-allowed.txt")).map_err(|e| format!("licences-allowed.txt: {e}"))?)?;
