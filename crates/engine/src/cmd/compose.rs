@@ -462,7 +462,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     // forward would send it as the message, without its files. The window fetches it first when
     // it can; one moved within its account has no UID until the next Send/Receive, and offline
     // nothing comes.
-    if m.unfetched {
+    if m.unfetched && !s.mailbox.fetchable(&m) {
         return Err(fail("this message isn't downloaded yet: open it once you're online, then reply to it or forward it"));
     }
     let mine: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.to_lowercase()).filter(|e| !e.is_empty()).collect();
