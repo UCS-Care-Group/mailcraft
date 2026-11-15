@@ -49,6 +49,12 @@ class AccountScreenshotTest {
     fun addDark200() = shoot("add_account_dark_200", true, 2f) { AccountShots.AddForm() }
 
     @Test
+    fun keepChosenLight100() = shoot("add_account_keep_chosen_light_100", false, 1f, tall = true) { AccountShots.AddFormChosen() }
+
+    @Test
+    fun keepChosenDark200() = shoot("add_account_keep_chosen_dark_200", true, 2f, tall = true) { AccountShots.AddFormChosen() }
+
+    @Test
     fun conditionalAccessLight100() = shoot("add_account_conditional_access_light_100", false, 1f) { AccountShots.AddForm(Notice.OrganisationBlocks) }
 
     @Test

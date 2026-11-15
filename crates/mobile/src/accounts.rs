@@ -245,8 +245,10 @@ impl Core {
     /// may be empty. On success the account is in the mailbox, its sign-in is in the platform's
     /// credential store (when the owner lets sign-ins be remembered) and Send/Receive has it for
     /// the session; nothing is kept if the store refuses, nor if the call is dropped before the
-    /// account is in.
-    pub async fn sign_in_microsoft(&self, email: String) -> Result<SignInOutcome, CoreError> {
+    /// account is in. `settings` is what the owner chose in Add Account of what the phone keeps
+    /// of a new account's mail (its window, and the phone's storage cap); an account the owner
+    /// had already keeps its own.
+    pub async fn sign_in_microsoft(&self, email: String, settings: crate::limits::DownloadSettings) -> Result<SignInOutcome, CoreError> {
         let (address, tokens) = match self.account_sign_in(signin::hint_of(&email)).await? {
             Ok(signed) => signed,
             Err(outcome) => return Ok(outcome),
@@ -287,11 +289,31 @@ impl Core {
                         signin::restore_refresh(platform, &for_call, before.as_deref());
                     }
                 };
+                // (The storage cap is the mailbox's, not the account's: a new account's choice of it
+                // goes again with the account when its setup fails.)
+                let limits_before = s.mailbox.device_limits;
+                let restore_limits = |s: &mut mailcraft_engine::Session| {
+                    if s.mailbox.device_limits != limits_before {
+                        s.mailbox.device_limits = limits_before;
+                        s.mailbox_changed();
+                    }
+                };
                 let account = match known {
                     Some(id) => id,
                     None => {
                         let made = s.run("account.add", &new_account).map_err(CoreError::from);
-                        match made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)) {
+                        // The phone keeps what the owner chose of a new account's mail (MB3.16).
+                        let made = made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)).and_then(|id| {
+                            match crate::limits::apply_to(s, id, settings) {
+                                Ok(()) => Ok(id),
+                                Err(e) => {
+                                    let _ = s.run("account.remove", &json!({"id": id}));
+                                    restore_limits(s);
+                                    Err(CoreError::from(e))
+                                }
+                            }
+                        });
+                        match made {
                             Ok(id) => id,
                             Err(error) => {
                                 // (Nothing is kept of a sign-in that made no account.)
@@ -308,6 +330,9 @@ impl Core {
                 if let Some(why) = crate::sync_api::adopt_refusal(lang, adopted) {
                     if known.is_none() && s.run("account.remove", &json!({"id": account})).is_err() {
                         log::warn!("accounts: an account added for a refused sign-in couldn't be removed again");
+                    }
+                    if known.is_none() {
+                        restore_limits(s);
                     }
                     undo_kept(platform.as_ref());
                     return Ok(Err(why));
