@@ -219,6 +219,25 @@ class MailListControllerTest {
         val row = FakeMailSource.row(2, members = 4)
         c.triage(Triage.Delete, listOf(row))
         assertEquals(listOf("mail.delete" to """{"ids":[200,201,202,203]}"""), source.commands)
+        assertTrue(source.memberAsks.isEmpty())
+    }
+
+    @Test
+    fun aRowStandingForMoreThanItCarriesIsNamedWholeOrNotAtAll() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(3))
+        val c = controller(source)
+        c.show(inbox.copy(conversations = true))
+        // The core cut the row's ids at two; the conversation has three.
+        val row = FakeMailSource.row(2, members = 3).let { it.copy(memberIds = it.memberIds.take(2)) }
+        source.memberLists = mapOf(2uL to listOf(200uL, 201uL, 202uL))
+        c.triage(Triage.Archive, listOf(row))
+        assertEquals(listOf("mail.archive" to """{"ids":[200,201,202]}"""), source.commands)
+        // A row the list no longer has is not acted on by halves: nothing is run, and it is said.
+        source.commands.clear()
+        source.memberLists = emptyMap()
+        c.triage(Triage.Delete, listOf(row))
+        assertTrue(source.commands.isEmpty())
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
     }
 
     @Test
@@ -249,6 +268,20 @@ class MailListControllerTest {
         c.refresh()
         assertTrue(c.ui.value.notice?.notice is ListNotice.Failed)
         assertEquals(3, source.refreshes.get())
+    }
+
+    @Test
+    fun aRefreshWhoseWindowIsGoneStillStopsTheSpinner() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(3))
+        source.refreshOutcome = RefreshOutcome.Started
+        val c = controller(source)
+        c.show(inbox)
+        source.gate = CompletableDeferred()
+        val pull = launch(start = CoroutineStart.UNDISPATCHED) { c.refresh() }
+        assertEquals(true, c.ui.value.refreshing)
+        pull.cancel()
+        pull.join()
+        assertEquals(false, c.ui.value.refreshing)
     }
 
     @Test

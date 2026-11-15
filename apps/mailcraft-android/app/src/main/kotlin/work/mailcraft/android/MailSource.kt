@@ -36,6 +36,12 @@ internal interface MailSource {
     /** Runs a command by its id; whether it was done. */
     suspend fun run(command: String, params: String): Boolean
 
+    /**
+     * Every message the row [id] of the list [query] stands for (a conversation can stand for more
+     * than the ids a row carries); empty when the list has no such row now, null when it can't be read.
+     */
+    suspend fun members(query: MailQuery, id: ULong): List<ULong>?
+
     suspend fun categories(): List<CategoryItem>
 
     /** Asks the core to send and receive now, as the owner did. */
@@ -73,6 +79,14 @@ internal class CoreMailSource(
             true
         } catch (_: CoreException) {
             false
+        }
+    }
+
+    override suspend fun members(query: MailQuery, id: ULong): List<ULong>? = withContext(dispatcher) {
+        try {
+            core.rowMembers(query.toCore(), id)
+        } catch (_: CoreException) {
+            null
         }
     }
 

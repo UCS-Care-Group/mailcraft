@@ -24,8 +24,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 private val Gutter = 16.dp
@@ -127,8 +129,13 @@ private fun LanguagePage(texts: Texts, chosen: String, onLanguage: (String) -> U
 
 @Composable
 private fun SwipePage(texts: Texts, config: SwipeConfig, onSwipe: (SwipeConfig) -> Unit) {
+    // A row's swipe from its start runs `start`: rightwards in a left-to-right language, leftwards
+    // in a right-to-left one, so the headings name the way the finger goes.
+    val ltr = LocalLayoutDirection.current == LayoutDirection.Ltr
+    val right = texts.t("Swipe to the right")
+    val left = texts.t("Swipe to the left")
     Text(
-        texts.t("Swipe to the right"),
+        if (ltr) right else left,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(Gutter),
@@ -137,7 +144,7 @@ private fun SwipePage(texts: Texts, config: SwipeConfig, onSwipe: (SwipeConfig) 
         ChoiceRow(action.label(texts), selected = action == config.start) { onSwipe(config.copy(start = action)) }
     }
     Text(
-        texts.t("Swipe to the left"),
+        if (ltr) left else right,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(Gutter),

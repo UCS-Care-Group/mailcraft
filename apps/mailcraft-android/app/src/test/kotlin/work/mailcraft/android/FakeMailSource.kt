@@ -43,6 +43,15 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
         return true
     }
 
+    /** The whole lists of messages rows stand for, by row; a row not here is gone. */
+    var memberLists: Map<ULong, List<ULong>> = emptyMap()
+    val memberAsks = mutableListOf<ULong>()
+
+    override suspend fun members(query: MailQuery, id: ULong): List<ULong> {
+        memberAsks += id
+        return memberLists[id].orEmpty()
+    }
+
     override suspend fun categories() = listOf(CategoryItem("Green category", 0x2E8B57))
 
     override suspend fun refresh(): RefreshOutcome {

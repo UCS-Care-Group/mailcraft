@@ -33,6 +33,9 @@ internal class MailListController(
     private val generation = AtomicInteger()
     private val notices = AtomicInteger()
 
+    /** Pulls to refresh under way. */
+    private val refreshes = AtomicInteger()
+
     /** The rows last on screen, kept to read the same ones again after a change. */
     @Volatile
     private var visible = 0..0
@@ -73,7 +76,11 @@ internal class MailListController(
             return
         }
         val snapshot = ListSnapshot.Empty.with(first) ?: ListSnapshot.Empty
-        state.update { it.copy(load = LoadState.Ready, snapshot = snapshot) }
+        // A reload of this same list may have brought a newer revision while the first page was on
+        // its way: that one stays.
+        state.update {
+            it.copy(load = LoadState.Ready, snapshot = if (it.snapshot.rev > first.rev) it.snapshot else snapshot)
+        }
         if (query.search.isBlank()) loadTabs(mine, query.folder)
     }
 
@@ -134,14 +141,21 @@ internal class MailListController(
      * freshness line moves when it ends); one the core won't start says why, in its own words.
      */
     suspend fun refresh() {
+        // The controller outlives the window whose pull started this: however it ends (the window's
+        // work called off among them), the spinner stops once the last refresh under way is over.
+        refreshes.incrementAndGet()
         state.update { it.copy(refreshing = true) }
-        when (val outcome = source.refresh()) {
-            RefreshOutcome.Started -> Unit
-            is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
-            RefreshOutcome.Failed -> notify(ListNotice.Failed)
+        try {
+            when (val outcome = source.refresh()) {
+                RefreshOutcome.Started -> Unit
+                is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
+                RefreshOutcome.Failed -> notify(ListNotice.Failed)
+            }
+            reload()
+        } finally {
+            refreshes.decrementAndGet()
+            state.update { it.copy(refreshing = refreshes.get() > 0) }
         }
-        reload()
-        state.update { it.copy(refreshing = false) }
     }
 
     /** The categories mail can be given, with their colours. */
@@ -162,7 +176,7 @@ internal class MailListController(
     /** Makes [triage] to [rows]; a change that takes mail away says so, with the way to take it back. */
     suspend fun triage(triage: Triage, rows: List<InboxRow>) {
         if (rows.isEmpty()) return
-        val done = source.focusedRun(triage, rows)
+        val done = state.value.query?.let { source.focusedRun(triage, it, rows) } ?: false
         reload()
         // A change the owner can see in the list needs no word; one that takes mail away offers its undo.
         if (!done) notify(ListNotice.Failed) else if (triage.destructive) notify(ListNotice.Done(triage, rows.size))
@@ -204,11 +218,19 @@ internal fun MailListController.handle(event: Event, scope: CoroutineScope) {
 }
 
 /**
- * Runs [triage] on [rows] as commands, naming the messages: a conversation's row stands for the
- * messages it lists, which are the ones that command takes, whatever filter or search made the list.
+ * Runs [triage] on [rows] of the list [query] as commands, naming the messages: a conversation's row
+ * stands for the messages it lists, which are the ones that command takes, whatever filter or search
+ * made the list. A row that stands for more than the ids it carries has its whole list read first;
+ * when that can't be had (the row is gone, or the core can't say), nothing is done.
  */
-internal suspend fun MailSource.focusedRun(triage: Triage, rows: List<InboxRow>): Boolean {
-    val ids = rows.flatMap { it.memberIds.ifEmpty { listOf(it.id) } }.distinct()
+internal suspend fun MailSource.focusedRun(triage: Triage, query: MailQuery, rows: List<InboxRow>): Boolean {
+    val ids = rows.flatMap { row ->
+        if (row.members > row.memberIds.size && row.members > 1) {
+            members(query, row.id)?.takeIf { it.isNotEmpty() } ?: return false
+        } else {
+            row.memberIds.ifEmpty { listOf(row.id) }
+        }
+    }.distinct()
     val withIds = mapOf("ids" to ids)
     val (command, params) = when (triage) {
         is Triage.MarkRead -> (if (triage.read) "mail.markRead" else "mail.markUnread") to withIds

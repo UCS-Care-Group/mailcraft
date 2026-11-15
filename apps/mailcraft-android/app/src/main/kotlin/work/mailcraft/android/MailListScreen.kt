@@ -110,9 +110,15 @@ private fun ListBody(context: MailListContext, ui: MailListUi, actions: MailList
         ui.load == LoadState.Loading -> Centered(texts.t("Loading…"))
         else -> PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = actions.onRefresh) {
             if (ui.snapshot.total == 0) {
-                Centered(
-                    if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."),
-                )
+                // (Scrollable, so that a pull reaches the refresh with nothing in the list.)
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        Centered(
+                            if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."),
+                            Modifier.fillParentMaxSize(),
+                        )
+                    }
+                }
             } else {
                 Rows(context, ui, actions)
             }
