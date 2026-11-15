@@ -790,3 +790,60 @@ fn undo_of_an_unrelated_step_keeps_a_dismissed_reminder_dismissed_for_a_microsof
     let f = s.mailbox.message(id).unwrap().follow_up.unwrap();
     assert!(f.dismissed && f.raised.is_some());
 }
+
+/// An IMAP account in a session whose clock stands at `NOON`.
+fn imap_session() -> (Session, Id) {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOON, 0);
+    let a = s
+        .run("account.add", &json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "smtp.mail.example", "port": 587, "security": "starttls"}}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    (s, a)
+}
+
+#[test]
+fn a_follow_up_on_a_delayed_message_counts_from_when_it_goes_and_a_cancelled_one_leaves_none() {
+    let (mut s, a) = imap_session();
+    let write = |s: &mut Session| {
+        s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Plan", "body": "Hello", "account": a})).unwrap();
+        s.run("compose.followUp", &json!({"days": 2})).unwrap();
+    };
+    write(&mut s);
+    let id = s.run("compose.sendLater", &json!({"at": NOON + 3 * DAY})).unwrap()["id"].as_u64().unwrap();
+    let f = s.mailbox.message(id).unwrap().follow_up.unwrap();
+    assert_eq!((f.days, f.if_no_reply), (2, true));
+    // Still waiting in the Outbox past what "two days from compose.send" would have been: nothing
+    // is raised or flagged for a message that has not gone.
+    at(&mut s, NOON + 2 * DAY + 60);
+    assert_eq!(s.run("mail.settleReminders", &json!({})).unwrap()["raised"], json!([]));
+    assert_eq!(s.mailbox.message(id).unwrap().flag, FlagStatus::None);
+    // It goes at its time (a run later, here): the two days count from that moment.
+    let went = NOON + 3 * DAY + 120;
+    let result = mailcraft_model::sync::SyncResult { sent: vec![id], ..Default::default() };
+    assert_eq!(super::account::file_sent(&mut s.mailbox, a, &result, went), 1);
+    assert_eq!(s.mailbox.message(id).unwrap().follow_up.unwrap().at, went + 2 * DAY);
+    at(&mut s, went + 2 * DAY - 1);
+    assert_eq!(s.run("mail.settleReminders", &json!({})).unwrap()["raised"], json!([]));
+    at(&mut s, went + 2 * DAY);
+    assert_eq!(s.run("mail.settleReminders", &json!({})).unwrap()["raised"], json!([id]));
+
+    // Cancel Send: back in Drafts, never raised, and no reminder for a message that never went.
+    at(&mut s, NOON);
+    write(&mut s);
+    let c = s.run("compose.sendLater", &json!({"at": NOON + DAY})).unwrap()["id"].as_u64().unwrap();
+    s.run("mail.cancelSend", &json!({"id": c})).unwrap();
+    at(&mut s, NOON + 30 * DAY);
+    assert_eq!(s.run("mail.settleReminders", &json!({})).unwrap()["raised"], json!([]));
+    assert_eq!(s.mailbox.message(c).unwrap().flag, FlagStatus::None);
+    assert!(s.mailbox.message(c).unwrap().draft);
+    // Undo Send: the same.
+    at(&mut s, NOON);
+    s.run("sync.waitBeforeSending", &json!({"seconds": 10})).unwrap();
+    write(&mut s);
+    let u = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    s.run("compose.undoSend", &json!({})).unwrap();
+    at(&mut s, NOON + 30 * DAY);
+    assert_eq!(s.run("mail.settleReminders", &json!({})).unwrap()["raised"], json!([]));
+    assert!(s.mailbox.message(u).unwrap().draft);
+}
