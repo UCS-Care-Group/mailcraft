@@ -1094,7 +1094,7 @@ impl Builder {
         let dir = if beside && self.dir == Dir::Auto { Dir::Ltr } else { self.dir };
         let rtl = bidi::rtl(dir, spans.iter().flat_map(|s| s.text.chars()));
         let align = bidi::placed(self.align, self.align_from, rtl);
-        let block = Block { quote: self.quote_depth(), align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        let block = Block { quote: self.quote_depth(), align, rtl, beside, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -1213,6 +1213,7 @@ impl Builder {
                 let block = Block {
                     quote: self.quote_depth(),
                     align,
+                    rtl: loose.dir == Dir::Rtl,
                     beside,
                     image_padding: css.padding_insets().filter(|padding| padding.any()),
                     ..Block::new(kind, spans)

@@ -97,3 +97,45 @@ fn an_item_at_the_right_has_its_marker_at_the_right_too_and_a_left_one_keeps_it_
         });
     }
 }
+
+/// A Hebrew text, 189 bytes: under the cap for a line of pictures and text, wider than a narrow pane.
+fn hebrew_line() -> String {
+    "שלום ".repeat(21)
+}
+
+#[test]
+fn a_picture_and_a_text_wider_than_the_line_keep_to_the_right_together() {
+    let html = format!("<p dir=\"rtl\"><img src='cid:tick-16@quillon.example' width='16' height='16' alt='tick'> {}</p>", hebrew_line());
+    assert!(hebrew_line().len() <= 200);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &html_message(0, ("Dana Levi", "dana@example.org"), "תמונה", &html), 380.0);
+            let item = find(&laid, "שלום");
+            let ItemKind::Text(text) = &item.kind else { panic!("not text") };
+            // The text wraps on from the right, as the picture before it stands there.
+            assert_eq!(text.job.halign, HAlign::RIGHT, "the text goes on from the right");
+            assert!((text.anchor - item.rect.width()).abs() < 0.5, "the origin is at the right, {} of {}", text.anchor, item.rect.width());
+            assert!(item.rect.height() > 30.0, "{:?}: it takes several lines", item.rect);
+            let picture = laid.items.iter().find(|i| matches!(i.kind, ItemKind::Placeholder(_) | ItemKind::Picture(_))).expect("the picture");
+            assert!(picture.rect.max.x >= laid.size.x - 1.0, "{:?} of {}", picture.rect, laid.size.x);
+        });
+    }
+}
+
+#[test]
+fn a_marker_hangs_where_the_direction_says_not_where_the_text_stands() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            // A left-to-right item whose text stands at the right keeps its bullet at the left; a
+            // right-to-left item whose text stands at the left keeps its bullet at the right.
+            let html = "<ul><li style='text-align:right'>First item</li></ul><ul dir=rtl><li style='text-align:left'>פריט ראשון</li></ul>";
+            let laid = lay_out(ctx, &html_message(0, ("Dana Levi", "dana@example.org"), "רשימה", html), 600.0);
+            let bullets: Vec<egui::Rect> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Bullet { .. })).map(|i| i.rect).collect();
+            assert_eq!(bullets.len(), 2);
+            let en = find(&laid, "First").rect;
+            assert!(bullets[0].center().x <= en.min.x, "{:?} {en:?}", bullets[0]);
+            let he = find(&laid, "פריט ר").rect;
+            assert!(bullets[1].center().x >= he.max.x, "{:?} {he:?}", bullets[1]);
+        });
+    }
+}

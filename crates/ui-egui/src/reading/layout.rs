@@ -774,9 +774,10 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
-    // An item at the right edge hangs its marker there too, so that the two stay together: its
-    // text is indented from the right instead of the left (#603).
-    let hung_right = matches!(block.kind, BlockKind::ListItem { .. }) && block.align == Align::Right;
+    // An item that reads from the right hangs its marker there, whatever side its text stands at
+    // (a `text-align` does not move a bullet, as in a browser): its text is indented from the
+    // right instead of the left (#603).
+    let hung_right = matches!(block.kind, BlockKind::ListItem { .. }) && block.rtl;
     let (edge, room) = (x + width, (width - indent).max(MIN_CELL.min(width)));
     let (x, width) = if hung_right { (x, room) } else { (x + indent, room) };
     let quoted = block.quote > 0;
@@ -1179,7 +1180,8 @@ fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
                     put_tile(cx, &tile, Rect::from_min_size(pos2(at, top), tile.size), paper, &mut said);
                 }
                 _ if too_wide => {
-                    let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
+                    // It keeps the side of the picture before it, so that the two stay together.
+                    let alone = Block { space: 0, beside: false, ..block.clone() };
                     bottom = bottom.max(text(cx, &alone, x, y, width, paper));
                 }
                 _ => {

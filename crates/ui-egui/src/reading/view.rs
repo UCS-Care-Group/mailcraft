@@ -175,6 +175,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 spans,
                 quote: block.quote,
                 align: block.align,
+                rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
                 gap: if n == 0 { block.gap } else { 0 },

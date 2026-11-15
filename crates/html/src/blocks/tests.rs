@@ -1543,3 +1543,12 @@ fn an_hr_with_the_hidden_attribute_is_not_drawn() {
     assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
     assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
 }
+
+/// #603: a block says which way it reads, apart from the side its text stands at.
+#[test]
+fn a_block_keeps_the_direction_it_reads_in() {
+    let rtl = |html: &str| parse(html).iter().map(|b| b.rtl).collect::<Vec<_>>();
+    assert_eq!(rtl("<ul dir=rtl><li style='text-align:left'>a</li></ul>"), [true]);
+    assert_eq!(rtl("<ul><li style='text-align:right'>a</li></ul>"), [false]);
+    assert_eq!(rtl("<p>שלום</p><p dir=rtl>a</p>"), [false, true]);
+}
