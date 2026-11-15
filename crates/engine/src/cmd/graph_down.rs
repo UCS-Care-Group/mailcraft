@@ -94,7 +94,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
     // (Of a Microsoft or Exchange server account alone, as the repair that puts right what an
     // earlier version kept: a JMAP server's Sent folder is read through here too.)
-    let sent_items = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent) && mb.keeps_drafts_on_server(account);
+    let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
+    let sent_items = in_sent && mb.keeps_drafts_on_server(account);
     let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
@@ -129,11 +130,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
             continue;
         };
-        if let Ok(m) = mb.message_mut(m)
-            && let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone)
-        {
-            s.gone = true;
-            down.gone += 1;
+        if let Ok(m) = mb.message_mut(m) {
+            // A draft sent here, gone from Drafts there: Exchange has filed it, and a listing of it
+            // as a draft outside Sent Items is no longer one from before that (#1160).
+            if m.sent_here && !in_sent {
+                m.sent_here = false;
+            }
+            if let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone) {
+                s.gone = true;
+                down.gone += 1;
+            }
         }
     }
     for there in &page.read {
@@ -275,7 +281,15 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // Where the server last had it, as this mailbox has that folder: a message still there here
     // follows the server; one moved here since stays where it was put (that move goes up, R3.3).
     let was_here = mb.folder_by_server(account, &last.folder);
-    let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
+    // A draft sent here, listed as a draft outside Sent Items: Exchange hasn't filed it yet, or
+    // this listing was made before it did (#1160). It is the message sent, in Sent Items here: it
+    // doesn't follow, and once the server has listed it in Sent Items such a listing says nothing.
+    let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
+    let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
+    if unfiled && !last.gone && was_here.and_then(|was| mb.folder(was)).is_some_and(|was| was.kind == FolderKind::Sent) {
+        return false;
+    }
+    let follows = !unfiled && (last.gone || was_here.is_none_or(|was| m.folder == was));
     let in_drafts = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
     // Only of a JMAP account: a Microsoft server keeps a follow-up's dates and "complete" itself.
     let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
@@ -571,7 +585,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.original = read.original;
     }
     m.parts_removed = false;
-    (m.headers, m.fresh_stamps) = (read.headers, read.fresh_stamps);
+    (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);

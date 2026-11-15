@@ -11,11 +11,12 @@
 //!
 //! **Up first, then down.** A run takes up the changes of messages made here since the server
 //! last said ([`super::jmap_up`]: marks, moves between the server's mailboxes, deletions for good),
-//! then lists the server's mailboxes and reads a window of each, its newest messages. What became
-//! of the changes comes back with the run, in a piece of its own or with the listing, and is taken
-//! in before anything read. The changes of folders (a rename, a move, a deletion) and what is
-//! written in a draft don't go up yet ([`mailcraft_model::Mailbox::folder_stays_on_server`]), and
-//! nothing is sent from such an account ([`AccountKind::sends_mail`]).
+//! sends what waits in the account's Outbox ([`super::graph_send`], as a Microsoft account's is
+//! sent), then lists the server's mailboxes and reads a window of each, its newest messages. What
+//! became of the changes and of the mail sent comes back with the run, in a piece of its own or
+//! with the listing, and is taken in before anything read. The changes of folders (a rename, a
+//! move, a deletion) and what is written in a draft don't go up yet
+//! ([`mailcraft_model::Mailbox::folder_stays_on_server`]).
 //!
 //! **What comes back is hostile** (a host may hand over anything): every list and string of a
 //! result is held to a size before it is taken in, ids are held to the JMAP alphabet (RFC 8620
@@ -36,7 +37,7 @@
 use std::collections::HashSet;
 
 use mailcraft_model::sync::{
-    GraphFetchResult, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope, MAX_JMAP_WINDOW, SyncPhase,
+    GraphFetchResult, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope, MAX_JMAP_WINDOW, SendOutcome, SyncPhase,
 };
 use mailcraft_model::{AccountKind, FolderKind, Id, JmapServer, Mailbox};
 use serde_json::{Value, json};
@@ -103,6 +104,7 @@ fn window_of(s: &Session) -> u32 {
 ///
 /// - **Changes.** What was done to the account's messages here since the server last said, in a
 ///   run of any scope: [`MAX_JMAP_CHANGES`] at the most, the rest with the next run.
+/// - **Sends.** What waits in the account's Outbox and isn't held, each message whole.
 /// - **Scope.** `light`: the Inbox and the folder on screen, for a run nobody waits on;
 ///   otherwise every mailbox ([`JmapScope::All`]).
 /// - **The listing** of the server's mailboxes comes with a run that reads every mailbox, with
@@ -111,7 +113,6 @@ fn window_of(s: &Session) -> u32 {
 /// - **Known.** For each mailbox read, the server ids of the messages here that the server last
 ///   said lie there, the newest first and no more than a window: those come with their marks
 ///   alone, the others whole.
-/// - Nothing to send: nothing is sent from such an account yet.
 pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMailRequest, CmdError> {
     let (a, server) = jmap_account(&s.mailbox, account)?;
     let mb = &s.mailbox;
@@ -140,6 +141,7 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
         scope,
         known: jmap_down::known(mb, account, read.as_deref(), usize::try_from(window).unwrap_or(usize::MAX)),
         changes: jmap_up::changes(mb, account, MAX_JMAP_CHANGES).0,
+        sends: super::graph_send::sends(s, account),
         // The thread ids of mail listed before they were asked for, in a run of every mailbox (#795).
         threads: if light { Vec::new() } else { super::thread_ids::to_ask(mb, account) },
         ..Default::default()
@@ -148,6 +150,9 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = named_account(s, v)?;
+    // What goes up for a message is the same at every run (`graph_send::date_undated`).
+    let now = s.now();
+    super::graph_send::date_undated(&mut s.mailbox, account, now);
     let mut request = jmap_mail_request(s, account, p::bool(v, "light").unwrap_or(false))?;
     // A run begins: what one that never came to its end read is no part of it, and neither is
     // what such a run was refused (it would be said at this run's end as if it were its own).
@@ -225,20 +230,22 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, session: &str) -> Result<St
 }
 
 /// Take in a piece of what a JMAP run brought back (pieces come in the order the run made them,
-/// each whole in itself): what became of the changes, the listing, then the
+/// each whole in itself): what became of the changes and of the mail sent, the listing, then the
 /// windows, and at the end of a run that went well, the messages that complete windows left out
 /// are removed. Not an undo step: the server is the source of truth, but for what was changed here
 /// since it last said. The undo history stays: undoing a change that reached the server is another
 /// change, which the next run sends ([`crate::undo`]).
 ///
 /// A change the server made is settled; one it refused is put back to how the server has it and
-/// said once, here in `errors` and in the status at the run's end ([`jmap_up::change_done`]).
+/// said once, here in `errors` and in the status at the run's end ([`jmap_up::change_done`]). A
+/// message that went leaves the Outbox; one that didn't, or may have, is held there with what
+/// happened ([`super::graph_send::send_done`]).
 ///
 /// The piece is held to sizes first ([`jmap_down::bounded`]); a piece that had to be cut, a run
 /// that went wrong, was stopped, or follows a listing that was cut short, removes nothing.
 ///
 /// Answers what it changed, with the keys a Graph run's answer has (`pushed` changes the server
-/// made; `added`, `updated` and `removed` folders; `new`, `changed`, `gone` and
+/// made, `sent` messages; `added`, `updated` and `removed` folders; `new`, `changed`, `gone` and
 /// `removedMessages` messages; `errors`, `busyFor`, `complete`, `summary`), `authRefused` when the server turned the secret down, and at
 /// the end of a run `refused`, how many lines its pieces said of what the server wouldn't do (a
 /// run that went well otherwise still has those to show).
@@ -276,7 +283,16 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
             s.graph_index = Default::default();
         }
     }
-    let refused = told.lines();
+    let mut refused = told.lines();
+    // What was sent: gone from the Outbox, or held there with what happened.
+    let mut sent = 0;
+    for done in &result.sent {
+        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+            sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
+            taken.updated += 1;
+            s.graph_index = Default::default();
+        }
+    }
     if let Some(listing) = &result.listing {
         down.removed = jmap_down::keep_what_is_only_here(&mut s.mailbox, account, listing);
         graph_mail::take_listing(&mut s.mailbox, account, listing, &mut taken);
@@ -324,19 +340,20 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
         errors.insert(0, mailcraft_i18n::fmt(lang.t("The server turned down the sign-in for {name}: sign in again"), &[("name", &name)]));
     }
     // Send/Receive Progress: where the run is, what it brought, what went wrong.
-    let step = match (&result.progress, &result.listing) {
-        (Some(progress), _) => {
+    let step = match (&result.progress, &result.listing, result.sent.is_empty()) {
+        (Some(progress), ..) => {
             let name = s.mailbox.folder_by_server(account, &progress.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
             Some((SyncPhase::NewMail, sync_progress::shown(name.unwrap_or_default()), progress.read.min(progress.total), progress.total))
         }
-        (None, Some(_)) => Some((SyncPhase::Folders, String::new(), 0, 0)),
-        (None, None) => None,
+        (None, Some(_), _) => Some((SyncPhase::Folders, String::new(), 0, 0)),
+        (None, None, false) => Some((SyncPhase::Sending, String::new(), 0, 0)),
+        (None, None, true) => None,
     };
     let piece = Piece {
         step,
         folders: result.progress.as_ref().map(|p| (p.number, p.folders)),
         new: down.new,
-        sent: 0,
+        sent,
         problems: &errors,
         last: !result.partial,
         stopped: result.stopped,
@@ -364,6 +381,7 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     Ok(json!({
         "pushed": taken.pushed,
+        "sent": sent,
         "added": taken.added,
         "updated": taken.updated,
         "removed": taken.removed,

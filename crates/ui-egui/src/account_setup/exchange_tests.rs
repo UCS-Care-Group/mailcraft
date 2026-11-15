@@ -111,7 +111,8 @@ impl SecretStore for Store {
 fn app() -> MailApp {
     let session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
     let mut app = MailApp::new(session, Services::default());
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     app
 }
 

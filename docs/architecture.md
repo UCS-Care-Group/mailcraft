@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-09 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-28 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+29 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (four exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`; inside L2, `mime-model` reads and
 writes through `mime`, and `mime` opens TNEF streams with `tnef`, which reads code pages and rich
@@ -48,6 +48,14 @@ egui, eframe, winit or rfd.
 | apps | `mailcraft` | Desktop app (eframe + wgpu; logging, window geometry, native dialogs, Send/Receive thread, control server; leaving, `quit.rs`: unsaved work asks first on every platform, then on macOS the process ends through `-[NSApplication terminate:]` (`quit_macos.rs`, MailCraft's own) rather than by closing the window, which can crash AppKit, and the macOS menu bar (`menubar.rs`, `muda`; its table of command ids is `ui-egui`'s `menubar`) has Quit (⌘Q) asking like the close button) |
 | apps | `mailcraft-cli` | `info`, `folders`, `list`, `show`, `import`, `export`, `convert`, `run`, `sync`, `commands`, `parity`, `mcp` |
 | apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads) |
+| apps | `mailcraft-android` | Android app: a Gradle project (Kotlin, Jetpack Compose, minSdk 29) over the Rust library of `crates/mobile`, which `cargo-ndk` builds for arm64-v8a and x86_64; UniFFI's Kotlin bindings are generated from it at build time. Not a Cargo member; `cargo xtask mobile` builds, lints (Android Lint and detekt, both as errors) and tests it, and checks the licences of what ships and that no Google Play Services or Firebase is in it |
+
+Languages: the program is Rust. Kotlin is allowed only under `apps/mailcraft-android` and Swift only
+under `apps/mailcraft-ios`, for the interface and the platform layer (what the system gives the program:
+credential store, browser, files, notifications, clock). They never parse anything that comes from
+outside: messages, server answers and files are read by Rust, which gives the apps typed records and
+display blocks. Their lint is part of the build and enforces never-crash (no `!!`, no `lateinit` where it
+can be avoided, no `TODO`); each file carries the SPDX lines (`cargo xtask spdx`).
 
 ## Data flow
 
@@ -67,7 +75,7 @@ egui, eframe, winit or rfd.
    sends the Outbox through SMTP and downloads new mail and flag changes over IMAP with `proto`
    and `mime`; `sync.apply` (pure) takes the result in and runs the rules on new Inbox mail. The
    engine and the UI never touch a socket, which is why they build for the browser. A JMAP
-   account goes the Graph way: `sync.jmapRequest` (pure) says what to take up and read, the host (the browser
+   account goes the Graph way: `sync.jmapRequest` (pure) says what to take up, send and read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
    `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
    account (#252, Exchange Web Services) goes the same way: its request and result shapes are
@@ -106,10 +114,25 @@ egui, eframe, winit or rfd.
 - **Conversations are grouped by topic** (the subject without `RE:`/`FW:` prefixes) within an
   account, as the incumbent does, not by `References` chains.
 - **A mailbox file, and its content beside it.** On the desktop `mailbox.mailcraft` holds
-  everything but content as a log of records (format 3, `crates/engine/src/store_index.rs`): the
+  everything but content as a log of records (format 4, `crates/engine/src/store_index.rs`): the
   rest of the mailbox, and one record per message, contact, event or task; bodies and attachments
   over a kilobyte are write-once files named by their SHA-256 in `mailbox.mailcraft.blobs/`
-  (`crates/engine/src/store.rs`). A save appends the records of what changed and a commit in one
+  (`crates/engine/src/store.rs`). So is a message's header block over a kilobyte: the header
+  lines nothing in the program reads by name (`mailcraft_model::headers`: those it reads by name
+  are `WORKING`, which a test holds to the source), kept apart and in order, read only by View
+  Source and what writes a message whole (`Session::loaded_message`). The blocks are packed one
+  after another in a few `headers-<n>.pack` files there rather than a file each (#1376,
+  `crates/engine/src/store_pack.rs`): a record names its block's SHA-256, length, pack and
+  offset, a save appends and flushes the pack before the record that names it, every read is
+  bounded by the pack's length and checked against the SHA-256, and the whole rewrite writes a
+  fresh pack when the old one holds more than 16 MB nothing names (what an Undo step holds counts
+  as named, and goes into the fresh pack too); a block that can't be read then fails that save and
+  the old pack stays, and the old pack goes only when no file kept aside names it. A save after
+  another program wrote the file reads where that file's blocks are before it names any. A file in format 3 opens
+  as it is; the window puts its blocks beside it as it reads it and writes it in format 4 at
+  once (an opening that only reads it, the command line's or an agent's, holds them in memory
+  until a save), the format-3 file kept beside it as `<file>.before-<version>` (`store_before`); a build that
+  reads only format 3 calls a format-4 file one from a newer MailCraft. A save appends the records of what changed and a commit in one
   flushed write, on a background thread: a read mark costs a few hundred bytes however large the
   mailbox. What was last written is remembered item by item (its fingerprint, and a weak pointer
   to the copy in memory that it is), so a save looks only at items whose copy changed; when the
@@ -128,7 +151,7 @@ egui, eframe, winit or rfd.
   was written here, by their SHA-256, is still this program's); MailCraft never removes a file kept
   aside, as each may be the only copy of what it holds. The sweep keeps
   every content file a kept-aside file names (damaged, changed, or of an earlier form). Formats 1
-  and 2 (JSON) are still read and become format 3 at the first changed save, the old file kept
+  and 2 (JSON) are still read and become format 4 at the first changed save, the old file kept
   beside it as `<file>.format1` or `.format2`, which is what MailCraft 0.4.3 and earlier can open
   (they call a format-3 file not a mailbox); a file that begins as ours but in a form newer than
   this program reads is said to be from a newer MailCraft. A self-contained single file is still what the browser, exports
@@ -287,6 +310,18 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | patch | #1376: header blocks packed in a few files in the content folder (`store_pack.rs`), not one file each; a block that can't be read fails the fresh pack, Undo-held blocks count as named, packs a kept-aside file names stay |
+| 2026-11-13 | minor | MB3.1: the Android app (`apps/mailcraft-android`, Gradle, Kotlin and Compose over `crates/mobile`) and the rule for Kotlin and Swift: only under their app folders, for the interface and platform layer, never for parsing, lint-enforced never-crash |
+| 2026-11-13 | minor | MB1.9 (last part): `sync_driver` gains `auto_replies` (`Session::auto_replies_due`/`auto_replies_started`/`auto_replies_answered`/`auto_replies_change`, the `Trouble` and `Denied` states), `free_busy` (`free_busy_look`/`free_busy_noted`/`free_busy_answered`/`free_busy_stand_in`), `sending` (the send gate and the marks as sending, `send_marking`, `send_gate_step`, `send_run_answered`, `send_hold_unanswered`, the shared mailboxes' Outbox that waits for the permission to send) and `ask` (`tasks_question`, `rules_question`, `shared_calendars_question`, from an `AskWindow`); `Driver::auto_sync` is the host's setting and survives `Driver::reset`; `Driver::forget_accounts` covers every part and runs on account removal; the window's `Facts` say only whether the host has a way to reach the server (`reachable`), and the to-dos' and rules' looks stop while working offline in the engine; the window keeps the Send/Receive round scheduler and the per-account-kind run flows, the dialogs, the provider's pages, the tokens, the job handles and the words |
+| 2026-11-13 | minor | MB1.9 (second part): `sync_driver` gains `calendar_plan` (`Session::calendar_due`, `calendar_started`, `calendar_answered`), `fetch_flow` (the waiting command, the answer's next step, the message shown, the background's accounts), `tasks` and `rules` (`tasks_due`/`tasks_answered`, `rules_due`/`rules_answered`, the permission maps); `Driver::reset` clears everything on a mailbox replace (the calendar consent, wide-stretch and shared-calendar permission state and the Favorites state too, which survived File > Open before); `calendar_answered` keeps the owner's permission state (`CalendarCame::consent_needed`, `token_refused`, `sign_in_refused`) and, with the host's own job errors (`job_errors`), the wide stretch's bookkeeping, as `tasks_answered` and `rules_answered` do; the window starts jobs, keeps tokens, dialogs and words, and the engine says what is due and takes the answer in |
+| 2026-11-13 | minor | MB1.9 (part): the sync driver's state and decisions for the keep-offline thinning, the calendar, the Favorites, the fetch of whole messages and the order of the window's jobs live in `Session::driver` (engine, L4), as predicates and bookkeeping a host without a window can call; the window still combines them for the calendar and the fetch, and the permission gates and the other jobs are still the window's |
+| 2026-11-13 | minor | MB1.10: `sync_driver::round` (the Send/Receive round's line and timers), `sync_driver::credentials` and `sync_driver::graph_mail` (a run's sign-in decisions) in the engine; `host::sync`, the Send/Receive entry point of a host with no window (Graph mail first); `secret_key` moves to `host::secrets` |
+| 2026-11-13 | minor | MB1.3 to MB1.5: `host`, L5: the platform trait, `init`, `run_job`, and the To Do, Graph, message-fetch and calendar runs move from the app below the window; the sync driver's pacing helpers move into the engine |
+| 2026-11-13 | minor | HS: the mailbox file in format 4: a message's header block (the header lines nothing reads by name) over a kilobyte is content beside it; format 3 read and written anew at the next save, kept as `.before-<version>` |
+| 2026-11-12 | minor | #1236: `jmap-types` (L0, standalone): serde types for JMAP Core and Mail, reusable outside the client; `jmap` writes its requests with them |
+| 2026-11-12 | minor | #1235: `mime` reads and writes messages on its own types and no longer depends on `model`; `mime-model` converts for the mailbox and holds rich text; `ber` (L0) moved out of `model` |
+| 2026-11-11 | patch | #1074 part 2: `sync.jmapRequest` says what a JMAP run sends too |
+| 2026-11-11 | patch | #1074 part 1: `sync.jmapRequest` says what a JMAP run takes up as well as what it reads |
 | 2026-11-09 | minor | #30 part 3: `openpgp`, L2: checking OpenPGP Digital signatures (PGP/MIME, cleartext) and reading attached keys and `Autocrypt:` headers on rPGP, capped and without I/O; an `openpgp` fuzz target; 21 crates |
 | 2026-11-09 | minor | #30: `assuan`, L3: an Assuan client and gpg-agent's operations over any stream, with a bounded canonical S-expression reader and Assuan's socket files; the desktop program finds the agent through `gpgconf`; 21 crates |
 | 2026-11-07 | patch | `i18n` (L0): `Text` holds texts within texts and words said as they are, and `said!` is the crate's own, for `proto` and `net` (L3), whose errors carry one, #872 |

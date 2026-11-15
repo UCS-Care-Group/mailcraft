@@ -332,9 +332,10 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
         let send_width = primary_button_width(ui, send);
         let status_width = ui.painter().layout_no_wrap(status.clone(), regular(11.5), t.text_dim).size().x;
         let right_width = status_width + GAP + if window.is_none() { 2.0 * (WINDOW_ICON + 8.0 + GAP) } else { 0.0 };
-        let labeled_width: f32 = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum();
+        let recent_width = if app.services.recent_attachments.is_some() { crate::recent_attachments::ARROW + 8.0 + GAP } else { 0.0 };
+        let labeled_width = tools.iter().map(|(_, label, _, _)| icon_text_width(ui, label) + GAP).sum::<f32>() + recent_width;
         let labeled = send_width + labeled_width + right_width <= room;
-        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + right_width > room;
+        let stacked = send_width + tools.len() as f32 * (ACTION_ICON + 8.0 + GAP) + recent_width + right_width > room;
 
         let actions = |app: &mut MailApp, ui: &mut Ui| {
             let shortcut = crate::widgets::shortcut_text(app, "compose.send");
@@ -346,6 +347,9 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
                 button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
                 if enabled && button.clicked() {
                     let _ = app.run(command, json!({}));
+                }
+                if command == "ui.attach" && app.services.recent_attachments.is_some() {
+                    crate::recent_attachments::arrow(ui, app);
                 }
             }
         };
@@ -472,13 +476,25 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
         }
         return;
     }
-    let key = egui::Id::unique("mailcraft-compose-signature").with(&html);
-    let message = match ctx.data(|d| d.get_temp::<std::sync::Arc<mailcraft_model::Message>>(key)) {
-        Some(m) => m,
+    // The last few signatures shown (one a window being written; at least one for each window
+    // open, so that none misses every frame), under one key: not one entry in
+    // egui's memory for every signature ever shown.
+    type Kept = Vec<(egui::Id, std::sync::Arc<mailcraft_model::Message>)>;
+    const KEPT: usize = 4;
+    let key = egui::Id::unique("mailcraft-compose-signature");
+    let this = egui::Id::unique(&html);
+    let known = ctx.data(|d| d.get_temp::<Kept>(key)).unwrap_or_default();
+    let message = match known.iter().find(|(of, _)| *of == this) {
+        Some((_, m)) => m.clone(),
         None => {
             // As it is sent: cleaned.
             let m = std::sync::Arc::new(crate::signatures::message_of(mailcraft_engine::html::quotable(&html), &[], |_| String::new()));
-            ctx.data_mut(|d| d.insert_temp(key, m.clone()));
+            let mut known = known;
+            if known.len() >= KEPT.max(app.windows.len().saturating_add(2)) {
+                known.remove(0);
+            }
+            known.push((this, m.clone()));
+            ctx.data_mut(|d| d.insert_temp(key, known));
             m
         }
     };

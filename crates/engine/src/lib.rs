@@ -430,7 +430,11 @@ mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
+mod gmail_labels_tests;
+#[cfg(test)]
 mod gmail_tests;
+#[cfg(test)]
+mod imap_status_tests;
 #[cfg(test)]
 mod import_pst_calendar_tests;
 #[cfg(test)]

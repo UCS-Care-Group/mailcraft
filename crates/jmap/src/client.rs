@@ -61,6 +61,14 @@ pub async fn fetch_session<E: HttpExchange>(exchange: &E, address: &Address, cre
     read_session(&request, &response, credentials)
 }
 
+/// Reads the response to an upload (RFC 8620 §6.1), a server's words cleaned with `redactor`: the blob's id.
+pub(crate) fn read_upload(request: &HttpRequest, response: &HttpResponse, redactor: &Redactor) -> Result<Id, Error> {
+    judge_response(request, response, redactor)?;
+    let answer = crate::classify::parse_json(response.body()).map_err(Error::Unusable)?;
+    let blob = answer.get("blobId").and_then(serde_json::Value::as_str).and_then(|id| Id::new(id).ok());
+    blob.ok_or(Error::Unusable(crate::error::Unusable::Shape("the answer to the upload names no blob")))
+}
+
 /// A JMAP client for one session and one mail account.
 #[derive(Clone)]
 pub struct Client {
@@ -188,6 +196,24 @@ impl Client {
     pub fn download_request(&self, blob: &Id, media_type: &str, name: &str) -> Result<HttpRequest, Error> {
         let address = self.download_address(blob, media_type, name)?;
         Ok(HttpRequest::new(Method::Get, address, RequestKind::Download, self.credentials.authorization()))
+    }
+
+    /// The HTTP request that uploads `octets` to the account as a blob of `media_type` (RFC 8620 §6.1): a
+    /// `POST` to the upload address, which the session checked. Refused before anything is sent when the
+    /// octets are more than the server takes (`maxSizeUpload`).
+    pub fn upload_request(&self, media_type: &str, octets: Vec<u8>) -> Result<HttpRequest, Error> {
+        let limit = self.limits().max_size_upload();
+        if u64::try_from(octets.len()).unwrap_or(u64::MAX) > limit {
+            return Err(BuildError::TooLarge { limit }.into());
+        }
+        let address = self.upload_address()?;
+        Ok(HttpRequest::new(Method::Post, address, RequestKind::Upload, self.credentials.authorization()).with_octets(media_type, octets))
+    }
+
+    /// Reads the response to a [`Client::upload_request`]: the id of the blob the server made of the octets
+    /// (RFC 8620 §6.1 `blobId`).
+    pub fn read_upload(&self, request: &HttpRequest, response: &HttpResponse) -> Result<Id, Error> {
+        read_upload(request, response, &self.redactor)
     }
 
     /// Reads the response to a [`Client::download_request`] and hands back the blob's bytes.

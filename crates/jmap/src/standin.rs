@@ -7,15 +7,17 @@
 //!
 //! Where the other stand-ins of the tests answer whatever they are told and take whatever they are
 //! sent, this one holds a client to the standard (RFC 8620, 8621) as a real server does, for the part
-//! it serves: the session, `Mailbox/get`, `Email/query`, `Email/get`, the download of a blob, and what
-//! changes mail (`Email/set`: see `standin/changing.rs`).
+//! it serves: the session, `Mailbox/get`, `Email/query`, `Email/get`, the download of a blob, what changes
+//! mail (`Email/set`: see `standin/changing.rs`), and what sends it (the upload of a blob, `Email/import`,
+//! `Identity/get` and `EmailSubmission/set`: see `standin/sending.rs`).
 //!
 //! - **Who.** `Authorization: Basic` with [`USER`] and [`PASSWORD`], or `Bearer` with the one token it
 //!   holds ([`Data::token`], [`TOKEN`] at first; a token it no longer holds is refused like any other:
 //!   401). Nothing else is let in, not even the session.
 //! - **What.** A request of method calls is `application/json` and JSON with `using` and `methodCalls`
 //!   (400 `notJSON`, `notRequest`: a content type that is not JSON is `notJSON`). Only the capabilities
-//!   it knows may be named in `using` (400 `unknownCapability`), no more calls than `maxCallsInRequest`
+//!   it knows may be named in `using` (400 `unknownCapability`; sending is one of them unless a test takes
+//!   it away, [`Data::submission`]), no more calls than `maxCallsInRequest`
 //!   and no more bytes than `maxSizeRequest` may be in a request (400 `limit`), and a method needs its
 //!   capability in `using` or it is unknown.
 //! - **How.** The arguments are the ones a method has, of the right type (`invalidArguments`): all of
@@ -37,8 +39,9 @@
 //! - **What it answers with.** JSON as `application/json`, a request refused as a whole as problem details
 //!   (`application/problem+json`, RFC 9457), a blob as `application/octet-stream`, and a `Retry-After` in
 //!   seconds when it asks to be left alone.
-//! - **Not there.** Making, renaming and removing mailboxes, uploads, sending, `*/changes`, `Thread/get`,
-//!   push. The session names no `eventSourceUrl`.
+//! - **Not there.** Making, renaming and removing mailboxes, `*/changes`, `Thread/get`, push, and whatever
+//!   of sending is not said in `standin/sending.rs` (a submission is not undone, and nothing is delayed).
+//!   The session names no `eventSourceUrl`.
 //! - **Kinds of server.** [`Data::profile`] makes it a store of the standard kind, which parses the header
 //!   fields of an email for a client (`subject`, `from`…), or a server that names a message by where it
 //!   is, which serves the raw fields only, keeps an email in one mailbox and refuses `Mailbox/set`
@@ -62,12 +65,17 @@ use std::sync::{Arc, Mutex, PoisonError};
 use mailcraft_model::{Address, Message};
 use serde_json::{Map, Value, json};
 
-use crate::{CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, HttpExchange, HttpRequest, HttpResponse, Id, TransportError};
+use crate::{
+    CAPABILITY_CORE as CORE, CAPABILITY_MAIL as MAIL, CAPABILITY_SUBMISSION as SUBMISSION, HttpExchange, HttpRequest, HttpResponse, Id,
+    TransportError,
+};
 
 mod by_place;
 mod changing;
+mod sending;
 
 pub use by_place::Profile;
+pub use sending::{Identity, Submission};
 
 /// The session's address, to connect to.
 pub const SESSION: &str = "https://jmap.standin.example/jmap/session";
@@ -82,6 +90,7 @@ const ORIGIN: &str = "https://jmap.standin.example";
 const SESSION_PATH: &str = "/jmap/session";
 const API_PATH: &str = "/jmap/api";
 const DOWNLOAD_PATH: &str = "/jmap/download/";
+const UPLOAD_PATH: &str = "/jmap/upload/";
 /// Largest request it reads (`maxSizeRequest`), and most ids one `Email/query` answers however many are asked.
 const MAX_REQUEST: usize = 10_000_000;
 const MAX_QUERY: usize = 500;
@@ -191,14 +200,46 @@ pub struct Data {
     /// What the session says it takes: method calls in a request, ids in a `get`.
     pub max_calls: usize,
     pub max_get: usize,
-    /// What the session says it takes besides: changes in a `set` (`maxObjectsInSet`).
+    /// What the session says it takes besides: changes in a `set` (`maxObjectsInSet`), and octets in an
+    /// upload (`maxSizeUpload`).
     pub max_set: usize,
+    pub max_upload: usize,
+    /// The server sends mail: the session offers `urn:ietf:params:jmap:submission`, and the methods of it
+    /// are there. Without it they are unknown, and the capability may not be named.
+    pub submission: bool,
+    /// The identities the account may send as ([`Data::identity`] adds one; one for [`USER`] is there).
+    pub identities: Vec<Identity>,
+    /// The blobs that were uploaded, by id (the last 1,000).
+    pub uploads: BTreeMap<String, Vec<u8>>,
+    /// The ids of those blobs, oldest first: which goes when one more than are kept comes.
+    upload_order: VecDeque<String>,
+    /// What the stand-in was asked to send, oldest first. Nothing left the process.
+    pub submitted: Vec<Submission>,
+    /// Most recipients a submission may have (`tooManyRecipients` beyond).
+    pub max_recipients: usize,
     /// Emails (ids) that `Email/set` will not update or destroy: the `type` and the `description` of the
     /// error it gives instead.
     pub refused_changes: BTreeMap<String, (String, String)>,
     /// `Email/set` says nothing at all of an email it does not have, where the standard has it answer
     /// `notFound`: as some servers do.
     pub passes_over_unknown: bool,
+    /// Every submission is refused with the error of this `type` and `description`.
+    pub refuse_submission: Option<(String, String)>,
+    /// The server keeps no two emails of the same octets, and names octets it has by one blob id, as a
+    /// store that addresses its content does: an upload of octets it has answers with the id they have
+    /// (RFC 8620 §6.1), and an import of an email it has is refused with `alreadyExists` and the
+    /// `existingId` (RFC 8621 §4.8).
+    pub no_duplicates: bool,
+    /// Every upload gets a blob id of its own, octets the server has already too: RFC 8620 §6 lets the
+    /// same octets go by more than one id. With [`Data::no_duplicates`], an email it has already is still
+    /// refused, and its blob is not the one just uploaded.
+    pub blob_per_upload: bool,
+    /// What the next uploads are answered with instead of being taken, oldest first: an HTTP status and
+    /// a `Retry-After` of that many seconds.
+    pub refuse_next_upload: VecDeque<(u16, Option<u32>)>,
+    /// When an email made by an import arrived, and when a submission was sent, as far as the stand-in
+    /// says (it has no clock): a UTC date as `2026-10-15T06:00:00Z`.
+    pub now: String,
     /// The one bearer token it lets in; `None`: no bearer token.
     pub token: Option<String>,
     /// What kind of server it is.
@@ -235,6 +276,10 @@ pub struct Data {
     /// For the answer being made: the `Retry-After` it carries, and what its calls were asked.
     retry_after: Option<u32>,
     asked: Vec<Asked>,
+    /// For the request being answered: the emails its calls made, by creation id, and the responses a
+    /// call adds to its own (the `Email/set` a submission is answered with besides).
+    created: BTreeMap<String, String>,
+    extra: Vec<(String, Value)>,
 }
 
 impl Data {
@@ -246,8 +291,20 @@ impl Data {
             max_calls: 16,
             max_get: 500,
             max_set: 500,
+            max_upload: 25_000_000,
+            submission: true,
+            identities: vec![Identity { id: "I0".into(), name: String::new(), email: USER.into() }],
+            uploads: BTreeMap::new(),
+            upload_order: VecDeque::new(),
+            submitted: Vec::new(),
+            max_recipients: 100,
             refused_changes: BTreeMap::new(),
             passes_over_unknown: false,
+            refuse_submission: None,
+            no_duplicates: false,
+            blob_per_upload: false,
+            refuse_next_upload: VecDeque::new(),
+            now: "2026-10-15T12:00:00Z".into(),
             token: Some(TOKEN.into()),
             profile: Profile::standard(),
             refuse_next: VecDeque::new(),
@@ -262,6 +319,8 @@ impl Data {
             version: 0,
             retry_after: None,
             asked: Vec::new(),
+            created: BTreeMap::new(),
+            extra: Vec::new(),
         }
     }
 
@@ -399,6 +458,9 @@ impl Data {
         let (status, body, calls) = if method == "GET" && path.starts_with(DOWNLOAD_PATH) {
             let (status, body) = self.download(fields, &path);
             (status, body, Vec::new())
+        } else if method == "POST" && path.starts_with(UPLOAD_PATH) {
+            let (status, answer) = self.upload(fields, &path, body);
+            (status, serde_json::to_vec(&answer).unwrap_or_default(), Vec::new())
         } else {
             let (status, body, calls) = self.route(method, &path, fields, body);
             (status, serde_json::to_vec(&body).unwrap_or_default(), calls)
@@ -409,7 +471,7 @@ impl Data {
         }
         let content_type = match status {
             200 if path.starts_with(DOWNLOAD_PATH) => "application/octet-stream",
-            200 => "application/json",
+            200 | 201 => "application/json",
             _ => "application/problem+json",
         };
         let mut answer = HttpResponse::new(status, body).with_field("Content-Type", content_type);
@@ -467,10 +529,27 @@ impl Data {
     }
 
     fn session(&self) -> Value {
+        let mut session = self.session_without_sending();
+        if self.submission {
+            // Sending, for the session and for the account (RFC 8621 §1.3.2).
+            for (at, says) in [
+                ("/capabilities", json!({})),
+                (&format!("/accounts/{ACCOUNT}/accountCapabilities"), json!({"maxDelayedSend": 0, "submissionExtensions": {}})),
+                ("/primaryAccounts", json!(ACCOUNT)),
+            ] {
+                if let Some(Value::Object(map)) = session.pointer_mut(at) {
+                    map.insert(SUBMISSION.to_string(), says);
+                }
+            }
+        }
+        session
+    }
+
+    fn session_without_sending(&self) -> Value {
         json!({
             "capabilities": {
                 CORE: {
-                    "maxSizeUpload": 25_000_000,
+                    "maxSizeUpload": self.max_upload,
                     "maxConcurrentUpload": 2,
                     "maxSizeRequest": MAX_REQUEST,
                     "maxConcurrentRequests": 2,
@@ -513,7 +592,7 @@ impl Data {
         let (Some(using), Some(calls)) = (using, request.get("methodCalls").and_then(Value::as_array)) else {
             return rejected("notRequest", "a request has `using` (a list of names) and `methodCalls`");
         };
-        if using.iter().any(|capability| !matches!(*capability, CORE | MAIL)) {
+        if using.iter().any(|capability| !(matches!(*capability, CORE | MAIL) || (self.submission && *capability == SUBMISSION))) {
             return rejected("unknownCapability", "a capability this server doesn't have is in `using`");
         }
         if calls.len() > self.max_calls {
@@ -530,6 +609,7 @@ impl Data {
             parsed.push((name, args, id));
         }
         let (mut done, mut responses, mut names) = (Vec::new(), Vec::new(), Vec::new());
+        self.created.clear();
         for (name, args, id) in parsed {
             names.push(name.to_string());
             if let Ok(resolved) = arguments(args, &done) {
@@ -541,6 +621,8 @@ impl Data {
                 Err(refusal) => (json!(["error", {"type": refusal.kind, "description": refusal.description}, id]), None),
             };
             responses.push(response);
+            // (What a call answers besides its own response, RFC 8620 §3.4: under the same call id.)
+            responses.extend(std::mem::take(&mut self.extra).into_iter().map(|(name, result)| json!([name, result, id])));
             done.push(Done { id: id.to_string(), name: name.to_string(), result });
         }
         (200, json!({"methodResponses": responses, "sessionState": self.state()}), names)
@@ -549,11 +631,12 @@ impl Data {
     fn method(&mut self, using: &[&str], name: &str, args: &Value, done: &[Done]) -> Outcome<Value> {
         // A method whose capability the request doesn't name is unknown to the server (RFC 8620 §3.6.2).
         let served = match name {
-            "Mailbox/get" | "Email/query" | "Email/get" | "Email/set" => true,
-            "Mailbox/set" => self.profile.fixed_mailboxes,
+            "Mailbox/get" | "Email/query" | "Email/get" | "Email/set" | "Email/import" => using.contains(&MAIL),
+            "Mailbox/set" => self.profile.fixed_mailboxes && using.contains(&MAIL),
+            "Identity/get" | "EmailSubmission/set" => self.submission && using.contains(&SUBMISSION),
             _ => false,
         };
-        if !served || !using.contains(&MAIL) {
+        if !served {
             return Err(refuse("unknownMethod", format!("no method {}", name.chars().take(40).collect::<String>())));
         }
         let args = arguments(args, done)?;
@@ -562,6 +645,9 @@ impl Data {
             "Mailbox/set" => by_place::mailbox_set(&args, &self.state()),
             "Email/query" => self.email_query(&args),
             "Email/set" => self.email_set(&args),
+            "Email/import" => self.email_import(&args),
+            "Identity/get" => self.identity_get(&args),
+            "EmailSubmission/set" => self.submission_set(&args),
             _ => self.email_get(&args),
         }
     }
@@ -1044,5 +1130,7 @@ impl HttpExchange for StandIn {
 
 #[cfg(test)]
 mod changing_tests;
+#[cfg(test)]
+mod sending_tests;
 #[cfg(test)]
 mod tests;

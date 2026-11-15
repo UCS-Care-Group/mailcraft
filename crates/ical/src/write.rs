@@ -208,7 +208,17 @@ fn write_event(out: &mut String, e: &Event, stamp: &str, zone: Option<Zone>) {
             fold(out, &format!("EXDATE;VALUE=DATE:{}", format_date(*day)));
         } else if let Some((here, times)) = &zoned {
             let offset_at = |instant: Timestamp| here.offset_at(instant);
-            fold(out, &zoned_time("EXDATE", e.occurrence_instant(*day, &offset_at), times.start_zone));
+            let instant = e.occurrence_instant(*day, &offset_at);
+            // As the rule names the occurrence by the series' clock (RFC 5545 §3.8.5.3): on a day
+            // the clocks skip its time, that is not what the clock shows at the occurrence
+            // (Pacific/Apia skipped 30 December 2011: a series at midnight names the 30th, which
+            // the clock shows as midnight on the 31st).
+            let named = DateTime { date: times.first.date.add_days(start.date.days_until(*day)), ..times.first };
+            if times.start_zone != Zone::UTC && times.start_zone.instant(named) == instant {
+                fold(out, &format!("EXDATE;TZID={}:{}", param_value(&tzid(times.start_zone)), format_local(named)));
+            } else {
+                fold(out, &zoned_time("EXDATE", instant, times.start_zone));
+            }
         } else {
             fold(out, &format!("EXDATE:{}", format_local(DateTime { date: *day, ..start })));
         }

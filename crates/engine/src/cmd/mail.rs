@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(can_collapse)
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).reads().params(r#"{"id"?: number} (default: the selected message). An `id` or `ids` that names nothing (null, text, 0, a fraction) is refused"#),
-        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
+        CommandSpec::new("mail.list", "List Messages", "Mail", list).reads().params(r#"{"limit"?: number, "folder"?: number | "sent" | "Inbox/Projects", "account"?: number, "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it. `folder` is an id, a standard folder's kind (inbox, drafts, sent, deleted, junk, archive, outbox) in any language of the mailbox, of `account` or else the account in view, or a path; digits that name no folder are an id. A kind comes before a folder of that name, which is still reached by its id or by a path with its parent. `account` says whose folder `folder` means and goes with it: it is an account that is there, what it names must be that account's, a path without it is looked for in the account in view before any other, and `account` without `folder` is refused rather than left unused"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_message),
         CommandSpec::new("mail.deletePermanently", "Delete Permanently", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
@@ -631,21 +631,27 @@ fn digital_signature(s: &mut Session, v: &Value) -> CmdResult {
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let limit = p::u64(v, "limit").unwrap_or(200).min(10_000) as usize;
+    // Whose folder `folder` means (#1200), read before anything else is decided: an `account`
+    // that isn't an id is refused however the rest of the parameters look. Read inside the branch
+    // below instead, it would go unseen without `folder` and quietly become the account in view,
+    // and the answer says which folder it read but never which account.
+    let account = super::folder::account_named(s, v)?;
+    // `account` says whose folder `folder` means, so it wants one. On its own it would be read
+    // and then left unused, and the list would come from the account in view with nothing in the
+    // answer to say which account it is.
+    if account.is_some() && v.get("folder").is_none_or(Value::is_null) {
+        return Err(bad("`account` says whose folder `folder` means: name `folder` too, or leave `account` out"));
+    }
     // A named folder or a search is read from a view of its own: the owner's folder, search and
     // selection stay as they are (#620).
     let looks_elsewhere = v.get("folder").is_some_and(|f| !f.is_null()) || v.get("query").is_some_and(|q| !q.is_null());
     if !looks_elsewhere {
         return list_in_view(s, limit);
     }
+    // (An id, a standard folder's kind in any language of the mailbox, or a path, #1200.)
     let folder = match v.get("folder").filter(|f| !f.is_null()) {
         None => s.view.folder,
-        Some(f) => match f.as_u64() {
-            Some(id) => s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?,
-            None => {
-                let path = f.as_str().unwrap_or("");
-                super::folder::by_path(s, None, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
-            }
-        },
+        Some(f) => super::folder::named(s, f, account)?,
     };
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());

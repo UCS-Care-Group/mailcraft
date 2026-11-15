@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod event_color_tests;
+
 /// Height of the strip with Today, Back and Forward and the days in view.
 const HEADER_H: f32 = 46.0;
 /// Width of the hour labels beside the time grid.
@@ -985,6 +988,7 @@ fn side_pane(app: &mut MailApp, ui: &mut Ui) {
         .resizable(true)
         .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)));
     panel.show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         // As many months as the pane has room for over the list of calendars; one at the least.
         let groups = calendar_groups(app);
@@ -1787,8 +1791,8 @@ struct Look {
 
 /// An event is a block tinted with its colour `base` (its category's, or its calendar's) with a
 /// stronger edge down its left in its calendar's colour, which also says how the time shows:
-/// busy is solid, tentative hatched, working elsewhere dotted, free hollow (and the block
-/// outlined and nearly empty), out of office purple whatever the calendar's colour. Cancelled
+/// busy is solid, tentative hatched, working elsewhere dotted, free hollow and outlined.
+/// Free events without a category use a faint calendar tint. Out of office is purple. Cancelled
 /// events fade; so, when `dim`, do those of a calendar that lies under another.
 fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool, dim: bool) -> Look {
     let soft = t.data_soft(hovered);
@@ -1797,7 +1801,7 @@ fn look(ev: &Event, base: Color32, calendar: Color32, t: &Tokens, hovered: bool,
         ShowAs::Busy => (calendar, 1.0, Edge::Solid, false),
         ShowAs::WorkingElsewhere => (calendar, 0.8, Edge::Dotted, false),
         ShowAs::Tentative => (calendar, 0.6, Edge::Hatched, false),
-        ShowAs::Free => (calendar, 0.2, Edge::Hollow, true),
+        ShowAs::Free => (calendar, if ev.categories.is_empty() { 0.2 } else { 1.0 }, Edge::Hollow, true),
         ShowAs::OutOfOffice => (purple, 1.0, Edge::Solid, false),
     };
     if dim && !ev.cancelled {
@@ -4805,7 +4809,7 @@ mod tests {
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         let before = rig.at("Design review");
 
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         let button = rig.app.hit.rect("calendarConnect", account).expect("the line is shown");
         // The calendar is all there, under the line.
@@ -4818,7 +4822,7 @@ mod tests {
         assert_eq!(rig.selected(), (None, None), "the click went to the button, not to the calendar under it");
 
         // Connected: the line goes.
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarConnect", account).is_none());
         assert_eq!(rig.at("Design review"), before);
@@ -6825,7 +6829,7 @@ mod tests {
         use egui_kittest::kittest::Queryable as _;
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         // Whose meeting it is, and what was answered so far.
@@ -7544,7 +7548,7 @@ mod tests {
         let team = rig.app.session.mailbox.calendars.iter().find(|c| c.name == "Team").map(|c| c.id).unwrap();
         let mut app = MailApp::new(Session::at(rig.app.session.mailbox.clone(), NOW, 0), crate::Services::default());
         app.autosave = false;
-        app.auto_sync = false;
+        app.session.driver.set_auto_sync(false);
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
@@ -7709,10 +7713,10 @@ mod tests {
         assert_eq!(rig.selected(), (None, None));
         let _ = rig.app.execute("ui.cancelSignIn", json!({}));
         // A calendar that can't be read at all says so across the top, and the line keeps quiet.
-        rig.app.graph_consent_needed.insert(account);
+        rig.app.session.driver.calendar.consent_needed.insert(account);
         rig.frames(2);
         assert!(rig.app.hit.rect("calendarExtras", account).is_none() && rig.app.hit.rect("calendarConnect", account).is_some());
-        rig.app.graph_consent_needed.remove(&account);
+        rig.app.session.driver.calendar.consent_needed.remove(&account);
         rig.frames(2);
         assert_eq!(rig.at("Design review"), before, "the line takes nothing from the calendar");
         // With the extras there, the line goes.

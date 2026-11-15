@@ -63,7 +63,10 @@ fn an_exchange_account_is_added_and_its_commands_answer() {
     let a = s.mailbox.account(id).unwrap();
     assert_eq!(a.kind, AccountKind::Exchange);
     assert!(a.incoming.is_none() && a.outgoing.is_none() && a.oauth.is_none() && a.jmap.is_none());
-    assert_eq!(a.ews, Some(EwsServer { url: URL.into(), username: "CORP\\ada".into(), trusted: String::new(), hierarchy: String::new() }));
+    assert_eq!(
+        a.ews,
+        Some(EwsServer { url: URL.into(), username: "CORP\\ada".into(), trusted: String::new(), hierarchy: String::new(), parents: false })
+    );
     // It has the standard folders a server account has.
     assert!(s.mailbox.folder_of_kind(id, FolderKind::Inbox).is_some());
     // The list says where it connects, never the whole address.

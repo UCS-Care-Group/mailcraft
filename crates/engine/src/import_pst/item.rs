@@ -170,6 +170,7 @@ pub fn held(m: &Message) -> u64 {
         texts(&m.categories),
         texts(&m.warnings_dismissed),
         m.headers.iter().map(|(k, v)| text(k).saturating_add(text(v))).fold(0u64, u64::saturating_add),
+        m.header_block.data.len() as u64,
         m.attachments
             .iter()
             .map(|a| text(&a.name).saturating_add(text(&a.mime)).saturating_add(text(&a.content_id)).saturating_add(a.data.len() as u64))
@@ -289,7 +290,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         out.references = parsed.references;
         out.importance = parsed.importance;
         out.categories = parsed.categories;
-        out.headers = parsed.headers;
+        (out.headers, out.header_block) = (parsed.headers, parsed.header_block);
     }
 
     // Who it is from: who it was sent for, else who sent it.
@@ -376,7 +377,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         _ => None,
     };
     if let Some(s) = sensitivity
-        && !out.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("sensitivity"))
+        && !out.has_header("Sensitivity")
     {
         out.headers.push(("Sensitivity".to_string(), s.to_string()));
     }
