@@ -214,6 +214,11 @@ msgid "(read only)"
 msgstr "(samo za branje)"
 
 #. interface
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
+msgid "(the message's own)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -818,6 +823,11 @@ msgstr "Nabiralnik v skupni rabi, bran z vpisom računa {account}"
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "Kratka opomba s povezavo do te strani, za lepljenje v pošto ali klepet. MailCraft sam ne pošlje ničesar."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "A text signature file is at most 10,000 characters."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1554,7 +1564,7 @@ msgid "Allowed"
 msgstr "Dovoljeno"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Že med vašimi stiki"
@@ -1618,6 +1628,11 @@ msgstr "Agent sprašuje"
 #, fuzzy
 msgid "An Exchange server or IMAP?"
 msgstr "Strežnik Exchange ali IMAP?"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "An HTML signature file is at most 64 KB."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2444,7 +2459,7 @@ msgid "AutoArchive"
 msgstr "Samoarhiviranje"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Samodejno"
@@ -2749,11 +2764,16 @@ msgstr "Telo"
 msgid "Body contains"
 msgstr "Telo vsebuje"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Bold"
 msgstr "Krepko"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Bold Italic"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3210,7 +3230,7 @@ msgid "Celebrate"
 msgstr "Praznuj"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Potrdila"
@@ -3525,6 +3545,11 @@ msgstr "Preverjanje…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
+msgid "Choose Default Font"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Choose Default Signature"
 msgstr "Izberi privzeti podpis"
@@ -3534,6 +3559,11 @@ msgstr "Izberi privzeti podpis"
 #, fuzzy
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr "Izberite prijavo z Google ali namesto tega izberite Uporabi geslo aplikacije."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Choose Signature File"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3558,6 +3588,21 @@ msgstr "Izberite prvi in zadnji dan, med njima naj bo največ eno leto."
 #, fuzzy
 msgid "Choose a folder"
 msgstr "Izberi mapo"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose a signature file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose an absolute local path for the signature file."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3588,6 +3633,11 @@ msgstr "Izberite, ali se ta opravila pošljejo v To Do Microsoftovega računa. N
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Izberite, od koga se to pošlje"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4627,6 +4677,11 @@ msgstr "Zmanjšaj zamik"
 msgid "Default"
 msgstr "Privzeto"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Default fonts"
+msgstr ""
+
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -5264,6 +5319,11 @@ msgid "Downloading pictures…"
 msgstr "Prenašanje slik…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5274,6 +5334,11 @@ msgstr "Najprej prenašanje sporočila…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Najprej prenašanje sporočil…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6035,8 +6100,8 @@ msgstr "Povratne informacije"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Tu je ostalo manj kot dva od teh stikov, zato ni ničesar za združitev."
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "File"
 msgstr "Datoteka"
@@ -6046,6 +6111,11 @@ msgstr "Datoteka"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Pogovorna okna datotek tukaj niso na voljo"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "File signature"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6118,7 +6188,7 @@ msgid "Find a Time"
 msgstr "Najdi termin"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Find a font"
 msgstr "Poišči pisavo"
@@ -6376,7 +6446,7 @@ msgid "Follow up. Due {date}"
 msgstr "Spremljanje. Rok {date}"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Font"
 msgstr "Pisava"
@@ -6392,6 +6462,21 @@ msgstr "Barva pisave"
 #, fuzzy
 msgid "Font Size"
 msgstr "Velikost pisave"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font color"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font — {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6644,6 +6729,11 @@ msgstr "Od vsebuje"
 #, fuzzy
 msgid "From outside your organisation."
 msgstr "Zunaj vaše organizacije."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -7776,6 +7866,11 @@ msgid "In this calendar:"
 msgstr "V tem koledarju:"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "In {folder}"
@@ -8099,8 +8194,8 @@ msgstr "Uporablja algoritem, ki ni več varen."
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "Na tem računalniku čaka, dokler To Do ni dovoljen za ta račun"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Italic"
 msgstr "Ležeče"
@@ -8830,7 +8925,7 @@ msgid "Looking at the server's certificate…"
 msgstr "Pregledovanje potrdila strežnika…"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Looking for fonts…"
 msgstr "Iskanje pisav …"
@@ -11293,6 +11388,11 @@ msgstr "Drug termin ni bil predlagan."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Nihče na seznamu naslovov ne ustreza"
@@ -11470,6 +11570,11 @@ msgstr "Vsi strežniki niso bili najdeni: preostanek je samo ugibanje na podlagi
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Vsega ni bilo mogoče odstraniti. Nekaj je še vedno tukaj. Poskusite znova."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11766,7 +11871,7 @@ msgid "Numbering"
 msgstr "Oštevilčevanje"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "V redu"
@@ -12170,6 +12275,11 @@ msgstr "Odpri prilogo"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "Odpri koledar"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -12928,6 +13038,11 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr "Slike se vedno prenesejo od ({n}):"
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Pictures in mail"
@@ -13002,6 +13117,11 @@ msgstr ""
 #, fuzzy
 msgid "Plain Text"
 msgstr "Navadno besedilo"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Plain text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -13380,6 +13500,11 @@ msgid "Read Invitation"
 msgstr "Preberi povabilo"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Read status"
@@ -13603,11 +13728,21 @@ msgstr "Ponovi {what}"
 msgid "Refresh"
 msgstr "Osveži"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Refresh Preview"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Osveži svoja potrdila in ključe"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Regular"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14474,6 +14609,11 @@ msgstr "Žalost"
 #, fuzzy
 msgid "Safe Senders"
 msgstr "Varni pošiljatelji"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Sample"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15617,6 +15757,11 @@ msgstr "Nastavitve strežnika"
 msgid "Server: {address}"
 msgstr "Strežnik: {address}"
 
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Set"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
@@ -16325,8 +16470,8 @@ msgstr "Prijavite se s Pošlji/prejmi, da vidite, kdaj so drugi zasedeni."
 msgid "Sign-in cancelled"
 msgstr "Prijava preklicana"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 #, fuzzy
 msgid "Signature"
 msgstr "Podpis"
@@ -16337,8 +16482,18 @@ msgstr "Podpis"
 msgid "Signature file:"
 msgstr "Datoteka podpisa:"
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Signature from File"
+msgstr ""
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Podpisi"
@@ -16452,7 +16607,7 @@ msgid "Single Line"
 msgstr "Ena vrstica"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Velikost"
@@ -16990,6 +17145,11 @@ msgstr "Preklopi"
 #, fuzzy
 msgid "Switch to Google sign-in"
 msgstr "Preklopi na prijavo z Googlom"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Switch to HTML"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -17948,6 +18108,11 @@ msgid "The certificate wasn't issued by a certification authority this computer 
 msgstr "Potrdila ni izdal overitelj, ki mu ta računalnik zaupa."
 
 #. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The colour is \"#rrggbb\", or Automatic"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
@@ -18178,6 +18343,21 @@ msgstr[3] "Mapa „{name}“ ni bila izbrisana: v njej je na strežniku {n} novi
 #, fuzzy
 msgid "The folder isn't there."
 msgstr "Mape ni."
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font new messages are written in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font plain-text messages are written and read in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font replies and forwards are written in"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -18532,6 +18712,11 @@ msgstr "Tisti iz Datoteka › Možnosti"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Tisti, ki je priložen tej gradnji"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -18918,6 +19103,11 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr "Strežnik ali organizacija ni dala svojih nastavitev. Prosite skrbnika za naslov strežnika in ga vnesite v nastavitve strežnika."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
@@ -19146,10 +19336,40 @@ msgid "The sign-in was declined."
 msgstr "Prijava je bila zavrnjena."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The signature changed while the signature file picker was open."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr "Podpisa ni bilo mogoče shraniti: {why}. Zaprite znova, da ostane neshranjen."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file could not be read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file is too large."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must contain UTF-8 text."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature image could not be decoded."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -20933,8 +21153,8 @@ msgstr "Vnos * ali - in presledka na začetku vrstice začne označeni seznam, 1
 msgid "Under a folder on this computer:"
 msgstr "Pod mapo v tem računalniku:"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Underline"
 msgstr "Podčrtano"
@@ -21582,6 +21802,11 @@ msgstr "Kaj ste pričakovali (neobvezno)"
 #, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
 msgstr "Kar vidite, ni to, kar je bilo podpisano: ravnajte previdno."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "What you write in a message is written in these fonts. A signature and the message being answered keep their own looks."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -28107,6 +28332,11 @@ msgid "{read} of {total} MB"
 msgstr "{read} od {total} MB"
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "{reason} Using the account's usual signature instead."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{result} · {time}"
@@ -28307,7 +28537,7 @@ msgid "• to {to}, subject “{subject}”"
 msgstr "• za {to}, zadeva »{subject}«"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "…and {n} more — type to narrow it"
 msgid_plural "…and {n} more — type to narrow it"
