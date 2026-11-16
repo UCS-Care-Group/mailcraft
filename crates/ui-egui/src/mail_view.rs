@@ -581,6 +581,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
+    // After a new arrangement the selected row goes to the middle of the list (#1511).
+    let centered = std::mem::take(&mut app.reveal_centered);
     // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
     // newer message of its open conversation came, and its own row there is another), and for one
     // picked as its conversation, the conversation's row.
@@ -626,7 +628,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         {
             let above = if row.group.is_some() { GROUP_H } else { 0.0 };
             let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
-            ui.scroll_to_rect(rect, None);
+            ui.scroll_to_rect(rect, centered.then_some(egui::Align::Center));
         }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);

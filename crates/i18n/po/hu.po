@@ -402,6 +402,12 @@ msgstr "A MailCraft először biztonsági másolatot ment a teljes postafiók me
 msgid "A date"
 msgstr "Egy dátum"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "A file"
+msgstr "Egy fájl"
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -3102,7 +3108,7 @@ msgid "Clipboard"
 msgstr "Vágólap"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Bezárás"
@@ -4245,8 +4251,8 @@ msgstr "Válaszok címzettjei"
 msgid "Discard"
 msgstr "Elvetés"
 
-#. interface
-#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Elvetés"
@@ -5369,6 +5375,12 @@ msgstr "Ujjlenyomat:"
 #, fuzzy
 msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
 msgstr "Fejezze be a Microsoft oldalán a böngészőben. A MailCraft várakozik."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Finish or close the message you are writing, then try again."
+msgstr "Fejezze be vagy zárja be az éppen írt üzenetet, majd próbálja újra."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -11606,6 +11618,12 @@ msgstr "Az automatikus válaszok olvasása váratlanul leállt"
 #, fuzzy
 msgid "Reading the calendar from Microsoft…"
 msgstr "A naptár olvasása a Microsoft-tól…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
+#, fuzzy
+msgid "Reading what was shared"
+msgstr "A megosztott tartalom beolvasása"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -22680,6 +22698,12 @@ msgstr "{name} elfogadta ezt a találkozót."
 msgid "{name} answered this invitation."
 msgstr "{name} válaszolt erre a meghívásra."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} could not be read, so it was not attached."
+msgstr "{name} nem olvasható, ezért nem lett csatolva."
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -22895,6 +22919,24 @@ msgstr "{name} megosztotta veled a naptárat, benne van a naptárlistádban."
 #, fuzzy
 msgid "{name} tentatively accepted this meeting."
 msgstr "{name} tátongóan elfogadta ezt a találkozót."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is larger than 25 MB."
+msgstr "{name} nem lett csatolva: nagyobb 25 MB-nál."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is not a file this app may read."
+msgstr "{name} nem lett csatolva: ez az alkalmazás nem olvashatja ezt a fájlt."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: the files on a message can be 50 MB together."
+msgstr "{name} nem lett csatolva: egy üzenet fájljai együtt legfeljebb 50 MB-osak lehetnek."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -23495,6 +23537,14 @@ msgid "{n} minute before"
 msgid_plural "{n} minutes before"
 msgstr[0] "{n} perccel korábban"
 msgstr[1] "{n} perccel korábban"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{n} more file was not attached: a message takes at most {max} files from a share."
+msgid_plural "{n} more files were not attached: a message takes at most {max} files from a share."
+msgstr[0] "További {n} fájl nem lett csatolva: egy üzenet legfeljebb {max} megosztott fájlt fogad."
+msgstr[1] "További {n} fájl nem lett csatolva: egy üzenet legfeljebb {max} megosztott fájlt fogad."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
