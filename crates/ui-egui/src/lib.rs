@@ -77,6 +77,8 @@ pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
 #[cfg(test)]
+mod dav_secrets_tests;
+#[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
 mod dialog_scrim_tests;
@@ -1517,6 +1519,11 @@ pub struct MailApp {
     pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
+    /// The passwords of the calendar and contacts servers of the accounts, in memory for the
+    /// session, by account and **origin** ([`mailcraft_model::origin_of`]): one origin's is never
+    /// sent to, or lent to, another's (#209). Dropped with the account's other secrets, and with
+    /// an origin's when the server changes.
+    pub(crate) dav_passwords: std::collections::HashMap<(Id, String), String>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
     /// knows them; no id), for File › Info. Not saved.
     pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
@@ -1849,6 +1856,7 @@ impl MailApp {
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
+            dav_passwords: Default::default(),
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
@@ -2287,10 +2295,15 @@ impl MailApp {
         } else {
             None
         };
-        let edited =
-            if id == "account.edit" { params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned() } else { None };
+        let edited = if matches!(id, "account.edit" | "account.davSet" | "account.davOff") {
+            params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
+        } else {
+            None
+        };
         // Undo and Redo may put an account's servers back as they were before an edit.
-        let keys = |a: &mailcraft_model::Account| ["password", "refresh"].map(|k| Self::secret_key(k, a));
+        let keys = |a: &mailcraft_model::Account| {
+            ["password", "refresh"].into_iter().map(|k| Self::secret_key(k, a)).chain(Self::dav_secret_keys(a)).collect::<Vec<_>>()
+        };
         let undone =
             matches!(id, "edit.undo" | "edit.redo").then(|| self.session.mailbox.accounts.iter().map(|a| (a.id, keys(a))).collect::<Vec<_>>());
         if let Some(r) = self.through_saver(id, &params) {
@@ -2359,12 +2372,18 @@ impl MailApp {
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
             self.passwords.remove(&account);
+            self.dav_passwords.retain(|(id, _), _| *id != account);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
             self.ews_unreadable.remove(&account);
             self.ews_signed_in.remove(&account);
             self.ews_certificate.remove(&account);
             self.forget_account_secrets(&gone);
+        }
+        // A calendar and contacts server changed or gone: what was kept for the old one is not
+        // given to the new (#209).
+        if let (Ok(_), Some(before)) = (&r, &edited) {
+            self.drop_changed_dav_secrets(before);
         }
         // End a request as soon as its credential identity changes, using the same check as
         // poll_sign_in even when the storage key remains the same.
@@ -2396,6 +2415,7 @@ impl MailApp {
             for (account, was) in before {
                 if self.session.mailbox.account(account).map(keys) != Some(was) {
                     self.passwords.remove(&account);
+                    self.dav_passwords.retain(|(id, _), _| *id != account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
                     self.jmap_refused.remove(&account);
@@ -2883,6 +2903,44 @@ impl MailApp {
         keys
     }
 
+    /// The name an account's password for one DAV origin is kept under in the credential store:
+    /// its address, the origin, the user name and the pinned certificate. The one place this name
+    /// is made. `None` when the account has no DAV settings or `origin` is none.
+    pub(crate) fn dav_secret_key(a: &mailcraft_model::Account, origin: &str) -> Option<String> {
+        mailcraft_host::secrets::dav_secret_key(a, origin)
+    }
+
+    /// Every name the account's DAV passwords are kept under, one for each origin its settings
+    /// name. For forgetting, never for reading.
+    pub(crate) fn dav_secret_keys(a: &mailcraft_model::Account) -> Vec<String> {
+        mailcraft_host::secrets::dav_secret_keys(a)
+    }
+
+    /// What was kept for a calendar and contacts server that changed (another home, user name or
+    /// certificate, or one gone) is not given to the new: the passwords of the origins the
+    /// account's settings no longer name under the same terms are forgotten, in memory and in the
+    /// credential store, and the owner is asked again. `before` is the account as it was.
+    pub(crate) fn drop_changed_dav_secrets(&mut self, before: &mailcraft_model::Account) {
+        let now = self.session.mailbox.account(before.id).map(Self::dav_secret_keys).unwrap_or_default();
+        // (A password stays only where the name it was held under is still a name the settings
+        // give: the same origin, user name and pin.)
+        let kept = |origin: &str| Self::dav_secret_key(before, origin).is_some_and(|key| now.contains(&key));
+        self.dav_passwords.retain(|(id, origin), _| *id != before.id || kept(origin));
+        let stale: Vec<String> = Self::dav_secret_keys(before).into_iter().filter(|key| !now.contains(key)).collect();
+        for key in &stale {
+            self.secret_cache.remove(key);
+            self.ui.remembered_keys.retain(|k| k != key);
+        }
+        if let Some(store) = &self.services.secrets {
+            for key in &stale {
+                store.delete(key);
+            }
+            if let Some(trouble) = store.take_trouble() {
+                self.note_secret_trouble(trouble);
+            }
+        }
+    }
+
     /// The name secrets were kept under before they were bound to servers.
     pub(crate) fn legacy_secret_key(kind: &str, address: &str) -> String {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
@@ -2973,6 +3031,7 @@ impl MailApp {
             for kind in ["password", "refresh"] {
                 keys.extend(Self::secret_keys_of(kind, a));
             }
+            keys.extend(Self::dav_secret_keys(a));
         }
         keys.sort();
         keys.dedup();
@@ -3015,12 +3074,11 @@ impl MailApp {
     pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
-        for kind in ["password", "refresh"] {
-            for key in Self::secret_keys_of(kind, a) {
-                store.delete(&key);
-                if store.get(&key).is_none() {
-                    gone.push(key);
-                }
+        let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(Self::dav_secret_keys(a));
+        for key in named {
+            store.delete(&key);
+            if store.get(&key).is_none() {
+                gone.push(key);
             }
         }
         for key in &gone {
@@ -3544,6 +3602,7 @@ impl MailApp {
             // The automatic replies' jobs and what waits to go up are the old mailbox's too.
             self.auto_replies_forget_if_replaced();
             self.passwords.clear();
+            self.dav_passwords.clear();
             self.sync_password = None;
             self.secret_cache.clear();
             self.secret_read = None;

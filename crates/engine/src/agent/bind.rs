@@ -105,6 +105,8 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.edit"
         | "account.remove"
         | "account.forgetEwsCertificate"
+        | "account.davSet"
+        | "account.davOff"
         | "account.graphSwitch"
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"

@@ -18,8 +18,8 @@ mod followup;
 mod snooze;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, ThreadIndex,
-    clean_name,
+    Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
+    ThreadIndex, clean_name,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
@@ -445,6 +445,12 @@ pub struct Account {
     /// there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub ews: Option<EwsServer>,
+    /// Where the account's calendars and contacts are on a CalDAV and CardDAV server, the user
+    /// name, the certificate it trusts and what is known of each collection ([`DavServer`], #209).
+    /// Plain settings: the password is never kept here, and is held per origin. `None` when the
+    /// account has none, and in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub dav: Option<DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A

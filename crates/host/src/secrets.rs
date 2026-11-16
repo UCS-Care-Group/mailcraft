@@ -82,6 +82,34 @@ pub fn microsoft_secret_key(kind: &str, address: &str) -> String {
     format!("{kind}:{}|graph", address.trim().to_ascii_lowercase())
 }
 
+/// What a DAV server's password is kept under in the credential store (`kind`: `dav-password`).
+pub const DAV_PASSWORD: &str = "dav-password";
+
+/// The name an account's DAV password for one origin is kept under in the credential store (#209):
+/// bound to the account's address, to the origin it is sent to (scheme, host and port,
+/// [`mailcraft_model::origin_of`]; the password for one origin is never borrowed for another, nor
+/// is the account's mail password named here), to the user name it signs in with (the account's
+/// address when none is given) and to the certificate it trusts besides the system's, when it does
+/// (a password remembered for the server the system vouches for is never handed to a connection a
+/// pin lets through). `None` when the account has no DAV settings or `origin` is none.
+pub fn dav_secret_key(a: &mailcraft_model::Account, origin: &str) -> Option<String> {
+    let dav = a.dav.as_ref()?;
+    let origin = mailcraft_model::origin_of(origin)?;
+    let address = a.email.trim().to_ascii_lowercase();
+    let user = match dav.username.trim() {
+        "" => address.clone(),
+        name => name.to_ascii_lowercase(),
+    };
+    let pin = dav.trusted.trim().to_ascii_lowercase();
+    Some(format!("{DAV_PASSWORD}:{address}|dav={origin}|user={user}|pin={pin}"))
+}
+
+/// Every name the account's DAV passwords may be kept under, one per origin its settings name:
+/// for forgetting, never for reading.
+pub fn dav_secret_keys(a: &mailcraft_model::Account) -> Vec<String> {
+    a.dav.as_ref().into_iter().flat_map(|dav| dav.origins()).filter_map(|origin| dav_secret_key(a, &origin)).collect()
+}
+
 /// The name secrets were kept under before they were bound to servers.
 pub fn legacy_secret_key(kind: &str, address: &str) -> String {
     format!("{kind}:{}", address.trim().to_ascii_lowercase())
