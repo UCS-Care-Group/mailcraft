@@ -565,6 +565,23 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                             let _ = app.run("ui.dialog", json!({"name": "syncProblems"}));
                         }
                     }
+                    // An Exchange server account's server turned its password down (#971): a
+                    // click asks for it again, as the account's Send/Receive does.
+                    if !app.syncing()
+                        && let Some((account, address)) = app.ews_to_sign_in()
+                    {
+                        let link = ui.link(egui::RichText::new(tl!("Sign In Again")).size(STATUS_TEXT));
+                        app.hit.add("signInAgain", account, link.rect);
+                        let tip = crate::i18n::fmt(
+                            tl!("The server turned down the sign-in for {account}: type its password again"),
+                            &[("account", &address)],
+                        );
+                        if link.on_hover_text(tip).clicked()
+                            && let Err(e) = app.run("ui.sync", json!({"account": account}))
+                        {
+                            app.status(e);
+                        }
+                    }
                     let shown_sync = sync_shown(app);
                     if shown_sync != SyncShown::Nothing {
                         // Waiting for the owner in the browser (or for an administrator on

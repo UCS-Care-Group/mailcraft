@@ -14205,7 +14205,7 @@ msgid "Sign In"
 msgstr "Conectare"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Sign In Again"
 msgstr "Conectare din nou"
@@ -16589,11 +16589,21 @@ msgstr "Serverul arată un certificat care are nevoie de decizia dvs."
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr "Serverul a refuzat conectarea pentru acest cont. Folosiți Trimitere/primire ca să vă conectați din nou."
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "The server turned down the sign-in for {account}: type its password again"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Serverul a refuzat conectarea pentru {name}: conectați-vă din nou"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The server turned down the sign-in. Type the password again. If it was right, check the user name in the account's settings (File › Info)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

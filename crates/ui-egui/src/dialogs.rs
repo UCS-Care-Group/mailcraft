@@ -1986,8 +1986,18 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // (A JMAP server may take a bearer token instead.)
             let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
             let asked = if token { tl!("Access token for {account}") } else { tl!("Password for {account}") };
+            // Asked again because the Exchange server turned the last one down (#971).
+            let turned_down = app.ews_turned_down(*account);
             let mut submit = false;
             let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
+                if turned_down {
+                    ui.label(
+                        egui::RichText::new(tl!(
+                            "The server turned down the sign-in. Type the password again. If it was right, check the user name in the account's settings (File › Info)."
+                        ))
+                        .color(t.orange),
+                    );
+                }
                 ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
                 // (The room round its text that a field has by default.)
                 let room = egui::Margin::from(ui.spacing().button_padding);
