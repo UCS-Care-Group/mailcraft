@@ -29,7 +29,7 @@ fn only_https_or_loopback_and_no_user_info() {
 }
 
 #[test]
-fn header_values_lose_control_characters_and_responses_cap_fields() {
+fn header_values_lose_ascii_control_characters_and_responses_cap_fields() {
     let r = HttpRequest::new(Method::Get, "https://dav.example.org/", &[("X-A", "a\r\nInjected: 1"), ("bad name", "x")], Vec::new()).unwrap();
     assert_eq!(r.field("x-a"), Some("aInjected: 1"));
     assert_eq!(r.fields().count(), 1);
@@ -41,6 +41,16 @@ fn header_values_lose_control_characters_and_responses_cap_fields() {
     assert_eq!(resp.header("retry-after"), Some("5"));
     assert_eq!(resp.header("dav"), Some("1"));
     assert!(resp.with_field("x-long", &"a".repeat(MAX_FIELD_VALUE_LEN + 1)).header("x-long").is_none());
+}
+
+#[test]
+fn header_values_preserve_non_ascii_obs_text_and_strip_ascii_controls() {
+    let tag = "\"é\u{85}\"";
+    let request = HttpRequest::new(Method::Put, "https://dav.example.org/a", &[("If-Match", tag)], Vec::new()).unwrap();
+    assert_eq!(request.field("if-match"), Some(tag));
+
+    let request = HttpRequest::new(Method::Get, "https://dav.example.org/", &[("X-Test", "a\0b\r\n\td\u{7f}e\u{85}f")], Vec::new()).unwrap();
+    assert_eq!(request.field("x-test"), Some("abde\u{85}f"));
 }
 
 #[test]
