@@ -1360,8 +1360,9 @@ msgstr "חלון פגישה"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Appointments not listed:"
-msgstr ""
+msgstr "פעילויות שלא מוצגות:"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1392,8 +1393,9 @@ msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Arrange"
-msgstr ""
+msgstr "סדר"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -1422,8 +1424,9 @@ msgstr "סידור משימות לפי"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Arrangement"
-msgstr ""
+msgstr "סידור"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -1433,8 +1436,9 @@ msgstr "כתיקיות"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "As Tabs above the Inbox"
-msgstr ""
+msgstr "ככרטיסיות מעל תיבת הדואר הנכנס"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -1466,8 +1470,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
 msgid "Ask before downloading this sender's pictures again"
-msgstr ""
+msgstr "שאל לפני הורדת תמונות מהשולח הזה שוב"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3427,8 +3432,9 @@ msgstr "התראות שולחן עבודה"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
+#, fuzzy
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
-msgstr ""
+msgstr "התראות שולחן העבודה עבור MailCraft כבויות בהגדרות המערכת."
 
 #, fuzzy
 #. interface
@@ -3546,8 +3552,9 @@ msgstr "סגור תזכורת"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Dismiss Settings Notice"
-msgstr ""
+msgstr "סגור את הודעת ההגדרות"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3984,8 +3991,9 @@ msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
 msgid "Email Calendar"
-msgstr ""
+msgstr "שלח לוח שנה בדוא״ל"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -4079,13 +4087,15 @@ msgstr "כל"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Every contact, as .vcf"
-msgstr ""
+msgstr "כל אנשי הקשר, בפורמט .vcf"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Every event and task, as .ics"
-msgstr ""
+msgstr "כל האירועים והמשימות, בפורמט .ics"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4122,8 +4132,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Everyone outside my organization"
-msgstr ""
+msgstr "כל מי שמחוץ לארגון שלי"
 
 #. interface
 #, fuzzy
@@ -4194,8 +4205,9 @@ msgstr "הרחב שיחה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Expand or Collapse Calendar Group"
-msgstr ""
+msgstr "הרחב או כווץ קבוצת לוחות שנה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4599,8 +4611,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "Forget Downloaded Calendar and Contacts"
-msgstr ""
+msgstr "שכח נתוני לוחות שנה ואנשי קשר שהורדו"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
@@ -4764,8 +4777,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Full details: and where, and the notes"
-msgstr ""
+msgstr "פרטים מלאים, כולל מיקום והערות"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -4937,8 +4951,9 @@ msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Go To"
-msgstr ""
+msgstr "עבור אל"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5389,8 +5404,9 @@ msgstr "ייבוא קובץ ‎.pst"
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Import a Certificate"
-msgstr ""
+msgstr "ייבא אישור דיגיטלי"
 
 #. command label, interface
 #, fuzzy
@@ -5612,8 +5628,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
+#, fuzzy
 msgid "Include diagnostics"
-msgstr ""
+msgstr "כלול נתוני אבחון"
 
 #. interface
 #, fuzzy
@@ -5692,8 +5709,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Install updates automatically"
-msgstr ""
+msgstr "התקן עדכונים באופן אוטומטי"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -6001,8 +6019,9 @@ msgstr "פריט זה בלבד"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Keep Both"
-msgstr ""
+msgstr "שמור את שניהם"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -6053,8 +6072,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Keep this version"
-msgstr ""
+msgstr "שמור גרסה זו"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -6212,8 +6232,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Limited details: and the titles"
-msgstr ""
+msgstr "פרטים מוגבלים, כולל כותרות"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6239,8 +6260,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
+#, fuzzy
 msgid "List Calendars"
-msgstr ""
+msgstr "הצג לוחות שנה"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
@@ -6249,8 +6271,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "List Events"
-msgstr ""
+msgstr "הצג אירועים"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
@@ -6290,8 +6313,9 @@ msgstr "מיקום"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "Look Again"
-msgstr ""
+msgstr "בדוק שוב"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -6341,8 +6365,9 @@ msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Low Importance"
-msgstr ""
+msgstr "חשיבות נמוכה"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -6438,8 +6463,9 @@ msgstr "הודעות הדוא״ל בשרתים אינן מושפעות. אי א�
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Mail only"
-msgstr ""
+msgstr "דואר בלבד"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -6700,8 +6726,9 @@ msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Manage Calendars"
-msgstr ""
+msgstr "נהל לוחות שנה"
 
 #. command label, interface
 #, fuzzy
@@ -6711,8 +6738,9 @@ msgstr "ניהול כללים"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Manage Rules…"
-msgstr ""
+msgstr "נהל כללים…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
@@ -6798,8 +6826,9 @@ msgstr "סמן כלא נקרא"
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Mark as verified"
-msgstr ""
+msgstr "סמן כמאומת"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -6927,8 +6956,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Messages on a Light Background"
-msgstr ""
+msgstr "הודעות על רקע בהיר"
 
 #. interface
 #, fuzzy
