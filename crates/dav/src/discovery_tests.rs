@@ -830,7 +830,7 @@ fn what_was_found_is_kept_when_a_later_step_stops_the_search() {
 #[test]
 fn the_request_cap_keeps_what_was_found_too() {
     let mut disc = search(USER, true, true);
-    disc.found.calendars = Some(Located { home: "https://dav.example.net/dav/".into(), collections: Collections::default() });
+    disc.found.calendars = Some(Located { home: "https://dav.example.net/dav/".into(), homes: Vec::new(), collections: Collections::default() });
     disc.requests = MAX_REQUESTS;
     disc.job = Some(Job { kind: Kind::AddressBook, queue: VecDeque::new(), chain: 0 });
     disc.issue(Stage::Probe, "https://imap.example.org/".into(), false);
@@ -1139,12 +1139,18 @@ fn a_looping_web_site_does_not_outrank_what_a_server_said() {
 // A server scripted by path: what its multistatus holds for a path, the anonymous asks answered by
 // a challenge naming both services.
 fn tree_world(tree: impl Fn(&str) -> Option<String> + 'static) -> World {
+    hosts_world(move |host, path| if host == "dav.example.net" { tree(path) } else { None })
+}
+
+/// [`tree_world`] for a tree of several hosts: what the multistatus of a host and path holds.
+fn hosts_world(tree: impl Fn(&str, &str) -> Option<String> + 'static) -> World {
     World::new(&[]).with(move |r| {
         if r.field("authorization").is_none() {
             return Some(Ok(challenge(&[("DAV", DAV_HEADER)])));
         }
-        let path = r.url().strip_prefix("https://dav.example.net").unwrap_or("").to_owned();
-        let inner = tree(&path)?;
+        let rest = r.url().strip_prefix("https://").unwrap_or("");
+        let (host, path) = rest.split_once('/').map_or((rest, "/".to_owned()), |(host, path)| (host, format!("/{path}")));
+        let inner = tree(host, &path)?;
         let body = format!(
             "<d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" xmlns:card=\"urn:ietf:params:xml:ns:carddav\">{inner}</d:multistatus>"
         );
@@ -1256,4 +1262,61 @@ fn the_listings_of_containers_are_capped_and_what_was_found_stays() {
     let boxes = world.sent().iter().filter(|s| s.credential && s.path.starts_with("/h/box")).count();
     assert_eq!(boxes, usize::from(MAX_CONTAINER_LISTINGS));
     assert_eq!(done.calendars().unwrap().collections().calendars.len(), 1 + usize::from(MAX_CONTAINER_LISTINGS));
+}
+
+#[test]
+fn homes_on_two_origins_keep_each_collection_on_its_own_origin() {
+    let world = hosts_world(|host, path| match (host, path) {
+        ("dav.example.net", "/dav/") => Some(item("/dav/", "<d:current-user-principal><d:href>/p/</d:href></d:current-user-principal>")),
+        ("dav.example.net", "/p/") => {
+            Some(item("/p/", "<c:calendar-home-set><d:href>/h1/</d:href><d:href>https://shard.example.net/h2/</d:href></c:calendar-home-set>"))
+        }
+        ("dav.example.net", "/h1/") => Some(item("/h1/", PLAIN) + &item("/h1/a/", &format!("{CAL}<d:displayname>A</d:displayname>"))),
+        ("shard.example.net", "/h2/") => Some(item("/h2/", PLAIN) + &item("/h2/b/", &format!("{CAL}<d:displayname>B</d:displayname>"))),
+        _ => None,
+    });
+    let mut asked = Vec::new();
+    let outcome = typed(Kind::Calendar, "https://dav.example.net/dav/").run(&world, no_srv, |c| {
+        asked.push(c.host().to_owned());
+        true
+    });
+    let done = found(outcome);
+    let located = done.calendars().unwrap();
+    assert_eq!(asked, ["shard.example.net"]);
+    assert_eq!(located.homes(), ["https://dav.example.net/h1/", "https://shard.example.net/h2/"]);
+    let hrefs: Vec<&str> = located.collections().calendars.iter().map(|c| c.href.as_str()).collect();
+    assert_eq!(hrefs, ["https://dav.example.net/h1/a/", "https://shard.example.net/h2/b/"]);
+    // The password went to each origin in answer to its own challenge.
+    only_after_a_challenge(&world);
+}
+
+#[test]
+fn a_home_that_is_microsoft_s_or_google_s_or_refuses_the_password_fails_only_itself() {
+    for bad in ["https://outlook.office365.com/h/", "https://www.google.com/h/", "https://dav.example.net/refuses/"] {
+        let homes = format!(
+            "<c:calendar-home-set><d:href>{bad}</d:href><d:href>https://shard.example.net/h2/</d:href></c:calendar-home-set>\
+             <card:addressbook-home-set><d:href>{bad}</d:href><d:href>https://shard.example.net/b2/</d:href></card:addressbook-home-set>"
+        );
+        let world = hosts_world(move |host, path| match (host, path) {
+            ("dav.example.net", "/dav/") => Some(item("/dav/", "<d:current-user-principal><d:href>/p/</d:href></d:current-user-principal>")),
+            ("dav.example.net", "/p/") => Some(item("/p/", &homes)),
+            ("shard.example.net", "/h2/") => Some(item("/h2/", PLAIN) + &item("/h2/b/", &format!("{CAL}<d:displayname>B</d:displayname>"))),
+            ("shard.example.net", "/b2/") => Some(item("/b2/", PLAIN) + &item("/b2/p/", &format!("{BOOK}<d:displayname>P</d:displayname>"))),
+            _ => None,
+        })
+        .with(|r| {
+            (r.url().ends_with("/refuses/") && r.field("authorization").is_some())
+                .then(|| Ok(HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic")))
+        });
+        let outcome = search(USER, true, true)
+            .typed(Kind::Calendar, "https://dav.example.net/dav/")
+            .unwrap()
+            .typed(Kind::AddressBook, "https://dav.example.net/dav/")
+            .unwrap()
+            .run(&world, no_srv, |_| true);
+        let done = found(outcome);
+        assert_eq!(names(done.calendars().unwrap()), ["B"], "{bad}");
+        assert_eq!(done.contacts().unwrap().collections().address_books.len(), 1, "{bad}");
+        assert!(world.sent().iter().all(|s| !s.origin.contains("office365") && !s.origin.contains("google")), "{bad}: nothing sent there");
+    }
 }

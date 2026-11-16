@@ -214,20 +214,33 @@ impl fmt::Debug for Consent {
     }
 }
 
-/// Where one kind of collection was found: the home, and what it holds.
+/// Where one kind of collection was found: the homes that answered, and what they hold.
+///
+/// A principal may name several homes, and on other hosts than its own (some providers keep the
+/// home on a shard). The collections of all of them are in one list; **each [`Entry::href`] is
+/// absolute and keeps the origin of the home it was listed in**, so a consumer builds the endpoint
+/// and the password's grant for each collection's own origin (the password goes per origin, in
+/// answer to that origin's challenge and the owner's yes) and never borrows [`Located::home`]'s.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Located {
     home: String,
+    homes: Vec<String>,
     collections: Collections,
 }
 
 impl Located {
-    /// The address of the calendar home or address book home, absolute and normalised.
+    /// The address of the first home that answered, absolute and normalised. Not the place of every
+    /// collection: see [`Located::homes`] and each collection's own address.
     pub fn home(&self) -> &str {
         &self.home
     }
 
-    /// The collections in it (the calendars that hold events, or the address books).
+    /// Every home that answered (the first is [`Located::home`]), each absolute and normalised.
+    pub fn homes(&self) -> &[String] {
+        &self.homes
+    }
+
+    /// The collections in them (the calendars that hold events, or the address books).
     pub fn collections(&self) -> &Collections {
         &self.collections
     }
@@ -352,6 +365,8 @@ impl fmt::Display for Failure {
 impl std::error::Error for Failure {}
 
 /// How a search ended.
+// (Returned once, at the end of a search: the size of the found variant is no cost.)
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {
     /// Found calendars, contacts, or both.
@@ -481,8 +496,8 @@ struct Listing {
     seen: Vec<String>,
     /// Container listings queued beyond the homes.
     extra: u8,
-    /// The first home that answered.
-    home: Option<String>,
+    /// The homes that answered, the first first.
+    homes: Vec<String>,
     /// What the listings brought.
     collections: Collections,
 }
@@ -793,11 +808,15 @@ impl Discovery {
     /// domain's SRV record, not agreed to) is asked about first, and a no sends nothing at all.
     fn issue(&mut self, stage: Stage, url: String, options: bool) {
         let Ok(origin) = Origin::parse(&url) else { return self.fail_candidate(Failure::Unreadable) };
+        // (A home the principal names, or a container in it, that is Microsoft's or Google's is
+        // that home failing, not the search ending: nothing is sent to it, and the other homes and
+        // the other kind go on. Elsewhere it is the account being a Microsoft or Google one.)
+        let in_listing = stage == Stage::Collections && self.listing.is_some();
         if is_exchange_online(origin.host()) || is_microsoft_domain(origin.host()) {
-            return self.finish(Outcome::Microsoft);
+            return if in_listing { self.fail_candidate(Failure::NoHome) } else { self.finish(Outcome::Microsoft) };
         }
         if is_google_host(origin.host()) {
-            return self.finish(Outcome::Google);
+            return if in_listing { self.fail_candidate(Failure::NoHome) } else { self.finish(Outcome::Google) };
         }
         let key = origin.base();
         // This machine, and addresses by number, are only the owner's own to type; a redirect or
@@ -873,6 +892,8 @@ impl Discovery {
                 _ => self.finish(Outcome::Failed(Failure::NotDavServer)),
             },
             Ok(response) => match response.status() {
+                // (In the listing phase it is that home's refusal: the others are still asked.)
+                401 if ask.authed && ask.stage == Stage::Collections && self.listing.is_some() => self.fail_candidate(Failure::SignInRefused),
                 401 if ask.authed => self.finish(Outcome::Failed(Failure::SignInRefused)),
                 401 => self.challenged(ask, &response),
                 301 | 302 | 303 | 307 | 308 => self.redirected(&ask, &response),
@@ -1029,7 +1050,7 @@ impl Discovery {
                     queue: homes.into_iter().map(|home| (home, 0)).collect(),
                     level: 0,
                     extra: 0,
-                    home: None,
+                    homes: Vec::new(),
                     collections: Collections::default(),
                 });
                 self.waiting = Waiting::Idle;
@@ -1042,7 +1063,9 @@ impl Discovery {
     /// containers of a home are listed too (one level down, no further).
     fn located(&mut self, ask: &Ask, listing: Multistatus) {
         let Some(state) = self.listing.as_mut() else { return };
-        state.home.get_or_insert_with(|| ask.url.clone());
+        if state.level == 0 && !state.homes.contains(&ask.url) {
+            state.homes.push(ask.url.clone());
+        }
         if state.level == 0 {
             for entry in &listing.entries {
                 let plain = !entry.is_base && !entry.is_gone() && entry.is_collection && !entry.is_calendar && !entry.is_addressbook;
@@ -1064,8 +1087,8 @@ impl Discovery {
     /// The listings are over: what they brought is this kind found (nothing, when none answered).
     fn commit_listing(&mut self) {
         let Some(state) = self.listing.take() else { return };
-        let Some(home) = state.home else { return };
-        let located = Located { home, collections: state.collections };
+        let Some(home) = state.homes.first().cloned() else { return };
+        let located = Located { home, homes: state.homes, collections: state.collections };
         match self.kind() {
             Kind::Calendar => self.found.calendars = Some(located),
             Kind::AddressBook => self.found.contacts = Some(located),
