@@ -622,11 +622,21 @@ pub fn combo(m: Modifiers, key: &str) -> String {
 pub const MOVES_IN_LIST: &[&str] = &["mail.next", "mail.previous", "mail.first", "mail.last", "mail.pageDown", "mail.pageUp"];
 
 /// The commands that change how the message list is ordered or laid out (#1511): its arrangement
-/// and direction, conversations, groups, single line and preview lines (and Reset View, which
-/// puts them all back). The rows move, so the list scrolls to the selected message instead of
-/// being left where it was.
-pub const REARRANGES_LIST: &[&str] =
-    &["view.sort", "view.reverseSort", "view.conversations", "view.groups", "view.oneLine", "view.previewLines", "view.reset"];
+/// and direction, conversations, groups, single line, preview lines, the ready-made views, tighter
+/// spacing (and Reset View, which puts them back). The rows move or change their height, so the
+/// list scrolls to the selected message and puts it in the middle, instead of leaving it where it
+/// was. (The filter and the reading pane's place are not among them.)
+pub const REARRANGES_LIST: &[&str] = &[
+    "view.sort",
+    "view.reverseSort",
+    "view.conversations",
+    "view.groups",
+    "view.oneLine",
+    "view.previewLines",
+    "view.changeView",
+    "view.density",
+    "view.reset",
+];
 
 /// What a key gives the command it runs: with Shift, a move in the message list extends the
 /// selection, and a page is the rows that fit in the list.
