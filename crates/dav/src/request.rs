@@ -160,6 +160,21 @@ fn valid_token(token: &str) -> bool {
     !token.is_empty() && token.len() <= MAX_TOKEN && !token.chars().any(char::is_control)
 }
 
+fn valid_entity_tag(tag: &str) -> bool {
+    if tag.len() > MAX_TOKEN {
+        return false;
+    }
+    let quoted = tag.strip_prefix("W/").unwrap_or(tag);
+    let bytes = quoted.as_bytes();
+    if bytes.len() < 2 || bytes.first() != Some(&b'"') || bytes.last() != Some(&b'"') {
+        return false;
+    }
+    let Some(opaque) = bytes.get(1..bytes.len() - 1) else {
+        return false;
+    };
+    opaque.iter().all(|b| matches!(*b, 0x21 | 0x23..=0x7e) || *b >= 0x80)
+}
+
 fn document(root: &str, body: &str) -> Vec<u8> {
     format!(
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<{root} xmlns:d=\"{DAV}\" xmlns:c=\"{CALDAV}\" xmlns:card=\"{CARDDAV}\" xmlns:a=\"{APPLE}\" xmlns:cs=\"{CALSERVER}\">{body}</{root}>"
@@ -172,6 +187,11 @@ impl Endpoint {
     /// type keeps a credential from being paired with an origin a server named.
     pub fn new(origin: TrustedOrigin, auth: Option<Secret>) -> Self {
         Self { origin: origin.origin().clone(), auth }
+    }
+    /// An endpoint that sends `auth` to the origin a discovery has granted it to
+    /// ([`crate::discovery::Grant`], which only a discovery can make).
+    pub(crate) fn granted(grant: &crate::discovery::Grant, auth: Secret) -> Self {
+        Self { origin: grant.origin().clone(), auth: Some(auth) }
     }
     /// An endpoint that sends no credential: a probe, or anything on an origin a server named.
     pub fn anonymous(origin: Origin) -> Self {
@@ -319,20 +339,21 @@ impl Endpoint {
         self.put(kind, &url, body, ("If-None-Match", "*")).map(|r| (url, r))
     }
 
-    /// `PUT` that replaces `resource` (inside `collection`) only while it still has `etag`
-    /// (`If-Match`).
+    /// `PUT` that replaces `resource` (inside `collection`) only while it still has exactly the
+    /// entity-tag `etag` (`If-Match`); a wildcard or a list is refused.
     pub fn put_change(&self, kind: Kind, collection: &str, resource: &str, etag: &str, body: &str) -> Result<HttpRequest, RequestError> {
         let url = self.inside(collection, resource)?;
-        if !valid_token(etag) {
+        if !valid_entity_tag(etag) {
             return Err(RequestError::Invalid);
         }
         self.put(kind, &url, body, ("If-Match", etag))
     }
 
-    /// `DELETE` of `resource` (inside `collection`) only while it still has `etag`.
+    /// `DELETE` of `resource` (inside `collection`) only while it still has exactly the
+    /// entity-tag `etag` (`If-Match`); a wildcard or a list is refused.
     pub fn delete(&self, collection: &str, resource: &str, etag: &str) -> Result<HttpRequest, RequestError> {
         let url = self.inside(collection, resource)?;
-        if !valid_token(etag) {
+        if !valid_entity_tag(etag) {
             return Err(RequestError::Invalid);
         }
         self.build(Method::Delete, &url, &[("If-Match", etag)], Vec::new())

@@ -62,3 +62,6 @@ display_name = "Harley"
 
 [people.cyberdawid]
 sync_github_name = true
+
+[people.denix666]
+real_name = "Denis Salmanovich"
