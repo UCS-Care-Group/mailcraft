@@ -36,10 +36,12 @@ mod limits;
 mod links;
 mod list;
 mod message;
+mod pictures;
 mod platform;
 mod queries;
 mod queue;
 mod records;
+pub mod settings;
 mod sync;
 mod sync_api;
 pub mod text;
@@ -67,11 +69,15 @@ mod links_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
+mod pictures_tests;
+#[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
 mod queue_tests;
 #[cfg(test)]
 mod review_tests;
+#[cfg(test)]
+mod settings_tests;
 #[cfg(test)]
 mod sync_stop_tests;
 #[cfg(test)]
@@ -87,7 +93,8 @@ pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
 pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
 pub use fetch_api::{AttachmentFile, AttachmentVerdict};
-pub use limits::{DownloadSettings, KeepWindow};
+pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
+pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};

@@ -33,7 +33,7 @@ fn attachment_of<'a>(message: &'a Message, src: &str) -> Option<(usize, &'a Atta
 }
 
 /// A picture's kind, told from its own bytes.
-fn sniff(bytes: &[u8]) -> Option<&'static str> {
+pub(crate) fn sniff(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {

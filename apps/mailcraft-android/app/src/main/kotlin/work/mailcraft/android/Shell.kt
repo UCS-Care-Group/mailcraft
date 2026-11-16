@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 @file:OptIn(ExperimentalMaterial3Api::class)
+@file:Suppress("TooManyFunctions")
 
 package work.mailcraft.android
 
@@ -51,6 +52,8 @@ internal class ShellData(
     val chosenLanguage: String,
     /** What the account screens draw besides the list of accounts. */
     val accountsUi: AccountsUi = AccountsUi(),
+    /** What the Settings pages draw besides the accounts. */
+    val settingsUi: SettingsUi = SettingsUi(),
     /** What reading the outline came to: no accounts means none only when it is [OutlineStatus.Ready]. */
     val outline: OutlineStatus = OutlineStatus.Ready,
     /** The categories mail can be given, with their colours. */
@@ -59,8 +62,12 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
-    /** The message being read. */
+    /** The message being read, and how its pictures are coming. */
     val reading: ReadingUi = ReadingUi(),
+    /** What the owner said about pictures, and what is kept of them. */
+    val pictures: PicturesUi = PicturesUi(),
+    /** Senders' pictures by row id, when sender images are on (null when off). */
+    val avatars: Map<ULong, ByteArray>? = null,
 )
 
 /** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
@@ -87,9 +94,12 @@ internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
     val accounts: AccountActions = AccountActions(),
+    val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
+    val onPictures: (PicturePrefs) -> Unit = {},
+    val onClearPictures: () -> Unit = {},
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -176,6 +186,7 @@ internal fun AppShell(
         }
     }
     AccountDialogs(texts, data, actions.accounts)
+    SpaceQuestion(texts, data, actions.settings)
 }
 
 /** The screen the navigation state says: Add Account, Settings, or a tab. */
@@ -235,6 +246,13 @@ private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountAction
         PermissionQuestionDialog(texts, question, account?.email.orEmpty(), actions)
     }
     data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions, data.accountsUi.removeFailed) }
+}
+
+/** The question that floats over whatever screen is showing while a sync waits for room. */
+@Composable
+private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsActions) {
+    data.settingsUi.space?.let { SpaceDialog(texts, it, actions) }
+    RemovalDialogs(texts, data.settingsUi.removal, actions)
 }
 
 @Composable
@@ -319,7 +337,7 @@ private fun MailTab(
     expanded: Boolean,
     messageId: ULong?,
 ) {
-    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories)
+    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
@@ -339,7 +357,7 @@ private fun MailTab(
 
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, accounts, mail, onSwipe, reading)
+    ShellActions(onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures)
 
 @Composable
 private fun TabLabel(text: String) {

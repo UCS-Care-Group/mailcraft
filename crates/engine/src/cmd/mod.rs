@@ -22,6 +22,7 @@ pub mod calendar;
 pub mod calendar_extra;
 pub mod calendar_opened;
 pub mod calendar_settings;
+pub mod calendar_subscribed;
 pub mod category;
 #[cfg(test)]
 mod category_tests;
@@ -49,6 +50,9 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_properties_tests;
+pub mod followup;
+#[cfg(test)]
+mod followup_tests;
 pub mod format;
 #[cfg(test)]
 mod format_tests;
@@ -190,6 +194,7 @@ pub fn registry() -> Registry {
     v.extend(edit::specs());
     v.extend(mail::specs());
     v.extend(snooze::specs());
+    v.extend(followup::specs());
     v.extend(gmail_move::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
@@ -200,6 +205,7 @@ pub fn registry() -> Registry {
     v.extend(calendar::specs());
     v.extend(calendar_extra::specs());
     v.extend(calendar_opened::specs());
+    v.extend(calendar_subscribed::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());

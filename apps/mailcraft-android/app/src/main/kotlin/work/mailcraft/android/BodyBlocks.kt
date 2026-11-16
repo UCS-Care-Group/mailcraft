@@ -39,6 +39,8 @@ import uniffi.mailcraft_mobile.MarkerView
 internal class BodyEnv(
     val texts: Texts,
     val links: Map<String, LinkInfo>,
+    /** How each picture is coming along, by the reference a block names or its web address. */
+    val pictures: Map<String, PictureState>,
     /** The owner's colours for the lines a message does not colour itself. */
     val rule: Color,
     val onLink: (LinkInfo) -> Unit,

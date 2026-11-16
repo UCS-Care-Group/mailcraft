@@ -100,6 +100,7 @@ mod field_drag_tests;
 pub mod files;
 mod find_replace;
 mod folder_properties;
+mod follow_up_tick;
 mod font_index;
 pub mod forms;
 #[cfg(test)]
@@ -182,6 +183,7 @@ mod platform_tests;
 mod problem_log;
 pub mod reading;
 mod recent_attachments;
+mod reminder_dialog;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
@@ -231,6 +233,9 @@ mod signatures;
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
+mod subscribed;
+#[cfg(test)]
+mod subscribed_tests;
 mod symbol;
 mod sync_panel;
 pub mod task_sync;
@@ -276,6 +281,7 @@ pub use files::FileDialogRequest;
 pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
 pub use settings_notice::SettingsUnread;
+pub use subscribed::{SubscriptionDone, SubscriptionJob};
 pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
@@ -491,6 +497,13 @@ pub struct Services {
     /// public hosts only, no redirect, size and time capped). The answer, or why there is none,
     /// arrives through the channel. Absent in the browser and the tests: one click isn't offered.
     pub unsubscribe: Option<Box<dyn Fn(String) -> Receiver<Result<(), String>>>>,
+    /// Desktop: look at a subscribed calendar's file on the web (#209), on a background thread,
+    /// when the calendar is due: HTTPS only, public hosts only, no cookie, no referrer and no
+    /// credentials, size and time capped (`mailcraft_net::subscription::look`). The address is
+    /// the owner's and may hold a secret: it is never logged. What came back, or why nothing did,
+    /// arrives through the channel and the host wakes the UI. Absent in the browser and the
+    /// tests: subscribed calendars are then listed with what they held and not updated.
+    pub subscription: Option<Box<dyn Fn(SubscriptionJob) -> Receiver<SubscriptionDone>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -1044,7 +1057,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -1069,7 +1082,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "File › Options",
         r#"{"value"?: bool (default: toggle)} — whether a reply or a forward started in the main window opens in a window of its own rather than in the reading pane (off unless turned on; from a message's own window they always do). Answers the switch"#,
     ),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"zh_CN"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"zh_CN"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
         "ui.previewAttachment",
@@ -1597,6 +1610,8 @@ pub struct MailApp {
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
+    /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
+    subscribed: subscribed::Subscribed,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1700,6 +1715,8 @@ pub struct MailApp {
     idle: idle_watch::IdleWatches,
     /// When snoozed mail last had its Return times looked at ([`snooze_tick`]), in seconds.
     snooze_last: i64,
+    /// When follow-up reminders were last settled ([`follow_up_tick`]), in seconds.
+    follow_up_last: i64,
     /// JMAP accounts the owner pressed Send in while their secret wasn't at hand: each is asked
     /// for it once, when nothing else is under way ([`MailApp::ask_for_jmap_send`]).
     jmap_send_asks: std::collections::HashSet<Id>,
@@ -1884,6 +1901,7 @@ impl MailApp {
             rules: Default::default(),
             auto_replies: Default::default(),
             open_shared: Default::default(),
+            subscribed: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
@@ -1930,6 +1948,7 @@ impl MailApp {
             inbox_check: Default::default(),
             idle: Default::default(),
             snooze_last: 0,
+            follow_up_last: 0,
             jmap_send_asks: Default::default(),
             jmap_made: 0,
             last_autosave: 0.0,
@@ -2318,6 +2337,8 @@ impl MailApp {
         let r = windows::compose_window::after_run(self, id, &before, r);
         // Work Offline, File › Account.
         send_receive::after(self, id, &r);
+        // A subscribed calendar's address, which only this window keeps (#209).
+        self.subscribed_after(id, &params, &r);
         // Asked for the reminders: their window comes up, due or not.
         if r.is_ok() && id == "view.reminders" {
             self.reminders.asked_for = true;
@@ -2598,7 +2619,14 @@ impl MailApp {
                 self.status(tl!("Diagnostics copied. Nothing was sent."));
                 Ok(json!({"text": text}))
             }
-            "ui.sync" => self.start_sync(p),
+            "ui.sync" => {
+                // The subscribed calendars are brought up to date with it, when the owner asked
+                // for the run (#209).
+                if p.get("quiet").and_then(Value::as_bool) != Some(true) {
+                    self.refresh_subscribed();
+                }
+                self.start_sync(p)
+            }
             "ui.checkCalendar" => self.check_calendar(p),
             "ui.microsoftClientId" => {
                 let id = s("value").unwrap_or_default().trim();
@@ -2981,6 +3009,9 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        // The addresses of subscribed calendars already read stay in memory for the session (the
+        // owner turned remembering off, not the calendars): they are off the store, not off the window.
+        self.keep_read_subscription_addresses();
         self.secret_cache.clear();
         left
     }
@@ -4751,6 +4782,8 @@ impl MailApp {
             self.idle_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // The calendars subscribed to, when they are due ([`subscribed`]).
+            self.subscribed_tick();
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
@@ -4760,6 +4793,8 @@ impl MailApp {
         }
         // Snoozed mail whose Return time has come (#949).
         self.snooze_tick();
+        // Follow-up reminders that are due, or answered (#948).
+        self.follow_up_tick();
         reminders::tick(self, ctx);
         // What was done in the Reminders window, which has passes of its own (#771).
         reminders::carry_out(self, ctx);
