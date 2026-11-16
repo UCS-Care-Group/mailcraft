@@ -4,9 +4,7 @@
 
 package work.mailcraft.android
 
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -37,7 +35,8 @@ class AttachmentsScreenshotTest {
 
     private fun shoot(name: String, night: Boolean, fontScale: Float, content: @Composable () -> Unit) {
         paparazzi.unsafeUpdateConfig(Phone.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale))
-        paparazzi.snapshot(name) { CompositionLocalProvider(LocalDecodeInPlace provides true) { MailCraftTheme { Surface { content() } } } }
+        // (The message zone and locale are fixed, as for the other reading shots: the machine's own would show in the date.)
+        paparazzi.snapshot(name) { ShellShots.Fixed { content() } }
     }
 
     private fun pane(): ReadingUi {
