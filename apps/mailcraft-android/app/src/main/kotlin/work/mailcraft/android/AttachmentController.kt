@@ -206,6 +206,7 @@ internal class AttachmentController(
                 // What was read is judged again: a blocked kind never reaches the share sheet, whatever the row said.
                 is AttachmentBytes.Got -> when {
                     got.verdict == OpenVerdict.BLOCKED -> tell(AttachmentNotice.Said(got.blocked), gen)
+                    asksFirst(got.verdict) -> tell(AttachmentNotice.ShareFailed, gen)
                     gen != generation -> Unit
                     !withContext(io) { device.share(got.saveName, got.bytes) } ->
                         tell(AttachmentNotice.ShareFailed, gen)
