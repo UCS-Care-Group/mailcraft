@@ -154,7 +154,7 @@ msgid "(no recipients)"
 msgstr "(geen ontvangers)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(geen onderwerp)"
@@ -392,6 +392,12 @@ msgstr "Er wordt al een kopie van het postvak opgeslagen voor een overstap: wach
 #, fuzzy
 msgid "A copy of your whole mailbox is saved next to it first, as always. Mail in the Outbox isn't left behind: it is sent through Microsoft Graph."
 msgstr "Er wordt eerst, zoals altijd, een kopie van uw hele postvak ernaast opgeslagen. E-mail in Postvak UIT blijft niet achter: die wordt verzonden via Microsoft Graph."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "A date"
+msgstr "Een datum"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -750,7 +756,7 @@ msgid "Accounts"
 msgstr "Accounts"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Actions"
 msgstr "Acties"
@@ -794,6 +800,18 @@ msgstr "Account toevoegen"
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Agenda toevoegen"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Add Reminder"
+msgstr "Herinnering toevoegen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Add Reminder…"
+msgstr "Herinnering toevoegen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1032,6 +1050,12 @@ msgstr "Geavanceerde opties"
 #, fuzzy
 msgid "After"
 msgstr "Na"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
+msgstr "Na Verzenden wacht een bericht zo lang in het Postvak UIT en toont Ongedaan maken. Uit verstuurt het bij de volgende Verzenden/Ontvangen."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1334,6 +1358,12 @@ msgid "An authority on the way to a trusted one doesn't allow the certificate to
 msgstr "Een certificeringsautoriteit op de weg naar een vertrouwde staat het gebruik van dit certificaat niet toe."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+msgstr "Een https://- of webcal://-adres. Er wordt niets gelezen voordat u op Abonneren klikt. De agenda staat onder Andere agenda's, alleen-lezen, en wordt elk uur en bij Verzenden/Ontvangen vanaf het web bijgewerkt; u kunt een ander tijdstip kiezen in Bestand › Info. Het adres wordt opgevraagd via een versleutelde verbinding, zonder iets dat zegt wie u bent. Een privéadres bevat een geheim: het wordt bewaard als een wachtwoord, in de referentiekluis van uw systeem als u MailCraft aanmeldingen laat onthouden, en anders tot u afsluit."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "An import is under way"
@@ -1569,6 +1599,12 @@ msgstr "Verzonden regelwijzigingen toepassen"
 msgid "Apply Sent To-do Changes"
 msgstr "Verzonden to-dowijzigingen toepassen"
 
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Apply Subscribed Calendar"
+msgstr "Geabonneerde agenda toepassen"
+
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1789,6 +1825,12 @@ msgstr "Het DNS van uw domein wordt gevraagd…"
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
 msgstr "Vraagt alleen om e-mail, zonder de agenda en de contactpersonen, die later kunnen worden verbonden"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "At a date and time"
+msgstr "Op een datum en tijd"
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
@@ -1800,6 +1842,12 @@ msgstr "Er kunnen hoogstens {max} contactpersonen tegelijk worden samengevoegd."
 #, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
 msgstr "Er kunnen hoogstens {n} agenda's op adres worden geopend: verwijder er eerst een."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
+msgstr "Er kunnen maximaal {n} agenda's worden geabonneerd: zeg eerst een abonnement op."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2330,6 +2378,12 @@ msgid "Calendar and contacts need your permission: File › Info › Connect cal
 msgstr "Agenda en contactpersonen hebben uw toestemming nodig: Bestand › Info › Agenda en contactpersonen verbinden"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
+msgstr "Agenda's van het web (een .ics-adres) die hier alleen-lezen actueel worden gehouden. Agenda › Agenda openen › Van internet… abonneert op een agenda."
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Calendars you opened by address need your permission to be read: open one again to be asked"
@@ -2429,6 +2483,12 @@ msgstr "Vergadering annuleren"
 msgid "Cancel Opening the Mailbox"
 msgstr "Openen van het postvak annuleren"
 
+#. command label, interface
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Cancel Send"
+msgstr "Verzenden annuleren"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -2522,6 +2582,12 @@ msgstr "Automatische antwoorden wijzigen"
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "Terugkerend item wijzigen"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Change Send Time"
+msgstr "Verzendtijd wijzigen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2790,6 +2856,12 @@ msgstr "Kies aanmelden met Google, of kies Gebruik een app-wachtwoord in plaats 
 #, fuzzy
 msgid "Choose a category"
 msgstr "Een categorie kiezen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Choose a date…"
+msgstr "Kies een datum…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3531,6 +3603,18 @@ msgid "Couldn't send mail: the account has no outgoing server"
 msgstr "E-mail kon niet worden verzonden: het account heeft geen server voor uitgaande e-mail"
 
 #. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Couldn't update {name}: {why}. What it held stays."
+msgstr "{name} kon niet worden bijgewerkt: {why}. De huidige inhoud blijft."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Couldn't update: {why}. What it held stays."
+msgstr "Bijwerken is mislukt: {why}. De huidige inhoud blijft."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Country"
@@ -3620,8 +3704,8 @@ msgstr "Donker thema"
 msgid "Data on this computer"
 msgstr "Gegevens op deze computer"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Datum"
@@ -3731,6 +3815,26 @@ msgstr "Inspringing verkleinen"
 #, fuzzy
 msgid "Default"
 msgstr "Standaard"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delay Delivery"
+msgstr "Bezorging uitstellen"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] "Uitgesteld bericht gaat {when}"
+msgstr[1] "{n} uitgestelde berichten: het volgende gaat {when}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Delayed until {when}"
+msgstr "Uitgesteld tot {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4037,7 +4141,7 @@ msgid "Dismiss All"
 msgstr "Alles negeren"
 
 #. command label
-#: crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Dismiss Reminder"
 msgstr "Herinnering negeren"
@@ -4083,6 +4187,18 @@ msgstr "Weergavenaam"
 #, fuzzy
 msgid "Do"
 msgstr "Actie"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Do not deliver before a date and time"
+msgstr "Niet bezorgen vóór een datum en tijd"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Do not deliver before:"
+msgstr "Niet bezorgen vóór:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4362,6 +4478,12 @@ msgstr "Vervalt"
 msgid "Due Date"
 msgstr "Einddatum"
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Due Reminders"
+msgstr "Verlopen herinneringen"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4637,6 +4759,12 @@ msgstr "Eindigt op"
 msgid "Ends on a day"
 msgstr "Eindigt op een dag"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Enter a date and a time."
+msgstr "Voer een datum en een tijd in."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4721,13 +4849,29 @@ msgstr "Elke werkdag"
 msgid "Every year"
 msgstr "Elk jaar"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt crates/ui-egui/src/subscribed.rs
 #, fuzzy
 msgid "Every {n} day"
 msgid_plural "Every {n} days"
 msgstr[0] "Elke {n} dag"
 msgstr[1] "Elke {n} dagen"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} hour"
+msgid_plural "Every {n} hours"
+msgstr[0] "Elk uur"
+msgstr[1] "Elke {n} uur"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} minute"
+msgid_plural "Every {n} minutes"
+msgstr[0] "Elke minuut"
+msgstr[1] "Elke {n} minuten"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4966,7 +5110,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Er zijn nog minder dan twee van deze contactpersonen, dus er is niets om samen te voegen."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Bestand"
@@ -5125,6 +5269,12 @@ msgstr "Bericht markeren"
 msgid "Flag for follow-up"
 msgstr "Markeren voor opvolgen"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Flag the message and remind me:"
+msgstr "Markeer het bericht en herinner mij:"
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
@@ -5138,7 +5288,7 @@ msgid "Fold the calendars of this group away"
 msgstr "De agenda's van deze groep invouwen"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Map"
@@ -5225,10 +5375,16 @@ msgid ""
 "Up"
 msgstr "Opvolgen"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
+msgstr "Opvolgen"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "Follow up"
 msgstr "Opvolgen"
 
 #. interface
@@ -5436,6 +5592,12 @@ msgstr "vrijdag"
 #, fuzzy
 msgid "From"
 msgstr "Van"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "From Internet…"
+msgstr "Van internet…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6065,7 +6227,7 @@ msgid "Hold Unsent Mail"
 msgstr "Onverzonden e-mail vasthouden"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -6135,6 +6297,12 @@ msgstr "Als MailCraft nog in de testmodus van Google is, vraag de ontwikkelaar e
 #, fuzzy
 msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
 msgstr "Als er geen browser is geopend, controleer of deze computer een standaardbrowser heeft (op Windows: Instellingen, Apps, Standaard-apps) en druk daarna op De pagina opnieuw openen."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
+msgstr "Als niemand aan wie het bericht is gestuurd dan in het gesprek heeft gereageerd, wordt een herinnering geactiveerd en het bericht gemarkeerd."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -6463,6 +6631,12 @@ msgid "In the Outbox: it is on its way"
 msgstr "In het Postvak UIT: het is onderweg"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "In the Outbox: it waits for its time"
+msgstr "In het Postvak UIT: het wacht op zijn tijd"
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "In the folder pane's order"
@@ -6541,7 +6715,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "E-mail indexeren: {percent}%"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Info"
@@ -6799,6 +6973,12 @@ msgid "Items in this calendar are kept on this computer and nowhere else. Above 
 msgstr "Items in deze agenda worden op deze computer bewaard en nergens anders. Boven de agenda kunt u ze verplaatsen naar de agenda van uw account."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
+msgstr "Het adres is niet bewaard (het kan een geheim bevatten): voer het opnieuw in om deze agenda bij te werken. Intussen wordt de huidige inhoud getoond."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
@@ -6997,6 +7177,12 @@ msgstr "Taken bijhouden met Microsoft To Do"
 #, fuzzy
 msgid "Keep Waiting"
 msgstr "Blijven wachten"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
+msgstr "Houd hier een agenda van het web actueel: het adres eindigt op .ics of begint met webcal://"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -7425,7 +7611,7 @@ msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Gemaakt in een ander programma of op het web, met onderdelen die MailCraft niet kan tonen"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "E-mail"
@@ -7877,7 +8063,7 @@ msgid "Makes one test appointment a year from today in your account's calendar, 
 msgstr "Maakt één testafspraak een jaar na vandaag in de agenda van uw account, wijzigt die, verwijdert die weer en toont wat de server antwoordde"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Manage Calendars"
 msgstr "Agenda's beheren"
@@ -8065,7 +8251,7 @@ msgstr[0] "{n} contactpersoon samenvoegen…"
 msgstr[1] "{n} contactpersonen samenvoegen…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Bericht"
@@ -8339,7 +8525,7 @@ msgid "Month"
 msgstr "Maand"
 
 #. ribbon location
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "More Options"
 msgstr "Meer opties"
@@ -8587,6 +8773,12 @@ msgstr "Mijn organisatie moet MailCraft eerst goedkeuren: wat u moet doen"
 #, fuzzy
 msgid "Name"
 msgstr "Naam"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Name (optional)"
+msgstr "Naam (optioneel)"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8973,6 +9165,12 @@ msgid "No Public keys are kept yet."
 msgstr "Er worden nog geen openbare sleutels bewaard."
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "No Reminder"
+msgstr "Geen herinnering"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No Send/Receive is running"
@@ -9230,6 +9428,12 @@ msgstr "Geen herinnering"
 msgid "No reminders are due."
 msgstr "Er zijn geen herinneringen aan de beurt."
 
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "No reply yet"
+msgstr "Nog geen antwoord"
+
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -9471,6 +9675,12 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Niet nu: het wordt geïnstalleerd wanneer u MailCraft afsluit."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Not read yet."
+msgstr "Nog niet gelezen."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Not saved"
@@ -9663,7 +9873,7 @@ msgid "Numbering"
 msgstr "Nummering"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9685,6 +9895,12 @@ msgstr "okt"
 #, fuzzy
 msgid "October"
 msgstr "oktober"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Off"
+msgstr "Uit"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -9873,6 +10089,12 @@ msgid "Only for this time, and send it"
 msgstr "Alleen deze keer, en verzenden"
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Only if nobody replies"
+msgstr "Alleen als niemand antwoordt"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
@@ -10014,6 +10236,12 @@ msgstr "Openen & exporteren"
 msgid "Open Attachment"
 msgstr "Bijlage openen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Open Calendar"
+msgstr "Agenda openen"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -10073,6 +10301,12 @@ msgstr "Resultaat van de server openen"
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Gedeelde agenda openen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Open Shared Calendar…"
+msgstr "Gedeelde agenda openen…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10243,7 +10477,7 @@ msgid "Optional"
 msgstr "Optioneel"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opties"
@@ -10737,7 +10971,7 @@ msgid "Postal code"
 msgstr "Postcode"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Preferences"
 msgstr "Voorkeuren"
@@ -10976,6 +11210,12 @@ msgstr "Snelle toegang"
 msgid "Quit MailCraft"
 msgstr "Stop MailCraft"
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Raise Due Reminders"
+msgstr "Verlopen herinneringen activeren"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11211,6 +11451,18 @@ msgstr "Onthouden in de instellingen; Bestand › Opties vermeldt de afzenders e
 msgid "Remind me again later"
 msgstr "Mij later opnieuw herinneren"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remind me if nobody replies"
+msgstr "Herinner mij als niemand antwoordt"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Remind me if nobody replies by:"
+msgstr "Herinner mij als niemand antwoordt voor:"
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -11224,7 +11476,7 @@ msgid "Reminder for new appointments"
 msgstr "Herinnering voor nieuwe afspraken"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Herinneringen"
@@ -11324,6 +11576,12 @@ msgid "Remove Recurrence"
 msgstr "Terugkeerpatroon verwijderen"
 
 #. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remove Reminder"
+msgstr "Herinnering verwijderen"
+
+#. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Remove Shared Calendar"
@@ -11392,6 +11650,12 @@ msgstr "Verwijderen uit favorieten"
 #, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Verwijderen uit veilige of geblokkeerde afzenders"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Remove the delay"
+msgstr "Uitstel verwijderen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12456,7 +12720,7 @@ msgid "Select the message before previewing its attachment."
 msgstr "Selecteer het bericht voordat u een voorbeeld van de bijlage bekijkt."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "Verzenden"
@@ -12468,7 +12732,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
@@ -12484,6 +12748,18 @@ msgstr "Opnieuw verzenden"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "Annulering verzenden"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later"
+msgstr "Later verzenden"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later…"
+msgstr "Later verzenden…"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -12580,6 +12856,12 @@ msgid "Send my sign-in"
 msgstr "Mijn aanmelding verzenden"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send options"
+msgstr "Verzendopties"
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Send report"
@@ -12632,6 +12914,12 @@ msgstr "Het antwoord nu verzenden"
 #, fuzzy
 msgid "Send the update to them? The account's server sends them the change by mail."
 msgstr "De update naar hen verzenden? De server van het account stuurt hun de wijziging per e-mail."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send this message, but not before:"
+msgstr "Dit bericht verzenden, maar niet eerder dan:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12782,6 +13070,12 @@ msgstr "Bezig met verzenden en ontvangen…"
 #, fuzzy
 msgid "Sending from a shared mailbox"
 msgstr "Verzenden vanuit een gedeelde postbus"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Sending in {n} s"
+msgstr "Verzenden over {n} s"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -13636,6 +13930,12 @@ msgid "Snooze"
 msgstr "Uitstellen"
 
 #. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Snooze Reminder"
+msgstr "Herinnering uitstellen"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Snooze Reminders"
@@ -13929,6 +14229,42 @@ msgstr "Onderwerp bevat"
 msgid "Subject:"
 msgstr "Onderwerp:"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Subscribe"
+msgstr "Abonneren"
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Subscribe to Internet Calendar"
+msgstr "Abonneren op internetagenda"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Subscribed Calendar Settings"
+msgstr "Instellingen van geabonneerde agenda's"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Subscribed Calendars Due"
+msgstr "Geabonneerde agenda's die aan de beurt zijn"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Subscribed calendars"
+msgstr "Geabonneerde agenda's"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
+msgstr "Geabonneerd op {name}. De agenda staat onder Andere agenda's, alleen-lezen, en wordt elk uur vanaf het web bijgewerkt."
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -14043,7 +14379,7 @@ msgid "Tables"
 msgstr "Tabellen"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Labels"
@@ -14271,10 +14607,28 @@ msgid "That account is gone."
 msgstr "Dat account bestaat niet meer."
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
+msgstr "Dat adres hoort bij een andere host dan de agenda. Abonneer op het nieuwe adres om een verhuisde agenda te volgen."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "That calendar is a copy of one on the web: it stays where it is."
+msgstr "Die agenda is een kopie van een agenda op het web: hij blijft waar hij is."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "That calendar is kept by an account's server already."
 msgstr "Die agenda wordt al bewaard door de server van een account."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "That calendar isn't a subscribed one."
+msgstr "Die agenda is geen geabonneerde agenda."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -14529,6 +14883,12 @@ msgid "The account's server makes it when the meeting is sent; the link to join 
 msgstr "De server van het account maakt deze aan wanneer de vergadering wordt verzonden; de koppeling om deel te nemen komt daarbij terug."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The address of the calendar"
+msgstr "Het adres van de agenda"
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The approval didn't go through."
@@ -14569,6 +14929,12 @@ msgstr "De browser opent geen bestanden van het systeem"
 #, fuzzy
 msgid "The calendar \"{name}\" can only be read: its owner hasn't let this account change it."
 msgstr "De agenda „{name}” kan alleen worden gelezen: de eigenaar heeft dit account niet toegestaan deze te wijzigen."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
+msgstr "De agenda '{name}' is een kopie van een agenda op het web: hij kan hier alleen worden gelezen."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14617,6 +14983,12 @@ msgstr "De agendaverbinding werkt: wat is verzonden, is aangekomen, en de server
 #, fuzzy
 msgid "The calendar could not be read."
 msgstr "De agenda kon niet worden gelezen."
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "The calendar couldn't be added"
+msgstr "De agenda kon niet worden toegevoegd"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -14689,6 +15061,12 @@ msgstr ""
 "De agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
 "\n"
 "De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+msgstr "De agenda {name} en de afspraken die op deze computer zijn bewaard worden verwijderd, evenals het adres dat ervoor is bewaard. Er wordt niets verzonden; u kunt opnieuw abonneren met het adres."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -14869,6 +15247,12 @@ msgstr "De afspraak bestaat niet meer."
 #, fuzzy
 msgid "The file couldn't be read ({why})"
 msgstr "Het bestand kon niet worden gelezen ({why})"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
+msgstr "Het bestand heeft meer afspraken dan er worden bewaard ({one} per agenda, {all} in totaal): de rest blijft buiten beschouwing."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15155,6 +15539,12 @@ msgid "The message isn't there any more"
 msgstr "Het bericht is er niet meer"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
+msgstr "Het bericht wacht in uw Postvak UIT, waar u het kunt wijzigen of annuleren. MailCraft verstuurt het op dat moment; draait MailCraft dan niet, dan gaat het bij de volgende keer."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
@@ -15207,6 +15597,12 @@ msgstr "De naam is een ander domein."
 #, fuzzy
 msgid "The name of someone you know."
 msgstr "De naam van iemand die u kent."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The name the calendar gives itself"
+msgstr "De naam die de agenda zichzelf geeft"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15779,6 +16175,12 @@ msgid "The text wasn't found."
 msgstr "De tekst is niet gevonden."
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr "De tijd wordt op deze computer bewaard; een markering gaat zoals elke markering naar de server van het account."
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
@@ -16190,6 +16592,12 @@ msgstr "Deze build controleert niet op nieuwe versies."
 #, fuzzy
 msgid "This calendar can only be read: new items can't go to it"
 msgstr "Deze agenda kan alleen worden gelezen: nieuwe items kunnen er niet naartoe"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
+msgstr "Deze agenda is een kopie van een agenda op het web. Zeg het abonnement op om hem te verwijderen."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16635,6 +17043,18 @@ msgstr "Dit bericht heeft afbeeldingen op het web. Deze build kan ze niet downlo
 msgid "This message hasn't been sent."
 msgstr "Dit bericht is nog niet verzonden."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is delayed. It goes {when}."
+msgstr "Dit bericht is uitgesteld. Het gaat {when}."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is due and goes with the next Send/Receive."
+msgstr "Dit bericht is aan de beurt en gaat met de volgende Verzenden/Ontvangen."
+
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -16844,7 +17264,7 @@ msgid "Tighter Spacing"
 msgstr "Kleinere afstand"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "Tijd"
@@ -17260,11 +17680,17 @@ msgstr "Onder een map op deze computer:"
 msgid "Underline"
 msgstr "Onderstrepen"
 
-#. android, command label, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Ongedaan maken"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Undo Send"
+msgstr "Verzenden ongedaan maken"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -17325,10 +17751,22 @@ msgid "Unsaved Message"
 msgstr "Niet-opgeslagen bericht"
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Afmelden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Unsubscribe from Calendar"
+msgstr "Abonnement op agenda opzeggen"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Unsubscribe from Internet Calendar"
+msgstr "Abonnement op internetagenda opzeggen"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -17384,6 +17822,18 @@ msgstr "Actueel"
 msgid "Upcoming"
 msgstr "Aankomend"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Update Now"
+msgstr "Nu bijwerken"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Update Subscribed Calendars"
+msgstr "Geabonneerde agenda's bijwerken"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
 #, fuzzy
@@ -17421,6 +17871,12 @@ msgstr[0] "{n} minuut geleden bijgewerkt"
 msgstr[1] "{n} minuten geleden bijgewerkt"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Updated {when} · {held}"
+msgstr "Bijgewerkt {when} · {held}"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
@@ -17443,6 +17899,12 @@ msgstr "Gebruik in plaats daarvan aanmelden met Google"
 #, fuzzy
 msgid "Use Send/Receive to sign in to {address}"
 msgstr "Gebruik Verzenden/ontvangen om u aan te melden bij {address}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use This Address"
+msgstr "Dit adres gebruiken"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17473,6 +17935,12 @@ msgstr "Gebruik een app-wachtwoord"
 #, fuzzy
 msgid "Use an app password instead"
 msgstr "Gebruik in plaats daarvan een app-wachtwoord"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Use https:// instead"
+msgstr "In plaats daarvan https:// gebruiken"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17617,6 +18085,18 @@ msgstr "Bron weergeven"
 #, fuzzy
 msgid "Violet"
 msgstr "Violet"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Wait Before Sending"
+msgstr "Wachten voor verzenden"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Wait before sending"
+msgstr "Wachten voor verzenden"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18579,8 +19059,8 @@ msgstr "er wordt een .pst-bestand in dit postvak geïmporteerd: wacht tot het kl
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
-msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
-msgstr "een .pst-bestand wordt alleen in een agenda op deze computer geïmporteerd, nooit in een account op een server"
+msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
+msgstr "Een .pst-bestand wordt alleen geïmporteerd in een eigen agenda op deze computer, nooit in een account op een server of een geabonneerde agenda"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -18629,6 +19109,12 @@ msgstr "een contact heeft een naam, een bedrijf of een e-mailadres nodig"
 #, fuzzy
 msgid "a contact's card keeps at most 32 keys"
 msgstr "de kaart van een contactpersoon bewaart maximaal 32 sleutels"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr "Een concept kan geen herinnering hebben: verstuur het eerst, of gebruik Opvolgen in het bericht zelf"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -18923,6 +19409,12 @@ msgstr "kan niet worden gelezen"
 #, fuzzy
 msgid "cancelled"
 msgstr "geannuleerd"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "choose a time within a year"
+msgstr "kies een tijd binnen een jaar"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -19448,7 +19940,7 @@ msgid "no calendar was opened by address"
 msgstr "geen agenda is op adres geopend"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "geen agenda met id {id}"
@@ -19508,13 +20000,13 @@ msgid "no message being written has the id {id}"
 msgstr "geen bericht dat wordt geschreven, heeft het id {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
@@ -19616,6 +20108,12 @@ msgid "nobody else is invited to this appointment"
 msgstr "er is niemand anders uitgenodigd voor deze afspraak"
 
 #. what a command says
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "none of these messages has a reminder showing"
+msgstr "geen van deze berichten toont een herinnering"
+
+#. what a command says
 #: crates/engine/src/cmd/snooze.rs
 #, fuzzy
 msgid "none of these messages is snoozed"
@@ -19650,6 +20148,12 @@ msgstr "er is niets geselecteerd in het bericht"
 #, fuzzy
 msgid "nothing is waiting to be imported"
 msgstr "er wacht niets om te worden geïmporteerd"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "nothing is waiting to be sent: it is on its way already"
+msgstr "er wacht niets op verzending: het is al onderweg"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -19868,6 +20372,12 @@ msgid "sign-in failed: {reason}"
 msgstr "aanmelden mislukt: {reason}"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "sign-in needed"
+msgstr "aanmelden vereist"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
@@ -19896,6 +20406,12 @@ msgstr "dat is het eigen adres van het account: noem dat van het gedeelde postva
 #, fuzzy
 msgid "that is too much to paste into one message"
 msgstr "dat is te veel om in één bericht te plakken"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that is too soon: pick a time at least a minute from now (or send it now)"
+msgstr "dat is te vroeg: kies een tijd minstens een minuut vanaf nu (of verstuur het nu)"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19928,6 +20444,12 @@ msgid "that message is a draft: open it to send it"
 msgstr "dat bericht is een concept: open het om het te verzenden"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message is being sent now"
+msgstr "dat bericht wordt nu verzonden"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message isn't a draft"
@@ -19944,6 +20466,24 @@ msgstr "dat bericht wordt niet vastgehouden"
 #, fuzzy
 msgid "that message isn't here"
 msgstr "dat bericht is hier niet"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message isn't waiting in the Outbox"
+msgstr "dat bericht wacht niet in het Postvak UIT"
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "that step changes a message that is open for writing: close it first"
+msgstr "deze stap wijzigt een bericht dat open staat om te schrijven: sluit het eerst"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that time has passed: choose a time in the future"
+msgstr "die tijd is voorbij: kies een tijd in de toekomst"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20245,6 +20785,12 @@ msgstr "de import werd gestopt"
 msgid "the key is larger than a contact's card keeps one"
 msgstr "de sleutel is groter dan de kaart van een contactpersoon er een bewaart"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the last Send/Receive had problems"
+msgstr "de laatste Verzenden/Ontvangen had problemen"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20258,12 +20804,6 @@ msgid "the mailbox couldn't be saved first, so it stays open ({e})"
 msgstr "het postvak kon niet eerst worden opgeslagen, dus het blijft open ({e})"
 
 #. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "the mailbox has no calendar"
-msgstr "het postvak heeft geen agenda"
-
-#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "the mailbox has no folders"
@@ -20274,6 +20814,12 @@ msgstr "het postvak heeft geen mappen"
 #, fuzzy
 msgid "the mailbox isn't kept in a file, so content outside memory can't be read"
 msgstr "het postvak wordt niet in een bestand bewaard, dus inhoud buiten het geheugen kan niet worden gelezen"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the mailbox wasn't opened"
+msgstr "de mailbox is niet geopend"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/find.rs
@@ -20376,6 +20922,12 @@ msgstr "het platform weigerde of faalde"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "het voorgestelde einde ligt niet na het voorgestelde begin"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "the reminder time must be in the future"
+msgstr "de tijd van de herinnering moet in de toekomst liggen"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20828,7 +21380,7 @@ msgid "there are too many accounts"
 msgstr "er zijn te veel accounts"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "er zijn te veel agenda's"
@@ -20954,7 +21506,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "deze Verzenden/ontvangen was voor de eerder genoemde server {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
 msgstr "dit account heeft geen map Concepten"
@@ -20982,6 +21534,12 @@ msgstr "dit account heeft geen map {folder}"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "dit account mag het niet opslaan"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr "dit account verstuurt geen e-mail, dus een bericht kan niet op een tijd wachten: verstuur het nu of bewaar het als concept"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -21258,6 +21816,12 @@ msgstr "dit exemplaar wordt niet vanuit de MailCraft-app uitgevoerd."
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "dit exemplaar van MailCraft is niet met het installatieprogramma (.msi) geïnstalleerd, waardoor Windows het niet herkent."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "working offline"
+msgstr "offline"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -22017,7 +22581,7 @@ msgstr[0] "{n} kopie die u hebt gewijzigd (de vlag, categorieën, gelezenmarkeri
 msgstr[1] "{n} kopieën die u hebt gewijzigd (de vlag, categorieën, gelezenmarkering of een to-do) blijven bewaard."
 
 #. date and time, interface
-#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "{n} day"
 msgid_plural "{n} days"
@@ -22039,6 +22603,14 @@ msgid "{n} declined"
 msgid_plural "{n} declined"
 msgstr[0] "{n} afgewezen"
 msgstr[1] "{n} afgewezen"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
+msgstr[0] "{n} uitgesteld bericht ging niet op zijn tijd"
+msgstr[1] "{n} uitgestelde berichten gingen niet op hun tijd"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -22612,6 +23184,14 @@ msgid "{n} s"
 msgstr "{n} s"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] "{n} seconde"
+msgstr[1] "{n} seconden"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "{n} selected"
@@ -22937,6 +23517,13 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 #~ msgid "{name} isn't a Microsoft or Exchange server account"
 #~ msgstr "{name} is geen Microsoft- of Exchange-serveraccount"
+
+#~ msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+#~ msgstr "een .pst-bestand wordt alleen in een agenda op deze computer geïmporteerd, nooit in een account op een server"
+
+#, fuzzy
+#~ msgid "the mailbox has no calendar"
+#~ msgstr "het postvak heeft geen agenda"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
