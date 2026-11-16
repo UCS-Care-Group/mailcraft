@@ -34,9 +34,22 @@ internal data class Remembered(
 /** What the core said: the next reminders not yet shown, and which of those shown are still to come. */
 internal data class ReminderAnswer(val reminders: List<ScheduledReminder>, val kept: Set<Long> = emptySet())
 
+/**
+ * How long after its time a snooze that never came is kept: its alarm may still be on its way (a
+ * snooze stays until it is shown or called off), but one lost to a restart is not kept for ever.
+ */
+private const val SNOOZE_KEPT_AFTER_MILLIS = 24L * 60L * 60L * 1000L
+
+/** The snoozes still owed: shown when their alarm comes, until a day after their time. */
+internal fun owedSnoozes(remembered: Remembered, nowMillis: Long): Map<Long, Long> =
+    remembered.snoozed.filterValues { it > nowMillis.saturatingMinus(SNOOZE_KEPT_AFTER_MILLIS) }
+
+private fun Long.saturatingMinus(other: Long): Long =
+    if (this < Long.MIN_VALUE + other) Long.MIN_VALUE else this - other
+
 /** The keys the core is asked to leave out: shown or dismissed, and not snoozed (a snooze is set again). */
 internal fun skipped(remembered: Remembered, nowMillis: Long): List<Long> {
-    val snoozed = remembered.snoozed.filterValues { it > nowMillis }.keys
+    val snoozed = owedSnoozes(remembered, nowMillis).keys
     return remembered.handled.filter { it !in snoozed }
 }
 
@@ -77,7 +90,7 @@ internal fun planReminders(
     nowMillis: Long,
     on: Boolean,
 ): ReminderPlan {
-    val live = remembered.snoozed.filterValues { it > nowMillis }
+    val live = owedSnoozes(remembered, nowMillis)
     if (!on) {
         val all = (remembered.scheduled.keys + live.keys).distinct()
         return ReminderPlan(emptyList(), all, emptyList(), Remembered(handled = remembered.handled))
@@ -109,11 +122,12 @@ internal fun handledOne(remembered: Remembered, key: Long): Remembered {
 }
 
 /**
- * An alarm of [key] came: whether it is shown (the last schedule still has it, or it is snoozed),
- * and [remembered] with it handled when it is.
+ * An alarm of [key] came: whether it is shown (a snooze is owed, or the last schedule still has it
+ * and it wasn't shown already: an alarm set again by a refresh that raced the first one shows
+ * nothing), and [remembered] with it handled when it is.
  */
 internal fun firing(remembered: Remembered, key: Long): Pair<Remembered, Boolean> {
-    val known = key in remembered.scheduled || key in remembered.snoozed
+    val known = key in remembered.snoozed || (key in remembered.scheduled && key !in remembered.handled)
     return (if (known) handledOne(remembered, key) else remembered) to known
 }
 

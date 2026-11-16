@@ -84,8 +84,11 @@ class RemindersTest {
         val until = NOW + 5 * 60_000
         val plan = planReminders(ReminderAnswer(listOf(reminder(1, 2))), snoozedOne(shown, 1, until), NOW, on = true)
         assertEquals(listOf(until), plan.set.map { it.atMillis })
-        // A snooze whose time went is forgotten.
-        val gone = snoozedOne(shown, 1, NOW - 1)
+        // A snooze whose time went but that hasn't come yet is still owed; a day on it is forgotten.
+        val late = snoozedOne(shown, 1, NOW - 1)
+        val lateSet = planReminders(ReminderAnswer(listOf(reminder(1, 2))), late, NOW, on = true).set
+        assertEquals(listOf(NOW - 1), lateSet.map { it.atMillis })
+        val gone = snoozedOne(shown, 1, NOW - 25 * HOUR * 1000)
         assertTrue(planReminders(ReminderAnswer(listOf(reminder(1, 2))), gone, NOW, on = true).set.isEmpty())
     }
 
@@ -177,5 +180,26 @@ class RemindersTest {
         assertEquals(listOf(1L), after.handled)
         assertEquals(kept to false, firing(kept, 99))
         assertTrue(firing(snoozedOne(Remembered(), 7, NOW), 7).second)
+    }
+
+    @Test
+    fun aSnoozeOfAStartedEventIsShownEvenWhenTwoRefreshesComeBeforeIt() {
+        val before = planReminders(ReminderAnswer(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
+        val until = NOW + 2 * HOUR * 1000 + 60_000
+        val snoozed = snoozedOne(handledOne(before, 1), 1, until)
+        // The event started; a refresh before the snooze's time and one after it, then its alarm.
+        val first = planReminders(ReminderAnswer(emptyList()), snoozed, until - 1, on = true).remembered
+        val second = planReminders(ReminderAnswer(emptyList()), first, until + 1, on = true).remembered
+        assertTrue(firing(second, 1).second)
+        assertTrue(skipped(second, until + 1).isEmpty())
+    }
+
+    @Test
+    fun anAlarmSetAgainByARefreshThatRacedTheFirstShowsNothing() {
+        val remembered = planReminders(ReminderAnswer(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
+        // A refresh works its plan out, the alarm fires, then the plan's alarm for the same key comes.
+        val (afterFirst, shown) = firing(remembered, 1)
+        assertTrue(shown)
+        assertEquals(false, firing(afterFirst, 1).second)
     }
 }
