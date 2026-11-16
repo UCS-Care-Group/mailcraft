@@ -13,7 +13,7 @@
 //! The HTML is the sender's: it is read once, to its end, with caps on the tags looked at and
 //! the ids kept.
 
-use crate::Attachment;
+use crate::{Attachment, Message};
 
 /// Most content ids kept from one body.
 pub const MAX_SHOWN_IDS: usize = 4_096;
@@ -176,8 +176,28 @@ fn content_id(src: &[u8]) -> Option<String> {
     std::str::from_utf8(id).ok().map(str::to_string)
 }
 
+/// The place of the attachment of `message` a `cid:` address names, found as the reading pane,
+/// a print and a reply find it: the address compared with each part's `Content-ID` as written,
+/// then with `%xx` decoded, then without regard to letter case. Every spelling of one part's id
+/// gives the same place, so a caller keeps what it takes of a part by its place.
+pub fn cid_part(message: &Message, src: &str) -> Option<usize> {
+    let src = src.trim();
+    let id = src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
+    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
+    if id.is_empty() {
+        return None;
+    }
+    let decoded = percent_decode(id);
+    let parts = || message.attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
+    parts()
+        .find(|(_, a)| a.content_id == id)
+        .or_else(|| parts().find(|(_, a)| a.content_id == decoded))
+        .or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(id) || a.content_id.eq_ignore_ascii_case(&decoded)))
+        .map(|(i, _)| i)
+}
+
 /// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.
-fn percent_decode(text: &str) -> String {
+pub fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

@@ -1076,7 +1076,7 @@ msgid "Agenda"
 msgstr "Agenda"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "All"
 msgstr "Wszystkie"
@@ -1978,6 +1978,11 @@ msgid "Attachments can't be opened here: save it with Save As instead."
 msgstr "Załączników nie można tu otworzyć: zapisz go za pomocą polecenia Zapisz jako."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Attachments:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Attendance"
@@ -2470,7 +2475,7 @@ msgid "Can't sign"
 msgstr "Nie można podpisać"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/printing.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Anuluj"
@@ -2569,8 +2574,8 @@ msgstr "Kategoryzuj"
 msgid "Cc"
 msgstr "DW"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Cc:"
 msgstr "DW:"
@@ -3300,6 +3305,11 @@ msgstr "Konwersacje"
 #, fuzzy
 msgid "Copied. Paste it into mail or chat for your administrator."
 msgstr "Skopiowano. Wklej to do wiadomości lub czatu dla administratora."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Copies"
+msgstr ""
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -4425,6 +4435,11 @@ msgstr "Pobranych obrazów i otwartych załączników nie można rozróżnić we
 #, fuzzy
 msgid "Downloaded {name}"
 msgstr "Pobrano {name}"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Downloaded {name}: open it to print"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -5688,8 +5703,8 @@ msgstr "Spoza Twojej organizacji."
 msgid "From {name}"
 msgstr "Od {name}"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "From:"
 msgstr "Od:"
@@ -7442,6 +7457,11 @@ msgstr "Później pozostawia na razie to konto na IMAP. Możesz przełączyć je
 msgid "Lay this calendar over the others"
 msgstr "Nałóż ten kalendarz na pozostałe"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Laying out the pages…"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7483,6 +7503,11 @@ msgstr "Skonfiguruję konto ręcznie"
 #, fuzzy
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
 msgstr "Poinformuj innych, że jesteś nieobecny lub przez pewien czas nie możesz odpowiadać: skrzynka pocztowa odpowiada automatycznie"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Letter"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -7627,6 +7652,11 @@ msgstr "Adres łudząco podobny do innego."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Sprawdzanie certyfikatu serwera…"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Looking for printers…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -10569,6 +10599,11 @@ msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which
 msgstr "Otwarto przy użyciu logowania użytkownika {owner}. Wymaga to pełnego dostępu do skrzynki pocztowej, który nadaje administrator Twojej organizacji. Microsoft raz zapyta, czy pozwolić programowi MailCraft odczytywać i zmieniać udostępnione skrzynki pocztowe. To, co w niej zmienisz, trafia do niej. Wiadomości napisane w niej są wysyłane z jej adresu, a wysyłanie jako ta skrzynka wymaga uprawnienia Wyślij jako lub Wyślij w imieniu: Microsoft zapyta jeszcze raz przy pierwszym wysłaniu."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opened {name} to print"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Opening Mail Attachment"
@@ -10609,6 +10644,11 @@ msgstr "Otwieranie…"
 #, fuzzy
 msgid "Opens GitHub's page in your browser, filled in: you check it and submit it there."
 msgstr "Otwiera w przeglądarce wypełnioną stronę GitHuba: sprawdzasz ją i wysyłasz tam."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Opens in your PDF viewer, to print from there"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
@@ -10821,16 +10861,36 @@ msgid "Page opened."
 msgstr "Strona otwarta."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Page {n} of {m}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Page {page} of {pages}"
 msgstr "Strona {page} z {pages}"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Takie strony otwierają się w przeglądarce, gdzie działają zawarte w nich skrypty. Otwieraj ją tylko wtedy, gdy wiesz, kto ją wysłał, i spodziewasz się jej."
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Pages:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Paper"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -11217,6 +11277,44 @@ msgstr "Tylko poczta główna"
 #, fuzzy
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
 msgstr "Główne, Społeczności, Oferty, Aktualności i Fora, tak jak Gmail sortuje skrzynkę odbiorczą. Twoja poczta pozostaje w skrzynce odbiorczej."
+
+#. command label, interface, ribbon location
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/printing.rs
+msgid "Print"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print in colour"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Print on both sides"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing isn't available here: use Save as PDF instead."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Printing {n} page on {printer}"
+msgid_plural "Printing {n} pages on {printer}"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Print…"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12488,6 +12586,16 @@ msgstr "Zapisz plik wiadomości jako"
 msgid "Save Signature"
 msgstr "Zapisz podpis"
 
+#. command label, interface
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs
+msgid "Save as PDF"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Save as PDF…"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -13276,6 +13384,11 @@ msgid "Sending the report…"
 msgstr "Wysyłanie raportu…"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "Sending to the printer…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Sending what is waiting for the server first; then {account} switches to Microsoft Graph."
@@ -13350,8 +13463,8 @@ msgstr "Wysłano {done} z {total}"
 msgid "Sent, reference R-{reference}."
 msgstr "Wysłano, numer referencyjny R-{reference}."
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "Sent:"
 msgstr "Wysłano:"
@@ -14968,6 +15081,11 @@ msgstr "To nie jest hasło do tego pliku."
 msgid "That key is on the card already"
 msgstr "Ten klucz jest już na karcie"
 
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "That printer can't be printed to."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -15509,6 +15627,11 @@ msgid "The file is larger than an OpenPGP key can be."
 msgstr "Plik jest większy, niż może być klucz OpenPGP."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The file to print couldn't be written: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "The file's passphrase:"
@@ -15800,6 +15923,11 @@ msgid "The message you were writing was saved to Drafts; a link opened a new one
 msgstr "Pisana wiadomość została zapisana w Wersjach roboczych; łącze otworzyło nową"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The messages couldn't be laid out for printing."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
@@ -15884,6 +16012,11 @@ msgid "The owner hasn't allowed update checks."
 msgstr "Właściciel nie zezwolił na sprawdzanie aktualizacji."
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The pages to print aren't a list of page numbers."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "The picture was too big, so it was made smaller ({w} px wide)."
@@ -15894,6 +16027,16 @@ msgstr "Obraz był za duży, więc go zmniejszono (szerokość {w} px)."
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
 msgstr "Port; pozostaw puste, aby użyć zwykłego"
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The printer didn't answer in time. The job may still print: look at the print queue before printing again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/printing.rs
+msgid "The printer didn't take the job. Check that it is on and connected, or Save as PDF instead."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15990,6 +16133,16 @@ msgstr "Wyszukiwanie serwera Exchange zostało przekierowane do {host}, który n
 #, fuzzy
 msgid "The selected message, as .eml"
 msgstr "Zaznaczona wiadomość jako .eml"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages as they print, as .pdf"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "The selected messages, on a printer"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -17323,8 +17476,8 @@ msgstr "Ta wiadomość nie jest zaproszeniem, na które można odpowiedzieć."
 msgid "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself."
 msgstr "Ta wiadomość nie pochodzi od organizatora tego spotkania, więc nie może go odwołać: usuń spotkanie z kalendarza samodzielnie."
 
-#. interface
-#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+#. interface, what a command says
+#: crates/engine/src/print.rs crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "This message isn't on this computer yet. It will download when you're online."
 msgstr "Tej wiadomości nie ma jeszcze na tym komputerze. Zostanie pobrana, gdy będziesz online."
@@ -17721,8 +17874,8 @@ msgstr "Aby użyć innego serwera lub nazwy użytkownika, usuń konto i dodaj je
 msgid "To-do Changes to Send"
 msgstr "Zmiany zadań do wysłania"
 
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/printing.rs
 #, fuzzy
 msgid "To:"
 msgstr "Do:"
@@ -20282,7 +20435,7 @@ msgid "no message is being written"
 msgstr "żadna wiadomość nie jest pisana"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/print.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "brak wiadomości o identyfikatorze {id}"
@@ -20600,7 +20753,7 @@ msgid "select a conversation in conversation view first"
 msgstr "najpierw wybierz konwersację w widoku konwersacji"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs crates/engine/src/print.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "najpierw wybierz wiadomość"
@@ -21036,6 +21189,11 @@ msgstr "folder, do którego importowano plik .pst, został przeniesiony do Eleme
 #, fuzzy
 msgid "the folder this message is in isn't on this computer any more"
 msgstr "folderu, w którym jest ta wiadomość, nie ma już na tym komputerze"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the font to print in can't be read"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -21540,6 +21698,11 @@ msgstr "serwer odpowiadał zbyt długo"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "serwer nie wysłał wiadomości „{subject}” w całości, więc nie można jej przekazać dalej jako załącznika"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "the server wouldn't send “{subject}” whole, so it can't be printed"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -23460,6 +23623,14 @@ msgstr[1] "{n} otwarte zadania"
 msgstr[2] "{n} otwartych zadań"
 
 #. interface
+#: crates/ui-egui/src/printing.rs
+msgid "{n} page"
+msgid_plural "{n} pages"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} part of a message couldn't be read from the mailbox's content folder"
@@ -23880,6 +24051,11 @@ msgid "“{subject}” came from its server but couldn't be kept on this compute
 msgstr "„{subject}” przyszła z serwera, ale nie można jej było zachować na tym komputerze, więc nie można jej przekazać dalej jako załącznika"
 
 #. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be printed"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
@@ -23896,6 +24072,11 @@ msgstr "„{subject}” była zbyt duża, aby ją pobrać: jest tu tylko jej nag
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można jej przekazać dalej jako załącznika"
+
+#. what a command says
+#: crates/engine/src/print.rs
+msgid "“{subject}” wasn't found on its server, so it can't be printed"
+msgstr ""
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

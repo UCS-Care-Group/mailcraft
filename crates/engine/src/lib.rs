@@ -52,6 +52,7 @@ mod opening_tests;
 #[cfg(test)]
 mod openpgp_signature_tests;
 mod picture_fit;
+pub mod print;
 pub mod private_keys;
 #[cfg(test)]
 #[allow(dead_code)]
@@ -66,6 +67,7 @@ pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
 pub mod sync_driver;
+pub mod system_fonts;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
@@ -455,6 +457,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod print_tests;
 #[cfg(test)]
 mod sender_trust_tests;
 #[cfg(test)]
