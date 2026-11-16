@@ -189,6 +189,8 @@ mod senders_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
+mod signature_fonts_tests;
+#[cfg(test)]
 mod signature_tests;
 pub mod snooze;
 #[cfg(test)]

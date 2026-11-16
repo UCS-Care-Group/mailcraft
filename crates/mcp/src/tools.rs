@@ -262,6 +262,8 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "group",
     "label",
     "secondLabel",
+    // A family this computer has, which `ui.fonts` names.
+    "font",
     // People, addresses and the lists they are on.
     "to",
     "cc",

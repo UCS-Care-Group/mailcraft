@@ -576,9 +576,15 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn set_format(s: &mut Session, format: BodyFormat) -> CmdResult {
+    // A plain-text message is written in the account's plain-text font, an HTML one in the font
+    // for what it is; what is already written keeps its own look either way.
+    let font = s.compose.as_ref().map(|c| super::compose::writing_font(s, c.account, super::compose::answers_now(s, c), format == BodyFormat::Plain));
     let c = compose_mut(s)?;
     if c.format != format {
         c.format = format;
+        if let Some(font) = font {
+            c.body.set_default_style(font);
+        }
         c.dirty = true;
     }
     Ok(json!({"format": c.format}))
