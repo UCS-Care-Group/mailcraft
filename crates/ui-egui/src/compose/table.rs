@@ -25,9 +25,18 @@ struct Cell {
 pub(super) struct TableLayout {
     pub size: Vec2,
     cells: Vec<Cell>,
+    plain: Option<Arc<Galley>>,
 }
 
 impl TableLayout {
+    pub fn plain(ctx: &egui::Context, table: &PastedTable, tokens: &Tokens, room: f32) -> Self {
+        let mut job = LayoutJob::default();
+        job.wrap.max_width = room;
+        job.append(&table.plain(), 0.0, super::text_format(&Style::default(), true, tokens, &|_| false));
+        let text = ctx.fonts_mut(|f| f.layout_job(job));
+        Self { size: text.size(), cells: Vec::new(), plain: Some(text) }
+    }
+
     pub fn new(ctx: &egui::Context, table: &PastedTable, tokens: &Tokens, room: f32) -> Self {
         let columns = usize::from(table.columns());
         let mut occupied = vec![0; columns];
@@ -60,8 +69,7 @@ impl TableLayout {
                 let background =
                     cell.background.as_deref().and_then(mailcraft_model::rich::safe_color).and_then(|color| Color32::from_hex(&color).ok());
                 let format = |style: &Style| {
-                    let mut style = style.clone().clean();
-                    style.bold |= cell.header;
+                    let style = style.clone().clean();
                     let mut format = super::text_format(&style, false, tokens, &|family| families.contains(family));
                     let paper = if format.background != Color32::TRANSPARENT { format.background } else { background.unwrap_or(tokens.surface) };
                     let ink = if style.link.is_some() {
@@ -127,10 +135,14 @@ impl TableLayout {
                 Some(Cell { rect, text, background })
             })
             .collect();
-        Self { size: vec2(total * scale, heights.iter().sum()), cells }
+        Self { size: vec2(total * scale, heights.iter().sum()), cells, plain: None }
     }
 
     pub fn paint(&self, painter: &Painter, at: Pos2, tokens: &Tokens) {
+        if let Some(text) = &self.plain {
+            painter.galley(at, text.clone(), tokens.text);
+            return;
+        }
         for cell in &self.cells {
             let rect = cell.rect.translate(at.to_vec2());
             if let Some(background) = cell.background {

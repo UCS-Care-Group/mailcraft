@@ -303,8 +303,8 @@ impl Layout {
             {
                 let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
                 sized.push((r, local, Some(id), size, glued));
-            } else if !plain && let Some(source) = &run.table {
-                let grid = table::TableLayout::new(ctx, source, t, room);
+            } else if let Some(source) = &run.table {
+                let grid = if plain { table::TableLayout::plain(ctx, source, t, room) } else { table::TableLayout::new(ctx, source, t, room) };
                 sized.push((r, local, None, grid.size, true));
                 tables.insert(r, grid);
             }
@@ -345,8 +345,7 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        let shown = if run.table.is_some() { "▦" } else { &run.text };
-                        job.append(shown, carry, text_format(&run.style, plain, t, &has));
+                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
                         carry = 0.0;
                     }
                 }

@@ -110,7 +110,9 @@ fn a_browsers_copy_image_pastes_the_picture_not_its_address() {
         paste(&mut h);
         assert_eq!(pictures(&h), 1, "{html}: {:?}", plain(&h));
     }
-    assert!(plain(&h).contains("Jane Doe"), "{:?}", plain(&h));
+    let text = h.state().session.compose.as_ref().unwrap().body.text();
+    assert!(text.to_plain().contains("Jane Doe"), "{:?}", text.to_plain());
+    assert!(text.paragraphs().iter().flat_map(|p| &p.runs).any(|run| run.table.is_some()));
 }
 
 #[test]

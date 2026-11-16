@@ -91,3 +91,21 @@ fn paste_save_reopen_copy_remove_and_undo_keep_the_grid() {
     let (body, _) = body(a, Which::Message).unwrap();
     assert!(body.text().paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.table.is_some()));
 }
+
+#[test]
+fn plain_mode_draws_the_actual_table_text_in_one_object() {
+    let fragment = mailcraft_mime_model::rich::from_html_for_compose(RANGE);
+    let paragraph = fragment.paragraphs().first().unwrap();
+    let ctx = egui::Context::default();
+    let mut chars = 0;
+    let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::light();
+        let para = Layout::default().lay(ui.ctx(), paragraph, 0, true, &[], &tokens, 240.0);
+        chars = para.chars;
+        let table = para.tables.first().unwrap();
+        table.grid.paint(ui.painter(), pos2(40.0, 40.0), &tokens);
+    });
+    frame.textures_delta.clear();
+    assert_eq!(chars, 1);
+    assert!(frame.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text) if text.galley.text() == fragment.to_plain())));
+}
