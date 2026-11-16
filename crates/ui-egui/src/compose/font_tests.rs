@@ -7,7 +7,7 @@
 use egui::FontFamily;
 use mailcraft_model::rich::{Built, Font, Style};
 
-use super::editor::text_format;
+use super::editor::{BASE_SIZE, text_format};
 use crate::fonts::Chooser;
 use crate::theme::{Tokens, document_family, regular};
 
@@ -34,8 +34,13 @@ const A_FONT: &[u8] = include_bytes!("../../../../assets/fonts/Inter-Regular.ttf
 
 /// What a run of `style` looks in a pass of `ctx`.
 fn look(ctx: &egui::Context, style: &Style, plain: bool) -> FontFamily {
+    look_in(ctx, style, plain, &Style::default())
+}
+
+/// The same, in a plain-text message the account writes in `plain_font`.
+fn look_in(ctx: &egui::Context, style: &Style, plain: bool, plain_font: &Style) -> FontFamily {
     let mut fonts = Chooser::new(ctx);
-    let format = text_format(style, plain, &Tokens::light(), &mut fonts);
+    let format = text_format(style, plain, plain_font, &Tokens::light(), &mut fonts);
     fonts.finish(ctx);
     format.font_id.family
 }
@@ -116,4 +121,40 @@ fn a_family_installed_here_is_asked_for_by_its_own_name() {
     ctx.set_fonts(fonts);
     ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
     assert_eq!(look(&ctx, &style, false), family);
+}
+
+#[test]
+fn a_plain_text_message_is_written_in_the_font_the_account_chose() {
+    // The account's plain-text font: what a plain-text message is typed and read in. Nothing of
+    // the run's own look shows, because plain text carries none.
+    let ctx = context(&crate::theme::SystemFont::none());
+    let plain = Style { font: Font::parse("Inter"), size: Some(11), italic: true, underline: true, ..Style::default() };
+    let mut fonts = Chooser::new(&ctx);
+    let format = text_format(&georgia(), true, &plain, &Tokens::light(), &mut fonts);
+    fonts.finish(&ctx);
+    // A size in points as the screen draws it, as the reading pane draws `font-size: 11pt`.
+    assert_eq!(format.font_id.size, 11.0 * 4.0 / 3.0, "at the size chosen");
+    assert!(format.italics, "in the style chosen");
+    assert_ne!(format.underline, egui::Stroke::NONE, "underlined if it was");
+}
+
+#[test]
+fn a_plain_text_message_with_no_font_of_its_account_is_written_in_the_windows_own() {
+    let ctx = context(&crate::theme::SystemFont::none());
+    assert_eq!(look_in(&ctx, &georgia(), true, &Style::default()), regular(14.0).family);
+    // A fixed-width plain-text font keeps its columns, face installed or not (#969).
+    let plain = Style { font: Font::parse("Courier New"), ..Style::default() };
+    assert_eq!(look_in(&ctx, &Style::default(), true, &plain), FontFamily::Monospace);
+}
+
+#[test]
+fn an_html_message_is_written_in_what_each_run_asks_for() {
+    // The plain-text font is only for plain text: an HTML message keeps its runs' own looks.
+    let ctx = context(&crate::theme::SystemFont::none());
+    let plain = Style { font: Font::parse("Courier New"), size: Some(9), ..Style::default() };
+    let mut fonts = Chooser::new(&ctx);
+    let format = text_format(&georgia(), false, &plain, &Tokens::light(), &mut fonts);
+    fonts.finish(&ctx);
+    assert_eq!(format.font_id.size, BASE_SIZE, "the run's own size, not the plain-text one");
+    assert_ne!(format.font_id.family, FontFamily::Monospace);
 }

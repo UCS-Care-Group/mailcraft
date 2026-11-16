@@ -32,6 +32,7 @@ use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
 use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table, VAlign};
 use mailcraft_model::Message;
+use mailcraft_model::rich::Style;
 
 use super::colors::Paper;
 use super::images::{self, Pictures};
@@ -267,6 +268,8 @@ pub struct Laid {
     cuts: Arc<[Option<Glue>]>,
     /// How large the text is set, 1.0 as it comes (`view.zoom`).
     zoom: f32,
+    /// The font a plain-text message is read in, when its account chose one ([`Laid::written_in`]).
+    plain: Option<Style>,
 }
 
 impl Laid {
@@ -302,6 +305,12 @@ impl Laid {
     /// for its length, and what was dropped at each cut: a copy puts them together again.
     pub fn cut(self, cuts: Arc<[Option<Glue>]>) -> Laid {
         Laid { cuts, ..self }
+    }
+
+    /// The same, reading a plain-text message in `plain` — the font the account it came to writes
+    /// plain text in. A message with HTML of its own is read as it was made, and passes nothing.
+    pub fn written_in(self, plain: Option<Style>) -> Laid {
+        Laid { plain, ..self }
     }
 
     /// The `seg`th thing that can be selected.
@@ -341,6 +350,7 @@ impl Laid {
             // (A layout that was never made with `new` has no zoom: as it comes.)
             zoom: if self.zoom > 0.0 { self.zoom } else { 1.0 },
             fonts: Chooser::new(ctx),
+            plain: self.plain.clone(),
         };
         let mut flow = Flow { x: 0.0, width: self.width, y: self.y, paper: Paper::window(&t), prev: self.prev.take() };
         while self.next < blocks.len() && cx.work < budget {
@@ -388,6 +398,8 @@ struct Cx<'a> {
     zoom: f32,
     /// The message's own fonts (#600).
     fonts: Chooser,
+    /// The font a plain-text message is read in; `None` for one with HTML of its own.
+    plain: Option<Style>,
 }
 
 impl Cx<'_> {
@@ -636,6 +648,19 @@ fn font(span: &Span, kind: &BlockKind, fonts: &mut Chooser) -> egui::FontId {
     }
 }
 
+/// The font a plain-text message is read in: the account's own, which asks for a family the
+/// computer may not have — and then falls back to the window's, as a message's own font does
+/// (#600). Nothing else of a plain-text message is turned over: it carries no look of its own.
+fn plain_font(plain: &Style, base: f32, fonts: &mut Chooser) -> egui::FontId {
+    let size = plain.size.map_or(base, f32::from);
+    match plain.font.as_ref().map(|f| fonts.pick(f.list(), plain.bold)) {
+        Some(Pick::Mono) => mono(size),
+        Some(Pick::Family(family)) => egui::FontId::new(size, family),
+        Some(Pick::Own) | None if plain.bold => semibold(size),
+        Some(Pick::Own) | None => regular(size),
+    }
+}
+
 /// `font` `zoom` times as large.
 fn zoomed(font: egui::FontId, zoom: f32) -> egui::FontId {
     egui::FontId { size: font.size * zoom, ..font }
@@ -647,6 +672,7 @@ fn text_job(
     t: &Tokens,
     fonts: &mut Chooser,
     spans: &[Span],
+    plain: Option<&Style>,
     kind: &BlockKind,
     paper: Paper,
     quoted: bool,
@@ -664,8 +690,16 @@ fn text_job(
         if span.text.is_empty() {
             continue;
         }
-        let size = span.size.map_or(base, f32::from) * zoom;
-        let font = zoomed(font(span, kind, fonts), zoom);
+        // A plain-text message carries no look of its own: every line of it is read in the font
+        // the account writes plain text in. A message with HTML is read as it was made.
+        let (size, face) = match plain {
+            Some(p) => (p.size.map_or(base, f32::from), plain_font(p, base, fonts)),
+            None => (span.size.map_or(base, f32::from), font(span, kind, fonts)),
+        };
+        let size = size * zoom;
+        let font = zoomed(face, zoom);
+        let italics = plain.map_or(span.italic, |p| p.italic);
+        let underlined = plain.map_or(span.underline, |p| p.underline);
         // A highlight is the paper its text is read on.
         let behind = span.background.map_or(paper, |bg| Paper::of(bg, t));
         let ink = behind.ink(t, span.color, span.link.is_some(), quoted);
@@ -680,8 +714,8 @@ fn text_job(
         let format = TextFormat {
             font_id: font,
             color: ink,
-            italics: span.italic,
-            underline: if span.underline && span.link.is_none() { stroke } else { Stroke::NONE },
+            italics,
+            underline: if underlined && span.link.is_none() { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -781,7 +815,7 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
     let mut begun = false;
     for (n, (piece, glue)) in cut(&block.spans).iter().enumerate() {
         let (mut job, links, chars) =
-            text_job(&cx.t, &mut cx.fonts, piece, &block.kind, paper, quoted, width, block.align, block.line_height, cx.zoom);
+            text_job(&cx.t, &mut cx.fonts, piece, cx.plain.as_ref(), &block.kind, paper, quoted, width, block.align, block.line_height, cx.zoom);
         if chars == 0 {
             continue;
         }
@@ -1072,8 +1106,19 @@ fn line_length(blocks: &[Block], index: usize) -> usize {
 
 /// The size of a short text set in one line.
 fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
-    let (job, ..) =
-        text_job(&cx.t, &mut cx.fonts, &block.spans, &block.kind, paper, block.quote > 0, f32::INFINITY, Align::Left, block.line_height, cx.zoom);
+    let (job, ..) = text_job(
+        &cx.t,
+        &mut cx.fonts,
+        &block.spans,
+        cx.plain.as_ref(),
+        &block.kind,
+        paper,
+        block.quote > 0,
+        f32::INFINITY,
+        Align::Left,
+        block.line_height,
+        cx.zoom,
+    );
     let size = cx.measure(job).size();
     vec2(size.x.ceil() + 1.0, size.y)
 }
@@ -1081,8 +1126,19 @@ fn line_size(cx: &mut Cx<'_>, block: &Block, paper: Paper) -> Vec2 {
 /// How far a text starts and how tall its first row is, and how tall it is in all, when it
 /// starts `lead` points in and wraps at `width`.
 fn tail_metrics(cx: &mut Cx<'_>, block: &Block, paper: Paper, width: f32, lead: f32) -> (f32, f32) {
-    let (mut job, ..) =
-        text_job(&cx.t, &mut cx.fonts, &block.spans, &block.kind, paper, block.quote > 0, width, Align::Left, block.line_height, cx.zoom);
+    let (mut job, ..) = text_job(
+        &cx.t,
+        &mut cx.fonts,
+        &block.spans,
+        cx.plain.as_ref(),
+        &block.kind,
+        paper,
+        block.quote > 0,
+        width,
+        Align::Left,
+        block.line_height,
+        cx.zoom,
+    );
     if let Some(first) = job.sections.first_mut() {
         first.leading_space = lead;
     }
@@ -1417,6 +1473,7 @@ fn text_extent(cx: &mut Cx<'_>, block: &Block) -> Extent {
             &cx.t,
             &mut cx.fonts,
             &block.spans,
+            cx.plain.as_ref(),
             &block.kind,
             Paper::window(&cx.t),
             false,
