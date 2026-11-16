@@ -466,8 +466,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     // Only its headers and a preview are here (#653): a reply would quote the preview and a
     // forward would send it as the message, without its files. Refused whether or not a host
-    // could fetch it (a message with its UID and folder can be): a headless run, the CLI and
-    // MCP call this command directly and fetch nothing. The window fetches it first and runs
+    // could fetch it (a message with its UID and folder can be): a headless run, the CLI, and
+    // MCP or control calls (`MailApp::execute` has no fetch hook) fetch nothing and get this
+    // refusal; they read or select the message so the app downloads it, then try again. Only
+    // the window's own run (ribbon, menu, shortcut: `MailApp::run`) fetches it first and runs
     // the command again once it is whole (`Session::fetch_first_plan`); one moved within its
     // account has no UID until the next Send/Receive, and offline nothing comes.
     if m.unfetched {
