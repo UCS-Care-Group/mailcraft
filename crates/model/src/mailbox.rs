@@ -12,6 +12,8 @@ use bulk::Removal;
 
 #[path = "mailbox_bulk.rs"]
 mod bulk;
+#[path = "mailbox_followup.rs"]
+mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
 use crate::sync::{RemoteFlags, same_category};
@@ -21,6 +23,7 @@ use crate::{
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
+pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD, PendingFollowUp};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
@@ -1268,6 +1271,9 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient_or_default")]
     pub device_limits: Option<crate::DeviceLimits>,
     next_id: Id,
+    /// Reminders of mail sent whose copy the server files in Sent Items ([`PendingFollowUp`], #948).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub follow_ups_pending: Vec<PendingFollowUp>,
 }
 
 impl Default for Mailbox {
@@ -1308,6 +1314,7 @@ impl Default for Mailbox {
             public_keys: Default::default(),
             device_limits: None,
             next_id: 1,
+            follow_ups_pending: Vec::new(),
         }
     }
 }
@@ -2133,6 +2140,7 @@ impl Mailbox {
             m.id = self.alloc_id();
         }
         self.next_id = self.next_id.max(m.id.saturating_add(1));
+        self.take_pending_follow_up(&mut m);
         let id = m.id;
         self.messages.insert(id, Arc::new(m));
         Ok(id)
@@ -2831,7 +2839,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
-            copy.snooze = None;
+            (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
             crate::auth_results::forget_stamps(&mut copy);
@@ -2855,8 +2863,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
-        // (A copy is not snoozed.)
-        copy.snooze = None;
+        // (A copy is not snoozed, and has no reminder.)
+        (copy.snooze, copy.follow_up) = (None, None);
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
@@ -3186,13 +3194,24 @@ impl Mailbox {
     }
 
     pub fn default_calendar(&self) -> Option<Id> {
-        self.calendars.first().map(|c| c.id)
+        // (A copy of a calendar on the web is read-only: never where an event goes unasked.)
+        self.calendars.iter().find(|c| !c.is_subscribed()).map(|c| c.id)
+    }
+
+    /// [`Self::default_calendar`], and a calendar of the mailbox's own made when there is none.
+    fn default_calendar_or_new(&mut self) -> Id {
+        if let Some(id) = self.default_calendar() {
+            return id;
+        }
+        let id = self.alloc_id();
+        self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
+        id
     }
 
     /// Add an event; without a (known) calendar it goes to the default one.
     pub fn add_event(&mut self, mut e: Event) -> Result<Id, ModelError> {
         if self.calendar(e.calendar).is_none() {
-            e.calendar = self.default_calendar().ok_or_else(|| invalid("the mailbox has no calendar"))?;
+            e.calendar = self.default_calendar_or_new();
         }
         if e.id == 0 || self.events.contains_key(&e.id) {
             e.id = self.alloc_id();
@@ -3500,6 +3519,9 @@ impl Mailbox {
         if self.rules.len() > MAX_RULES {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
+        }
+        if self.repair_follow_ups_pending() {
+            fixed.push("reminders waiting for a sent copy cut".to_string());
         }
         if self.migrate_junk_lists() {
             fixed.push("Safe and Blocked Senders moved to each account".to_string());
@@ -3827,12 +3849,11 @@ impl Mailbox {
         if dropped > 0 {
             fixed.push(format!("{dropped} change(s) waiting for the mail server dropped"));
         }
-        if self.calendars.is_empty() && !self.events.is_empty() {
-            let id = self.alloc_id();
-            self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
-        }
-        if let Some(default) = self.default_calendar() {
-            let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
+        if (self.calendars.is_empty() && !self.events.is_empty()) || self.events.values().any(|e| !known.contains(&e.calendar)) {
+            // (Orphans go to a calendar of the mailbox's own, made when there is none: never to one
+            // that is a copy of a calendar on the web.)
+            let default = self.default_calendar_or_new();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
             }
