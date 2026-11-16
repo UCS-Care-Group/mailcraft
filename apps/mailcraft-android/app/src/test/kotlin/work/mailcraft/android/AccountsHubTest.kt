@@ -22,7 +22,7 @@ import uniffi.mailcraft_mobile.StorageNotice
 import uniffi.mailcraft_mobile.SyncAnswer
 
 private class HubApi(val gate: CompletableDeferred<Unit>) : AccountsApi {
-    override suspend fun signIn(email: String): SignInResult {
+    override suspend fun signIn(email: String, keep: KeepChoice): SignInResult {
         gate.await()
         return SignInResult.SignedIn(7u, "ada@example.org", "Ada Example")
     }

@@ -195,10 +195,13 @@ impl RoundDriver {
 /// mail in a shared mailbox's Outbox that may not be sent from it yet, #70.)
 pub fn waiting_to_go(s: &crate::Session, account: Id) -> usize {
     let mb = &s.mailbox;
+    // (What waits for its Send time doesn't ask for a run; once it is due it does, #950.)
+    let now = s.now();
     let outbox = if s.shared_send_waits(account) {
         0
     } else {
-        mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count())
+        mb.folder_of_kind(account, mailcraft_model::FolderKind::Outbox)
+            .map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty() && !m.waits_until(now)).count())
     };
     outbox + crate::cmd::account::unpushed(s, account)
 }
