@@ -399,7 +399,8 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
@@ -448,7 +449,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.ews_run_cut.remove(&account);
     }
     if result.whole && !result.partial && !run_cut {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        graph_down::sweep(&mut s.mailbox, account, None, &mut down);
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);

@@ -1057,6 +1057,7 @@ fn services(
 ) -> Services {
     let pictures_ctx = ctx.clone();
     let unsubscribe_ctx = ctx.clone();
+    let subscription_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
     let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
@@ -1251,6 +1252,15 @@ fn services(
         })),
         // One-click unsubscribe (#1207): a POST the owner asked for, on its own thread.
         unsubscribe: Some(Box::new(move |url| background(&unsubscribe_ctx, "unsubscribe", move || mailcraft_net::pictures::unsubscribe(&url)))),
+        // A subscribed calendar's file (#209), when the calendar is due: https only, public hosts
+        // only, nothing that says who is asking, size and time capped. The address is the owner's
+        // and may hold a secret: nothing here logs it.
+        subscription: Some(Box::new(move |job: mailcraft_ui_egui::SubscriptionJob| {
+            background(&subscription_ctx, "subscribed calendar", move || mailcraft_ui_egui::SubscriptionDone {
+                calendar: job.calendar,
+                outcome: mailcraft_net::subscription::look(&job.address, &job.etag, &job.last_modified),
+            })
+        })),
         // A sender's picture for the message list, once the owner turned that on: from
         // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
         sender_images: Some(Box::new(move |address, wanted| {
