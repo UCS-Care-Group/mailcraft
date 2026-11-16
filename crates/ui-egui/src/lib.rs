@@ -187,6 +187,8 @@ mod reminder_dialog;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+#[cfg(test)]
+mod ribbon_field_tests;
 pub mod rule_sync;
 #[cfg(test)]
 mod rule_sync_tests;
