@@ -166,6 +166,9 @@ fn every_query_with_junk_answers_and_never_panics() {
     not_internal("task_lists", &block_on(core.task_lists()));
     not_internal("today", &block_on(core.today()));
     not_internal("calendars", &block_on(core.calendars()));
+    for count in [0, 1, 64, 65, u32::MAX] {
+        not_internal("reminder_schedule", &block_on(core.reminder_schedule(count)));
+    }
     for id in [0, 1, 2, 3, u64::MAX] {
         not_internal("event", &block_on(core.event(id)));
     }

@@ -183,7 +183,9 @@ internal fun NotificationsPage(texts: Texts, switches: Switches, actions: Settin
     ) { actions.onSwitches(switches.copy(primaryOnly = it)) }
     SwitchRow(
         texts.t("Reminders"),
-        texts.t("Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."),
+        texts.t(
+            "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks.",
+        ),
         switches.reminders,
     ) { actions.onSwitches(switches.copy(reminders = it)) }
     Hint(
