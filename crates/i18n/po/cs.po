@@ -15230,7 +15230,7 @@ msgstr "Vždy"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The .pst file has {what} to import; nothing was imported"
-msgstr "Soubor .pst neobsahuje k importu nic z: {what}; nic nebylo importováno"
+msgstr "Soubor .pst obsahuje k importu {what}; nic nebylo importováno"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
