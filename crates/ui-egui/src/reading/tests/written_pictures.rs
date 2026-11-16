@@ -62,7 +62,7 @@ fn data_png(w: u32, h: u32) -> String {
 
 #[test]
 fn two_pictures_written_into_a_message_are_shown() {
-    let m = mailcraft_mime::parse(&raw_message(&[data_png(64, 40), data_png(32, 32)]));
+    let m = mailcraft_mime_model::parse(&raw_message(&[data_png(64, 40), data_png(32, 32)]));
     assert!(m.attachments.is_empty(), "nothing is attached");
     assert!(m.body.html.as_deref().is_some_and(|h| h.contains("data:image/png;base64,iVBOR")));
     for dark in [false, true] {
@@ -87,7 +87,7 @@ fn what_is_written_in_but_is_no_picture_of_ours_is_a_stand_in() {
     let mut damaged = png(16, 16);
     damaged.truncate(20);
     let damaged = format!("data:image/png;base64,{}", b64(&damaged));
-    let m = mailcraft_mime::parse(&raw_message(&[svg, html_page, not_png, broken, damaged, data_png(24, 24)]));
+    let m = mailcraft_mime_model::parse(&raw_message(&[svg, html_page, not_png, broken, damaged, data_png(24, 24)]));
     in_frame(false, |ctx| {
         let laid = lay_out(ctx, &m, 820.0);
         // Five stand-ins, none of them for a picture on the web; the good one is shown.
@@ -102,7 +102,7 @@ fn what_is_written_in_but_is_no_picture_of_ours_is_a_stand_in() {
 /// kept once, and nothing of it is held once no message read holds it.
 #[test]
 fn a_message_read_again_keeps_its_pictures_once() {
-    let m = mailcraft_mime::parse(&raw_message(&[data_png(64, 40), data_png(32, 32)]));
+    let m = mailcraft_mime_model::parse(&raw_message(&[data_png(64, 40), data_png(32, 32)]));
     in_frame(false, |ctx| {
         let store = Pictures::of(ctx);
         for _ in 0..6 {

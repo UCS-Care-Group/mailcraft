@@ -119,15 +119,9 @@ internal fun styled(spans: List<SpanView>, paper: Paper, links: Map<String, Link
     return StyledText(text.toAnnotatedString(), found)
 }
 
-/** Most links of one text that a screen reader is offered as actions. */
-internal const val MAX_LINK_ACTIONS = 8
-
 /** What a screen reader says for each link of a text: where it really goes. */
 internal fun linkActionLabels(texts: Texts, links: List<LinkRange>): List<String> =
-    links.map { it.link }.distinctBy { it.shown }.take(MAX_LINK_ACTIONS).map { "${texts.t("Open link")}: ${it.shown}" }
-
-private fun linkAt(layout: TextLayoutResult?, text: StyledText, at: Offset): LinkInfo? =
-    layout?.let { text.linkAt(it.getOffsetForPosition(at)) }
+    links.map { it.link }.distinctBy { it.shown }.map { "${texts.t("Open link")}: ${it.shown}" }
 
 /**
  * Text that has links in it. A tap on a link follows it (the owner's phone opens it in the
@@ -146,7 +140,7 @@ internal fun LinkedText(
     var base = modifier
     if (links.isNotEmpty()) {
         val labels = linkActionLabels(env.texts, links)
-        val distinct = links.map { it.link }.distinctBy { it.shown }.take(MAX_LINK_ACTIONS)
+        val distinct = links.map { it.link }.distinctBy { it.shown }
         base = base
             .pointerInput(styledText) {
                 detectTapGestures(

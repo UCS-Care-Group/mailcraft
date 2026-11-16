@@ -7,7 +7,7 @@ use mailcraft_engine::Session;
 use mailcraft_model::{FolderKind, Message};
 
 use crate::fake_tests::{FakePlatform, block_on, now};
-use crate::pictures::{fetch_picture, fetch_sender_picture, sender_picture_urls};
+use crate::pictures::{PictureStop, fetch_picture, fetch_sender_picture, picture_accepted, sender_picture_urls};
 use crate::{Core, CoreError};
 
 #[test]
@@ -29,11 +29,11 @@ fn a_download_refuses_what_is_not_the_public_web() {
         "http://[::ffff:127.0.0.1]/x.png",
         "https://\0/x.png",
     ] {
-        assert!(fetch_picture(url.to_string()).is_err(), "{url:?}");
+        assert!(fetch_picture(url.to_string(), PictureStop::new()).is_err(), "{url:?}");
     }
     let long = format!("https://93.184.216.34/{}", "a".repeat(20_000));
-    assert!(matches!(fetch_picture(long), Err(CoreError::BadRequest { .. })));
-    assert!(fetch_picture("\u{202e}\u{0}é".repeat(5_000)).is_err());
+    assert!(matches!(fetch_picture(long, PictureStop::new()), Err(CoreError::BadRequest { .. })));
+    assert!(fetch_picture("\u{202e}\u{0}é".repeat(5_000), PictureStop::new()).is_err());
 }
 
 #[test]
@@ -95,4 +95,29 @@ fn the_facts_for_a_sender_come_from_the_mailbox() {
     assert!(block_on(core.sender_facts(junk)).unwrap().junk);
     assert!(block_on(core.sender_facts(u64::MAX)).is_err());
     assert!(block_on(core.sender_facts(0)).is_err());
+}
+
+#[test]
+fn what_may_be_shown_is_decided_by_its_own_bytes() {
+    let png = b"\x89PNG\r\n\x1a\n....".to_vec();
+    let ico = b"\0\0\x01\0\x01\0....".to_vec();
+    let empty_ico = b"\0\0\x01\0\0\0....".to_vec();
+    assert!(picture_accepted(png.clone(), false) && picture_accepted(png, true));
+    assert!(picture_accepted(vec![0xFF, 0xD8, 0xFF, 0xE0], false));
+    assert!(picture_accepted(b"GIF89a..".to_vec(), false));
+    assert!(picture_accepted(b"RIFF\0\0\0\0WEBPVP8 ".to_vec(), false));
+    // An ICO is a sender's picture only, and only with a picture in it.
+    assert!(!picture_accepted(ico.clone(), false) && picture_accepted(ico, true));
+    assert!(!picture_accepted(empty_ico, true));
+    for hostile in [vec![], vec![0], b"RIFF".to_vec(), b"RIFF\0\0\0\0WEB".to_vec(), b"\0\0\x01\0".to_vec(), b"<html>".to_vec()] {
+        assert!(!picture_accepted(hostile.clone(), false) && !picture_accepted(hostile, true));
+    }
+}
+
+#[test]
+fn a_stop_given_before_ends_a_download_that_never_begins() {
+    let stop = PictureStop::new();
+    stop.stop();
+    // (A public address that is never reached: the signal is read before anything is asked.)
+    assert!(fetch_picture("https://93.184.216.34/x.png".to_string(), stop).is_err());
 }

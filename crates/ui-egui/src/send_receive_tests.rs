@@ -61,9 +61,9 @@ fn working_offline_nothing_is_sent_or_received_and_mail_waits_in_the_outbox() {
     a.execute("compose.send", json!({})).unwrap();
     let outbox = a.session.mailbox.folder_of_kind(account, FolderKind::Outbox).unwrap();
     assert_eq!(a.session.mailbox.messages_in(outbox).count(), 1);
-    a.push_checked = 0.0;
+    a.session.driver.round.push_checked = 0.0;
     a.auto_sync();
-    assert!(a.sync_queue.is_empty() && !a.syncing());
+    assert!(a.session.driver.round.queue.is_empty() && !a.syncing());
     // Nor is an Inbox pass.
     assert!(a.start_inbox_pass(account, false, false).is_none());
     assert_eq!(asked.get(), 0, "no host was asked for anything");
@@ -78,10 +78,10 @@ fn going_offline_calls_off_the_run_under_way() {
     let (mut a, account, _) = window();
     a.execute("ui.sync", json!({"account": account})).unwrap();
     assert!(a.syncing());
-    a.sync_queue.push_back((account, true));
+    a.session.driver.round.queue.push_back((account, true));
     a.execute("sync.offline", json!({"value": true})).unwrap();
     assert!(a.services.sync_cancel.load(Ordering::Relaxed), "the host is told to stop");
-    assert!(a.sync_queue.is_empty());
+    assert!(a.session.driver.round.queue.is_empty());
 }
 
 #[test]
@@ -130,4 +130,19 @@ fn file_account_shows_the_about_page() {
 #[test]
 fn the_window_and_the_engine_say_the_same_words() {
     assert_eq!(said(), mailcraft_engine::cmd::send_receive::OFFLINE);
+}
+
+#[test]
+fn an_account_removed_while_waiting_in_a_round_leaves_the_line_and_its_progress_row_ends_the_round() {
+    let (mut a, account, asked) = window();
+    a.session.driver.set_auto_sync(false);
+    a.session.driver.round.begin_round(&[account], false);
+    a.session.sync_progress.begin(&[account]);
+    assert!(a.session.driver.round.is_queued(account) && a.session.sync_progress.accounts.iter().any(|r| r.account == account));
+    a.execute("account.remove", json!({"id": account})).unwrap();
+    assert!(!a.session.driver.round.is_queued(account), "the round let go of it");
+    a.auto_sync();
+    assert!(!a.session.sync_progress.accounts.iter().any(|r| r.account == account), "its row is left out");
+    assert!(!a.session.sync_progress.running(), "and the round is settled");
+    assert_eq!(asked.get(), 0, "nothing was asked of a host for it");
 }

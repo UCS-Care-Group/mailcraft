@@ -221,6 +221,33 @@ pub fn plan_reminders(due: &[Reminder], on: bool, twelve_hour: bool) -> Vec<Plan
         .collect()
 }
 
+/// The alerts for follow-up reminders that have just been raised (#948), as [`plan_reminders`]'s:
+/// the subject is message text, cleaned and clipped like a new-mail alert's.
+pub(crate) fn plan_follow_ups(due: &[crate::reminders::MailRow], on: bool) -> Vec<Planned> {
+    if !on || due.is_empty() {
+        return Vec::new();
+    }
+    if due.len() > AT_ONCE {
+        return vec![Planned {
+            kind: AlertKind::Reminder,
+            title: tl!("Reminders").to_string(),
+            body: tln!(due.len(), "{n} reminder is due", "{n} reminders are due"),
+            opens: Opens::Reminders,
+        }];
+    }
+    due.iter()
+        .map(|r| {
+            let subject = clean(&r.subject, SUBJECT_CHARS);
+            Planned {
+                kind: AlertKind::Reminder,
+                title: if subject.is_empty() { tl!("(no subject)").to_string() } else { subject },
+                body: if r.no_reply { tl!("No reply yet").to_string() } else { tl!("Follow up").to_string() },
+                opens: Opens::Reminders,
+            }
+        })
+        .collect()
+}
+
 /// Show what was planned, through the host when there is one; what was shown is remembered.
 fn show(app: &mut MailApp, planned: Vec<Planned>) {
     let Some(host) = &app.services.alert else { return };
@@ -246,9 +273,15 @@ pub fn reminders_due(app: &mut MailApp, due: &[Reminder]) {
     show(app, planned);
 }
 
+/// Follow-up reminders that have just been raised ([`crate::reminders::tick`]).
+pub(crate) fn follow_ups_due(app: &mut MailApp, due: &[crate::reminders::MailRow]) {
+    let planned = plan_follow_ups(due, app.ui.alert_reminders);
+    show(app, planned);
+}
+
 /// Whether a Send/Receive is under way, or waiting its turn.
 fn busy(app: &MailApp) -> bool {
-    app.syncing() || app.graph_rx.is_some() || !app.sync_queue.is_empty()
+    app.syncing() || app.graph_rx.is_some() || !app.session.driver.round.queue.is_empty()
 }
 
 /// Every frame, before anything else: mark the mailbox while no Send/Receive is under way; once one

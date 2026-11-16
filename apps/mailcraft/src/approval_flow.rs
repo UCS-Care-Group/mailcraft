@@ -248,7 +248,8 @@ fn organisation() -> (MailApp, mailcraft_model::Id, Arc<Mutex<Microsoft>>) {
         Session::at(Mailbox::with_local_account("", ""), NOW, 0),
         Services { microsoft_client_id: APPLICATION.into(), ..Default::default() },
     );
-    (app.autosave, app.auto_sync) = (false, false);
+    app.autosave = false;
+    app.session.driver.set_auto_sync(false);
     let seen = microsoft.clone();
     app.services.sign_in = Some(Box::new(move |request: SignInRequest| {
         let (approved, opened) = {

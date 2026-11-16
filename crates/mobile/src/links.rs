@@ -21,7 +21,8 @@ pub fn link_target(url: String) -> Option<LinkTarget> {
     match scheme.as_str() {
         "http" | "https" => WebLink::parse(url).map(|l| LinkTarget { kind: LinkKind::Web, shown: l.into_string() }),
         "mailto" => Some(LinkTarget { kind: LinkKind::Mail, shown: url.to_string() }),
-        "tel" => Some(LinkTarget { kind: LinkKind::Phone, shown: url.to_string() }),
+        // Android matches a scheme in lower case only.
+        "tel" => Some(LinkTarget { kind: LinkKind::Phone, shown: format!("tel:{}", url.split_once(':').map_or("", |(_, n)| n)) }),
         "cid" => Some(LinkTarget { kind: LinkKind::Part, shown: url.to_string() }),
         _ => None,
     }

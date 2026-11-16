@@ -49,7 +49,8 @@ internal class MailListActions(
     /** The rows on screen are these, first to last. */
     val onRange: (Int, Int) -> Unit,
     val onTriage: (Triage, InboxRow) -> Unit,
-    val onUndo: () -> Unit,
+    /** Undo the change of the command the notice says (its [ListNotice.Done.command]). */
+    val onUndo: (Int) -> Unit,
     val onNoticeShown: (Int) -> Unit,
     /** A row was tapped: open its message. */
     val onOpen: (InboxRow) -> Unit = {},
@@ -115,18 +116,26 @@ internal fun MailListScreen(
 @Composable
 private fun ListBody(context: MailListContext, ui: MailListUi, actions: MailListActions) {
     val texts = context.texts
-    when {
-        ui.load == LoadState.Failed -> Centered(texts.t("The mailbox could not be read."))
-        ui.load == LoadState.Loading -> Centered(texts.t("Loading…"))
-        else -> PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = actions.onRefresh) {
-            if (ui.snapshot.total == 0) {
-                Centered(
-                    if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."),
-                )
-            } else {
-                Rows(context, ui, actions)
-            }
+    if (ui.load == LoadState.Loading) {
+        Centered(texts.t("Loading…"))
+        return
+    }
+    // A list that could not be read is pulled to try again, as an empty one is to check for mail.
+    PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = actions.onRefresh) {
+        when {
+            ui.load == LoadState.Failed -> PullableLine(texts.t("The mailbox could not be read."))
+            ui.snapshot.total == 0 ->
+                PullableLine(if (ui.query?.narrowed == true) texts.t("No messages match.") else texts.t("No messages."))
+            else -> Rows(context, ui, actions)
         }
+    }
+}
+
+/** A line in the middle of the list's space, scrollable so that a pull reaches the refresh. */
+@Composable
+private fun PullableLine(text: String) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item { Centered(text, Modifier.fillParentMaxSize()) }
     }
 }
 
@@ -165,7 +174,7 @@ private fun LazyItemScope.ListedRow(
     onMenu: () -> Unit,
 ) {
     Column(modifier = Modifier.animateItem()) {
-        row.group?.let { GroupHeader(context.texts, it) }
+        row.group?.let { GroupHeader(context.texts, it, row.groupIsCategory) }
         SwipeableRow(
             texts = context.texts,
             row = row,
@@ -211,17 +220,17 @@ private fun NoticeEffect(texts: Texts, event: NoticeEvent?, host: SnackbarHostSt
             actionLabel = if (shown.notice.undoable) texts.t("Undo") else null,
             duration = if (shown.notice.undoable) SnackbarDuration.Long else SnackbarDuration.Short,
         )
-        if (result == SnackbarResult.ActionPerformed) actions.onUndo()
+        val done = shown.notice as? ListNotice.Done
+        if (result == SnackbarResult.ActionPerformed && done != null) actions.onUndo(done.command)
         actions.onNoticeShown(shown.seq)
     }
 }
 
 /** The words of a notice. */
-internal fun noticeText(texts: Texts, notice: Notice): String = when (notice) {
-    Notice.NoAccount -> texts.t("No account is connected, so there is no mail to check for.")
-    Notice.NotYet -> texts.t("Checking for new mail is not available in this version yet.")
-    Notice.Failed -> texts.t("That did not work.")
-    is Notice.Done -> doneText(texts, notice.triage, notice.count)
+internal fun noticeText(texts: Texts, notice: ListNotice): String = when (notice) {
+    is ListNotice.Said -> notice.message
+    ListNotice.Failed -> texts.t("That did not work.")
+    is ListNotice.Done -> doneText(texts, notice.triage, notice.count)
 }
 
 private fun doneText(texts: Texts, triage: Triage, count: Int): String {

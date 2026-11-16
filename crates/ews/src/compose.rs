@@ -9,7 +9,7 @@
 //! `MailCraftMarker`), which no mail program shows. **Nothing here is sent twice**: the host marks
 //! these requests as ones that are never repeated ([`crate::Client::call_once`]).
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::AttachmentUp;
 use mailcraft_model::{Address, Importance, Message};
 
@@ -373,7 +373,7 @@ impl SendMessage {
         let date = if message.date == 0 { mailcraft_time::now() } else { message.date };
         let dated = Message { date, ..message.clone() };
         let offset_minutes = mailcraft_time::local_offset_minutes(date);
-        let mime = mailcraft_mime::write(&dated, &WriteOptions { include_bcc: true, offset_minutes });
+        let mime = mailcraft_mime_model::write(&dated, &WriteOptions { include_bcc: true, offset_minutes });
         if mime.len() > MAX_MIME {
             return Err(Unsendable::TooLarge);
         }

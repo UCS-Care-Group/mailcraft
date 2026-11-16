@@ -26,6 +26,13 @@ class ReadabilityTest {
     }
 
     @Test
+    fun plainInkReadsOnAMidTonePaper() {
+        listOf(0x999999, 0x808080, 0x777777, white, darkPaper).forEach {
+            assertTrue("on ${it.toString(16)}", Readability.contrast(Readability.plainInk(it), it) >= Readability.MIN_CONTRAST)
+        }
+    }
+
+    @Test
     fun darkTextOnADarkPaperIsLightenedJustEnough() {
         val adjusted = Readability.adjust(0x222222, darkPaper)
         assertTrue(Readability.contrast(adjusted, darkPaper) >= Readability.MIN_CONTRAST)

@@ -56,7 +56,7 @@ internal object Readability {
     private const val LIGHT_PAPER = 0.4
 
     /** The text colour for text that asks for none on [paper]. */
-    fun plainInk(paper: Int): Int = if (isLight(paper)) NEAR_BLACK else NEAR_WHITE
+    fun plainInk(paper: Int): Int = targetFor(paper)
 
     /**
      * [ink] as it is drawn on [paper]: itself when the pair reads, else moved towards the end of the

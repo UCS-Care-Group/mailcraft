@@ -38,6 +38,15 @@ pub enum Dialog {
         text: String,
         error: String,
     },
+    /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
+    /// it was run without one; runs `mail.move` or `mail.copy`.
+    MoveItems(crate::move_items::MoveItems),
+    /// Add Reminder on the selected messages, or Follow Up › Choose a date… in the message being
+    /// written (#948); runs `mail.reminder` or `compose.followUp`.
+    AddReminder(crate::reminder_dialog::AddReminder),
+    /// Delay Delivery, Send Later and Change Send Time (#950): a date and a time; runs
+    /// `compose.delay`, `compose.sendLater` or `mail.setSendTime`.
+    SendLater(crate::send_later::Ask),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -62,6 +71,17 @@ pub enum Dialog {
         error: String,
         /// The address that was asked for and is being read.
         reading: Option<String>,
+    },
+    /// The address of a calendar on the web to subscribe to (Calendar › Open Calendar › From
+    /// Internet…, #209): it only collects the address, then runs `calendar.subscribe`
+    /// ([`crate::subscribed`]). The address is a secret like a password: it is not shown back in
+    /// any message, and is never in a log.
+    Subscribe {
+        address: String,
+        name: String,
+        error: String,
+        /// For a refused `http://` address: the same one over `https://`, offered.
+        offer: Option<String>,
     },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
@@ -230,9 +250,13 @@ impl Dialog {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
+            Dialog::MoveItems(d) => d.name(),
+            Dialog::AddReminder(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
+            Dialog::SendLater(d) => d.name(),
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
+            Dialog::Subscribe { .. } => "subscribe",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
@@ -301,6 +325,17 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "addReminder" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Messages)?),
+            "followUpDate" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Composing)?),
+            "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
+            "delay" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Delay)?),
+            "sendLater" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Send)?),
+            "sendTime" => {
+                let queued = id("id")
+                    .or(app.session.sel.focus())
+                    .filter(|id| app.session.mailbox.message(*id).is_some_and(|m| crate::send_later::waits(app, m)))?;
+                Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Change(queued))?)
+            }
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -323,6 +358,12 @@ impl Dialog {
                 let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
                 Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
             }
+            "subscribe" => Dialog::Subscribe {
+                address: params.get("address").and_then(Value::as_str).unwrap_or_default().to_string(),
+                name: String::new(),
+                error: String::new(),
+                offer: None,
+            },
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
                 let sel = c.body.selection();
@@ -419,12 +460,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     let mb = &app.session.mailbox;
     // Read as the command reads it (#553): one named wrongly asks nothing, and the command refuses it.
     let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
-    // (Not a JMAP account's yet, nor an Exchange server account's: nothing done here goes up to
-    // its server until the engine sends its changes, so nothing is removed there.)
-    let on_server = |account: u64| {
-        mb.account(account)
-            .is_some_and(|a| a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange))
-    };
+    // (A JMAP account's too: its deletions go up with its next run. Not an Exchange server
+    // account's, as before.)
+    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Exchange);
     let server_too = |yes: bool| if yes { format!(" {}", tl!("They are removed from the mail server too.")) } else { String::new() };
     let question = |title: &str, text: String, action: &str| Some(Question::new(title, text, action, Value::Null));
     match id {
@@ -444,6 +482,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             );
             question(tl!("Download Pictures in All Mail"), text, tl!("Download in all mail"))
         }
+        // Unsubscribing from a list (#1207): what is sent, to whom, or what opens.
+        "ui.unsubscribe" => crate::reading::unsubscribe::question(app, params),
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -484,7 +524,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 tln!(n, "{n} message will be permanently deleted.", "{n} messages will be permanently deleted.")
             };
-            let text = if going.iter().any(|m| on_server(m.account)) {
+            // (Of a JMAP account, only what its server has: the rest is this computer's alone.)
+            let jmap = |m: &mailcraft_model::Message| mb.account(m.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let text = if going.iter().any(|m| on_server(m.account) && (m.server.is_some() || !jmap(m))) {
                 let too = if n == 1 {
                     tl!("It is removed from the mail server too, and that can't be undone.")
                 } else {
@@ -521,8 +563,42 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             }
             let everything =
                 crate::i18n::fmt(tl!("Everything in \"{folder}\" will be permanently deleted."), &[("folder", crate::nav::folder_name(f))]);
-            let text = format!("{everything}{}", server_too(on_server(f.account)));
+            // (Of a JMAP account, only when its server has some of it: what is this computer's
+            // alone, a draft or mail brought in from a file, is removed nowhere else.)
+            let jmap = mb.account(f.account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap);
+            let going = mb.subtree(f.id);
+            let theirs = || mb.messages.values().any(|m| m.server.is_some() && going.contains(&m.folder));
+            let text = format!("{everything}{}", server_too(on_server(f.account) && (!jmap || theirs())));
             question(tl!("Empty Folder"), text, tl!("Empty"))
+        }
+        // Copies only this computer has of mail its server has (#1401): what goes is counted first.
+        // None found: the command runs and says so.
+        "mail.removeImportedDuplicates" if params.get("preview").and_then(Value::as_bool) != Some(true) => {
+            let scope = mailcraft_engine::p::id_strict(params, "folder").ok()?;
+            let found = mailcraft_engine::cmd::imported_dupes::twins(mb, scope);
+            let n = found.remove.len();
+            if n == 0 {
+                return None;
+            }
+            let what = tln!(
+                n,
+                "{n} message on this computer is a copy of mail its server has in the same folder, and will be removed.",
+                "{n} messages on this computer are copies of mail their server has in the same folder, and will be removed."
+            );
+            // (Undo goes only as far back as the last Send/Receive that sent changes or mail.)
+            let mut text = format!(
+                "{what} {}",
+                tl!("The server's copies stay as they are, and nothing is sent to the server. Undo brings them back until the next Send/Receive.")
+            );
+            if found.kept > 0 {
+                let kept = tln!(
+                    found.kept,
+                    "{n} copy you changed (its flag, categories, read mark or a to-do) is kept.",
+                    "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
+                );
+                text = format!("{text} {kept}");
+            }
+            question(tl!("Remove Imported Duplicates"), text, tl!("Remove"))
         }
         "folder.delete" => {
             let f = folder("id")?;
@@ -578,6 +654,17 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        // A subscribed calendar and its events go from this computer; nothing is sent (#209).
+        "calendar.unsubscribe" => {
+            let calendar = params.get("id").and_then(Value::as_u64).and_then(|c| mb.calendar(c)).filter(|c| c.is_subscribed())?;
+            let text = crate::i18n::fmt(
+                tl!(
+                    "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+                ),
+                &[("name", &calendar.name)],
+            );
+            question(tl!("Unsubscribe from Calendar"), text, tl!("Unsubscribe"))
         }
         // A calendar opened by address is removed here only: the server's is not touched (#70).
         "calendar.removeShared" => {
@@ -840,6 +927,9 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
     let pin = match id {
         "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
         "folder.empty" | "folder.delete" if !named("id") => Some(("id", json!(app.session.view.folder))),
+        // The message the question was about, not whatever is selected when the owner says yes
+        // (#1207); `null` reads as the selection there too.
+        "ui.unsubscribe" if params.get("message").is_none_or(Value::is_null) => sel.focus().map(|m| ("message", json!(m))),
         _ => None,
     };
     if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {
@@ -992,10 +1082,14 @@ pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
         }
     }
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
-    if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
+    // (`ui.openWindow` opens only the event it names: a message's window leaves alone what was
+    // said of the appointment opened last, #1152.)
+    let named = if command == "ui.openWindow" { params.get("event") } else { params.get("event").or(params.get("id")) };
+    let event = named.and_then(Value::as_u64).or(app.session.sel.event.filter(|_| command != "ui.openWindow"));
+    if opening && let Some(event) = event {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");
         let day = params.get("occurrence").and_then(Value::as_str).and_then(mailcraft_time::Date::parse_iso).filter(|_| one);
-        app.calendar.opened = params.get("scope").is_some().then_some((event, day));
+        app.session.driver.calendar.opened = params.get("scope").is_some().then_some((event, day));
     }
     let opened = if command == "ui.openWindow" { app.run_or_else(command, params.clone()) } else { app.run(command, params.clone()) };
     if opened.is_err() && command == "ui.openWindow" {
@@ -1058,7 +1152,10 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     }
     let opening = id == "ui.openWindow";
     // `id` read as the command reads it (#553): named wrongly, nothing is asked and the command refuses it.
-    let named = if opening { params.get("event").and_then(Value::as_u64) } else { mailcraft_engine::p::id_strict(params, "id").ok()? };
+    // A window is asked about only when it is an appointment's: `ui.openWindow` opens the event it
+    // names and never the one selected, so a message's, a draft's or a new item's window asks
+    // nothing about an occurrence left selected (by a reminder that was opened, #1152).
+    let named = if opening { Some(params.get("event").and_then(Value::as_u64)?) } else { mailcraft_engine::p::id_strict(params, "id").ok()? };
     let e = mb.event(named.or(app.session.sel.event)?)?;
     // 1. Just this one, or the entire series? Asked of the occurrence that is selected (the
     // grid selects the one it acts on); nothing is asked about what is the same for both.
@@ -1074,7 +1171,7 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     // What the form of an item saves that was opened as one occurrence (or as the series) is
     // meant for that, whatever is selected by now: [`as_opened`] says so when the command is
     // run, so it has to be run that way (and is then asked nothing).
-    let opened = app.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
+    let opened = app.session.driver.calendar.opened.filter(|(event, _)| *event == e.id && from_form(id, params));
     let day = match opened {
         Some((_, said)) => said.or(day).or(Some(e.start.date)),
         None => day,
@@ -1188,15 +1285,15 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
     // Opened anew, with nothing said of which is meant: what was said the last time no longer
     // holds. (What is said now, when the question is asked, is noted by [`go_ahead`].)
     if (id == "ui.openWindow" || input_dialog(id, &params) == Some("editEvent")) && params.get("scope").is_none() {
-        app.calendar.opened = None;
+        app.session.driver.calendar.opened = None;
         return params;
     }
-    let Some((event, day)) = app.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
+    let Some((event, day)) = app.session.driver.calendar.opened.filter(|_| from_form(id, &params)) else { return params };
     if params.get("id").and_then(Value::as_u64).or(app.session.sel.event) != Some(event) {
         return params;
     }
     // Said once, used once: the next time the item is opened, the owner is asked again.
-    app.calendar.opened = None;
+    app.session.driver.calendar.opened = None;
     let mut params = params;
     if let Some(map) = params.as_object_mut() {
         match day {
@@ -1217,6 +1314,7 @@ pub fn as_opened(app: &mut MailApp, id: &str, params: Value) -> Value {
 pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
     let has = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
     let empty = params.as_object().is_none_or(|m| m.is_empty());
+    let names_messages = params.get("id").is_some() || params.get("ids").is_some();
     match id {
         "folder.new" | "folder.rename" if !has("name") => Some("folder"),
         "calendar.new" if !has("title") => Some("event"),
@@ -1243,9 +1341,18 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
+        // Move to Folder and Copy to Folder without a folder (their keys, the menu bar) ask which
+        // (#1176).
+        // The dialog moves the selection, so a call that names messages (`id`, `ids`, even as
+        // null) isn't sent there: it runs, and is refused for want of a folder.
+        "mail.move" if !has("folder") && !names_messages => Some("moveItems"),
+        "mail.copy" if !has("folder") && !names_messages => Some("copyItems"),
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
+        "compose.delay" if !has("at") && !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("delay"),
+        "compose.sendLater" if !has("at") => Some("sendLater"),
+        "mail.setSendTime" if !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("sendTime"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
@@ -1256,6 +1363,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
+        "calendar.subscribe" if !has("address") => Some("subscribe"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1543,6 +1651,17 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
+        Dialog::MoveItems(d) => {
+            let mut outcome = crate::move_items::Outcome::Open;
+            let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
+        }
+        Dialog::AddReminder(d) => {
+            let mut outcome = crate::reminder_dialog::Outcome::Open;
+            let title = if d.target == crate::reminder_dialog::Target::Composing { tl!("Follow Up") } else { tl!("Add Reminder") };
+            let open = window(ctx, title, 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::reminder_dialog::Outcome::Close);
+        }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
             let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
@@ -1564,6 +1683,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
                 }
+            }
+        }
+        Dialog::SendLater(d) => {
+            if matches!(crate::send_later::show(ctx, d, app, &t, enter), crate::send_later::Outcome::Close) {
+                close = true;
             }
         }
         Dialog::ReplyTo { text, error } => {
@@ -1686,6 +1810,56 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 match app.begin_open_shared(*account, address.trim()) {
                     Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
                     Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::Subscribe { address, name, error, offer } => {
+            let mut submit = false;
+            let mut use_offer = false;
+            let open = window(ctx, tl!("Subscribe to Internet Calendar"), 460.0, |ui| {
+                ui.label(tl!("The address of the calendar"));
+                let field = egui::TextEdit::singleline(address)
+                    .password(true)
+                    .hint_text("https://calendar.example.org/club.ics")
+                    .desired_width(f32::INFINITY);
+                let resp = crate::text_menu::field(ui.add(field));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.add_space(2.0);
+                ui.label(tl!("Name (optional)"));
+                let field = egui::TextEdit::singleline(name).hint_text(tl!("The name the calendar gives itself")).desired_width(f32::INFINITY);
+                crate::text_menu::field(ui.add(field));
+                ui.label(
+                    egui::RichText::new(tl!(
+                        "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                if offer.is_some() {
+                    use_offer = ui.link(tl!("Use https:// instead")).clicked();
+                }
+                let (ok, cancel) = buttons(ui, tl!("Subscribe"), !address.trim().is_empty());
+                submit = ok || (enter && !address.trim().is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if use_offer && let Some(better) = offer.take() {
+                *address = better;
+                error.clear();
+            } else if submit && !close {
+                error.clear();
+                *offer = None;
+                match app.begin_subscribe(address, name) {
+                    Ok(_) => close = true,
+                    Err(e) => {
+                        *offer = MailApp::https_offer(address);
+                        *error = e;
+                    }
                 }
             }
         }
@@ -1840,15 +2014,19 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             }
         }
         Dialog::Report { title, lines, .. } => {
+            // As tall as the report needs, up to most of the window's height; scrolled past that.
+            let tallest = (ctx.content_rect().height() * 0.6).clamp(200.0, 560.0);
             let open = window(ctx, title, 560.0, |ui| {
-                egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(tallest).auto_shrink([false, true]).show(ui, |ui| {
                     for line in lines.iter() {
                         // Selectable, so a line can be copied by itself too.
                         ui.add(egui::Label::new(line.as_str()).selectable(true).wrap());
                     }
                 });
                 ui.add_space(6.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // One button high: a right-to-left layout of its own would take all the height
+                // that is left and leave a gap above the buttons.
+                button_row(ui, |ui| {
                     if ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked() {
                         close = true;
                     }
@@ -2149,6 +2327,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     if let Some(Dialog::Commands { query: id, selected: usize::MAX }) = reopen {
         let id = match id.as_str() {
             "sync.request" => "ui.sync".to_string(),
+            // Its question says what will be sent or opened before anything happens (#1207).
+            "mail.unsubscribe" => "ui.unsubscribe".to_string(),
             // Asked on its page, which says what the switch does.
             "account.graphSwitch" => "ui.graphSwitch".to_string(),
             _ => id,

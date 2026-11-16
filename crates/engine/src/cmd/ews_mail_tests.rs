@@ -579,3 +579,153 @@ fn the_folder_lists_state_is_counted_too() {
     let why = apply_ews_mail(&mut s, EwsMailResult { hierarchy: "JK".into(), folders: Some(Default::default()), ..piece(account) }).unwrap_err();
     assert!(why.to_string().contains("more sync state") && s.mailbox == before, "{why}");
 }
+
+/// A folder list read by a version that asked for no parents had every folder at the top: it is
+/// read afresh once, and the folders go where the server has them.
+#[test]
+fn a_folder_list_read_without_parents_is_read_afresh_once_and_puts_the_folders_inside_each_other() {
+    let (mut s, account) = session();
+    // As an earlier version kept it: every folder at the top, the list going on from "OLD".
+    let flat: Vec<GraphFolder> = folders().into_iter().map(|f| GraphFolder { parent: String::new(), ..f }).collect();
+    apply_ews_mail(
+        &mut s,
+        EwsMailResult {
+            folders: Some(EwsFolderDeltas { changed: flat, afresh: true, ..Default::default() }),
+            hierarchy: "OLD".into(),
+            ..piece(account)
+        },
+    )
+    .unwrap();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().parents = false;
+    let apollo = s.mailbox.folder_by_server(account, "F3").unwrap();
+    assert_eq!(s.mailbox.folder(apollo).unwrap().parent, None);
+    // Kept in the file as it was: an old file has no mark, and reads as having none.
+    let saved = serde_json::to_value(s.mailbox.account(account).unwrap().ews.as_ref().unwrap()).unwrap();
+    assert!(saved.get("parents").is_none() && saved["hierarchy"] == "OLD");
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(request.hierarchy.is_empty() && request.list_folders, "the list is read from its start");
+    // A list read afresh but cut short keeps its state out, and so the mark.
+    let mut cut = folders();
+    cut.push(folder("F9", "", "", FolderKind::Custom));
+    apply_ews_mail(
+        &mut s,
+        EwsMailResult {
+            folders: Some(EwsFolderDeltas { changed: cut, afresh: true, ..Default::default() }),
+            hierarchy: "CUT".into(),
+            ..piece(account)
+        },
+    )
+    .unwrap();
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
+    assert!(ews_mail_request(&s, account, false).unwrap().hierarchy.is_empty());
+    // Read whole: Apollo lies in Projects, and the next run goes on from where this one ended.
+    list(&mut s, account);
+    let apollo = s.mailbox.folder_by_server(account, "F3").unwrap();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    assert_eq!(s.mailbox.folder(apollo).unwrap().parent, Some(projects));
+    assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().parents);
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER-1");
+}
+
+/// The folder list, read afresh with `changed` and past mail folders that couldn't be read.
+fn afresh_past(s: &mut Session, account: Id, changed: Vec<GraphFolder>, unreadable_in: &[&str], anywhere: bool, hierarchy: &str) {
+    let deltas = EwsFolderDeltas {
+        changed,
+        afresh: true,
+        unreadable_in: unreadable_in.iter().map(|p| p.to_string()).collect(),
+        unreadable_anywhere: anywhere,
+        ..Default::default()
+    };
+    apply_ews_mail(s, EwsMailResult { folders: Some(deltas), hierarchy: hierarchy.into(), ..piece(account) }).unwrap();
+}
+
+/// A mail folder inside one the list passes over (Outlook makes "Mail and Post Items" folders
+/// under Calendar or Contacts) is at the top here, and nothing asks the server to move it there:
+/// it stays where the owner put it for every other program (#1108).
+#[test]
+fn a_mail_folder_in_a_folder_that_is_not_listed_stays_where_it_is_on_the_server() {
+    let (mut s, account) = session();
+    let mut listed = folders();
+    listed.push(folder("F7", "CAL", "Mail under Calendar", FolderKind::Custom));
+    afresh_past(&mut s, account, listed, &[], false, "HIER-1");
+    let f7 = s.mailbox.folder_by_server(account, "F7").unwrap();
+    assert_eq!(s.mailbox.folder(f7).unwrap().parent, None, "at the top here");
+    assert!(ews_mail_request(&s, account, false).unwrap().changes.is_empty(), "and no move goes up");
+    // The same once the list goes on as a delta, and when the folder above it comes in later.
+    let delta = EwsFolderDeltas { changed: vec![folder("F7", "CAL", "Mail under Calendar", FolderKind::Custom)], ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(delta), hierarchy: "HIER-2".into(), ..piece(account) }).unwrap();
+    assert!(ews_mail_request(&s, account, false).unwrap().changes.is_empty());
+    let delta = EwsFolderDeltas {
+        changed: vec![folder("CAL", "", "Archive 2024", FolderKind::Custom), folder("F7", "CAL", "Mail under Calendar", FolderKind::Custom)],
+        ..Default::default()
+    };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(delta), hierarchy: "HIER-3".into(), ..piece(account) }).unwrap();
+    let cal = s.mailbox.folder_by_server(account, "CAL").unwrap();
+    assert_eq!(s.mailbox.folder(f7).unwrap().parent, Some(cal), "a folder above it that comes in takes it in");
+    assert!(ews_mail_request(&s, account, false).unwrap().changes.is_empty());
+}
+
+/// When the root's own id couldn't be told, every folder at the top comes with it as its parent:
+/// none of them is moved to the top on the server at each run.
+#[test]
+fn folders_whose_parent_is_a_root_that_could_not_be_told_are_not_moved() {
+    let (mut s, account) = session();
+    let rooted: Vec<GraphFolder> =
+        folders().into_iter().map(|f| GraphFolder { parent: if f.parent.is_empty() { "ROOT".into() } else { f.parent.clone() }, ..f }).collect();
+    afresh_past(&mut s, account, rooted, &[], false, "HIER-1");
+    let apollo = s.mailbox.folder_by_server(account, "F3").unwrap();
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    assert_eq!(s.mailbox.folder(apollo).unwrap().parent, Some(projects));
+    assert!(ews_mail_request(&s, account, false).unwrap().changes.is_empty());
+}
+
+/// A read afresh past a mail folder that couldn't be read keeps what lies where that folder lies,
+/// removes what the server no longer has elsewhere, and the list goes on from where it ended, so
+/// that a folder deleted later comes as a deletion (#1108).
+#[test]
+fn a_read_afresh_past_a_folder_it_could_not_read_keeps_only_what_lies_where_that_folder_lies() {
+    let (mut s, account) = session();
+    let mut all = folders();
+    all.push(folder("F6", "", "Old Stuff", FolderKind::Custom));
+    afresh_past(&mut s, account, all, &[], false, "HIER-1");
+    // Apollo (in Projects) and Old Stuff (at the top) aren't listed; a folder in Projects couldn't be read.
+    let part: Vec<GraphFolder> = folders().into_iter().filter(|f| f.id != "F3").collect();
+    afresh_past(&mut s, account, part, &["F5"], false, "HIER-2");
+    assert!(s.mailbox.folder_by_server(account, "F3").is_some(), "it may be the folder that couldn't be read");
+    assert!(s.mailbox.folder_by_server(account, "F6").is_none(), "the server no longer has it");
+    let server = s.mailbox.account(account).unwrap().ews.as_ref().unwrap();
+    assert!(server.parents && server.hierarchy == "HIER-2", "the list goes on from where it ended");
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER-2");
+    // Deleted on the server since: the delta says so, and it goes here too.
+    let delta = EwsFolderDeltas { deleted: vec!["F3".into()], ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(delta), hierarchy: "HIER-3".into(), ..piece(account) }).unwrap();
+    assert!(s.mailbox.folder_by_server(account, "F3").is_none());
+}
+
+/// One that lay where that couldn't be told either: nothing is removed for not being listed, and
+/// the list still goes on from where it ended.
+#[test]
+fn a_read_afresh_past_a_folder_whose_place_could_not_be_told_removes_nothing() {
+    let (mut s, account) = session();
+    let mut all = folders();
+    all.push(folder("F6", "", "Old Stuff", FolderKind::Custom));
+    afresh_past(&mut s, account, all, &[], false, "HIER-1");
+    let part: Vec<GraphFolder> = folders().into_iter().filter(|f| f.id != "F3").collect();
+    afresh_past(&mut s, account, part, &[], true, "HIER-2");
+    assert!(s.mailbox.folder_by_server(account, "F3").is_some() && s.mailbox.folder_by_server(account, "F6").is_some());
+    assert_eq!(ews_mail_request(&s, account, false).unwrap().hierarchy, "HIER-2");
+}
+
+/// A place the account doesn't have (the root, when its id couldn't be told) is the top here:
+/// what lies at the top is kept, what lies in a known folder is not.
+#[test]
+fn a_folder_that_could_not_be_read_in_a_place_not_here_keeps_what_is_at_the_top() {
+    let (mut s, account) = session();
+    let mut all = folders();
+    all.push(folder("F6", "", "Old Stuff", FolderKind::Custom));
+    afresh_past(&mut s, account, all, &[], false, "HIER-1");
+    let part: Vec<GraphFolder> = folders().into_iter().filter(|f| f.id != "F3").collect();
+    afresh_past(&mut s, account, part, &["ROOT"], false, "HIER-2");
+    assert!(s.mailbox.folder_by_server(account, "F6").is_some(), "at the top: it may be that folder");
+    assert!(s.mailbox.folder_by_server(account, "F3").is_none(), "in Projects, which was read: gone");
+}
