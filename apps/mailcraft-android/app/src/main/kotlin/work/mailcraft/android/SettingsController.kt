@@ -87,6 +87,7 @@ internal class SettingsController(
      */
     private val windowChoices = Mutex()
     private val capChoices = Mutex()
+    private val signatureSaves = Mutex()
     private var answer: CompletableDeferred<Boolean>? = null
 
     /** The one run of thinning older mail: a second window choice, or Stop, ends it. */
@@ -140,7 +141,14 @@ internal class SettingsController(
         scope.launch {
             val found = api.signature(account) ?: return@launch
             val read = found.copy(draft = found.saved)
-            ui.update { state -> state.copy(signatures = state.signatures + (account to read)) }
+            // A read that was started twice, or that lands after the owner typed or saved, keeps what is there.
+            ui.update { state ->
+                if (account in state.signatures) {
+                    state
+                } else {
+                    state.copy(signatures = state.signatures + (account to read))
+                }
+            }
         }
     }
 
@@ -286,16 +294,19 @@ internal class SettingsController(
         state.copy(signatures = state.signatures + (account to typed))
     }
 
+    /** Saves go one after another, each judged against the draft and the last save as they are by then. */
     private fun saveSignature(account: ULong) {
-        val now = ui.value.signatures[account] ?: return
-        if (!now.editable || !now.changed) return
-        val text = now.draft
         scope.launch {
-            val kept = api.setSignature(account, text)
-            ui.update { state ->
-                val here = state.signatures[account] ?: return@update state
-                val next = if (kept) here.copy(saved = text, failed = false) else here.copy(failed = true)
-                state.copy(signatures = state.signatures + (account to next))
+            signatureSaves.withLock {
+                val now = ui.value.signatures[account] ?: return@withLock
+                if (!now.editable || !now.changed) return@withLock
+                val text = now.draft
+                val kept = api.setSignature(account, text)
+                ui.update { state ->
+                    val here = state.signatures[account] ?: return@update state
+                    val next = if (kept) here.copy(saved = text, failed = false) else here.copy(failed = true)
+                    state.copy(signatures = state.signatures + (account to next))
+                }
             }
         }
     }

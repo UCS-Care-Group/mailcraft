@@ -54,9 +54,19 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
 
     override fun freeBytes() = free
 
-    override suspend fun signature(account: ULong) = signatures[account]
+    val readGates = ArrayDeque<kotlinx.coroutines.CompletableDeferred<Unit>>()
+    val saveGates = ArrayDeque<kotlinx.coroutines.CompletableDeferred<Unit>>()
+    var saveCalls = 0
+
+    override suspend fun signature(account: ULong): SignatureState? {
+        val found = signatures[account]
+        readGates.removeFirstOrNull()?.await()
+        return found
+    }
 
     override suspend fun setSignature(account: ULong, text: String): Boolean {
+        saveCalls++
+        saveGates.removeFirstOrNull()?.await()
         if (refuse) return false
         saved.add("$account:$text")
         return true
@@ -292,6 +302,41 @@ class SettingsControllerTest {
         c.actions().onSignatureSave(ada)
         assertEquals(listOf("1:Ada B.\nExample Org"), api.saved)
         assertEquals("Ada B.\nExample Org", c.ui.value.signatures[1uL]?.saved)
+        assertFalse(c.ui.value.signatures.getValue(1uL).changed)
+    }
+
+    @Test
+    fun aSignatureReadStartedTwiceNeverOverwritesWhatWasTypedMeanwhile() {
+        val api = FakeSettings()
+        val first = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val second = kotlinx.coroutines.CompletableDeferred<Unit>()
+        api.readGates.addAll(listOf(first, second))
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onShown(listOf(ada))
+        first.complete(Unit)
+        c.actions().onSignatureDraft(ada, "Typed")
+        second.complete(Unit)
+        assertEquals("Typed", c.ui.value.signatures[1uL]?.draft)
+        assertEquals("Ada", c.ui.value.signatures[1uL]?.saved)
+    }
+
+    @Test
+    fun signatureSavesGoOneAfterAnotherSoTheLastTypedIsTheLastKept() {
+        val api = FakeSettings()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        api.saveGates.add(gate)
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onSignatureDraft(ada, "First")
+        c.actions().onSignatureSave(ada)
+        c.actions().onSignatureDraft(ada, "Second")
+        c.actions().onSignatureSave(ada)
+        // The second waits for the first: only one went to the core.
+        assertEquals(1, api.saveCalls)
+        gate.complete(Unit)
+        assertEquals(listOf("1:First", "1:Second"), api.saved)
+        assertEquals("Second", c.ui.value.signatures[1uL]?.saved)
         assertFalse(c.ui.value.signatures.getValue(1uL).changed)
     }
 

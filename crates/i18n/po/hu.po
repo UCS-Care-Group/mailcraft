@@ -550,7 +550,7 @@ msgstr "Egy képet nem lehetett letölteni."
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say."
-msgstr "A kép az interneten azt mondja a feladó, hogy megnyitotta az üzenetet, és amikor. Left off, képek letölthetők csak az üzenetek, feladók és domain azt mondja."
+msgstr "Egy weben lévő kép elárulja a feladójának, hogy megnyitotta az üzenetet, és mikor. Kikapcsolva a képek csak azokhoz az üzenetekhez, feladókhoz és tartományokhoz töltődnek le, amelyeket Ön megad."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -1268,7 +1268,7 @@ msgstr "A feladó üzeneteinek automatikus áthelyezése"
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again."
-msgstr "Mindig tölts le képeket mindenkiről, akinek a címe így végződik. Emlékeztünk a beállításokra; Fájl › A beállítások felsorolja a tartományokat és leveszi őket újra."
+msgstr "Mindenkinek a képeit mindig letölti, akinek a címe így végződik. A beállításokban megjegyezzük; a Fájl › Beállítások felsorolja a tartományokat, és újra eltávolíthatja őket."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -4384,7 +4384,7 @@ msgstr "Képek letöltése minden levélben"
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
-msgstr "Minden üzenetben letölthet képeket, anélkül, hogy megkérdezné, kivéve a Junk E-mailben. Először azt kéri; Fájl › A beállítások újra kikapcsolják."
+msgstr "Minden üzenet képeit megkérdezés nélkül letölti, a Levélszemét mappa kivételével. Bekapcsoláskor először rákérdez; a Fájl › Beállítások újra kikapcsolja."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
@@ -5488,7 +5488,7 @@ msgstr "Felejtsd el a megbízható tanúsítványt"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
-msgstr "Felejtsd el a képeket, hogy tartott; azokat letöltjük újra, amikor kérdezed."
+msgstr "Elfelejti a megőrzött képeket; kérésére újra letöltődnek."
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -6040,7 +6040,7 @@ msgstr "Grafit"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
-msgstr "A Gravatar-t a feladó képére kérik, és a címüket egy hash-nak is elmondják; máskülönben a favikon.im-et, majd a Google-t, a weboldaluk ikonjának is megkérjük, és a küldő domain-jének is elmondják. Ez a szolgáltatás azoknak a szolgáltatásoknak a számára, akiknek a képeit nézi. Csak azoknak az embereknek, akiket ismer (akivel kapcsolatban áll, és akinek írt) és a levélnek, akiknek a képeit letölti, soha nem dzsunk e-mail-re, és csak akkor, ha a feladó képe megerősíti a postát."
+msgstr "A Gravatartól a feladó képét kérjük el, és megmondjuk neki a címük hash-ét; ha nincs ilyen, a favicon.im-től, majd a Google-től a weboldaluk ikonját kérjük el, és megmondjuk nekik a feladó tartományát. Ezzel ezek a szolgáltatások megtudják, kinek a képeit nézi. Csak azokhoz, akiket ismer (a névjegyei, és akinek írt), és azokhoz a levelekhez történik, amelyeknek a képeit letölti, a Levélszemét mappa leveleihez soha, a feladó képe pedig csak akkor, ha a levelezőszerver megerősíti, hogy a levél tőle származik."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -8356,7 +8356,7 @@ msgstr "A mappában már található üzenetek kimaradnak."
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
-msgstr "Üzenetek nélkül futtatása nélkül is, és a képek egy üzenet megtartja az interneten csak akkor tölt le, ha kérdezi. Jelszavak csak akkor maradnak memória, amíg az alkalmazás nyitva."
+msgstr "Az üzenetek semmi futtatása nélkül jelennek meg, és az üzenetek weben tárolt képei csak akkor töltődnek le, ha Ön kéri. A jelszavak csak addig maradnak a memóriában, amíg az alkalmazás nyitva van."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -13612,7 +13612,7 @@ msgstr "Jelszó megjelenítése"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
-msgstr "A feladók képeinek megjelenítése a Gravatarról, a favikonról és a Google-ról"
+msgstr "Feladóképek megjelenítése a Gravatarról, a favicon.im-ről és a Google-ről"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -13660,7 +13660,7 @@ msgstr "A beszélgetés üzeneteinek megjelenítése"
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
-msgstr "Mutassa meg az üzenet képeit, bárki is küldte, akkor meg tudja mondani, hogy kinyitotta."
+msgstr "Az üzenet képeinek megjelenítése, csak most. A feladó ezután megtudhatja, hogy megnyitotta."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -17332,7 +17332,7 @@ msgstr "Ez a kép úton van, vagy kimaradt: egy üzenet csak ennyit kap."
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "This picture is on the web. It is not downloaded unless you ask."
-msgstr "Ez a kép az interneten van. Nincs letöltve, ha nem kérdezed."
+msgstr "Ez a kép a weben van. Csak akkor töltődik le, ha Ön kéri."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -18762,7 +18762,7 @@ msgstr "Elfogadtad ezt a találkozót."
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
-msgstr "Mindig letöltöd a feladó képeit, de a postaszerver nem erősítette meg, hogy ez az üzenet tőlük jött, így először is megkérdezik."
+msgstr "Mindig letölti ennek a feladónak a képeit, de a levelezőszerver nem erősítette meg, hogy ez az üzenet tőle jött, ezért először rákérdezünk."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
