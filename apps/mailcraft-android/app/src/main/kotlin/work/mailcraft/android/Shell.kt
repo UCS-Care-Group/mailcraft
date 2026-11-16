@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 @file:OptIn(ExperimentalMaterial3Api::class)
+@file:Suppress("TooManyFunctions")
 
 package work.mailcraft.android
 
@@ -51,6 +52,8 @@ internal class ShellData(
     val chosenLanguage: String,
     /** What the account screens draw besides the list of accounts. */
     val accountsUi: AccountsUi = AccountsUi(),
+    /** What the Settings pages draw besides the accounts. */
+    val settingsUi: SettingsUi = SettingsUi(),
     /** What reading the outline came to: no accounts means none only when it is [OutlineStatus.Ready]. */
     val outline: OutlineStatus = OutlineStatus.Ready,
     /** The categories mail can be given, with their colours. */
@@ -59,18 +62,44 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
+    /** The message being read, and how its pictures are coming. */
+    val reading: ReadingUi = ReadingUi(),
+    /** What the owner said about pictures, and what is kept of them. */
+    val pictures: PicturesUi = PicturesUi(),
+    /** Senders' pictures by row id, when sender images are on (null when off). */
+    val avatars: Map<ULong, ByteArray>? = null,
 )
 
 /** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
 internal enum class OutlineStatus { Loading, Failed, Ready }
+
+/** The list the Mail tab shows: an outline read with no folder to show has no list to wait for. */
+internal fun shownMail(outlineRead: Boolean, folder: FolderItem?, ui: MailListUi): MailListUi =
+    if (outlineRead && folder == null) ui.copy(load = LoadState.Failed) else ui
+
+internal fun outlineStatus(outlineRead: Boolean, outline: MailboxOutline?): OutlineStatus = when {
+    !outlineRead -> OutlineStatus.Loading
+    outline == null -> OutlineStatus.Failed
+    else -> OutlineStatus.Ready
+}
+
+/** What the Calendar tab draws and does, as plain values. */
+internal class CalendarPane(
+    val state: CalendarUiState,
+    val actions: CalendarActions,
+)
 
 /** What the shell asks of the app. */
 internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
     val accounts: AccountActions = AccountActions(),
+    val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
+    val reading: ReadingActions = ReadingActions.None,
+    val onPictures: (PicturePrefs) -> Unit = {},
+    val onClearPictures: () -> Unit = {},
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -89,10 +118,20 @@ internal fun AppShell(
     texts: Texts,
     data: ShellData,
     actions: ShellActions,
+    /** The Calendar tab, when there is a core to read it from. */
+    calendar: CalendarPane? = null,
     initialNav: NavState = NavState(),
     initialDrawer: DrawerValue = DrawerValue.Closed,
+    /** A tab something outside asked for (an .ics file was opened): the shell goes to it, then says so. */
+    requestTab: Tab? = null,
+    onTabRequested: () -> Unit = {},
 ) {
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
+    LaunchedEffect(requestTab) {
+        // (Add Account is left alone: a sign-in may be waiting there; the tab's notice stays for later.)
+        requestTab?.let { if (!nav.adding) nav = nav.select(it) }
+        if (requestTab != null) onTabRequested()
+    }
     val drawer = rememberDrawerState(initialDrawer)
     val scope = rememberCoroutineScope()
     val back = nav.back()
@@ -138,6 +177,7 @@ internal fun AppShell(
                 texts = texts,
                 data = data,
                 actions = actions,
+                calendar = calendar,
                 nav = nav,
                 onNav = { nav = it },
                 onLeaveAdd = leaveAdd,
@@ -146,6 +186,7 @@ internal fun AppShell(
         }
     }
     AccountDialogs(texts, data, actions.accounts)
+    SpaceQuestion(texts, data, actions.settings)
 }
 
 /** The screen the navigation state says: Add Account, Settings, or a tab. */
@@ -154,6 +195,7 @@ private fun ShellScreen(
     texts: Texts,
     data: ShellData,
     actions: ShellActions,
+    calendar: CalendarPane?,
     nav: NavState,
     onNav: (NavState) -> Unit,
     onLeaveAdd: () -> Unit,
@@ -178,14 +220,18 @@ private fun ShellScreen(
             title = if (nav.tab == Tab.Mail) data.folderName else nav.tab.label(texts),
             onTab = { onNav(nav.select(it)) },
             onMenu = onMenu,
+            onBack = if (nav.message != null) ({ nav.back()?.let(onNav) }) else null,
         ) { modifier, expanded ->
             when (nav.tab) {
                 // (No account is said only after a read that worked and found none.)
                 Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
                     NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
                 } else {
-                    MailTab(texts, data, actions, modifier, expanded)
+                    val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
+                    MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
                 }
+                Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
+                    ?: Centered(texts.t("Pending development"), modifier)
                 else -> Centered(texts.t("Pending development"), modifier)
             }
         }
@@ -202,6 +248,13 @@ private fun AccountDialogs(texts: Texts, data: ShellData, actions: AccountAction
     data.accountsUi.removing?.let { RemoveAccountDialog(texts, it, actions, data.accountsUi.removeFailed) }
 }
 
+/** The question that floats over whatever screen is showing while a sync waits for room. */
+@Composable
+private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsActions) {
+    data.settingsUi.space?.let { SpaceDialog(texts, it, actions) }
+    RemovalDialogs(texts, data.settingsUi.removal, actions)
+}
+
 @Composable
 private fun MainFrame(
     texts: Texts,
@@ -209,6 +262,7 @@ private fun MainFrame(
     title: String,
     onTab: (Tab) -> Unit,
     onMenu: () -> Unit,
+    onBack: (() -> Unit)?,
     content: @Composable (Modifier, Boolean) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -233,8 +287,14 @@ private fun MainFrame(
                     TopAppBar(
                         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
-                            IconButton(onClick = onMenu) {
-                                Icon(AppIcons.Menu, contentDescription = texts.t("Menu"))
+                            if (onBack != null) {
+                                IconButton(onClick = onBack) {
+                                    Icon(AppIcons.Back, contentDescription = texts.t("Back"))
+                                }
+                            } else {
+                                IconButton(onClick = onMenu) {
+                                    Icon(AppIcons.Menu, contentDescription = texts.t("Menu"))
+                                }
                             }
                         },
                     )
@@ -265,22 +325,39 @@ private fun MainFrame(
 private val ListWidth = 400.dp
 
 /**
- * The Mail tab. A phone shows the list alone; an expanded window shows it beside the space the
- * reading pane takes (it is not built yet).
+ * The Mail tab. A phone shows the list, or the message that was opened on a screen of its own; an
+ * expanded window shows the list beside the reading pane.
  */
 @Composable
-private fun MailTab(texts: Texts, data: ShellData, actions: ShellActions, modifier: Modifier, expanded: Boolean) {
-    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories)
+private fun MailTab(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    modifier: Modifier,
+    expanded: Boolean,
+    messageId: ULong?,
+) {
+    val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
             VerticalDivider()
-            Centered(texts.t("Pending development"), Modifier.weight(1f))
+            if (messageId != null) {
+                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f))
+            } else {
+                Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
+            }
         }
+    } else if (messageId != null) {
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier)
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
 }
+
+/** These actions with the list's own changed. */
+private fun ShellActions.copy(mail: MailListActions) =
+    ShellActions(onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures)
 
 @Composable
 private fun TabLabel(text: String) {

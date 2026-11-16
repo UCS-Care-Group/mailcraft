@@ -137,7 +137,7 @@ impl MailApp {
     pub(crate) fn ask_for_jmap_send(&mut self) -> bool {
         let Some(account) = self.jmap_send_asks.iter().next().copied() else { return false };
         self.jmap_send_asks.remove(&account);
-        let waits = mailcraft_engine::cmd::graph_send::waiting(&self.session.mailbox, account) > 0;
+        let waits = mailcraft_engine::cmd::graph_send::waiting(&self.session, account) > 0;
         waits && !self.can_send_jmap_quietly(account) && self.start_sync(&json!({"account": account})).is_ok()
     }
 

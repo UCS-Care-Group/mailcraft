@@ -21,6 +21,9 @@ use crate::{CmdError, Registry};
 /// Undo steps kept.
 const MAX_HISTORY: usize = 100;
 
+/// Most messages [`Session::keep_for_now`] holds on a device beyond its limits for a session.
+pub const MOST_KEPT_FOR_NOW: usize = 5_000;
+
 /// How long a search spends bringing the bodies of older mail into memory before it answers with
 /// what it has searched (and says what it hasn't).
 const SEARCH_TIME: std::time::Duration = std::time::Duration::from_secs(2);
@@ -682,6 +685,10 @@ pub struct Compose {
     /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub read_receipt: bool,
+    /// Delay Delivery (#950, `compose.delay`): the message is not sent before this time (seconds
+    /// since 1970). A time that has passed by the time of Send is no delay.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<i64>,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// The signature put in the body (its paragraphs are marked there): which one, how it lays
@@ -696,6 +703,9 @@ pub struct Compose {
     /// How many ids `pictures` have been given, so that none is given twice.
     #[serde(skip_serializing_if = "is_zero_u32")]
     pub picture_seq: u32,
+    /// Follow Up (#948): remind me if nobody replies, once it has gone (`compose.followUp`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<crate::cmd::followup::FollowUpPlan>,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
     /// The owner, not only an agent, changed it since it was opened (#494): an agent asks the
@@ -767,6 +777,10 @@ impl Compose {
 }
 
 fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
+}
+
+fn is_zero_u8(n: &u8) -> bool {
     *n == 0
 }
 
@@ -902,6 +916,11 @@ pub struct Prefs {
     /// mail that is sent waits in the Outbox. Off unless the owner turns it on; kept between runs.
     #[serde(skip_serializing_if = "is_false")]
     pub offline: bool,
+    /// Wait before sending (#950, `send.wait`): the seconds a message sits in the Outbox after
+    /// Send, with Undo Send, before it goes. 0 is off, as it is until the owner turns it on; read
+    /// through [`Prefs::undo_send`], which keeps it to what the choice offers.
+    #[serde(skip_serializing_if = "is_zero_u8")]
+    pub undo_send_secs: u8,
 }
 
 impl Default for Prefs {
@@ -938,11 +957,22 @@ impl Default for Prefs {
             zoom: Prefs::ZOOM_DEFAULT,
             recent_searches: Vec::new(),
             offline: false,
+            undo_send_secs: 0,
         }
     }
 }
 
 impl Prefs {
+    /// The waits Undo Send offers, in seconds (0 is off).
+    pub const UNDO_SEND_CHOICES: [u8; 6] = [0, 5, 10, 15, 20, 30];
+
+    /// The seconds to wait before a message goes, 0 for none (a settings file may say anything:
+    /// a value the choice doesn't offer is read as the nearest one it does, never more than 30).
+    pub fn undo_send(&self) -> u8 {
+        let n = self.undo_send_secs.min(30);
+        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(30)
+    }
+
     /// The zoom of the message being read, in percent: the least, the most, and as it comes.
     pub const ZOOM_MIN: u16 = 50;
     pub const ZOOM_MAX: u16 = 300;
@@ -1080,6 +1110,13 @@ pub struct Session {
     pub fallback_offset: Option<Arc<dyn Fn(Timestamp) -> i32 + Send + Sync>>,
     /// What the last synchronisation reported, for the status bar.
     pub sync_status: String,
+    /// The message that Send put in the Outbox with the wait of Undo Send (#950): while it is
+    /// there and its time has not come, the window offers Undo ([`Session::undo_send_wait`]).
+    /// In memory only.
+    pub(crate) undo_send: Option<Id>,
+    /// The step count right after that Send: while it is still the count, nothing else has been
+    /// done since, and Undo (Ctrl+Z) takes the send back ([`Session::undo_send_latest`]).
+    pub(crate) undo_send_step: Option<u64>,
     /// The sync driver's state: what a front end's background jobs remember between looks
     /// ([`crate::sync_driver`]). In memory only, never saved.
     pub driver: crate::sync_driver::Driver,
@@ -1311,6 +1348,8 @@ impl Session {
             clock,
             fallback_offset: None,
             sync_status: String::new(),
+            undo_send: None,
+            undo_send_step: None,
             driver: Default::default(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
@@ -3149,6 +3188,24 @@ impl Session {
         self.path.is_some() && !self.dirty
     }
 
+    /// Keep `ids` on this device for the rest of the session whatever its limits say: messages the
+    /// owner opened, or brought here from a search on the server, although they are older than
+    /// their account's mail to keep offline (MB3.17). Until the mailbox is opened again; at most
+    /// [`MOST_KEPT_FOR_NOW`] are held, and past that nothing more is kept this way.
+    pub fn keep_for_now(&mut self, ids: impl IntoIterator<Item = Id>) {
+        for id in ids {
+            if self.kept_for_now.len() >= MOST_KEPT_FOR_NOW {
+                break;
+            }
+            self.kept_for_now.insert(id);
+        }
+    }
+
+    /// Whether message `id` is kept on this device for the session ([`Session::keep_for_now`]).
+    pub fn kept_for_now(&self, id: Id) -> bool {
+        self.kept_for_now.contains(&id)
+    }
+
     /// Replace the mailbox (File › New, File › Open): history and selection start over.
     pub fn replace_mailbox(&mut self, mailbox: Mailbox) {
         self.mailbox = mailbox;
@@ -3176,6 +3233,9 @@ impl Session {
         self.openings = self.openings.wrapping_add(1);
         // What the sync driver remembered is the old mailbox's: its accounts' ids may name others.
         self.driver.reset();
+        // The message Undo Send waited on was the old mailbox's.
+        self.undo_send = None;
+        self.undo_send_step = None;
         self.pst_running = None;
         self.pst_tops.clear();
         self.history.clear();
@@ -3412,6 +3472,16 @@ impl Session {
         match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
             (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
             (then, now) => then.is_some() != now.is_some(),
+        }
+    }
+
+    /// How undoing the last step (or redoing, `redo`) would change the message `message` (#950):
+    /// `(takes it away, puts it in an Outbox)`.
+    pub fn undo_takes_or_queues(&self, redo: bool, message: Id) -> (bool, bool) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (false, false) };
+        match step.mailbox.messages.get(&message) {
+            None => (true, false),
+            Some(then) => (false, step.mailbox.folder(then.folder).is_some_and(|f| f.kind == mailcraft_model::FolderKind::Outbox)),
         }
     }
 
@@ -3667,7 +3737,8 @@ impl Session {
         // copy of the mailbox is taken for it: the import is one step, kept when it ends
         // ([`crate::import_pst::finish`]), and a batch that fails takes itself out again.
         let staged = id == "file.importPst" && self.agent.is_none() && params.get("staged").and_then(Value::as_bool) == Some(true);
-        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo") && !background && !staged;
+        // (Undo Send puts a message back to write: no step of the history may put it in the Outbox again, #950.)
+        let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo" | "compose.undoSend") && !background && !staged;
         // The computer may have been carried to another zone since the last command: the
         // mailbox is put by that zone's clock first, and that is not this command's to undo.
         self.settle_zone();
