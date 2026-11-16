@@ -261,6 +261,7 @@ impl Core {
         };
         let new_account = json!({
             "email": address, "name": name, "displayName": name, "kind": "microsoft", "auth": "oauth2", "provider": "microsoft", "directory": directory,
+            "keepOffline": crate::settings::MOBILE_KEEP_OFFLINE,
         });
         // One job on the session's thread: the sign-in is kept, the account is added and
         // Send/Receive takes the sign-in, or none of it. A call dropped (or a core shut down) before
