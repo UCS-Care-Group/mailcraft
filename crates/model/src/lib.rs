@@ -50,6 +50,7 @@ pub mod search;
 pub mod sender_warnings;
 pub mod shown;
 pub mod signature;
+pub mod subscription;
 pub mod sync;
 mod task;
 pub mod thread_index;
@@ -75,9 +76,10 @@ pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_ke
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, Directory, DownloadInFull, FOLDERS_NOT_DELETED_YET,
-    FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, ImapStatus, MAX_FOLDER_DEPTH, MAX_FOLDERS,
-    MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider,
-    ONLY_SERVER_FOLDERS, PALETTE, Pending, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, preset_category_color,
+    FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, FollowUp, FollowUpsSettled, GREY_CATEGORY, GraphSwitch, IMPORTED, INTO_OUTBOX, ImapStatus,
+    MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX,
+    MailIdentity, Mailbox, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, PendingFollowUp, Queued, Security, Server, ServerFavorites,
+    ServerFolder, Settled, Snooze, preset_category_color,
 };
 pub use mailcraft_time as time;
 pub use message::{

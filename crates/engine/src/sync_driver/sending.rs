@@ -221,8 +221,10 @@ impl Session {
     /// The run of the shared mailbox `account` found nothing missing: what was pressed Send on is
     /// gone once its Outbox is empty.
     pub fn shared_send_none_waits(&mut self, account: Id) {
-        let mb = &self.mailbox;
-        let outbox = mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count());
+        let (mb, now) = (&self.mailbox, self.now());
+        let outbox = mb
+            .folder_of_kind(account, FolderKind::Outbox)
+            .map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty() && !m.waits_until(now)).count());
         if outbox == 0 {
             self.driver.sending.pressed.remove(&account);
         }

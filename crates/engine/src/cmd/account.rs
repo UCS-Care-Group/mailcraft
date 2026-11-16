@@ -861,9 +861,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
+    let clock = s.now();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Not what waits for its Send time, #950.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.waits_until(clock) {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
@@ -1443,7 +1445,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let gmail_moves = gmail_moves_go(s, account);
     let now = s.now();
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result);
+    let sent = file_sent(mb, account, result, now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1541,7 +1543,7 @@ impl OnServer {
 /// each): a message of the account's that is in Sent Items and not on the server yet is marked
 /// all the same. One whose copy didn't get to the server after all (`unfiled`) is no longer
 /// expected there. Returns how many were sent.
-fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
+pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now: i64) -> usize {
     let (Some(outbox), Some(sent_items)) = (mb.folder_of_kind(account, FolderKind::Outbox), mb.folder_of_kind(account, FolderKind::Sent)) else {
         return 0;
     };
@@ -1553,6 +1555,8 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // A reminder "after so many days" counts them from now that it has gone (#948).
+            mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
             // message moved in, which would put it there twice. An original elsewhere goes once

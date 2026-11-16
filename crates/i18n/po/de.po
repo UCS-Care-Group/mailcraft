@@ -154,7 +154,7 @@ msgid "(no recipients)"
 msgstr "(keine Empfänger)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(kein Betreff)"
@@ -392,6 +392,12 @@ msgstr "Für einen Wechsel wird bereits eine Kopie des Postfachs gespeichert: Wa
 #, fuzzy
 msgid "A copy of your whole mailbox is saved next to it first, as always. Mail in the Outbox isn't left behind: it is sent through Microsoft Graph."
 msgstr "Wie immer wird zuerst eine Kopie Ihres gesamten Postfachs daneben gespeichert. E-Mails im Postausgang bleiben nicht zurück: Sie werden über Microsoft Graph gesendet."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "A date"
+msgstr "Ein Datum"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -747,7 +753,7 @@ msgid "Accounts"
 msgstr "Konten"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Actions"
 msgstr "Aktionen"
@@ -791,6 +797,18 @@ msgstr "Konto hinzufügen"
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Kalender hinzufügen"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Add Reminder"
+msgstr "Erinnerung hinzufügen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Add Reminder…"
+msgstr "Erinnerung hinzufügen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1029,6 +1047,12 @@ msgstr "Erweiterte Optionen"
 #, fuzzy
 msgid "After"
 msgstr "Nach"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "After Send, a message waits in the Outbox for this long and shows Undo. Off sends it with the next Send/Receive."
+msgstr "Nach dem Senden wartet eine Nachricht so lange im Postausgang und zeigt „Rückgängig“. Aus sendet sie mit dem nächsten Senden/Empfangen."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1335,6 +1359,12 @@ msgid "An authority on the way to a trusted one doesn't allow the certificate to
 msgstr "Eine Zertifizierungsstelle auf dem Weg zu einer vertrauenswürdigen erlaubt diese Verwendung des Zertifikats nicht."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+msgstr "Eine https://- oder webcal://-Adresse. Es wird nichts gelesen, bevor Sie auf Abonnieren klicken. Der Kalender steht unter Weitere Kalender, schreibgeschützt, und wird jede Stunde und bei Senden/Empfangen aus dem Web aktualisiert; eine andere Zeit können Sie unter Datei › Info wählen. Seine Adresse wird über eine verschlüsselte Verbindung abgefragt, ohne etwas, das Sie verrät. Eine private Adresse enthält ein Geheimnis: Sie wird wie ein Kennwort behandelt, im Anmeldespeicher Ihres Systems, wenn Sie MailCraft Anmeldungen merken lassen, und sonst bis zum Beenden."
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "An import is under way"
@@ -1564,6 +1594,12 @@ msgstr "Gesendete Regeländerungen übernehmen"
 msgid "Apply Sent To-do Changes"
 msgstr "Gesendete Aufgabenänderungen anwenden"
 
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Apply Subscribed Calendar"
+msgstr "Abonnierten Kalender anwenden"
+
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1783,6 +1819,12 @@ msgstr "Das DNS Ihrer Domain wird gefragt…"
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
 msgstr "Fragt nur nach E-Mail, ohne Kalender und Kontakte, die später verbunden werden können"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "At a date and time"
+msgstr "Zu einem Datum und einer Uhrzeit"
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
@@ -1794,6 +1836,12 @@ msgstr "Es können höchstens {max} Kontakte auf einmal zusammengeführt werden.
 #, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
 msgstr "Es können höchstens {n} Kalender über die Adresse geöffnet werden: Entfernen Sie zuerst einen."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
+msgstr "Es können höchstens {n} Kalender abonniert werden: Kündigen Sie zuerst eines."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2322,6 +2370,12 @@ msgid "Calendar and contacts need your permission: File › Info › Connect cal
 msgstr "Kalender und Kontakte brauchen Ihre Erlaubnis: Datei › Informationen › Kalender und Kontakte verbinden"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
+msgstr "Kalender aus dem Web (eine .ics-Adresse), hier schreibgeschützt auf dem Laufenden gehalten. Kalender › Kalender öffnen › Aus dem Internet… abonniert einen."
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Calendars you opened by address need your permission to be read: open one again to be asked"
@@ -2421,6 +2475,12 @@ msgstr "Besprechung absagen"
 msgid "Cancel Opening the Mailbox"
 msgstr "Öffnen des Postfachs abbrechen"
 
+#. command label, interface
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Cancel Send"
+msgstr "Senden abbrechen"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -2514,6 +2574,12 @@ msgstr "Automatische Antworten ändern"
 #, fuzzy
 msgid "Change Recurring Item"
 msgstr "Serienelement ändern"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Change Send Time"
+msgstr "Sendezeit ändern"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2780,6 +2846,12 @@ msgstr "Wählen Sie die Google-Anmeldung oder die Option Stattdessen ein App-Pas
 #, fuzzy
 msgid "Choose a category"
 msgstr "Kategorie wählen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Choose a date…"
+msgstr "Datum wählen…"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -3525,6 +3597,18 @@ msgid "Couldn't send mail: the account has no outgoing server"
 msgstr "E-Mails konnten nicht gesendet werden: Das Konto hat keinen Postausgangsserver"
 
 #. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Couldn't update {name}: {why}. What it held stays."
+msgstr "{name} konnte nicht aktualisiert werden: {why}. Der bisherige Inhalt bleibt."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Couldn't update: {why}. What it held stays."
+msgstr "Aktualisierung nicht möglich: {why}. Der bisherige Inhalt bleibt."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Country"
@@ -3614,8 +3698,8 @@ msgstr "Dunkles Design"
 msgid "Data on this computer"
 msgstr "Daten auf diesem Computer"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Datum"
@@ -3725,6 +3809,26 @@ msgstr "Einzug verkleinern"
 #, fuzzy
 msgid "Default"
 msgstr "Standard"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delay Delivery"
+msgstr "Verzögerte Zustellung"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] "Verzögerte Nachricht geht {when}"
+msgstr[1] "{n} verzögerte Nachrichten: die nächste geht {when}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Delayed until {when}"
+msgstr "Verzögert bis {when}"
 
 #. android, command label, interface, name, ribbon, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs crates/ui-egui/src/tasks_view.rs
@@ -4031,7 +4135,7 @@ msgid "Dismiss All"
 msgstr "Alle schließen"
 
 #. command label
-#: crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Dismiss Reminder"
 msgstr "Erinnerung schließen"
@@ -4077,6 +4181,18 @@ msgstr "Anzeigename"
 #, fuzzy
 msgid "Do"
 msgstr "Aktion"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Do not deliver before a date and time"
+msgstr "Nicht vor einem Datum und einer Uhrzeit zustellen"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Do not deliver before:"
+msgstr "Nicht zustellen vor:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4356,6 +4472,12 @@ msgstr "Fällig"
 msgid "Due Date"
 msgstr "Fälligkeitsdatum"
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Due Reminders"
+msgstr "Fällige Erinnerungen"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4632,6 +4754,12 @@ msgstr "Endet am"
 msgid "Ends on a day"
 msgstr "Endet an einem Tag"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Enter a date and a time."
+msgstr "Geben Sie ein Datum und eine Uhrzeit ein."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4716,13 +4844,29 @@ msgstr "Jeden Wochentag"
 msgid "Every year"
 msgstr "Jedes Jahr"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt crates/ui-egui/src/subscribed.rs
 #, fuzzy
 msgid "Every {n} day"
 msgid_plural "Every {n} days"
 msgstr[0] "Alle {n} Tag"
 msgstr[1] "Alle {n} Tage"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} hour"
+msgid_plural "Every {n} hours"
+msgstr[0] "Jede Stunde"
+msgstr[1] "Alle {n} Stunden"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} minute"
+msgid_plural "Every {n} minutes"
+msgstr[0] "Jede Minute"
+msgstr[1] "Alle {n} Minuten"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4961,7 +5105,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Weniger als zwei dieser Kontakte sind noch vorhanden, daher gibt es nichts zusammenzuführen."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Datei"
@@ -5125,6 +5269,12 @@ msgstr "Nachricht kennzeichnen"
 msgid "Flag for follow-up"
 msgstr "Zur Nachverfolgung kennzeichnen"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Flag the message and remind me:"
+msgstr "Nachricht markieren und erinnern:"
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
@@ -5138,7 +5288,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Kalender dieser Gruppe einklappen"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Ordner"
@@ -5223,10 +5373,16 @@ msgid ""
 "Up"
 msgstr "Nachverfolgung"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
+msgstr "Nachverfolgung"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "Follow up"
 msgstr "Nachverfolgung"
 
 #. interface
@@ -5433,6 +5589,12 @@ msgstr "Freitag"
 #, fuzzy
 msgid "From"
 msgstr "Von"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "From Internet…"
+msgstr "Aus dem Internet…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6058,7 +6220,7 @@ msgid "Hold Unsent Mail"
 msgstr "Nicht gesendete E-Mails zurückhalten"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Start"
@@ -6122,6 +6284,12 @@ msgstr "Wenn sich MailCraft bei Google noch im Testmodus befindet, bitten Sie de
 #, fuzzy
 msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
 msgstr "Wenn sich kein Browser geöffnet hat, prüfen Sie, ob dieser Computer einen Standardbrowser hat (unter Windows: Einstellungen, Apps, Standard-Apps), und klicken Sie dann erneut auf „Seite öffnen“."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
+msgstr "Wenn bis dahin niemand, an den die Nachricht ging, in der Unterhaltung geantwortet hat, wird eine Erinnerung ausgelöst und die Nachricht markiert."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -6450,6 +6618,12 @@ msgid "In the Outbox: it is on its way"
 msgstr "Im Postausgang: Sie ist unterwegs"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "In the Outbox: it waits for its time"
+msgstr "Im Postausgang: sie wartet auf ihre Zeit"
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "In the folder pane's order"
@@ -6528,7 +6702,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "E-Mails werden indiziert: {percent} %"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Informationen"
@@ -6786,6 +6960,12 @@ msgid "Items in this calendar are kept on this computer and nowhere else. Above 
 msgstr "Elemente in diesem Kalender liegen nur auf diesem Computer. Über dem Kalender können Sie sie in den Kalender Ihres Kontos verschieben."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Its address wasn't kept (it may hold a secret): enter it again to update this calendar. What it held is shown meanwhile."
+msgstr "Die Adresse wurde nicht gespeichert (sie kann ein Geheimnis enthalten): Geben Sie sie erneut ein, um diesen Kalender zu aktualisieren. Bis dahin wird sein bisheriger Inhalt angezeigt."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
@@ -6984,6 +7164,12 @@ msgstr "Aufgaben mit Microsoft To Do abgleichen"
 #, fuzzy
 msgid "Keep Waiting"
 msgstr "Weiter warten"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Keep a calendar from the web up to date here: its address ends in .ics or starts with webcal://"
+msgstr "Halten Sie hier einen Kalender aus dem Web aktuell: Seine Adresse endet auf .ics oder beginnt mit webcal://"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -7412,7 +7598,7 @@ msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "In einem anderen Programm oder im Web erstellt, mit Teilen, die MailCraft nicht anzeigen kann"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Mail"
 msgstr "E-Mail"
@@ -7862,7 +8048,7 @@ msgid "Makes one test appointment a year from today in your account's calendar, 
 msgstr "Legt einen Testtermin ein Jahr ab heute im Kalender Ihres Kontos an, ändert ihn, löscht ihn wieder und zeigt die Antworten des Servers"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Manage Calendars"
 msgstr "Kalender verwalten"
@@ -8050,7 +8236,7 @@ msgstr[0] "{n} Kontakt zusammenführen…"
 msgstr[1] "{n} Kontakte zusammenführen…"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Nachricht"
@@ -8321,7 +8507,7 @@ msgid "Month"
 msgstr "Monat"
 
 #. ribbon location
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "More Options"
 msgstr "Weitere Optionen"
@@ -8569,6 +8755,12 @@ msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
 #, fuzzy
 msgid "Name"
 msgstr "Name"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Name (optional)"
+msgstr "Name (optional)"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -8955,6 +9147,12 @@ msgid "No Public keys are kept yet."
 msgstr "Es sind noch keine öffentlichen Schlüssel gespeichert."
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "No Reminder"
+msgstr "Keine Erinnerung"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "No Send/Receive is running"
@@ -9212,6 +9410,12 @@ msgstr "Keine Erinnerung"
 msgid "No reminders are due."
 msgstr "Keine Erinnerungen fällig."
 
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "No reply yet"
+msgstr "Noch keine Antwort"
+
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -9452,6 +9656,12 @@ msgid "Not now: it is installed when you quit MailCraft."
 msgstr "Nicht jetzt: Sie wird beim Beenden von MailCraft installiert."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Not read yet."
+msgstr "Noch nicht gelesen."
+
+#. interface
 #: crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Not saved"
@@ -9644,7 +9854,7 @@ msgid "Numbering"
 msgstr "Nummerierung"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9666,6 +9876,12 @@ msgstr "Okt."
 #, fuzzy
 msgid "October"
 msgstr "Oktober"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Off"
+msgstr "Aus"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
@@ -9854,6 +10070,12 @@ msgid "Only for this time, and send it"
 msgstr "Nur diesmal und senden"
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Only if nobody replies"
+msgstr "Nur wenn niemand antwortet"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
@@ -10000,6 +10222,12 @@ msgstr "Öffnen & Exportieren"
 msgid "Open Attachment"
 msgstr "Anlage öffnen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Open Calendar"
+msgstr "Kalender öffnen"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -10059,6 +10287,12 @@ msgstr "Ergebnis vom Server öffnen"
 #, fuzzy
 msgid "Open Shared Calendar"
 msgstr "Freigegebenen Kalender öffnen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Open Shared Calendar…"
+msgstr "Freigegebenen Kalender öffnen…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10229,7 +10463,7 @@ msgid "Optional"
 msgstr "Optional"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Optionen"
@@ -10723,7 +10957,7 @@ msgid "Postal code"
 msgstr "Postleitzahl"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Preferences"
 msgstr "Einstellungen"
@@ -10961,6 +11195,12 @@ msgstr "Schnellzugriff"
 msgid "Quit MailCraft"
 msgstr "MailCraft beenden"
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Raise Due Reminders"
+msgstr "Fällige Erinnerungen auslösen"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11193,6 +11433,18 @@ msgstr "Wird in den Einstellungen gespeichert; Datei › Optionen listet die Abs
 msgid "Remind me again later"
 msgstr "Später erneut erinnern"
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remind me if nobody replies"
+msgstr "Erinnern, wenn niemand antwortet"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Remind me if nobody replies by:"
+msgstr "Erinnern, wenn bis zu diesem Zeitpunkt niemand antwortet:"
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -11206,7 +11458,7 @@ msgid "Reminder for new appointments"
 msgstr "Erinnerung für neue Termine"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Erinnerungen"
@@ -11304,6 +11556,12 @@ msgid "Remove Recurrence"
 msgstr "Serie entfernen"
 
 #. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remove Reminder"
+msgstr "Erinnerung entfernen"
+
+#. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Remove Shared Calendar"
@@ -11372,6 +11630,12 @@ msgstr "Aus Favoriten entfernen"
 #, fuzzy
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Aus sicheren oder blockierten Absendern entfernen"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Remove the delay"
+msgstr "Verzögerung entfernen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12436,7 +12700,7 @@ msgid "Selection"
 msgstr ""
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "Senden"
@@ -12448,7 +12712,7 @@ msgid "Send & Receive"
 msgstr "Senden und Empfangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Senden/Empfangen"
@@ -12464,6 +12728,18 @@ msgstr "Erneut senden"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "Absage senden"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later"
+msgstr "Später senden"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send Later…"
+msgstr "Später senden…"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -12560,6 +12836,12 @@ msgid "Send my sign-in"
 msgstr "Meine Anmeldung senden"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send options"
+msgstr "Sendeoptionen"
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Send report"
@@ -12612,6 +12894,12 @@ msgstr "Die Antwort jetzt senden"
 #, fuzzy
 msgid "Send the update to them? The account's server sends them the change by mail."
 msgstr "Update an sie senden? Der Server des Kontos sendet ihnen die Änderung per E-Mail."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Send this message, but not before:"
+msgstr "Diese Nachricht senden, aber nicht vor:"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12762,6 +13050,12 @@ msgstr "Senden und Empfangen…"
 #, fuzzy
 msgid "Sending from a shared mailbox"
 msgstr "Senden von einem freigegebenen Postfach"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Sending in {n} s"
+msgstr "Senden in {n} s"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -13609,6 +13903,12 @@ msgid "Snooze"
 msgstr "Erneut erinnern"
 
 #. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Snooze Reminder"
+msgstr "Erinnerung zurückstellen"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Snooze Reminders"
@@ -13902,6 +14202,42 @@ msgstr "Betreff enthält"
 msgid "Subject:"
 msgstr "Betreff:"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Subscribe"
+msgstr "Abonnieren"
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Subscribe to Internet Calendar"
+msgstr "Internetkalender abonnieren"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Subscribed Calendar Settings"
+msgstr "Einstellungen abonnierter Kalender"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Subscribed Calendars Due"
+msgstr "Fällige abonnierte Kalender"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Subscribed calendars"
+msgstr "Abonnierte Kalender"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Subscribed to {name}. It is listed under Other Calendars, read-only, and brought up to date from the web every hour."
+msgstr "{name} abonniert. Der Kalender steht unter Weitere Kalender, schreibgeschützt, und wird jede Stunde aus dem Web aktualisiert."
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -14016,7 +14352,7 @@ msgid "Tables"
 msgstr "Tabellen"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Kategorien"
@@ -14244,10 +14580,28 @@ msgid "That account is gone."
 msgstr "Dieses Konto existiert nicht mehr."
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "That address is for another host than the calendar's. To follow a calendar that moved, subscribe to its new address."
+msgstr "Diese Adresse gehört zu einem anderen Host als der Kalender. Um einem umgezogenen Kalender zu folgen, abonnieren Sie seine neue Adresse."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "That calendar is a copy of one on the web: it stays where it is."
+msgstr "Dieser Kalender ist eine Kopie eines Kalenders im Web: Er bleibt, wo er ist."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "That calendar is kept by an account's server already."
 msgstr "Dieser Kalender liegt bereits auf dem Server eines Kontos."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "That calendar isn't a subscribed one."
+msgstr "Dieser Kalender ist kein abonnierter."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -14502,6 +14856,12 @@ msgid "The account's server makes it when the meeting is sent; the link to join 
 msgstr "Der Server des Kontos erstellt sie, wenn die Besprechung gesendet wird; der Teilnahmelink kommt damit zurück."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The address of the calendar"
+msgstr "Die Adresse des Kalenders"
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The approval didn't go through."
@@ -14542,6 +14902,12 @@ msgstr "Der Browser öffnet keine Dateien aus dem System"
 #, fuzzy
 msgid "The calendar \"{name}\" can only be read: its owner hasn't let this account change it."
 msgstr "Der Kalender „{name}“ kann nur gelesen werden: Sein Besitzer hat diesem Konto keine Änderungen erlaubt."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
+msgstr "Der Kalender „{name}“ ist eine Kopie eines Kalenders im Web: Er kann hier nur gelesen werden."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -14590,6 +14956,12 @@ msgstr "Die Kalenderverbindung funktioniert: Das Gesendete ist angekommen, und d
 #, fuzzy
 msgid "The calendar could not be read."
 msgstr "Der Kalender konnte nicht gelesen werden."
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "The calendar couldn't be added"
+msgstr "Der Kalender konnte nicht hinzugefügt werden"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -14662,6 +15034,12 @@ msgstr ""
 "Der Kalender von {name} steht jetzt in Ihrer Kalenderliste, weil er für Sie freigegeben und von Ihnen angenommen wurde. Sie haben ihn außerdem über die Adresse geöffnet, daher ist er doppelt vorhanden.\n"
 "\n"
 "Die über die Adresse geöffnete Kopie entfernen? Die andere bleibt erhalten, und auf dem Server ändert sich nichts."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+msgstr "Der Kalender {name} und seine auf diesem Computer gespeicherten Termine werden entfernt, ebenso die dafür gespeicherte Adresse. Es wird nichts gesendet; Sie können mit der Adresse erneut abonnieren."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
@@ -14840,6 +15218,12 @@ msgstr "Der Termin existiert nicht mehr."
 #, fuzzy
 msgid "The file couldn't be read ({why})"
 msgstr "Die Datei konnte nicht gelesen werden ({why})"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "The file has more events than are kept ({one} a calendar, {all} in all): the rest are left out."
+msgstr "Die Datei enthält mehr Termine, als gespeichert werden ({one} je Kalender, {all} insgesamt): Der Rest bleibt außen vor."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -15126,6 +15510,12 @@ msgid "The message isn't there any more"
 msgstr "Die Nachricht ist nicht mehr vorhanden"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
+msgstr "Die Nachricht wartet in Ihrem Postausgang, wo Sie sie ändern oder abbrechen können. MailCraft sendet sie zu dieser Zeit; läuft MailCraft dann nicht, geht sie beim nächsten Start."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
@@ -15178,6 +15568,12 @@ msgstr "Der Name ist eine andere Domain."
 #, fuzzy
 msgid "The name of someone you know."
 msgstr "Der Name einer Person, die Sie kennen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The name the calendar gives itself"
+msgstr "Der Name, den sich der Kalender selbst gibt"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15749,6 +16145,12 @@ msgid "The text wasn't found."
 msgstr "Der Text wurde nicht gefunden."
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr "Die Zeit wird auf diesem Computer gespeichert; eine Markierung geht wie jede Markierung an den Server des Kontos."
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
@@ -16160,6 +16562,12 @@ msgstr "Dieser Build sucht nicht nach neuen Versionen."
 #, fuzzy
 msgid "This calendar can only be read: new items can't go to it"
 msgstr "Dieser Kalender kann nur gelesen werden: Neue Elemente können nicht hinein"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
+msgstr "Dieser Kalender ist eine Kopie eines Kalenders im Web. Kündigen Sie das Abonnement, um ihn zu entfernen."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -16605,6 +17013,18 @@ msgstr "Diese Nachricht hat Bilder im Web. Dieser Build kann sie nicht herunterl
 msgid "This message hasn't been sent."
 msgstr "Diese Nachricht wurde nicht gesendet."
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is delayed. It goes {when}."
+msgstr "Diese Nachricht ist verzögert. Sie geht {when}."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is due and goes with the next Send/Receive."
+msgstr "Diese Nachricht ist fällig und geht mit dem nächsten Senden/Empfangen."
+
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
@@ -16814,7 +17234,7 @@ msgid "Tighter Spacing"
 msgstr "Engerer Abstand"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "Uhrzeit"
@@ -17229,11 +17649,17 @@ msgstr "Unter einem Ordner auf diesem Computer:"
 msgid "Underline"
 msgstr "Unterstrichen"
 
-#. android, command label, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#. android, command label, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Rückgängig"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Undo Send"
+msgstr "Senden rückgängig machen"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -17294,10 +17720,22 @@ msgid "Unsaved Message"
 msgstr "Nicht gespeicherte Nachricht"
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Abmelden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Unsubscribe from Calendar"
+msgstr "Kalender abbestellen"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Unsubscribe from Internet Calendar"
+msgstr "Internetkalender abbestellen"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -17353,6 +17791,18 @@ msgstr "Aktuell"
 msgid "Upcoming"
 msgstr "Demnächst"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Update Now"
+msgstr "Jetzt aktualisieren"
+
+#. command label
+#: crates/engine/src/cmd/calendar_subscribed.rs
+#, fuzzy
+msgid "Update Subscribed Calendars"
+msgstr "Abonnierte Kalender aktualisieren"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
 #, fuzzy
@@ -17390,6 +17840,12 @@ msgstr[0] "Vor {n} Minute aktualisiert"
 msgstr[1] "Vor {n} Minuten aktualisiert"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Updated {when} · {held}"
+msgstr "Aktualisiert {when} · {held}"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Updates"
@@ -17411,6 +17867,12 @@ msgstr "Stattdessen mit Google anmelden"
 #, fuzzy
 msgid "Use Send/Receive to sign in to {address}"
 msgstr "Melden Sie sich mit Senden/Empfangen bei {address} an"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Use This Address"
+msgstr "Diese Adresse verwenden"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17438,6 +17900,12 @@ msgstr "App-Passwort verwenden"
 #: crates/ui-egui/src/account_setup.rs
 msgid "Use an app password instead"
 msgstr "Stattdessen ein App-Passwort verwenden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Use https:// instead"
+msgstr "Stattdessen https:// verwenden"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -17582,6 +18050,18 @@ msgstr "Quelltext anzeigen"
 #, fuzzy
 msgid "Violet"
 msgstr "Violett"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Wait Before Sending"
+msgstr "Vor dem Senden warten"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Wait before sending"
+msgstr "Vor dem Senden warten"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18535,8 +19015,8 @@ msgstr "eine .pst-Datei wird in dieses Postfach importiert: Warten Sie, bis sie 
 #. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
-msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
-msgstr "eine .pst-Datei wird nur in einen Kalender auf diesem Computer importiert, nie in ein Konto auf einem Server"
+msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
+msgstr "Eine .pst-Datei wird nur in einen eigenen Kalender auf diesem Computer importiert, nie in ein Konto auf einem Server oder einen abonnierten Kalender"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -18585,6 +19065,12 @@ msgstr "ein Kontakt braucht einen Namen, eine Firma oder eine E-Mail-Adresse"
 #, fuzzy
 msgid "a contact's card keeps at most 32 keys"
 msgstr "die Karte eines Kontakts enthält höchstens 32 Schlüssel"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr "Ein Entwurf kann keine Erinnerung haben: erst senden oder in der Nachricht selbst „Nachverfolgung“ benutzen"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -18879,6 +19365,12 @@ msgstr "kann nicht gelesen werden"
 #, fuzzy
 msgid "cancelled"
 msgstr "abgebrochen"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "choose a time within a year"
+msgstr "wählen Sie eine Zeit innerhalb eines Jahres"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -19392,7 +19884,7 @@ msgid "no calendar was opened by address"
 msgstr "kein Kalender wurde über die Adresse geöffnet"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "kein Kalender mit der ID {id}"
@@ -19452,13 +19944,13 @@ msgid "no message being written has the id {id}"
 msgstr "keine Nachricht in Bearbeitung hat die ID {id}"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "es wird keine Nachricht geschrieben"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/tasks.rs crates/engine/src/session.rs
 #, fuzzy
 msgid "no message with id {id}"
 msgstr "keine Nachricht mit der ID {id}"
@@ -19560,6 +20052,12 @@ msgid "nobody else is invited to this appointment"
 msgstr "zu diesem Termin ist niemand sonst eingeladen"
 
 #. what a command says
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "none of these messages has a reminder showing"
+msgstr "keine dieser Nachrichten zeigt eine Erinnerung an"
+
+#. what a command says
 #: crates/engine/src/cmd/snooze.rs
 #, fuzzy
 msgid "none of these messages is snoozed"
@@ -19594,6 +20092,12 @@ msgstr "in der Nachricht ist nichts markiert"
 #, fuzzy
 msgid "nothing is waiting to be imported"
 msgstr "es wartet nichts auf den Import"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "nothing is waiting to be sent: it is on its way already"
+msgstr "nichts wartet auf das Senden: es ist schon unterwegs"
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -19812,6 +20316,12 @@ msgid "sign-in failed: {reason}"
 msgstr "Anmeldung fehlgeschlagen: {reason}"
 
 #. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "sign-in needed"
+msgstr "Anmeldung erforderlich"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
@@ -19840,6 +20350,12 @@ msgstr "das ist die eigene Adresse des Kontos: Geben Sie die des freigegebenen P
 #, fuzzy
 msgid "that is too much to paste into one message"
 msgstr "das ist zu viel zum Einfügen in eine Nachricht"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that is too soon: pick a time at least a minute from now (or send it now)"
+msgstr "das ist zu früh: wählen Sie eine Zeit mindestens eine Minute von jetzt (oder senden Sie sofort)"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -19872,6 +20388,12 @@ msgid "that message is a draft: open it to send it"
 msgstr "diese Nachricht ist ein Entwurf: Öffnen Sie ihn, um ihn zu senden"
 
 #. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message is being sent now"
+msgstr "diese Nachricht wird gerade gesendet"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "that message isn't a draft"
@@ -19888,6 +20410,24 @@ msgstr "diese Nachricht wird nicht zurückgehalten"
 #, fuzzy
 msgid "that message isn't here"
 msgstr "diese Nachricht ist nicht hier"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that message isn't waiting in the Outbox"
+msgstr "diese Nachricht wartet nicht im Postausgang"
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "that step changes a message that is open for writing: close it first"
+msgstr "dieser Schritt ändert eine Nachricht, die zum Schreiben geöffnet ist: schließen Sie sie zuerst"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "that time has passed: choose a time in the future"
+msgstr "diese Zeit ist vorbei: wählen Sie eine Zeit in der Zukunft"
 
 #. what a command says
 #: crates/engine/src/import_tree.rs
@@ -20189,6 +20729,12 @@ msgstr "der Import wurde beendet"
 msgid "the key is larger than a contact's card keeps one"
 msgstr "der Schlüssel ist größer, als die Karte eines Kontakts einen aufnimmt"
 
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the last Send/Receive had problems"
+msgstr "das letzte Senden/Empfangen hatte Probleme"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20202,12 +20748,6 @@ msgid "the mailbox couldn't be saved first, so it stays open ({e})"
 msgstr "das Postfach konnte nicht zuvor gespeichert werden, daher bleibt es geöffnet ({e})"
 
 #. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "the mailbox has no calendar"
-msgstr "das Postfach hat keinen Kalender"
-
-#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "the mailbox has no folders"
@@ -20218,6 +20758,12 @@ msgstr "das Postfach hat keine Ordner"
 #, fuzzy
 msgid "the mailbox isn't kept in a file, so content outside memory can't be read"
 msgstr "das Postfach ist nicht in einer Datei gespeichert, daher können Inhalte außerhalb des Arbeitsspeichers nicht gelesen werden"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "the mailbox wasn't opened"
+msgstr "das Postfach wurde nicht geöffnet"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/find.rs
@@ -20320,6 +20866,12 @@ msgstr "die Plattform hat abgelehnt oder ist fehlgeschlagen"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "das vorgeschlagene Ende liegt nicht nach dem vorgeschlagenen Beginn"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "the reminder time must be in the future"
+msgstr "die Erinnerungszeit muss in der Zukunft liegen"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20772,7 +21324,7 @@ msgid "there are too many accounts"
 msgstr "es gibt zu viele Konten"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "there are too many calendars"
 msgstr "es gibt zu viele Kalender"
@@ -20898,7 +21450,7 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "dieses Senden/Empfangen galt dem zuvor genannten Server {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
 msgstr "dieses Konto hat keinen Ordner „Entwürfe“"
@@ -20926,6 +21478,12 @@ msgstr "dieses Konto hat keinen Ordner „{folder}“"
 #, fuzzy
 msgid "this account may not save it"
 msgstr "dieses Konto darf es nicht speichern"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr "dieses Konto sendet keine Post, daher kann eine Nachricht nicht auf eine Zeit warten: sofort senden oder als Entwurf speichern"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -21190,6 +21748,12 @@ msgstr "Diese Kopie läuft nicht aus der MailCraft-App."
 msgctxt "why desktop alerts can't be shown"
 msgid "this copy of MailCraft wasn't installed with its installer (.msi), so Windows doesn't know it."
 msgstr "Diese Kopie von MailCraft wurde nicht mit ihrem Installationsprogramm (.msi) installiert, daher kennt Windows sie nicht."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "working offline"
+msgstr "Offline-Modus"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -21943,7 +22507,7 @@ msgstr[0] "{n} von Ihnen geänderte Kopie (ihre Markierung, Kategorien, Gelesen-
 msgstr[1] "{n} von Ihnen geänderte Kopien (ihre Markierung, Kategorien, Gelesen-Status oder ein To-do) werden behalten."
 
 #. date and time, interface
-#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "{n} day"
 msgid_plural "{n} days"
@@ -21965,6 +22529,14 @@ msgid "{n} declined"
 msgid_plural "{n} declined"
 msgstr[0] "{n} abgesagt"
 msgstr[1] "{n} abgesagt"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
+msgstr[0] "{n} verzögerte Nachricht ging nicht zur vorgesehenen Zeit"
+msgstr[1] "{n} verzögerte Nachrichten gingen nicht zur vorgesehenen Zeit"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -22532,6 +23104,14 @@ msgid "{n} s"
 msgstr "{n} s"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] "{n} Sekunde"
+msgstr[1] "{n} Sekunden"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "{n} selected"
@@ -22842,6 +23422,14 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"
+#~ msgstr "eine .pst-Datei wird nur in einen Kalender auf diesem Computer importiert, nie in ein Konto auf einem Server"
+
+#, fuzzy
+#~ msgid "the mailbox has no calendar"
+#~ msgstr "das Postfach hat keinen Kalender"
 
 #, fuzzy
 #~ msgid "{not_sending_yet}, and no other account here has a mail server to send this through."
