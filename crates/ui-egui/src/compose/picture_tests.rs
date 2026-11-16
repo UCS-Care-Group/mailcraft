@@ -111,8 +111,16 @@ fn a_browsers_copy_image_pastes_the_picture_not_its_address() {
         assert_eq!(pictures(&h), 1, "{html}: {:?}", plain(&h));
     }
     let text = h.state().session.compose.as_ref().unwrap().body.text();
-    assert!(text.to_plain().contains("Jane Doe"), "{:?}", text.to_plain());
-    assert!(text.paragraphs().iter().flat_map(|p| &p.runs).any(|run| run.table.is_some()));
+    let cell = text
+        .paragraphs()
+        .iter()
+        .flat_map(|p| &p.runs)
+        .find_map(|run| run.table.as_deref())
+        .and_then(|table| table.rows().first())
+        .and_then(|row| row.first())
+        .unwrap();
+    let contents = cell.lines.iter().flatten().map(|run| run.text.as_str()).collect::<String>();
+    assert_eq!(contents, "Jane Doe, Sales");
 }
 
 #[test]
