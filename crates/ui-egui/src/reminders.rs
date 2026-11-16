@@ -30,6 +30,10 @@ const REMEMBERED: usize = 400;
 pub struct State {
     /// What is due and neither dismissed nor put off, soonest first.
     pub(crate) showing: Vec<Reminder>,
+    /// The follow-up reminders of messages that are showing (#948): raised by
+    /// `mail.settleReminders`, not dismissed, not put off (kept in the mailbox file, so that a
+    /// Snooze survives a restart).
+    pub(crate) mail: Vec<MailRow>,
     pub(crate) looked: f64,
     looked_rev: u64,
     /// Reminders put off, and until when (milliseconds).
@@ -56,6 +60,7 @@ pub struct State {
 #[derive(Default)]
 pub(crate) struct Shared {
     rows: Vec<Row>,
+    mail: Vec<MailRow>,
     twelve_hour: bool,
     /// The window's title, and the one it was last given.
     title: String,
@@ -72,9 +77,29 @@ struct Row {
     join: Option<String>,
 }
 
+/// The follow-up reminder of a message as the window shows it (#948).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MailRow {
+    pub(crate) id: u64,
+    /// Message text: shown as text, nothing in it is followed.
+    pub(crate) subject: String,
+    /// The sender of mail that came, the people mail you sent went to.
+    pub(crate) who: String,
+    /// When it was set for (seconds since 1970).
+    pub(crate) at: i64,
+    /// "Nobody has replied".
+    pub(crate) no_reply: bool,
+    /// `at` on this computer's clock.
+    pub(crate) local: mailcraft_time::DateTime,
+    /// Minutes since `at`; negative before it (a Snooze puts it off to a time later than `at`).
+    pub(crate) minutes: i64,
+}
+
 /// What was done in the window.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Action {
+    DismissMail(u64),
+    OpenMail(u64),
     Dismiss(u64, String),
     DismissAll,
     Snooze(u64),
@@ -124,12 +149,14 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
             fresh.push(r.clone());
         }
     }
-    if !fresh.is_empty() && !ctx.input(|i| i.focused) {
+    let fresh_mail: Vec<MailRow> = app.reminders.mail.iter().filter(|m| app.reminders.announced.insert(mail_key(m.id, m.at))).cloned().collect();
+    if !(fresh.is_empty() && fresh_mail.is_empty()) && !ctx.input(|i| i.focused) {
         ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
     }
     // And a desktop alert for each, in front or not ([`crate::alerts`]).
     crate::alerts::reminders_due(app, &fresh);
-    if !app.session.mailbox.events.is_empty() {
+    crate::alerts::follow_ups_due(app, &fresh_mail);
+    if !app.session.mailbox.events.is_empty() || app.session.mailbox.has_follow_ups() {
         ctx.request_repaint_after(std::time::Duration::from_millis(LOOK_EVERY as u64));
     }
 }
@@ -141,6 +168,40 @@ fn refresh(app: &mut MailApp) {
     let due = due_reminders(&app.session, app.session.local_now());
     app.reminders.showing =
         due.into_iter().filter(|r| !app.ui.dismissed_reminders.contains(&key_of(r)) && !app.reminders.snoozed.contains_key(&key_of(r))).collect();
+    app.reminders.mail = mail_rows(app);
+}
+
+/// What a follow-up reminder is known by in [`State::announced`].
+fn mail_key(id: u64, at: i64) -> String {
+    format!("m{id}@{at}")
+}
+
+/// The follow-up reminders showing now, from the mailbox.
+fn mail_rows(app: &MailApp) -> Vec<MailRow> {
+    let (mb, now) = (&app.session.mailbox, app.session.now());
+    mb.due_follow_ups(now)
+        .into_iter()
+        .filter_map(|id| {
+            let m = mb.message(id)?;
+            let f = m.follow_up?;
+            let sent = mb.folder(m.folder).is_some_and(|x| matches!(x.kind, mailcraft_model::FolderKind::Sent | mailcraft_model::FolderKind::Outbox));
+            let who = if sent { m.to.iter().chain(&m.cc).map(|a| a.display()).collect::<Vec<_>>().join(", ") } else { m.from.display().to_string() };
+            Some(MailRow {
+                id,
+                subject: m.subject.clone(),
+                who,
+                at: f.at,
+                local: app.session.local(f.at),
+                no_reply: f.if_no_reply,
+                minutes: now.saturating_sub(f.at).div_euclid(60),
+            })
+        })
+        .collect()
+}
+
+/// Whether anything is showing: an event's reminder or a message's.
+fn anything(app: &MailApp) -> bool {
+    !app.reminders.showing.is_empty() || !app.reminders.mail.is_empty()
 }
 
 /// Dismiss one reminder (`event` and `occurrence`), or all that are showing.
@@ -149,16 +210,26 @@ pub fn dismiss(app: &mut MailApp, one: Option<(u64, &str)>) -> usize {
         Some((event, occurrence)) => vec![key(event, occurrence)],
         None => app.reminders.showing.iter().map(key_of).collect(),
     };
-    let n = keys.len();
+    let mut n = keys.len();
     for k in keys {
         if !app.ui.dismissed_reminders.contains(&k) {
             app.ui.dismissed_reminders.push(k);
         }
     }
+    // Dismiss All dismisses the messages' too (one by one, a click on that reminder's own button).
+    // Never for an agent: the owner's reminders are the owner's to dismiss (#948); an agent's
+    // dismissal here reaches the calendar's reminders as it always did.
+    if one.is_none() && app.session.agent.is_none() {
+        let ids: Vec<u64> = app.reminders.mail.iter().map(|m| m.id).collect();
+        n += ids.len();
+        if !ids.is_empty() {
+            let _ = app.execute("mail.dismissReminder", json!({"ids": ids}));
+        }
+    }
     let extra = app.ui.dismissed_reminders.len().saturating_sub(REMEMBERED);
     app.ui.dismissed_reminders.drain(..extra);
     refresh(app);
-    if app.reminders.showing.is_empty() {
+    if !anything(app) {
         app.reminders.asked_for = false;
     }
     n
@@ -171,11 +242,23 @@ pub fn snooze(app: &mut MailApp, one: Option<(u64, &str)>, minutes: u64) -> usiz
         Some((event, occurrence)) => vec![key(event, occurrence)],
         None => app.reminders.showing.iter().map(key_of).collect(),
     };
-    let n = keys.len();
+    let mut n = keys.len();
     for k in keys {
         // Due again once the time is up: told of again then.
         app.reminders.announced.remove(&k);
         app.reminders.snoozed.insert(k, until);
+    }
+    // The messages' are put off in the mailbox file, so that it survives a restart. Not by an
+    // agent (#948), as for Dismiss.
+    if one.is_none() && app.session.agent.is_none() {
+        let rows = app.reminders.mail.clone();
+        let ids: Vec<u64> = rows.iter().map(|m| m.id).collect();
+        n += ids.len();
+        if !ids.is_empty() && app.execute("mail.postponeReminder", json!({"ids": ids, "minutes": minutes.clamp(1, 10_080)})).is_ok() {
+            for m in &rows {
+                app.reminders.announced.remove(&mail_key(m.id, m.at));
+            }
+        }
     }
     refresh(app);
     app.reminders.asked_for = false;
@@ -197,7 +280,7 @@ pub(crate) fn embedded_layer() -> egui::LayerId {
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     app.reminders.passes = app.reminders.passes.wrapping_add(1);
     app.reminders.ending = None;
-    let wanted = !app.reminders.showing.is_empty() || app.reminders.asked_for;
+    let wanted = anything(app) || app.reminders.asked_for;
     // A window minimized because the main window had no passes ([`carry_out`]) is let go in
     // this pass and made afresh in the next, so that it comes back in front.
     if std::mem::take(&mut app.reminders.minimized) {
@@ -216,7 +299,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let (title, rows) = {
         let mut s = lock(&shared);
         s.titled = s.title.clone();
-        (s.title.clone(), s.rows.len())
+        (s.title.clone(), s.rows.len() + s.mail.len())
     };
     let height = (rows.clamp(1, 6) as f32) * 46.0 + 96.0;
     let builder = crate::windows::like_main(
@@ -237,7 +320,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
 /// window is carried out, and what it shows brought up to date.
 pub fn carry_out(app: &mut MailApp, ctx: &egui::Context) {
     apply(app, ctx);
-    let wanted = !app.reminders.showing.is_empty() || app.reminders.asked_for;
+    let wanted = anything(app) || app.reminders.asked_for;
     if wanted || !app.reminders.on_screen {
         app.reminders.ending = None;
         return;
@@ -274,6 +357,14 @@ fn apply(app: &mut MailApp, ctx: &egui::Context) {
                 let _ = app.execute("ui.snoozeReminders", json!({"minutes": minutes}));
             }
             Action::Open(event, start) => open(app, event, start),
+            Action::DismissMail(id) => {
+                let _ = app.execute("mail.dismissReminder", json!({"ids": [id]}));
+                refresh(app);
+                if !anything(app) {
+                    app.reminders.asked_for = false;
+                }
+            }
+            Action::OpenMail(id) => open_mail(app, id),
             Action::Join(event) => {
                 if let Err(e) = app.execute("ui.joinMeeting", json!({"event": event})) {
                     app.status(e);
@@ -282,7 +373,7 @@ fn apply(app: &mut MailApp, ctx: &egui::Context) {
             // Closing the window puts what is showing off for a while; it comes back, as a
             // reminder should.
             Action::Close => {
-                if app.reminders.showing.is_empty() {
+                if !anything(app) {
                     app.reminders.asked_for = false;
                 } else {
                     let _ = app.execute("ui.snoozeReminders", json!({"minutes": 5}));
@@ -306,10 +397,11 @@ fn publish(app: &MailApp, ctx: &egui::Context) {
         })
         .collect();
     let twelve_hour = app.session.prefs.twelve_hour;
-    let title = tln!(rows.len(), "{n} Reminder", "{n} Reminders");
+    let mail = app.reminders.mail.clone();
+    let title = tln!(rows.len() + mail.len(), "{n} Reminder", "{n} Reminders");
     let mut s = lock(&app.reminders.shared);
-    if s.rows != rows || s.twelve_hour != twelve_hour || s.title != title {
-        (s.rows, s.twelve_hour, s.title) = (rows, twelve_hour, title);
+    if s.rows != rows || s.mail != mail || s.twelve_hour != twelve_hour || s.title != title {
+        (s.rows, s.mail, s.twelve_hour, s.title) = (rows, mail, twelve_hour, title);
         drop(s);
         ctx.request_repaint_of(viewport());
     }
@@ -321,7 +413,7 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
     let ctx = ui.ctx().clone();
     let t = Tokens::get(&ctx);
     let mut s = lock(shared);
-    let (rows, twelve) = (s.rows.clone(), s.twelve_hour);
+    let (rows, twelve, mail) = (s.rows.clone(), s.twelve_hour, s.mail.clone());
     let mut done = Vec::new();
     let mut hits = Vec::new();
     let own_window = class != egui::ViewportClass::EmbeddedWindow;
@@ -340,7 +432,7 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
         if !own_window {
             ui.set_width(380.0);
         }
-        if rows.is_empty() {
+        if rows.is_empty() && mail.is_empty() {
             ui.add_space(10.0);
             ui.label(RichText::new(tl!("No reminders are due.")).font(regular(12.5)).color(t.text_dim));
             ui.add_space(10.0);
@@ -408,6 +500,9 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
                 }
                 hits.push(("reminder", r.event, rect));
             }
+            for row in &mail {
+                paint_mail_row(ui, &t, row, twelve, &mut done, &mut hits);
+            }
         });
         ui.separator();
         ui.horizontal(|ui| {
@@ -435,6 +530,56 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
         // In a window of its own, the main window's logic carries it out.
         ctx.request_repaint_of(egui::ViewportId::ROOT);
     }
+}
+
+/// A message's follow-up reminder (#948): a flag, its subject and who it is about, and Dismiss.
+/// A double click opens the message. The subject is message text, drawn as text and clipped.
+fn paint_mail_row(
+    ui: &mut egui::Ui,
+    t: &Tokens,
+    row: &MailRow,
+    twelve: bool,
+    done: &mut Vec<Action>,
+    hits: &mut Vec<(&'static str, u64, egui::Rect)>,
+) {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover);
+    }
+    icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), vec2(16.0, 16.0)), "flag", t.icon, t.red);
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let wide = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Dismiss").to_string(), font, t.text).size().x + 16.0).max(64.0);
+    let name = if row.subject.trim().is_empty() { tl!("(no subject)") } else { row.subject.as_str() };
+    // How long ago, measured in the interface language: the title stops short of it, and the
+    // line below, which has no such text beside it, runs as far as Dismiss.
+    let ago = when(-row.minutes);
+    let ago_wide = ui.fonts_mut(|f| f.layout_no_wrap(ago.clone(), regular(11.5), t.text).size().x);
+    let room = rect.width() - wide - 66.0;
+    let title_room = (room - ago_wide - 8.0).max(20.0);
+    crate::theme::paint_clipped(ui.painter(), egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0), title_room, name, semibold(12.5), t.text);
+    let when_text = crate::dates::medium_time(row.local, twelve);
+    let what = if row.no_reply { tl!("No reply yet") } else { tl!("Follow up") };
+    let detail = if row.who.is_empty() { format!("{what} · {when_text}") } else { format!("{what} · {} · {when_text}", row.who) };
+    crate::theme::paint_clipped(ui.painter(), egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0), room, &detail, regular(11.5), t.text_dim);
+    let said = egui::pos2(rect.max.x - wide - 14.0, rect.min.y + 15.0);
+    let color = if row.minutes >= 0 { t.red } else { t.text_dim };
+    ui.painter().text(said, Align2::RIGHT_CENTER, ago, regular(11.5), color);
+    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - wide - 6.0, rect.center().y - 12.0), vec2(wide, 24.0));
+    if ui.put(button, egui::Button::new(tl!("Dismiss"))).clicked() {
+        done.push(Action::DismissMail(row.id));
+    } else if resp.double_clicked() {
+        done.push(Action::OpenMail(row.id));
+    }
+    hits.push(("reminderMail", row.id, rect));
+}
+
+/// Open the message a follow-up reminder is for, in its folder.
+pub(crate) fn open_mail(app: &mut MailApp, id: u64) {
+    let Some(folder) = app.session.mailbox.message(id).map(|m| m.folder) else { return };
+    app.ui.backstage = false;
+    let _ = app.execute("folder.select", json!({"id": folder}));
+    let _ = app.execute("mail.select", json!({"id": id, "elsewhere": true}));
+    app.reveal_selection = true;
 }
 
 /// Open the item a reminder is for, as a double click on the reminder does: in a window of its

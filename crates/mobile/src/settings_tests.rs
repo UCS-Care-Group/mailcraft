@@ -23,9 +23,9 @@ fn microsoft(core: &Core, email: &str) -> u64 {
 #[test]
 fn device_settings_start_off_and_round_trip() {
     let off = default_device_settings();
-    assert!(!off.download_pictures && !off.sender_images && !off.new_mail_only && !off.primary_only);
+    assert!(!off.new_mail_only && !off.primary_only);
     assert!(off.reminders);
-    let on = DeviceSettings { download_pictures: true, sender_images: true, new_mail_only: true, primary_only: false, reminders: false };
+    let on = DeviceSettings { new_mail_only: true, primary_only: true, reminders: false };
     assert_eq!(parse_device_settings(device_settings_json(on)), on);
     assert_eq!(parse_device_settings(device_settings_json(off)), off);
 }
@@ -33,15 +33,15 @@ fn device_settings_start_off_and_round_trip() {
 #[test]
 fn device_settings_that_have_gone_wrong_turn_nothing_on() {
     let off = default_device_settings();
-    for junk in ["", "{", "[]", "null", "\"yes\"", "{\"downloadPictures\":\"true\"}", "{\"senderImages\":1}", "{\"downloadPictures\":null}"] {
+    for junk in ["", "{", "[]", "null", "\"yes\"", "{\"newMailOnly\":\"true\"}", "{\"primaryOnly\":1}", "{\"newMailOnly\":null}"] {
         assert_eq!(parse_device_settings(junk.to_string()), off, "{junk}");
     }
     // Too long to be what the app wrote.
-    let long = format!("{{\"downloadPictures\":true,\"x\":\"{}\"}}", "a".repeat(20_000));
+    let long = format!("{{\"newMailOnly\":true,\"x\":\"{}\"}}", "a".repeat(20_000));
     assert_eq!(parse_device_settings(long), off);
     // One field right and one wrong: the right one stands.
-    let some = parse_device_settings("{\"senderImages\":true,\"downloadPictures\":5,\"extra\":[1]}".to_string());
-    assert!(some.sender_images && !some.download_pictures);
+    let some = parse_device_settings("{\"primaryOnly\":true,\"newMailOnly\":5,\"extra\":[1]}".to_string());
+    assert!(some.primary_only && !some.new_mail_only);
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn a_signature_that_is_too_long_or_for_nobody_is_refused() {
 #[test]
 fn reminders_start_on_and_the_choice_to_turn_them_off_is_kept() {
     assert!(parse_device_settings(String::new()).reminders);
-    assert!(parse_device_settings("{\"senderImages\":true}".to_string()).reminders);
+    assert!(parse_device_settings("{\"primaryOnly\":true}".to_string()).reminders);
     assert!(parse_device_settings("{\"reminders\":\"no\"}".to_string()).reminders);
     let off = DeviceSettings { reminders: false, ..default_device_settings() };
     assert!(!parse_device_settings(device_settings_json(off)).reminders);

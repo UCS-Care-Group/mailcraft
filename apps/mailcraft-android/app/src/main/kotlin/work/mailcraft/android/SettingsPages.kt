@@ -177,8 +177,8 @@ internal fun NotificationsPage(texts: Texts, switches: Switches, actions: Settin
         switches.newMailOnly,
     ) { actions.onSwitches(switches.copy(newMailOnly = it)) }
     SwitchRow(
-        texts.t("Primary or Focused only"),
-        texts.t("Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."),
+        texts.t("Primary mail only"),
+        texts.t("Notify only for Primary mail in Gmail accounts. Microsoft accounts do not tell Focused from Other yet, so they notify for all mail."),
         switches.primaryOnly,
     ) { actions.onSwitches(switches.copy(primaryOnly = it)) }
     SwitchRow(
@@ -211,32 +211,6 @@ internal fun NotificationsPage(texts: Texts, switches: Switches, actions: Settin
         }
         HorizontalDivider()
     }
-}
-
-/** Pictures: the one switch for all mail, off until the owner turns it on. */
-@Composable
-internal fun PicturesSwitchPage(texts: Texts, switches: Switches, actions: SettingsActions) {
-    SwitchRow(
-        texts.t("Download pictures in mail automatically"),
-        texts.t(
-            "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say.",
-        ),
-        switches.downloadPictures,
-    ) { actions.onSwitches(switches.copy(downloadPictures = it)) }
-    Hint(texts.t("Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."))
-}
-
-/** Sender images: off until the owner turns them on, and what the switch tells whom, in plain words. */
-@Composable
-internal fun SenderImagesSwitchPage(texts: Texts, switches: Switches, actions: SettingsActions) {
-    SwitchRow(
-        texts.t("Show sender images from Gravatar, favicon.im and Google"),
-        texts.t(
-            "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them.",
-        ),
-        switches.senderImages,
-    ) { actions.onSwitches(switches.copy(senderImages = it)) }
-    Hint(texts.t("Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."))
 }
 
 /** Signatures: one for each account, as plain text, for new messages, replies and forwards. */

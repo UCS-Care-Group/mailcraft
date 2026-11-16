@@ -36,6 +36,7 @@ mod limits;
 mod links;
 mod list;
 mod message;
+mod pictures;
 mod platform;
 mod queries;
 mod queue;
@@ -67,6 +68,8 @@ mod limits_tests;
 mod links_tests;
 #[cfg(test)]
 mod list_tests;
+#[cfg(test)]
+mod pictures_tests;
 #[cfg(test)]
 mod preview_tests;
 #[cfg(test)]

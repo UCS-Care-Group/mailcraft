@@ -6,17 +6,13 @@ import java.util.Locale
 
 /**
  * The switches that belong to this phone alone. They are never sent anywhere and never reach the
- * mailbox. The two picture switches are the ones the reading pane and the lists read, so there is
- * one place for each (the Rust side's `DeviceSettings`, which the app keeps in its private storage).
+ * mailbox. The picture choices are not here: Download pictures and Sender images live in
+ * [PicturePrefs], kept by [PicturePrefsStore], which the reading pane and the lists read.
  */
 internal data class Switches(
-    /** Download the pictures of every message without asking. Off. */
-    val downloadPictures: Boolean = false,
-    /** Show sender images (Gravatar, favicon.im, Google). Off. */
-    val senderImages: Boolean = false,
     /** A notification for new mail says "New mail" and nothing of the message, on the lock screen or off it. Off. */
     val newMailOnly: Boolean = false,
-    /** Notify only for mail that would alert: Primary or Focused. Off. */
+    /** Notify only for Primary mail in Gmail accounts (Microsoft's Focused is not stored). Off. */
     val primaryOnly: Boolean = false,
     /** Post a notification for each calendar reminder as it falls due. On: the one switch that starts on. */
     val reminders: Boolean = true,

@@ -17,7 +17,7 @@ class SettingsModelTest {
     @Test
     fun everySwitchOfThePhoneStartsOff() {
         val s = Switches()
-        assertFalse(s.downloadPictures || s.senderImages || s.newMailOnly || s.primaryOnly)
+        assertFalse(s.newMailOnly || s.primaryOnly)
     }
 
     @Test
@@ -89,14 +89,10 @@ class SettingsModelTest {
         assertEquals("1 month", offlineSummary(EnglishTexts, SettingsUi(), listOf(ada)))
         assertEquals("1 account has one", signaturesSummary(EnglishTexts, ui, listOf(ada)))
         assertEquals("None", signaturesSummary(EnglishTexts, SettingsUi(), listOf(ada)))
-        assertEquals("Asked first", picturesSummary(EnglishTexts, Switches()))
-        assertEquals("Downloaded automatically", picturesSummary(EnglishTexts, Switches(downloadPictures = true)))
-        assertEquals("Off", senderImagesSummary(EnglishTexts, Switches()))
-        assertEquals("On", senderImagesSummary(EnglishTexts, Switches(senderImages = true)))
         assertEquals("Sender and subject shown", notificationsSummary(EnglishTexts, Switches()))
         assertEquals("New mail only", notificationsSummary(EnglishTexts, Switches(newMailOnly = true)))
         val both = Switches(newMailOnly = true, primaryOnly = true)
-        assertEquals("New mail only, Primary or Focused only", notificationsSummary(EnglishTexts, both))
+        assertEquals("New mail only, Primary mail only", notificationsSummary(EnglishTexts, both))
     }
 
     @Test

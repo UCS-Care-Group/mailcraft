@@ -535,6 +535,7 @@ fn message() -> impl Strategy<Value = Message> {
             warnings_dismissed: vec!["external".into()],
             forwarded: true,
             flag_due: Some(1),
+            follow_up: None,
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
             not_downloaded: 62_914_560,
             gmail_category: Some(mailcraft_model::GmailCategory::Social),

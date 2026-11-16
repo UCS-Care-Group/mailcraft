@@ -12,9 +12,9 @@
 //!   account has its own on a phone; one an account already has under another name is edited as it is.
 //! - The device settings are not the mailbox's: they stay on the device and never reach a server.
 //!   They are one small JSON text that the app keeps in its private storage and reads back through
-//!   [`parse_device_settings`], which trusts nothing in it. The two picture switches
-//!   (`download_pictures`, `sender_images`) are the ones the reading pane and the lists read, so
-//!   there is one place for each.
+//!   [`parse_device_settings`], which trusts nothing in it. The picture choices (Download
+//!   pictures, Sender images, the senders and domains always downloaded from) are not here: the
+//!   app keeps them in its own picture preferences store, which the reading pane and the lists read.
 //! - [`offline_estimate`] is a rough size for a window, for a question asked before work that big.
 
 use mailcraft_model::KeepOffline;
@@ -35,14 +35,10 @@ const MAX_THIN: u32 = 2_000;
 /// The switches that belong to this device.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct DeviceSettings {
-    /// Download the pictures of every message without asking (off).
-    pub download_pictures: bool,
-    /// Show sender images (off).
-    pub sender_images: bool,
     /// A notification for new mail says "New mail" and nothing of the message, whatever the lock
     /// screen shows (off); the app passes it on with [`Core::set_notify_new_mail_only`].
     pub new_mail_only: bool,
-    /// Notify only for mail that would alert: Primary or Focused (off).
+    /// Notify only for Primary mail, in Gmail accounts (off): Microsoft's Focused and Other is not stored.
     pub primary_only: bool,
     /// Post notifications for calendar reminders (on); the one switch that starts on, because
     /// it is a notification the owner asked for with the reminder, and sends nothing anywhere.
@@ -51,7 +47,7 @@ pub struct DeviceSettings {
 
 impl Default for DeviceSettings {
     fn default() -> Self {
-        Self { download_pictures: false, sender_images: false, new_mail_only: false, primary_only: false, reminders: true }
+        Self { new_mail_only: false, primary_only: false, reminders: true }
     }
 }
 
@@ -72,8 +68,6 @@ pub fn parse_device_settings(json: String) -> DeviceSettings {
     let Ok(Value::Object(map)) = serde_json::from_str::<Value>(&json) else { return DeviceSettings::default() };
     let on = |key: &str| map.get(key).and_then(Value::as_bool).unwrap_or(false);
     DeviceSettings {
-        download_pictures: on("downloadPictures"),
-        sender_images: on("senderImages"),
         new_mail_only: on("newMailOnly"),
         primary_only: on("primaryOnly"),
         // Missing or not true/false: the default, on.
@@ -85,8 +79,6 @@ pub fn parse_device_settings(json: String) -> DeviceSettings {
 #[uniffi::export]
 pub fn device_settings_json(settings: DeviceSettings) -> String {
     json!({
-        "downloadPictures": settings.download_pictures,
-        "senderImages": settings.sender_images,
         "newMailOnly": settings.new_mail_only,
         "primaryOnly": settings.primary_only,
         "reminders": settings.reminders,

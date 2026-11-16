@@ -157,7 +157,7 @@ msgid "(no recipients)"
 msgstr "(nincs címzett)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(nincs tárgy)"
@@ -397,6 +397,12 @@ msgid "A copy of your whole mailbox is saved next to it first, as always. Mail i
 msgstr "A MailCraft először biztonsági másolatot ment a teljes postafiók mellé. A Postázandó üzenetek mappában várakozó leveleket a Microsoft Graphon keresztül küldi el."
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "A date"
+msgstr "Egy dátum"
+
+#. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "A file dialog is already open."
@@ -541,7 +547,7 @@ msgid "A picture couldn't be downloaded."
 msgstr "Egy képet nem lehetett letölteni."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/reading/remote.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say."
 msgstr "A kép az interneten azt mondja a feladó, hogy megnyitotta az üzenetet, és amikor. Left off, képek letölthetők csak az üzenetek, feladók és domain azt mondja."
@@ -803,6 +809,18 @@ msgstr "Fiók hozzáadása"
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Naptár hozzáadása"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Add Reminder"
+msgstr "Emlékeztető hozzáadása"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Add Reminder…"
+msgstr "Emlékeztető hozzáadása…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -1252,14 +1270,14 @@ msgstr "A feladó üzeneteinek automatikus áthelyezése"
 msgid "Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again."
 msgstr "Mindig tölts le képeket mindenkiről, akinek a címe így végződik. Emlékeztünk a beállításokra; Fájl › A beállítások felsorolja a tartományokat és leveszi őket újra."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from {sender}"
 msgstr "Mindig töltsd le a képeket a {sender}-ról"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always from @{domain}"
 msgstr "Mindig a @{domain}-tól"
@@ -1742,6 +1760,12 @@ msgstr "Kérdezd meg, mielőtt letöltené a képeket a domain feladóiról"
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Kérje meg, mielőtt letöltené a feladó képeit."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Ask first again"
+msgstr "Újra először kérdezzen"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1791,10 +1815,10 @@ msgid "Ask to be told when the message is read"
 msgstr "Olvasási visszaigazolás kérése"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "Asked first"
-msgstr "Először kérdez"
+msgstr "Először kérdezett"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -1825,6 +1849,12 @@ msgstr "A tartomány DNS-ét kérdezve…"
 #, fuzzy
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
 msgstr "Kéri a leveleket egyedül, naptár és kapcsolatok nélkül, amely később csatlakoztatható"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "At a date and time"
+msgstr "Adott dátumkor és időpontban"
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -2851,6 +2881,12 @@ msgid "Choose a category"
 msgstr "Válasszon egy kategóriát"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Choose a date…"
+msgstr "Dátum választása…"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Choose a first and a last day, at most a year apart."
@@ -2904,8 +2940,8 @@ msgstr "Klasszikus menüszalag"
 msgid "Clean Up"
 msgstr "Takarítás"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Clear"
 msgstr "Tiszta"
@@ -3678,6 +3714,12 @@ msgstr "Sötét téma stílus"
 msgid "Dark theme"
 msgstr "Sötét téma"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
+#, fuzzy
+msgid "Data Saver is on, so the pictures wait until you ask for them."
+msgstr "Az adatforgalom-csökkentő be van kapcsolva, ezért a képek megvárják, amíg kéri őket."
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -3685,7 +3727,7 @@ msgid "Data on this computer"
 msgstr "Adatok a számítógépről"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/send_later.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Dátum"
@@ -4117,7 +4159,7 @@ msgid "Dismiss All"
 msgstr "Összes elvetése"
 
 #. command label
-#: crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Dismiss Reminder"
 msgstr "Az emlékeztető eldobása"
@@ -4326,8 +4368,8 @@ msgstr "Letöltés minden levélben"
 msgid "Download messages in full:"
 msgstr "Teljes üzenetek letöltése:"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures"
 msgstr "Képek letöltése"
@@ -4345,7 +4387,7 @@ msgid "Download pictures in every message without asking, except in Junk E-mail.
 msgstr "Minden üzenetben letölthet képeket, anélkül, hogy megkérdezné, kivéve a Junk E-mailben. Először azt kéri; Fájl › A beállítások újra kikapcsolják."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/reading/remote.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Képek automatikus letöltése"
@@ -4357,7 +4399,7 @@ msgid "Download the bytes this message came as again, to check its Digital signa
 msgstr "Töltse le a bájtokat, ez az üzenet ismét jött, hogy ellenőrizze a digitális aláírás"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "Downloaded automatically"
 msgstr "Automatikusan letöltve"
@@ -4459,6 +4501,12 @@ msgstr "Esedékesség"
 #, fuzzy
 msgid "Due Date"
 msgstr "Időpont"
+
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Due Reminders"
+msgstr "Esedékes emlékeztetők"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5254,6 +5302,12 @@ msgstr "Lobogóüzenet"
 msgid "Flag for follow-up"
 msgstr "Megjelölés elintézendőként"
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Flag the message and remind me:"
+msgstr "Üzenet megjelölése és emlékeztetés:"
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 #, fuzzy
@@ -5352,11 +5406,17 @@ msgid ""
 "Up"
 msgstr "Elintézendő"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Follow Up"
 msgstr "Elintézendő"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "Follow up"
+msgstr "Nyomon követés"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5424,8 +5484,8 @@ msgstr "Felejtsd el a letöltött naptárt és a kapcsolatfelvételeket"
 msgid "Forget Trusted Certificate"
 msgstr "Felejtsd el a megbízható tanúsítványt"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "Felejtsd el a képeket, hogy tartott; azokat letöltjük újra, amikor kérdezed."
@@ -5977,7 +6037,7 @@ msgid "Graphite"
 msgstr "Grafit"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sender_images.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "A Gravatar-t a feladó képére kérik, és a címüket egy hash-nak is elmondják; máskülönben a favikon.im-et, majd a Google-t, a weboldaluk ikonjának is megkérjük, és a küldő domain-jének is elmondják. Ez a szolgáltatás azoknak a szolgáltatásoknak a számára, akiknek a képeit nézi. Csak azoknak az embereknek, akiket ismer (akivel kapcsolatban áll, és akinek írt) és a levélnek, akiknek a képeit letölti, soha nem dzsunk e-mail-re, és csak akkor, ha a feladó képe megerősíti a postát."
@@ -6199,7 +6259,7 @@ msgid "Hold Unsent Mail"
 msgstr "A nem küldött levelek megtartása"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Kezdőlap"
@@ -6269,6 +6329,12 @@ msgstr "Ha a MailCraft még mindig a Google vizsgálati módjában van, kérje m
 #, fuzzy
 msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
 msgstr "Ha nem nyílt meg a böngésző, ellenőrizze, hogy a számítógépen van-e alapértelmezett böngésző (a Windows: Beállítások, Alkalmazások, Alapértelmezett alkalmazások), majd nyomja meg az oldal újranyitását."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
+msgstr "Ha addig senki, akinek az üzenet ment, nem válaszolt a beszélgetésben, emlékeztető jelenik meg, és az üzenet megjelölésre kerül."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -8867,10 +8933,10 @@ msgid "Never ends"
 msgstr "Soha nem ér véget"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
-msgstr "Soha a levélszemétben. Bekapcsolt adatforgalom-csökkentés mellett az üzenet képei addig várnak, amíg Ön nem kéri őket."
+msgstr "Soha nem a Junk E-mailben. Bekapcsolt adatforgalom-csökkentőnél az üzenet képei megvárják, amíg kéri őket."
 
 #. name
 #: crates/ui-egui/src/motion.rs
@@ -9053,8 +9119,8 @@ msgstr "Csak „Új levél”"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
-msgid "New mail only, Primary or Focused only"
-msgstr "Csak „Új levél”, csak Elsődleges vagy Fókuszált"
+msgid "New mail only, Primary mail only"
+msgstr "Csak „Új levél”, csak elsődleges levelek"
 
 #. interface, what a command says
 #: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
@@ -9173,6 +9239,12 @@ msgstr "Nincs nyilvános kulcs az ujjlenyomathoz, amit a címhez kellene tartani
 #, fuzzy
 msgid "No Public keys are kept yet."
 msgstr "Még nincs meg a nyilvános kulcs."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "No Reminder"
+msgstr "Nincs emlékeztető"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9318,6 +9390,12 @@ msgstr "Nem válaszolt hiteles bolt (a Linux, a GNOME Keyring vagy a KWallet biz
 msgid "No downloaded pictures are kept on this computer."
 msgstr "Ezen a számítógépen nincs letöltött kép."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "No downloaded pictures are kept on this phone."
+msgstr "Ezen a telefonon nincs letöltött kép tárolva."
+
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -9432,6 +9510,12 @@ msgstr "Nincs emlékeztető"
 msgid "No reminders are due."
 msgstr "Nem kell emlékeztetőt küldeni."
 
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "No reply yet"
+msgstr "Még nincs válasz"
+
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -9450,8 +9534,8 @@ msgstr "Nincs találat itt: {scope}"
 msgid "No rules yet. A rule files, flags or deletes mail as it arrives."
 msgstr "Még nincsenek szabályok. A szabályfájlok, zászlók vagy töröli a leveleket, amikor megérkezik."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "Nem emlékeznek a feladókra. \"Mindig tölts le képeket\" felett egy üzenet ad hozzá a feladó vagy a feladó tartománya itt."
@@ -9861,8 +9945,8 @@ msgstr "Értesítések"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
-msgid "Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."
-msgstr "Csak azokról a levelekről értesít, amelyek figyelmeztetnének: Gmailnél az Elsődleges, Microsoftnál a Fókuszált."
+msgid "Notify only for Primary mail in Gmail accounts. Microsoft accounts do not tell Focused from Other yet, so they notify for all mail."
+msgstr "Csak az elsődleges levelekről értesít a Gmail-fiókokban. A Microsoft-fiókok még nem különítik el a Fókuszált és az Egyéb levelek, ezért minden levélről értesítenek."
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -9889,7 +9973,7 @@ msgid "Numbering"
 msgstr "Számozás"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -9913,7 +9997,7 @@ msgid "October"
 msgstr "október"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/ui-egui/src/backstage.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Off"
 msgstr "Ki"
@@ -9937,7 +10021,7 @@ msgid "Oldest on top"
 msgstr "A legrégebbi a tetején"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On"
 msgstr "Be"
@@ -10099,16 +10183,22 @@ msgid "Only confirm if you know these servers."
 msgstr "Csak akkor erősítse meg, ha ismeri ezeket a szervereket."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
 msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
-msgstr "Csak a képernyőn látható sorokhoz. Bekapcsolt adatforgalom-csökkentés mellett csak a telefonon már tárolt képek jelennek meg."
+msgstr "Csak a képernyőn látható sorokra. Bekapcsolt adatforgalom-csökkentőnél csak a már ezen a telefonon tárolt képek jelennek meg."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
 msgid "Only for this time, and send it"
 msgstr "Csak most, és küldés"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Only if nobody replies"
+msgstr "Csak ha senki sem válaszol"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -10870,8 +10960,8 @@ msgstr "Kép a szöveg mellett"
 msgid "Pictures"
 msgstr "Képek"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "A képek mindig letölthetők ({n}):"
@@ -10882,8 +10972,8 @@ msgstr "A képek mindig letölthetők ({n}):"
 msgid "Pictures in mail"
 msgstr "Képek az üzenetekben"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "Képek nem töltötték le."
@@ -11079,8 +11169,8 @@ msgstr "Elsődleges"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
-msgid "Primary or Focused only"
-msgstr "Csak Elsődleges vagy Fókuszált"
+msgid "Primary mail only"
+msgstr "Csak elsődleges levelek"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -11243,6 +11333,12 @@ msgstr "Gyors hozzáférés"
 #, fuzzy
 msgid "Quit MailCraft"
 msgstr "Kilépés MailCraft"
+
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Raise Due Reminders"
+msgstr "Esedékes emlékeztetők megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11478,6 +11574,18 @@ msgstr "A beállításokban emlékezve; Fájl › A beállítások a feladókat 
 msgid "Remind me again later"
 msgstr "Majd később emlékeztess rá."
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remind me if nobody replies"
+msgstr "Emlékeztessen, ha senki sem válaszol"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Remind me if nobody replies by:"
+msgstr "Emlékeztessen, ha eddig senki sem válaszol:"
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -11491,7 +11599,7 @@ msgid "Reminder for new appointments"
 msgstr "Emlékeztető új találkozókhoz"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Emlékeztetők"
@@ -11587,6 +11695,12 @@ msgstr "A nyilvános kulcs eltávolítása"
 #, fuzzy
 msgid "Remove Recurrence"
 msgstr "Ismétlődés megszüntetése"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remove Reminder"
+msgstr "Emlékeztető eltávolítása"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -12755,7 +12869,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -13495,7 +13609,7 @@ msgid "Show password"
 msgstr "Jelszó megjelenítése"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sender_images.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr "A feladók képeinek megjelenítése a Gravatarról, a favikonról és a Google-ról"
@@ -13961,6 +14075,12 @@ msgid "Snooze"
 msgstr "Szundi"
 
 #. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Snooze Reminder"
+msgstr "Emlékeztető késleltetése"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Snooze Reminders"
@@ -14423,7 +14543,7 @@ msgid "Tables"
 msgstr "Táblázatok"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Tags"
 msgstr "Címkék"
@@ -16243,6 +16363,12 @@ msgid "The text wasn't found."
 msgstr "Az SMS-t nem találták meg."
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr "Az időpont ezen a számítógépen marad; a megjelölés a többi megjelöléshez hasonlóan a fiók kiszolgálójára kerül."
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
@@ -17339,7 +17465,7 @@ msgid "Tighter Spacing"
 msgstr "Szorosabb szúrás"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/send_later.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Time"
 msgstr "Idő"
@@ -18480,7 +18606,7 @@ msgstr "Szavak"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Words, from:, to:, category:, on:…"
-msgstr "Szavak, a következőtől:, to:, category:, on:…"
+msgstr "Szavak, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19195,6 +19321,12 @@ msgstr "a névjegyhez név, cégnév vagy e-mail-cím szükséges"
 #, fuzzy
 msgid "a contact's card keeps at most 32 keys"
 msgstr "a kapcsolati kártya legfeljebb 32 kulcsot tartalmaz"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr "Piszkozathoz nem adható emlékeztető: előbb küldd el, vagy használd a Nyomon követés funkciót magában az üzenetben"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -20069,7 +20201,7 @@ msgid "no message being written has the id {id}"
 msgstr "Nincs olyan üzenet, amiben megírnák az azonosító {id}-t."
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nincs megnyitva szerkesztésre üzenet"
@@ -20175,6 +20307,12 @@ msgstr "nincs {folder} mappa"
 #, fuzzy
 msgid "nobody else is invited to this appointment"
 msgstr "Senki más nem lesz meghívva erre a találkozóra."
+
+#. what a command says
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "none of these messages has a reminder showing"
+msgstr "ezen üzenetek egyikéhez sem tartozik látható emlékeztető"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -20891,7 +21029,7 @@ msgid "the message can't hold that much text"
 msgstr "Az üzenet nem tud ennyi szöveget tartani."
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "az üzenet nem olvasható"
@@ -20985,6 +21123,12 @@ msgstr "a platform visszautasította vagy megbukott"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "a javasolt befejezés nem a javasolt kezdet után történik"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "the reminder time must be in the future"
+msgstr "az emlékeztető időpontjának a jövőben kell lennie"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -22629,7 +22773,7 @@ msgstr[0] "{n} helyi másolat megmarad, mert megváltozott a jelölője, kategó
 msgstr[1] "{n} helyi másolat megmarad, mert megváltozott a jelölője, kategóriája, olvasottsága vagy a hozzá tartozó teendő."
 
 #. date and time, interface
-#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "{n} day"
 msgid_plural "{n} days"
@@ -22675,6 +22819,14 @@ msgid "{n} downloaded picture is kept on this computer ({size})."
 msgid_plural "{n} downloaded pictures are kept on this computer ({size})."
 msgstr[0] "Ezen a számítógépen {n} letöltött kép van ({size})."
 msgstr[1] "Ezen a számítógépen {n} letöltött kép van ({size})."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "{n} downloaded picture is kept on this phone ({size})."
+msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
+msgstr[0] "Ezen a telefonon {n} letöltött kép van tárolva ({size})."
+msgstr[1] "Ezen a telefonon {n} letöltött kép van tárolva ({size})."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -23567,6 +23719,18 @@ msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
 #~ msgstr "A telefonon tárolt beiratkozások listája megsérült, így néhány régebbi beiratkozás még mindig rajta lehet. MailCraft Android Beállításaiban lévő tárolójának törlése eltávolítja őket."
+
+#, fuzzy
+#~ msgid "New mail only, Primary or Focused only"
+#~ msgstr "Csak „Új levél”, csak Elsődleges vagy Fókuszált"
+
+#, fuzzy
+#~ msgid "Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."
+#~ msgstr "Csak azokról a levelekről értesít, amelyek figyelmeztetnének: Gmailnél az Elsődleges, Microsoftnál a Fókuszált."
+
+#, fuzzy
+#~ msgid "Primary or Focused only"
+#~ msgstr "Csak Elsődleges vagy Fókuszált"
 
 #, fuzzy
 #~ msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"

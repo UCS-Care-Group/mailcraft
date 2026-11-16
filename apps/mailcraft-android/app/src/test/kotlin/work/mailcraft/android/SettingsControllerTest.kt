@@ -119,12 +119,10 @@ class SettingsControllerTest {
         val api = FakeSettings().apply { kept = Switches(newMailOnly = true) }
         val c = controller(api)
         assertTrue(c.ui.value.switches.newMailOnly)
-        c.actions().onSwitches(Switches(newMailOnly = true, downloadPictures = true))
-        assertEquals(Switches(downloadPictures = true, newMailOnly = true), api.kept)
+        c.actions().onSwitches(Switches(newMailOnly = true, primaryOnly = true))
+        assertEquals(Switches(newMailOnly = true, primaryOnly = true), api.kept)
         assertEquals(api.kept, c.ui.value.switches)
-        // The picture switches are the ones the reading pane reads: the same record, off by default.
-        assertFalse(Switches().downloadPictures)
-        assertFalse(Switches().senderImages)
+        assertFalse(Switches().primaryOnly)
     }
 
     @Test

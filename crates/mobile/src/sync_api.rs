@@ -110,7 +110,7 @@ impl Core {
     }
 
     /// Whether new mail that Gmail put in a category other than Primary raises no notification
-    /// (the owner's "Primary or Focused only" switch in Settings, off by default). Microsoft's
+    /// (the owner's "Primary mail only" switch in Settings, off by default). Microsoft's
     /// Focused and Other are not kept by the mailbox, so they are not told apart yet.
     pub fn set_notify_primary_only(&self, on: bool) {
         self.sync.set_notify_primary_only(on);

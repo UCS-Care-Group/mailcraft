@@ -100,8 +100,8 @@ private fun SettingsBody(
         SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
         SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
         SettingsPage.Notifications -> NotificationsPage(texts, data.settingsUi.switches, actions.settings)
-        SettingsPage.Pictures -> PicturesSwitchPage(texts, data.settingsUi.switches, actions.settings)
-        SettingsPage.SenderImages -> SenderImagesSwitchPage(texts, data.settingsUi.switches, actions.settings)
+        SettingsPage.Pictures -> PicturesPage(texts, data.pictures, actions.onPictures, actions.onClearPictures)
+        SettingsPage.SenderImages -> SenderImagesPage(texts, data.pictures, actions.onPictures)
         SettingsPage.Signatures -> SignaturesPage(texts, data.settingsUi, data.accounts, actions.settings)
     }
 }
@@ -117,8 +117,8 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.RemoveData -> removeDataSummary(texts)
             SettingsPage.MailOffline -> offlineSummary(texts, data.settingsUi, data.accounts)
             SettingsPage.Notifications -> notificationsSummary(texts, data.settingsUi.switches)
-            SettingsPage.Pictures -> picturesSummary(texts, data.settingsUi.switches)
-            SettingsPage.SenderImages -> senderImagesSummary(texts, data.settingsUi.switches)
+            SettingsPage.Pictures -> picturesSummary(texts, data.pictures)
+            SettingsPage.SenderImages -> senderImagesSummary(texts, data.pictures)
             SettingsPage.Signatures -> signaturesSummary(texts, data.settingsUi, data.accounts)
         }
         Row(

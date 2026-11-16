@@ -20,7 +20,7 @@ internal object SettingsShots {
     private val bo = AccountItem(2u, "Bo Lumen", "bo@lumen.example", listOf(FolderItem(3u, null, "Inbox", "inbox", 0u)))
 
     val ui = SettingsUi(
-        switches = Switches(downloadPictures = false, senderImages = true, newMailOnly = true, primaryOnly = false),
+        switches = Switches(newMailOnly = true, primaryOnly = false),
         keepOffline = mapOf(1uL to "1m", 2uL to "6m"),
         storage = StorageUse(500, 212L * 1024 * 1024, 4_120, listOf(250, 500, 1024, 2048, 5120, 10240)),
         signatures = mapOf(

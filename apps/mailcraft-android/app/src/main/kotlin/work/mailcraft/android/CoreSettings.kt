@@ -35,8 +35,6 @@ internal class DeviceSwitches(context: Context) : SwitchesStore {
     override fun load(): Switches = runCatching {
         val settings = parseDeviceSettings(prefs.getString(KEY, null).orEmpty())
         Switches(
-            downloadPictures = settings.downloadPictures,
-            senderImages = settings.senderImages,
             newMailOnly = settings.newMailOnly,
             primaryOnly = settings.primaryOnly,
             reminders = settings.reminders,
@@ -48,8 +46,6 @@ internal class DeviceSwitches(context: Context) : SwitchesStore {
     override fun save(switches: Switches) {
         runCatching {
             val settings = DeviceSettings(
-                downloadPictures = switches.downloadPictures,
-                senderImages = switches.senderImages,
                 newMailOnly = switches.newMailOnly,
                 primaryOnly = switches.primaryOnly,
                 reminders = switches.reminders,
