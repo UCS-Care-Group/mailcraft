@@ -41,7 +41,7 @@ private class FakeAlarms : AlarmSink {
     }
 }
 
-private val twoAsked = Asked(listOf(reminder(1, 2), reminder(2, 5)))
+private val twoAsked = ReminderAnswer(listOf(reminder(1, 2), reminder(2, 5)))
 
 private val words = ReminderWords("Reminders", "Dismiss", "Snooze", "Task", "All day")
 
@@ -60,7 +60,7 @@ class RemindersTest {
     fun aMovedOrDeletedEventLosesItsAlarmAndItsNotification() {
         val before = planReminders(twoAsked, Remembered(), NOW, on = true).remembered
         // Event 1 moved (a new key) and event 2 was deleted, both before they started.
-        val plan = planReminders(Asked(listOf(reminder(3, 3))), before, NOW, on = true)
+        val plan = planReminders(ReminderAnswer(listOf(reminder(3, 3))), before, NOW, on = true)
         assertEquals(listOf(3L), plan.set.map { it.key })
         assertEquals(setOf(1L, 2L), plan.cancel.toSet())
         assertEquals(setOf(1L, 2L), plan.withdraw.toSet())
@@ -68,10 +68,10 @@ class RemindersTest {
 
     @Test
     fun anEventThatStartedKeepsItsNotificationAndItsSnooze() {
-        val before = planReminders(Asked(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
+        val before = planReminders(ReminderAnswer(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
         val snoozed = snoozedOne(handledOne(before, 1), 1, NOW + 3 * HOUR * 1000 + 60_000)
         // Three hours later the event has started and the core no longer lists it.
-        val plan = planReminders(Asked(emptyList()), snoozed, NOW + 3 * HOUR * 1000, on = true)
+        val plan = planReminders(ReminderAnswer(emptyList()), snoozed, NOW + 3 * HOUR * 1000, on = true)
         assertTrue(plan.withdraw.isEmpty())
         assertTrue(plan.cancel.isEmpty())
         assertEquals(setOf(1L), plan.remembered.snoozed.keys)
@@ -80,19 +80,20 @@ class RemindersTest {
     @Test
     fun aShownReminderIsNotRaisedAgainUnlessSnoozed() {
         val shown = handledOne(Remembered(), 1)
-        assertTrue(planReminders(Asked(listOf(reminder(1, 2))), shown, NOW, on = true).set.isEmpty())
+        assertTrue(planReminders(ReminderAnswer(listOf(reminder(1, 2))), shown, NOW, on = true).set.isEmpty())
         val until = NOW + 5 * 60_000
-        val plan = planReminders(Asked(listOf(reminder(1, 2))), snoozedOne(shown, 1, until), NOW, on = true)
+        val plan = planReminders(ReminderAnswer(listOf(reminder(1, 2))), snoozedOne(shown, 1, until), NOW, on = true)
         assertEquals(listOf(until), plan.set.map { it.atMillis })
         // A snooze whose time went is forgotten.
         val gone = snoozedOne(shown, 1, NOW - 1)
-        assertTrue(planReminders(Asked(listOf(reminder(1, 2))), gone, NOW, on = true).set.isEmpty())
+        assertTrue(planReminders(ReminderAnswer(listOf(reminder(1, 2))), gone, NOW, on = true).set.isEmpty())
     }
 
     @Test
     fun theSwitchOffCallsOffEveryAlarmAndSetsNone() {
         val before = planReminders(twoAsked, Remembered(), NOW, on = true).remembered
-        val plan = planReminders(Asked(listOf(reminder(1, 2))), snoozedOne(before, 9, NOW + 1), NOW, on = false)
+        val snoozed = snoozedOne(before, 9, NOW + 1)
+        val plan = planReminders(ReminderAnswer(listOf(reminder(1, 2))), snoozed, NOW, on = false)
         assertTrue(plan.set.isEmpty())
         assertEquals(setOf(1L, 2L, 9L), plan.cancel.toSet())
         assertTrue(plan.remembered.scheduled.isEmpty() && plan.remembered.snoozed.isEmpty())
@@ -101,7 +102,7 @@ class RemindersTest {
     @Test
     fun theScheduleIsHeldToItsCapAndTheRememberedToTheirs() {
         val many = (1L..200L).map { reminder(it, it) }
-        assertEquals(REMINDERS_ASKED, planReminders(Asked(many), Remembered(), NOW, on = true).set.size)
+        assertEquals(REMINDERS_ASKED, planReminders(ReminderAnswer(many), Remembered(), NOW, on = true).set.size)
         val remembered = (1L..1_000L).fold(Remembered()) { r, key -> handledOne(r, key) }
         assertEquals(REMINDERS_REMEMBERED, remembered.handled.size)
         assertEquals(1_000L, remembered.handled.last())
@@ -131,7 +132,7 @@ class RemindersTest {
         val store = MemoryReminderStore()
         var on = true
         val scheduler = ReminderScheduler(alarms, store, { NOW }) { on }
-        assertTrue(scheduler.refresh(words) { Asked(listOf(reminder(1, 2))) })
+        assertTrue(scheduler.refresh(words) { ReminderAnswer(listOf(reminder(1, 2))) })
         assertEquals(listOf(1L), alarms.set.map { it.key })
         assertEquals(false, scheduler.refresh(words) { null })
         assertEquals(mapOf(1L to NOW + 2 * HOUR * 1000), store.remembered.scheduled)
@@ -161,7 +162,7 @@ class RemindersTest {
         val shown = handledOne(before, 1)
         assertEquals(listOf(1L), skipped(shown, NOW))
         // The core leaves 1 out, as asked, and says it is still to come.
-        val plan = planReminders(Asked(listOf(reminder(2, 5)), kept = setOf(1L)), shown, NOW, on = true)
+        val plan = planReminders(ReminderAnswer(listOf(reminder(2, 5)), kept = setOf(1L)), shown, NOW, on = true)
         assertTrue(plan.cancel.isEmpty() && plan.withdraw.isEmpty())
         assertEquals(setOf(1L, 2L), plan.remembered.scheduled.keys)
         // A snoozed one is asked for again, to be set at the snooze's end.
@@ -170,7 +171,7 @@ class RemindersTest {
 
     @Test
     fun anAlarmOfAReminderNoLongerScheduledShowsNothing() {
-        val kept = planReminders(Asked(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
+        val kept = planReminders(ReminderAnswer(listOf(reminder(1, 2))), Remembered(), NOW, on = true).remembered
         val (after, shown) = firing(kept, 1)
         assertTrue(shown)
         assertEquals(listOf(1L), after.handled)

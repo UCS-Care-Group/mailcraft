@@ -226,6 +226,8 @@ mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
 mod shared_mailboxes;
+#[cfg(test)]
+mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
 mod snooze_tell_tests;

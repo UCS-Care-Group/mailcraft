@@ -181,8 +181,16 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
     let renaming_id = egui::Id::unique("mailcraft-signature-rename");
     let mut renaming: Option<String> = ui.data(|d| d.get_temp(renaming_id));
     let field = renaming_id.with("field");
+    // Whether the field was open when this frame began: the Rename button below keeps what
+    // was typed while it is (#1156), and opens the field while it isn't.
+    let was_open = renaming.is_some();
+    // The field's text after this frame's typing, even when leaving clears `renaming` below
+    // (a click on Rename takes the keyboard first, in the same frame as the click).
+    let mut typed: Option<String> = None;
+    let mut entered = false;
     if let (Some(text), Some(from)) = (renaming.as_mut(), open) {
         let r = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).id(field).desired_width(172.0).char_limit(100)));
+        typed = Some(text.clone());
         // Enter keeps the name; a click elsewhere or Escape lets go of it (the keyboard is asked
         // for once, by Rename, not every frame, or nothing could take it away).
         if (r.has_focus() || r.lost_focus()) && crate::keys::enter(ui.ctx(), ui.layer_id()) {
@@ -191,6 +199,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             }
             ui.memory_mut(|m| m.surrender_focus(field));
             renaming = None;
+            entered = true;
         } else if crate::text_menu::left(&r) {
             renaming = None;
         }
@@ -207,9 +216,22 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
                 choose(app, &name);
             }
         }
-        if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Rename"))).clicked() {
-            renaming = open.map(str::to_string);
-            ui.memory_mut(|m| m.request_focus(field));
+        if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Rename"))).clicked()
+            && let Some(from) = open
+        {
+            if was_open && !entered {
+                // Pressed while the field holds the new name: keep what was typed (#1156),
+                // rather than resetting the field to the old name and losing it.
+                let to = typed.as_deref().or(renaming.as_deref()).unwrap_or("").trim().to_string();
+                if !to.is_empty() {
+                    let _ = app.run("signature.rename", json!({"name": from, "to": to}));
+                }
+                ui.memory_mut(|m| m.surrender_focus(field));
+                renaming = None;
+            } else if !was_open {
+                renaming = Some(from.to_string());
+                ui.memory_mut(|m| m.request_focus(field));
+            }
         }
         if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Delete"))).clicked()
             && let Some(name) = open

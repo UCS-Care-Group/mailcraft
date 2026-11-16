@@ -32,7 +32,7 @@ internal data class Remembered(
 )
 
 /** What the core said: the next reminders not yet shown, and which of those shown are still to come. */
-internal data class Asked(val reminders: List<ScheduledReminder>, val kept: Set<Long> = emptySet())
+internal data class ReminderAnswer(val reminders: List<ScheduledReminder>, val kept: Set<Long> = emptySet())
 
 /** The keys the core is asked to leave out: shown or dismissed, and not snoozed (a snooze is set again). */
 internal fun skipped(remembered: Remembered, nowMillis: Long): List<Long> {
@@ -64,7 +64,7 @@ internal fun secondsToMillis(seconds: Long): Long = when {
 
 /**
  * Works out the alarms for [asked], the core's next reminders, against what was [remembered].
- * A key the core says is [Asked.kept] (shown already and still to come) has not left the schedule.
+ * A key the core says is [ReminderAnswer.kept] (shown already and still to come) has not left the schedule.
  * A reminder already shown or dismissed is not raised again, unless it is snoozed (then it comes
  * at the snooze's end). One that left the schedule has its alarm called off; when its event had
  * not started yet (it moved or was deleted), a notification of it that shows is taken away too,
@@ -72,7 +72,7 @@ internal fun secondsToMillis(seconds: Long): Long = when {
  * is called off and nothing is set.
  */
 internal fun planReminders(
-    asked: Asked,
+    asked: ReminderAnswer,
     remembered: Remembered,
     nowMillis: Long,
     on: Boolean,

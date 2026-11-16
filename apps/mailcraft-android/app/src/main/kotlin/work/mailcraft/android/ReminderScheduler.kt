@@ -73,10 +73,13 @@ internal class ReminderScheduler(
      * plan is kept before the alarms are called off; an alarm that outlives it (the process
      * ended between) is not shown, as [ReminderReceiver] checks its key against what is kept.
      */
-    suspend fun refresh(words: ReminderWords, ask: suspend (skip: List<Long>) -> Asked?): Boolean = lock.withLock {
+    suspend fun refresh(
+        words: ReminderWords,
+        ask: suspend (skip: List<Long>) -> ReminderAnswer?,
+    ): Boolean = lock.withLock {
         val switchedOn = withContext(io) { on() }
         val skip = withContext(io) { store.update { it to skipped(it, nowMillis()) } }
-        val asked = if (switchedOn) ask(skip) ?: return@withLock false else Asked(emptyList())
+        val asked = if (switchedOn) ask(skip) ?: return@withLock false else ReminderAnswer(emptyList())
         val plan = withContext(io) {
             store.update { remembered ->
                 val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
@@ -91,10 +94,10 @@ internal class ReminderScheduler(
 }
 
 /** The core's next reminders, less those in [skip]; null when it can't say. */
-internal suspend fun askSchedule(core: Core, skip: List<Long>): Asked? =
+internal suspend fun askSchedule(core: Core, skip: List<Long>): ReminderAnswer? =
     try {
         val answer = core.reminderSchedule(REMINDERS_ASKED.toUInt(), skip.map { it.toULong() })
-        Asked(answer.reminders, answer.kept.mapTo(HashSet()) { it.toLong() })
+        ReminderAnswer(answer.reminders, answer.kept.mapTo(HashSet()) { it.toLong() })
     } catch (_: CoreException) {
         null
     }
