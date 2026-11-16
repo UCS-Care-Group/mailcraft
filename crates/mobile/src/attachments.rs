@@ -10,6 +10,7 @@ use mailcraft_engine::opening::{self, Verdict};
 use mailcraft_engine::{Part, Session};
 use serde_json::json;
 
+use crate::fetch_api::in_opening;
 use crate::message::sniff;
 use crate::{Core, CoreError};
 
@@ -135,17 +136,44 @@ impl Core {
     }
 
     /// Reads attachment `index` of message `id`, at most `cap` bytes of it: when only the message's
-    /// headers are on the phone, it is fetched whole first and this waits for it.
+    /// headers are on the phone, it is fetched whole first and this waits for it. With `opening`, only
+    /// from the mailbox of that opening (another has a message of that number too); the answer names
+    /// the opening it was read in.
     async fn read_attachment(
         &self,
         id: u64,
         index: u32,
         cap: usize,
         only: Option<fn(&AttachmentCheck) -> bool>,
-    ) -> Result<AttachmentFile, CoreError> {
+        opening: Option<u64>,
+    ) -> Result<(AttachmentFile, u64), CoreError> {
         let at = usize::try_from(index).map_err(|_| bad("the message has no such attachment"))?;
-        self.when_whole(id, move |s| read_in(s, id, at, cap, only)).await
+        self.when_whole(id, move |s| {
+            let read = |s: &Session| read_in(s, id, at, cap, only).map(|file| (file, s.openings()));
+            match opening {
+                Some(opening) => in_opening(s, opening, read),
+                None => read(s),
+            }
+        })
+        .await
     }
+}
+
+/// What may be done with attachment `at` of message `id`, which is on the phone whole.
+fn verdict_in(s: &Session, id: u64, at: usize) -> Result<AttachmentCheck, CoreError> {
+    let m = s
+        .loaded_message_where(id, |_| false)
+        .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the message could not be read").to_string() })?;
+    let a = m.attachments.get(at).ok_or_else(|| bad("the message has no such attachment"))?;
+    Ok(check_of(&a.name, &a.mime))
+}
+
+/// Whether `bytes` are an iCalendar file (RFC 5545: `BEGIN:VCALENDAR` first, after a byte-order mark
+/// and white space).
+fn is_icalendar(bytes: &[u8]) -> bool {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF".as_slice()).unwrap_or(bytes);
+    let start = bytes.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(bytes.len());
+    bytes.get(start..).and_then(|rest| rest.get(..15)).is_some_and(|head| head.eq_ignore_ascii_case(b"BEGIN:VCALENDAR"))
 }
 
 /// Attachment `at` of message `id`, which is on the phone whole, when it is within `cap` bytes
@@ -181,7 +209,7 @@ impl Core {
     /// most 64 MB (less on a device with little memory). When the message isn't on the phone
     /// whole, it is fetched first, and this waits for it.
     pub async fn attachment(&self, id: u64, index: u32) -> Result<AttachmentFile, CoreError> {
-        self.read_attachment(id, index, self.attachment_cap(), None).await
+        Ok(self.read_attachment(id, index, self.attachment_cap(), None, None).await?.0)
     }
 
     /// Opens attachment `index` of message `id` in another app, under the opening verdict as on
@@ -197,9 +225,18 @@ impl Core {
     /// Brings calendar attachment `index` of message `id` into the calendar (`file.import`):
     /// nothing is sent to anybody.
     pub async fn import_calendar_attachment(&self, id: u64, index: u32) -> Result<CalendarImported, CoreError> {
-        let file = self.read_attachment(id, index, MAX_CALENDAR_BYTES.min(self.attachment_cap()), Some(|c| c.calendar)).await?;
+        let (file, opening) = self.read_attachment(id, index, MAX_CALENDAR_BYTES.min(self.attachment_cap()), Some(|c| c.calendar), None).await?;
+        // What is brought in is a calendar by its own bytes, whatever the message calls it: a contact
+        // card sent as `text/calendar` is not put in the address book from here.
+        if !is_icalendar(&file.bytes) {
+            return Err(bad("that attachment is not a calendar file"));
+        }
         let params = json!({"name": file.check.name, "data": mailcraft_engine::cmd::base64_encode(&file.bytes)});
         self.call(move |s| {
+            // (The mailbox may have been replaced since the read: the file is not brought into another.)
+            if s.openings() != opening {
+                return Err(CoreError::Cancelled);
+            }
             let done = s.run("file.import", &params)?;
             let n = |key: &str| done.get(key).and_then(serde_json::Value::as_u64).map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX));
             Ok(CalendarImported { events: n("events"), tasks: n("tasks") })
@@ -211,22 +248,18 @@ impl Core {
 impl Core {
     async fn read_attachment_for_opening(&self, id: u64, index: u32, confirmed: bool) -> Result<AttachmentFile, CoreError> {
         // The verdict is read before a byte is: a refused kind is never read.
-        refuse_unless_openable(&self.attachment_verdict_of(id, index).await?, confirmed)?;
-        let file = self.read_attachment(id, index, self.attachment_cap(), None).await?;
+        let (check, opening) = self.attachment_verdict_of(id, index).await?;
+        refuse_unless_openable(&check, confirmed)?;
+        // The bytes come from the mailbox the verdict was read in, or not at all.
+        let (file, _) = self.read_attachment(id, index, self.attachment_cap(), None, Some(opening)).await?;
         // And again for what was read: the message may have been replaced between the two calls.
         refuse_unless_openable(&file.check, confirmed)?;
         Ok(file)
     }
 
-    async fn attachment_verdict_of(&self, id: u64, index: u32) -> Result<AttachmentCheck, CoreError> {
+    /// What may be done with attachment `index` of message `id`, and the opening of the mailbox it was read in.
+    async fn attachment_verdict_of(&self, id: u64, index: u32) -> Result<(AttachmentCheck, u64), CoreError> {
         let at = usize::try_from(index).map_err(|_| bad("the message has no such attachment"))?;
-        self.when_whole(id, move |s| {
-            let m = s
-                .loaded_message_where(id, |_| false)
-                .map_err(|_| CoreError::Failed { reason: s.interface_language.t("the message could not be read").to_string() })?;
-            let a = m.attachments.get(at).ok_or_else(|| bad("the message has no such attachment"))?;
-            Ok(check_of(&a.name, &a.mime))
-        })
-        .await
+        self.when_whole(id, move |s| verdict_in(s, id, at).map(|check| (check, s.openings()))).await
     }
 }

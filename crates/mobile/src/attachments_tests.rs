@@ -163,3 +163,37 @@ fn what_was_read_is_checked_again_before_it_is_handed_over() {
         assert_eq!(refuse_unless_openable(&attachment_check(name.to_string()), confirmed).is_ok(), ok, "{name} {confirmed}");
     }
 }
+
+#[test]
+fn a_contact_card_called_a_calendar_is_not_brought_in() {
+    let card = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada Example\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n";
+    let files = vec![
+        Attachment::new("invite.bin", "text/calendar", card.as_bytes().to_vec()),
+        Attachment::new("invite.bin", "text/calendar; charset=utf-8", format!("\u{feff}\r\n {ICS}").into_bytes()),
+    ];
+    let (core, id) = core_with(files, FakePlatform::new());
+    let contacts = |core: &Arc<Core>| block_on(core.call(|s| Ok(s.mailbox.contacts.len()))).unwrap();
+    let before = contacts(&core);
+    assert!(matches!(block_on(core.import_calendar_attachment(id, 0)), Err(CoreError::BadRequest { .. })));
+    assert_eq!(contacts(&core), before, "no contact was added");
+    // A calendar with a name of no kind still comes in, by its type and its own bytes.
+    assert_eq!(block_on(core.import_calendar_attachment(id, 1)).unwrap().events, 1);
+}
+
+#[test]
+fn an_attachment_is_read_only_from_the_mailbox_its_verdict_was_read_in() {
+    use crate::attachments::read_in;
+    use crate::fetch_api::in_opening;
+    let (core, id) = core_with(files(), FakePlatform::new());
+    let opening = block_on(core.call(|s| Ok(s.openings()))).unwrap();
+    let same = block_on(core.call(move |s| in_opening(s, opening, |s| read_in(s, id, 0, usize::MAX, None))));
+    assert_eq!(same.unwrap().check.name, "report.pdf");
+    // Another mailbox, with a message of the same number and a harmless-looking attachment, is opened.
+    block_on(core.call(|s| {
+        s.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+        Ok(())
+    }))
+    .unwrap();
+    let other = block_on(core.call(move |s| in_opening(s, opening, |s| read_in(s, id, 0, usize::MAX, None))));
+    assert!(matches!(other, Err(CoreError::Cancelled)), "{other:?}");
+}
