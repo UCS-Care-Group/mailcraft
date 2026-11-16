@@ -213,5 +213,6 @@ internal object Corpus {
         entry.view,
         MessageFacts(entry.view.from.address, junk = junk, vouched = vouched, known = false),
         entry.links.associateWith { LinkInfo(if (it.startsWith("mailto:")) LinkGoes.Composer else if (it.startsWith("tel:")) LinkGoes.Dialer else LinkGoes.Browser, it) },
+        entry.view.attachments.map { item(it.name, index = it.index, size = it.size.toLong()) },
     )
 }
