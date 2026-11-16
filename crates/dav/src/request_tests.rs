@@ -116,15 +116,41 @@ fn creates_name_one_segment_and_never_overwrite() {
 #[test]
 fn changes_and_deletes_carry_if_match_and_checked_etags() {
     let e = ep();
-    let r = e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", "W/\"abc\"", "BEGIN:VCALENDAR").unwrap();
-    assert_eq!(r.field("if-match"), Some("W/\"abc\""));
-    assert!(r.field("if-none-match").is_none());
-    let d = e.delete(COLL, "/cal/owner/work/a.ics", "\"abc\"").unwrap();
-    assert_eq!((d.method(), d.field("if-match")), (Method::Delete, Some("\"abc\"")));
-    for bad in ["", &"x".repeat(MAX_TOKEN + 1), "a\r\nb"] {
-        assert_eq!(e.delete(COLL, "/cal/owner/work/a.ics", bad).unwrap_err(), RequestError::Invalid);
-        assert_eq!(e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", bad, "x").unwrap_err(), RequestError::Invalid);
+    let longest = format!("\"{}\"", "x".repeat(MAX_TOKEN - 2));
+    for etag in ["\"abc\"", "W/\"abc\"", "\"a,b\"", "\"\"", longest.as_str()] {
+        let r = e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", etag, "BEGIN:VCALENDAR").unwrap();
+        assert_eq!(r.field("if-match"), Some(etag), "{etag:?}");
+        assert!(r.field("if-none-match").is_none());
+        let d = e.delete(COLL, "/cal/owner/work/a.ics", etag).unwrap();
+        assert_eq!((d.method(), d.field("if-match")), (Method::Delete, Some(etag)), "{etag:?}");
     }
+
+    let too_long = format!("\"{}\"", "x".repeat(MAX_TOKEN - 1));
+    for etag in [
+        "",
+        "*",
+        "\"stale\", *",
+        "\"one\", \"two\"",
+        "abc",
+        "\"abc",
+        "abc\"",
+        "\"a\"b\"",
+        "w/\"abc\"",
+        " W/\"abc\"",
+        "W/\"abc\" ",
+        "\"a b\"",
+        "\"a\r\nb\"",
+        "\"a\0b\"",
+        too_long.as_str(),
+    ] {
+        assert_eq!(
+            e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", etag, "x").unwrap_err(),
+            RequestError::Invalid,
+            "PUT accepted {etag:?}"
+        );
+        assert_eq!(e.delete(COLL, "/cal/owner/work/a.ics", etag).unwrap_err(), RequestError::Invalid, "DELETE accepted {etag:?}");
+    }
+
     let big = "a".repeat(MAX_RESOURCE + 1);
     assert_eq!(e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", "\"1\"", &big).unwrap_err(), RequestError::TooLarge);
 }
