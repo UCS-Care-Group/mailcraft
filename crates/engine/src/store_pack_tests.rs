@@ -129,6 +129,11 @@ fn a_block_written_again_after_its_pack_was_cut_short_is_named_where_it_is_now()
     m.read = !m.read;
     changed.messages.insert(id, Arc::new(m));
     save(&path, &changed).unwrap();
+    // Read back through the map the save left, before the mailbox is opened again: a stale place
+    // there is what made the block read as gone, and reopening may put the map right first.
+    let again = Ref::of(&changed.message(id).unwrap().header_block.data);
+    assert_ne!(pack::find(&dir, &again.hash), Some(last), "the block written again is still named at its old place");
+    assert_eq!(pack::read(&dir, &again), Some(changed.message(id).unwrap().header_block.data.to_vec()), "the block written again reads back where it is named");
     clear_cache();
     assert_eq!(lines_of(&path), lines(&changed), "the block written again reads back");
 }
