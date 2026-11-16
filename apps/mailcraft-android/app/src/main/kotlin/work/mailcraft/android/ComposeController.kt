@@ -82,6 +82,9 @@ internal sealed interface ComposeNotice {
 
     /** The line had nobody on it that could be sent to. */
     data object NoRecipient : ComposeNotice
+
+    /** The message could not be kept or let go of: it stays open. */
+    data object NotClosed : ComposeNotice
 }
 
 /** How the composer ended. */
@@ -182,6 +185,11 @@ internal class ComposeController(
         scope.launch {
             when (val first = source.start(start)) {
                 is ComposeResult.Ok -> {
+                    // Left while it was being started: the message is let go of, not shown.
+                    if (finished) {
+                        source.close(first.view.compose, true)
+                        return@launch
+                    }
                     compose = first.view.compose
                     val accounts = source.accounts()
                     state.value = shown(first.view, ComposeUi(accounts = accounts))
@@ -250,7 +258,7 @@ internal class ComposeController(
 
     /** What is typed on [line] changes; commas, semicolons and line ends make what came before a person. */
     fun typed(line: RecipientLine, text: String) {
-        val ends = text.indexOfFirst { it == ',' || it == ';' || it == '\n' }
+        val ends = firstSeparator(text)
         if (ends >= 0) {
             val before = text.substring(0, ends + 1)
             val rest = text.substring(ends + 1)
@@ -358,7 +366,12 @@ internal class ComposeController(
 
     /** With no message open (it could not be started) there is nothing to keep: the screen just goes. */
     private fun leave(discard: Boolean) {
-        if (state.value.view == null) state.update { it.copy(done = ComposeDone.Closed) } else enqueue(Op.Close(discard))
+        if (state.value.view == null) {
+            finished = true
+            state.update { it.copy(done = ComposeDone.Closed) }
+        } else {
+            enqueue(Op.Close(discard))
+        }
     }
 
     fun dismissSkipped() = state.update { it.copy(skipped = null) }
@@ -367,6 +380,7 @@ internal class ComposeController(
 
     /** The screen was left: what is held goes. */
     fun reset() {
+        finished = true
         ops.close()
         state.value = ComposeUi()
     }
@@ -399,6 +413,11 @@ internal class ComposeController(
     private suspend fun finish(id: ULong, discard: Boolean) {
         val had = state.value.view?.dirty == true
         val saved = source.close(id, discard)
+        if (!saved) {
+            // The message is still open in the core: the owner keeps it, and can try again or discard it.
+            state.update { it.copy(notice = ComposeNotice.NotClosed) }
+            return
+        }
         finished = true
         ops.close()
         val done = when {

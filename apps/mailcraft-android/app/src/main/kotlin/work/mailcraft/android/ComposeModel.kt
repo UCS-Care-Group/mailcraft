@@ -134,23 +134,14 @@ internal class ListMarks(private val marks: List<Pair<Int, String>>) : VisualTra
  */
 internal fun parseTyped(text: String): List<AddressRecord> {
     val parts = mutableListOf<String>()
-    val part = StringBuilder()
-    var quoted = false
-    var angle = false
-    for (c in text) {
-        when {
-            c == '"' -> quoted = !quoted
-            c == '<' && !quoted -> angle = true
-            c == '>' && !quoted -> angle = false
-        }
-        if ((c == ',' || c == ';' || c == '\n') && !quoted && !angle) {
-            parts += part.toString()
-            part.clear()
-        } else {
-            part.append(c)
-        }
+    var rest = text
+    while (true) {
+        val at = firstSeparator(rest)
+        if (at < 0) break
+        parts += rest.substring(0, at)
+        rest = rest.substring(at + 1)
     }
-    parts += part.toString()
+    parts += rest
     return parts.map { it.trim() }.filter { it.isNotEmpty() }.take(MAX_TYPED).map { entry ->
         val open = entry.lastIndexOf('<')
         val close = entry.lastIndexOf('>')
@@ -160,6 +151,21 @@ internal fun parseTyped(text: String): List<AddressRecord> {
             AddressRecord("", entry.trim('"'))
         }
     }
+}
+
+/** Where the first comma, semicolon or line end outside quotes and angle brackets is; -1 when there is none. */
+internal fun firstSeparator(text: String): Int {
+    var quoted = false
+    var angle = false
+    text.forEachIndexed { i, c ->
+        when {
+            c == '"' -> quoted = !quoted
+            c == '<' && !quoted -> angle = true
+            c == '>' && !quoted -> angle = false
+            (c == ',' || c == ';' || c == '\n') && !quoted && !angle -> return i
+        }
+    }
+    return -1
 }
 
 private const val MAX_TYPED = 200

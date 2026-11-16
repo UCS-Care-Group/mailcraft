@@ -32,6 +32,9 @@ internal const val AUTOSAVE_MILLIS = 4_000L
 /** The most files taken from the picker at once. */
 private const val MAX_PICKED = 20
 
+/** The core's cap on all of a message's files together (`MAX_COMPOSE_FILES`). */
+private const val MAX_PICKED_TOTAL = 50L * 1024 * 1024
+
 /**
  * The composer with the phone's pickers behind it: the system's document picker for files and for a picture
  * (no storage permission is held: the system hands over what the owner chose), read off the main thread
@@ -50,9 +53,15 @@ internal fun ComposerRoute(
     val reader = remember(context) { PickedFiles(context.applicationContext) }
     val scope = rememberCoroutineScope()
     val files = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { chosen ->
-        chosen.take(MAX_PICKED).forEach { address ->
-            scope.launch {
+        // One after another, in the order chosen, and no more read once the message's files are full
+        // (the core refuses the file that goes over, with words): never twenty large files in memory at once.
+        val addresses = chosen.take(MAX_PICKED)
+        scope.launch {
+            var total = 0L
+            for (address in addresses) {
+                if (total >= MAX_PICKED_TOTAL) break
                 val picked = withContext(io) { reader.read(address.toString()) }
+                total += picked?.bytes?.size ?: 0
                 actions.files.onAttach(picked?.name ?: "attachment", picked?.bytes)
             }
         }

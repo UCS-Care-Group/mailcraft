@@ -352,4 +352,40 @@ class ComposeControllerTest {
         c.start(ComposeStart.New(0uL, null), listOf(SharedFile("a.txt", byteArrayOf(1), ShareKind.Other)), null)
         assertNull(c.ui.value.skipped)
     }
+
+    @Test
+    fun aMessageLeftWhileItWasBeingStartedIsLetGoOfAndNotShown() {
+        val source = FakeCompose()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        source.startGate = gate
+        val c = ComposeController(source, CoroutineScope(Dispatchers.Unconfined))
+        c.start(ComposeStart.New(0uL, null))
+        c.close()
+        c.reset()
+        gate.complete(Unit)
+        assertTrue("close discard=true" in source.calls)
+        assertNull(c.ui.value.view)
+    }
+
+    @Test
+    fun aMessageThatCouldNotBeClosedStaysOpenAndSaysSo() {
+        val (source, c) = rig(composeView(text = "Hi"))
+        source.closeAnswer = false
+        c.close()
+        assertEquals(ComposeNotice.NotClosed, c.ui.value.notice)
+        assertNull(c.ui.value.done)
+        assertNotNull(c.ui.value.view)
+        // It can be tried again.
+        source.closeAnswer = true
+        c.discard()
+        assertEquals(ComposeDone.Discarded, c.ui.value.done)
+    }
+
+    @Test
+    fun aCommaInsideQuotesIsPartOfTheName() {
+        val (source, c) = rig()
+        c.typed(RecipientLine.TO, "\"Quill, Ada\" <ada@example.org>, b")
+        assertTrue("recipients TO ada@example.org" in source.calls)
+        assertEquals("b", c.ui.value.typed[RecipientLine.TO]?.trim())
+    }
 }

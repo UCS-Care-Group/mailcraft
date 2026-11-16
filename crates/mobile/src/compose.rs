@@ -416,12 +416,17 @@ fn replace_range(s: &mut Session, id: u64, from: u32, to: u32, with: &str) -> Re
     if with.chars().count() > MAX_EDIT_CHARS {
         return Err(failed(s, "that is too much to put in at once"));
     }
-    let (units, current_len, selection) = {
+    let (units, current_len, paragraphs, selection) = {
         let c = find(s, id)?;
-        (Units::of(&c.body.text().text()), c.body.text().len(), c.body.selection())
+        (Units::of(&c.body.text().text()), c.body.text().len(), c.body.text().paragraphs().len(), c.body.selection())
     };
     let (a, b) = range_of(&units, from, to);
-    if current_len.saturating_sub(b - a).saturating_add(with.chars().count()) > MAX_BODY_CHARS {
+    // Refused before the engine has it: a body the phone can't show would be kept and then not shown.
+    // (The breaks the edit takes away are not counted off: a body just under the cap stays under it.)
+    let added_breaks = with.matches('\n').count();
+    if current_len.saturating_sub(b - a).saturating_add(with.chars().count()) > MAX_BODY_CHARS
+        || paragraphs.saturating_add(added_breaks) > MAX_PARAGRAPHS
+    {
         return Err(failed(s, "this message is too long to be edited on a phone"));
     }
     if a < b && with.is_empty() {
@@ -545,7 +550,11 @@ impl Core {
                 ComposeStart::Draft { id } => s.run("mail.editDraft", &json!({"id": id}))?,
             };
             let id = answered.get("compose").and_then(Value::as_u64).or_else(|| s.compose_id()).ok_or(CoreError::Internal)?;
-            view_of(s, id)
+            // A message the phone can't show (an original too long to quote, say) is not left open in
+            // the engine with nobody to close it.
+            view_of(s, id).inspect_err(|_| {
+                let _ = run(s, id, "compose.close", json!({"discard": true}));
+            })
         })
         .await
     }

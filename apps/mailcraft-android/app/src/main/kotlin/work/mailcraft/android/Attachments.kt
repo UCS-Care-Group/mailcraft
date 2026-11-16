@@ -41,7 +41,8 @@ internal fun actionsOf(item: AttachmentItem): List<AttachmentAction> = buildList
     if (item.calendar && !blocked) add(AttachmentAction.AddToCalendar)
     if (!blocked) add(AttachmentAction.Open)
     add(AttachmentAction.Save)
-    if (!blocked) add(AttachmentAction.Share)
+    // A kind that is asked about before it is opened is not handed to another app unasked either.
+    if (!blocked && !asksFirst(item.verdict)) add(AttachmentAction.Share)
 }
 
 /** What a tap on the row does. */

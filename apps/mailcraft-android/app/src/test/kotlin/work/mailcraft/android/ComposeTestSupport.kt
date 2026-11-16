@@ -56,6 +56,10 @@ internal fun composeView(
 internal class FakeCompose(var view: ComposeView = composeView()) : ComposeSource {
     val calls = mutableListOf<String>()
     var startAnswer: ComposeResult? = null
+
+    /** When set, a start waits for it: a start still in flight. */
+    var startGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    var closeAnswer = true
     var refuseEdits: String? = null
     var sendAnswer: SendResult = SendResult.Sent(queued = true)
     var saveWorks = true
@@ -67,6 +71,7 @@ internal class FakeCompose(var view: ComposeView = composeView()) : ComposeSourc
 
     override suspend fun start(start: ComposeStart): ComposeResult {
         calls += "start ${start::class.simpleName}"
+        startGate?.await()
         return startAnswer ?: ComposeResult.Ok(view)
     }
 
@@ -147,6 +152,6 @@ internal class FakeCompose(var view: ComposeView = composeView()) : ComposeSourc
 
     override suspend fun close(compose: ULong, discard: Boolean): Boolean {
         calls += "close discard=$discard"
-        return true
+        return closeAnswer
     }
 }
