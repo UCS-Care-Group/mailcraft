@@ -16,9 +16,6 @@ internal enum class LinkResult {
     /** No app on the phone takes it. */
     NoApp,
 
-    /** It is for the composer, which is not built yet. */
-    ComposerPending,
-
     /** Nothing is followed (a part of the message itself). */
     Ignored,
 }
@@ -73,7 +70,8 @@ internal class SystemLinks(
 /** [LinkOpener] over the core: it checks the address and has the platform show it. */
 internal class CoreLinks(private val core: Core) : LinkOpener {
     override fun open(link: LinkInfo): LinkResult {
-        if (link.goes == LinkGoes.Composer) return LinkResult.ComposerPending
+        // (A mail address is for the composer, which the screen opens itself; it is never handed to the platform.)
+        if (link.goes == LinkGoes.Composer) return LinkResult.Ignored
         return try {
             core.openLink(link.shown)
             LinkResult.Opened

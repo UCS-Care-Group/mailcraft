@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AddressRecord
+import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.MessageView
 
 private val Gutter = 16.dp
@@ -50,20 +51,25 @@ private const val RGB_MASK = 0xFFFFFF
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
     val onOpen: (ULong, Int, Boolean) -> Unit,
-    /** The owner left the message: a read still pending is dropped. */
-    val onClose: () -> Unit,
+    /** Message [id] is no longer on screen: pictures still on their way are let go of. */
+    val onClose: (ULong) -> Unit,
+    val onAllow: (AllowScope) -> Unit,
+    val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
+    val attachments: AttachmentActions = AttachmentActions.None,
+    /** Start writing: a reply, a forward, a draft continued, or a message for a `mailto:` link. */
+    val onCompose: (ComposeStart) -> Unit = {},
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, {}, { LinkResult.Ignored })
+        val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
     }
 }
 
-/** A way of answering a message, which the composer will take. */
-internal enum class Reply { Reply, ReplyAll, Forward }
+/** A way of answering a message, or continuing a draft, which the composer takes. */
+internal enum class Reply { Reply, ReplyAll, Forward, Edit }
 
 /**
- * The reading pane: the message's header, its attachments, and
+ * The reading pane: the message's header, the banner that offers its pictures, its attachments, and
  * its body drawn from the display blocks. Nothing in the message runs; links are followed only to the
  * browser, the dialer and the composer, and a long press says where one really goes first.
  */
@@ -74,6 +80,9 @@ internal fun ReadingPane(
     ui: ReadingUi,
     actions: ReadingActions,
     modifier: Modifier = Modifier,
+    attachments: AttachmentUi = AttachmentUi(),
+    /** The message is a draft: it is continued rather than answered. */
+    draft: Boolean = false,
 ) {
     val dark = isSystemInDarkTheme()
     val snackbar = remember { SnackbarHostState() }
@@ -85,41 +94,43 @@ internal fun ReadingPane(
             notice = null
         }
     }
-    DisposableEffect(Unit) { onDispose { actions.onClose() } }
     Box(modifier = modifier.fillMaxSize()) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val bodyWidth = maxWidth - Gutter * 2
             LaunchedEffect(id, bodyWidth.value.toInt(), dark) { actions.onOpen(id, bodyWidth.value.toInt(), dark) }
+            DisposableEffect(id) { onDispose { actions.onClose(id) } }
             val opened = ui.opened
             when {
                 ui.load == LoadState.Failed -> Centered(texts.t("The message could not be read."))
                 opened == null || ui.id != id -> Centered(texts.t("Loading…"))
                 else -> {
                     val colors = MaterialTheme.colorScheme
-                    val env = remember(opened, texts, colors) {
+                    val env = remember(opened, ui.pictures, texts, colors) {
                         BodyEnv(
                             texts = texts,
                             links = opened.links,
+                            pictures = ui.pictures,
                             rule = colors.outlineVariant,
-                            onLink = { link -> notice = linkNotice(texts, actions.onLink(link)) },
+                            onLink = { link -> notice = followed(texts, actions, link) },
                             onLinkDetails = { details = it },
                         )
                     }
                     val paper = Paper.of(colors.surface.toArgb() and RGB_MASK, colors.primary.toArgb() and RGB_MASK)
                         .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
                     Column(modifier = Modifier.fillMaxSize()) {
-                        MessageBody(texts, opened, env, paper, bodyWidth, Modifier.weight(1f))
+                        MessageBody(texts, ui, opened, env, paper, bodyWidth, actions, Modifier.weight(1f))
                         HorizontalDivider()
-                        ReplyBar(texts) { notice = texts.t("Writing a message is not available in this version yet.") }
+                        ReplyBar(texts, draft) { actions.onCompose(startFor(it, id)) }
                     }
                 }
             }
         }
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
+    AttachmentLayers(texts, attachments, actions.attachments) { notice = it }
     details?.let { link ->
         LinkDetails(texts, link, onOpen = {
-            notice = linkNotice(texts, actions.onLink(link))
+            notice = followed(texts, actions, link)
             details = null
         }) { details = null }
     }
@@ -127,38 +138,57 @@ internal fun ReadingPane(
 
 private fun linkNotice(texts: Texts, result: LinkResult): String? = when (result) {
     LinkResult.NoApp -> texts.t("No app on this phone can open that link.")
-    LinkResult.ComposerPending -> texts.t("Writing a message is not available in this version yet.")
     LinkResult.Opened, LinkResult.Ignored -> null
+}
+
+/** Follows [link]: a mail address opens the composer, filled in and never sent by itself; the rest goes to the core. */
+private fun followed(texts: Texts, actions: ReadingActions, link: LinkInfo): String? {
+    if (link.goes != LinkGoes.Composer) return linkNotice(texts, actions.onLink(link))
+    actions.onCompose(ComposeStart.New(0uL, link.shown))
+    return null
 }
 
 @Composable
 private fun MessageBody(
     texts: Texts,
+    ui: ReadingUi,
     opened: OpenedMessage,
     env: BodyEnv,
     paper: Paper,
     bodyWidth: androidx.compose.ui.unit.Dp,
+    actions: ReadingActions,
     modifier: Modifier,
 ) {
     val view = opened.view
     val lines = remember(view.blocks) { linesOf(view.blocks) }
     LazyColumn(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(Gutter)) {
         item(key = "header") { MessageHeader(texts, view) }
-        if (view.attachments.isNotEmpty()) item(key = "attachments") { AttachmentsLine(texts, view) }
+        item(key = "banner") { PicturesBanner(texts, ui, actions) }
+        if (opened.attachments.isNotEmpty()) {
+            item(key = "attachments") { AttachmentsList(texts, view.id, opened.attachments, actions.attachments) }
+        }
         item(key = "gap") { Box(modifier = Modifier.padding(top = Gutter)) }
         items(lines.size, key = { "line-$it" }) { index -> BodyLineView(lines[index], env, paper, bodyWidth) }
     }
 }
 
+/** What a button of the bar starts writing: an answer to message [id], or a draft continued. */
+internal fun startFor(reply: Reply, id: ULong): ComposeStart = when (reply) {
+    Reply.Reply -> ComposeStart.Reply(id)
+    Reply.ReplyAll -> ComposeStart.ReplyAll(id)
+    Reply.Forward -> ComposeStart.Forward(id)
+    Reply.Edit -> ComposeStart.Draft(id)
+}
+
 @Composable
-private fun ReplyBar(texts: Texts, onReply: () -> Unit) {
+private fun ReplyBar(texts: Texts, draft: Boolean, onReply: (Reply) -> Unit) {
     Surface(tonalElevation = 2.dp) {
         FlowRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(ButtonGap),
         ) {
-            Reply.entries.forEach { reply ->
-                OutlinedButton(onClick = onReply) { Text(replyLabel(texts, reply)) }
+            (if (draft) listOf(Reply.Edit) else Reply.entries.filter { it != Reply.Edit }).forEach { reply ->
+                OutlinedButton(onClick = { onReply(reply) }) { Text(replyLabel(texts, reply)) }
             }
         }
     }
@@ -168,6 +198,7 @@ internal fun replyLabel(texts: Texts, reply: Reply): String = when (reply) {
     Reply.Reply -> texts.t("Reply")
     Reply.ReplyAll -> texts.t("Reply all")
     Reply.Forward -> texts.t("Forward")
+    Reply.Edit -> texts.t("Edit draft")
 }
 
 @Composable

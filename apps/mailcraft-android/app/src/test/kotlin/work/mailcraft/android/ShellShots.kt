@@ -94,7 +94,11 @@ internal object ShellShots {
     /** The app's theme on a surface, with dates drawn in one zone and language, whatever machine records or checks the shot. */
     @Composable
     fun Fixed(content: @Composable () -> Unit) {
-        CompositionLocalProvider(LocalMessageZone provides ZoneOffset.UTC, LocalMessageLocale provides Locale.US) {
+        CompositionLocalProvider(
+            LocalMessageZone provides ZoneOffset.UTC,
+            LocalMessageLocale provides Locale.US,
+            LocalDecodeInPlace provides true,
+        ) {
             MailCraftTheme {
                 Surface { content() }
             }
@@ -111,12 +115,16 @@ internal object ShellShots {
     fun Starting() = Fixed { Opening() }
 }
 
-/** The same data with another list. */
-internal fun ShellData.withMail(ui: MailListUi) = ShellData(
+/** The same data with another list, pictures settings or sender pictures. */
+internal fun ShellData.copy(
+    mail: MailListUi = this.mail,
+    pictures: PicturesUi = this.pictures,
+    avatars: Map<ULong, ByteArray>? = this.avatars,
+) = ShellData(
     accounts = accounts,
     folderName = folderName,
     folderId = folderId,
-    mail = ui,
+    mail = mail,
     version = version,
     chosenLanguage = chosenLanguage,
     accountsUi = accountsUi,
@@ -125,4 +133,8 @@ internal fun ShellData.withMail(ui: MailListUi) = ShellData(
     nowMillis = nowMillis,
     swipe = swipe,
     reading = reading,
+    pictures = pictures,
+    avatars = avatars,
 )
+
+internal fun ShellData.withMail(ui: MailListUi) = copy(mail = ui)
