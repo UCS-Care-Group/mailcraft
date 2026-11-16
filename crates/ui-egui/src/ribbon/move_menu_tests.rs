@@ -3,6 +3,7 @@
 //! Move to Folder and Copy to Folder list every mailbox's folders: the account in view's first,
 //! another's under its name, and a search finds it by its mailbox too (#451).
 
+use egui_kittest::kittest::Queryable as _;
 use mailcraft_engine::Session;
 use mailcraft_model::Id;
 use serde_json::json;
@@ -64,4 +65,32 @@ fn every_mailboxs_folders_are_in_the_move_menu() {
     press(&mut h, egui::Key::Enter);
     let chosen = h.state().1.expect("a folder of that mailbox is chosen");
     assert_eq!(h.state().0.session.mailbox.folder(chosen).map(|f| f.account), Some(other));
+}
+
+/// The folders are read once, when the menu opens, and kept while it stays open: a folder added
+/// meanwhile doesn't appear until it is opened again (#1176).
+#[test]
+fn the_menu_keeps_its_rows_while_it_stays_open_and_reads_them_again_when_reopened() {
+    let a = app();
+    let account = a.session.mailbox.default_account().map(|x| x.id).unwrap();
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(400.0, 500.0)).build_ui_state(
+            |ui, (app, picked, open): &mut (MailApp, Option<Id>, bool)| {
+                if *open {
+                    folder_menu_all(ui, app, |_, id| *picked = Some(id));
+                }
+            },
+            (a, None, true),
+        );
+    h.run_steps(3);
+    assert!(h.query_by_label_contains("Zebra").is_none(), "no such folder yet");
+    h.state_mut().0.session.mailbox.add_folder(account, None, "Zebra").unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label_contains("Zebra").is_none(), "the menu keeps the rows it opened with");
+    // Closed for a few frames, then opened again: the list is read afresh.
+    h.state_mut().2 = false;
+    h.run_steps(4);
+    h.state_mut().2 = true;
+    h.run_steps(3);
+    assert!(h.query_by_label_contains("Zebra").is_some(), "a menu opened again reads the folders again");
 }

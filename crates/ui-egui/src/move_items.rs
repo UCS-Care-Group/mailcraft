@@ -16,22 +16,18 @@
 //! agent may, through `ui.dialog`) can't have the owner move messages they didn't select.
 
 use egui::{Key, Ui, vec2};
-use std::collections::HashMap;
 
-use mailcraft_model::{Account, Folder, FolderKind, Id, Mailbox};
+use mailcraft_model::Id;
 use serde_json::{Value, json};
 
 use crate::MailApp;
+use crate::ribbon::{FolderRow, FolderScope};
 use crate::theme::{Tokens, regular};
 
 /// Most characters of the search box.
 const QUERY_MAX: usize = 120;
 /// Most rows drawn, whatever the mailbox holds.
 const ROWS_MAX: usize = 5_000;
-/// Most folders read for the list and its search.
-const FOLDERS_MAX: usize = 100_000;
-/// How deep the tree is walked.
-const DEPTH_MAX: usize = 32;
 
 /// The dialog's state.
 pub struct MoveItems {
@@ -39,26 +35,10 @@ pub struct MoveItems {
     pub copy: bool,
     query: String,
     /// Every account's folders, as trees, read once when the dialog opened.
-    rows: Vec<Row>,
+    rows: Vec<FolderRow>,
     /// The folder the keys or a click marked.
     marked: Option<Id>,
     error: String,
-}
-
-/// One folder of the list.
-struct Row {
-    folder: Id,
-    name: String,
-    /// Its place in its account, shown for a search's matches.
-    path: String,
-    /// The account it belongs to, as a folder row names it (`Name (address)`), so that two
-    /// Inboxes are told apart.
-    account: String,
-    /// The place and the account folded as a search folds them, worked out once.
-    fold: String,
-    depth: usize,
-    /// The account's name, on the first of its folders: the heading above its tree.
-    heading: Option<String>,
 }
 
 /// What the dialog did in a frame.
@@ -74,10 +54,8 @@ impl MoveItems {
             return None;
         }
         // (The mailbox in view's folders first, then those of every other account: a message
-        // reaches another account too.)
-        let mb = &app.session.mailbox;
-        let in_view = mb.folder(app.session.view.folder).map(|f| f.account).or_else(|| mb.default_account().map(|a| a.id));
-        let rows = rows(mb, in_view);
+        // reaches another account too. Built in one pass, as the Move to Folder menu builds it.)
+        let (rows, _) = crate::ribbon::folder_rows(app, FolderScope::EveryAccount);
         Some(MoveItems { copy, query: String::new(), rows, marked: None, error: String::new() })
     }
 
@@ -100,7 +78,7 @@ impl MoveItems {
     /// The folders listed, in order: each with its depth and its place, for tests.
     #[cfg(test)]
     pub fn listed(&self) -> Vec<(Id, usize, String)> {
-        self.rows.iter().map(|r| (r.folder, r.depth, r.path.clone())).collect()
+        self.rows.iter().map(|r| (r.id, r.depth, r.path.clone())).collect()
     }
 
     /// Marks `folder`, as a click on its row does.
@@ -140,7 +118,7 @@ impl MoveItems {
         let wanted = mailcraft_model::words::fold(&self.query);
         // (Every folder is searched; the rows drawn stop at the most a list shows.)
         let shown: Vec<usize> = (0..self.rows.len()).filter(|i| wanted.is_empty() || self.rows[*i].fold.contains(&wanted)).take(ROWS_MAX).collect();
-        let choosable: Vec<Id> = shown.iter().map(|i| self.rows[*i].folder).filter(|f| Some(*f) != here).collect();
+        let choosable: Vec<Id> = shown.iter().map(|i| self.rows[*i].id).filter(|f| Some(*f) != here).collect();
         // A search marks its first match; a folder that is no longer listed isn't marked.
         if resp.changed() {
             self.marked = if wanted.is_empty() { None } else { choosable.first().copied() };
@@ -191,11 +169,11 @@ impl MoveItems {
                     );
                 }
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
-                let can = Some(row.folder) != here;
+                let can = Some(row.id) != here;
                 // (Painted: its name, whether it is marked and whether it can be, for a screen reader.
                 // The account is named too when the list holds more than one, so that two Inboxes
                 // are told apart.)
-                let marked = self.marked == Some(row.folder);
+                let marked = self.marked == Some(row.id);
                 let said = if several { format!("{} - {}", row.path, row.account) } else { row.path.clone() };
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ListBoxOption, can, &said));
                 // (A folder is chosen, AccessKit's `selected`, not switched on: as in `gmail_tabs`.)
@@ -219,10 +197,10 @@ impl MoveItems {
                 let ink = if can { t.text } else { t.text_disabled };
                 crate::theme::paint_clipped(ui.painter(), egui::pos2(x, r.center().y), (r.max.x - x - 10.0).max(40.0), text, regular(13.0), ink);
                 if can && resp.clicked() {
-                    self.marked = Some(row.folder);
+                    self.marked = Some(row.id);
                 }
                 if can && resp.double_clicked() {
-                    self.marked = Some(row.folder);
+                    self.marked = Some(row.id);
                     chosen = true;
                 }
             }
@@ -238,57 +216,5 @@ impl MoveItems {
             return Outcome::Close;
         }
         if ok || chosen || (enter && self.marked.is_some()) { self.go(app) } else { Outcome::Open }
-    }
-}
-
-/// Every account's folders as trees in the order Home › Move lists them ([`Mailbox::children`]'s
-/// order), each with its place in its account: the account in view's first, then the others' as
-/// the folder pane has them. Built in one pass over the folders, so that a mailbox with
-/// very many of them opens the dialog without a wait.
-fn rows(mb: &Mailbox, in_view: Option<Id>) -> Vec<Row> {
-    let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
-    // (Each account's tree on its own, so that one account's folders are never looked through
-    // for another's.)
-    let mut under: HashMap<(Id, Option<Id>), Vec<&Folder>> = HashMap::new();
-    for f in &mb.folders {
-        under.entry((f.account, f.parent)).or_default().push(f);
-    }
-    for v in under.values_mut() {
-        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
-    }
-    let mut accounts = mb.accounts_in_order();
-    if let Some(at) = accounts.iter().position(|a| Some(a.id) == in_view) {
-        let a = accounts.remove(at);
-        accounts.insert(0, a);
-    }
-    let mut out = Vec::new();
-    for a in accounts {
-        let first = out.len();
-        walk(&under, a, None, "", 0, &mut out);
-        // (The account's name above the first of its folders, none for an account that has none.)
-        if let Some(row) = out.get_mut(first) {
-            row.heading = Some(crate::nav::account_label(a));
-        }
-    }
-    out
-}
-
-/// `account`'s folders, and those under `parent`, appended to `out` as a tree.
-fn walk(under: &HashMap<(Id, Option<Id>), Vec<&Folder>>, account: &Account, parent: Option<Id>, above: &str, depth: usize, out: &mut Vec<Row>) {
-    if depth > DEPTH_MAX {
-        return;
-    }
-    for f in under.get(&(account.id, parent)).into_iter().flatten() {
-        if out.len() >= FOLDERS_MAX {
-            return;
-        }
-        let name = crate::nav::folder_name(f).to_string();
-        let path = if above.is_empty() { name.clone() } else { format!("{above}/{name}") };
-        // (A search finds a folder by its place, by the mailbox it is in, or by its address.)
-        let label = crate::nav::account_label(account);
-        let fold = mailcraft_model::words::fold(&format!("{path} - {label} - {}", account.email.trim()));
-        let said = crate::nav::account_name(account);
-        out.push(Row { folder: f.id, name, path: path.clone(), account: said, fold, depth, heading: None });
-        walk(under, account, Some(f.id), &path, depth + 1, out);
     }
 }

@@ -7,9 +7,12 @@
 //! out in three rows, in named groups. The simplified one is a single row, in which what doesn't
 //! fit first loses its label and then goes behind `…` ([`plan`]).
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
-use mailcraft_model::{Account, FolderKind, Id, Importance};
+use mailcraft_model::{Account, Folder, FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
@@ -1122,36 +1125,33 @@ struct FolderSearch {
     seen: Option<u64>,
 }
 
-/// A folder as the menu lists it.
-struct FolderRow {
-    id: Id,
+/// A folder as Move to Folder, Copy to Folder and the Move Items and Copy Items dialogs list it.
+/// Built in one pass over the mailbox when the list opens, not on every frame (#1176).
+pub(crate) struct FolderRow {
+    pub(crate) id: Id,
     /// Its name, shown indented under its account's heading.
-    name: String,
+    pub(crate) name: String,
     /// Its place in its account (`Inbox/Projects`), shown for a search's matches.
-    path: String,
-    depth: usize,
-    /// What a search reads: its name, and another mailbox's name too.
-    search: String,
+    pub(crate) path: String,
+    pub(crate) depth: usize,
+    /// What a search reads: its place and its mailbox, folded once.
+    pub(crate) fold: String,
     /// The account it is in, as a search's match names it (`Name (address)`).
-    account: String,
+    pub(crate) account: String,
     /// The account's name, on the first of its folders: the heading above its tree.
-    heading: Option<String>,
+    pub(crate) heading: Option<String>,
 }
 
-/// The folders whose name (or mailbox) holds `query` (any part, ignoring case and accents), as
+/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), as
 /// indexes into `list`. Nothing typed (or nothing but marks) is all of them.
 fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
     let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
-    list.iter()
-        .enumerate()
-        .filter(|(_, row)| wanted.is_empty() || mailcraft_model::words::fold(&row.search).contains(&wanted))
-        .map(|(i, _)| i)
-        .collect()
+    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.fold.contains(&wanted)).map(|(i, _)| i).collect()
 }
 
 /// What a folder menu offers.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum FolderScope {
+pub(crate) enum FolderScope {
     /// The account in view's folders, as rules, Move Folder and a message file's menu take them.
     ThisAccount,
     /// Every account's folders, for Move to Folder and Copy to Folder: mail reaches another
@@ -1165,26 +1165,46 @@ fn account_in_view(app: &MailApp) -> Option<Id> {
     mb.folder(app.session.view.folder).map(|f| f.account).or_else(|| mb.default_account().map(|a| a.id))
 }
 
-/// The folders of `account`, and those under `parent`, appended to `out` as a tree.
-fn walk_folders(app: &MailApp, account: &Account, parent: Option<Id>, depth: usize, named: bool, out: &mut Vec<FolderRow>) {
-    if depth > 32 {
+/// Most folders a menu lists, and how deep a tree is walked, however a mailbox is tangled.
+const FOLDER_ROWS_MAX: usize = 100_000;
+const FOLDER_DEPTH_MAX: usize = 32;
+
+/// `account`'s folders, and those under `parent`, appended to `out` as a tree, each with its place
+/// built as the tree is walked.
+fn walk_folders(
+    under: &HashMap<(Id, Option<Id>), Vec<&Folder>>,
+    account: &Account,
+    parent: Option<Id>,
+    above: &str,
+    depth: usize,
+    out: &mut Vec<FolderRow>,
+) {
+    if depth > FOLDER_DEPTH_MAX {
         return;
     }
     let account_name = crate::nav::account_name(account);
-    for f in app.session.mailbox.children(account.id, parent) {
+    let label = crate::nav::account_label(account);
+    let email = account.email.trim();
+    for f in under.get(&(account.id, parent)).into_iter().flatten() {
+        if out.len() >= FOLDER_ROWS_MAX {
+            return;
+        }
         let name = crate::nav::folder_name(f).to_string();
-        let path = crate::nav::folder_path(&app.session.mailbox, f.id);
-        // (A search finds a folder by its name, and by the mailbox it is in when several are.)
-        let search = if named { format!("{name} - {account_name}") } else { name.clone() };
-        out.push(FolderRow { id: f.id, name, path, depth, search, account: account_name.clone(), heading: None });
-        walk_folders(app, account, Some(f.id), depth + 1, named, out);
+        let path = if above.is_empty() { name.clone() } else { format!("{above}/{name}") };
+        // (A search finds a folder by its place, by the mailbox it is in, or by its address.)
+        let fold = mailcraft_model::words::fold(&format!("{path} - {label} - {email}"));
+        out.push(FolderRow { id: f.id, name, path: path.clone(), depth, fold, account: account_name.clone(), heading: None });
+        walk_folders(under, account, Some(f.id), &path, depth + 1, out);
     }
 }
 
 /// The folders `scope` offers, in the folder pane's order: the account in view's first, then the
 /// others' as the pane has them, each as a tree. `bool` is whether more than one mailbox is
 /// listed: then each tree has its account's name above it and a search's matches name theirs.
-fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
+///
+/// The trees are found in one pass over the mailbox's folders, as Move Items builds them, so that
+/// a mailbox of several accounts with thousands of folders opens the menu without a wait (#1176).
+pub(crate) fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
     let mb = &app.session.mailbox;
     let in_view = account_in_view(app);
     let mut accounts: Vec<&Account> = match scope {
@@ -1199,10 +1219,22 @@ fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
         }
     };
     let many = accounts.len() > 1;
+    // (Each account's folders under their parent, sorted as `Mailbox::children` sorts them.)
+    let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
+    let listed: std::collections::HashSet<Id> = accounts.iter().map(|a| a.id).collect();
+    let mut under: HashMap<(Id, Option<Id>), Vec<&Folder>> = HashMap::new();
+    for f in &mb.folders {
+        if listed.contains(&f.account) {
+            under.entry((f.account, f.parent)).or_default().push(f);
+        }
+    }
+    for v in under.values_mut() {
+        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    }
     let mut out = Vec::new();
     for a in accounts.drain(..) {
         let first = out.len();
-        walk_folders(app, a, None, 0, many, &mut out);
+        walk_folders(&under, a, None, "", 0, &mut out);
         // (The account's name above the first of its folders, none for an account that has none.)
         if many && let Some(row) = out.get_mut(first) {
             row.heading = Some(crate::nav::account_label(a));
@@ -1211,13 +1243,20 @@ fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
     (out, many)
 }
 
+/// A menu's folder list, kept while the menu is open: built once when it opens rather than on
+/// every frame, since every account's folders can be thousands (#1176).
+struct FolderList {
+    rows: Vec<FolderRow>,
+    many: bool,
+}
+
 /// A search box and then the folders of `scope` as menu items; `pick` runs with the chosen one.
-/// Typing narrows the list to the folders whose name (or mailbox) matches, each shown with its
+/// Typing narrows the list to the folders whose place (or mailbox) matches, each shown with its
 /// place in the tree; the arrow keys and Enter choose, and Escape clears the search before it
 /// closes the menu (#74).
 fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pick: impl FnMut(&mut MailApp, Id)) {
-    let (list, many) = folder_rows(app, scope);
     let key = ui.scope_id().with("folder-search");
+    let list_key = ui.scope_id().with("folder-list");
     let frame = ui.ctx().cumulative_frame_nr();
     let mut st: FolderSearch = ui.data(|d| d.get_temp(key)).unwrap_or_default();
     let fresh = st.seen.is_none_or(|seen| frame > seen.saturating_add(2));
@@ -1225,6 +1264,19 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
         st = FolderSearch::default();
     }
     st.seen = Some(frame);
+    // (The folders are read once, when the menu opens, and kept while it is drawn: reading every
+    // account's tree on every frame made the menu stutter with thousands of folders (#1176).)
+    let list: Arc<FolderList> = match ui.data(|d| d.get_temp::<Arc<FolderList>>(list_key)) {
+        Some(list) if !fresh => list,
+        _ => {
+            let (rows, many) = folder_rows(app, scope);
+            let list = Arc::new(FolderList { rows, many });
+            ui.data_mut(|d| d.insert_temp(list_key, Arc::clone(&list)));
+            list
+        }
+    };
+    let many = list.many;
+    let list = &list.rows;
 
     let edit = ui.add(egui::TextEdit::singleline(&mut st.text).hint_text(tl!("Search folders")).desired_width(200.0).char_limit(FOLDER_SEARCH_MAX));
     let edit = crate::text_menu::field(edit);
@@ -1232,7 +1284,7 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
         edit.request_focus();
     }
     let searching = !mailcraft_model::words::fold(&st.text).is_empty();
-    let shown = folder_matches(&list, &st.text);
+    let shown = folder_matches(list, &st.text);
     // The rows the keys can choose: not the folder in view, which can't be moved to.
     let current = app.session.view.folder;
     let choosable: Vec<usize> = shown.iter().copied().filter(|i| list.get(*i).is_some_and(|row| row.id != current)).collect();
@@ -3159,7 +3211,15 @@ mod tests {
     }
 
     fn folder_row(name: &str) -> FolderRow {
-        FolderRow { id: 1, name: name.to_string(), path: name.to_string(), depth: 0, search: name.to_string(), account: String::new(), heading: None }
+        FolderRow {
+            id: 1,
+            name: name.to_string(),
+            path: name.to_string(),
+            depth: 0,
+            fold: mailcraft_model::words::fold(name),
+            account: String::new(),
+            heading: None,
+        }
     }
 
     /// Typing narrows the list to the folders whose name holds it, any part, whatever the case
