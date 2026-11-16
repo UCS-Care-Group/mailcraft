@@ -224,6 +224,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("signature.remove", r#"{"name": "Standard"}"#, Setup::None),
     ("signature.rename", r#"{"from": "Standard", "to": "y"}"#, Setup::None),
     ("signature.defaults", "{}", Setup::None),
+    ("signature.fonts", r#"{"new": {"font": "Georgia", "size": 12}}"#, Setup::None),
     ("signature.picture.add", "{}", Setup::None),
     ("signature.picture.set", "{}", Setup::None),
     ("signature.picture.remove", "{}", Setup::None),

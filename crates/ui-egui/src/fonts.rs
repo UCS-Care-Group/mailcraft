@@ -704,6 +704,17 @@ pub fn names(ctx: &egui::Context) -> Option<Vec<String>> {
     Some(index.names().iter().map(|n| (*n).to_string()).collect())
 }
 
+/// The families a font list offers beyond the six of [`Built`] a menu already names — the list the
+/// ribbon's font menu shows, narrowed by `needle` (nothing to narrow by takes them all) and cut to
+/// `most`, with how many the cut left out so the list can say so. `None` while the fonts installed
+/// here are still being found.
+pub fn offered(ctx: &egui::Context, needle: &str, most: usize) -> Option<(Vec<String>, usize)> {
+    let needle = needle.trim().to_lowercase();
+    let shown: Vec<String> = index(ctx)?.menu().iter().filter(|f| needle.is_empty() || f.folded.contains(&needle)).map(|f| f.name.clone()).collect();
+    let cut = shown.len().saturating_sub(most);
+    Some((shown.into_iter().take(most).collect(), cut))
+}
+
 /// What kind of family `name` is, as its own file says: the generic family written after it in the
 /// `font-family` that goes out, so that a recipient without it gets a font of the same kind —
 /// monospace when its characters are as wide as each other, serif when its class is one of the

@@ -53,6 +53,16 @@ pub(crate) fn page(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.add_space(10.0);
     ui.label(egui::RichText::new(tl!("Choose default signatures")).font(semibold(14.0)).color(t.accent_text));
     defaults(app, ui, &names);
+    ui.add_space(10.0);
+    ui.label(egui::RichText::new(tl!("Default fonts")).font(semibold(14.0)).color(t.accent_text));
+    ui.label(
+        egui::RichText::new(tl!(
+            "What you write in a message is written in these fonts. A signature and the message being answered keep their own looks."
+        ))
+        .font(regular(11.5))
+        .color(t.text_dim),
+    );
+    writing_fonts(app, ui);
 }
 
 /// The page's last word on a picture: what refused it, or that it was made smaller.
@@ -623,6 +633,75 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
             ui.end_row();
         }
     });
+}
+
+/// The font each account writes in: a button for each of the three, which opens the font dialog
+/// for that one. A shared mailbox has its own, as it has its own signatures.
+fn writing_fonts(app: &mut MailApp, ui: &mut Ui) {
+    let rows: Vec<(u64, String)> = app
+        .session
+        .mailbox
+        .accounts_in_order()
+        .into_iter()
+        .filter(|a| a.kind != mailcraft_model::AccountKind::Unknown)
+        .map(|a| {
+            let shown = if a.is_shared() {
+                format!("    {}", crate::i18n::fmt(tl!("{address} (shared mailbox)"), &[("address", &a.email)]))
+            } else {
+                a.email.clone()
+            };
+            (a.id, shown)
+        })
+        .collect();
+    if rows.is_empty() {
+        ui.label(tl!("Add an account first"));
+        return;
+    }
+    let slots = [
+        (mailcraft_model::FontSlot::New, tl!("New messages")),
+        (mailcraft_model::FontSlot::Reply, tl!("Replies and forwards")),
+        (mailcraft_model::FontSlot::Plain, tl!("Plain text")),
+    ];
+    egui::Grid::new("signature_fonts").num_columns(4).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
+        for (id, email) in rows {
+            ui.label(email);
+            for (slot, label) in slots {
+                ui.horizontal(|ui| {
+                    ui.label(label);
+                    let now = app.session.mailbox.account(id).and_then(|a| a.default_font(slot));
+                    let button = ui.add(egui::Button::new(font_label(now)).min_size(vec2(150.0, 0.0)));
+                    if button.clicked() {
+                        let asked = crate::dialogs::open_dialog(app, "font", &json!({"account": id, "slot": slot.key()}));
+                        if asked.is_some() {
+                            app.dialog = asked;
+                        }
+                    }
+                });
+            }
+            ui.end_row();
+        }
+    });
+}
+
+/// A font as its button says it: what was chosen, or that the message's own stands.
+fn font_label(now: Option<&mailcraft_model::rich::Style>) -> String {
+    let Some(style) = now else { return tl!("(the message's own)").to_string() };
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(font) = &style.font {
+        parts.push(font.label().to_string());
+    }
+    if let Some(n) = style.size {
+        parts.push(n.to_string());
+    }
+    for (on, name) in [(style.bold, tl!("Bold")), (style.italic, tl!("Italic")), (style.underline, tl!("Underline"))] {
+        if on {
+            parts.push(name.to_string());
+        }
+    }
+    if let Some(hex) = &style.color {
+        parts.push(hex.clone());
+    }
+    if parts.is_empty() { tl!("(the message's own)").to_string() } else { parts.join(", ") }
 }
 
 #[cfg(test)]

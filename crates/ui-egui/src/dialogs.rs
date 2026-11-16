@@ -177,6 +177,9 @@ pub enum Dialog {
     FindReplace(crate::find_replace::FindReplace),
     /// Insert › Symbol ([`crate::symbol`]).
     Symbol(crate::symbol::Symbol),
+    /// The font an account writes in (File › Signatures; [`crate::font_dialog`]): it only collects
+    /// the choice, then runs `signature.fonts`.
+    Font(Box<crate::font_dialog::FontDialog>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -282,6 +285,7 @@ impl Dialog {
                 crate::pick_item::PickKind::Contact => "businessCard",
             },
             Dialog::ViewSource(_) => "viewSource",
+            Dialog::Font(_) => "font",
             Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
             Dialog::FindReplace(d) => {
@@ -441,6 +445,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
+    }
+    if name == "font" {
+        // (Whose font, and which of its three, is said by the params; no such account, no dialog.)
+        return crate::font_dialog::FontDialog::open(app, params).map(|d| Dialog::Font(Box::new(d)));
     }
     if name == "importPst" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -2260,6 +2268,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             if close {
                 app.want_body_focus();
             }
+        }
+        Dialog::Font(dialog) => {
+            let mut done = false;
+            let title = dialog.title(app);
+            let open = window(ctx, &title, crate::font_dialog::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
         }
         Dialog::FindReplace(dialog) => {
             let mut done = false;
