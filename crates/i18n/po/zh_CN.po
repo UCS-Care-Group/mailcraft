@@ -975,6 +975,12 @@ msgstr "添加过滤器"
 msgid "Add from file…"
 msgstr "从文件添加…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Add somebody to send this to."
+msgstr "请添加收件人。"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1009,6 +1015,12 @@ msgstr "添加到安全发件人或阻止的发件人列表"
 msgid "Add to Tasks"
 msgstr "添加到任务"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Add to calendar"
+msgstr "添加到日历"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1020,8 +1032,8 @@ msgstr "由较新版本的 MailCraft 添加：请使用该版本发送和接收�
 msgid "Added to Contacts"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "地址"
@@ -1516,11 +1528,17 @@ msgstr "等待发送到服务器的内容将先被处理：发件箱中的邮件
 msgid "Application (client) ID"
 msgstr "应用程序（客户端）ID"
 
-#. interface
-#: crates/ui-egui/src/ribbon.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Apply"
 msgstr "应用"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Calendars and Contacts Server"
+msgstr "应用日历和联系人服务器"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -1647,6 +1665,12 @@ msgstr "应用已发送的待办事项更改"
 #, fuzzy
 msgid "Apply Subscribed Calendar"
 msgstr "应用已订阅的日历"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Uploaded Calendar and Contacts Changes"
+msgstr "应用已上传的日历和联系人更改"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1874,6 +1898,12 @@ msgstr "正在查询服务器…"
 msgid "Asking your domain's DNS…"
 msgstr "正在查询您域名的 DNS…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Asks before it opens"
+msgstr "打开前会询问"
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -1961,6 +1991,12 @@ msgstr "附加项目"
 #, fuzzy
 msgid "Attach a Contact Card"
 msgstr "附上名片"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Attach a file"
+msgstr "附加文件"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -2239,8 +2275,8 @@ msgstr "基本身份验证（通过安全连接传送用户名和密码）"
 msgid "Basic Text"
 msgstr "基本文本"
 
-#. interface
-#: crates/ui-egui/src/compose.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Bcc"
 msgstr "密送"
@@ -2299,8 +2335,8 @@ msgstr "正文"
 msgid "Body contains"
 msgstr "正文包含"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bold"
 msgstr "粗体"
@@ -2334,6 +2370,12 @@ msgstr "浏览…"
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
 msgstr "正在建立用于搜索的索引；完成前，搜索部分较早的邮件会较慢"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Bulleted list"
+msgstr "项目符号列表"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -2419,6 +2461,18 @@ msgstr "日历连接检查"
 msgid "Calendar Listed Twice"
 msgstr "日历重复列出"
 
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendar and Contacts Changes to Send"
+msgstr "待发送的日历和联系人更改"
+
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Calendar and Contacts Server"
+msgstr "日历和联系人服务器"
+
 #. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -2430,6 +2484,12 @@ msgstr "日历和联系人"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "日历和联系人需要您的许可：文件 › 信息 › 连接日历和联系人"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendars and contacts on a server are not read or written yet in this version."
+msgstr "此版本尚不读取或写入服务器上的日历和联系人。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2491,6 +2551,12 @@ msgstr "日历…"
 msgid "Calibri"
 msgstr "Calibri"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Can't be opened here. Save it to keep it."
+msgstr "无法在此打开。请保存以保留它。"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -2498,7 +2564,7 @@ msgid "Can't sign"
 msgstr "无法签名"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "取消"
@@ -2592,10 +2658,16 @@ msgid "Categorize"
 msgstr "分类"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Cc"
 msgstr "抄送"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Cc and Bcc"
+msgstr "抄送和密件抄送"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -2953,6 +3025,12 @@ msgstr "选择保存诊断信息的位置：保存诊断信息后，GitHub 的�
 msgid "Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so."
 msgstr "选择是否将这些任务发送到 Microsoft 账户的 To Do。未经您的同意不会发送。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Choose who this is sent from"
+msgstr "选择发件人"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3050,7 +3128,7 @@ msgid "Clipboard"
 msgstr "剪贴板"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "关闭"
@@ -3090,6 +3168,12 @@ msgstr "关闭签名"
 #, fuzzy
 msgid "Close Window"
 msgstr "关闭窗口"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Close and keep as draft"
+msgstr "关闭并保留为草稿"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4182,8 +4266,8 @@ msgstr "已数字签名，签名者未验证"
 msgid "Direct Replies To"
 msgstr "将回复发送至"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Discard"
 msgstr "丢弃"
@@ -4518,6 +4602,12 @@ msgstr "草稿"
 msgid "Draft saved"
 msgstr "草稿已保存"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Draft saved."
+msgstr "草稿已保存。"
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -4681,6 +4771,12 @@ msgstr "将签名编辑为文本"
 #, fuzzy
 msgid "Edit Task"
 msgstr "编辑任务"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
+msgid "Edit draft"
+msgstr "编辑草稿"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -5186,7 +5282,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "这些联系人中剩余的不足两人，无需合并。"
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "文件"
@@ -5203,8 +5299,8 @@ msgstr "文件对话框在此处不可用"
 msgid "File:"
 msgstr "文件："
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."
 msgstr "此类文件可能包含能像程序一样运行的宏。只有在确认发件人且预期会收到该文件时才打开。"
@@ -5662,7 +5758,7 @@ msgid "Friday"
 msgstr "周五"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "发件人"
@@ -6214,6 +6310,12 @@ msgstr "隐藏"
 #, fuzzy
 msgid "Hide Calendar Listed Twice"
 msgstr "隐藏列出两次的日历"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Hide Cc and Bcc"
+msgstr "隐藏抄送和密件抄送"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6799,7 +6901,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "正在索引邮件：{percent}%"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "信息"
@@ -6832,6 +6934,12 @@ msgstr "插入链接"
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Insert Picture"
+msgstr "插入图片"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Insert a picture"
 msgstr "插入图片"
 
 #. interface
@@ -7038,8 +7146,8 @@ msgstr "它使用的算法不再安全。"
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "任务会保留在此计算机上，直到此账户获准使用 To Do"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Italic"
 msgstr "斜体"
@@ -7525,8 +7633,8 @@ msgstr "有限详细信息：包括标题"
 msgid "Line Spacing"
 msgstr "行距"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Link"
 msgstr "链接"
@@ -7592,7 +7700,7 @@ msgid "List Tasks"
 msgstr "列出任务"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
 #, fuzzy
 msgid "Loading…"
 msgstr "正在加载…"
@@ -8371,8 +8479,8 @@ msgid "Merge {n} Contact…"
 msgid_plural "Merge {n} Contacts…"
 msgstr[0] "合并 {n} 个联系人…"
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "邮件"
@@ -8392,6 +8500,18 @@ msgstr ""
 #, fuzzy
 msgid "Message Preview"
 msgstr "邮件预览"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message queued. Sending from this phone is not available yet."
+msgstr "邮件已排队。尚不支持从此手机发送。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message sent."
+msgstr "邮件已发送。"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
@@ -8645,6 +8765,12 @@ msgstr "星期一"
 msgid "Month"
 msgstr "月份"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "More"
+msgstr "更多"
+
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
@@ -8668,6 +8794,12 @@ msgstr "了解更多"
 #, fuzzy
 msgid "More actions"
 msgstr "更多操作"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "More actions for {name}"
+msgstr "{name} 的更多操作"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -9190,8 +9322,8 @@ msgstr "仅显示“新邮件”"
 msgid "New mail only, Primary mail only"
 msgstr "仅显示“新邮件”，仅主要邮件"
 
-#. interface, what a command says
-#: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
+#. android, interface, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
 msgstr "新邮件"
@@ -9353,6 +9485,12 @@ msgstr "尚无账户：文件 › 添加账户"
 #, fuzzy
 msgid "No account's server keeps a calendar here yet, so there is nowhere to move these to."
 msgstr "当前没有账户的服务器在此处保存日历，因此无法将这些项目移过去。"
+
+#. android, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/mobile/src/attachments.rs
+#, fuzzy
+msgid "No app on this phone can open that file."
+msgstr "此手机上没有可以打开该文件的应用。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
@@ -9970,6 +10108,12 @@ msgstr "服务器上没有找到更多结果"
 msgid "Nothing new imported: {already}"
 msgstr "没有导入新内容：{already}"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Nothing new was found in that calendar file."
+msgstr "该日历文件中没有找到新内容。"
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -10041,6 +10185,12 @@ msgstr "11月"
 #, fuzzy
 msgid "Number of Days"
 msgstr "天数"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Numbered list"
+msgstr "编号列表"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -10396,7 +10546,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "仅在 MailCraft 不是前台窗口时通知，且只适用于您自己账户的收件箱。"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "打开"
@@ -10585,14 +10735,20 @@ msgstr "打开页面"
 msgid "Open the page again"
 msgstr "再次打开页面"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Open this attachment?"
+msgstr "打开此附件？"
+
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 #, fuzzy
 msgid "Open this calendar"
 msgstr "打开此日历"
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "打开 {name}？{why}"
@@ -10698,6 +10854,12 @@ msgstr "组织者：您自己的日历"
 #, fuzzy
 msgid "Organizer: {name}"
 msgstr "组织者：{name}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Original message"
+msgstr "原始邮件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -10872,8 +11034,8 @@ msgstr "页面已打开。"
 msgid "Page {page} of {pages}"
 msgstr "第 {page} 页，共 {pages} 页"
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "此类页面会在浏览器中打开，页面中的脚本会运行。只有在确认发件人且预期会收到此页面时才打开。"
@@ -11712,7 +11874,7 @@ msgid "Reminders Window"
 msgstr "提醒窗口"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "移除"
@@ -11872,6 +12034,12 @@ msgid "Remove from Safe or Blocked Senders"
 msgstr "从安全发件人或阻止发件人中移除"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Remove link"
+msgstr "删除链接"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Remove local data"
@@ -11912,6 +12080,12 @@ msgstr "移除此条件"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "从这台计算机移除 {who} 的 {format} 密钥吗？密钥将从系统凭据存储中删除，MailCraft 将无法再使用它签名。如果以后可能需要此文件，请保留一份副本。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Remove {name}"
+msgstr "删除 {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -12579,6 +12753,12 @@ msgstr "请先保存或放弃对此账户的更改，再切换到 Google 登录�
 msgid "Save out"
 msgstr "保存到文件"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Save to Files"
+msgstr "保存到文件"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12597,8 +12777,8 @@ msgstr "仅保存在此计算机上：此项目不在您的 Outlook 日历中"
 msgid "Saved the message to {name}"
 msgstr "已将邮件保存到 {name}"
 
-#. interface
-#: crates/ui-egui/src/compose.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Saved to Drafts"
 msgstr "已保存到草稿"
@@ -12622,6 +12802,12 @@ msgstr[0] "已保存 {n} 个附件"
 msgid "Saved {n} message to {name}"
 msgid_plural "Saved {n} messages to {name}"
 msgstr[0] "已将 {n} 封邮件保存到 {name}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Saved."
+msgstr "已保存。"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -12969,8 +13155,8 @@ msgstr ""
 msgid "Select the message before previewing its attachment."
 msgstr "请先选择邮件，再预览其附件。"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "发送"
@@ -12982,7 +13168,7 @@ msgid "Send & Receive"
 msgstr "发送和接收"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "发送/接收"
@@ -13235,6 +13421,12 @@ msgstr ""
 #, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "发送/接收所有文件夹"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Send/Receive Calendars and Contacts Server"
+msgstr "发送/接收日历和联系人服务器"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -13489,8 +13681,8 @@ msgstr "设置…"
 msgid "Shapes"
 msgstr "形状"
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. android, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Share"
 msgstr "分享"
@@ -13709,6 +13901,12 @@ msgstr "分组显示"
 msgid "Show in the time bar"
 msgstr "在时间栏中显示"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Show less"
+msgstr "显示更少"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -13768,6 +13966,12 @@ msgstr "显示文件夹窗格"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "显示此会话中的邮件"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Show the whole original"
+msgstr "显示完整原文"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -14221,6 +14425,12 @@ msgstr "此邮件中的部分字符无法读取：发件人的程序未正确说
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "如上所列，部分内容仍然保留。关闭此窗口时，MailCraft 将退出。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "部分文件未添加：邮件无法再容纳更多文件。"
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
@@ -14383,6 +14593,12 @@ msgstr "仍在建立索引：某些较旧的邮件搜索速度较慢"
 msgid "Stop"
 msgstr "停止"
 
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Stop Using Calendar and Contacts Server"
+msgstr "停止使用日历和联系人服务器"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -14479,8 +14695,8 @@ msgstr "风格"
 msgid "Subfolders"
 msgstr "子文件夹"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Subject"
 msgstr "主题"
@@ -14930,7 +15146,7 @@ msgid "That could not be done."
 msgstr "无法完成该操作。"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
 msgid "That did not work."
 msgstr "操作未成功。"
@@ -14958,6 +15174,12 @@ msgstr "未能完成。时间范围保持不变。"
 #, fuzzy
 msgid "That file could not be read as a calendar."
 msgstr "无法将该文件作为日历读取。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "That file could not be read."
+msgstr "无法读取该文件。"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -15190,12 +15412,6 @@ msgstr "日历的地址"
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "审批没有通过。"
-
-#. what a command says
-#: crates/mobile/src/fetch_api.rs
-#, fuzzy
-msgid "The attachment is too large to open on the phone."
-msgstr "附件太大，无法在手机上打开。"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -15539,6 +15755,18 @@ msgstr "事件在开始之前就结束了。"
 msgid "The event is gone."
 msgstr "该事件已不存在。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "The file could not be saved there."
+msgstr "无法将文件保存到该位置。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "The file could not be shared."
+msgstr "无法共享该文件。"
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -15785,6 +16013,12 @@ msgstr "合并后联系人的证书和密钥数量将超过上限（最多 {max}
 #, fuzzy
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "合并后联系人的 {field} 将超出大小上限（当前 {now}，上限 {max}），因此未合并联系人。请为其选择某个联系人的 {field}，或先缩短内容。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "The message could not be closed. Try again, or discard it."
+msgstr "无法关闭邮件。请重试，或将其丢弃。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
@@ -17648,7 +17882,7 @@ msgid "Title"
 msgstr "标题"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "收件人"
@@ -18000,8 +18234,8 @@ msgstr "在行首输入 * 或 - 并加一个空格可开始项目符号列表；
 msgid "Under a folder on this computer:"
 msgstr "在此计算机上的文件夹下："
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Underline"
 msgstr "下划线"
@@ -18843,12 +19077,6 @@ msgstr "输入您的邮件"
 #, fuzzy
 msgid "Write your signature"
 msgstr "输入您的签名"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
-#, fuzzy
-msgid "Writing a message is not available in this version yet."
-msgstr "此版本暂不支持撰写邮件。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19988,6 +20216,12 @@ msgstr "不是 MailCraft 用于保存数据的文件夹：未作处理"
 msgid "isn't a folder: left alone"
 msgstr "不是文件夹：未作处理"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "isn't switched on yet"
+msgstr "尚未启用"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -20210,6 +20444,12 @@ msgstr "没有 Microsoft 或 Exchange 服务器账户离线保存邮件"
 msgid "no Public key with that fingerprint is kept for that address"
 msgstr "该地址没有保存指纹匹配的公钥"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar and contacts server"
+msgstr "没有账户拥有日历和联系人服务器"
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -20253,7 +20493,7 @@ msgid "no account with id {account}"
 msgstr "没有 ID 为 {account} 的账户"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "没有 ID 为 {id} 的账户"
@@ -20468,6 +20708,12 @@ msgstr "不是一组邮件"
 msgid "not allowed on the server yet: File › Info › Ask again"
 msgstr "服务器尚不允许：文件 › 信息 › 再次询问"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "not an address that can be sent to"
+msgstr "不是可以发送的地址"
+
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
@@ -20677,6 +20923,12 @@ msgstr "首先选择一个任务"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "请先选择一项约会"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
+#, fuzzy
+msgid "shared mailbox"
+msgstr "共享邮箱"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -20907,10 +21159,16 @@ msgid "the app's own code failed"
 msgstr "应用自身的代码出错"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs
+#: crates/mobile/src/attachments.rs
 #, fuzzy
 msgid "the attachment could not be read"
 msgstr "无法读取附件"
+
+#. what a command says
+#: crates/mobile/src/attachments.rs
+#, fuzzy
+msgid "the attachment is too large"
+msgstr "附件太大"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -21165,7 +21423,7 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
+#: crates/mobile/src/attachments.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "无法读取邮件"
@@ -21853,6 +22111,12 @@ msgstr "此账户没有“草稿”文件夹"
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "此账户没有“发件箱”文件夹"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
+msgstr "此账户没有自己的日历和联系人服务器：Microsoft 账户通过 Microsoft 管理其日历，共享邮箱则沿用其所有者的"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -22807,6 +23071,13 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "{n} 个账户已设置"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} attachment"
+msgid_plural "{n} attachments"
+msgstr[0] "{n} 个附件"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -23021,6 +23292,13 @@ msgstr[0] "提前 {n} 小时"
 msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] "{n} 项"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "{n} item added to your calendar"
+msgid_plural "{n} items added to your calendar"
+msgstr[0] "已将 {n} 个项目添加到日历"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -23382,6 +23660,13 @@ msgstr[0] "{n}人受邀参加本次会议。"
 msgid "{n} person proposed another time."
 msgid_plural "{n} people proposed another time."
 msgstr[0] "{n} 人提议了其他时间。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} picture in the message"
+msgid_plural "{n} pictures in the message"
+msgstr[0] "邮件中有 {n} 张图片"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23751,6 +24036,14 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#, fuzzy
+#~ msgid "Writing a message is not available in this version yet."
+#~ msgstr "此版本暂不支持撰写邮件。"
+
+#, fuzzy
+#~ msgid "The attachment is too large to open on the phone."
+#~ msgstr "附件太大，无法在手机上打开。"
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

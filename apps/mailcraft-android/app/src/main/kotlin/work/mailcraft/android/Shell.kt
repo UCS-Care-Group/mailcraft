@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalNavigationDrawer
@@ -22,6 +23,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
@@ -30,11 +33,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,6 +73,12 @@ internal class ShellData(
     val pictures: PicturesUi = PicturesUi(),
     /** Senders' pictures by row id, when sender images are on (null when off). */
     val avatars: Map<ULong, ByteArray>? = null,
+    /** What the attachments of the open message put in front of the owner (a question, a picture, a notice). */
+    val attachments: AttachmentUi = AttachmentUi(),
+    /** The message being written, when there is one: the composer covers the app. */
+    val compose: ComposeUi = ComposeUi(),
+    /** A line to say once (a message queued, a draft kept). */
+    val snack: String? = null,
 )
 
 /** Whether the mailbox's outline (its accounts and folders) has been read, and how that went. */
@@ -100,6 +111,14 @@ internal class ShellActions(
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
+    val writing: WritingActions = WritingActions(),
+)
+
+/** What the shell asks of the message being written: the composer's own, a new message, a line said. */
+internal class WritingActions(
+    val composer: ComposerActions = ComposerActions.None,
+    val onNewMessage: () -> Unit = {},
+    val onSnackShown: () -> Unit = {},
 )
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
@@ -126,6 +145,36 @@ internal fun AppShell(
     requestTab: Tab? = null,
     onTabRequested: () -> Unit = {},
 ) {
+    // The composer covers the app and the app stays composed under it (where the owner was is kept); what
+    // is under it is hidden from the screen reader while it is open.
+    val composing = data.compose.open
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = if (composing) Modifier.clearAndSetSemantics {} else Modifier) {
+            AppFrame(texts, data, actions, calendar, initialNav, initialDrawer, requestTab, onTabRequested)
+        }
+        if (composing) ComposerRoute(texts, data.compose, actions.writing.composer)
+    }
+}
+
+@Composable
+@Suppress("LongMethod", "LongParameterList")
+private fun AppFrame(
+    texts: Texts,
+    data: ShellData,
+    actions: ShellActions,
+    calendar: CalendarPane?,
+    initialNav: NavState,
+    initialDrawer: DrawerValue,
+    requestTab: Tab?,
+    onTabRequested: () -> Unit,
+) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(data.snack) {
+        data.snack?.let {
+            snackbar.showSnackbar(it)
+            actions.writing.onSnackShown()
+        }
+    }
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
     LaunchedEffect(requestTab) {
         // (Add Account is left alone: a sign-in may be waiting there; the tab's notice stays for later.)
@@ -182,6 +231,7 @@ internal fun AppShell(
                 onNav = { nav = it },
                 onLeaveAdd = leaveAdd,
                 onMenu = { scope.launch { drawer.open() } },
+                snackbar = snackbar,
             )
         }
     }
@@ -191,6 +241,7 @@ internal fun AppShell(
 
 /** The screen the navigation state says: Add Account, Settings, or a tab. */
 @Composable
+@Suppress("LongParameterList")
 private fun ShellScreen(
     texts: Texts,
     data: ShellData,
@@ -200,6 +251,7 @@ private fun ShellScreen(
     onNav: (NavState) -> Unit,
     onLeaveAdd: () -> Unit,
     onMenu: () -> Unit,
+    snackbar: SnackbarHostState,
 ) {
     if (nav.adding) {
         AddAccountScreen(texts, data.accountsUi.add, actions.accounts, onBack = onLeaveAdd)
@@ -221,6 +273,8 @@ private fun ShellScreen(
             onTab = { onNav(nav.select(it)) },
             onMenu = onMenu,
             onBack = if (nav.message != null) ({ nav.back()?.let(onNav) }) else null,
+            snackbar = snackbar,
+            onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.writing.onNewMessage else null,
         ) { modifier, expanded ->
             when (nav.tab) {
                 // (No account is said only after a read that worked and found none.)
@@ -256,6 +310,7 @@ private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsAction
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun MainFrame(
     texts: Texts,
     tab: Tab,
@@ -263,6 +318,8 @@ private fun MainFrame(
     onTab: (Tab) -> Unit,
     onMenu: () -> Unit,
     onBack: (() -> Unit)?,
+    snackbar: SnackbarHostState,
+    onNewMessage: (() -> Unit)?,
     content: @Composable (Modifier, Boolean) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -298,6 +355,14 @@ private fun MainFrame(
                             }
                         },
                     )
+                },
+                snackbarHost = { SnackbarHost(snackbar) },
+                floatingActionButton = {
+                    if (onNewMessage != null) {
+                        FloatingActionButton(onClick = onNewMessage) {
+                            Icon(AppIcons.Plus, contentDescription = texts.t("New message"))
+                        }
+                    }
                 },
                 bottomBar = {
                     if (!expanded) {
@@ -343,21 +408,33 @@ private fun MailTab(
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
             VerticalDivider()
             if (messageId != null) {
-                ReadingPane(texts, messageId, data.reading, actions.reading, Modifier.weight(1f))
+                ReadingPane(
+                    texts, messageId, data.reading, actions.reading, Modifier.weight(1f),
+                    data.attachments, isDraft(data),
+                )
             } else {
                 Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
             }
         }
     } else if (messageId != null) {
-        ReadingPane(texts, messageId, data.reading, actions.reading, modifier)
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments, isDraft(data))
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
 }
 
+/** Whether the message in the reading pane is in a Drafts folder: it is continued, not answered. */
+private fun isDraft(data: ShellData): Boolean {
+    val folder = data.reading.opened?.view?.folder ?: return false
+    return data.accounts.flatMap { it.folders }.firstOrNull { it.id == folder }?.kind == "drafts"
+}
+
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
-    ShellActions(onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures)
+    ShellActions(
+        onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures,
+        writing,
+    )
 
 @Composable
 private fun TabLabel(text: String) {
