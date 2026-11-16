@@ -7574,8 +7574,9 @@ msgstr "כינוי"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "No"
-msgstr ""
+msgstr "לא"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -9802,8 +9803,9 @@ msgstr ""
 
 #. ribbon location
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "Review"
-msgstr ""
+msgstr "סקירה"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -14692,8 +14694,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
 msgid "Work Offline"
-msgstr ""
+msgstr "עבוד במצב לא מקוון"
 
 #. command label, name
 #: crates/engine/src/cmd/view.rs crates/engine/src/session.rs
@@ -14773,8 +14776,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Yes"
-msgstr ""
+msgstr "כן"
 
 #. name
 #: crates/time/src/lib.rs
