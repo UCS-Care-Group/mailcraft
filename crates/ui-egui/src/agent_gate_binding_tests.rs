@@ -587,3 +587,26 @@ fn a_meeting_sent_is_the_one_in_the_window_the_question_named() {
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(crate::windows::told(&a, second));
 }
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_a_server_changed_since_it_was_asked() {
+    // Two questions queued: the first moves the home, the second only pins a certificate. The
+    // second's text names none of what the first changed, and the pin must not go onto the other
+    // server.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, first) = agent(&mut a, "account.davSet", json!({"id": account, "calendarHomes": ["https://other.example.org/cal/"]}));
+    assert!(now.is_none());
+    let (now, second) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    answer(&mut a, true);
+    assert_eq!(first.try_recv().unwrap()["ok"], true);
+    answer(&mut a, true);
+    let r = second.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    let dav = a.session.mailbox.account(account).unwrap().dav.clone().unwrap();
+    assert_eq!((dav.trusted.as_str(), dav.calendar_homes[0].as_str()), ("", "https://other.example.org/cal/"));
+}

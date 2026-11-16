@@ -449,7 +449,7 @@ pub struct Account {
     /// name, the certificate it trusts and what is known of each collection ([`DavServer`], #209).
     /// Plain settings: the password is never kept here, and is held per origin. `None` when the
     /// account has none, and in a file from before there were any.
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::dav_server::lenient_repaired")]
     pub dav: Option<DavServer>,
     /// Delete on a whole conversation of more than one message goes ahead without asking first
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
@@ -3653,6 +3653,13 @@ impl Mailbox {
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
+            }
+        }
+        // A calendar and contacts server a file names is held to the limits and to the addresses a
+        // password may go to (#209).
+        for a in &mut self.accounts {
+            if a.dav.as_mut().is_some_and(DavServer::repair) {
+                fixed.push("an account's calendar and contacts server tidied".into());
             }
         }
         // A list of categories is an account's own: a shared mailbox has its owner's.

@@ -183,3 +183,13 @@ fn the_settings_survive_the_mailbox_file() {
     assert_eq!(back.account(id).unwrap().dav, s.mailbox.account(id).unwrap().dav);
     assert_eq!(back.account(id).unwrap().dav.as_ref().unwrap().collections[0].sync_token, "T-1");
 }
+
+#[test]
+fn an_account_that_only_lives_here_has_no_server_to_keep() {
+    let (mut s, id) = session();
+    set(&mut s, id);
+    s.run("account.edit", &json!({"id": id, "incoming": null, "outgoing": null})).unwrap();
+    let a = s.mailbox.account(id).unwrap();
+    assert_eq!(a.kind, AccountKind::Local);
+    assert!(a.dav.is_none());
+}

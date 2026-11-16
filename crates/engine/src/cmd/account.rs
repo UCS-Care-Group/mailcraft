@@ -356,6 +356,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             (a.jmap, a.ews) = (None, None);
+            // An account that only lives here has no calendar and contacts server.
+            if a.kind == AccountKind::Local {
+                a.dav = None;
+            }
         }
     }
     if a.name.is_empty() {

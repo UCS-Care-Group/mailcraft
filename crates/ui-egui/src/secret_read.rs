@@ -116,6 +116,7 @@ impl MailApp {
     /// Once a frame: take in what the read brought, and start the read for a mailbox that has
     /// not had one (and again when remembering is switched on).
     pub(crate) fn secrets_tick(&mut self) {
+        self.poll_dav_forgetting();
         self.poll_secret_read();
         if self.secret_read.is_some() || self.data_removed || self.unconfirmed || self.services.secrets.is_none() {
             return;

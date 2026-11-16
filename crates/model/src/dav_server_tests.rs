@@ -214,3 +214,64 @@ fn a_collection_is_read_only_until_the_server_says_otherwise() {
     let list: DavServer = serde_json::from_str(r#"{"collections":[{"href":"https://dav.example.org/c/"}]}"#).unwrap();
     assert!(list.collections[0].read_only);
 }
+
+#[test]
+fn ipv6_hosts_are_one_origin_in_any_spelling() {
+    assert_eq!(origin_of("http://[::1]:8080/x"), origin_of("http://[0:0:0:0:0:0:0:1]:8080/y"));
+    assert_eq!(origin_of("http://[0:0:0:0:0:0:0:1]:8080/y").as_deref(), Some("http://[::1]:8080"));
+    assert_eq!(origin_of("http://[::1]/").as_deref(), Some("http://[::1]"));
+}
+
+/// A mailbox file's account with a server of this many homes and collections, some of them
+/// addresses a password must never go to.
+fn hostile(n: usize) -> String {
+    let mut collections: Vec<String> = (0..n).map(|i| format!(r#"{{"href":"https://h{i}.example.org/c/","syncToken":"T"}}"#)).collect();
+    for bad in
+        ["http://attacker.example/c/", "https://www.googleapis.com/c/", "https://outlook.office365.com/c/", "https://u:p@x.example/c/", "nonsense"]
+    {
+        collections.insert(0, format!(r#"{{"href":"{bad}"}}"#));
+    }
+    let homes: Vec<String> = (0..200).map(|i| format!(r#""https://home{i}.example.org/""#)).collect();
+    format!(
+        r#"{{"id":4,"email":"ada@example.org","kind":"imap","dav":{{"calendarHomes":["http://attacker.example/", {}],"contactHomes":[{}],"trusted":"nope","collections":[{}]}}}}"#,
+        homes.join(","),
+        homes.join(","),
+        collections.join(",")
+    )
+}
+
+#[test]
+fn a_hostile_file_is_cut_to_the_limits_and_to_addresses_a_password_may_go_to() {
+    let account: Account = serde_json::from_str(&hostile(200_000)).unwrap();
+    let dav = account.dav.unwrap();
+    assert_eq!((dav.calendar_homes.len(), dav.contact_homes.len(), dav.collections.len()), (8, 8, DavServer::MAX_COLLECTIONS));
+    assert!(dav.calendar_homes.iter().all(|h| h.contains("home")), "{:?}", dav.calendar_homes);
+    assert!(dav.collections.iter().all(|c| c.href.contains(".example.org/c/") && !c.href.contains("attacker")));
+    assert_eq!(dav.trusted, "", "a pin that is no fingerprint trusts nothing");
+    assert!(dav.origins().len() <= 8 + DavServer::MAX_COLLECTIONS);
+    assert_eq!(dav.problem(), None);
+}
+
+#[test]
+fn repair_holds_a_server_made_another_way_to_the_same_limits() {
+    let mut s = server();
+    s.collections = (0..500)
+        .map(|i| DavCollectionState { href: format!("https://h{i}.example.org/"), sync_token: "x".repeat(2000), ..Default::default() })
+        .collect();
+    s.calendar_homes.push("http://attacker.example/".into());
+    s.calendar_homes.push(s.calendar_homes[0].clone());
+    assert!(s.repair());
+    assert_eq!((s.calendar_homes.len(), s.collections.len()), (1, DavServer::MAX_COLLECTIONS));
+    assert!(s.collections.iter().all(|c| c.sync_token.is_empty()));
+    assert!(!s.repair(), "nothing more to put right");
+    // And the mailbox's own repair does it for its accounts.
+    let mut mb = crate::Mailbox::with_local_account("Ada", "ada@example.org");
+    let mut big = server();
+    big.collections = (0..500).map(|i| DavCollectionState { href: format!("https://h{i}.example.org/"), ..Default::default() }).collect();
+    big.contact_homes.push("https://www.googleapis.com/x/".into());
+    mb.accounts[0].dav = Some(big);
+    let fixed = mb.repair();
+    assert!(fixed.iter().any(|f| f.contains("calendar and contacts")), "{fixed:?}");
+    let dav = mb.accounts[0].dav.as_ref().unwrap();
+    assert_eq!((dav.collections.len(), dav.contact_homes.len()), (DavServer::MAX_COLLECTIONS, 1));
+}

@@ -192,16 +192,65 @@ impl DavServer {
     /// password may be asked for and held, one per origin ([`origin_of`]). Addresses that can't
     /// be used name none.
     pub fn origins(&self) -> Vec<String> {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut origins: Vec<String> = Vec::new();
         let named = self.calendar_homes.iter().chain(&self.contact_homes).map(String::as_str).chain(self.collections.iter().map(|c| c.href.as_str()));
         for address in named {
             if let Some(origin) = origin_of(address)
-                && !origins.contains(&origin)
+                && seen.insert(origin.clone())
             {
                 origins.push(origin);
             }
         }
         origins
+    }
+
+    /// Longest sync token or change tag kept, in characters (a longer one is the server's
+    /// mistake, or a file's).
+    pub const MAX_TOKEN: usize = 1024;
+    /// Most component names a collection keeps, and the longest.
+    const MAX_COMPONENTS: usize = 16;
+    const MAX_COMPONENT: usize = 64;
+
+    /// Puts right what a hostile or damaged mailbox file may hold, so that nothing in it costs
+    /// more than the limits say and no address survives that a password could not be sent to:
+    /// homes and collections whose address fails [`DavServer::check_home`] (plain http to another
+    /// computer, a Microsoft or Google host, user info) are dropped, each address is kept once,
+    /// homes are cut to [`DavServer::MAX_HOMES`] and collections to
+    /// [`DavServer::MAX_COLLECTIONS`], texts are cut to their limits, and a pin that isn't a
+    /// fingerprint is forgotten (the system alone then judges the certificate). Whether anything
+    /// changed. A user name that can't be used is left for [`DavServer::problem`] to say.
+    pub fn repair(&mut self) -> bool {
+        let before = (self.calendar_homes.len(), self.contact_homes.len(), self.collections.len(), self.trusted.clone());
+        let mut changed = false;
+        for homes in [&mut self.calendar_homes, &mut self.contact_homes] {
+            let mut seen = std::collections::HashSet::new();
+            homes.retain(|home| Self::check_home(home).is_ok() && seen.insert(home.clone()));
+            if homes.len() > Self::MAX_HOMES {
+                homes.truncate(Self::MAX_HOMES);
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        self.collections.retain(|c| Self::check_home(&c.href).is_ok() && seen.insert(c.href.clone()));
+        self.collections.truncate(Self::MAX_COLLECTIONS);
+        for c in &mut self.collections {
+            if c.name.chars().nth(crate::MAX_NAME).is_some() {
+                c.name = c.name.chars().take(crate::MAX_NAME).collect();
+                changed = true;
+            }
+            for token in [&mut c.sync_token, &mut c.ctag] {
+                if token.chars().nth(Self::MAX_TOKEN).is_some() {
+                    token.clear();
+                    changed = true;
+                }
+            }
+            c.components.truncate(Self::MAX_COMPONENTS);
+            c.components.retain(|name| name.chars().count() <= Self::MAX_COMPONENT);
+        }
+        if Self::check_fingerprint(&self.trusted).is_err() {
+            self.trusted.clear();
+        }
+        changed || before != (self.calendar_homes.len(), self.contact_homes.len(), self.collections.len(), self.trusted.clone())
     }
 
     /// The name of the server the first home is on (`dav.example.org`), when the address may be
@@ -243,12 +292,25 @@ pub fn origin_of(address: &str) -> Option<String> {
         if let Some(rest) = after_scheme(address, "https://") { ("https", "443", rest) } else { ("http", "80", after_scheme(address, "http://")?) };
     let authority = rest.get(..rest.find(['/', '?', '#']).unwrap_or(rest.len()))?;
     let (host, port) = split_authority(authority).ok()?;
-    let host = host.to_ascii_lowercase();
-    let host = host.trim_end_matches('.');
+    // (An IPv6 address in its canonical form: `[::1]` and `[0:0:0:0:0:0:0:1]` are one host.)
+    let host = match host.strip_prefix('[').and_then(|inside| inside.strip_suffix(']')).map(str::parse::<std::net::Ipv6Addr>) {
+        Some(Ok(ip)) => format!("[{ip}]"),
+        _ => host.to_ascii_lowercase().trim_end_matches('.').to_string(),
+    };
     Some(match port.filter(|port| port.trim_start_matches('0') != default_port) {
         Some(port) => format!("{scheme}://{host}:{}", port.trim_start_matches('0')),
         None => format!("{scheme}://{host}"),
     })
+}
+
+/// A [`DavServer`] from a mailbox file, or none when what the file holds isn't one, put right
+/// ([`DavServer::repair`]) as it is read.
+pub(crate) fn lenient_repaired<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<DavServer>, D::Error> {
+    let mut server = crate::sync::lenient::<D, DavServer>(deserializer)?;
+    if let Some(server) = server.as_mut() {
+        server.repair();
+    }
+    Ok(server)
 }
 
 #[cfg(test)]

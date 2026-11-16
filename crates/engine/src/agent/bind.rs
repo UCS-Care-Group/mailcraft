@@ -202,6 +202,11 @@ pub struct Shown {
     held: Option<Held>,
     /// Everybody a calendar command writes to, in full (the question names the first few).
     people: Vec<String>,
+    /// Where the account a calendar and contacts server command acts on had its server when the
+    /// question was asked (homes, user name, pin), as a digest keyed for this question alone: the
+    /// text of the question names none of it, and a yes must not reach another server than the
+    /// owner was asked about (#209).
+    dav: u64,
 }
 
 /// A folder emptied or deleted, as the question showed it.
@@ -240,6 +245,7 @@ impl Shown {
     pub fn new(s: &Session, id: &str, params: &Value, what: &str) -> Option<Shown> {
         let object = object(id)?;
         let keys = RandomState::new();
+        let dav = dav_identity(&keys, s, id, params);
         let held = (object == Object::FolderContent).then(|| held(s, id, params)).flatten();
         Some(Shown {
             object,
@@ -251,6 +257,7 @@ impl Shown {
             keys,
             held,
             people: people(s, object, params),
+            dav,
         })
     }
 
@@ -275,7 +282,7 @@ impl Shown {
         if window && !COUNTED.contains(&id) && (self.object != Object::FolderContent || s.view.folder != self.view.folder) {
             return changed();
         }
-        if people(s, self.object, params) != self.people {
+        if people(s, self.object, params) != self.people || dav_identity(&self.keys, s, id, params) != self.dav {
             return changed();
         }
         if self.object == Object::FolderContent {
@@ -324,6 +331,35 @@ fn people(s: &Session, object: Object, params: &Value) -> Vec<String> {
     let mut who = super::invitees(s, params);
     who.extend(super::addresses(params.get("to")));
     who
+}
+
+/// The identity of the calendar and contacts server of the account `account.davSet` or
+/// `account.davOff` acts on, as one number keyed by `keys`: its homes, user name, pinned
+/// certificate and password flag. Zero for any other command.
+fn dav_identity(keys: &RandomState, s: &Session, id: &str, params: &Value) -> u64 {
+    if !matches!(id, "account.davSet" | "account.davOff") {
+        return 0;
+    }
+    let mut out = keys.build_hasher();
+    match p::id(params, "id").and_then(|a| s.mailbox.account(a)).and_then(|a| a.dav.as_ref()) {
+        None => out.write_u8(0),
+        Some(dav) => {
+            out.write_u8(1);
+            for list in [&dav.calendar_homes, &dav.contact_homes] {
+                out.write_usize(list.len());
+                for home in list {
+                    out.write(home.trim().as_bytes());
+                    out.write_u8(0xff);
+                }
+            }
+            for text in [&dav.username, &dav.trusted] {
+                out.write(text.trim().as_bytes());
+                out.write_u8(0xff);
+            }
+            out.write_u8(u8::from(dav.separate_password));
+        }
+    }
+    out.finish()
 }
 
 /// The messages being written, whole, in order, as one number keyed by `keys`: an agent can't

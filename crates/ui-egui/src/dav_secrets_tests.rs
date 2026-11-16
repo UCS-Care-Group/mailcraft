@@ -122,6 +122,8 @@ fn a_dropped_key_leaves_the_store_and_the_note_when_the_store_answers() {
     let (mut a, id, store) = with_store(false);
     let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
     a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    assert!(a.ui.remembered_keys.contains(&key), "noted until the store has said it is gone");
+    settle(&mut a);
     assert!(store.get(&key).is_none() && !a.secret_cache.contains_key(&key) && !a.ui.remembered_keys.contains(&key));
 }
 
@@ -131,6 +133,7 @@ fn a_locked_store_leaves_the_note_for_a_later_try_but_not_the_copy_in_memory() {
     let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
     a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
     assert!(!a.secret_cache.contains_key(&key), "the copy in memory goes at once");
+    settle(&mut a);
     assert!(store.get(&key).is_some(), "the store kept it");
     assert!(a.ui.remembered_keys.contains(&key), "so the note stays, for Remove all data and the next try");
 }
@@ -148,4 +151,72 @@ fn a_read_that_was_out_when_the_key_was_dropped_does_not_bring_it_back() {
     a.poll_secret_read();
     assert!(!a.secret_cache.contains_key(&old), "a name the settings no longer give is let go");
     assert_eq!(a.secret_cache.get(&new).map(String::as_str), Some("fresh"));
+}
+
+/// Waits for the threads forgetting entries, and takes in what they found.
+fn settle(a: &mut MailApp) {
+    for _ in 0..500 {
+        a.poll_dav_forgetting();
+        if a.dav_forgetting.is_empty() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn the_window_thread_never_reads_the_store_to_forget() {
+    // A store whose `get` would wait for its owner: forgetting reads through `read` only, on a
+    // thread of its own, and the window's call returns at once.
+    struct Waits(Store);
+    impl SecretStore for Waits {
+        fn get(&self, key: &str) -> Option<String> {
+            assert_ne!(std::thread::current().name(), None, "the window's own thread never calls get");
+            self.0.get(key)
+        }
+        fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+            self.0.set(key, secret)
+        }
+        fn delete(&self, key: &str) {
+            self.0.delete(key);
+        }
+    }
+    let (mut a, id) = app();
+    let store = Arc::new(Waits(Store::default()));
+    a.services.secrets = Some(store.clone());
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    store.set(&key, "one").unwrap();
+    a.index_secret_key(key.clone());
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    settle(&mut a);
+    assert!(store.0.get(&key).is_none() && !a.ui.remembered_keys.contains(&key));
+}
+
+#[test]
+fn undoing_a_server_change_forgets_the_new_servers_passwords_and_keeps_the_mail_ones() {
+    let (mut a, id, store) = with_store(false);
+    a.passwords.insert(id, "mail".into());
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    settle(&mut a);
+    let grace = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    store.set(&grace, "two").unwrap();
+    a.dav_passwords.insert((id, A.into()), "two".into());
+    a.index_secret_key(grace.clone());
+    a.execute("edit.undo", json!({})).unwrap();
+    settle(&mut a);
+    assert_eq!(a.session.mailbox.account(id).unwrap().dav.as_ref().unwrap().username, "");
+    assert_eq!(a.passwords.get(&id).map(String::as_str), Some("mail"), "no reason to ask for the mail password again");
+    assert!(a.dav_passwords.is_empty() && store.get(&grace).is_none(), "the password for the server undone is forgotten");
+}
+
+#[test]
+fn a_change_of_mail_server_leaves_the_calendar_and_contacts_passwords() {
+    let (mut a, id, store) = with_store(false);
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap2.example.org"}})).unwrap();
+    settle(&mut a);
+    assert!(store.get(&key).is_some() && a.dav_passwords.len() == 2);
+    // Removing the account takes them.
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert!(store.get(&key).is_none());
 }

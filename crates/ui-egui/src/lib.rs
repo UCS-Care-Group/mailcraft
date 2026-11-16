@@ -1524,6 +1524,9 @@ pub struct MailApp {
     /// sent to, or lent to, another's (#209). Dropped with the account's other secrets, and with
     /// an origin's when the server changes.
     pub(crate) dav_passwords: std::collections::HashMap<(Id, String), String>,
+    /// Threads removing calendar and contacts passwords from the credential store, each with what
+    /// it confirmed gone ([`MailApp::poll_dav_forgetting`]).
+    dav_forgetting: Vec<Receiver<(Vec<String>, Option<StoreTrouble>)>>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
     /// knows them; no id), for File › Info. Not saved.
     pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
@@ -1857,6 +1860,7 @@ impl MailApp {
             list_page_rows: 10,
             passwords: Default::default(),
             dav_passwords: Default::default(),
+            dav_forgetting: Vec::new(),
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
@@ -2295,17 +2299,19 @@ impl MailApp {
         } else {
             None
         };
-        let edited = if matches!(id, "account.edit" | "account.davSet" | "account.davOff") {
-            params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
+        let edited = if matches!(id, "account.edit" | "account.davSet" | "account.davOff" | "account.graphSwitch") {
+            // (`account.graphSwitch` names its account `account`.)
+            let key = if id == "account.graphSwitch" { "account" } else { "id" };
+            params.get(key).and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
         } else {
             None
         };
         // Undo and Redo may put an account's servers back as they were before an edit.
-        let keys = |a: &mailcraft_model::Account| {
-            ["password", "refresh"].into_iter().map(|k| Self::secret_key(k, a)).chain(Self::dav_secret_keys(a)).collect::<Vec<_>>()
-        };
-        let undone =
-            matches!(id, "edit.undo" | "edit.redo").then(|| self.session.mailbox.accounts.iter().map(|a| (a.id, keys(a))).collect::<Vec<_>>());
+        // (The mail sign-in's names and the calendar and contacts server's are compared apart: a
+        // change of the one is no reason to forget the other's.)
+        let keys = |a: &mailcraft_model::Account| ["password", "refresh"].map(|k| Self::secret_key(k, a));
+        let undone = matches!(id, "edit.undo" | "edit.redo")
+            .then(|| self.session.mailbox.accounts.iter().map(|a| (a.id, keys(a), a.clone())).collect::<Vec<_>>());
         if let Some(r) = self.through_saver(id, &params) {
             return r;
         }
@@ -2400,7 +2406,9 @@ impl MailApp {
                 != after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
                 || ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after)))
         {
-            self.forget_account_secrets(&before);
+            // (The mail sign-in's only: the calendar and contacts server's go when its own
+            // settings change, above, or with the account.)
+            self.forget_mail_secrets(&before);
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
@@ -2412,10 +2420,12 @@ impl MailApp {
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
         if let (Ok(_), Some(before)) = (&r, undone) {
-            for (account, was) in before {
+            for (account, was, was_account) in before {
+                // What it had for a calendar and contacts server that it doesn't now (or not for
+                // long): the same clean-up as the change that made it.
+                self.drop_changed_dav_secrets(&was_account);
                 if self.session.mailbox.account(account).map(keys) != Some(was) {
                     self.passwords.remove(&account);
-                    self.dav_passwords.retain(|(id, _), _| *id != account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
                     self.jmap_refused.remove(&account);
@@ -2921,30 +2931,64 @@ impl MailApp {
     /// account's settings no longer name under the same terms are forgotten, in memory and in the
     /// credential store, and the owner is asked again. `before` is the account as it was.
     pub(crate) fn drop_changed_dav_secrets(&mut self, before: &mailcraft_model::Account) {
-        let now = self.session.mailbox.account(before.id).map(Self::dav_secret_keys).unwrap_or_default();
+        use std::collections::HashSet;
+        let now: HashSet<String> = self.session.mailbox.account(before.id).map(Self::dav_secret_keys).unwrap_or_default().into_iter().collect();
         // (A password stays only where the name it was held under is still a name the settings
         // give: the same origin, user name and pin.)
         let kept = |origin: &str| Self::dav_secret_key(before, origin).is_some_and(|key| now.contains(&key));
         self.dav_passwords.retain(|(id, origin), _| *id != before.id || kept(origin));
         let stale: Vec<String> = Self::dav_secret_keys(before).into_iter().filter(|key| !now.contains(key)).collect();
-        // (The copy in memory goes at once. The name stays noted until the store has said the
-        // entry is gone, so that a locked store leaves it for a later try, Remove all data's
-        // included.)
+        // (The copy in memory goes at once. The entry in the store is removed, and asked after,
+        // on a thread of its own, since a locked store waits for its owner; the name stays noted
+        // until that says the entry is gone, so that Remove all data and the next try find it.)
         for key in &stale {
             self.secret_cache.remove(key);
         }
-        let Some(store) = &self.services.secrets else { return };
-        let mut gone = Vec::new();
-        for key in &stale {
-            store.delete(key);
-            if store.get(key).is_none() {
-                gone.push(key.clone());
+        self.forget_dav_entries(stale);
+    }
+
+    /// Remove these entries from the credential store on a thread of its own, and note the ones
+    /// the store confirms gone ([`poll_dav_forgetting`](Self::poll_dav_forgetting)).
+    fn forget_dav_entries(&mut self, keys: Vec<String>) {
+        /// Most such threads under way: past it the names stay noted, for a later try.
+        const MOST: usize = 16;
+        let Some(store) = self.services.secrets.clone() else { return };
+        if keys.is_empty() || self.dav_forgetting.len() >= MOST {
+            return;
+        }
+        let (send, receive) = std::sync::mpsc::channel();
+        let job = std::thread::Builder::new().name("dav-forget".into()).spawn(move || {
+            let mut confirmed = Vec::new();
+            for key in keys {
+                // (`remove` says whether the store took it out and `read` whether it is still
+                // there, which `get` can't tell from an entry it couldn't read.)
+                if store.remove(&key).is_ok() && matches!(store.read(&key), Ok(None)) {
+                    confirmed.push(key);
+                }
+            }
+            let _ = send.send((confirmed, store.take_trouble()));
+        });
+        match job {
+            Ok(_) => self.dav_forgetting.push(receive),
+            Err(e) => log::warn!("couldn't start forgetting a credential: {e}"),
+        }
+    }
+
+    /// Once a frame: take in what the threads forgetting calendar and contacts passwords found.
+    pub(crate) fn poll_dav_forgetting(&mut self) {
+        let mut waiting = Vec::new();
+        for receive in std::mem::take(&mut self.dav_forgetting) {
+            match receive.try_recv() {
+                Ok((confirmed, trouble)) => match trouble {
+                    Some(trouble) => self.note_secret_trouble(trouble),
+                    None => self.ui.remembered_keys.retain(|key| !confirmed.contains(key)),
+                },
+                Err(std::sync::mpsc::TryRecvError::Empty) => waiting.push(receive),
+                // (The thread ended without an answer: the names stay noted.)
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
             }
         }
-        match store.take_trouble() {
-            Some(trouble) => self.note_secret_trouble(trouble),
-            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
-        }
+        self.dav_forgetting = waiting;
     }
 
     /// The name secrets were kept under before they were bound to servers.
@@ -3078,9 +3122,20 @@ impl MailApp {
     /// name whose entry is still there stays, for the full removal to try again; so does every
     /// name when the store couldn't be used (locked, or not answering), which says nothing then.
     pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
+        self.forget_secrets(a, true);
+    }
+
+    /// [`forget_account_secrets`](Self::forget_account_secrets) for the account's mail sign-in
+    /// alone: its calendar and contacts server's passwords stay.
+    pub(crate) fn forget_mail_secrets(&mut self, a: &mailcraft_model::Account) {
+        self.forget_secrets(a, false);
+    }
+
+    fn forget_secrets(&mut self, a: &mailcraft_model::Account, with_dav: bool) {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
-        let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(Self::dav_secret_keys(a));
+        let dav = if with_dav { Self::dav_secret_keys(a) } else { Vec::new() };
+        let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
         for key in named {
             store.delete(&key);
             if store.get(&key).is_none() {
