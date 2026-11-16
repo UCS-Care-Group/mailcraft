@@ -244,8 +244,10 @@ impl DavServer {
                     changed = true;
                 }
             }
+            let components = c.components.len();
             c.components.truncate(Self::MAX_COMPONENTS);
             c.components.retain(|name| name.chars().count() <= Self::MAX_COMPONENT);
+            changed |= c.components.len() != components;
         }
         if Self::check_fingerprint(&self.trusted).is_err() {
             self.trusted.clear();

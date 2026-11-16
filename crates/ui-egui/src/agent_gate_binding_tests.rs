@@ -610,3 +610,21 @@ fn a_yes_to_a_server_change_does_not_reach_a_server_changed_since_it_was_asked()
     let dav = a.session.mailbox.account(account).unwrap().dav.clone().unwrap();
     assert_eq!((dav.trusted.as_str(), dav.calendar_homes[0].as_str()), ("", "https://other.example.org/cal/"));
 }
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_another_login_when_none_is_named() {
+    // With no user name of its own the server is signed in to as the account's address: changing
+    // that address while a question is up changes who the pin and homes are for.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().trusted, "");
+}

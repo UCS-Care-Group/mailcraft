@@ -341,9 +341,9 @@ fn dav_identity(keys: &RandomState, s: &Session, id: &str, params: &Value) -> u6
         return 0;
     }
     let mut out = keys.build_hasher();
-    match p::id(params, "id").and_then(|a| s.mailbox.account(a)).and_then(|a| a.dav.as_ref()) {
+    match p::id(params, "id").and_then(|a| s.mailbox.account(a)).and_then(|a| a.dav.as_ref().map(|dav| (a, dav))) {
         None => out.write_u8(0),
-        Some(dav) => {
+        Some((account, dav)) => {
             out.write_u8(1);
             for list in [&dav.calendar_homes, &dav.contact_homes] {
                 out.write_usize(list.len());
@@ -352,8 +352,14 @@ fn dav_identity(keys: &RandomState, s: &Session, id: &str, params: &Value) -> u6
                     out.write_u8(0xff);
                 }
             }
-            for text in [&dav.username, &dav.trusted] {
-                out.write(text.trim().as_bytes());
+            // The name that signs in, as the credential's name has it: the one given, else the
+            // account's address (case-folded).
+            let login = match dav.username.trim() {
+                "" => account.email.trim().to_ascii_lowercase(),
+                name => name.to_string(),
+            };
+            for text in [login.as_str(), dav.trusted.trim()] {
+                out.write(text.as_bytes());
                 out.write_u8(0xff);
             }
             out.write_u8(u8::from(dav.separate_password));

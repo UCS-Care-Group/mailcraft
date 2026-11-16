@@ -275,3 +275,15 @@ fn repair_holds_a_server_made_another_way_to_the_same_limits() {
     let dav = mb.accounts[0].dav.as_ref().unwrap();
     assert_eq!((dav.collections.len(), dav.contact_homes.len()), (DavServer::MAX_COLLECTIONS, 1));
 }
+
+#[test]
+fn repair_says_so_when_only_components_were_cut() {
+    let mut s = server();
+    s.collections[0].components = (0..40).map(|i| format!("C{i}")).collect();
+    assert!(s.repair());
+    assert_eq!(s.collections[0].components.len(), 16);
+    s.collections[0].components = vec!["VEVENT".into(), "X".repeat(200)];
+    assert!(s.repair());
+    assert_eq!(s.collections[0].components, ["VEVENT"]);
+    assert!(!s.repair());
+}

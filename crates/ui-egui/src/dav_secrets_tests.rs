@@ -157,7 +157,7 @@ fn a_read_that_was_out_when_the_key_was_dropped_does_not_bring_it_back() {
 fn settle(a: &mut MailApp) {
     for _ in 0..500 {
         a.poll_dav_forgetting();
-        if a.dav_forgetting.is_empty() {
+        if a.dav_forgetting.is_empty() && a.dav_forget_queue.is_empty() {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -168,10 +168,10 @@ fn settle(a: &mut MailApp) {
 fn the_window_thread_never_reads_the_store_to_forget() {
     // A store whose `get` would wait for its owner: forgetting reads through `read` only, on a
     // thread of its own, and the window's call returns at once.
-    struct Waits(Store);
+    struct Waits(Store, std::thread::ThreadId);
     impl SecretStore for Waits {
         fn get(&self, key: &str) -> Option<String> {
-            assert_ne!(std::thread::current().name(), None, "the window's own thread never calls get");
+            assert_ne!(std::thread::current().id(), self.1, "the window's own thread never calls get");
             self.0.get(key)
         }
         fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
@@ -182,7 +182,7 @@ fn the_window_thread_never_reads_the_store_to_forget() {
         }
     }
     let (mut a, id) = app();
-    let store = Arc::new(Waits(Store::default()));
+    let store = Arc::new(Waits(Store::default(), std::thread::current().id()));
     a.services.secrets = Some(store.clone());
     let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
     store.set(&key, "one").unwrap();
@@ -219,4 +219,34 @@ fn a_change_of_mail_server_leaves_the_calendar_and_contacts_passwords() {
     // Removing the account takes them.
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert!(store.get(&key).is_none());
+}
+
+#[test]
+fn a_name_the_settings_give_again_stays_noted_when_the_store_confirms_it_gone() {
+    let (mut a, id, _) = with_store(false);
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    // The server is changed, so the old name goes to the store's thread; before that answers the
+    // settings are put back and a password is held under the name again.
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    a.execute("account.davSet", json!({"id": id, "username": ""})).unwrap();
+    a.index_secret_key(key.clone());
+    settle(&mut a);
+    assert!(a.ui.remembered_keys.contains(&key), "in use again: still noted");
+}
+
+#[test]
+fn names_past_the_limit_wait_in_a_queue_and_none_is_lost() {
+    let (mut a, _, _) = with_store(false);
+    let keys: Vec<String> = (0..900).map(|n| format!("dav-password:x{n}@example.org|dav=https://h|user=u|pin=")).collect();
+    for key in &keys {
+        a.index_secret_key(key.clone());
+    }
+    for chunk in keys.chunks(50) {
+        a.forget_dav_entries(chunk.to_vec());
+    }
+    assert!(a.dav_forgetting.len() <= 16, "no more threads than the limit");
+    assert!(keys.iter().all(|k| a.ui.remembered_keys.contains(k)), "noted until the store says so");
+    settle(&mut a);
+    assert!(a.dav_forget_queue.is_empty() && a.dav_forgetting.is_empty());
+    assert!(keys.iter().all(|k| !a.ui.remembered_keys.contains(k)), "each was asked after, and confirmed");
 }
