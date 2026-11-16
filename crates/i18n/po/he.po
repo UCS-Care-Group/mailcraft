@@ -1223,65 +1223,77 @@ msgstr "מזהה יישום (לקוח)"
 msgid "Apply"
 msgstr "החל"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "Apply Downloaded Automatic Replies"
-msgstr ""
+msgstr "החל תשובות אוטומטיות שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Calendar"
-msgstr ""
+msgstr "החל לוח שנה שהורד"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Calendar List"
-msgstr ""
+msgstr "החל רשימת לוחות שנה שהורדה"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Categories"
-msgstr ""
+msgstr "החל קטגוריות שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Contacts"
-msgstr ""
+msgstr "החל אנשי קשר שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Apply Downloaded Exchange Messages"
-msgstr ""
+msgstr "החל הודעות Exchange שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Downloaded Favorites"
-msgstr ""
+msgstr "החל מועדפים שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "Apply Downloaded JMAP Messages"
-msgstr ""
+msgstr "החל הודעות JMAP שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "Apply Downloaded Mailbox Settings"
-msgstr ""
+msgstr "החל הגדרות תיבת דואר שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Apply Downloaded Messages"
-msgstr ""
+msgstr "החל הודעות שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 msgid "Apply Downloaded Rules"
-msgstr ""
+msgstr "החל כללים שהורדו"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "Apply Downloaded To-dos"
-msgstr ""
+msgstr "החל משימות שהורדו"
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
@@ -1310,20 +1322,23 @@ msgstr ""
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr ""
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Apply Sent Calendar Changes"
-msgstr ""
+msgstr "החל שינויים שנשלחו בלוח השנה"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 msgid "Apply Sent Rule Changes"
-msgstr ""
+msgstr "החל שינויים שנשלחו בכללים"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "Apply Sent To-do Changes"
-msgstr ""
+msgstr "החל שינויים שנשלחו במשימות"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1969,10 +1984,11 @@ msgstr "לפי נושא"
 msgid "Calendar"
 msgstr "לוח שנה"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/remote.rs
 msgid "Calendar Changes to Send"
-msgstr ""
+msgstr "שינויים בלוח השנה הממתינים לשליחה"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -1992,10 +2008,11 @@ msgstr "בדיקת חיבור ללוח השנה"
 msgid "Calendar Listed Twice"
 msgstr "לוח השנה מופיע פעמיים"
 
+#, fuzzy
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Calendar and contacts"
-msgstr ""
+msgstr "לוח שנה ואנשי קשר"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
@@ -2228,10 +2245,11 @@ msgstr "שינוי שם החשבון, השרתים ופרטי ההתחברות"
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "שינוי שם החשבון, פרטי ההתחברות והדואר לשמירה במצב לא מקוון"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Changed after it was signed"
-msgstr ""
+msgstr "שונה לאחר החתימה"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -2356,10 +2374,11 @@ msgstr "בדיקת גרסאות חדשות"
 msgid "Check the account's settings"
 msgstr "בדיקת הגדרות החשבון"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Checked with its certification authority"
-msgstr ""
+msgstr "נבדק מול רשות האישורים"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -2581,10 +2600,11 @@ msgstr "סגור הודעה"
 msgid "Close Search"
 msgstr "סגור חיפוש"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Close Signature"
-msgstr ""
+msgstr "סגור חתימה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -2680,10 +2700,11 @@ msgstr "הושלמה בתאריך {date}"
 msgid "Completed."
 msgstr "הושלם."
 
+#, fuzzy
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
 msgid "Confirm Servers"
-msgstr ""
+msgstr "אשר שרתים"
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -2726,10 +2747,11 @@ msgstr "התחברות ל־Microsoft (דואר, לוח שנה ואנשי קשר)
 msgid "Connect to show your category colours and working hours"
 msgstr "התחבר כדי להציג את צבעי הקטגוריות ואת שעות העבודה שלך"
 
+#, fuzzy
 #. what a command says
 #: crates/model/src/sync/progress.rs
 msgid "Connecting to the mail server"
-msgstr ""
+msgstr "מתחבר לשרת הדואר"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
@@ -2884,10 +2906,11 @@ msgstr "העתק את מספר הגרסה, פרטי הפלטפורמה ואת ס
 msgid "Copy to Folder"
 msgstr "העתקה לתיקייה"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Could not open Google sign-in"
-msgstr ""
+msgstr "לא ניתן לפתוח את תהליך ההתחברות ל-Google"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -2899,10 +2922,11 @@ msgstr ""
 msgid "Couldn't bring \"{name}\" up to date: the folder is not on the server"
 msgstr ""
 
+#, fuzzy
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
 msgid "Couldn't bring the server up to date"
-msgstr ""
+msgstr "לא ניתן היה לסנכרן את השרת"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -2950,10 +2974,11 @@ msgstr ""
 msgid "Couldn't make a folder inside \"{name}\": the server keeps no folders inside others"
 msgstr ""
 
+#, fuzzy
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
 msgid "Couldn't make a folder on the server: it has no usable name"
-msgstr ""
+msgstr "לא ניתן ליצור תיקייה בשרת: אין לה שם תקין"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -3020,10 +3045,11 @@ msgstr ""
 msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr ""
 
+#, fuzzy
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't read the list of folders"
-msgstr ""
+msgstr "לא ניתן לקרוא את רשימת התיקיות"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -3051,10 +3077,11 @@ msgstr ""
 msgid "Couldn't send mail"
 msgstr "לא ניתן לשלוח דואר"
 
+#, fuzzy
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't send mail: the account has no outgoing server"
-msgstr ""
+msgstr "לא ניתן לשלוח דואר: לא הוגדר לחשבון שרת דואר יוצא"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3328,10 +3355,11 @@ msgstr "מחק מופע זה"
 msgid "Delete Your Copy of This Meeting?"
 msgstr "למחוק את העותק שלך מפגישה זו?"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "Delete meeting requests from the Inbox after responding"
-msgstr ""
+msgstr "מחק בקשות לפגישה מתיבת הדואר הנכנס לאחר מענה"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3344,10 +3372,11 @@ msgstr ""
 msgid "Delete this category"
 msgstr "מחק קטגוריה זו"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Delete this key from this computer"
-msgstr ""
+msgstr "מחק מפתח זה מהמחשב"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3401,10 +3430,11 @@ msgstr "התראות שולחן עבודה"
 msgid "Desktop alerts are turned off for MailCraft in System Settings."
 msgstr ""
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/alerts.rs
 msgid "Desktop alerts can't be shown"
-msgstr ""
+msgstr "לא ניתן להציג התראות בשולחן העבודה"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3423,10 +3453,11 @@ msgstr ""
 msgid "Details"
 msgstr "פרטים"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Diagnostics copied. Nothing was sent."
-msgstr ""
+msgstr "נתוני האבחון הועתקו. לא נשלח דבר."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3439,10 +3470,11 @@ msgstr ""
 msgid "Digital Signature"
 msgstr "חתימה דיגיטלית"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digital signature can't be checked"
-msgstr ""
+msgstr "לא ניתן לאמת את החתימה הדיגיטלית"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3455,10 +3487,11 @@ msgstr "חתימות דיגיטליות והצפנה"
 msgid "Digital signatures are checked with these. They are collected from Digitally signed mail you receive, or imported here."
 msgstr ""
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed and verified"
-msgstr ""
+msgstr "נחתם דיגיטלית ואומת"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3470,10 +3503,11 @@ msgstr ""
 msgid "Digitally signed by {signer}, but the signer isn't verified."
 msgstr ""
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "Digitally signed, but the signer isn't verified."
-msgstr ""
+msgstr "נחתם דיגיטלית, אך זהות החותם לא אומתה."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3547,15 +3581,17 @@ msgstr "שם תצוגה"
 msgid "Do"
 msgstr ""
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 msgid "Don't Allow"
-msgstr ""
+msgstr "אל תאפשר"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 msgid "Don't Delete"
-msgstr ""
+msgstr "אל תמחק"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3634,20 +3670,23 @@ msgstr ""
 msgid "Download"
 msgstr "הורד"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Download Exchange Messages in Full"
-msgstr ""
+msgstr "הורד הודעות Exchange במלואן"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "Download JMAP Messages in Full"
-msgstr ""
+msgstr "הורד הודעות JMAP במלואן"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Download Messages in Full"
-msgstr ""
+msgstr "הורד הודעות במלואן"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3810,15 +3849,17 @@ msgstr "תאריך יעד"
 msgid "Due date:"
 msgstr ""
 
+#, fuzzy
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Due next week"
-msgstr ""
+msgstr "מועד לביצוע בשבוע הבא"
 
+#, fuzzy
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Due this week"
-msgstr ""
+msgstr "מועד לביצוע השבוע"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -4129,10 +4170,11 @@ msgstr "שרת Exchange"
 msgid "Exchange server (your organisation's own)"
 msgstr "שרת Exchange של הארגון"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Exchange server account"
-msgstr ""
+msgstr "חשבון שרת Exchange"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4370,15 +4412,17 @@ msgstr ""
 msgid "Fingerprint:"
 msgstr "טביעת אצבע:"
 
+#, fuzzy
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
 msgid "Finish signing in first (your browser is waiting)"
-msgstr ""
+msgstr "יש להשלים תחילה את ההתחברות (הדפדפן ממתין)"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "First Message"
-msgstr ""
+msgstr "הודעה ראשונה"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -4397,10 +4441,11 @@ msgstr ""
 msgid "Flag"
 msgstr "דגל"
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Flag Message"
-msgstr ""
+msgstr "סמן הודעה בדגל"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -4479,10 +4524,11 @@ msgstr "תיקייה {folder} ({n} מתוך {of})"
 msgid "Folders"
 msgstr "תיקיות"
 
+#, fuzzy
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Folders up to date"
-msgstr ""
+msgstr "התיקיות מעודכנות"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -4666,10 +4712,11 @@ msgstr[1] ""
 msgid "Free"
 msgstr ""
 
+#, fuzzy
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Free and Busy Times"
-msgstr ""
+msgstr "זמני פנוי ועסוק"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -4687,10 +4734,11 @@ msgstr ""
 msgid "From"
 msgstr "מאת"
 
+#, fuzzy
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "From Sender"
-msgstr ""
+msgstr "מאת השולח"
 
 #. name
 #: crates/ui-egui/src/forms.rs
