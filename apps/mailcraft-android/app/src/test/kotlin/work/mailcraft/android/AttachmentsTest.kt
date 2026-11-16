@@ -61,12 +61,16 @@ internal class FakeDevice : AttachmentDevice {
     var canShare = true
     var canWrite = true
 
+    /** Runs while a write is under way (the owner leaving the message meanwhile, say). */
+    var duringWrite: () -> Unit = {}
+
     override fun share(name: String, bytes: ByteArray): Boolean {
         if (canShare) shared += name
         return canShare
     }
 
     override fun write(target: String, bytes: ByteArray): Boolean {
+        duringWrite()
         if (canWrite) written += target to bytes.size
         return canWrite
     }
@@ -274,6 +278,16 @@ class AttachmentControllerTest {
         // Nothing is held for a later save.
         controller.saveTo("content://x")
         assertTrue(device.written.isEmpty())
+    }
+
+    @Test
+    fun aSaveFinishedAfterTheMessageWasLeftIsWrittenAndNotSaidOnTheNext() {
+        source.files[0u] = AttachmentBytes.Got(png, "report.pdf", picture = false)
+        controller.act(7uL, item("report.pdf"), AttachmentAction.Save)
+        device.duringWrite = { controller.reset() }
+        controller.saveTo("content://x")
+        assertEquals(listOf("content://x" to 3), device.written)
+        assertNull(controller.ui.value.notice)
     }
 
     @Test
