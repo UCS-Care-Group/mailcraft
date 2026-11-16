@@ -77,6 +77,17 @@ pub struct RichBody {
     /// The style the next typed character takes, when it was chosen with nothing selected.
     #[serde(skip)]
     pending: Option<Style>,
+    /// Whether `pending` is only what this body was being written in — what Clear All Formatting
+    /// left with nothing selected — rather than a look chosen with nothing selected. A new default
+    /// takes such a pending with it; a chosen one is left alone (#1549).
+    #[serde(skip)]
+    pending_from_default: bool,
+    /// The font this body is being written in, chosen before any of it was typed (the account's
+    /// own, R4.5): what a character takes when it has nothing to look like — an empty body, or an
+    /// empty paragraph. Not stored: a draft reopened takes its account's font again, as it is by
+    /// then.
+    #[serde(skip)]
+    default: Style,
     #[serde(skip)]
     undo: Vec<Step>,
     #[serde(skip)]
@@ -124,6 +135,12 @@ impl RichBody {
         RichBody::new(RichText::from_plain(text))
     }
 
+    /// A body of plain text written in `style` throughout: what a message begun by a command is
+    /// written in, as though the owner had typed it in that font (#1549).
+    pub fn from_plain_in(text: &str, style: &Style) -> RichBody {
+        RichBody::new(RichText::from_plain_in(text, style))
+    }
+
     pub fn text(&self) -> &RichText {
         &self.text
     }
@@ -142,14 +159,36 @@ impl RichBody {
         self.pending.as_ref()
     }
 
-    /// The style the next typed character takes: what was chosen for it, or the style of the
-    /// character before the caret (a link doesn't grow by typing at its end).
+    /// The style the next typed character takes: what was chosen for it with nothing selected;
+    /// else, where the caret's paragraph has text, the look of the character before the caret (a
+    /// link doesn't grow by typing at its end); else the font this body is being written in
+    /// ([`RichBody::default_style`]) — an empty body, or an empty paragraph, has nothing to look
+    /// like.
     pub fn typing_style(&self) -> Style {
         self.pending.clone().unwrap_or_else(|| {
-            let mut style = self.text.style_at(self.selection.start());
+            let at = self.selection.start();
+            let mut style = if self.text.is_empty() || self.text.paragraph_is_empty(at) { self.default.clone() } else { self.text.style_at(at) };
             style.link = None;
             style
         })
+    }
+
+    /// The font this body is being written in: what a character typed where there is nothing to
+    /// look like takes ([`RichBody::typing_style`]). Plain for the message's own.
+    pub fn default_style(&self) -> &Style {
+        &self.default
+    }
+
+    /// Write this body in `style` from now on: what is typed where there is nothing to look like
+    /// takes it. What is already written keeps its own look — a signature and a quoted original
+    /// are not restyled by the account's font.
+    pub fn set_default_style(&mut self, style: Style) {
+        self.default = style.clean();
+        // What was only the old default follows the new one; what was chosen with nothing
+        // selected is the owner's and stays.
+        if self.pending_from_default {
+            self.pending = Some(self.default.clone());
+        }
     }
 
     /// The look Format Painter copied and has yet to put down.
@@ -253,6 +292,7 @@ impl RichBody {
         }
         self.selection = Selection { anchor, head };
         self.pending = None;
+        self.pending_from_default = false;
         self.typing = None;
         Ok(())
     }
@@ -286,6 +326,7 @@ impl RichBody {
             Ok(())
         })?;
         self.pending = None;
+        self.pending_from_default = false;
         self.typing = (!text.contains(['\n', '\r'])).then_some(end);
         Ok(())
     }
@@ -328,6 +369,7 @@ impl RichBody {
             Ok(())
         })?;
         self.pending = None;
+        self.pending_from_default = false;
         self.typing = None;
         Ok(())
     }
@@ -377,8 +419,13 @@ impl RichBody {
     /// didn't change. The caret goes to the end of what changed.
     pub fn set_plain(&mut self, text: &str) -> Result<(), ModelError> {
         let before = self.text.text();
+        // Where nothing was chosen, what goes in is written in the font this body is being
+        // written in, as a character typed into it would be (#1549). The whole text is being
+        // replaced, so it is the body's own font that says how — not the look of wherever the
+        // caret happens to be, which belongs to what was being typed before.
+        let writing = self.default.clone();
         self.edit(false, |t, s| {
-            t.set_text(text)?;
+            t.set_text_in(text, Some(&writing))?;
             let prefix = before.chars().zip(t.text().chars()).take_while(|(a, b)| a == b).count();
             *s = s.clamp(t.len());
             if t.text() != before {
@@ -489,6 +536,7 @@ impl RichBody {
             Ok(())
         })?;
         self.pending = None;
+        self.pending_from_default = false;
         self.typing = None;
         Ok(())
     }
@@ -502,6 +550,7 @@ impl RichBody {
             let on = !has(&style);
             set(on).apply(&mut style);
             self.pending = Some(style);
+            self.pending_from_default = false;
             return Ok(on);
         }
         let on = !self.text.all(sel.start(), sel.end(), has)?;
@@ -535,6 +584,7 @@ impl RichBody {
             let mut style = self.typing_style();
             change.apply(&mut style);
             self.pending = Some(style);
+            self.pending_from_default = false;
             return Ok(());
         }
         self.edit(false, |t, _| t.format(sel.start(), sel.end(), &change))?;
@@ -639,7 +689,11 @@ impl RichBody {
             t.set_align(sel.start(), sel.end(), Align::Left)
         })?;
         if sel.is_empty() {
-            self.pending = Some(Style::default());
+            // Plain means the message's own look, which for an account with a font of its own is
+            // that font: what Clear All Formatting on a selection gives back is what typing there
+            // takes again.
+            self.pending = Some(self.default.clone());
+            self.pending_from_default = true;
         }
         self.typing = None;
         Ok(())
@@ -677,6 +731,7 @@ impl RichBody {
     fn take_step(&mut self, step: Step, swap: impl FnOnce(Mark) -> Mark) -> Step {
         let mark = step.mark.map(swap);
         self.pending = None;
+        self.pending_from_default = false;
         self.typing = None;
         Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection), mark }
     }

@@ -106,6 +106,39 @@ fn links_are_any_well_formed_scheme_but_the_unsafe_ones() {
 }
 
 #[test]
+fn a_font_keeps_what_a_message_can_be_written_in() {
+    let look = Style {
+        bold: true,
+        italic: true,
+        underline: true,
+        size: Some(99),
+        link: Some("https://example.org".into()),
+        color: Some("#0000ff".into()),
+        font: Font::parse("Georgia"),
+        highlight: Some("#ffff00".into()),
+    };
+    let font = look.font_only();
+    assert_eq!(
+        font,
+        Style {
+            bold: true,
+            italic: true,
+            underline: true,
+            size: Some(MAX_SIZE),
+            color: Some("#0000ff".into()),
+            font: Font::parse("Georgia"),
+            ..Style::default()
+        }
+    );
+    // A link is where text leads and a highlight goes behind it: neither is part of a font.
+    assert!(font.link.is_none() && font.highlight.is_none());
+    // The size is clamped and a colour that isn't one goes, as anywhere else.
+    let junk = Style { size: Some(1), color: Some("blue".into()), font: Font::parse("<script>"), ..Style::default() }.font_only();
+    assert_eq!(junk, Style { size: Some(MIN_SIZE), ..Style::default() });
+    assert!(Style::default().font_only().is_plain());
+}
+
+#[test]
 fn typing_inside_a_run_takes_the_style_given() {
     let mut t = RichText::from_plain("Hello world");
     t.format(0, 5, &Format::Bold(true)).unwrap();
@@ -330,6 +363,67 @@ fn bold_with_nothing_selected_is_for_what_is_typed_next() {
     // Nothing changed in the text, so nothing to undo for it.
     assert!(b.undo());
     assert_eq!(b.plain(), "Hi ");
+}
+
+#[test]
+fn a_body_written_in_a_font_of_its_own_types_in_it() {
+    let georgia = Font::parse("Georgia");
+    let font = Style { font: georgia.clone(), size: Some(14), ..Style::default() };
+    let mut b = RichBody::default();
+    b.set_default_style(font.clone());
+    // An empty body has nothing to look like, so what is typed takes the font it is written in.
+    b.type_text("Hi").unwrap();
+    assert_eq!(b.text().paragraphs()[0].runs[0].style, font);
+    // A line break, and the empty line under it, takes it again.
+    b.type_text("\n").unwrap();
+    b.type_text("Ada").unwrap();
+    assert_eq!(b.text().paragraphs()[1].runs[0].style, font);
+    // A caret put in an empty line above a signature still writes in it.
+    let mut b2 = RichBody::from_plain("\n");
+    b2.set_default_style(font.clone());
+    b2.select(0, 0).unwrap();
+    assert_eq!(b2.typing_style(), font);
+    // What the owner chooses by hand wins over it, and keeps the rest of the font.
+    b2.format(Format::Size(Some(9))).unwrap();
+    assert_eq!(b2.typing_style().size, Some(9));
+    assert_eq!(b2.typing_style().font, georgia);
+    // Text that is already there looks like itself, not like the font the body is written in:
+    // this is what leaves a signature and a quoted original as they are.
+    let mut b3 = RichBody::from_plain("Ada");
+    b3.select(0, 3).unwrap();
+    b3.format(Format::Bold(true)).unwrap();
+    b3.set_default_style(font.clone());
+    b3.select(3, 3).unwrap();
+    assert_eq!(b3.typing_style(), bold());
+    // A body with no font of its own is as it always was.
+    let mut plain = RichBody::from_plain("\n");
+    plain.select(0, 0).unwrap();
+    assert_eq!(plain.typing_style(), Style::default());
+}
+
+#[test]
+fn clear_formatting_returns_to_the_font_the_body_is_written_in() {
+    let font = Style { size: Some(16), ..Style::default() };
+    let mut b = RichBody::from_plain("Hi");
+    b.set_default_style(font.clone());
+    b.select(2, 2).unwrap();
+    assert!(b.toggle_bold().unwrap());
+    b.clear_formatting().unwrap();
+    assert_eq!(b.pending(), Some(&font));
+    // On a selection it is plain text there: the message's own, not the account's font.
+    b.select(0, 2).unwrap();
+    b.format(Format::Bold(true)).unwrap();
+    b.clear_formatting().unwrap();
+    assert_eq!(b.text().paragraphs()[0].runs[0].style, Style::default());
+}
+
+#[test]
+fn the_font_a_body_is_written_in_is_not_stored_with_it() {
+    let mut b = RichBody::default();
+    b.set_default_style(Style { bold: true, ..Style::default() });
+    let back: RichBody = serde_json::from_str(&serde_json::to_string(&b).unwrap()).unwrap();
+    // A draft reopened takes its account's font again, as it is by then.
+    assert_eq!(back.default_style(), &Style::default());
 }
 
 #[test]

@@ -443,6 +443,14 @@ impl Style {
     pub fn is_plain(&self) -> bool {
         *self == Style::default()
     }
+
+    /// The look a message can be *written* in: bold, italic, underline, a size, a colour and a
+    /// font, cleaned. Where a whole [`Style`] says how one piece of text looks, this is the font a
+    /// message is begun in — a link is where text leads and a highlight is put behind it, neither
+    /// of which is part of a font, so both go.
+    pub fn font_only(self) -> Style {
+        Style { link: None, highlight: None, ..self.clean() }
+    }
 }
 
 /// A size in points, within [`MIN_SIZE`]..=[`MAX_SIZE`].
@@ -936,7 +944,13 @@ impl RichText {
 
     /// Plain text, one paragraph per line.
     pub fn from_plain(text: &str) -> RichText {
-        let paragraphs = lines(text).into_iter().map(|l| Paragraph::new(vec![Run::plain(l)], ListKind::None)).collect();
+        Self::from_plain_in(text, &Style::default())
+    }
+
+    /// The same, written in `style` throughout: what a message begun by a command is written in,
+    /// as though it had been typed in it (#1549).
+    pub fn from_plain_in(text: &str, style: &Style) -> RichText {
+        let paragraphs = lines(text).into_iter().map(|l| Paragraph::new(vec![Run::new(l, style.clone())], ListKind::None)).collect();
         RichText::from_paragraphs(paragraphs)
     }
 
@@ -1470,6 +1484,13 @@ impl RichText {
     /// start and at the end keep their formatting, and what is typed in between takes the style
     /// of the character before it. What a plain editor's change becomes.
     pub fn set_text(&mut self, text: &str) -> Result<(), ModelError> {
+        self.set_text_in(text, None)
+    }
+
+    /// [`RichText::set_text`], with what is new written in `writing` — the font the text is being
+    /// written in — wherever it lands where nothing was chosen: an empty body, a quoted original,
+    /// plain text. A look that was chosen there is kept, as it is by `set_text` (#1549).
+    pub fn set_text_in(&mut self, text: &str, writing: Option<&Style>) -> Result<(), ModelError> {
         let new: Vec<char> = lines(text).join("\n").chars().collect();
         let old: Vec<char> = self.text().chars().collect();
         let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
@@ -1478,6 +1499,12 @@ impl RichText {
         let (old_end, new_end) = (old.len() - suffix, new.len() - suffix);
         let typed: String = new.get(prefix..new_end).map(|s| s.iter().collect()).unwrap_or_default();
         let mut style = self.style_at(prefix);
+        // Nothing was chosen where the new text lands: it is written in the font the text is being
+        // written in, as a character typed there would be — not in the look of whatever it landed
+        // next to, which for a quoted original or an empty body is nobody's choice (#1549).
+        if style.is_plain() {
+            style = writing.cloned().unwrap_or_default();
+        }
         style.link = None;
         let mut next = self.clone();
         next.delete(prefix, old_end)?;
