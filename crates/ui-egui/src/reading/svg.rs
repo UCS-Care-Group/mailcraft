@@ -29,7 +29,9 @@
 //!   the drawing (four times its longer side) or [`MAX_STROKE_WIDTH`], and no more than
 //!   [`MAX_STROKE_RATIO`] times the smallest piece it follows, which weighs it more the wider it is
 //!   over it: usvg strokes every path to find its bounds, and a stroke far wider than its curve
-//!   makes that take seconds a hundred curves.
+//!   makes that take seconds a hundred curves. Every `stroke-width` an element says counts, the
+//!   attribute and each declaration of its `style` (usvg lets a later one replace an earlier), the
+//!   widest of them, and one that is no length refuses the drawing.
 //! - **The tree usvg made is checked** ([`counted`]): no clip, mask or filter in it, no layer in
 //!   a layer, at most `MAX_SVG_COST` nodes and `MAX_SEGMENTS` segments of paths (a stroke's weighing
 //!   more, a round one most).
@@ -336,8 +338,11 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
                 }
             }
         }
-        if let Some(width) = declared(node, "stroke-width").and_then(|v| user_length(v, extent)) {
-            widest = widest.max(width);
+        // Every width the element says, as an attribute and in each declaration of its `style`
+        // (usvg takes the last of them, or the important one): the widest counts, and one that is
+        // no length is refused, as nobody can say which one usvg would take.
+        for value in declared(node, "stroke-width") {
+            widest = widest.max(user_length(value, extent)?);
         }
         if shape {
             let (smallest, dusty) = finest_of(node, name, extent, dust);
@@ -414,12 +419,13 @@ fn extent(root: roxmltree::Node) -> f64 {
     view.or(size).filter(|e| e.is_finite() && *e > 0.0).unwrap_or(100.0)
 }
 
-/// What an element says of a property of the style, as an attribute or in its `style`.
-fn declared<'a>(node: roxmltree::Node<'a, '_>, property: &str) -> Option<&'a str> {
-    let style = node
-        .attribute("style")
-        .and_then(|style| style.split(';').filter_map(|d| d.split_once(':')).find(|(p, _)| p.trim() == property).map(|(_, v)| v));
-    style.or_else(|| node.attribute(property))
+/// Everything an element says of a property of the style: its attribute and each declaration of
+/// its `style`, in any order and with any `!important`, since usvg lets a later declaration
+/// replace an earlier one and an important one win, so that only all of them bound what it takes.
+fn declared<'a>(node: roxmltree::Node<'a, '_>, property: &'a str) -> impl Iterator<Item = &'a str> {
+    let style = node.attribute("style").unwrap_or("");
+    let declarations = style.split(';').filter_map(|d| d.split_once(':')).filter(move |(p, _)| p.trim() == property).map(|(_, v)| v);
+    declarations.chain(node.attribute(property)).map(|v| v.trim().trim_end_matches("important").trim_end().trim_end_matches('!'))
 }
 
 /// The smallest piece a shape is, in its own units: its shortest side, or run of its path, that

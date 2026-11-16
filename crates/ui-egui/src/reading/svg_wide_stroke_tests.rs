@@ -101,3 +101,59 @@ fn review_11_a_stroke_is_weighed_by_its_width_over_the_curve() {
     let filled = "<rect width=\"0.0000001\" height=\"0.0000001\" fill=\"black\"/>".repeat(40);
     assert_eq!(read(&drawn(&filled)).1, Some([100, 100]));
 }
+
+/// A stroked path of `n` tiny cubics with `attributes` (its `style`, `stroke-width`, ...).
+fn styled(n: usize, attributes: &str) -> Vec<u8> {
+    drawn(&format!("<path d=\"M0 0{}\" fill=\"none\" {attributes}/>", " c1 0-1 1 0 1".repeat(n)))
+}
+
+/// Review of #830, second round: the width was taken from the first `stroke-width` of a `style`,
+/// but usvg lets a later one replace it, so `stroke-width:1;stroke-width:1e8` was counted as 1 and
+/// read as 1e8. Every declaration is weighed now, the widest counting, whatever the order.
+#[test]
+fn review_12_a_later_wide_duplicate_in_a_style_cannot_reach_usvg() {
+    for style in [
+        "stroke:black;stroke-width:1;stroke-width:1e8",
+        "stroke:black;stroke-width:1;stroke-width:10001",
+        "stroke:black; stroke-width : 1 ; stroke-width : 1e8 ; stroke-width:2",
+        "stroke:black;stroke-width:1e8;stroke-width:1",
+        "stroke:black;stroke-width:1;stroke-width:1e8 !important",
+        "stroke:black;stroke-width:1e8!important;stroke-width:1",
+        "stroke:black;stroke-width:1;stroke-width:1e8 !IMPORTANT",
+    ] {
+        let (took, probed) = read(&styled(100, &format!("style=\"{style}\"")));
+        assert!(took < Duration::from_secs(1) && probed.is_none(), "{style}: {took:?} {probed:?}");
+    }
+}
+
+/// The attribute and the style are both weighed (the style wins in usvg, but nothing here says
+/// which is which), and a width that is no length cannot be bounded.
+#[test]
+fn review_12_an_attribute_and_a_style_are_both_weighed_and_a_broken_width_is_refused() {
+    for attributes in [
+        "stroke=\"black\" stroke-width=\"1e8\" style=\"stroke-width:1\"",
+        "stroke=\"black\" stroke-width=\"1\" style=\"stroke-width:1e8\"",
+        "stroke=\"black\" style=\"stroke-width:1;stroke-width:wide\"",
+        "stroke=\"black\" style=\"stroke-width:1;stroke-width:\"",
+        "stroke=\"black\" stroke-width=\"\" style=\"stroke-width:1\"",
+    ] {
+        let (took, probed) = read(&styled(100, attributes));
+        assert!(took < Duration::from_secs(1) && probed.is_none(), "{attributes}: {took:?} {probed:?}");
+    }
+}
+
+/// Ordinary styles still draw: one width, the same width said twice, an important one, a width in
+/// an attribute with other things in the style.
+#[test]
+fn review_12_ordinary_styles_are_still_drawn() {
+    for attributes in [
+        "style=\"stroke:black;stroke-width:8\"",
+        "style=\"stroke:black;stroke-width:8;stroke-width:8\"",
+        "style=\"stroke:black;stroke-width:2;stroke-width:8 !important\"",
+        "stroke=\"black\" stroke-width=\"8\" style=\"stroke-linecap:round;opacity:0.5\"",
+        "stroke=\"black\" style=\"stroke-width:400\"",
+    ] {
+        let (took, probed) = read(&styled(100, attributes));
+        assert!(took < Duration::from_secs(2) && probed == Some([100, 100]), "{attributes}: {took:?} {probed:?}");
+    }
+}
