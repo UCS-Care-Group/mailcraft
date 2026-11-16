@@ -31,7 +31,7 @@ fn session() -> Session {
     s
 }
 
-type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
+pub(crate) type Runner = dyn Fn(GraphRequest) -> GraphResult + Send + Sync;
 
 fn core_with(platform: Arc<FakePlatform>, make: impl FnOnce() -> Session + Send + 'static, runner: Arc<Runner>) -> Arc<Core> {
     Core::start_with(platform, make, SendReceive::with_runner(move |req| runner(req))).unwrap()
@@ -46,7 +46,7 @@ fn account_of(core: &Core) -> (u64, String) {
 }
 
 /// A platform that has a refresh token kept for the account, as an earlier sign-in left it.
-fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
+pub(crate) fn signed_in(runner: Arc<Runner>) -> (Arc<Core>, Arc<FakePlatform>, u64) {
     let platform = FakePlatform::new();
     let core = core_with(platform.clone(), session, runner);
     let (id, key) = account_of(&core);
@@ -97,7 +97,7 @@ fn second_run(req: &GraphRequest) -> GraphMailResult {
 
 /// A runner that brings the first download and then one new message, counting its calls and what
 /// refresh token each was given.
-fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn stand_in() -> (Arc<Runner>, Arc<Mutex<Vec<String>>>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = seen.clone();
     let runner: Arc<Runner> = Arc::new(move |req: GraphRequest| {
@@ -135,6 +135,11 @@ fn until_finished(core: &Core) -> Vec<Event> {
     loop {
         all.extend(drain(core));
         if all.iter().any(|e| matches!(e, Event::SyncFinished { .. })) {
+            // The round's end is pushed from inside the job that finished it, and the session
+            // thread pushes that job's `RevChanged` only after the job returns. A call is a job
+            // behind it, so once it has answered that push has been made.
+            let _ = block_on(core.call(|_| Ok(())));
+            all.extend(drain(core));
             return all;
         }
         assert!(Instant::now() < deadline, "the round never ended: {all:?}");

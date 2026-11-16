@@ -1359,7 +1359,7 @@ fn a_message_held_in_an_account_now_microsofts_comes_back_held_when_refused() {
     apply_sync(&mut s, SyncResult { account: b, unplaced: vec![copy], ..Default::default() }).unwrap();
     assert_eq!(at(&s, copy), (a, outbox, 0));
     assert_eq!(s.mailbox.message(copy).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
-    assert_eq!(super::graph_send::waiting(&s.mailbox, a), 0, "it would go to everybody it names");
+    assert_eq!(super::graph_send::waiting(&s, a), 0, "it would go to everybody it names");
 }
 
 /// "Two" moved into the Inbox of a second IMAP account, whose server took it and didn't say

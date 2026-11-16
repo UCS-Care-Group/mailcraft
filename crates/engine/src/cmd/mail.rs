@@ -850,21 +850,33 @@ fn flag(s: &mut Session, v: &Value) -> CmdResult {
     let offset = s.offset_at(s.now());
     // Due at the end of the working day.
     let due = due.and_then(|d| mailcraft_time::DateTime::new(d, s.prefs.work_end.min(23), 0, 0)).map(|t| t.to_timestamp(offset));
-    each(s, v, |m| {
+    let ids = targets(s, v)?;
+    let r = each(s, v, |m| {
         m.flag = FlagStatus::Flagged;
         m.flag_due = due.or(m.flag_due);
-    })
+    });
+    // A date chosen here and a reminder's time are one time (#948): the reminder moves to it.
+    if let Some(due) = due {
+        let now = s.now();
+        s.mailbox.follow_up_due_chosen(&ids, due, now);
+    }
+    r
 }
 
 fn clear_flag(s: &mut Session, v: &Value) -> CmdResult {
     each(s, v, |m| {
         m.flag = FlagStatus::None;
         m.flag_due = None;
+        // The reminder goes with the flag (#948).
+        m.follow_up = None;
     })
 }
 
 fn complete(s: &mut Session, v: &Value) -> CmdResult {
-    each(s, v, |m| m.flag = FlagStatus::Complete)
+    each(s, v, |m| {
+        m.flag = FlagStatus::Complete;
+        m.follow_up = None;
+    })
 }
 
 fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
@@ -874,6 +886,7 @@ fn toggle_flag(s: &mut Session, v: &Value) -> CmdResult {
         m.flag = if all_flagged { FlagStatus::None } else { FlagStatus::Flagged };
         if all_flagged {
             m.flag_due = None;
+            m.follow_up = None;
         }
     })
 }
