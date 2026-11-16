@@ -17,3 +17,10 @@ fn only_opening_fences_in_doc_comments_count() {
     let text = "//! ```text\n//! a\n//! ```\n/// ```\n/// let x = 1;\n/// ```\n// ```\nfn f() {}\n/// ```rust,ignore\n/// ```\n";
     assert_eq!(doctests_in(text), [4]);
 }
+
+#[test]
+fn a_longer_fence_and_fences_inside_a_block_follow_commonmark() {
+    // A four-backtick Rust block is a doc-test; the three-backtick lines inside it don't close it.
+    let text = "/// ````rust\n/// ```\n/// ````\n/// ```text\n/// ~~~\n/// ```\n/// ```\n/// x\n/// ```\n";
+    assert_eq!(doctests_in(text), [1, 7]);
+}

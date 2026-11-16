@@ -17,21 +17,33 @@ pub fn is_doctest_fence(info: &str) -> bool {
 /// The lines (1-based) of `text` that open a doc-test in a `///` or `//!` comment.
 pub fn doctests_in(text: &str) -> Vec<usize> {
     let mut found = Vec::new();
-    let mut open = false;
+    // The open block's fence: its character and length (CommonMark: a closing fence uses the same
+    // character, is at least as long and has nothing after it).
+    let mut open: Option<(char, usize)> = None;
     for (i, line) in text.lines().enumerate() {
         let t = line.trim_start();
         let Some(doc) = t.strip_prefix("///").or_else(|| t.strip_prefix("//!")) else {
-            open = false;
+            open = None;
             continue;
         };
         let doc = doc.trim_start();
-        let Some(info) = doc.strip_prefix("```").or_else(|| doc.strip_prefix("~~~")) else { continue };
-        if open {
-            open = false;
-        } else {
-            open = true;
-            if is_doctest_fence(info.trim()) {
-                found.push(i + 1);
+        let Some(c) = doc.chars().next().filter(|c| *c == '`' || *c == '~') else { continue };
+        let len = doc.chars().take_while(|x| *x == c).count();
+        if len < 3 {
+            continue;
+        }
+        let info = &doc[len * c.len_utf8()..];
+        match open {
+            Some((oc, olen)) => {
+                if c == oc && len >= olen && info.trim().is_empty() {
+                    open = None;
+                }
+            }
+            None => {
+                open = Some((c, len));
+                if is_doctest_fence(info.trim()) {
+                    found.push(i + 1);
+                }
             }
         }
     }
