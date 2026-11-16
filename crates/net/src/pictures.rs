@@ -38,6 +38,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
@@ -80,8 +81,8 @@ const HEAD_KEPT: usize = 20 * 1024;
 const MAX_INTERRUPTS: u32 = 100;
 /// How long a server that says "not now" is left alone before it is asked the one more time:
 /// what it says itself (`Retry-After`), within these.
-const RETRY_WAIT: Duration = Duration::from_secs(1);
-const MAX_RETRY_WAIT: Duration = Duration::from_secs(3);
+pub(crate) const RETRY_WAIT: Duration = Duration::from_secs(1);
+pub(crate) const MAX_RETRY_WAIT: Duration = Duration::from_secs(3);
 /// Most ways of packing an answer may be packed in, one inside the other.
 const MAX_CODINGS: usize = 2;
 
@@ -105,6 +106,9 @@ pub enum PictureError {
     /// The whole of [`PATIENCE`] went by, or the server said nothing for too long.
     #[error("the server took too long")]
     TimedOut,
+    /// The owner no longer wants it ([`Cancel`]): nothing more was asked or read.
+    #[error("it was stopped")]
+    Cancelled,
     /// It came packed in a way that isn't unpacked here, or what was packed is damaged.
     #[error("the server sent it packed in a way that can't be read")]
     Packed,
@@ -131,16 +135,46 @@ pub fn fetch(url: &str) -> Result<Vec<u8>, PictureError> {
     fetch_with(url, &Reach::web(), &Limits::default())
 }
 
+/// [`fetch`] that stops when `cancel` is signalled, from any thread: no connection is begun, no
+/// redirect followed, no retry made after it, and a read or write waiting ends within a moment
+/// ([`PictureError::Cancelled`]). What had arrived is dropped.
+pub fn fetch_cancellable(url: &str, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
+    fetch_with_cancel(url, &Reach::web(), &Limits::default(), cancel)
+}
+
+/// A signal to stop a download: cheap to clone, every clone is the same signal, and once given
+/// it stays given.
+#[derive(Clone, Debug, Default)]
+pub struct Cancel(Arc<AtomicBool>);
+
+impl Cancel {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Give the signal.
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+/// How long a wait goes by before the signal is looked at again.
+const SLICE: Duration = Duration::from_millis(100);
+
 /// How much one picture may cost.
 #[derive(Clone, Copy, Debug)]
-struct Limits {
-    max_bytes: usize,
-    patience: Duration,
-    connect: Duration,
+pub(crate) struct Limits {
+    pub(crate) max_bytes: usize,
+    pub(crate) patience: Duration,
+    pub(crate) connect: Duration,
     /// What one address of a host gets before the next is tried beside it.
-    head_start: Duration,
+    pub(crate) head_start: Duration,
     /// How long a server that says "not now" is left alone, when it doesn't say.
-    retry_wait: Duration,
+    pub(crate) retry_wait: Duration,
 }
 
 impl Default for Limits {
@@ -151,7 +185,7 @@ impl Default for Limits {
 
 /// A way of connecting that stands in for the system's, for the tests.
 #[cfg(test)]
-type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Send + Sync>;
+pub(crate) type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Send + Sync>;
 
 /// Where names lead, and where connections may go.
 ///
@@ -160,17 +194,17 @@ type Dial = Arc<dyn Fn(SocketAddr, Duration) -> std::io::Result<TcpStream> + Sen
 /// addresses of this machine that stand in for it (`stand_ins` does not exist in any other
 /// build, and nothing at run time, no setting and no variable, can add to it), and they alone
 /// can say how an address answers (`dial`: one that never does, without a network that has one).
-struct Reach<'a> {
+pub(crate) struct Reach<'a> {
     /// The addresses of a host by its name, found in the time given; none when it has none.
-    lookup: &'a dyn Fn(&str, u16, Duration) -> Vec<SocketAddr>,
+    pub(crate) lookup: &'a dyn Fn(&str, u16, Duration, &Cancel) -> Vec<SocketAddr>,
     #[cfg(test)]
-    stand_ins: &'a [SocketAddr],
+    pub(crate) stand_ins: &'a [SocketAddr],
     #[cfg(test)]
-    dial: Option<Dial>,
+    pub(crate) dial: Option<Dial>,
 }
 
 impl Reach<'static> {
-    fn web() -> Reach<'static> {
+    pub(crate) fn web() -> Reach<'static> {
         Reach {
             lookup: &system_lookup,
             #[cfg(test)]
@@ -249,22 +283,22 @@ fn is_public_v6(ip: Ipv6Addr) -> bool {
 }
 
 /// Run `work` on a thread of its own and wait `patience` for it; `None` when it took longer
-/// (the thread is left to finish by itself).
-fn within<T: Send + 'static>(patience: Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+/// (the thread is left to finish by itself); `None` at once too when `cancel` is given meanwhile.
+fn within<T: Send + 'static>(patience: Duration, cancel: &Cancel, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
     let (tx, rx) = std::sync::mpsc::channel();
     let spawned = std::thread::Builder::new().name("picture lookup".into()).spawn(move || {
         let _ = tx.send(work());
     });
     spawned.ok()?;
-    rx.recv_timeout(patience).ok()
+    receive(&rx, patience, cancel).ok()
 }
 
 /// The system's answer to "where is `host`". The system takes its own time over a name whose
 /// servers don't answer, so it is asked on a thread that can be left behind.
-fn system_lookup(host: &str, port: u16, patience: Duration) -> Vec<SocketAddr> {
+fn system_lookup(host: &str, port: u16, patience: Duration, cancel: &Cancel) -> Vec<SocketAddr> {
     let host = host.to_string();
     let look = move || (host.as_str(), port).to_socket_addrs().map(|found| found.take(MAX_LOOKED_UP).collect::<Vec<_>>()).unwrap_or_default();
-    within(patience, look).unwrap_or_default()
+    within(patience, cancel, look).unwrap_or_default()
 }
 
 fn problem(text: &str) -> PictureError {
@@ -276,7 +310,7 @@ fn unreachable_host(host: &str, reason: &str) -> PictureError {
 }
 
 /// What an error of reading an answer comes to here.
-fn reading(error: NetError) -> PictureError {
+pub(crate) fn reading(error: NetError) -> PictureError {
     if http::is_too_long(&error) {
         PictureError::TooLarge
     } else if http::is_too_slow(&error) {
@@ -311,7 +345,7 @@ fn escaped(rest: &str) -> String {
 
 /// Read `text` as the address of a picture: `http://` or `https://`, a host, a port perhaps, a
 /// path. What follows a `#` is dropped (it is never sent).
-fn address(text: &str) -> Result<Url, PictureError> {
+pub(crate) fn address(text: &str) -> Result<Url, PictureError> {
     let text = text.trim().split('#').next().unwrap_or("");
     // (Longer than this it is no address, whatever is in it; and nothing longer is rewritten.)
     if text.len() > http::MAX_LONG_URL {
@@ -362,7 +396,7 @@ fn authority(url: &Url) -> String {
 }
 
 /// The address a redirect leads to: a whole one, or one written from where `from` is.
-fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
+pub(crate) fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
     let location = location.trim();
     if location.is_empty() || location.len() > http::MAX_LONG_URL {
         return Err(PictureError::Address);
@@ -390,14 +424,19 @@ fn follow(from: &Url, location: &str) -> Result<Url, PictureError> {
 
 /// What the headers of an answer say that matters here.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Said {
+pub(crate) struct Said {
     /// Where a redirect says it leads (`Location`).
-    location: Option<String>,
+    pub(crate) location: Option<String>,
     /// How the body is packed (`Content-Encoding`), in lower case; all of them when it says so
     /// more than once, in the order they were applied.
-    coding: Option<String>,
+    pub(crate) coding: Option<String>,
     /// How many seconds the server asks to be left alone for (`Retry-After`, when it is a number).
-    retry_after: Option<u64>,
+    pub(crate) retry_after: Option<u64>,
+    /// The server's marks of what it sent (`ETag`, `Last-Modified`): the first of each.
+    pub(crate) etag: Option<String>,
+    pub(crate) last_modified: Option<String>,
+    /// The character set `Content-Type` names (`charset=`), as written.
+    pub(crate) charset: Option<String>,
 }
 
 /// The headers of the answer that `head` begins with.
@@ -430,6 +469,16 @@ fn said(head: &[u8]) -> Said {
                 });
             } else if name.eq_ignore_ascii_case("retry-after") {
                 said.retry_after = value.parse::<u64>().ok().or(said.retry_after);
+            } else if name.eq_ignore_ascii_case("content-type") {
+                let named =
+                    value.split(';').skip(1).filter_map(|part| part.split_once('=')).find(|(key, _)| key.trim().eq_ignore_ascii_case("charset"));
+                if let Some((_, label)) = named {
+                    said.charset.get_or_insert_with(|| label.trim().trim_matches('"').chars().take(40).collect());
+                }
+            } else if name.eq_ignore_ascii_case("etag") {
+                said.etag.get_or_insert_with(|| value.to_string());
+            } else if name.eq_ignore_ascii_case("last-modified") {
+                said.last_modified.get_or_insert_with(|| value.to_string());
             }
         }
         if !(100..200).contains(&status) {
@@ -441,7 +490,7 @@ fn said(head: &[u8]) -> Said {
 
 /// A body as it was before it was packed: `coding` is what its `Content-Encoding` says. No more
 /// than `max` bytes come out, however little went in.
-fn unpack(body: Vec<u8>, coding: &str, max: usize) -> Result<Vec<u8>, PictureError> {
+pub(crate) fn unpack(body: Vec<u8>, coding: &str, max: usize) -> Result<Vec<u8>, PictureError> {
     // Applied in the order they are written, so undone from the last.
     let codings: Vec<&str> = coding.split(',').map(str::trim).filter(|c| !c.is_empty() && *c != "identity").collect();
     if codings.len() > MAX_CODINGS {
@@ -492,7 +541,7 @@ fn in_turns(found: Vec<SocketAddr>) -> Vec<SocketAddr> {
 }
 
 /// The addresses of `host` to connect to, every one of them checked.
-fn addresses(host: &str, port: u16, reach: &Reach<'_>, deadline: Instant) -> Result<Vec<SocketAddr>, PictureError> {
+fn addresses(host: &str, port: u16, reach: &Reach<'_>, deadline: Instant, cancel: &Cancel) -> Result<Vec<SocketAddr>, PictureError> {
     let name = host.trim_end_matches('.').to_ascii_lowercase();
     if name == "localhost" || name.ends_with(".localhost") {
         return Err(PictureError::NotPublic);
@@ -500,7 +549,7 @@ fn addresses(host: &str, port: u16, reach: &Reach<'_>, deadline: Instant) -> Res
     let found = match host.parse::<IpAddr>() {
         // An address needs no looking up, and no resolver gets to read it its own way.
         Ok(ip) => vec![SocketAddr::new(ip, port)],
-        Err(_) => (reach.lookup)(host, port, deadline.saturating_duration_since(Instant::now())),
+        Err(_) => (reach.lookup)(host, port, deadline.saturating_duration_since(Instant::now()), cancel),
     };
     if found.is_empty() {
         return Err(unreachable_host(host, "the name couldn't be looked up"));
@@ -519,7 +568,14 @@ fn addresses(host: &str, port: u16, reach: &Reach<'_>, deadline: Instant) -> Res
 /// one that answers at once is the only one tried, one that refuses makes way at once, and one
 /// that says nothing (an address of a kind this machine has no way to) costs the head start and
 /// no more. A thread that is left behind ends with its own time, and closes what it opened.
-fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Limits, deadline: Instant) -> Result<TcpStream, PictureError> {
+fn connect(
+    addresses: &[SocketAddr],
+    host: &str,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    deadline: Instant,
+    cancel: &Cancel,
+) -> Result<TcpStream, PictureError> {
     #[cfg(not(test))]
     let _ = reach;
     let mut reason = "no address was found for the name";
@@ -527,6 +583,9 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
     let mut waiting = addresses.iter().copied();
     let (mut tried, mut failed) = (0usize, 0usize);
     loop {
+        if cancel.is_cancelled() {
+            return Err(PictureError::Cancelled);
+        }
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
             reason = "the server didn't answer";
@@ -562,7 +621,7 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
         // While there is another address to try, this one has its head start; the last ones
         // have all the time that is left.
         let wait = if more { left.min(limits.head_start) } else { left };
-        match rx.recv_timeout(wait) {
+        match receive(&rx, wait, cancel) {
             Ok(Ok(tcp)) => {
                 let _ = tcp.set_nodelay(true);
                 return Ok(tcp);
@@ -588,10 +647,23 @@ fn connect(addresses: &[SocketAddr], host: &str, reach: &Reach<'_>, limits: &Lim
     Err(unreachable_host(host, reason))
 }
 
+/// `rx.recv_timeout(wait)`, in slices, ending early (as a timeout) when `cancel` is given.
+fn receive<T>(rx: &mpsc::Receiver<T>, wait: Duration, cancel: &Cancel) -> Result<T, mpsc::RecvTimeoutError> {
+    let until = Instant::now() + wait;
+    loop {
+        let left = until.saturating_duration_since(Instant::now());
+        match rx.recv_timeout(left.min(SLICE)) {
+            Err(mpsc::RecvTimeoutError::Timeout) if !left.is_zero() && left > SLICE && !cancel.is_cancelled() => {}
+            done => return done,
+        }
+    }
+}
+
 /// A socket that gives up when the picture's time is up: no read or write waits past it.
 struct Timed {
     tcp: TcpStream,
     deadline: Instant,
+    cancel: Cancel,
 }
 
 impl Timed {
@@ -600,8 +672,11 @@ impl Timed {
         if left.is_zero() {
             return Err(ErrorKind::TimedOut.into());
         }
-        // No time at all would mean "wait for ever".
-        let wait = Some(left.min(IO).max(Duration::from_millis(1)));
+        if self.cancel.is_cancelled() {
+            return Err(ErrorKind::ConnectionAborted.into());
+        }
+        // No time at all would mean "wait for ever". A wait is cut into slices, so that the signal is seen.
+        let wait = Some(left.min(SLICE).max(Duration::from_millis(1)));
         self.tcp.set_read_timeout(wait)?;
         self.tcp.set_write_timeout(wait)
     }
@@ -609,15 +684,27 @@ impl Timed {
 
 impl Read for Timed {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.ready()?;
-        self.tcp.read(buf)
+        let began = Instant::now();
+        loop {
+            self.ready()?;
+            match self.tcp.read(buf) {
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) && began.elapsed() < IO => {}
+                done => return done,
+            }
+        }
     }
 }
 
 impl Write for Timed {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.ready()?;
-        self.tcp.write(buf)
+        let began = Instant::now();
+        loop {
+            self.ready()?;
+            match self.tcp.write(buf) {
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) && began.elapsed() < IO => {}
+                done => return done,
+            }
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -734,32 +821,74 @@ impl<R: Read> Read for Kept<'_, R> {
 }
 
 /// What one address answered.
-struct Answer {
-    status: u16,
+pub(crate) struct Answer {
+    pub(crate) status: u16,
     /// As it came, packed or not.
-    body: Vec<u8>,
-    said: Said,
+    pub(crate) body: Vec<u8>,
+    pub(crate) said: Said,
 }
+
+/// What a GET says besides where it goes and who is asking (nothing).
+#[derive(Clone, Copy)]
+pub(crate) struct Sent<'a> {
+    /// The kinds of answer asked for (`Accept`).
+    pub(crate) accept: &'a str,
+    /// More header lines, each ending in CRLF: made by the caller from values it has checked.
+    pub(crate) extra: &'a str,
+}
+
+const PICTURE: Sent<'static> = Sent { accept: ACCEPT, extra: "" };
 
 /// One GET, on a connection of its own, to an address that was checked first; a POST of `form`
 /// (`application/x-www-form-urlencoded`) instead when there is one.
-fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline: Instant, form: Option<&str>) -> Result<Answer, PictureError> {
+fn ask(
+    url: &Url,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    max_bytes: usize,
+    deadline: Instant,
+    form: Option<&str>,
+    cancel: &Cancel,
+) -> Result<Answer, PictureError> {
+    ask_with(url, reach, limits, max_bytes, deadline, form, &PICTURE, cancel)
+}
+
+/// [`ask`], saying what is asked for besides.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn ask_with(
+    url: &Url,
+    reach: &Reach<'_>,
+    limits: &Limits,
+    max_bytes: usize,
+    deadline: Instant,
+    form: Option<&str>,
+    sent: &Sent<'_>,
+    cancel: &Cancel,
+) -> Result<Answer, PictureError> {
+    if cancel.is_cancelled() {
+        return Err(PictureError::Cancelled);
+    }
     let port = match (url.port, url.secure) {
         (0, true) => 443,
         (0, false) => 80,
         (port, _) => port,
     };
-    let addresses = addresses(&url.host, port, reach, deadline)?;
-    let tcp = connect(&addresses, &url.host, reach, limits, deadline)?;
-    let line = Timed { tcp, deadline };
+    let addresses = addresses(&url.host, port, reach, deadline, cancel)?;
+    let tcp = connect(&addresses, &url.host, reach, limits, deadline, cancel)?;
+    if cancel.is_cancelled() {
+        return Err(PictureError::Cancelled);
+    }
+    let line = Timed { tcp, deadline, cancel: cancel.clone() };
     let mut line = if url.secure { secure(line, &url.host)? } else { Line::Plain(line) };
     // The address was checked when it was read: nothing in it can end a line early. And this is
     // all that is ever said: what to send, to whom, how, and that nothing more will be asked.
     let request = match form {
         None => format!(
-            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {ACCEPT}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nConnection: close\r\n\r\n",
+            "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: {}\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\n{}Connection: close\r\n\r\n",
             url.path,
-            authority(url)
+            authority(url),
+            sent.accept,
+            sent.extra
         ),
         Some(form) => format!(
             "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\nAccept: */*\r\nAccept-Encoding: {ACCEPT_ENCODING}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{form}",
@@ -783,6 +912,16 @@ fn ask(url: &Url, reach: &Reach<'_>, limits: &Limits, max_bytes: usize, deadline
 
 /// [`fetch`], with the reach and the limits said.
 fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, PictureError> {
+    fetch_with_cancel(url, reach, limits, &Cancel::new())
+}
+
+/// [`fetch_with`] that ends with [`PictureError::Cancelled`] once `cancel` is given, whatever it was doing.
+fn fetch_with_cancel(url: &str, reach: &Reach<'_>, limits: &Limits, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
+    let result = fetch_loop(url, reach, limits, cancel);
+    if cancel.is_cancelled() { Err(PictureError::Cancelled) } else { result }
+}
+
+fn fetch_loop(url: &str, reach: &Reach<'_>, limits: &Limits, cancel: &Cancel) -> Result<Vec<u8>, PictureError> {
     let deadline = Instant::now() + limits.patience;
     let mut at = address(url)?;
     let mut left = limits.max_bytes;
@@ -790,7 +929,7 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
     // The address itself, then as many redirects as are followed, and one asking again: every
     // turn but the last of these is one or the other, so the turns are counted.
     loop {
-        let answer = ask(&at, reach, limits, left, deadline, None)?;
+        let answer = ask(&at, reach, limits, left, deadline, None, cancel)?;
         match answer.status {
             // What came packed (nobody asked for that) is unpacked, to no more than may be taken.
             200 => {
@@ -815,7 +954,11 @@ fn fetch_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Vec<u8>, 
                 if deadline.saturating_duration_since(Instant::now()) <= wait {
                     return Err(PictureError::Status(status));
                 }
-                std::thread::sleep(wait);
+                // (In slices, so that a stop is not waited for.)
+                let until = Instant::now() + wait;
+                while !cancel.is_cancelled() && Instant::now() < until {
+                    std::thread::sleep(until.saturating_duration_since(Instant::now()).min(SLICE));
+                }
                 left = left.saturating_sub(answer.body.len());
             }
             status => return Err(PictureError::Status(status)),
@@ -846,7 +989,7 @@ pub fn unsubscribe(url: &str) -> Result<(), String> {
 fn unsubscribe_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<(), String> {
     let at = address(url).map_err(|_| "its address isn't one MailCraft sends to".to_string())?;
     let deadline = Instant::now() + limits.patience;
-    match ask(&at, reach, limits, limits.max_bytes, deadline, Some("List-Unsubscribe=One-Click")) {
+    match ask(&at, reach, limits, limits.max_bytes, deadline, Some("List-Unsubscribe=One-Click"), &Cancel::new()) {
         Ok(answer) if (200..300).contains(&answer.status) => Ok(()),
         Ok(answer) if (300..400).contains(&answer.status) => Err(format!("the list's server sent it on elsewhere ({})", answer.status)),
         Ok(answer) => Err(format!("the list's server answered {}", answer.status)),
@@ -859,6 +1002,10 @@ fn unsubscribe_with(url: &str, reach: &Reach<'_>, limits: &Limits) -> Result<(),
 #[cfg(test)]
 #[path = "unsubscribe_tests.rs"]
 mod unsubscribe_tests;
+
+#[cfg(test)]
+#[path = "cancel_tests.rs"]
+mod cancel_tests;
 
 #[cfg(test)]
 mod tests {
@@ -904,7 +1051,7 @@ mod tests {
     }
 
     /// For addresses that are refused by how they are written: no name is ever looked up.
-    fn no_names(host: &str, _: u16, _: Duration) -> Vec<SocketAddr> {
+    fn no_names(host: &str, _: u16, _: Duration, _: &Cancel) -> Vec<SocketAddr> {
         panic!("{host} was looked up")
     }
 
@@ -912,7 +1059,9 @@ mod tests {
     fn a_picture_is_fetched_and_the_request_says_nothing_of_its_sender() {
         let server = FakeHttp::answering(answer("200 OK", "Content-Type: image/png\r\nSet-Cookie: who=you; Path=/\r\n", &picture()));
         let allowed = [at(&server)];
-        let names = |host: &str, _: u16, _: Duration| if host.trim_end_matches('.') == "pictures.example" { allowed.to_vec() } else { Vec::new() };
+        let names = |host: &str, _: u16, _: Duration, _: &Cancel| {
+            if host.trim_end_matches('.') == "pictures.example" { allowed.to_vec() } else { Vec::new() }
+        };
         let reach = Reach { lookup: &names, stand_ins: &allowed, dial: None };
 
         // By its address, and by a name that leads there; plain `http` to a name is fine for a picture.
@@ -1047,7 +1196,7 @@ mod tests {
         });
         let allowed = [at(&server)];
         let looked_up = Mutex::new(Vec::new());
-        let names = |host: &str, port: u16, _: Duration| {
+        let names = |host: &str, port: u16, _: Duration, _: &Cancel| {
             looked_up.lock().unwrap().push(host.to_string());
             match host {
                 "intranet.example" => vec![SocketAddr::from(([10, 1, 2, 3], port))],
@@ -1143,7 +1292,7 @@ mod tests {
         assert_eq!(fetch_with(&long, &reach, &quick()), Err(PictureError::Address));
 
         // By name: every address a name has must be public; a name with none is no host.
-        let names = |host: &str, port: u16, _: Duration| match host {
+        let names = |host: &str, port: u16, _: Duration, _: &Cancel| match host {
             "router.example" => vec![SocketAddr::from(([192, 168, 1, 1], port))],
             "sly.example" => vec![SocketAddr::from(([93, 184, 216, 34], port)), SocketAddr::from(([10, 0, 0, 7], port))],
             "six.example" => vec![SocketAddr::new("fe80::1".parse().unwrap(), port)],
@@ -1532,7 +1681,7 @@ mod tests {
         allowed.push(good);
         let limits = Limits { head_start: Duration::from_millis(80), connect: Duration::from_millis(1_500), ..quick() };
         let found = Mutex::new(Vec::new());
-        let names = |_: &str, _: u16, _: Duration| found.lock().unwrap().clone();
+        let names = |_: &str, _: u16, _: Duration, _: &Cancel| found.lock().unwrap().clone();
         let reach = Reach { lookup: &names, stand_ins: &allowed, dial: Some(dial) };
         let get = |order: &[SocketAddr]| {
             *found.lock().unwrap() = order.to_vec();
@@ -1572,7 +1721,7 @@ mod tests {
         let mut allowed_many = many.clone();
         allowed_many.push(good);
         let refused: Dial = Arc::new(|_, _| Err(ErrorKind::ConnectionRefused.into()));
-        let names = |_: &str, _: u16, _: Duration| many.clone();
+        let names = |_: &str, _: u16, _: Duration, _: &Cancel| many.clone();
         let result = fetch_with("http://pictures.example/a.png", &Reach { lookup: &names, stand_ins: &allowed_many, dial: Some(refused) }, &limits);
         assert!(
             matches!(&result, Err(PictureError::Net(NetError::Connect { reason, .. })) if reason.to_string() == "the server refused the connection"),
@@ -1643,11 +1792,11 @@ mod tests {
 
         // A name whose lookup hangs is left behind when the time is up.
         let started = Instant::now();
-        assert_eq!(within(Duration::from_millis(100), || std::thread::sleep(Duration::from_secs(3))), None);
+        assert_eq!(within(Duration::from_millis(100), &Cancel::new(), || std::thread::sleep(Duration::from_secs(3))), None);
         assert!(started.elapsed() < Duration::from_secs(2));
-        assert_eq!(within(Duration::from_secs(5), || 7), Some(7));
-        let stuck = |_: &str, _: u16, patience: Duration| {
-            within(patience, || std::thread::sleep(Duration::from_secs(3))).map(|()| Vec::new()).unwrap_or_default()
+        assert_eq!(within(Duration::from_secs(5), &Cancel::new(), || 7), Some(7));
+        let stuck = |_: &str, _: u16, patience: Duration, cancel: &Cancel| {
+            within(patience, cancel, || std::thread::sleep(Duration::from_secs(3))).map(|()| Vec::new()).unwrap_or_default()
         };
         let started = Instant::now();
         let result = fetch_with("https://stuck.example/a.png", &Reach { lookup: &stuck, stand_ins: &[], dial: None }, &hurried);
@@ -1795,7 +1944,7 @@ mod tests {
         let all = |text: &str| said(text.as_bytes());
         assert_eq!(
             all("HTTP/1.1 503 Busy\r\nRetry-After: 2\r\ncontent-encoding: GZip\r\nLocation: /x\r\n\r\nRetry-After: 9\r\n"),
-            Said { location: Some("/x".into()), coding: Some("gzip".into()), retry_after: Some(2) }
+            Said { location: Some("/x".into()), coding: Some("gzip".into()), retry_after: Some(2), ..Default::default() }
         );
         assert_eq!(
             all("HTTP/1.1 200 OK\r\nContent-Encoding: deflate\r\nContent-Encoding: gzip , br\r\n\r\n").coding.as_deref(),
@@ -1847,7 +1996,7 @@ mod tests {
             let allowed = [at(server)];
             let limits = Limits { max_bytes: 200, patience: Duration::from_secs(5), connect: Duration::from_secs(3), retry_wait: Duration::ZERO, ..Limits::default() };
             // A redirect could name a host: none has an address here.
-            let nowhere = |_: &str, _: u16, _: Duration| Vec::new();
+            let nowhere = |_: &str, _: u16, _: Duration, _: &Cancel| Vec::new();
             let url = server.url(&format!("/{}", asked.fetch_add(1, Ordering::Relaxed)));
             if let Ok(body) = fetch_with(&url, &Reach { lookup: &nowhere, stand_ins: &allowed, dial: None }, &limits) {
                 prop_assert!(body.len() <= 200);

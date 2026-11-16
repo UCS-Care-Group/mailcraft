@@ -53,6 +53,11 @@ internal object AccountShots {
     }
 
     @Composable
+    fun AddFormChosen() = Themed {
+        AddAccountScreen(EnglishTexts, AddAccountState.Form("", null, KeepChoice(KeepSpan.Months3, 2048L)), none, onBack = {})
+    }
+
+    @Composable
     fun Waiting() = Themed { AddAccountScreen(EnglishTexts, AddAccountState.Waiting("ada@lumen.example"), none, onBack = {}) }
 
     @Composable

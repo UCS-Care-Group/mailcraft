@@ -52,7 +52,15 @@ internal class MailListActions(
     /** Undo the change of the command the notice says (its [ListNotice.Done.command]). */
     val onUndo: (Int) -> Unit,
     val onNoticeShown: (Int) -> Unit,
+    /** A row was tapped: open its message. */
+    val onOpen: (InboxRow) -> Unit = {},
 ) {
+    /** These actions with a tap on a row doing [open]. */
+    fun withOpen(open: (InboxRow) -> Unit) = MailListActions(
+        onSearch, onEverywhere, onFilter, onConversations, onSplit, onRefresh, onRange, onTriage, onUndo,
+        onNoticeShown, open,
+    )
+
     companion object {
         val None = MailListActions({}, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, {})
     }
@@ -65,6 +73,8 @@ internal class MailListContext(
     val swipe: SwipeConfig,
     val accounts: List<AccountItem>,
     val categories: List<CategoryItem>,
+    /** Senders' pictures by row id, for the rows whose own message may show one (null: sender images are off). */
+    val avatars: Map<ULong, ByteArray>? = null,
 )
 
 /**
@@ -169,7 +179,12 @@ private fun LazyItemScope.ListedRow(
             texts = context.texts,
             row = row,
             swipe = context.swipe,
-            actions = RowActions(onTriage = { actions.onTriage(it, row) }, onMenu = onMenu),
+            actions = RowActions(
+                onTriage = { actions.onTriage(it, row) },
+                onMenu = onMenu,
+                onOpen = { actions.onOpen(row) },
+            ),
+            avatar = context.avatars?.let { AvatarState(it[row.id]) },
         )
         HorizontalDivider(modifier = Modifier.fillMaxWidth())
     }

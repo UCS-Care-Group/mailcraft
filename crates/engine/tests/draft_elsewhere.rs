@@ -205,7 +205,7 @@ fn a_leftover_held_after_its_draft_went_up_goes_with_send_again() {
             s.run("mail.sendAgain", &json!({"id": stuck})).unwrap();
             let sends = graph_send::sends(&s, account);
             assert_eq!(sends.iter().map(|up| up.message).collect::<Vec<_>>(), [stuck], "{kind:?} {outcome:?}: Send Again sends it");
-            assert_eq!(graph_send::waiting(&s.mailbox, account), 1, "{kind:?} {outcome:?}");
+            assert_eq!(graph_send::waiting(&s, account), 1, "{kind:?} {outcome:?}");
         }
     }
 }

@@ -4,12 +4,18 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Pure, bounded DAV document editing and XML readers, without sockets or browser APIs"
+description = "Pure, bounded DAV: document editing, XML readers, requests and typed answers for CalDAV and CardDAV, without sockets or browser APIs; an in-process strict stand-in server for the tests"
 
 [lints]
 workspace = true
 
+[features]
+# An in-process DAV server that holds a client to the RFCs (`standin`), for the tests of the crates
+# that sit on this one. Never in a build that isn't a test's.
+stand-in = []
+
 [dependencies]
+mailcraft-link = { workspace = true }
 mailcraft-model = { workspace = true }
 quick-xml = { workspace = true }
 

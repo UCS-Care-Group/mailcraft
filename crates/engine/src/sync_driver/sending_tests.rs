@@ -137,6 +137,16 @@ fn pressing_send_in_a_shared_mailbox_is_noted_or_asks_at_once() {
 }
 
 #[test]
+fn a_message_that_waits_for_its_time_is_not_something_pressed_that_waits() {
+    let (mut s, shared, message) = shared();
+    s.shared_send_pressed_in(message);
+    let now = s.now();
+    s.mailbox.message_mut(message).unwrap().send_at = Some(now + 3600);
+    s.shared_send_none_waits(shared);
+    assert_eq!(s.shared_send_missing(shared), Some(false), "nothing due: the press is forgotten");
+}
+
+#[test]
 fn what_was_pressed_is_forgotten_once_the_outbox_is_empty_and_for_an_own_mailbox_nothing_is_noted() {
     let (mut s, shared, message) = shared();
     s.shared_send_pressed_in(message);

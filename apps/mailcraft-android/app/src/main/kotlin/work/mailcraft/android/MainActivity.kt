@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("TooManyFunctions")
+
 package work.mailcraft.android
 
 import android.content.ClipData
@@ -34,12 +36,15 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
@@ -48,8 +53,27 @@ import uniffi.mailcraft_mobile.Core
  * Android 12 and before.
  */
 class MainActivity : AppCompatActivity() {
+    /** What outlives this window when Android makes it again: a file handed over, the calendar's editor. */
+    private val window: WindowModel by lazy { ViewModelProvider(this)[WindowModel::class.java] }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // The intent this window is for from now on, so that a window made again reads this one.
+        setIntent(intent)
+        takeHandedOver(intent)
+    }
+
+    /** Reads the calendar file [intent] carries, if it carries one, off the main thread. */
+    private fun takeHandedOver(intent: Intent) {
+        val resolver = applicationContext.contentResolver
+        window.handoff.take { readIcs(resolver, intent) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A new window reads what it was opened with; a window made again after the app was put away
+        // reads it again only when the file it carried was never taken in.
+        if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
@@ -74,7 +98,8 @@ class MainActivity : AppCompatActivity() {
                 DeviceDateSettings {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         var chosen by remember { mutableStateOf(LanguageChoice.current()) }
-                        Root(started, version, chosen) {
+                        val handedOver by window.handoff.file.collectAsState()
+                        Root(started, version, chosen, handedOver, window.handoff::handled, window) {
                             chosen = it
                             LanguageChoice.choose(it)
                         }
@@ -86,9 +111,17 @@ class MainActivity : AppCompatActivity() {
 }
 
 @Composable
-internal fun Root(started: Started, version: String, chosenLanguage: String, onLanguage: (String) -> Unit) {
+internal fun Root(
+    started: Started,
+    version: String,
+    chosenLanguage: String,
+    handedOver: IcsRead? = null,
+    onHandled: () -> Unit = {},
+    window: WindowModel? = null,
+    onLanguage: (String) -> Unit,
+) {
     when (started) {
-        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, onLanguage)
+        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
@@ -113,16 +146,19 @@ private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
     return all.firstOrNull { it.id == wanted }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun CoreShell(
     opened: Opened,
     version: String,
     chosenLanguage: String,
+    handedOver: IcsRead?,
+    onHandled: () -> Unit,
+    window: WindowModel?,
     onLanguage: (String) -> Unit,
 ) {
-    val core = opened.core
-    val hub = opened.hub
-    val list = opened.mail
+    val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
+    val settings = opened.settings
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
@@ -140,20 +176,24 @@ private fun CoreShell(
     val outline = outlined?.outline
     val folder = chosenFolder(outline, query.folder)
     val accounts = outline?.accounts.orEmpty()
-
     val now = rememberTicks(list)
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
-
+    val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
+    val accountsUi by hub.controller.ui.collectAsState()
+    val (settingsUi, settingsActions) = rememberSettings(settings)
     // The right to notify is asked for once there is an account to bring mail, never at a first start.
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
     }
-    val controller = hub.controller
-    val accountsUi by controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
+    val pictured = rememberPictures(core, list, scope, appContext)
+    val pictures = pictured.stack
+    val writing = rememberComposeHost(core, texts, scope)
     val mailActions = remember(list, scope, hub) {
-        mailListActions(list, scope, retryOutline, hub::syncNow) { change -> query = change(query) }
+        mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
+            query = change(query)
+        }
     }
     AppShell(
         texts = texts,
@@ -161,31 +201,54 @@ private fun CoreShell(
             accounts = accounts,
             folderName = folder?.name ?: texts.t("Mail"),
             folderId = folder?.id,
-            // (An outline that could not be read, or has no folder to show, has no list to wait for.)
-            mail = if (outlined != null && folder == null) ui.copy(load = LoadState.Failed) else ui,
+            mail = shownMail(outlined != null, folder, ui),
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
-            outline = when {
-                outlined == null -> OutlineStatus.Loading
-                outline == null -> OutlineStatus.Failed
-                else -> OutlineStatus.Ready
-            },
+            settingsUi = settingsUi,
+            outline = outlineStatus(outlined != null, outline),
             categories = categories,
             nowMillis = now,
             swipe = swipe,
+            reading = pictured.reading,
+            pictures = pictured.settings,
+            avatars = pictured.avatars,
+            attachments = pictured.attachments,
+            compose = writing.ui(),
+            snack = writing.snack,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
-            accounts = controller.actions(),
+            accounts = hub.controller.actions(),
+            settings = settingsActions,
             mail = mailActions,
             onSwipe = {
                 swipe = it
                 prefs.save(it)
             },
+            reading = pictured.reader.actions(writing::begin),
+            onPictures = pictures::changed,
+            onClearPictures = pictures::clear,
+            writing = WritingActions(writing.actions(), writing::newMessage, writing::snackShown),
         ),
+        calendar = calendar.pane,
+        requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
+}
+
+/** What the Settings pages draw, and what they do, with the system's own settings and web links. */
+@Composable
+private fun rememberSettings(settings: SettingsController): Pair<SettingsUi, SettingsActions> {
+    val ui by settings.ui.collectAsState()
+    val context = LocalContext.current
+    val actions = remember(settings, context) {
+        settings.actions(
+            onChannelSettings = { id -> openChannelSettings(context, id) },
+            onOpenLink = { url -> openWebLink(context, url) },
+        )
+    }
+    return ui to actions
 }
 
 /**
@@ -215,10 +278,37 @@ private fun rememberTicks(list: MailListController): Long {
     return now
 }
 
+/** What the reading pane is made of (pictures, links, attachments), and what they currently show. */
+private class Pictured(
+    val reader: ReadingStack,
+    val reading: ReadingUi,
+    val settings: PicturesUi,
+    val avatars: Map<ULong, ByteArray>?,
+    val attachments: AttachmentUi,
+) {
+    val stack: PictureStack get() = reader.pictures
+}
+
+@Composable
+private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
+    val reader = remember(core, list) { ReadingStack(core, context, scope, list::markRead) }
+    val stack = reader.pictures
+    val attachments by reader.attachments.ui.collectAsState()
+    val reading by stack.reading.ui.collectAsState()
+    val avatars by stack.senderImages.images.collectAsState()
+    val settings by stack.settings.collectAsState()
+    // A message may have moved (to Junk, say) or been judged differently: the rows are decided again.
+    val rev by remember(list) { list.ui.map { it.snapshot.rev }.distinctUntilChanged() }.collectAsState(0uL)
+    LaunchedEffect(stack, rev) { stack.senderImages.revChanged(rev) }
+    return Pictured(reader, reading, settings, if (settings.prefs.senderImages) avatars else null, attachments)
+}
+
 /** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
+@Suppress("LongParameterList")
 private fun mailListActions(
     controller: MailListController,
     scope: CoroutineScope,
+    senderImages: SenderImages,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
     /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
@@ -236,7 +326,13 @@ private fun mailListActions(
         // (The pages on screen are read again now too; the round's own changes come as revisions.)
         scope.launch { controller.reload() }
     },
-    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onRange = { first, last ->
+        scope.launch {
+            controller.showRange(first, last)
+            val rows = controller.ui.value.snapshot
+            senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+        }
+    },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
     onUndo = { command -> scope.launch { controller.undo(command) } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },
