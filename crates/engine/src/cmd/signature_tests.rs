@@ -109,9 +109,16 @@ fn colour_and_font_are_formats_of_the_message() {
     run(&mut s, "format.font", json!({"value": "georgia", "from": 0, "to": 5}));
     let body = &s.compose.as_ref().unwrap().body;
     let style = body.text().style_at(3);
-    assert_eq!((style.color.as_deref(), style.font.map(|f| f.label())), (Some("#cc0000"), Some("Georgia")));
+    assert_eq!((style.color.as_deref(), style.font.as_ref().map(|f| f.label().to_string())), (Some("#cc0000"), Some("Georgia".to_string())));
     assert!(s.run("format.color", &json!({"value": "red"})).is_err());
-    assert!(s.run("format.font", &json!({"value": "Comic Sans"})).is_err());
+    // Any family can be asked for (#1493): the engine neither has the fonts of this computer nor
+    // guesses at them. What isn't a name at all is refused, and the message is left as it was.
+    run(&mut s, "format.font", json!({"value": "Comic Sans", "from": 0, "to": 5}));
+    assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).font.as_ref().map(|f| f.label()), Some("comic sans"));
+    assert!(s.run("format.font", &json!({"value": "!!!"})).is_err());
+    assert!(s.run("format.font", &json!({"value": ""})).is_err());
+    assert!(s.run("format.font", &json!({"value": "z".repeat(5000)})).is_err());
+    assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).font.as_ref().map(|f| f.label()), Some("comic sans"));
     run(&mut s, "format.color", json!({"value": null, "from": 0, "to": 5}));
     assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).color, None);
 }
@@ -287,7 +294,7 @@ fn a_signature_pasted_from_outlook_on_the_web_keeps_its_formatting() {
     assert_eq!(text.to_plain(), "Avery Quinn\nLumen Studio\nlumen.example <https://lumen.example/>");
     let runs: Vec<_> = text.paragraphs().iter().flat_map(|p| p.runs.clone()).collect();
     let name = runs.iter().find(|r| r.text == "Avery Quinn").unwrap();
-    assert!(name.style.bold && name.style.font == Some(mailcraft_model::rich::Font::Calibri) && name.style.size == Some(12), "{name:?}");
+    assert!(name.style.bold && name.style.font == Some(mailcraft_model::rich::Built::Calibri.font()) && name.style.size == Some(12), "{name:?}");
     let org = runs.iter().find(|r| r.text == "Lumen Studio").unwrap();
     assert_eq!(org.style.color.as_deref(), Some("#1f4e79"));
     assert!(runs.iter().any(|r| r.style.link.as_deref() == Some("https://lumen.example/")));
@@ -538,6 +545,6 @@ fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
     run(&mut s, "signature.save", json!({}));
     let json = serde_json::to_string(&s.mailbox).unwrap();
     let back: mailcraft_model::Mailbox = serde_json::from_str(&json).unwrap();
-    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
-    assert_eq!(first.map(|f| f.label()), Some("Courier New"));
+    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font.clone();
+    assert_eq!(first.as_ref().map(|f| f.label()), Some("Courier New"));
 }

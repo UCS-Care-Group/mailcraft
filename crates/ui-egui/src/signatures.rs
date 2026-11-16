@@ -310,13 +310,21 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     );
 }
 
+/// A menu that holds a text field, which keeps a click made inside it (#1493).
+fn keeps_clicks(ui: &mut Ui, name: &str, content: impl FnOnce(&mut Ui)) {
+    let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| content(ui));
+}
+
 /// A rich signature: its formatting bar, the editor, its pictures and the size they add.
 fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
+        // The font menu holds a field to search in and the colour menu a colour typed by hand: a
+        // click inside them is for the field, not a way out of the menu (#1493).
+        keeps_clicks(ui, tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
-        ui.menu_button(tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
+        keeps_clicks(ui, tl!("Colour"), |ui| crate::ribbon::color_menu(ui, app));
         for (label, on, command) in [("B", look.bold, "format.bold"), ("I", look.italic, "format.italic"), ("U", look.underline, "format.underline")]
         {
             if ui.add(egui::Button::selectable(on, egui::RichText::new(label).strong())).on_hover_text(tl!(command_label(command))).clicked() {
@@ -616,3 +624,7 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
         }
     });
 }
+
+#[cfg(test)]
+#[path = "signature_menu_tests.rs"]
+mod signature_menu_tests;

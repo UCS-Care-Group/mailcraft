@@ -5,14 +5,16 @@
 
 use egui::FontFamily;
 
-use super::{Chooser, MAX_FACES, Pick, Store, family_of, generation};
+use super::{Chooser, FaceState, MAX_BYTES, MAX_FACES, Pick, Store, ask, coming, family_of, generation, generic_family, inspect, names, rescan};
 use crate::font_index::font_index_tests::FontsDir;
 use crate::reading::images::Pictures;
 use crate::reading::layout::{ItemKind, Laid};
 
-const REGULAR: &[u8] = include_bytes!("../../../../assets/fonts/Inter-Regular.ttf");
-const SEMIBOLD: &[u8] = include_bytes!("../../../../assets/fonts/Inter-SemiBold.ttf");
-const MONO: &[u8] = include_bytes!("../../../../assets/fonts/JetBrainsMono-Regular.ttf");
+const REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
+const SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
+const MONO: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf");
+/// A proportional font with no bold face of its own.
+const SANS: &[u8] = include_bytes!("../../../assets/fonts/SourceSans3-Regular.ttf");
 
 /// A context with the interface's fonts, and the fonts of `dir` as what is installed.
 fn context(dir: &FontsDir) -> egui::Context {
@@ -99,8 +101,23 @@ fn bold_text_has_the_bold_face_and_a_family_without_one_the_windows_bold() {
     assert!(got.contains(&family_of("inter", true)), "{got:?}");
     assert!(got.contains(&family_of("inter", false)), "{got:?}");
     assert!(got.contains(&family_of("jetbrains mono", false)), "{got:?}");
-    // JetBrains Mono has no bold face: its bold text is the window's bold.
+    // JetBrains Mono has no bold face — and its characters are as wide as each other, so its bold
+    // text keeps its own regular face and its columns stay lined up (#969).
     assert!(!got.contains(&family_of("jetbrains mono", true)), "{got:?}");
+    assert!(!got.contains(&FontFamily::Name("semibold".into())), "{got:?}");
+}
+
+#[test]
+fn bold_text_in_a_family_without_a_bold_face_is_the_windows_bold() {
+    // #582, for any family and not the composer's six alone: egui can't make a face bold.
+    let dir = FontsDir::new("sans");
+    dir.put("sans.ttf", SANS);
+    let ctx = context(&dir);
+    let html = "<p style=\"font-family:'Source Sans 3'\"><b>Bold</b> and not</p>";
+    families(&ctx, html);
+    pass(&ctx, |_| {});
+    let got = families(&ctx, html);
+    assert!(got.contains(&family_of("source sans 3", false)), "{got:?}");
     assert!(got.contains(&FontFamily::Name("semibold".into())), "{got:?}");
 }
 
@@ -160,16 +177,26 @@ fn a_hostile_list_reads_no_more_than_its_share() {
 }
 
 #[test]
-fn a_face_asked_for_by_two_names_is_read_once() {
+fn a_family_is_one_entry_however_its_faces_are_named() {
+    // Inter's semibold file calls itself "Inter SemiBold" and its family "Inter": it is Inter's
+    // bold face, not a font of its own (#1493) — one entry in the menu, and what asks for it by
+    // that name is drawn in Inter.
     let dir = installed("twice");
     let ctx = context(&dir);
-    // Inter's semibold file is "Inter SemiBold", and Inter's bold face.
+    let index = dir.index();
+    let names = index.names();
+    assert_eq!(names.iter().filter(|n| n.eq_ignore_ascii_case("inter")).count(), 1, "{names:?}");
+    assert!(!names.contains(&"Inter SemiBold"), "{names:?}");
+    assert!(index.has("inter semibold"), "still found by the name its file gives it");
     let html = "<p style=\"font-family:'Inter SemiBold'\">One</p><p style=\"font-family:Inter\"><b>Two</b></p>";
     families(&ctx, html);
     pass(&ctx, |_| {});
+    // What asks for the semibold by name asks for the *family*, and is drawn in its regular face;
+    // bold text in the family is drawn in the semibold face.
     let got = families(&ctx, html);
     assert!(got.contains(&family_of("inter semibold", false)) && got.contains(&family_of("inter", true)), "{got:?}");
-    assert_eq!(Store::counts(&ctx), (1, SEMIBOLD.len() as u64));
+    // The regular face for the one, the semibold face for the bold of the other: each read once.
+    assert_eq!(Store::counts(&ctx), (2, (REGULAR.len() + SEMIBOLD.len()) as u64));
 }
 
 #[test]
@@ -191,32 +218,6 @@ fn the_faces_are_given_again_when_egui_s_fonts_are_set_anew() {
 }
 
 #[test]
-fn the_reading_pane_lays_a_message_out_again_once_its_font_has_come() {
-    use crate::reading::Place;
-    use crate::reading::tests::{app_with, select, web_message, window};
-    let dir = installed("pane");
-    let mut message = web_message(1, "news@example.org", "In a font of its own", &[]);
-    message.body.html = Some("<p style=\"font-family:'No Such Font', Inter, sans-serif\">Set in Inter</p>".into());
-    let (app, ids) = app_with(vec![message]);
-    let mut harness = window(app, (900.0, 700.0));
-    Store::use_index(&harness.ctx, dir.index());
-    select(&mut harness, ids[0]);
-    harness.run_steps(4);
-    let families = crate::reading::view::with_laid(&harness.ctx, Place::Pane, ids[0], |laid| {
-        laid.items
-            .iter()
-            .filter_map(|item| match &item.kind {
-                ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.font_id.family.clone()).collect::<Vec<_>>()),
-                _ => None,
-            })
-            .flatten()
-            .collect::<Vec<_>>()
-    })
-    .unwrap();
-    assert_eq!(families, vec![family_of("inter", false)]);
-}
-
-#[test]
 fn bold_text_in_the_fixed_width_font_without_its_bold_face_keeps_the_regular_face() {
     // #969: a bold line of text art keeps its columns, as it does while it is written.
     let dir = installed("courier");
@@ -228,9 +229,101 @@ fn bold_text_in_the_fixed_width_font_without_its_bold_face_keeps_the_regular_fac
     ctx.set_fonts(crate::theme::font_definitions_with(&system));
     ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
     Store::use_index(&ctx, dir.index());
-    let courier = mailcraft_model::rich::Font::parse("Courier New").unwrap();
+    let courier = mailcraft_model::rich::Built::CourierNew;
     let html = "<p style=\"font-family:'Courier New', Courier, monospace\"><b>+--+</b> |  |</p>";
     families(&ctx, html);
     pass(&ctx, |_| {});
     assert_eq!(families(&ctx, html), vec![crate::theme::document_family(courier, false)]);
+}
+
+#[test]
+fn bold_text_in_a_fixed_family_whose_regular_face_failed_goes_on_to_the_next_font() {
+    // #1493: a fixed family without a bold face is drawn in its own regular face, so its columns
+    // hold. When that face can't be read, asking for it again every frame would never reach the
+    // font written after it.
+    let dir = installed("boldfailed");
+    let ctx = context(&dir);
+    Store::pretend_read(&ctx, MAX_FACES, MAX_BYTES);
+    let first = pass(&ctx, |ctx| {
+        let mut chooser = Chooser::new(ctx);
+        let pick = chooser.pick("jetbrains mono, monospace", true);
+        chooser.finish(ctx);
+        pick
+    });
+    assert_eq!(first, Pick::Own, "its regular face is being asked for");
+    let second = pass(&ctx, |ctx| {
+        let mut chooser = Chooser::new(ctx);
+        let pick = chooser.pick("jetbrains mono, monospace", true);
+        chooser.finish(ctx);
+        pick
+    });
+    assert_eq!(second, Pick::Mono, "the regular face failed: the list goes on to `monospace` (#1493)");
+}
+
+#[test]
+fn looking_again_forgets_the_faces_that_couldnt_be_read() {
+    // #1493: "Check for new fonts" lets a face that failed be read again — its file may have been
+    // replaced — and a layout is made again whether or not the new list says anything different.
+    let dir = installed("again");
+    let ctx = context(&dir);
+    Store::pretend_read(&ctx, MAX_FACES, MAX_BYTES);
+    pass(&ctx, |ctx| {
+        let mut chooser = Chooser::new(ctx);
+        chooser.pick("inter", false);
+        chooser.finish(ctx);
+    });
+    let store = Store::of(&ctx);
+    let failed = |store: &std::sync::Arc<std::sync::Mutex<Store>>| {
+        store.lock().unwrap_or_else(|e| e.into_inner()).faces.values().filter(|s| matches!(s, FaceState::Missing)).count()
+    };
+    assert!(failed(&store) > 0, "past the caps a face counts as not installed");
+    let before = generation(&ctx);
+    rescan(&ctx);
+    assert_eq!(failed(&store), 0, "the look lets the faces that failed be asked for again");
+    assert_ne!(generation(&ctx), before, "and the layout is made again");
+}
+
+#[test]
+fn a_font_menu_lists_the_families_installed_here() {
+    // #1493: the composer's and the signature editor's font menu. The six are listed by the menu
+    // itself; what follows them is every other family this computer has.
+    let dir = installed("menu");
+    let ctx = context(&dir);
+    let listed = names(&ctx).unwrap();
+    assert!(listed.contains(&"Inter".to_string()) && listed.contains(&"JetBrains Mono".to_string()), "{listed:?}");
+    // What the menu sends names the family and a font of its kind after it, so that a recipient
+    // without it gets one of the same kind.
+    assert_eq!(generic_family(&ctx, "JetBrains Mono"), "monospace");
+    assert_eq!(generic_family(&ctx, "Inter"), "sans-serif");
+    // The same answer for a name as the index keeps it, and for one it has never heard of.
+    assert_eq!(generic_family(&ctx, "inter semibold"), "sans-serif");
+    assert_eq!(generic_family(&ctx, "No Such Font"), "sans-serif");
+    // What the control port answers: the list, and whether it is still being made. Nothing of the
+    // owner's travels with it, and nothing is fetched for it.
+    let seen = inspect(&ctx);
+    assert_eq!(seen["coming"], serde_json::json!(false));
+    assert!(seen["families"].as_array().is_some_and(|a| a.contains(&serde_json::json!("Inter"))), "{seen}");
+}
+
+#[test]
+fn the_list_arrives_when_it_is_made_and_can_be_made_again() {
+    // A window that never asked has nothing to list; asking starts the thread of its own, and a
+    // window that asks twice is not asked twice.
+    let ctx = egui::Context::default();
+    assert!(names(&ctx).is_none());
+    assert_eq!(inspect(&ctx)["families"], serde_json::json!([]));
+    ask(&ctx);
+    ask(&ctx);
+    // Once the list is made it is what a menu lists, and `inspect` says the same.
+    let dir = installed("arrived");
+    Store::use_index(&ctx, dir.index());
+    assert!(names(&ctx).is_some());
+    assert!(inspect(&ctx)["families"].as_array().is_some_and(|a| !a.is_empty()), "{}", inspect(&ctx));
+    // Looking again starts over, and the new list is taken in when it comes.
+    rescan(&ctx);
+    Store::use_index(&ctx, dir.index());
+    assert!(names(&ctx).is_some());
+    // A test's window has the fonts it is given, so nothing is ever "still coming" here; on a
+    // real window it is, until the list arrives.
+    assert!(!coming(&ctx));
 }

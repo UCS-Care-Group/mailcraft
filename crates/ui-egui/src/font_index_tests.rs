@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use super::{FontIndex, MAX_COLLECTION, family_names};
+use super::{FontIndex, MAX_COLLECTION, SCRIPT_CLASSES, SERIF_CLASSES, family_names};
 
 const REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
 const SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
@@ -72,7 +72,7 @@ fn a_font_is_found_by_the_names_inside_it() {
     dir.put("deeper/b2.ttf", SEMIBOLD);
     dir.put("c3.ttf", MONO);
     let index = dir.index();
-    assert!(index.has("inter"), "{:?}", index.families.keys().collect::<Vec<_>>());
+    assert!(index.has("inter"), "{:?}", index.names());
     assert!(index.has("jetbrains mono"));
     assert!(!index.has("a1") && !index.has("arial"));
     let regular = index.face("inter", false).unwrap();
@@ -141,7 +141,7 @@ fn what_is_not_a_font_is_left_out() {
     dir.put("huge.ttc", &huge);
     let index = dir.index();
     // Only the collection's one real face is in it.
-    let faces: Vec<_> = index.families.values().flatten().collect();
+    let faces: Vec<_> = index.families.iter().flat_map(|f| f.faces.iter()).collect();
     assert!(faces.iter().all(|f| f.path.ends_with("huge.ttc") && f.index == 0), "{:?}", index.families);
     assert!(index.has("inter"));
     const { assert!(MAX_COLLECTION <= 64) };
@@ -165,6 +165,70 @@ fn each_face_of_a_collection_is_found_with_its_place_in_it() {
     assert!(crate::theme::read_face(&dir.0.join("pair.ttc"), u64::MAX, 5).is_none());
 }
 
+/// `font` with its OS/2 `sFamilyClass` major class set to `class`: 1 is Roman, a serif family.
+fn as_class(font: &[u8], class: u8) -> Vec<u8> {
+    let mut out = font.to_vec();
+    let at = table(&out, b"OS/2");
+    out[at + 30] = class;
+    out[at + 31] = 0;
+    out
+}
+
+/// `font` with `post`'s `isFixedPitch` set: every character as wide as the next.
+fn as_fixed(font: &[u8]) -> Vec<u8> {
+    let mut out = font.to_vec();
+    let at = table(&out, b"post");
+    out[at + 20..at + 24].copy_from_slice(&1u32.to_be_bytes());
+    out
+}
+
+#[test]
+fn a_family_is_listed_once_by_the_name_it_gives_itself() {
+    // #1493: what a font menu lists. Inter's semibold file is Inter's bold face, not a second
+    // family; every name a file answers to still finds it.
+    let dir = FontsDir::new("listed");
+    dir.put("inter.ttf", REGULAR);
+    dir.put("semibold.ttf", SEMIBOLD);
+    dir.put("mono.ttf", MONO);
+    let index = dir.index();
+    assert_eq!(index.names(), vec!["Inter", "JetBrains Mono"]);
+    assert!(index.has("inter") && index.has("inter semibold") && index.has("jetbrains mono"));
+}
+
+#[test]
+fn what_kind_a_family_is_is_read_from_its_own_file() {
+    // What a menu writes after a family's name, so a recipient without it gets a font of the same
+    // kind: monospace when its characters are as wide as each other, serif when its own class says
+    // so, and nothing else known when it says neither.
+    let fixed = FontsDir::new("kind-fixed");
+    fixed.put("f.ttf", &as_fixed(REGULAR));
+    let index = fixed.index();
+    assert!(index.fixed("inter") && !index.serif("inter"));
+    // Old style (1, 2), modern (3, 4) and wedge (5, 6) classes are all serif ones, each with its
+    // "variations and font families" division beside it.
+    for class in SERIF_CLASSES {
+        let serif = FontsDir::new(&format!("kind-serif-{class}"));
+        serif.put("s.ttf", &as_class(REGULAR, class));
+        let index = serif.index();
+        assert!(index.serif("inter") && !index.fixed("inter") && !index.script("inter"), "class {class}");
+    }
+    // A script or a blackletter is written rather than set: neither serif nor sans-serif.
+    for class in SCRIPT_CLASSES {
+        let written = FontsDir::new(&format!("kind-script-{class}"));
+        written.put("s.ttf", &as_class(REGULAR, class));
+        let index = written.index();
+        assert!(index.script("inter") && !index.serif("inter"), "class {class}");
+    }
+    let plain = FontsDir::new("kind-plain");
+    plain.put("p.ttf", REGULAR);
+    let index = plain.index();
+    assert!(!index.fixed("inter") && !index.serif("inter"));
+    // JetBrains Mono says so itself, without being doctored.
+    let mono = FontsDir::new("kind-mono");
+    mono.put("m.ttf", MONO);
+    assert!(mono.index().fixed("jetbrains mono"));
+}
+
 #[test]
 fn the_names_of_a_name_table_are_read_in_lower_case_once_each() {
     let tables = u16::from_be_bytes([SEMIBOLD[4], SEMIBOLD[5]]) as usize;
@@ -176,14 +240,58 @@ fn the_names_of_a_name_table_are_read_in_lower_case_once_each() {
             (n(8), n(12))
         })
         .unwrap();
-    let names = family_names(&SEMIBOLD[at..at + len]);
+    let (display, names) = family_names(&SEMIBOLD[at..at + len]).unwrap();
+    assert_eq!(display, "Inter");
     assert!(names.contains(&"inter".to_string()), "{names:?}");
     let mut unique = names.clone();
     unique.dedup();
     assert_eq!(unique.len(), names.len());
     assert!(names.iter().all(|n| *n == n.to_lowercase()));
-    assert!(family_names(b"junk").is_empty());
-    assert!(family_names(&[]).is_empty());
+    assert!(family_names(b"junk").is_none());
+    assert!(family_names(&[]).is_none());
+}
+
+/// A `name` table with `aliases` spellings in another language, and `shown` as the English
+/// typographic family name after them all.
+fn name_table(aliases: u16, shown: &str) -> Vec<u8> {
+    let utf16 = |s: &str| s.encode_utf16().flat_map(u16::to_be_bytes).collect::<Vec<u8>>();
+    let mut records: Vec<(u16, u16, u16, Vec<u8>)> = Vec::new();
+    for i in 0..aliases {
+        records.push((3, 1, 0x0407, utf16(&format!("Alias {i}"))));
+    }
+    records.push((3, 1, 0x0409, utf16(shown)));
+    let mut head: Vec<u8> = Vec::new();
+    head.extend_from_slice(&0u16.to_be_bytes());
+    head.extend_from_slice(&(records.len() as u16).to_be_bytes());
+    head.extend_from_slice(&((6 + records.len() * 12) as u16).to_be_bytes());
+    let mut storage: Vec<u8> = Vec::new();
+    for (platform, encoding, language, text) in &records {
+        head.extend_from_slice(&platform.to_be_bytes());
+        head.extend_from_slice(&encoding.to_be_bytes());
+        head.extend_from_slice(&language.to_be_bytes());
+        // 16 is the typographic family name; the rest are plain family names.
+        let id: u16 = if language == &0x0409 { 16 } else { 1 };
+        head.extend_from_slice(&id.to_be_bytes());
+        head.extend_from_slice(&(text.len() as u16).to_be_bytes());
+        head.extend_from_slice(&(storage.len() as u16).to_be_bytes());
+        storage.extend_from_slice(text);
+    }
+    head.extend_from_slice(&storage);
+    head
+}
+
+#[test]
+fn the_name_a_family_is_shown_by_is_a_name_it_answers_to() {
+    // Thirty-two spellings come before the English one in the file. The name a menu shows must
+    // still be one the family is found by, or choosing it in the menu finds nothing (#1493).
+    let (display, keys) = family_names(&name_table(32, "Real Family")).unwrap();
+    assert_eq!(display, "Real Family");
+    assert!(keys.len() <= 32, "{keys:?}");
+    assert!(keys.contains(&"real family".to_string()), "the shown name is a key too: {keys:?}");
+    // With room to spare, every spelling is a key and nothing is dropped.
+    let (display, keys) = family_names(&name_table(3, "Real Family")).unwrap();
+    assert_eq!(display, "Real Family");
+    assert!(keys.contains(&"alias 0".to_string()) && keys.contains(&"real family".to_string()), "{keys:?}");
 }
 
 /// This computer's own fonts are read without trouble, and what the system's folder has is found.

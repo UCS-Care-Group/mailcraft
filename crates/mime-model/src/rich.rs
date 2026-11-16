@@ -221,8 +221,8 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
             out.push_str(&format!("<span style=\"color:{color}\">"));
             close.push("</span>");
         }
-        if let Some(font) = style.font {
-            out.push_str(&format!("<span style=\"font-family:{}\">", font.css()));
+        if let Some(font) = &style.font {
+            out.push_str(&format!("<span style=\"font-family:{}\">", mailcraft_html::escape(&font.css())));
             close.push("</span>");
         }
         if let Some(highlight) = style.highlight.as_deref().and_then(safe_color) {

@@ -1,33 +1,38 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The fonts a message asks for (#600): its text is drawn in the first font of its `font-family`
-//! that is installed on this computer, and nothing is ever fetched for it.
+//! The fonts of this computer that text is drawn in: the ones a message asks for (#600) and the
+//! ones the composer and the signature editor offer (#1493). Its text is drawn in the first font
+//! of its `font-family` that is installed on this computer, and nothing is ever fetched for it.
 //!
 //! - A name is looked up in the fonts installed here ([`FontIndex`], made once, on a thread of its
-//!   own, the first time a message names a font), in the order the message gives them; the first
-//!   that is installed wins, and a face that can't be read counts as not installed.
+//!   own, the first time a message names a font or a font menu opens), in the order the message
+//!   gives them; the first that is installed wins, and a face that can't be read counts as not
+//!   installed.
 //! - `serif` is the first of this system's serif fonts that is installed ([`SERIF`]); `monospace`
 //!   is the window's own monospaced font; `sans-serif`, `system-ui`, `cursive`, `fantasy` and the
 //!   other generic families are the window's own font, and so is a list none of whose fonts is
 //!   installed.
 //! - Bold text is drawn in the family's bold face; a family without one draws it in the window's
-//!   bold, as the composer does (#582): egui can't make a face bold itself.
-//! - A face is read whole only when a message is to be drawn in it, on a thread of its own, and
+//!   bold, as the composer does (#582): egui can't make a face bold itself — except in a family
+//!   whose characters are as wide as each other, which keeps its own regular face so its columns
+//!   stay lined up (#969).
+//! - A face is read whole only when text is to be drawn in it, on a thread of its own, and
 //!   then kept for the life of the program: at most [`MAX_FACES`] faces and [`MAX_BYTES`] bytes,
 //!   each at most [`MAX_FACE_BYTES`]; past those, a font counts as not installed.
-//! - The faces of the composer's fonts, read at start (#582), are used as they are.
+//! - The faces of the composer's six families, read at start (#582), are used as they are.
 //!
 //! A face is drawn with only once egui has taken it in, the pass after it was given (naming a
 //! family egui doesn't have would stop the program): until then the text is laid out in the
 //! window's font, and laid out again when the fonts change ([`generation`]). The browser has no
-//! fonts folder: there `monospace` is all that changes anything.
+//! fonts folder: there `monospace` is all that changes anything, and a font menu has nothing to
+//! list.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use egui::{FontDefinitions, FontFamily};
-use mailcraft_model::rich::Font;
+use mailcraft_model::rich::Built;
 
 use crate::font_index::FontIndex;
 
@@ -139,6 +144,8 @@ pub struct Store {
     missing: usize,
     /// Faces that are ready and may not be in egui's fonts yet.
     dirty: bool,
+    /// How many times the fonts installed here have been looked for (#1493).
+    revision: u64,
     /// The work is done on the window's thread, at once: for tests.
     inline: bool,
 }
@@ -225,6 +232,9 @@ impl Store {
         if !matches!(self.index, IndexState::NotAsked) {
             return;
         }
+        // A look of its own is the fonts changing, whether or not it finds anything new: a layout
+        // that gave up on a family asks again (#1493).
+        self.revision = self.revision.wrapping_add(1);
         #[cfg(not(target_arch = "wasm32"))]
         {
             if self.inline {
@@ -248,7 +258,12 @@ impl Store {
             }
         }
         #[cfg(target_arch = "wasm32")]
-        let _ = ctx;
+        {
+            // The browser has no fonts folder to look in: the list is known, and empty. A menu
+            // that is told the index is still being made would say so for ever (#1493).
+            let _ = ctx;
+            self.index = IndexState::Ready(Arc::new(FontIndex::default()));
+        }
     }
 
     /// Take in what the threads brought, start reading what is wanted, and give egui the faces
@@ -258,7 +273,10 @@ impl Store {
         {
             if let IndexState::Building(receive) = &self.index {
                 match receive.try_recv() {
-                    Ok(index) => self.index = IndexState::Ready(Arc::new(index)),
+                    Ok(index) => {
+                        self.index = IndexState::Ready(Arc::new(index));
+                        self.revision = self.revision.wrapping_add(1);
+                    }
                     Err(std::sync::mpsc::TryRecvError::Empty) => {}
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => self.index = IndexState::Ready(Arc::new(FontIndex::default())),
                 }
@@ -392,6 +410,7 @@ impl Store {
     /// frame, `theme::install_fonts`.)
     fn install(&mut self, ctx: &egui::Context) {
         let mut defs: FontDefinitions = ctx.fonts(|f| f.definitions().clone());
+        let index = self.index();
         let mut added = false;
         for ((name, bold), state) in &self.faces {
             let FaceState::Ready(data) = state else { continue };
@@ -400,7 +419,17 @@ impl Store {
                 continue;
             }
             let face = format!("{PREFIX}{name}{}", if *bold { ":bold" } else { "" });
-            let behind = if *bold { FontFamily::Name("bold".into()) } else { FontFamily::Proportional };
+            // What draws the letters this family hasn't got. A family whose characters are as wide
+            // as each other keeps the window's monospaced fonts behind it, so that text lined up
+            // with spaces stays lined up; the window's own bold stands behind a bold of the rest.
+            let fixed = index.as_ref().is_some_and(|index| index.fixed(name));
+            let behind = if fixed {
+                FontFamily::Monospace
+            } else if *bold {
+                FontFamily::Name("bold".into())
+            } else {
+                FontFamily::Proportional
+            };
             let mut chain = vec![face.clone()];
             chain.extend(defs.families.get(&behind).or_else(|| defs.families.get(&FontFamily::Proportional)).cloned().unwrap_or_default());
             defs.font_data.insert(face, data.clone());
@@ -446,7 +475,8 @@ pub fn let_go(ctx: &egui::Context) {
     }
 }
 
-/// Once a frame where messages are shown: take in what the threads brought and give egui the
+/// Once a frame where messages are shown — and once for a `ui.fonts` on the control port, which
+/// may be asked in a window that shows nothing: take in what the threads brought and give egui the
 /// faces that are ready.
 pub fn tick(ctx: &egui::Context) {
     let store = Store::of(ctx);
@@ -455,14 +485,15 @@ pub fn tick(ctx: &egui::Context) {
 }
 
 /// What the fonts a layout is made with have come to, as a number that changes when they do: the
-/// message faces egui has taken in, the fonts that could not be had, and whether the installed
-/// fonts are known. A layout made with other fonts is made again.
+/// message faces egui has taken in, the fonts that could not be had, whether the installed fonts
+/// are known, and how many times they have been looked for. A layout made with other fonts is
+/// made again.
 pub fn generation(ctx: &egui::Context) -> u64 {
     let active = active(ctx);
     let store = Store::of(ctx);
     let store = store.lock().unwrap_or_else(|e| e.into_inner());
     let known = matches!(store.index, IndexState::Ready(_));
-    (active as u64) | ((store.missing as u64 & 0xff_ffff) << 24) | (u64::from(known) << 48)
+    (active as u64) | ((store.missing as u64 & 0xff_ffff) << 24) | (u64::from(known) << 48) | ((store.revision & 0x7f_ff) << 49)
 }
 
 /// Picks the fonts of a layout's spans, from what egui has at the start of the layout.
@@ -562,17 +593,22 @@ impl Chooser {
 
     /// Whether `name` is installed, and how its face stands.
     fn installed(&mut self, name: &str, bold: bool) -> Lookup {
-        // The composer's fonts, read at start (#582).
-        if let Some(font) = Font::parse(name).filter(|f| *f != Font::System) {
-            let family = crate::theme::document_family(font, bold);
+        // The composer's six families, read at start (#582).
+        if let Some(built) = Built::from_key(name) {
+            if built == Built::System {
+                // The window's own font: text asked for it is already drawn in it, and reading
+                // Segoe UI a second time as a message face would only cost its weight in memory.
+                return Lookup::Found(Pick::Own);
+            }
+            let family = crate::theme::document_family(built, bold);
             if self.active.contains(&family) {
                 return Lookup::Found(Pick::Family(family));
             }
-            let regular = crate::theme::document_family(font, false);
+            let regular = crate::theme::document_family(built, false);
             if bold && self.active.contains(&regular) {
                 // Installed, without a bold face: the window's bold, but a fixed-width font keeps
                 // its regular face, so text art keeps its columns (#969).
-                return Lookup::Found(if font.is_fixed_width() { Pick::Family(regular) } else { Pick::Own });
+                return Lookup::Found(if built.is_fixed_width() { Pick::Family(regular) } else { Pick::Own });
             }
         }
         let Some(index) = &self.index else {
@@ -586,7 +622,23 @@ impl Chooser {
             return Lookup::Absent;
         }
         if index.face(name, bold).is_none() {
-            // Bold text in a family with no bold face: the window's bold (#582).
+            // Bold text in a family with no bold face: the window's bold (#582) — except in a
+            // family whose characters are as wide as each other, which keeps its own regular face
+            // so that its columns stay lined up (#969).
+            if bold && index.fixed(name) {
+                let regular = family_of(name, false);
+                if self.active.contains(&regular) {
+                    return Lookup::Found(Pick::Family(regular));
+                }
+                let regular_key = (name.to_string(), false);
+                if self.missing.contains(&regular_key) {
+                    // Its regular face was read and couldn't be: the list goes on to what comes
+                    // after this family, which may be `monospace` (#1493).
+                    return Lookup::Absent;
+                }
+                self.wants.insert(regular_key);
+                return Lookup::Coming;
+            }
             return Lookup::Found(Pick::Own);
         }
         let key = (name.to_string(), bold);
@@ -616,6 +668,83 @@ impl Chooser {
         }
         store.pump(ctx);
     }
+}
+
+/// Start looking for the fonts installed here, if that hasn't begun: a font menu asks when it
+/// opens, so that the list is there a moment later. What is already known is kept.
+pub fn ask(ctx: &egui::Context) {
+    let store = Store::of(ctx);
+    let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.ask_index(ctx);
+}
+
+/// Whether the fonts installed here may yet be known: on a system with fonts folders, until the
+/// index is made ([`Store::index_coming`]).
+pub fn coming(ctx: &egui::Context) -> bool {
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.index_coming()
+}
+
+/// The installed fonts as the index has them, when they are known: the families a menu lists, in
+/// order and already folded for searching, kept whole so that a menu open for a minute doesn't
+/// build three thousand names again every frame (#1493).
+pub fn index(ctx: &egui::Context) -> Option<Arc<FontIndex>> {
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.index()
+}
+
+/// The families installed here, each by the name it gives itself, in order; `None` while they are
+/// still being found. What a font menu lists.
+pub fn names(ctx: &egui::Context) -> Option<Vec<String>> {
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    let index = store.index()?;
+    Some(index.names().iter().map(|n| (*n).to_string()).collect())
+}
+
+/// What kind of family `name` is, as its own file says: the generic family written after it in the
+/// `font-family` that goes out, so that a recipient without it gets a font of the same kind —
+/// monospace when its characters are as wide as each other, serif when its class is one of the
+/// serif ones, `cursive` for a script or a blackletter that is neither. A family whose file says
+/// nothing is taken for a sans-serif one, which is what most are.
+pub fn generic_family(ctx: &egui::Context, name: &str) -> &'static str {
+    let key = name.to_lowercase();
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    match store.index() {
+        Some(index) if index.fixed(&key) => "monospace",
+        Some(index) if index.serif(&key) => "serif",
+        Some(index) if index.script(&key) => "cursive",
+        _ => "sans-serif",
+    }
+}
+
+/// Look for the fonts installed here again, on a thread of their own: a font installed since the
+/// window started comes into the menu. Faces already read are kept — a family taken away stays
+/// drawable until the window lets go of what it keeps to show things again quickly
+/// ([`let_go`]) — and a family that is new, or has new faces, is read when next it is drawn.
+pub fn rescan(ctx: &egui::Context) {
+    let store = Store::of(ctx);
+    let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+    // A face that couldn't be read is forgotten: the file may have been replaced, and a family
+    // kept as unreadable would otherwise stay unreadable for the life of the window (#1493).
+    let before = store.faces.len();
+    store.faces.retain(|_, state| !matches!(state, FaceState::Missing));
+    store.missing = store.missing.saturating_sub(before - store.faces.len());
+    store.index = IndexState::NotAsked;
+    store.ask_index(ctx);
+}
+
+/// What is installed here, for a script or an agent (`ui.fonts`, `docs/control-protocol.md`):
+/// whether it is still being found, and the families by the names they give themselves, at most
+/// [`INSPECT_NAMES`] of them.
+pub fn inspect(ctx: &egui::Context) -> serde_json::Value {
+    const INSPECT_NAMES: usize = 2_000;
+    let coming = coming(ctx);
+    let families: Vec<String> = names(ctx).map(|n| n.into_iter().take(INSPECT_NAMES).collect()).unwrap_or_default();
+    serde_json::json!({"coming": coming, "families": families})
 }
 
 #[cfg(test)]

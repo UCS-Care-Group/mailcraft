@@ -2396,6 +2396,11 @@ msgid "Check for Updates"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check for new fonts"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
 msgstr ""
@@ -4451,6 +4456,11 @@ msgid "Find a Time"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Find a font"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 msgid "Find what"
 msgstr ""
@@ -6440,6 +6450,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Looking at the server's certificate…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Looking for fonts…"
 msgstr ""
 
 #. interface
@@ -20259,4 +20274,11 @@ msgstr ""
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] ""
+msgstr[1] ""
 
