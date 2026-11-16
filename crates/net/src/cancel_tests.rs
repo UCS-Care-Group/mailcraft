@@ -16,7 +16,7 @@ fn limits() -> Limits {
     Limits { patience: Duration::from_secs(30), connect: Duration::from_secs(3), ..Limits::default() }
 }
 
-fn names(_: &str, _: u16, _: Duration) -> Vec<SocketAddr> {
+fn names(_: &str, _: u16, _: Duration, _: &Cancel) -> Vec<SocketAddr> {
     Vec::new()
 }
 
@@ -98,4 +98,22 @@ fn a_signal_never_given_changes_nothing() {
     let reach = Reach { lookup: &names, stand_ins: &[at], dial: None };
     let got = fetch_with_cancel(&format!("http://{at}/a.png"), &reach, &limits(), &Cancel::new());
     assert_eq!(got, Ok(b"abc".to_vec()));
+}
+
+#[test]
+fn a_signal_ends_a_name_lookup_that_hangs() {
+    let stuck = |_: &str, _: u16, patience: Duration, cancel: &Cancel| {
+        super::within(patience, cancel, || std::thread::sleep(Duration::from_secs(5))).map(|()| Vec::new()).unwrap_or_default()
+    };
+    let cancel = Cancel::new();
+    let signal = cancel.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        signal.cancel();
+    });
+    let reach = Reach { lookup: &stuck, stand_ins: &[], dial: None };
+    let started = Instant::now();
+    let result = fetch_with_cancel("https://stuck.example/a.png", &reach, &limits(), &cancel);
+    assert_eq!(result, Err(PictureError::Cancelled));
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
 }

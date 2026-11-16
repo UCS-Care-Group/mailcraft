@@ -201,10 +201,17 @@ internal class SenderImages(
     private suspend fun askOne(mine: Int, place: String): Fetched? = flights.withPermit {
         // Checked again with the permit in hand: the owner may have turned sender images off, pressed
         // Clear, or switched data saving on, while this waited behind the others.
-        when {
-            mine != generation.get() || !prefsStore.load().senderImages -> null
-            source.dataSaving() -> SAVING
-            else -> source.downloadSender(place)
+        suspend fun wanted() = mine == generation.get() && prefsStore.load().senderImages
+        if (!wanted()) {
+            null
+        } else {
+            val saving = source.dataSaving()
+            // (That call can suspend: the generation and the switch are looked at once more after it.)
+            when {
+                !wanted() -> null
+                saving -> SAVING
+                else -> source.downloadSender(place)
+            }
         }
     }
 

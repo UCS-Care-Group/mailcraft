@@ -196,4 +196,31 @@ class PictureRaceTest {
         images.onScreen(listOf(late))
         assertTrue("the turned-away row is asked for after room is made", source.senderDownloads.size > before)
     }
+
+    @Test
+    fun aDownloadWhoseDataSavingQuestionIsOnItsWayAsksNothingOnceAllMailIsBlocked() {
+        val (source, store, c) = reading(PicturePrefs(all = true))
+        var left: PicturePrefs? = PicturePrefs(all = false)
+        // The owner's word changes while the question is open.
+        source.onDataSaving = {
+            left?.let { store.save(it) }
+            left = null
+            c.prefsChanged()
+        }
+        c.open(7uL, 360, dark = false)
+        assertEquals("nothing may be asked once the word is no", 0, source.downloads.size)
+    }
+
+    @Test
+    fun aSenderLookUpWhoseDataSavingQuestionIsOnItsWayAsksNothingOnceSenderImagesAreOff() {
+        val source = FakeReadSource()
+        val store = MemoryPicturePrefs(PicturePrefs(senderImages = true))
+        val images = SenderImages(source, PictureCache(dir, SniffingCheck), store, CoroutineScope(Dispatchers.Unconfined), io = Dispatchers.Unconfined)
+        source.onDataSaving = {
+            store.save(PicturePrefs(senderImages = false))
+            images.reset()
+        }
+        images.onScreen(listOf(row))
+        assertEquals(0, source.senderDownloads.size)
+    }
 }

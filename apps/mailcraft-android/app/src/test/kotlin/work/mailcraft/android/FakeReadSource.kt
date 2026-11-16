@@ -57,5 +57,11 @@ internal class FakeReadSource(var message: OpenedMessage? = null) : ReadSource {
         return marks
     }
 
-    override suspend fun dataSaving(): Boolean = dataSaver
+    /** Runs while a data-saving query is on its way (the real one suspends on another thread). */
+    var onDataSaving: suspend () -> Unit = {}
+
+    override suspend fun dataSaving(): Boolean {
+        onDataSaving()
+        return dataSaver
+    }
 }

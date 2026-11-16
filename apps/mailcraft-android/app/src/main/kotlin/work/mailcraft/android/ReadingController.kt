@@ -184,13 +184,22 @@ internal class ReadingController(
     private enum class Turn { Go, Gone, Revoked, Saving, LeftOut }
 
     /** The owner's word and the budget, looked at again with the permit in hand (a long wait may have passed). */
-    private suspend fun admit(mine: Int, id: ULong): Turn = when {
+    private suspend fun admit(mine: Int, id: ULong): Turn = stale(mine) ?: run {
+        // Data saving may have been switched on meanwhile: without a tap the picture waits for one.
+        val saving = source.dataSaving()
+        // (That call can suspend: the generation and the owner's word are looked at once more after it.)
+        stale(mine) ?: when {
+            PicturePolicy.waits(saving, synchronized(this) { id in tapped }) -> Turn.Saving
+            !budget.take(id) -> Turn.LeftOut
+            else -> Turn.Go
+        }
+    }
+
+    /** Why this look-up is over, or null while it is still the owner's wish. */
+    private fun stale(mine: Int): Turn? = when {
         mine != generation.get() -> Turn.Gone
         state.value.access != PictureAccess.Allowed -> Turn.Revoked
-        // Data saving may have been switched on meanwhile: without a tap the picture waits for one.
-        PicturePolicy.waits(source.dataSaving(), synchronized(this) { id in tapped }) -> Turn.Saving
-        !budget.take(id) -> Turn.LeftOut
-        else -> Turn.Go
+        else -> null
     }
 
     /** The picture's state, or null when the owner left the message first (nothing is asked, nothing is kept). */
