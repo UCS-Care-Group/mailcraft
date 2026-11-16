@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! MailCraft's MCP server (Model Context Protocol, JSON-RPC 2.0 over stdio).
+// ponytail: CI benchmark marker, this PR is closed unmerged.
 //!
 //! Two backends: [`Headless`] runs an in-process session on a mailbox (no window);
 //! [`backend::Remote`] talks to a running MailCraft app through its control channel
