@@ -140,6 +140,8 @@ mod late_work_tests;
 mod leave_message_tests;
 #[cfg(test)]
 mod list_keys_tests;
+#[cfg(test)]
+mod list_rearrange_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -2401,6 +2403,12 @@ impl MailApp {
                     self.jmap_refused.remove(&account);
                 }
             }
+        }
+        // A new arrangement moves the rows: the list scrolls to the selected message, from the
+        // window's menus and keys as from an agent through the control channel (#1511). With
+        // nothing selected it stays where it is.
+        if r.is_ok() && keys::REARRANGES_LIST.contains(&id) {
+            self.reveal_selection = true;
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
         // (What is remembered of a message being written goes with it.)
