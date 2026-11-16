@@ -56,6 +56,8 @@ mod attachments_tests;
 #[cfg(test)]
 mod calendar_tests;
 #[cfg(test)]
+mod compose_share_tests;
+#[cfg(test)]
 mod compose_tests;
 #[cfg(test)]
 mod fake_tests;

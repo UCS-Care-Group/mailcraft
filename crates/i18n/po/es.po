@@ -399,6 +399,12 @@ msgstr "Primero se guarda junto a él una copia de todo su buzón, como siempre.
 msgid "A date"
 msgstr "Una fecha"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "A file"
+msgstr "Un archivo"
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -3100,7 +3106,7 @@ msgid "Clipboard"
 msgstr "Portapapeles"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Cerrar"
@@ -4244,8 +4250,8 @@ msgstr "Las respuestas se dirigen a"
 msgid "Discard"
 msgstr "Descartar"
 
-#. interface
-#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Descartar"
@@ -5373,6 +5379,12 @@ msgstr "Huella digital:"
 #, fuzzy
 msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
 msgstr "Termine en la página de Microsoft en su navegador. MailCraft está esperando."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Finish or close the message you are writing, then try again."
+msgstr "Termine o cierre el mensaje que está escribiendo y vuelva a intentarlo."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -11708,6 +11720,12 @@ msgstr "La lectura de las respuestas automáticas se detuvo inesperadamente"
 #, fuzzy
 msgid "Reading the calendar from Microsoft…"
 msgstr "Leyendo el calendario de Microsoft…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
+#, fuzzy
+msgid "Reading what was shared"
+msgstr "Leyendo lo que se compartió"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -22862,6 +22880,12 @@ msgstr "{name} aceptó esta reunión."
 msgid "{name} answered this invitation."
 msgstr "{name} respondió a esta invitación."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} could not be read, so it was not attached."
+msgstr "No se pudo leer {name}, así que no se adjuntó."
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -23077,6 +23101,24 @@ msgstr "{name} compartió un calendario con usted. Está en su lista de calendar
 #, fuzzy
 msgid "{name} tentatively accepted this meeting."
 msgstr "{name} aceptó provisionalmente esta reunión."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is larger than 25 MB."
+msgstr "{name} no se adjuntó: ocupa más de 25 MB."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is not a file this app may read."
+msgstr "{name} no se adjuntó: esta aplicación no puede leer ese archivo."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: the files on a message can be 50 MB together."
+msgstr "{name} no se adjuntó: los archivos de un mensaje pueden sumar 50 MB en total."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -23677,6 +23719,14 @@ msgid "{n} minute before"
 msgid_plural "{n} minutes before"
 msgstr[0] "{n} minuto antes"
 msgstr[1] "{n} minutos antes"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{n} more file was not attached: a message takes at most {max} files from a share."
+msgid_plural "{n} more files were not attached: a message takes at most {max} files from a share."
+msgstr[0] "{n} archivo más no se adjuntó: un mensaje admite como máximo {max} archivos compartidos."
+msgstr[1] "{n} archivos más no se adjuntaron: un mensaje admite como máximo {max} archivos compartidos."
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import androidx.lifecycle.ViewModelProvider
 import java.time.ZoneId
 import java.util.Locale
@@ -56,11 +58,15 @@ class MainActivity : AppCompatActivity() {
     /** What outlives this window when Android makes it again: a file handed over, the calendar's editor. */
     private val window: WindowModel by lazy { ViewModelProvider(this)[WindowModel::class.java] }
 
+    /** What another app asked for (a mailto: link, a share), until the window has taken it up. */
+    private val incoming = mutableStateOf<Incoming?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // The intent this window is for from now on, so that a window made again reads this one.
         setIntent(intent)
         takeHandedOver(intent)
+        incoming.value = incomingOf(intent)
     }
 
     /** Reads the calendar file [intent] carries, if it carries one, off the main thread. */
@@ -74,6 +80,8 @@ class MainActivity : AppCompatActivity() {
         // A new window reads what it was opened with; a window made again after the app was put away
         // reads it again only when the file it carried was never taken in.
         if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
+        // A window built again (turned, or its language changed) has already taken a message it was asked for up.
+        if (savedInstanceState == null) incoming.value = incomingOf(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
@@ -99,7 +107,8 @@ class MainActivity : AppCompatActivity() {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         var chosen by remember { mutableStateOf(LanguageChoice.current()) }
                         val handedOver by window.handoff.file.collectAsState()
-                        Root(started, version, chosen, handedOver, window.handoff::handled, window) {
+                        val asked = Asked({ incoming.value }, { incoming.value = null })
+                        Root(started, version, chosen, handedOver, window.handoff::handled, window, asked) {
                             chosen = it
                             LanguageChoice.choose(it)
                         }
@@ -110,6 +119,56 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+/**
+ * What an intent from another app asks for ([routeIncoming] decides; nothing here is believed): its action,
+ * link, text, subject and the addresses of the files it carries. A bundle that can't be read is nothing.
+ * An intent restored from the recent apps list is not asked for again.
+ */
+internal fun incomingOf(intent: Intent?): Incoming? {
+    if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+    return try {
+        routeIncoming(
+            action = intent.action,
+            data = intent.dataString,
+            text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
+            subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString(),
+            streams = streamsOf(intent).map { it.toString() },
+        )
+    } catch (_: RuntimeException) {
+        // A hostile extra that will not unparcel: the intent is ignored.
+        null
+    }
+}
+
+/** The addresses of the files an intent carries: one for a send, a list for several. */
+private fun streamsOf(intent: Intent): List<Uri> = when (intent.action) {
+    Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+    Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+    else -> emptyList()
+}
+
+/** The message another app asked for, read when the window is drawn, and what says it was taken up. */
+internal class Asked(val current: () -> Incoming?, val handled: () -> Unit) {
+    companion object {
+        val None = Asked({ null }, {})
+    }
+}
+
+/** Starts the message another app asked for (a mailto: link or a share), once. */
+@Composable
+private fun TakeIncoming(texts: Texts, asked: Asked, writing: ComposeHost, context: Context) {
+    val shareReader = remember(context) { ResolverShareReader(context) }
+    val wanted = asked.current()
+    LaunchedEffect(wanted) {
+        if (wanted != null) {
+            asked.handled()
+            writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+        }
+    }
+    IncomingLayers(texts, writing)
+}
+
 @Composable
 internal fun Root(
     started: Started,
@@ -118,10 +177,12 @@ internal fun Root(
     handedOver: IcsRead? = null,
     onHandled: () -> Unit = {},
     window: WindowModel? = null,
+    asked: Asked = Asked.None,
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
-        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
+        is Phase.Ready ->
+            CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, asked, onLanguage)
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
@@ -155,6 +216,7 @@ private fun CoreShell(
     handedOver: IcsRead?,
     onHandled: () -> Unit,
     window: WindowModel?,
+    asked: Asked,
     onLanguage: (String) -> Unit,
 ) {
     val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
@@ -190,6 +252,7 @@ private fun CoreShell(
     val pictured = rememberPictures(core, list, scope, appContext)
     val pictures = pictured.stack
     val writing = rememberComposeHost(core, texts, scope)
+    TakeIncoming(texts, asked, writing, appContext)
     val mailActions = remember(list, scope, hub) {
         mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
             query = change(query)
