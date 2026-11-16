@@ -14790,6 +14790,11 @@ msgstr ""
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskDraft.kt
+msgid "This task could not be read."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."

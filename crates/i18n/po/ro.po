@@ -17885,6 +17885,12 @@ msgstr "Această sincronizare necesită aproximativ {needed}. Acest telefon are 
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr "Acest sistem nu are un loc cunoscut de MailCraft pentru certificatele S/MIME cu cheie privată."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskDraft.kt
+#, fuzzy
+msgid "This task could not be read."
+msgstr "Această sarcină nu a putut fi citită."
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy

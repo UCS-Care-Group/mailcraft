@@ -17745,6 +17745,12 @@ msgstr "Cette synchronisation nécessite environ {needed}. Ce téléphone dispos
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr "Ce système n'a aucun emplacement connu de MailCraft pour les certificats S/MIME avec une clé privée."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskDraft.kt
+#, fuzzy
+msgid "This task could not be read."
+msgstr "Cette tâche n'a pas pu être lue."
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy

@@ -17818,6 +17818,12 @@ msgstr "此次同步大约需要 {needed}。此手机有 {free} 可用空间，M
 msgid "This system has no place MailCraft knows for S/MIME certificates with a private key."
 msgstr "MailCraft 在此系统上找不到可存放带私钥的 S/MIME 证书的位置。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskDraft.kt
+#, fuzzy
+msgid "This task could not be read."
+msgstr "无法读取此任务。"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
