@@ -18333,7 +18333,7 @@ msgstr "Parole"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Words, from:, to:, category:, on:…"
-msgstr "Parole, da:, a:, categoria:, il:…"
+msgstr "Parole, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

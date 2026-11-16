@@ -18354,7 +18354,7 @@ msgstr "Szavak"
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Words, from:, to:, category:, on:…"
-msgstr "Szavak, a következőtől:, to:, category:, on:…"
+msgstr "Szavak, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
