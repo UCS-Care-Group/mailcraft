@@ -5,7 +5,7 @@
 use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
-use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXTS, ServerDraft};
+use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, DraftKind, DraftOf, DraftState, MAX_CHECK_NAMES, MAX_RESOLVE_PEOPLE, ServerDraft};
 use mailcraft_model::{
     AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
     NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
@@ -70,7 +70,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.checkNames", "Check Names", "Message › Names", check_names)
             .pure()
             .key("Mod+K")
-            .params(r#"{"found"?: {name: [{"name": string, "email": string, "kind"?: "mailbox"|"list"|"contact"|"group"|"publicFolder"|"other", "company"?, "department"?, "title"?}]} (the people an Exchange server account's address list has for each name, looked up by the window), "pick"?: {name: {"name": string, "email": string}} (the one chosen for a name of `choices`)} — replaces each name typed on the recipient lines with the one person it stands for, among the contacts and the people `found` gives for it. Answers `unresolved` (the names with nobody or several), `choices` (for a name with several: who they are, for the owner to choose one, given back as `pick`) and `directory` (the message's account has an address list to look names up in)"#)
+            .params(r#"{"found"?: {name: [{"name": string, "email": string, "kind"?: "mailbox"|"list"|"contact"|"group"|"publicFolder"|"other", "company"?, "department"?, "title"?}]} (the people an Exchange server account's address list has for each name, looked up by the window), "more"?: [name] (names the address list has more people for than `found` lists: never put in by themselves, always a choice), "pick"?: {name: {"name": string, "email": string}} (the one chosen for a name of `choices`)} — replaces each name typed on the recipient lines with the one person it stands for, among the contacts and the people `found` gives for it; a name left is kept as it was typed. Answers `unresolved` (the names with nobody or several), `choices` (for a name with several: who they are, for the owner to choose one, given back as `pick`), `picked` (the names of `pick` that were still on the lines and were put in) and `directory` (the message's account has an address list to look names up in)"#)
             .when_writing(needs_compose),
         CommandSpec::new("compose.suggest", "Suggest Recipients", "Message › Names", suggest_command)
             .pure()
@@ -1164,25 +1164,30 @@ fn signature_as_text(s: &mut Session, v: &Value) -> CmdResult {
 /// owner's contacts, and among `found`, the people an Exchange server account's address list has
 /// for the name (#1262; a host looked them up, `ews_resolve_request`). A name with nobody is
 /// answered in `unresolved`; one with several people is answered there too, and in `choices` with
-/// who they are, for the owner to choose one (given back as `pick`).
+/// who they are, for the owner to choose one (given back as `pick`); so is a name `more` says the
+/// address list has more people for, even with one found. A name left is written back as it was
+/// typed, so that the next Check Names reads it as one name again (`"Smith, John"`).
 /// `directory` says whether the message's account has an address list to ask.
 fn check_names(s: &mut Session, v: &Value) -> CmdResult {
     let c = s.compose.clone().ok_or_else(|| fail("no message is being written"))?;
     let found = directory_found(v)?;
+    let more = names_with_more(v)?;
     let picks = picked(v)?;
+    let mut put_in: Vec<String> = Vec::new();
     let mut unresolved: Vec<String> = Vec::new();
     let mut choices: Vec<Value> = Vec::new();
     let mut resolve = |line: &str| -> String {
-        let list: Vec<Address> = Address::parse_list(line)
+        let parts: Vec<String> = Address::parse_list(line)
             .into_iter()
             .map(|a| {
                 if a.is_valid() {
-                    return a;
+                    return a.full();
                 }
                 let typed = a.email.clone();
                 let key = text_key(&typed);
-                if let Some((_, address)) = picks.iter().find(|(text, _)| *text == key) {
-                    return address.clone();
+                if let Some((_, address, given)) = picks.iter().find(|(text, _, _)| *text == key) {
+                    put_in.push(given.clone());
+                    return address.full();
                 }
                 let mut hits: Vec<Value> = Vec::new();
                 let mut addresses: Vec<Address> = Vec::new();
@@ -1199,19 +1204,20 @@ fn check_names(s: &mut Session, v: &Value) -> CmdResult {
                         addresses.push(address);
                     }
                 }
+                let incomplete = more.contains(&key);
                 match addresses.as_slice() {
-                    [one] => one.clone(),
+                    [one] if !incomplete => one.full(),
                     _ => {
-                        if hits.len() > 1 && choices.len() < MAX_CHOICE_NAMES {
+                        if !hits.is_empty() && (hits.len() > 1 || incomplete) && choices.len() < MAX_CHECK_NAMES {
                             choices.push(json!({"text": typed, "people": hits}));
                         }
                         unresolved.push(typed);
-                        a
+                        as_typed(&a)
                     }
                 }
             })
             .collect();
-        format_list(&list)
+        parts.join("; ")
     };
     let (to, cc, bcc) = (resolve(&c.to), resolve(&c.cc), resolve(&c.bcc));
     let directory = super::ews_mail::ews_resolve_request(s, &[]).is_ok();
@@ -1220,11 +1226,14 @@ fn check_names(s: &mut Session, v: &Value) -> CmdResult {
         (now.to, now.cc, now.bcc) = (to, cc, bcc);
         now.dirty = true;
     }
-    Ok(json!({"unresolved": unresolved, "choices": choices, "directory": directory}))
+    Ok(json!({"unresolved": unresolved, "choices": choices, "picked": put_in, "directory": directory}))
 }
 
-/// The most names one Check Names answers choices for.
-const MAX_CHOICE_NAMES: usize = 20;
+/// A name nobody stands for yet, as it was typed: quoted when it holds what splits a recipient
+/// line, so that it is read as one name again.
+fn as_typed(a: &Address) -> String {
+    if a.name.is_empty() && a.email.contains([',', ';']) { format!("\"{}\"", a.email) } else { a.full() }
+}
 
 /// A name as it is matched with what was looked up: one line, as it was sent, in any letter case.
 fn text_key(text: &str) -> String {
@@ -1246,28 +1255,35 @@ fn choice(address: &Address, from: &str, company: &str, department: &str, title:
 }
 
 /// `pick` of Check Names: `{name as typed: {"name", "email"}}`, the one the owner chose for a
-/// name of `choices`.
-fn picked(v: &Value) -> Result<Vec<(String, Address)>, CmdError> {
+/// name of `choices`; with each, the name as it was given.
+fn picked(v: &Value) -> Result<Vec<(String, Address, String)>, CmdError> {
     let Some(pick) = v.get("pick").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
     let pick = pick.as_object().ok_or_else(|| bad("`pick` is an object of names, each with the person chosen"))?;
     let mut out = Vec::new();
-    for (text, person) in pick.iter().take(MAX_CHOICE_NAMES) {
+    for (text, person) in pick.iter().take(MAX_CHECK_NAMES) {
         let person: DirectoryPerson =
             serde_json::from_value(person.clone()).map_err(|_| bad("each name of `pick` has a person: {\"name\", \"email\"}"))?;
         let person = person.checked().ok_or_else(|| bad("a person of `pick` has no address mail can go to"))?;
-        out.push((text_key(text), person.address()));
+        out.push((text_key(text), person.address(), text.clone()));
     }
     Ok(out)
 }
 
+/// `more` of Check Names: the names the address list has more people for than it listed.
+fn names_with_more(v: &Value) -> Result<Vec<String>, CmdError> {
+    let Some(more) = v.get("more").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
+    let more = more.as_array().ok_or_else(|| bad("`more` is a list of names"))?;
+    more.iter().take(MAX_CHECK_NAMES).map(|name| name.as_str().map(text_key).ok_or_else(|| bad("`more` is a list of names"))).collect()
+}
+
 /// `found` of Check Names: `{name as looked up: [person…]}`, read as hostile data. A person whose
-/// address mail can't go to is passed over; at most [`MAX_RESOLVE_TEXTS`] names, [`MAX_RESOLVE_PEOPLE`]
+/// address mail can't go to is passed over; at most [`MAX_CHECK_NAMES`] names, [`MAX_RESOLVE_PEOPLE`]
 /// people each.
 fn directory_found(v: &Value) -> Result<Vec<(String, Vec<DirectoryPerson>)>, CmdError> {
     let Some(found) = v.get("found").filter(|f| !f.is_null()) else { return Ok(Vec::new()) };
     let found = found.as_object().ok_or_else(|| bad("`found` is an object of names, each with a list of people"))?;
     let mut out = Vec::new();
-    for (text, people) in found.iter().take(MAX_RESOLVE_TEXTS.saturating_mul(2)) {
+    for (text, people) in found.iter().take(MAX_CHECK_NAMES) {
         let people = people.as_array().ok_or_else(|| bad("each name of `found` has a list of people"))?;
         let people: Vec<DirectoryPerson> = people
             .iter()

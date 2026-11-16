@@ -3375,6 +3375,7 @@ dependencies = [
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-link",
+ "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-net",

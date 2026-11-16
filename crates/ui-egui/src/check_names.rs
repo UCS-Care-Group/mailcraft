@@ -18,7 +18,8 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::Ui;
 use mailcraft_engine::cmd::ews_mail::ews_resolve_request;
-use mailcraft_model::sync::{EwsResolveRequest, EwsResolveResult};
+use mailcraft_model::Id;
+use mailcraft_model::sync::{EwsResolveRequest, EwsResolveResult, MAX_CHECK_NAMES, MAX_RESOLVE_TEXT, one_line};
 use serde_json::{Map, Value, json};
 
 use crate::MailApp;
@@ -39,12 +40,29 @@ pub struct EwsResolveJob {
     pub cancel: Arc<AtomicBool>,
 }
 
-/// A look-up under way, for the message being written that asked.
+/// A look-up under way, for the message being written that asked, ten names a
+/// request until the names are done.
 pub(crate) struct Resolving {
     compose: u64,
     opening: u64,
+    /// The account whose address list is asked: a message now sent from another lets the answer go.
+    account: Id,
     rx: Receiver<EwsResolveResult>,
     cancel: Arc<AtomicBool>,
+    /// The names not asked yet.
+    rest: Vec<String>,
+    gathered: Gathered,
+}
+
+/// What the requests of one Check Names have brought so far.
+#[derive(Default)]
+struct Gathered {
+    /// `{name as looked up: [person…]}`, as `compose.checkNames` takes it.
+    found: Map<String, Value>,
+    /// The names the address list has more people for than it listed.
+    more: Vec<String>,
+    /// The names asked, as they are matched ([`key`]).
+    asked: Vec<String>,
 }
 
 impl Drop for Resolving {
@@ -76,18 +94,48 @@ impl MailApp {
             return;
         }
         if v["directory"] == json!(true)
+            && self.services.ews_resolve.is_some()
             && let Some(compose) = self.session.compose_id()
-            && let Ok(request) = ews_resolve_request(&self.session, &unresolved)
-            && let Some(secret) = self.ews_secret(request.account)
-            && let Some(resolve) = &self.services.ews_resolve
         {
-            let cancel = Arc::new(AtomicBool::new(false));
-            let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
-            self.resolving = Some(Resolving { compose, opening: self.session.openings(), rx, cancel });
-            self.status(tl!("Looking the names up in the organisation's address list…"));
+            let names: Vec<String> = unresolved.into_iter().take(MAX_CHECK_NAMES).collect();
+            match self.ask_address_list(compose, self.session.openings(), names, Gathered::default()) {
+                Ok(()) => self.status(looking()),
+                // Why the address list wasn't asked is what there is to say.
+                Err((why, _)) => {
+                    self.offer_choices(v, &[], None);
+                    if !why.is_empty() {
+                        self.status(why);
+                    }
+                }
+            }
             return;
         }
-        self.offer_choices(v, &[]);
+        self.offer_choices(v, &[], None);
+    }
+
+    /// The next names of `names` are asked for in the address list of the message's account; the
+    /// others wait their turn. What it can't be asked for is said, and `gathered` given back.
+    fn ask_address_list(&mut self, compose: u64, opening: u64, names: Vec<String>, mut gathered: Gathered) -> Result<(), (String, Gathered)> {
+        if self.offline() {
+            return Err((crate::send_receive::said(), gathered));
+        }
+        let request = match ews_resolve_request(&self.session, &names) {
+            Ok(request) if !request.texts.is_empty() => request,
+            Ok(_) => return Err((String::new(), gathered)),
+            Err(e) => return Err((tl!(&e.to_string()).to_string(), gathered)),
+        };
+        let Some(secret) = self.ews_secret(request.account) else {
+            return Err((tl!("The account's password is needed first: press Send/Receive and type it").to_string(), gathered));
+        };
+        let Some(resolve) = &self.services.ews_resolve else { return Err((String::new(), gathered)) };
+        let sent: Vec<String> = request.texts.iter().map(|text| key(text)).collect();
+        let rest = names.into_iter().filter(|name| !key(name).is_empty() && !sent.contains(&key(name))).collect();
+        let account = request.account;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
+        gathered.asked.extend(sent);
+        self.resolving = Some(Resolving { compose, opening, account, rx, cancel, rest, gathered });
+        Ok(())
     }
 
     /// Whether names are being looked up for Check Names.
@@ -95,9 +143,10 @@ impl MailApp {
         self.resolving.is_some()
     }
 
-    /// What the host found, once it has: given to Check Names, and what is left offered or said.
+    /// What the host found, once it has: the next names are asked for, and once they are all done
+    /// (or something went wrong) what came is given to Check Names, and what is left offered or said.
     pub fn poll_resolving(&mut self) {
-        let Some(resolving) = &self.resolving else { return };
+        let Some(resolving) = &mut self.resolving else { return };
         let result = match resolving.rx.try_recv() {
             Ok(result) => result,
             Err(TryRecvError::Empty) => return,
@@ -105,24 +154,39 @@ impl MailApp {
                 EwsResolveResult { error: Some(tl!("Looking the names up stopped unexpectedly").to_string()), ..Default::default() }
             }
         };
-        let (compose, opening) = (resolving.compose, resolving.opening);
+        let (compose, opening, account) = (resolving.compose, resolving.opening, resolving.account);
+        let (rest, mut gathered) = (std::mem::take(&mut resolving.rest), std::mem::take(&mut resolving.gathered));
         self.resolving = None;
-        // For a message no longer being written, or in a mailbox no longer open: let go of.
-        if self.session.compose_id() != Some(compose) || self.session.openings() != opening {
+        // For a message no longer being written, in a mailbox no longer open, or now sent from
+        // another account than the one whose address list answered: let go of.
+        let from = ews_resolve_request(&self.session, &[]).ok().map(|request| request.account);
+        if self.session.compose_id() != Some(compose) || self.session.openings() != opening || from != Some(account) {
+            if self.status_msg.as_ref().is_some_and(|(text, _)| text == looking()) {
+                self.status_msg = None;
+            }
             return;
         }
-        let mut found = Map::new();
-        let mut more = Vec::new();
         for name in &result.found {
-            found.insert(name.text.clone(), serde_json::to_value(&name.people).unwrap_or(Value::Array(Vec::new())));
+            gathered.found.insert(name.text.clone(), serde_json::to_value(&name.people).unwrap_or(Value::Array(Vec::new())));
             if name.more {
-                more.push(name.text.clone());
+                gathered.more.push(name.text.clone());
             }
         }
-        match self.execute("compose.checkNames", json!({"found": found})) {
+        if result.auth_refused {
+            self.ews_password_refused(account);
+        }
+        let error = result.error;
+        if error.is_none() && !result.auth_refused && !rest.is_empty() {
+            match self.ask_address_list(compose, opening, rest, gathered) {
+                Ok(()) => return,
+                Err((_, back)) => gathered = back,
+            }
+        }
+        let more = gathered.more.clone();
+        match self.execute("compose.checkNames", json!({"found": gathered.found, "more": gathered.more})) {
             Ok(v) => {
-                self.offer_choices(&v, &more);
-                if let Some(error) = &result.error {
+                self.offer_choices(&v, &more, Some(&gathered.asked));
+                if let Some(error) = &error {
                     self.status(tl!(error));
                 }
             }
@@ -131,16 +195,19 @@ impl MailApp {
     }
 
     /// The names of `v` with several people are offered for the owner to choose one each; the
-    /// rest, nobody's, are said.
-    fn offer_choices(&mut self, v: &Value, more: &[String]) {
+    /// rest, nobody's, are said: as not looked up, when the address list was asked (`asked`) and
+    /// they weren't among the names asked.
+    fn offer_choices(&mut self, v: &Value, more: &[String], asked: Option<&[String]>) {
         let unresolved = strings(&v["unresolved"]);
         let mut names: VecDeque<(String, Vec<Value>)> = VecDeque::new();
         for choice in v["choices"].as_array().into_iter().flatten() {
             let (Some(text), Some(people)) = (choice["text"].as_str(), choice["people"].as_array()) else { continue };
             names.push_back((text.to_string(), people.iter().take(MAX_ROWS).cloned().collect()));
         }
-        let nobody: Vec<&String> = unresolved.iter().filter(|text| !names.iter().any(|(name, _)| name == *text)).collect();
-        if nobody.is_empty() {
+        let left: Vec<&String> = unresolved.iter().filter(|text| !names.iter().any(|(name, _)| name == *text)).collect();
+        let (nobody, not_asked): (Vec<&String>, Vec<&String>) =
+            left.into_iter().partition(|text| asked.is_none_or(|asked| asked.contains(&key(text))));
+        if nobody.is_empty() && not_asked.is_empty() {
             if unresolved.is_empty() {
                 self.status(tl!("All names are checked"));
             } else {
@@ -150,8 +217,17 @@ impl MailApp {
             }
         } else {
             // (As typed, so one line and not too long, as the meeting form says them.)
-            let list: Vec<String> = nobody.iter().map(|text| text.chars().filter(|c| !c.is_control()).take(80).collect()).collect();
-            self.status(crate::i18n::fmt(tl!("Nobody matches: {names}"), &[("names", &list.join("; "))]));
+            let said = |list: &[&String]| -> String {
+                list.iter().map(|text| text.chars().filter(|c| !c.is_control()).take(80).collect::<String>()).collect::<Vec<_>>().join("; ")
+            };
+            let mut parts = Vec::new();
+            if !nobody.is_empty() {
+                parts.push(crate::i18n::fmt(tl!("Nobody matches: {names}"), &[("names", &said(&nobody))]));
+            }
+            if !not_asked.is_empty() {
+                parts.push(crate::i18n::fmt(tl!("Not looked up in the address list: {names}"), &[("names", &said(&not_asked))]));
+            }
+            self.status(parts.join(" · "));
         }
         if let (false, Some(compose)) = (names.is_empty(), self.session.compose_id())
             && self.dialog.is_none()
@@ -214,7 +290,12 @@ impl NameChoice {
         let Some(person) = chosen.and_then(|index| people.get(index)) else { return cancel };
         let pick = json!({text.clone(): {"name": person["name"], "email": person["email"]}});
         match app.execute("compose.checkNames", json!({"pick": pick})) {
-            Ok(_) => {
+            Ok(v) => {
+                // The line was changed meanwhile, and the name is no longer on it: nothing was put in.
+                if !v["picked"].as_array().is_some_and(|picked| picked.iter().any(|p| p.as_str() == Some(text.as_str()))) {
+                    let name: String = text.chars().filter(|c| !c.is_control()).take(80).collect();
+                    app.status(crate::i18n::fmt(tl!("\"{name}\" is no longer on the recipient lines"), &[("name", &name)]));
+                }
                 self.names.pop_front();
                 self.selected = 0;
                 self.error.clear();
@@ -250,6 +331,16 @@ fn second_line(person: &Value) -> String {
         _ => tl!("Address list").to_string(),
     });
     parts.join(" · ")
+}
+
+/// What the status line says while names are looked up.
+fn looking() -> &'static str {
+    tl!("Looking the names up in the organisation's address list…")
+}
+
+/// A name as it is matched with what was asked: one line, as it was sent, in any letter case.
+fn key(text: &str) -> String {
+    one_line(text, MAX_RESOLVE_TEXT).to_lowercase()
 }
 
 fn strings(v: &Value) -> Vec<String> {

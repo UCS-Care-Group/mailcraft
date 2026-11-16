@@ -61,6 +61,27 @@ fn writing(to: &str) -> (MailApp, Id, Arc<Mutex<Vec<Vec<String>>>>) {
     (app, account, asked)
 }
 
+/// The host answers every look-up with `found`, or turns the password down (`refused`).
+fn answers(app: &mut MailApp, found: Vec<EwsResolved>, refused: bool) {
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let error = refused.then(|| "The server turned the password down".to_string());
+        tx.send(EwsResolveResult { account: job.request.account, found: found.clone(), error, auth_refused: refused, ..Default::default() }).unwrap();
+        rx
+    }));
+}
+
+fn window(app: MailApp) -> Harness<'static, MailApp> {
+    Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    )
+}
+
 fn to_line(app: &MailApp) -> String {
     app.session.compose.as_ref().map(|c| c.to.clone()).unwrap_or_default()
 }
@@ -90,14 +111,7 @@ fn the_owner_chooses_one_of_several_in_the_dialog() {
     let (mut app, _, _) = writing("ada");
     app.run("compose.checkNames", json!({})).unwrap();
     app.poll_resolving();
-    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut h = window(app);
     h.run_steps(3);
     assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("checkNames"));
     // The look-up is over: the status line doesn't say it is still under way.
@@ -127,12 +141,131 @@ fn an_answer_for_a_message_no_longer_written_is_let_go_of() {
     let (mut app, _, asked) = writing("grace");
     app.run("compose.checkNames", json!({})).unwrap();
     assert_eq!(asked.lock().unwrap().len(), 1);
+    assert_eq!(status(&app), "Looking the names up in the organisation's address list…");
     app.execute("compose.close", json!({"discard": true})).unwrap();
     app.execute("mail.new", json!({"to": "grace"})).unwrap();
     app.poll_resolving();
     assert!(app.resolving.is_none());
     assert_eq!(to_line(&app), "grace");
     assert!(app.dialog.is_none());
+    // Nor is it said to be under way any longer.
+    assert_eq!(status(&app), "");
+}
+
+/// The message is sent from another account by the time the answer comes: what the first one's
+/// organisation had is not put in.
+#[test]
+fn an_answer_for_another_account_than_the_message_now_goes_from_is_let_go_of() {
+    let (mut app, _, asked) = writing("grace");
+    let other = app
+        .execute(
+            "account.add",
+            json!({"email": "bea@example.net", "kind": "exchange", "ews": {"url": "https://exchange.example.net/EWS/Exchange.asmx"}}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    app.run("compose.checkNames", json!({})).unwrap();
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    app.execute("compose.set", json!({"account": other})).unwrap();
+    app.poll_resolving();
+    assert!(app.resolving.is_none() && app.dialog.is_none());
+    assert_eq!(to_line(&app), "grace");
+    assert_eq!(status(&app), "");
+}
+
+/// A name with a comma, quoted as an organisation writes it, is looked up as one name and put in.
+#[test]
+fn a_quoted_name_with_a_comma_is_looked_up_as_one() {
+    let (mut app, _, asked) = writing("\"Smith, John\"");
+    answers(
+        &mut app,
+        vec![EwsResolved { text: "Smith, John".into(), people: vec![person("John Smith", "john.smith@example.org", "")], more: false }],
+        false,
+    );
+    let log = asked.clone();
+    let host = app.services.ews_resolve.take().unwrap();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push(job.request.texts.clone());
+        host(job)
+    }));
+    app.run("compose.checkNames", json!({})).unwrap();
+    assert_eq!(*asked.lock().unwrap(), [vec!["Smith, John".to_string()]]);
+    app.poll_resolving();
+    assert_eq!(to_line(&app), "John Smith <john.smith@example.org>");
+}
+
+/// One person found for a name the address list has more people for is asked about, not put in.
+#[test]
+fn one_person_found_where_the_address_list_has_more_is_asked_about() {
+    let (mut app, _, _) = writing("grace");
+    answers(&mut app, vec![EwsResolved { text: "grace".into(), people: vec![person("Grace Hopper", "grace@example.org", "")], more: true }], false);
+    app.run("compose.checkNames", json!({})).unwrap();
+    app.poll_resolving();
+    assert_eq!(to_line(&app), "grace");
+    let Some(Dialog::NameChoice(choice)) = &app.dialog else { panic!("{:?}", app.dialog.as_ref().map(Dialog::name)) };
+    assert_eq!((choice.names.len(), choice.more.as_slice()), (1, ["grace".to_string()].as_slice()));
+}
+
+/// More names than one request holds are asked for ten at a time, up to fifty; the names beyond
+/// are said not to have been looked up, not to have nobody.
+#[test]
+fn more_names_than_one_request_holds_are_asked_for_ten_at_a_time() {
+    let names: Vec<String> = (0..52).map(|i| format!("name{i}")).collect();
+    let (mut app, _, asked) = writing(&names.join("; "));
+    app.run("compose.checkNames", json!({})).unwrap();
+    for _ in 0..10 {
+        app.poll_resolving();
+    }
+    assert!(app.resolving.is_none());
+    let sizes: Vec<usize> = asked.lock().unwrap().iter().map(Vec::len).collect();
+    assert_eq!(sizes, [10, 10, 10, 10, 10]);
+    let said = status(&app);
+    assert!(said.starts_with("Nobody matches: name0; name1; "), "{said}");
+    assert!(said.ends_with(" · Not looked up in the address list: name50; name51"), "{said}");
+}
+
+/// A password the server turns down is forgotten, so that Send/Receive asks for it again, and
+/// Check Names says that it is needed instead of asking with it.
+#[test]
+fn a_password_the_server_turns_down_is_forgotten() {
+    let (mut app, account, _) = writing("grace");
+    answers(&mut app, Vec::new(), true);
+    app.run("compose.checkNames", json!({})).unwrap();
+    app.poll_resolving();
+    assert!(!app.passwords.contains_key(&account) && app.jmap_refused.contains(&account));
+    assert_eq!(status(&app), "The server turned the password down");
+    app.run("compose.checkNames", json!({})).unwrap();
+    assert!(app.resolving.is_none());
+    assert_eq!(status(&app), "The account's password is needed first: press Send/Receive and type it");
+}
+
+/// Working offline, only the contacts are matched, and that is why is said.
+#[test]
+fn working_offline_nothing_is_looked_up() {
+    let (mut app, _, asked) = writing("grace");
+    app.session.prefs.offline = true;
+    app.run("compose.checkNames", json!({})).unwrap();
+    assert!(asked.lock().unwrap().is_empty() && app.resolving.is_none());
+    assert_eq!(status(&app), crate::send_receive::said());
+}
+
+/// The line changed while the owner chose, and the name is no longer on it: OK puts nothing in
+/// and says so.
+#[test]
+fn a_choice_for_a_name_no_longer_on_the_line_says_so() {
+    let (mut app, _, _) = writing("ada");
+    app.run("compose.checkNames", json!({})).unwrap();
+    app.poll_resolving();
+    app.execute("compose.set", json!({"to": "somebody else"})).unwrap();
+    let mut h = window(app);
+    h.run_steps(3);
+    assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("checkNames"));
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(to_line(h.state()), "somebody else");
+    assert_eq!(status(h.state()), "\"ada\" is no longer on the recipient lines");
 }
 
 #[test]
@@ -141,7 +274,8 @@ fn without_the_password_or_a_host_only_the_contacts_are_matched() {
     app.passwords.remove(&account);
     app.run("compose.checkNames", json!({})).unwrap();
     assert!(asked.lock().unwrap().is_empty() && app.resolving.is_none());
-    assert_eq!(status(&app), "Nobody matches: grace");
+    // Why the address list wasn't asked is said.
+    assert_eq!(status(&app), "The account's password is needed first: press Send/Receive and type it");
 
     let (mut app, _, _) = writing("grace");
     app.services.ews_resolve = None;

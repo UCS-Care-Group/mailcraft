@@ -76,6 +76,12 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr "« {name} » est conservé par le serveur de {who}. Les modifications faites ici ne lui sont pas encore renvoyées, il ne peut donc pas être fusionné ici."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr "« {name} » ne figure plus dans les lignes de destinataires"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
@@ -971,6 +977,12 @@ msgstr "Ajouter des filtres"
 msgid "Add from file…"
 msgstr "Ajouter depuis un fichier…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Add somebody to send this to."
+msgstr "Ajoutez quelqu'un à qui l'envoyer."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -1005,6 +1017,12 @@ msgstr "Ajouter aux expéditeurs approuvés ou bloqués"
 msgid "Add to Tasks"
 msgstr "Ajouter aux tâches"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Add to calendar"
+msgstr "Ajouter au calendrier"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1017,8 +1035,8 @@ msgstr "Ajouté par une version plus récente de MailCraft : envoyez et receve
 msgid "Added to Contacts"
 msgstr "Ajouté aux contacts"
 
-#. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adresse"
@@ -1521,11 +1539,17 @@ msgstr "Tout ce qui attend encore d'être envoyé au serveur part d'abord : le
 msgid "Application (client) ID"
 msgstr "ID d'application (client)"
 
-#. interface
-#: crates/ui-egui/src/ribbon.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Apply"
 msgstr "Appliquer"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Calendars and Contacts Server"
+msgstr "Appliquer le serveur de calendriers et de contacts"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -1652,6 +1676,12 @@ msgstr "Appliquer les modifications de tâches envoyées"
 #, fuzzy
 msgid "Apply Subscribed Calendar"
 msgstr "Appliquer le calendrier suivi"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Uploaded Calendar and Contacts Changes"
+msgstr "Appliquer les modifications de calendriers et de contacts envoyées"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1876,6 +1906,12 @@ msgstr "Interrogation du serveur…"
 msgid "Asking your domain's DNS…"
 msgstr "Interrogation du DNS de votre domaine…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Asks before it opens"
+msgstr "Demande avant de s'ouvrir"
+
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
@@ -1963,6 +1999,12 @@ msgstr "Joindre un élément"
 #, fuzzy
 msgid "Attach a Contact Card"
 msgstr "Joindre une carte de contact"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Attach a file"
+msgstr "Joindre un fichier"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -2241,8 +2283,8 @@ msgstr "Basic (nom d'utilisateur et mot de passe via une connexion sécurisée)"
 msgid "Basic Text"
 msgstr "Texte simple"
 
-#. interface
-#: crates/ui-egui/src/compose.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Bcc"
 msgstr "Cci"
@@ -2301,8 +2343,8 @@ msgstr "Corps"
 msgid "Body contains"
 msgstr "Le corps contient"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Bold"
 msgstr "Gras"
@@ -2335,6 +2377,12 @@ msgstr "Parcourir…"
 #, fuzzy
 msgid "Building the index search answers from; until it is done, some older mail is searched more slowly"
 msgstr "Création de l'index utilisé par la recherche ; en attendant, la recherche dans le courrier plus ancien est plus lente"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Bulleted list"
+msgstr "Liste à puces"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -2420,6 +2468,18 @@ msgstr "Vérification de la connexion du calendrier"
 msgid "Calendar Listed Twice"
 msgstr "Calendrier listé deux fois"
 
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendar and Contacts Changes to Send"
+msgstr "Modifications de calendriers et de contacts à envoyer"
+
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Calendar and Contacts Server"
+msgstr "Serveur de calendriers et de contacts"
+
 #. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -2431,6 +2491,12 @@ msgstr "Calendrier et contacts"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Le calendrier et les contacts ont besoin de votre autorisation : Fichier › Informations › Connecter le calendrier et les contacts"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendars and contacts on a server are not read or written yet in this version."
+msgstr "Les calendriers et contacts d'un serveur ne sont pas encore lus ni écrits dans cette version."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2492,6 +2558,12 @@ msgstr "Calendrier…"
 msgid "Calibri"
 msgstr "Calibri"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Can't be opened here. Save it to keep it."
+msgstr "Impossible de l'ouvrir ici. Enregistrez-le pour le conserver."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -2499,7 +2571,7 @@ msgid "Can't sign"
 msgstr "Impossible de signer"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuler"
@@ -2592,10 +2664,16 @@ msgid "Categorize"
 msgstr "Catégoriser"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Cc"
 msgstr "Cc"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Cc and Bcc"
+msgstr "Cc et Cci"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -2947,6 +3025,12 @@ msgstr "Choisissez où enregistrer les diagnostics : la page de GitHub s'ouvre u
 msgid "Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so."
 msgstr "Choisissez si ces tâches sont envoyées vers le To Do d'un compte Microsoft. Rien n'est envoyé sans votre accord."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Choose who this is sent from"
+msgstr "Choisir l'expéditeur"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3044,7 +3128,7 @@ msgid "Clipboard"
 msgstr "Presse-papiers"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Fermer"
@@ -3084,6 +3168,12 @@ msgstr "Fermer la signature"
 #, fuzzy
 msgid "Close Window"
 msgstr "Fermer la fenêtre"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Close and keep as draft"
+msgstr "Fermer et conserver comme brouillon"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4171,8 +4261,8 @@ msgstr "Signé numériquement, signataire non vérifié"
 msgid "Direct Replies To"
 msgstr "Réponses directes à"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Discard"
 msgstr "Abandonner"
@@ -4521,6 +4611,12 @@ msgstr "Brouillon"
 msgid "Draft saved"
 msgstr "Brouillon enregistré"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Draft saved."
+msgstr "Brouillon enregistré."
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -4683,6 +4779,12 @@ msgstr "Modifier la signature en texte"
 #, fuzzy
 msgid "Edit Task"
 msgstr "Modifier la tâche"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
+msgid "Edit draft"
+msgstr "Modifier le brouillon"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -5189,7 +5291,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Moins de deux de ces contacts sont encore là, il n'y a donc rien à fusionner."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fichier"
@@ -5206,8 +5308,8 @@ msgstr "Les boîtes de dialogue de fichiers ne sont pas disponibles ici"
 msgid "File:"
 msgstr "Fichier :"
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."
 msgstr "Les fichiers de ce type peuvent contenir des macros, qui s'exécutent comme des programmes. Ne l'ouvrez que si vous connaissez son expéditeur et que vous l'attendiez."
@@ -5665,7 +5767,7 @@ msgid "Friday"
 msgstr "vendredi"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "De"
@@ -5709,7 +5811,7 @@ msgstr "Du carnet d'adresses de l'organisation de {account}, gardé en mémoire 
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr "De la liste d'adresses de l'organisation de {account}. Affiché pendant votre recherche et non conservé : Ajouter aux contacts en conserve une copie sur cet ordinateur."
+msgstr "Issu de la liste d'adresses de l'organisation de {account}. Affiché pendant votre recherche et non conservé : « Ajouter aux contacts » en garde une copie sur cet ordinateur."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -6216,6 +6318,12 @@ msgstr "Masquer"
 #, fuzzy
 msgid "Hide Calendar Listed Twice"
 msgstr "Masquer le calendrier listé deux fois"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Hide Cc and Bcc"
+msgstr "Masquer Cc et Cci"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -6804,7 +6912,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "Indexation du courrier : {percent} %"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Informations"
@@ -6836,6 +6944,12 @@ msgstr "Insérer un lien"
 #: crates/engine/src/cmd/signature.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Insert Picture"
+msgstr "Insérer une image"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Insert a picture"
 msgstr "Insérer une image"
 
 #. interface
@@ -7042,8 +7156,8 @@ msgstr "Il utilise un algorithme qui n'est plus sûr."
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "Elle attend sur cet ordinateur que To Do soit autorisé pour ce compte"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Italic"
 msgstr "Italique"
@@ -7527,8 +7641,8 @@ msgstr "Détails limités : et les titres"
 msgid "Line Spacing"
 msgstr "Interligne"
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/security.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Link"
 msgstr "Lien"
@@ -7593,7 +7707,7 @@ msgid "List Tasks"
 msgstr "Lister les tâches"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
 #, fuzzy
 msgid "Loading…"
 msgstr "Chargement…"
@@ -7668,7 +7782,7 @@ msgstr "Recherche des noms dans la liste d'adresses de l'organisation…"
 #: crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr "La recherche des noms s'est arrêtée de façon inattendue"
+msgstr "La recherche des noms s'est arrêtée de manière inattendue"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -8374,8 +8488,8 @@ msgid_plural "Merge {n} Contacts…"
 msgstr[0] "Fusionner {n} contact…"
 msgstr[1] "Fusionner {n} contacts…"
 
-#. interface, name, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Message"
@@ -8395,6 +8509,18 @@ msgstr ""
 #, fuzzy
 msgid "Message Preview"
 msgstr "Aperçu du message"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message queued. Sending from this phone is not available yet."
+msgstr "Message en file d'attente. L'envoi depuis ce téléphone n'est pas encore disponible."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message sent."
+msgstr "Message envoyé."
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
@@ -8646,6 +8772,12 @@ msgstr "lundi"
 msgid "Month"
 msgstr "Mois"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "More"
+msgstr "Plus"
+
 #. ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
@@ -8669,6 +8801,12 @@ msgstr "En savoir plus"
 #, fuzzy
 msgid "More actions"
 msgstr "Plus d'actions"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "More actions for {name}"
+msgstr "Plus d'actions pour {name}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -9189,8 +9327,8 @@ msgstr "« Nouveau courrier » seulement"
 msgid "New mail only, Primary mail only"
 msgstr "« Nouveau courrier » seulement, courrier principal seulement"
 
-#. interface, what a command says
-#: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
+#. android, interface, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "New message"
 msgstr "Nouveau message"
@@ -9353,6 +9491,12 @@ msgstr "Aucun compte pour l'instant : Fichier › Ajouter un compte"
 #, fuzzy
 msgid "No account's server keeps a calendar here yet, so there is nowhere to move these to."
 msgstr "Aucun serveur de compte ne conserve encore de calendrier ici, il n'y a donc nulle part où les déplacer."
+
+#. android, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/mobile/src/attachments.rs
+#, fuzzy
+msgid "No app on this phone can open that file."
+msgstr "Aucune application de ce téléphone ne peut ouvrir ce fichier."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
@@ -9669,7 +9813,7 @@ msgstr "Personne dans le carnet d'adresses ne correspond"
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Nobody in the address list matches"
-msgstr "Personne dans la liste d'adresses ne correspond"
+msgstr "Personne ne correspond dans la liste d'adresses"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9693,7 +9837,7 @@ msgstr "Personne ne correspond à la recherche"
 #: crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Nobody matches: {names}"
-msgstr "Personne ne correspond : {names}"
+msgstr "Aucune correspondance : {names}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -9839,6 +9983,12 @@ msgstr "Absente de la liste d'Outlook : pas de couleur là-bas"
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Conservée nulle part pour l'instant : utilisez Ouvrir et exporter › Enregistrer la boîte aux lettres sous."
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Not looked up in the address list: {names}"
+msgstr "Non recherchés dans la liste d'adresses : {names}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -9983,6 +10133,12 @@ msgstr "Rien de plus n'a été trouvé sur le serveur"
 msgid "Nothing new imported: {already}"
 msgstr "Rien de nouveau importé : {already}"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Nothing new was found in that calendar file."
+msgstr "Rien de nouveau n'a été trouvé dans ce fichier de calendrier."
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -10054,6 +10210,12 @@ msgstr "novembre"
 #, fuzzy
 msgid "Number of Days"
 msgstr "Nombre de jours"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Numbered list"
+msgstr "Liste numérotée"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -10409,7 +10571,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Uniquement quand MailCraft n'est pas la fenêtre au premier plan, et uniquement pour les boîtes de réception de vos propres comptes."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "Ouvrir"
@@ -10443,8 +10605,9 @@ msgstr "Ouvrir un calendrier"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Open Contact"
-msgstr ""
+msgstr "Ouvrir le contact"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -10601,14 +10764,20 @@ msgstr "Ouvrir la page"
 msgid "Open the page again"
 msgstr "Rouvrir la page"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Open this attachment?"
+msgstr "Ouvrir cette pièce jointe ?"
+
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
 #, fuzzy
 msgid "Open this calendar"
 msgstr "Ouvrir ce calendrier"
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "Ouvrir {name} ? {why}"
@@ -10714,6 +10883,12 @@ msgstr "Organisateur : votre propre calendrier"
 #, fuzzy
 msgid "Organizer: {name}"
 msgstr "Organisateur : {name}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Original message"
+msgstr "Message d'origine"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
@@ -10889,8 +11064,8 @@ msgstr "Page ouverte."
 msgid "Page {page} of {pages}"
 msgstr "Page {page} sur {pages}"
 
-#. interface
-#: crates/ui-egui/src/attachment_open.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Les pages de ce type s'ouvrent dans le navigateur, où leurs scripts s'exécutent. Ne l'ouvrez que si vous connaissez son expéditeur et que vous l'attendiez."
@@ -11718,7 +11893,7 @@ msgid "Reminders Window"
 msgstr "Fenêtre des rappels"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Supprimer"
@@ -11878,6 +12053,12 @@ msgid "Remove from Safe or Blocked Senders"
 msgstr "Retirer des expéditeurs approuvés ou bloqués"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Remove link"
+msgstr "Supprimer le lien"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Remove local data"
@@ -11918,6 +12099,12 @@ msgstr "Supprimer cette condition"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "Supprimer votre clé {format} pour {who} de cet ordinateur ? Elle est supprimée du magasin d'identifiants du système, et MailCraft ne pourra plus signer avec. Gardez une copie du fichier si vous pouvez en avoir encore besoin."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Remove {name}"
+msgstr "Supprimer {name}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -12576,6 +12763,12 @@ msgstr "Enregistrez ou annulez les modifications de ce compte avant de passer à
 msgid "Save out"
 msgstr "Exporter des données"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Save to Files"
+msgstr "Enregistrer dans Fichiers"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Saved Text"
@@ -12593,8 +12786,8 @@ msgstr "Enregistré uniquement sur cet ordinateur : cet élément n'est pas da
 msgid "Saved the message to {name}"
 msgstr "Message enregistré dans {name}"
 
-#. interface
-#: crates/ui-egui/src/compose.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Saved to Drafts"
 msgstr "Enregistré dans Brouillons"
@@ -12620,6 +12813,12 @@ msgid "Saved {n} message to {name}"
 msgid_plural "Saved {n} messages to {name}"
 msgstr[0] "{n} message enregistré dans {name}"
 msgstr[1] "{n} messages enregistrés dans {name}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Saved."
+msgstr "Enregistré."
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -12846,7 +13045,7 @@ msgstr "Rechercher un fuseau horaire"
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr "La recherche dans la liste d'adresses s'est arrêtée de façon inattendue"
+msgstr "La recherche dans la liste d'adresses s'est arrêtée de manière inattendue"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -12968,8 +13167,8 @@ msgstr "Sélectionnez une personne pour voir les détails"
 msgid "Select the message before previewing its attachment."
 msgstr "Sélectionnez le message avant d'afficher l'aperçu de sa pièce jointe."
 
-#. command label, interface, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Send"
 msgstr "Envoyer"
@@ -12981,7 +13180,7 @@ msgid "Send & Receive"
 msgstr "Envoyer et recevoir"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Envoi/réception"
@@ -13235,6 +13434,12 @@ msgstr ""
 msgid "Send/Receive All Folders"
 msgstr "Envoyer/Recevoir tous les dossiers"
 
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Send/Receive Calendars and Contacts Server"
+msgstr "Envoyer/recevoir le serveur de calendriers et de contacts"
+
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -13487,8 +13692,8 @@ msgstr "Réglages…"
 msgid "Shapes"
 msgstr "Formes"
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#. android, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Share"
 msgstr "Partager"
@@ -13707,6 +13912,12 @@ msgstr "Afficher en groupes"
 msgid "Show in the time bar"
 msgstr "Afficher dans la barre des heures"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Show less"
+msgstr "Afficher moins"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -13766,6 +13977,12 @@ msgstr "Afficher le volet des dossiers"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Afficher les messages de cette conversation"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Show the whole original"
+msgstr "Afficher tout l'original"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -14218,6 +14435,12 @@ msgstr "Certains caractères de ce message n'ont pas pu être lus : le program
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "Une partie est toujours présente, comme indiqué ci-dessus. MailCraft se ferme quand vous fermez cette fenêtre."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "Certains fichiers n’ont pas été joints : le message ne peut pas en contenir davantage."
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
@@ -14379,6 +14602,12 @@ msgstr "Indexation en cours : la recherche dans le courrier plus ancien est pl
 msgid "Stop"
 msgstr "Arrêter"
 
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Stop Using Calendar and Contacts Server"
+msgstr "Ne plus utiliser le serveur de calendriers et de contacts"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -14474,8 +14703,8 @@ msgstr "Styles"
 msgid "Subfolders"
 msgstr "Sous-dossiers"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Subject"
 msgstr "Objet"
@@ -14917,7 +15146,7 @@ msgid "That could not be done."
 msgstr "Cela n'a pas pu être fait."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
 msgid "That did not work."
 msgstr "Cela n'a pas fonctionné."
@@ -14945,6 +15174,12 @@ msgstr "Cela n’a pas abouti. La période reste inchangée."
 #, fuzzy
 msgid "That file could not be read as a calendar."
 msgstr "Ce fichier n'a pas pu être lu comme un calendrier."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "That file could not be read."
+msgstr "Ce fichier n'a pas pu être lu."
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -15115,10 +15350,10 @@ msgid "The account {address} is opened through is gone."
 msgstr "Le compte par lequel {address} est ouvert n'existe plus."
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr "Le mot de passe du compte est d'abord nécessaire : cliquez sur Envoyer/Recevoir et saisissez-le"
+msgstr "Le mot de passe du compte est d'abord nécessaire : appuyez sur Envoyer/Recevoir et tapez-le"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -15166,7 +15401,7 @@ msgstr "Le serveur du compte la crée à l'envoi de la réunion ; le lien pour
 #: crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr "La liste d'adresses contient plus de personnes de ce nom qu'elle n'en affiche : tapez davantage du nom pour en trouver une qui n'est pas listée."
+msgstr "La liste d'adresses contient plus de personnes de ce nom qu'elle n'en affiche : tapez davantage du nom pour trouver une personne non listée."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -15179,12 +15414,6 @@ msgstr "L'adresse du calendrier"
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "L'approbation n'a pas abouti."
-
-#. what a command says
-#: crates/mobile/src/fetch_api.rs
-#, fuzzy
-msgid "The attachment is too large to open on the phone."
-msgstr "La pièce jointe est trop volumineuse pour être ouverte sur le téléphone."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -15528,6 +15757,18 @@ msgstr "L'événement se termine avant de commencer."
 msgid "The event is gone."
 msgstr "L'événement n'existe plus."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "The file could not be saved there."
+msgstr "Le fichier n'a pas pu y être enregistré."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "The file could not be shared."
+msgstr "Le fichier n'a pas pu être partagé."
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -15775,6 +16016,12 @@ msgstr "Le contact fusionné aurait plus de certificats et de clés qu'un contac
 #, fuzzy
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
 msgstr "Le champ {field} du contact fusionné serait trop volumineux ({now}, au maximum {max}), les contacts ne sont donc pas fusionnés. Choisissez le champ {field} d'un seul contact, ou raccourcissez-les d'abord."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "The message could not be closed. Try again, or discard it."
+msgstr "Le message n’a pas pu être fermé. Réessayez ou supprimez-le."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
@@ -17654,7 +17901,7 @@ msgid "Title"
 msgstr "Titre"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "À"
@@ -18005,8 +18252,8 @@ msgstr "Taper * ou - suivi d'une espace en début de ligne crée une liste à pu
 msgid "Under a folder on this computer:"
 msgstr "Sous un dossier de cet ordinateur :"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Underline"
 msgstr "Souligner"
@@ -18837,12 +19084,6 @@ msgstr "Rédigez votre message"
 #, fuzzy
 msgid "Write your signature"
 msgstr "Rédigez votre signature"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
-#, fuzzy
-msgid "Writing a message is not available in this version yet."
-msgstr "La rédaction d'un message n'est pas encore disponible dans cette version."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19982,6 +20223,12 @@ msgstr "n'est pas un dossier où MailCraft conserve ses données : laissé tel q
 msgid "isn't a folder: left alone"
 msgstr "n'est pas un dossier : laissé tel quel"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "isn't switched on yet"
+msgstr "n'est pas encore activé"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -20204,6 +20451,12 @@ msgstr "aucun compte Microsoft ou de serveur Exchange ne conserve le courrier ho
 msgid "no Public key with that fingerprint is kept for that address"
 msgstr "aucune clé publique avec cette empreinte n'est conservée pour cette adresse"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar and contacts server"
+msgstr "aucun compte n'a de serveur de calendriers et de contacts"
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -20247,7 +20500,7 @@ msgid "no account with id {account}"
 msgstr "aucun compte avec l'identifiant {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "aucun compte avec l'id {id}"
@@ -20462,6 +20715,12 @@ msgstr "ce n'est pas un ensemble de messages"
 msgid "not allowed on the server yet: File › Info › Ask again"
 msgstr "pas encore autorisée sur le serveur : Fichier › Informations › Redemander"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "not an address that can be sent to"
+msgstr "pas une adresse à laquelle on peut envoyer"
+
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
@@ -20671,6 +20930,12 @@ msgstr "sélectionnez d'abord une tâche"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "sélectionnez d'abord un rendez-vous"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
+#, fuzzy
+msgid "shared mailbox"
+msgstr "boîte aux lettres partagée"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -20901,10 +21166,16 @@ msgid "the app's own code failed"
 msgstr "le code propre à l'application a échoué"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs
+#: crates/mobile/src/attachments.rs
 #, fuzzy
 msgid "the attachment could not be read"
 msgstr "la pièce jointe n'a pas pu être lue"
+
+#. what a command says
+#: crates/mobile/src/attachments.rs
+#, fuzzy
+msgid "the attachment is too large"
+msgstr "la pièce jointe est trop volumineuse"
 
 #. what a command says
 #: crates/engine/src/cmd/save_all.rs
@@ -21159,7 +21430,7 @@ msgid "the message can't hold that much text"
 msgstr "le message ne peut pas contenir autant de texte"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
+#: crates/mobile/src/attachments.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "le message n'a pas pu être lu"
@@ -21847,6 +22118,12 @@ msgstr "ce compte n'a pas de dossier Brouillons"
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "ce compte n'a pas de dossier Boîte d'envoi"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
+msgstr "ce compte n'a pas de serveur de calendriers et de contacts propre : un compte Microsoft garde ses calendriers par Microsoft, et une boîte partagée suit celle de son propriétaire"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -22806,6 +23083,14 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "{n} compte en a une"
 msgstr[1] "{n} comptes en ont une"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} attachment"
+msgid_plural "{n} attachments"
+msgstr[0] "{n} pièce jointe"
+msgstr[1] "{n} pièces jointes"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -23051,6 +23336,14 @@ msgid "{n} item"
 msgid_plural "{n} items"
 msgstr[0] "{n} élément"
 msgstr[1] "{n} éléments"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "{n} item added to your calendar"
+msgid_plural "{n} items added to your calendar"
+msgstr[0] "{n} élément ajouté à votre calendrier"
+msgstr[1] "{n} éléments ajoutés à votre calendrier"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -23462,6 +23755,14 @@ msgid_plural "{n} people proposed another time."
 msgstr[0] "{n} personne a proposé un autre horaire."
 msgstr[1] "{n} personnes ont proposé un autre horaire."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} picture in the message"
+msgid_plural "{n} pictures in the message"
+msgstr[0] "{n} image dans le message"
+msgstr[1] "{n} images dans le message"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -23848,6 +24149,14 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Writing a message is not available in this version yet."
+#~ msgstr "La rédaction d'un message n'est pas encore disponible dans cette version."
+
+#, fuzzy
+#~ msgid "The attachment is too large to open on the phone."
+#~ msgstr "La pièce jointe est trop volumineuse pour être ouverte sur le téléphone."
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
