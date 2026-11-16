@@ -607,8 +607,10 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 - **Malware running as the owner.** A program with the owner's rights can read the mailbox, the
   control key and, usually, the credential store. MailCraft doesn't defend against its own user's
   account being compromised.
-- **No S/MIME or OpenPGP yet.** Messages are protected in transit (TLS) but not end to end, and
-  signatures aren't checked.
+- **No end-to-end encryption yet.** Messages are protected in transit (TLS) but not end to end:
+  S/MIME and OpenPGP signatures are checked where a message is read (S/MIME without a revocation
+  check), but signing and encrypting what is sent, and opening encrypted mail, are not built
+  (#30).
 - **The mailbox isn't encrypted at rest.** It relies on the operating system's disk encryption
   (BitLocker, FileVault, LUKS, GELI).
 - **Builds not signed by Windows or macOS.** Releases carry MailCraft's own signature over their

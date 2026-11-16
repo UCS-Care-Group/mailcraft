@@ -5,9 +5,9 @@
 use super::*;
 
 fn unread_session() -> (mailcraft_engine::Session, mailcraft_model::Id, mailcraft_model::Id) {
-    use mailcraft_model::{Account, FolderKind, Message};
+    use mailcraft_model::{Account, AccountKind, FolderKind, Message};
     let mut mailbox = mailcraft_model::Mailbox::default();
-    let account = mailbox.add_account(Account::default());
+    let account = mailbox.add_account(Account { kind: AccountKind::Imap, email: "avery@example.org".into(), ..Default::default() });
     let inbox = mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let first = mailbox.add_message(Message { account, folder: inbox, subject: "First synthetic message".into(), ..Default::default() }).unwrap();
     let second = mailbox.add_message(Message { account, folder: inbox, subject: "Second synthetic message".into(), ..Default::default() }).unwrap();
@@ -41,25 +41,76 @@ fn badge_stays_until_the_last_unread_message_is_read_and_follows_undo() {
 }
 
 #[test]
-fn unread_mail_in_any_accounts_receiving_folders_counts_but_junk_and_unsent_mail_do_not() {
-    use mailcraft_model::{Account, FolderKind, Mailbox, Message};
-    for kind in FolderKind::STANDARD.into_iter().chain([FolderKind::Custom]) {
-        let mut mailbox = Mailbox::default();
-        mailbox.add_account(Account::default());
-        let account = mailbox.add_account(Account::default());
-        let folder = if kind == FolderKind::Custom {
-            mailbox.add_folder(account, None, "Filed by a rule").unwrap()
-        } else {
-            mailbox.folder_of_kind(account, kind).unwrap()
-        };
-        mailbox.add_message(Message { account, folder, ..Default::default() }).unwrap();
-        assert_eq!(
-            has_unread(&mut mailcraft_engine::Session::new(mailbox)),
-            matches!(kind, FolderKind::Inbox | FolderKind::Custom | FolderKind::Archive),
-            "{kind:?}"
-        );
+fn only_inboxes_of_the_owners_server_accounts_count() {
+    use mailcraft_model::{Account, AccountKind, FolderKind, Mailbox, Message};
+    for (account_kind, own_inbox_counts) in [
+        (AccountKind::Imap, true),
+        (AccountKind::Microsoft, true),
+        (AccountKind::Jmap, true),
+        (AccountKind::Exchange, true),
+        (AccountKind::Local, false),
+        (AccountKind::Unknown, false),
+    ] {
+        for shared in [false, true] {
+            for kind in FolderKind::STANDARD.into_iter().chain([FolderKind::Custom]) {
+                let mut mailbox = Mailbox::default();
+                let owner = mailbox.add_account(Account { kind: AccountKind::Microsoft, email: "owner@example.org".into(), ..Default::default() });
+                let account = mailbox.add_account(Account {
+                    kind: account_kind,
+                    email: "avery@example.org".into(),
+                    shared_of: shared.then_some(owner),
+                    ..Default::default()
+                });
+                let folder = if kind == FolderKind::Custom {
+                    mailbox.add_folder(account, None, "Imported archive").unwrap()
+                } else {
+                    mailbox.folder_of_kind(account, kind).unwrap()
+                };
+                mailbox.add_message(Message { account, folder, ..Default::default() }).unwrap();
+                assert_eq!(
+                    has_unread(&mut mailcraft_engine::Session::new(mailbox)),
+                    kind == FolderKind::Inbox && own_inbox_counts && !shared,
+                    "{account_kind:?}, shared={shared}, {kind:?}"
+                );
+            }
+        }
     }
     assert!(!has_unread(&mut mailcraft_engine::Session::empty()));
+}
+
+#[test]
+fn reading_or_filing_the_last_inbox_mail_clears_the_badge_despite_other_unread_mail() {
+    use mailcraft_model::{Account, AccountKind, FolderKind, Message};
+    let (mut session, first, second) = unread_session();
+    let owner = session.mailbox.message(first).unwrap().account;
+    let shared = session.mailbox.add_account(Account { kind: AccountKind::Microsoft, shared_of: Some(owner), ..Default::default() });
+    let local = session.mailbox.add_account(Account::default());
+    let imported = session.mailbox.add_folder(local, None, "Imported .pst Inbox").unwrap();
+    let custom = session.mailbox.add_folder(owner, None, "Filed by a rule").unwrap();
+    let archive = session.mailbox.folder_of_kind(owner, FolderKind::Archive).unwrap();
+    for (account, folder) in [
+        (shared, session.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap()),
+        (local, session.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap()),
+        (local, imported),
+        (owner, custom),
+        (owner, archive),
+    ] {
+        session.mailbox.add_message(Message { account, folder, ..Default::default() }).unwrap();
+    }
+    let other = session.mailbox.add_account(Account { kind: AccountKind::Imap, email: "other@example.org".into(), ..Default::default() });
+    let inbox = session.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    let third = session.mailbox.add_message(Message { account: other, folder: inbox, ..Default::default() }).unwrap();
+    session.mailbox_changed();
+    session.run("mail.markRead", &serde_json::json!({"ids": [first, second]})).unwrap();
+    assert!(has_unread(&mut session), "the other own account's Inbox still has unread mail");
+    session.run("mail.markRead", &serde_json::json!({"id": third})).unwrap();
+    assert!(!has_unread(&mut session), "shared, local, imported and filed unread mail must not hold the badge");
+    session.run("mail.markUnread", &serde_json::json!({"id": first})).unwrap();
+    assert!(has_unread(&mut session));
+    session.run("mail.archive", &serde_json::json!({"id": first})).unwrap();
+    assert!(!has_unread(&mut session), "filing the last unread Inbox message clears the badge");
+    session.run("edit.undo", &serde_json::json!({})).unwrap();
+    assert!(has_unread(&mut session), "undoing the move restores the unread Inbox message");
 }
 
 #[test]

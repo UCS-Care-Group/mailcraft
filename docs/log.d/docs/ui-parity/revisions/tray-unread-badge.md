@@ -1,1 +1,1 @@
-| 2026-11-15 | minor | The tray’s top-left red badge follows unread mail across accounts, clears after the last unread message is read or removed, and works independently of desktop alerts |
+| 2026-11-16 | minor | #544: The tray’s top-left red badge follows unread Inbox mail in the owner’s own server accounts, clears after the last unread Inbox message is read or removed, and works independently of desktop alerts; Fedora 45 and macOS checked, Windows pending |

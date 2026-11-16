@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -26,7 +27,7 @@ import uniffi.mailcraft_mobile.Event
  * window; the windows only read [ui].
  */
 internal class MailListController(
-    private val source: MailSource,
+    internal val source: MailSource,
     private val clock: () -> Long = System::currentTimeMillis,
     /** Waits between tries of a page that could not be read. */
     private val pause: suspend (Long) -> Unit = { delay(it) },
@@ -48,9 +49,6 @@ internal class MailListController(
 
     /** Commands are made one at a time, so that their count follows the order the core made them in. */
     private val commandLock = Mutex()
-
-    /** Pulls to refresh under way. */
-    private val refreshes = AtomicInteger()
 
     /** The rows last on screen, kept to read the same ones again after a change. */
     @Volatile
@@ -180,29 +178,25 @@ internal class MailListController(
     }
 
     /**
-     * Pull to refresh: asks the core to send and receive. A round that starts needs no word (the
-     * freshness line moves when it ends); one the core won't start says why, in its own words.
+     * Follows the Send/Receive the owner asks for through the hub ([AccountsHub.syncNow], the one path
+     * a pull to refresh takes), in [scope]: the spinner is [syncing] (the hub outlives every window, so
+     * it stops when the round does), and each [notice], why a round didn't start in the owner's
+     * language, is said once, then [noticeTaken] puts it away.
      */
-    suspend fun refresh() {
-        // The controller outlives the window whose pull started this: however it ends (the window's
-        // work called off among them), the spinner stops once the last refresh under way is over.
-        refreshes.incrementAndGet()
-        state.update { it.copy(refreshing = true) }
-        try {
-            when (val outcome = source.refresh()) {
-                RefreshOutcome.Started -> Unit
-                is RefreshOutcome.Refused -> notify(ListNotice.Said(outcome.message))
-                RefreshOutcome.Failed -> notify(ListNotice.Failed)
+    fun follow(
+        syncing: StateFlow<Boolean>,
+        notice: StateFlow<String?>,
+        noticeTaken: () -> Unit,
+        scope: CoroutineScope,
+    ) {
+        scope.launch { syncing.collect { on -> state.update { it.copy(refreshing = on) } } }
+        scope.launch {
+            notice.filterNotNull().collect {
+                notify(ListNotice.Said(it))
+                noticeTaken()
             }
-            reload()
-        } finally {
-            refreshes.decrementAndGet()
-            state.update { it.copy(refreshing = refreshes.get() > 0) }
         }
     }
-
-    /** The categories mail can be given, with their colours. */
-    suspend fun categories(): List<CategoryItem> = source.categories()
 
     /** A synchronisation finished: the list is as fresh as now. */
     fun updated() {
@@ -238,6 +232,19 @@ internal class MailListController(
     }
 
     /**
+     * Marks message [id] read, as opening it does: a command made in turn like the owner's, so that an
+     * undo offered before it is withdrawn (undo would now take back the mark). Whether it was done.
+     */
+    suspend fun markRead(id: ULong): Boolean {
+        val done = commandLock.withLock {
+            val mark = Triage.MarkRead(read = true)
+            source.run(mark.command(), jsonText(mark.params(listOf(id)))).also { if (it) commands.incrementAndGet() }
+        }
+        if (done) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
+        return done
+    }
+
+    /**
      * Takes back the change of the notice whose [command] it was, when that change is still the last:
      * once another command was made, an undo would take back that one instead, and nothing is done.
      */
@@ -265,6 +272,9 @@ internal class MailListController(
         return copy(snapshot = next, load = LoadState.Ready)
     }
 }
+
+/** The categories mail can be given, with their colours. */
+internal suspend fun MailListController.categories(): List<CategoryItem> = source.categories()
 
 /** The [pages] of the list [query] asks for, read together: each page's window, or null when it couldn't be read. */
 internal suspend fun MailSource.pages(query: MailQuery, pages: List<Int>): Map<Int, RowsWindow?> = coroutineScope {

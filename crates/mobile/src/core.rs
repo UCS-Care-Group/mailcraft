@@ -19,8 +19,9 @@ use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::{Native, NetworkKind, Platform};
 use crate::queue::Queue;
+use crate::records::{LinkKind, LinkTarget};
 use crate::sync::{FIRST_WAIT, SyncHost, follow_time_zone};
-use crate::{CoreError, DataRemoved, android};
+use crate::{CoreError, DataRemoved, HostError, android};
 
 /// The longest id of a command that is looked up, and the most bytes of parameters that are read:
 /// more is refused, as nothing a phone sends is that long.
@@ -179,7 +180,8 @@ impl Core {
         let host = mailcraft_host::init(native.clone())?;
         // What the device can spare caps what the session keeps of mail content: the lowest of the
         // live cores' budgets (a device that says nothing adds none: the engine's own cap stands).
-        let budget_id = enter_budget(host.platform().memory_budget());
+        let device_budget = host.platform().memory_budget();
+        let budget_id = enter_budget(device_budget);
         let events = Queue::new();
         let sink = EventSink { queue: events.clone() };
         let keep = match dir {
@@ -208,6 +210,9 @@ impl Core {
                 // choice dropped); the next save writes what they changed.
                 let _ = mailcraft_engine::cmd::file::after_opening(&mut session);
             }
+            // A phone keeps less than a computer: a mailbox from before the phone's own limits is
+            // moved to them, once (MB3.16).
+            crate::limits::settle(&mut session, device_budget);
             // `with_clock` set the calendar's date before the phone's zone stood in: a date `make`
             // left at that default follows the zone, one it chose stays. Asked before either change.
             let default_date = session.view.date == session.today();
@@ -511,6 +516,8 @@ impl Core {
     /// `next_event` ends. The session thread ends with its last job.
     pub fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
+        // What is being fetched is called off: nothing it brings is taken in.
+        self.sync.cancel_fetches(None);
         self.sync.pacer.poke();
         // (A sign-in waiting for its page is called off; none begins after this.)
         self.signins.cancel();
@@ -537,6 +544,17 @@ impl Core {
         match self.platform.network() {
             Ok(n) => n,
             Err(_) => NetworkKind::Unknown,
+        }
+    }
+
+    /// Follow a link of a message: a web address goes to the browser and a telephone number to the
+    /// dialer, through the platform. Only an address [`crate::links::link_target`] vouches for is
+    /// handed on; anything else (another scheme, a mail address, a part of the message) is refused
+    /// here and the platform is never asked.
+    pub fn open_link(&self, url: String) -> Result<(), HostError> {
+        match crate::links::link_target(url) {
+            Some(LinkTarget { kind: LinkKind::Web | LinkKind::Phone, shown }) => self.platform.open_link(shown).map_err(|_| HostError::Failed),
+            _ => Err(HostError::Unsupported),
         }
     }
 
@@ -579,7 +597,7 @@ impl Core {
 
 /// What the owner is told when the list of the sign-ins kept was damaged and set aside.
 pub(crate) fn may_remain(lang: Lang) -> String {
-    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them.").to_string()
+    lang.t("The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps.").to_string()
 }
 
 impl Drop for Core {

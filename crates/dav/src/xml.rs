@@ -28,6 +28,9 @@ pub struct Node {
     pub namespace: String,
     pub name: String,
     pub component_name: Option<String>,
+    /// Unprefixed attributes other than `xmlns` of `address-data-type`, `time-range` and `comp`
+    /// only (at most eight, each value at most `MAX_NAME`).
+    pub attributes: Vec<(String, String)>,
     pub text: String,
     pub children: Vec<Node>,
 }
@@ -37,6 +40,10 @@ impl Node {
     }
     pub fn child(&self, namespace: &str, name: &str) -> Option<&Self> {
         self.children.iter().find(|n| n.is(namespace, name))
+    }
+    /// The value of the unprefixed attribute `name`.
+    pub fn attribute(&self, name: &str) -> Option<&str> {
+        self.attributes.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
     }
     pub fn value(&self, namespace: &str, name: &str) -> Option<&str> {
         self.child(namespace, name).map(|n| n.text.trim())
@@ -63,6 +70,16 @@ fn valid_characters(text: &str) -> bool {
 /// Parse one UTF-8 DAV multistatus. DTDs, unknown entities, undefined prefixes, malformed
 /// trees and exceeded budgets fail the whole response; a partial tree is never returned.
 pub fn parse(bytes: &[u8]) -> Result<Node, InvalidXml> {
+    let root = parse_document(bytes)?;
+    if !root.is(DAV, "multistatus") {
+        return Err(InvalidXml);
+    }
+    Ok(root)
+}
+
+/// Parse one UTF-8 XML document with any root element, under the same budgets as [`parse`]
+/// (request bodies the stand-in reads, `DAV:error` bodies).
+pub fn parse_document(bytes: &[u8]) -> Result<Node, InvalidXml> {
     if bytes.len() > MAX_BYTES {
         return Err(InvalidXml);
     }
@@ -94,26 +111,33 @@ pub fn parse(bytes: &[u8]) -> Result<Node, InvalidXml> {
                 if count > MAX_NODES || stack.len() > MAX_DEPTH {
                     return Err(InvalidXml);
                 }
+                let local = e.local_name();
+                let name = AsRef::<str>::as_ref(&local);
+                if name.len() > MAX_NAME {
+                    return Err(InvalidXml);
+                }
+                // Attributes are kept only for the elements whose attributes are read.
+                let keeps = matches!(name, "address-data-type" | "time-range" | "comp");
                 let mut component_name = None;
+                let mut attributes: Vec<(String, String)> = Vec::new();
                 for a in e.attributes() {
                     let a = a.map_err(|_| InvalidXml)?;
                     let value = a.normalized_value(XmlVersion::Implicit1_0).map_err(|_| InvalidXml)?;
                     if !valid_characters(&value) {
                         return Err(InvalidXml);
                     }
-                    if a.key.as_ref() == "name" {
+                    let key = a.key.as_ref();
+                    if key == "name" {
                         if value.len() > MAX_NAME {
                             return Err(InvalidXml);
                         }
-                        component_name = Some(value.into_owned());
+                        component_name = Some(value.to_string());
+                    }
+                    if keeps && value.len() <= MAX_NAME && attributes.len() < 8 && !key.contains(':') && key != "xmlns" && key.len() <= MAX_NAME {
+                        attributes.push((key.to_owned(), value.to_string()));
                     }
                 }
-                let local = e.local_name();
-                let name = AsRef::<str>::as_ref(&local);
-                if name.len() > MAX_NAME {
-                    return Err(InvalidXml);
-                }
-                let node = Node { namespace, name: name.to_string(), component_name, ..Default::default() };
+                let node = Node { namespace, name: name.to_string(), component_name, attributes, ..Default::default() };
                 if stack.len() == 1 && !stack.first().ok_or(InvalidXml)?.children.is_empty() {
                     return Err(InvalidXml);
                 }
@@ -157,11 +181,7 @@ pub fn parse(bytes: &[u8]) -> Result<Node, InvalidXml> {
     if document.children.len() != 1 {
         return Err(InvalidXml);
     }
-    let root = document.children.pop().ok_or(InvalidXml)?;
-    if !root.is(DAV, "multistatus") {
-        return Err(InvalidXml);
-    }
-    Ok(root)
+    document.children.pop().ok_or(InvalidXml)
 }
 
 /// Properties explicitly returned in a successful propstat, never failed/missing properties.

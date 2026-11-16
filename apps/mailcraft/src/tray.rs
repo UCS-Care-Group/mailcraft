@@ -22,12 +22,17 @@ const SHOW: u8 = 1;
 const QUIT: u8 = 2;
 const SYNC: u8 = 4;
 
-/// Reuse the folder pane's cached counts, including mail filed by a rule. Drafts, sent
-/// mail, the outbox, junk and deleted mail must not keep the new-mail indicator lit.
+/// Reuse the folder pane's cached counts for Inboxes of the owner's server accounts,
+/// the same account and folder scope as new-mail alerts. Shared, local and imported
+/// mail, and mail filed outside the Inbox, must not keep the indicator lit.
 fn has_unread(session: &mut mailcraft_engine::Session) -> bool {
     use mailcraft_model::FolderKind;
     let counts = session.folder_counts();
-    session.mailbox.folders.iter().any(|f| matches!(f.kind, FolderKind::Inbox | FolderKind::Custom | FolderKind::Archive) && counts.unread(f.id) > 0)
+    session.mailbox.folders.iter().any(|f| {
+        f.kind == FolderKind::Inbox
+            && counts.unread(f.id) > 0
+            && session.mailbox.account(f.account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
+    })
 }
 
 /// Both backends use the same artwork. Generate the badge once, never on each frame,

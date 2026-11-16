@@ -66,8 +66,8 @@ go when a row has several (files, importance, categories) is ours, the reference
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish, Italian, Dutch, Romanian, Hungarian and Simplified Chinese as preview languages (named
-  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)", "Română (previzualizare)", "Magyar (előzetes)" and "简体中文（预览）" in File › Options; the initial Chinese catalogue was reviewed by its contributor and is offered on desktop only until the browser has a CJK font, and the others await native-speaker review; see `docs/translating.md`); Automatic follows the system. Every
+- **Languages:** English, and French, German, Spanish, Italian, Dutch, Romanian, Hungarian, Polish and Simplified Chinese as preview languages (named
+  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)", "Română (previzualizare)", "Magyar (előzetes)", "Polski (wersja zapoznawcza)" and "简体中文（预览）" in File › Options; the initial Chinese catalogue was reviewed by its contributor and is offered on desktop only until the browser has a CJK font, and the others await native-speaker review; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named
   places for what fills it, and a standard folder still called by its default name is shown in the
   interface language (one the owner named keeps its name), by its own word where the command of
@@ -93,12 +93,14 @@ icon brings the window back too. On Linux and FreeBSD, enabling the option takes
 a restart on Wayland: MailCraft chooses X11/XWayland only with the option on and a reachable X11
 server, because winit 0.30 cannot hide a native Wayland window. Otherwise the usual backend
 selection is kept; on native Wayland the close button exits normally.
-A small red circle at the top left of the tray icon indicates unread mail in any account’s
-Inbox, Archive or custom folders. It clears when the last unread message is read or removed;
-reopening the window alone does not clear it. The badge works even with desktop alerts off,
-and is restored from the mailbox when the tray is enabled or the app starts. Drafts, Outbox,
-Sent, Junk and Deleted Items do not count. The same badge artwork is used on Windows, macOS
-and Linux/BSD; numbered unread-count badges are still absent.
+A small red circle at the top left of the tray icon indicates unread mail in the Inboxes of
+the owner’s own server accounts, following the account and folder scope of new-mail alerts.
+It clears when the last unread Inbox message is read or removed; reopening the window alone
+does not clear it. The badge works even with desktop alerts off, and is restored from the
+mailbox when the tray is enabled or the app starts. Shared mailboxes, local and imported mail,
+Archive, custom folders, Drafts, Outbox, Sent, Junk and Deleted Items do not count. Windows,
+macOS and Linux/BSD use the same artwork; runtime behaviour has been checked on Fedora 45 and
+macOS, with Windows still to be checked. Numbered unread-count badges are still absent.
 
 The generated tray icons at enlarged and 24 px sizes (artwork preview):
 
