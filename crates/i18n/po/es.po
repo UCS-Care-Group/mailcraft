@@ -172,6 +172,11 @@ msgid "(none)"
 msgstr "(ninguna)"
 
 #. interface
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
+msgid "(the message's own)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -2047,7 +2052,7 @@ msgid "AutoArchive"
 msgstr "Archivado automático"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automático"
@@ -2309,11 +2314,16 @@ msgstr "Cuerpo"
 msgid "Body contains"
 msgstr "El cuerpo contiene"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Bold"
 msgstr "Negrita"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Bold Italic"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2961,6 +2971,11 @@ msgstr "Comprobando: el informe llegará en un momento…"
 #, fuzzy
 msgid "Checking…"
 msgstr "Comprobando…"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+msgid "Choose Default Font"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -3949,6 +3964,11 @@ msgstr "Disminuir sangría"
 #, fuzzy
 msgid "Default"
 msgstr "Predeterminado"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Default fonts"
+msgstr ""
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5369,7 +5389,7 @@ msgid "Find a Time"
 msgstr "Buscar una hora"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Find a font"
 msgstr "Find a font"
@@ -5589,7 +5609,7 @@ msgid "Follow up. Due {date}"
 msgstr "Seguimiento. Vence el {date}"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Font"
 msgstr "Fuente"
@@ -5605,6 +5625,21 @@ msgstr "Color de fuente"
 #, fuzzy
 msgid "Font Size"
 msgstr "Tamaño de fuente"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font color"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font — {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7157,8 +7192,8 @@ msgstr "Usa un algoritmo que ya no es seguro."
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "Espera en este equipo hasta que se permita To Do para esta cuenta"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Italic"
 msgstr "Cursiva"
@@ -7778,7 +7813,7 @@ msgid "Looking at the server's certificate…"
 msgstr "Examinando el certificado del servidor…"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Looking for fonts…"
 msgstr "Looking for fonts…"
@@ -10285,7 +10320,7 @@ msgid "Numbering"
 msgstr "Numeración"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "Aceptar"
@@ -11373,6 +11408,11 @@ msgid "Plain Text"
 msgstr "Texto sin formato"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Plain text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Point at a link to see where it goes."
@@ -11884,6 +11924,11 @@ msgstr "Actualizar"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Actualizar sus certificados y claves"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Regular"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12670,6 +12715,11 @@ msgstr "Ejecutar esta regla sobre el correo a medida que llega"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "Huella digital SHA-256"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Sample"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13739,6 +13789,11 @@ msgstr "Configuración del servidor"
 msgid "Server: {address}"
 msgstr "Servidor: {address}"
 
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Set"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -14447,7 +14502,7 @@ msgid "Single Line"
 msgstr "Una sola línea"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Tamaño"
@@ -15747,6 +15802,11 @@ msgstr "El certificado que muestra el servidor en {host} no es el que usted acep
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "El certificado no lo emitió una entidad de certificación en la que este equipo confíe."
 
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The colour is \"#rrggbb\", or Automatic"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/category.rs
 #, fuzzy
@@ -15940,6 +16000,21 @@ msgstr[1] "No se eliminó la carpeta \"{name}\": el servidor tiene {n} elementos
 #, fuzzy
 msgid "The folder isn't there."
 msgstr "La carpeta no existe."
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font new messages are written in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font plain-text messages are written and read in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font replies and forwards are written in"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -18392,8 +18467,8 @@ msgstr "Escribir * o - y un espacio al principio de una línea inicia una lista 
 msgid "Under a folder on this computer:"
 msgstr "Dentro de una carpeta de este equipo:"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Underline"
 msgstr "Subrayado"
@@ -18966,6 +19041,11 @@ msgstr "Lo que esperaba (opcional)"
 #, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
 msgstr "Lo que ve no es lo que se firmó: trátelo con cuidado."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "What you write in a message is written in these fonts. A signature and the message being answered keep their own looks."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -24376,7 +24456,7 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "…and {n} more — type to narrow it"
 msgid_plural "…and {n} more — type to narrow it"

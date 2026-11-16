@@ -175,6 +175,11 @@ msgid "(none)"
 msgstr "(nincs)"
 
 #. interface
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
+msgid "(the message's own)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -2049,7 +2054,7 @@ msgid "AutoArchive"
 msgstr "Automatikus archívum"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatikus"
@@ -2312,11 +2317,16 @@ msgstr "Üzenettörzs"
 msgid "Body contains"
 msgstr "Az üzenettörzs tartalmazza"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Bold"
 msgstr "Félkövér"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Bold Italic"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2963,6 +2973,11 @@ msgstr "Ellenőrzöm: a jelentés egy pillanat múlva érkezik…"
 #, fuzzy
 msgid "Checking…"
 msgstr "Ellenőrzöm…"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+msgid "Choose Default Font"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -3949,6 +3964,11 @@ msgstr "Behúzás csökkentése"
 #, fuzzy
 msgid "Default"
 msgstr "Alapértelmezett"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Default fonts"
+msgstr ""
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5363,7 +5383,7 @@ msgid "Find a Time"
 msgstr "Időpont keresése"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Find a font"
 msgstr "Find a font"
@@ -5581,7 +5601,7 @@ msgid "Follow up. Due {date}"
 msgstr "Elintézendő. Határidő: {date}"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Font"
 msgstr "Betűtípus"
@@ -5597,6 +5617,21 @@ msgstr "Betűszín"
 #, fuzzy
 msgid "Font Size"
 msgstr "Betűméret"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font color"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font style"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Font — {account}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7154,8 +7189,8 @@ msgstr "Egy olyan algoritmust használ, ami már nem biztonságos."
 msgid "It waits on this computer until To Do is allowed for this account"
 msgstr "Ezen a számítógépen marad, amíg nem engedélyezi a To Do használatát a fiókhoz"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Italic"
 msgstr "Dőlt"
@@ -7775,7 +7810,7 @@ msgid "Looking at the server's certificate…"
 msgstr "A szerver tanúsítványát nézve…"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Looking for fonts…"
 msgstr "Looking for fonts…"
@@ -10279,7 +10314,7 @@ msgid "Numbering"
 msgstr "Számozás"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11367,6 +11402,11 @@ msgid "Plain Text"
 msgstr "Egyszerű szöveg"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Plain text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "Point at a link to see where it goes."
@@ -11879,6 +11919,11 @@ msgstr "Frissítés"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Frissítse fel tanúsítványait és kulcsait"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Regular"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -12661,6 +12706,11 @@ msgstr "A szabály futtatása az üzenetek beérkezésekor"
 #, fuzzy
 msgid "SHA-256 fingerprint"
 msgstr "SHA-256 ujjlenyomat"
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Sample"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13730,6 +13780,11 @@ msgstr "A kiszolgáló beállításai"
 msgid "Server: {address}"
 msgstr "Kiszolgáló: {address}"
 
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "Set"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -14441,7 +14496,7 @@ msgid "Single Line"
 msgstr "Egysoros"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Méret"
@@ -15742,6 +15797,11 @@ msgstr "A tanúsítvány, amit a {host} szerverén mutat, nem az, amiben megbíz
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a számítógépes vagyonkezelő."
 
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The colour is \"#rrggbb\", or Automatic"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/category.rs
 #, fuzzy
@@ -15935,6 +15995,21 @@ msgstr[1] "A(z) „{name}” mappa nem törlődött, mert {n} új, eddig nem lá
 #, fuzzy
 msgid "The folder isn't there."
 msgstr "Nincs ott a mappa."
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font new messages are written in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font plain-text messages are written and read in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/font_dialog.rs
+msgid "The font replies and forwards are written in"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -18386,8 +18461,8 @@ msgstr "A gépelés * vagy - és egy sor elején egy hely egy golyóslistát ind
 msgid "Under a folder on this computer:"
 msgstr "A számítógép mappája alatt:"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Underline"
 msgstr "Aláhúzott"
@@ -18965,6 +19040,11 @@ msgstr "Mit vártál (választható)"
 #, fuzzy
 msgid "What you see isn't what was signed: treat it with care."
 msgstr "Amit látsz, az nem az, amit aláírtak: óvatosan bánj vele."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "What you write in a message is written in these fonts. A signature and the message being answered keep their own looks."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -24377,7 +24457,7 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
 
 #. interface
-#: crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/font_dialog.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "…and {n} more — type to narrow it"
 msgid_plural "…and {n} more — type to narrow it"
