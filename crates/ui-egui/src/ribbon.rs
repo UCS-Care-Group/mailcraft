@@ -408,6 +408,16 @@ fn no() -> Value {
     json!({})
 }
 
+/// What the owner pressed: with Shift held and nothing else, Delete runs as Delete Permanently,
+/// as in Outlook, whose permanent delete key is Shift+Delete (#1438).
+fn pressed(ui: &Ui, command: &'static str) -> &'static str {
+    if command == "mail.delete" && ui.ctx().input(|i| i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.command && !i.modifiers.alt) {
+        "mail.deletePermanently"
+    } else {
+        command
+    }
+}
+
 fn home_mail(app: &MailApp) -> Tab {
     // Junk ▾: Block Sender, Never Block…, Not Junk and Junk E-mail Options (#504).
     let junk = Item::small_menu("junk", "junk", "Junk", "Junk", Menu::Junk);
@@ -1719,7 +1729,7 @@ fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
         button = button.shortcut_text(key);
     }
     if ui.add_enabled(enabled, button).clicked() {
-        let _ = app.run(id, params.clone());
+        let _ = app.run(pressed(ui, id), params.clone());
         ui.close();
     }
 }
@@ -1934,7 +1944,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
     if main.clicked() && on {
-        let _ = app.run(command, params.clone());
+        let _ = app.run(pressed(ui, command), params.clone());
     }
     if !b.has_drop() {
         return;
@@ -2048,7 +2058,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             let resp = command_tooltip(app, resp, &item.tip_text(), command);
             if resp.clicked() && on {
-                let _ = app.run(command, params.clone());
+                let _ = app.run(pressed(ui, command), params.clone());
             }
         }
         (None, Some(menu)) => {
@@ -2096,7 +2106,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     let resp = command_tooltip(app, resp, &item.tip_text(), command);
                     if resp.clicked() && on {
-                        let _ = app.run(command, params.clone());
+                        let _ = app.run(pressed(ui, command), params.clone());
                     }
                 }
                 (None, Some(menu)) => {

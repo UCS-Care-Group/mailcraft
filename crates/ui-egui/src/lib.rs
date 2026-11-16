@@ -5905,4 +5905,6 @@ mod problem_log_tests;
 #[cfg(test)]
 mod product_names_tests;
 #[cfg(test)]
+mod shift_delete_tests;
+#[cfg(test)]
 mod tests;
