@@ -189,6 +189,7 @@ private fun CoreShell(
     val scope = rememberCoroutineScope()
     val pictured = rememberPictures(core, list, scope, appContext)
     val pictures = pictured.stack
+    val writing = rememberComposeHost(core, texts, scope)
     val mailActions = remember(list, scope, hub) {
         mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
             query = change(query)
@@ -213,6 +214,8 @@ private fun CoreShell(
             pictures = pictured.settings,
             avatars = pictured.avatars,
             attachments = pictured.attachments,
+            compose = writing.ui(),
+            snack = writing.snack,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
@@ -224,9 +227,10 @@ private fun CoreShell(
                 swipe = it
                 prefs.save(it)
             },
-            reading = pictured.reader.actions(),
+            reading = pictured.reader.actions(writing::begin),
             onPictures = pictures::changed,
             onClearPictures = pictures::clear,
+            writing = WritingActions(writing.actions(), writing::newMessage, writing::snackShown),
         ),
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,

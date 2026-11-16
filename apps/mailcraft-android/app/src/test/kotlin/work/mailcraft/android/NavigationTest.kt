@@ -16,7 +16,7 @@ class NavigationTest {
     }
 
     @Test
-    fun settingsHasItsEightSections() {
+    fun settingsHasItsNineSections() {
         assertEquals(
             listOf(
                 "Accounts", "Mail to keep offline", "Notifications", "Swipe actions", "Pictures", "Sender images",
