@@ -1,0 +1,1 @@
+| 2026-11-16 | #1176, follow-up: Move Items, Copy Items and the Move to Folder and Copy to Folder menus list the folders of every account, the one in view's first and the others' under their names, with a search that finds a folder by its mailbox too |

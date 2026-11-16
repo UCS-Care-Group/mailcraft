@@ -1,0 +1,1 @@
+- Move to Folder and Copy to Folder, in the dialog Ctrl+Shift+V and Ctrl+Shift+Y open and in the menus, offer the folders of every mailbox you have added, the one in view first and the others under their names, so a message goes into another account's folder without dragging it there ([#1176](https://github.com/GITHUB_REPOSITORY/issues/1176)).

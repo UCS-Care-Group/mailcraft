@@ -105,7 +105,6 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-16 | minor | Move Items, Copy Items and the Move to Folder and Copy to Folder menus: the folders of every account, the one in view's first and the others' under their names, not only that account's |
 | 2026-11-14 | minor | #1385: Folder pane: a shared mailbox can be named too, in its own Account Settings (its name and colour only, kept on this computer) |
 | 2026-11-14 | minor | #1384: the dark theme in neutral greys or, chosen in File › Options › General › Dark theme, the blue-tinted greys it had before |
 | 2026-11-13 | patch | The dark theme in neutral greys in place of blue-tinted ones (normal and high contrast), the accents' washes on them |
