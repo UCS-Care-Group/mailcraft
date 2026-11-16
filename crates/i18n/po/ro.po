@@ -14348,6 +14348,12 @@ msgstr "Unele caractere din acest mesaj nu au putut fi citite: programul expedit
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "O parte din ele sunt încă acolo, așa cum se vede mai sus. MailCraft se închide când închideți această fereastră."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "Unele fișiere nu au fost atașate: mesajul nu mai poate conține altele."
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy

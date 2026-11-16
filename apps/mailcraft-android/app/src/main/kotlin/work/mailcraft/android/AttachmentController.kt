@@ -194,9 +194,11 @@ internal class AttachmentController(
         pending = null
         state.update { it.copy(saving = null) }
         if (target == null || bytes == null) return
+        // The file is still written when the message is left meanwhile; only what is said of it goes.
+        val gen = generation
         scope.launch {
             val wrote = withContext(io) { device.write(target, bytes) }
-            tell(if (wrote) AttachmentNotice.Saved else AttachmentNotice.SaveFailed)
+            tell(if (wrote) AttachmentNotice.Saved else AttachmentNotice.SaveFailed, gen)
         }
     }
 

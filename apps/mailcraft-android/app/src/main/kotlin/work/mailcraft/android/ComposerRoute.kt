@@ -59,7 +59,10 @@ internal fun ComposerRoute(
         scope.launch {
             var total = 0L
             for (address in addresses) {
-                if (total >= MAX_PICKED_TOTAL) break
+                if (total >= MAX_PICKED_TOTAL) {
+                    actions.files.onTooMuch()
+                    break
+                }
                 val picked = withContext(io) { reader.read(address.toString()) }
                 total += picked?.bytes?.size ?: 0
                 actions.files.onAttach(picked?.name ?: "attachment", picked?.bytes)

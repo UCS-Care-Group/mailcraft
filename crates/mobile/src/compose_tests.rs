@@ -684,6 +684,22 @@ fn an_edit_with_more_paragraphs_than_the_phone_shows_is_refused_and_changes_noth
 }
 
 #[test]
+fn a_body_at_the_paragraph_cap_can_be_replaced_by_a_short_one() {
+    let (core, _, _) = core();
+    let v = new(&core);
+    // Fill to the cap a step at a time (each step under it), then replace all of it.
+    let mut v = v;
+    while v.paragraphs.len() < 20_000 {
+        let more = (20_000 - v.paragraphs.len()).min(5_000);
+        v = type_in(&core, &v, 0, &"\n".repeat(more));
+    }
+    assert_eq!(v.paragraphs.len(), 20_000);
+    let end = v.text.encode_utf16().count() as u32;
+    let v = block_on(core.compose_edit(v.compose, 0, end, "a\nb".into())).unwrap();
+    assert_eq!(v.text, "a\nb");
+}
+
+#[test]
 fn a_message_too_long_to_show_is_not_left_open_when_answering_it_fails() {
     let core = Core::start(FakePlatform::new(), || {
         let mut mb = mailcraft_model::Mailbox::with_local_account("Avery", "avery@example.org");

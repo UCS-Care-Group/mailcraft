@@ -14295,6 +14295,12 @@ msgstr "此邮件中的部分字符无法读取：发件人的程序未正确说
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "如上所列，部分内容仍然保留。关闭此窗口时，MailCraft 将退出。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "部分文件未添加：邮件无法再容纳更多文件。"
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy

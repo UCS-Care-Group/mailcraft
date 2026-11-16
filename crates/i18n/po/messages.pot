@@ -11850,6 +11850,11 @@ msgstr ""
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 msgid "Some of the search was checked on this computer"

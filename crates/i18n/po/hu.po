@@ -14296,6 +14296,12 @@ msgstr "Néhány karakter ebben az üzenetben nem olvasható: a küldő programj
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "Néhány még mindig ott van, ahogy fent is szerepel. MailCraft kilép, ha bezárod ezt."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "Néhány fájl nem lett csatolva: az üzenet nem tud többet hordozni."
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy

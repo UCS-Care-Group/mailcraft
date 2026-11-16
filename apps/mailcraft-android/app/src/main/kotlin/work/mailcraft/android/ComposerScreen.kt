@@ -93,6 +93,8 @@ internal class FileActions(
     val onAttach: (String, ByteArray?) -> Unit,
     val onPicture: (ByteArray?) -> Unit,
     val onRemove: (UInt) -> Unit,
+    /** Files chosen past what a message can carry were left out. */
+    val onTooMuch: () -> Unit = {},
 ) {
     companion object {
         val None = FileActions({ _, _ -> }, {}, {})
@@ -178,6 +180,7 @@ internal fun noticeText(texts: Texts, notice: ComposeNotice): String = when (not
     is ComposeNotice.Said -> notice.why.ifBlank { texts.t("That did not work.") }
     ComposeNotice.Unreadable -> texts.t("That file could not be read.")
     ComposeNotice.NoRecipient -> texts.t("Add somebody to send this to.")
+    ComposeNotice.TooMuch -> texts.t("Some of the files were not attached: the message cannot carry any more.")
     ComposeNotice.NotClosed -> texts.t("The message could not be closed. Try again, or discard it.")
 }
 

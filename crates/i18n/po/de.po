@@ -14280,6 +14280,12 @@ msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Progra
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "Ein Teil davon ist noch vorhanden, wie oben aufgeführt. MailCraft wird beendet, wenn Sie dies schließen."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "Einige Dateien wurden nicht angefügt: Die Nachricht kann keine weiteren aufnehmen."
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
