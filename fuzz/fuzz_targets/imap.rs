@@ -31,6 +31,16 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = imap.login("ada", &secret);
     let _ = imap.list();
     let _ = imap.select("INBOX", true);
+    let _ = imap.status("INBOX");
+    let _ = imap.status_many(&["INBOX", "Sent", "Drafts"]);
+    if imap.idle_begin().is_ok() {
+        for _ in 0..64 {
+            if !matches!(imap.idle_poll(), Ok(Some(_))) {
+                break;
+            }
+        }
+        let _ = imap.idle_end();
+    }
     let _ = imap.uid_fetch_flags("1:*");
     let _ = imap.uid_fetch_flags_gmail("1:*");
     let _ = imap.uid_search_gmail("1:500", "category:social");

@@ -12,7 +12,7 @@ fn mailbox(name: &str, raw: &str, delimiter: Option<char>, flags: &[&str]) -> Ma
 }
 
 fn fetched(uid: u32, flags: &[&str]) -> Fetched {
-    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None, gmail_id: None }
+    Fetched { uid, flags: flags.iter().map(|f| f.to_string()).collect(), internal_date: None, body: None, gmail_id: None, gmail_labels: None }
 }
 
 /// A FETCH response carrying `body` as a literal, between `before` and `after`.
@@ -351,7 +351,8 @@ fn a_message_arrives_whole_whatever_is_in_it() {
             flags: vec!["\\Seen".into(), "$Forwarded".into()],
             internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
             body: Some(body.to_vec()),
-            gmail_id: None
+            gmail_id: None,
+            gmail_labels: None
         }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[])\r\n");
@@ -432,7 +433,8 @@ fn a_header_arrives_alone() {
             flags: vec!["\\Seen".into()],
             internal_date: Some("17-Jul-1996 02:44:25 -0700".into()),
             body: Some(header.to_vec()),
-            gmail_id: None
+            gmail_id: None,
+            gmail_labels: None
         }
     );
     assert_eq!(s.sent(), "A0001 UID FETCH 12 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])\r\n");
@@ -1042,4 +1044,24 @@ proptest! {
         prop_assert_eq!(list.len(), 1);
         prop_assert_eq!(&list[0].raw, &name);
     }
+}
+
+#[test]
+fn namespace_reads_personal_prefix_and_delimiter() {
+    let mut s = Script::new("* NAMESPACE ((\"INBOX.\" \".\")) NIL NIL\r\nA0001 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespace().unwrap(), Some(Namespace { prefix: "INBOX.".into(), delimiter: Some('.') }));
+    assert_eq!(s.sent(), "A0001 NAMESPACE\r\n");
+
+    let mut s = Script::new("* NAMESPACE ((\"\" \"/\")) NIL NIL\r\nA0001 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespace().unwrap(), Some(Namespace { prefix: String::new(), delimiter: Some('/') }));
+
+    let mut s = Script::new("");
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into()]);
+    assert_eq!(imap.namespace().unwrap(), None);
+    assert_eq!(s.sent(), "");
 }

@@ -401,7 +401,8 @@ fn sort_by_words(shown: &mut Vec<&Message>, sort: SortBy, desc: bool) {
             SortBy::From | SortBy::Subject => an.cmp(bn).then(when(b).cmp(&when(a))),
             // As the row says it (#273): the server's size for what isn't here; one not known
             // counts as the smallest.
-            SortBy::Size => a.list_size().cmp(&b.list_size()),
+            // Within one size, newest first as within one sender (#1511).
+            SortBy::Size => a.list_size().cmp(&b.list_size()).then(when(b).cmp(&when(a))),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
             // Newest first; `by_category` then lists each under its categories.
             SortBy::Categories => when(b).cmp(&when(a)),

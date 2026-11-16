@@ -335,3 +335,29 @@ fn relayed_mail_is_judged_by_the_verdict_above_the_topmost_edge_hop() {
     headers.insert(at, h("Authentication-Results", pass));
     assert!(!vouched(Some(&microsoft()), &message("lin@example.org", headers)));
 }
+
+/// #1311: IONOS's servers sign their results `kundenserver.de`, under none of its IMAP hosts'
+/// domains: a DMARC pass of theirs vouches for the sender, and the same words from any other
+/// server don't.
+#[test]
+fn ionos_results_signed_kundenserver_vouch_for_the_sender() {
+    let ionos = Account {
+        kind: AccountKind::Imap,
+        email: "luke@ionos-customer.example".into(),
+        incoming: Some(Server { host: "imap.ionos.co.uk".into(), port: 993, security: Security::Tls }),
+        ..Account::default()
+    };
+    let message = |results: &str| Message {
+        uid: 7,
+        from: Address { name: String::new(), email: "news@example.org".into() },
+        headers: vec![h("Authentication-Results", results)],
+        ..Message::default()
+    };
+    let pass = message("kundenserver.de; dkim=pass header.i=@example.org; spf=pass smtp.mailfrom=example.org; dmarc=pass header.from=example.org");
+    assert!(vouched(Some(&ionos), &pass));
+    assert!(!vouched(Some(&ionos), &message("kundenserver.de; dmarc=fail header.from=example.org")));
+    assert!(!vouched(Some(&ionos), &message("mail.elsewhere.example; dmarc=pass header.from=example.org")));
+    // Another provider's account doesn't take IONOS's word.
+    let other = Account { incoming: Some(Server { host: "imap.mail.example".into(), port: 993, security: Security::Tls }), ..ionos.clone() };
+    assert!(!vouched(Some(&other), &pass));
+}

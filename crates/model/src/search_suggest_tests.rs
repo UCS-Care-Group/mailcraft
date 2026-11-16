@@ -235,7 +235,7 @@ proptest::proptest! {
 /// is. Each value offered after `is:` and `has:` is read as that keyword's, not as text.
 #[test]
 fn what_is_offered_is_what_the_search_reads() {
-    const OTHER_NAMES: [&str; 5] = ["categories", "attachments", "hasattachment", "hasattachments", "sent"];
+    const OTHER_NAMES: [&str; 6] = ["categories", "labels", "attachments", "hasattachment", "hasattachments", "sent"];
     for k in crate::search::KEYWORDS.iter().filter(|k| !OTHER_NAMES.contains(k)) {
         assert!(offered(k).contains(&format!("{k}:")), "{k}: is not offered");
     }

@@ -69,7 +69,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
 fn an_exchange_account_has_a_server_server_ids_and_sends_mail() {
     use crate::AccountKind::{self, *};
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::has_server), [false, true, true, true, true, false]);
-    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, false, true, false]);
+    assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::sends_mail), [false, true, true, true, true, false]);
     assert_eq!([Local, Imap, Microsoft, Jmap, Exchange, Unknown].map(AccountKind::server_ids), [false, false, true, true, true, false]);
 }
 
@@ -121,4 +121,14 @@ fn an_address_on_a_microsoft_host_is_refused_and_a_lookalike_is_not() {
         assert!(EwsServer::check_url(url).is_ok(), "{url}");
     }
     assert!(is_microsoft_domain("hotmail.co.uk") && is_microsoft_domain("live.com.au") && !is_microsoft_domain("live.bbc.com"));
+}
+
+#[test]
+fn google_hosts_are_google_s_and_nothing_that_looks_like_them() {
+    for host in ["gmail.com", "apidata.googleusercontent.com", "www.googleapis.com", "calendar.google.com.", "Mail.Google.COM", "googlemail.com"] {
+        assert!(is_google_host(host), "{host}");
+    }
+    for host in ["evilgoogle.com", "google.com.evil.example", "notgmail.com", "dav.example.org", "", "googleusercontent.com.example.org"] {
+        assert!(!is_google_host(host), "{host}");
+    }
 }

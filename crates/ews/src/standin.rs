@@ -206,6 +206,22 @@ pub struct State {
     /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
     /// a client does when only that request is refused.
     pub refuse_names: Option<(Vec<String>, u16)>,
+    /// The server behaves as an organisation's own Exchange 2010 SP3 does (#1349): it knows no
+    /// version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`, a fault, HTTP 500); its
+    /// schema has neither `item:Preview` nor `item:Flag` (a schema fault, HTTP 500, when
+    /// `SyncFolderItems` names them); its `SyncFolderItems` won't give the recipients
+    /// (`ErrorInvalidPropertyForOperation`), which `GetItem` gives; and it changes an item only when
+    /// `UpdateItem` names it with its change key (`ErrorChangeKeyRequiredForWriteOperations`, even
+    /// with `AlwaysOverwrite`).
+    pub exchange2010: bool,
+    /// With [`State::exchange2010`]: the server takes any version a request names, so that what it
+    /// does with the properties and the change keys is seen apart from the version.
+    pub takes_any_version: bool,
+    /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
+    /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
+    pub lists_no_recipients: bool,
+    /// The versions every request asked for, in order.
+    pub versions: Vec<String>,
 }
 
 impl Default for State {
@@ -275,6 +291,10 @@ impl Default for State {
             class_only_when_asked: false,
             unknown_names: Vec::new(),
             refuse_names: None,
+            exchange2010: false,
+            takes_any_version: false,
+            lists_no_recipients: false,
+            versions: Vec::new(),
         }
     }
 }
@@ -418,7 +438,12 @@ impl State {
         let version = header.child("RequestServerVersion").ok_or_else(|| invalid("a RequestServerVersion is needed"))?;
         Check::is(version, TYPES, "RequestServerVersion", &["Version"])?;
         Check::empty(version)?;
-        if !Version::NAMES.contains(&Check::attribute(version, "Version")?) {
+        let asked_version = Check::attribute(version, "Version")?;
+        self.versions.push(asked_version.to_owned());
+        // (Exchange 2010 knows the versions up to its own, the first five names.)
+        let known =
+            if self.exchange2010 && !self.takes_any_version { Version::NAMES.get(..5).unwrap_or_default() } else { Version::NAMES.as_slice() };
+        if !known.contains(&asked_version) {
             return Err(Refusal { code: "ErrorInvalidServerVersion", why: "no such version of the schema".into() });
         }
         let body = Check::required(&root, parts.get(1).copied().flatten(), "Body")?;

@@ -44,6 +44,7 @@ mod signature;
 mod signature_tests;
 #[cfg(test)]
 mod tests;
+pub(crate) mod unsubscribe;
 mod view;
 mod warnings;
 #[cfg(test)]
@@ -80,6 +81,8 @@ pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
 const SHOWN_NAMES: usize = 50;
 const SHOWN_CATEGORIES: usize = 8;
+/// Most of a message's Gmail labels shown in the reading pane (#1153).
+const SHOWN_LABELS: usize = 16;
 
 /// The widest a picture in a message's body is shown, in points. Its text fills the pane, as
 /// Outlook's does, and as the body of a reply being written does above the original (#47).
@@ -209,6 +212,10 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // A draft in the reading pane is not received mail: say so, and offer to go on writing it (#651).
     if place == Place::Pane && m.draft {
         draft_bar(app, ui, m);
+    }
+    // One waiting in the Outbox for its Send time: when it goes, and the way to change or cancel that (#950).
+    if place == Place::Pane {
+        crate::send_later::queued_bar(app, ui, m);
     }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
@@ -461,6 +468,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         // What may not be what it seems about it, above everything else (#508).
         warnings::banner(app, ui, m, place, &t);
+        // That it comes from a mailing list, and Unsubscribe (#1207).
+        unsubscribe::bar(app, ui, m, place, &t);
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
@@ -639,11 +648,15 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                 + 6.0;
         }
     }
+    gmail_labels(app, ui, m);
     // The rest of the conversation, to jump to.
     // (Worked out once per change to the mailbox, not at every frame.)
     let thread = app.session.conversation(m.id);
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+            ui.spacing_mut().button_padding = vec2(10.0, 4.0);
+            ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
             ui.label(
                 egui::RichText::new(tln!(thread.len(), "{n} message in this conversation:", "{n} messages in this conversation:"))
                     .font(regular(11.5))
@@ -656,7 +669,10 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                     other.from.display(),
                     crate::dates::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
-                let button = ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small());
+                let button = ui.add_enabled(
+                    *id != m.id,
+                    egui::Button::new(egui::RichText::new(label).font(regular(11.5))).min_size(vec2(0.0, 22.0)).corner_radius(6),
+                );
                 app.hit.add("conversationMessage", *id, button.rect);
                 if button.clicked() {
                     // The newest message of a conversation open in the list, by its own row there,
@@ -667,6 +683,27 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
             }
         });
     }
+}
+
+/// A Gmail account's labels of the message (#1153), as tags under the categories: read only, the
+/// owner's own labels but the one of the folder it is in ([`Message::shown_gmail_labels`]), each
+/// by the last part of its path, the whole path in its tooltip.
+fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
+    let folder = app.session.mailbox.folder(m.folder).map(|f| f.remote.as_str()).unwrap_or_default();
+    let labels: Vec<String> = m.shown_gmail_labels(folder).take(SHOWN_LABELS).map(str::to_string).collect();
+    if labels.is_empty() {
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+        for label in &labels {
+            let text = crate::widgets::label_tag_text(ui.painter(), mailcraft_model::gmail::label_leaf(label), 10.5, crate::widgets::LABEL_TAG_MAX);
+            let (r, response) = ui.allocate_exact_size(vec2(crate::widgets::label_tag_width(&text), 18.0), Sense::hover());
+            crate::widgets::paint_label_tag(ui.painter(), pos2(r.min.x, r.center().y), text, 16.0);
+            app.hit.add("gmailLabel", m.id, r);
+            response.on_hover_text(crate::i18n::fmt(tl!("Gmail label: {label}"), &[("label", label)]));
+        }
+    });
 }
 
 fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {

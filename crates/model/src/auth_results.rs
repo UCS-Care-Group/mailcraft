@@ -382,6 +382,28 @@ pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
     })
 }
 
+/// The DKIM signatures the account's own server says passed: each `dkim=pass` clause of its
+/// topmost own `Authentication-Results`, as its domain (`header.d`, or the domain of its
+/// `header.i`) and the start of the signature it is about (`header.b`, RFC 6008), when the
+/// server wrote it. Empty when the server said nothing, or wrote no such clause.
+pub(crate) fn dkim_passed(account: Option<&Account>, m: &Message) -> Vec<(String, Option<String>)> {
+    let Some(value) = own_results(account, m, false).and_then(|results| results.first().copied()) else { return Vec::new() };
+    let (parsed, _) = clauses(value);
+    parsed
+        .iter()
+        .filter(|words| words.first().is_some_and(|result| result.eq_ignore_ascii_case("dkim=pass")))
+        .filter_map(|words| {
+            let named = |wanted: &str| {
+                words.iter().skip(1).find_map(|word| {
+                    word.split_once('=').filter(|(key, _)| key.eq_ignore_ascii_case(wanted)).map(|(_, v)| v.trim_matches('"').to_string())
+                })
+            };
+            let signer = named("header.d").or_else(|| named("header.i").and_then(|i| i.rsplit_once('@').map(|(_, d)| d.to_string())))?;
+            Some((domain(&signer)?, named("header.b").filter(|b| !b.is_empty())))
+        })
+        .collect()
+}
+
 /// Whether the `Authentication-Results` value `value` gives a DMARC verdict: a `dmarc` (or
 /// `compauth`) clause of any result, or a part not read ([`clauses`]) where one may stand.
 fn dmarc_verdict(value: &str) -> bool {

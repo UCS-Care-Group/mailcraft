@@ -282,7 +282,7 @@ impl Mailbox {
 
     /// Whether the folder `id` is Deleted Items or lies under it (a folder the owner deleted goes
     /// there as it is).
-    fn is_in_deleted(&self, id: Id) -> bool {
+    pub(super) fn is_in_deleted(&self, id: Id) -> bool {
         let mut at = Some(id);
         for _ in 0..=crate::MAX_FOLDER_DEPTH {
             let Some(f) = at.and_then(|id| self.folder(id)) else { return false };

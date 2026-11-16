@@ -27,7 +27,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo1Mb"|"upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
@@ -35,7 +35,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"}, "outgoing"?: same} (what the host found in the domain's own SRV records, RFC 6186, #1063; taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063); what is found or guessed is for the owner to confirm; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (the found incoming server's, as its source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts; taken only with an incoming server found by autoconfig or ispdb)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -172,10 +172,15 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
     let known = found.is_some();
     // A domain nobody here knows: the servers a host found in its own records (#1063), for the
     // owner to confirm, and the usual names for whichever it lacks.
-    let (mut incoming, mut outgoing) = (None, None);
+    let (mut incoming, mut outgoing, mut username) = (None, None, email.clone());
     if !known && let Some(records) = v.get("found").filter(|f| f.is_object()) {
         incoming = found_server(records.get("incoming"), (993, 143));
         outgoing = found_server(records.get("outgoing"), (465, 587));
+        // The user name is the incoming server's: it is taken only with that server, and only
+        // from a source that writes one (the SRV records don't: the address, RFC 6186).
+        if incoming.as_ref().is_some_and(|(_, via)| *via != Via::Srv) {
+            username = found_username(p::str(records, "username").unwrap_or_default(), &email, &domain);
+        }
     }
     let preset = found.unwrap_or_else(|| provider::guess(&domain));
     let via_of = |server: &Option<(Server, Via)>| server.as_ref().map(|(_, via)| via.code()).unwrap_or("guess");
@@ -197,7 +202,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         "service": preset.service,
         "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
         "provider": preset.oauth.map(OAuthProvider::code),
-        "username": email,
+        "username": username,
         "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
         "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),
         "note": preset.note,
@@ -234,6 +239,30 @@ fn found_server(v: Option<&Value>, usual: (u16, u16)) -> Option<(Server, Via)> {
     Some((Server { host, port, security }, via))
 }
 
+/// The user name a found source says the owner signs in with: the address, or what the
+/// source's placeholders make of it. Anything else that still has a placeholder in it, or that
+/// no field could hold, is the address.
+fn found_username(template: &str, email: &str, domain: &str) -> String {
+    let template: String = template.trim().chars().filter(|c| !c.is_control()).take(254).collect();
+    if template.is_empty() {
+        return email.to_string();
+    }
+    let local = email.rsplit_once('@').map(|(local, _)| local).unwrap_or(email);
+    let placeholders = [("%EMAILADDRESS%", email), ("%EMAILLOCALPART%", local), ("%EMAILDOMAIN%", domain)];
+    // One pass over the template: what is put in is the address's own text, never read as a
+    // placeholder again, so an address with a `%` in it stays as it is.
+    let (mut filled, mut rest) = (String::new(), template.as_str());
+    while let Some((before, _)) = rest.split_once('%') {
+        let from = rest.get(before.len()..).unwrap_or_default();
+        let Some((name, value)) = placeholders.iter().find(|(name, _)| from.starts_with(name)) else { return email.to_string() };
+        filled.push_str(before);
+        filled.push_str(value);
+        rest = from.get(name.len()..).unwrap_or_default();
+    }
+    filled.push_str(rest);
+    if filled.chars().count() > 254 { email.to_string() } else { filled }
+}
+
 fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     let line = |k: &str| p::str(v, k).map(|t| t.replace(['\r', '\n'], " ").trim().chars().take(254).collect::<String>());
     if let Some(e) = line("email") {
@@ -257,8 +286,8 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     sign_in(a, v)?;
     // Which messages are fetched whole in the background (R3 spec S12).
     if let Some(limit) = p::str(v, "downloadInFull") {
-        a.download_in_full =
-            serde_json::from_value(json!(limit.trim())).map_err(|_| bad("`downloadInFull` is upTo10Mb, upTo25Mb, upTo50Mb or everything"))?;
+        a.download_in_full = serde_json::from_value(json!(limit.trim()))
+            .map_err(|_| bad("`downloadInFull` is upTo1Mb, upTo10Mb, upTo25Mb, upTo50Mb or everything"))?;
     }
     // Mail to keep offline (#143).
     if let Some(keep) = p::str(v, "keepOffline") {
@@ -305,7 +334,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap, a.ews) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -327,6 +356,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             (a.jmap, a.ews) = (None, None);
+            // An account that only lives here has no calendar and contacts server.
+            if a.kind == AccountKind::Local {
+                a.dav = None;
+            }
         }
     }
     if a.name.is_empty() {
@@ -613,14 +646,38 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     // A shorter window: what is outside it now is thinned at the next tick, for any host.
     let shortened = a.keep_offline < before.keep_offline;
+    // A longer one on a device that lists only its window's mail (a phone, MB3.16): its folders
+    // are listed afresh, to bring the older mail it now covers.
+    let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
     if shortened {
         s.driver.thinning.now = true;
+    }
+    if lengthened {
+        relist(&mut s.mailbox, id);
     }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
     Ok(json!({"id": id}))
+}
+
+/// Every folder the server has of `account`, and of the shared mailboxes opened through it, is
+/// listed afresh at their next run (MB3.16).
+fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
+    let accounts: Vec<Id> =
+        mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+    relist_accounts(mb, &accounts);
+}
+
+/// Every folder the server has of the `accounts` is listed afresh at its next run.
+pub(super) fn relist_accounts(mb: &mut mailcraft_model::Mailbox, accounts: &[Id]) {
+    for f in mb.folders.iter_mut().filter(|f| accounts.contains(&f.account)) {
+        if let Some(server) = f.server.as_mut().filter(|s| !s.id.is_empty()) {
+            server.relist = true;
+            server.relist_gen = server.relist_gen.wrapping_add(1);
+        }
+    }
 }
 
 /// `account.forgetEwsCertificate`: the account no longer trusts the certificate it was told to trust (#252).
@@ -808,9 +865,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
+    let clock = s.now();
     for m in s.mailbox.messages.values() {
         // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
-        if Some(m.folder) == outbox_folder && m.held.is_empty() {
+        // (Not what waits for its Send time, #950.)
+        if Some(m.folder) == outbox_folder && m.held.is_empty() && !m.waits_until(clock) {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
@@ -1161,6 +1220,8 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     // So has one kept in step over JMAP (`sync.jmapRequest`): every mailbox is read.
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
         s.jmap_read.remove(&account);
+        let now = s.now();
+        super::graph_send::date_undated(&mut s.mailbox, account, now);
         let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false)?).map_err(|e| fail(e.to_string()))?;
         req["jmap"] = json!(true);
         return Ok(req);
@@ -1388,7 +1449,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let gmail_moves = gmail_moves_go(s, account);
     let now = s.now();
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result);
+    let sent = file_sent(mb, account, result, now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1486,7 +1547,7 @@ impl OnServer {
 /// each): a message of the account's that is in Sent Items and not on the server yet is marked
 /// all the same. One whose copy didn't get to the server after all (`unfiled`) is no longer
 /// expected there. Returns how many were sent.
-fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
+pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now: i64) -> usize {
     let (Some(outbox), Some(sent_items)) = (mb.folder_of_kind(account, FolderKind::Outbox), mb.folder_of_kind(account, FolderKind::Sent)) else {
         return 0;
     };
@@ -1498,6 +1559,8 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // A reminder "after so many days" counts them from now that it has gone (#948).
+            mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
             // message moved in, which would put it there twice. An original elsewhere goes once
@@ -2237,8 +2300,16 @@ fn take_in(
         if uid != 0 && (on_server.by_uid.contains_key(&(folder, uid)) || on_server.leaving.contains(&(folder, uid))) {
             continue;
         }
-        if matched(mb, on_server, folder, &m).is_some() {
+        // Gmail's labels of it, cleaned again: a result can say anything (#1153).
+        m.gmail_labels = mailcraft_model::gmail::tidy_labels(&m.gmail_labels);
+        if let Some(id) = matched(mb, on_server, folder, &m) {
             counts.matched += 1;
+            // The copy here takes what Gmail says of the one on the server.
+            if mb.message(id).is_some_and(|here| here.folder == folder && here.gmail_labels != m.gmail_labels)
+                && let Ok(here) = mb.message_mut(id)
+            {
+                here.gmail_labels = std::mem::take(&mut m.gmail_labels);
+            }
             continue;
         }
         m.id = 0;
@@ -2297,6 +2368,20 @@ fn take_in(
             }
         }
     }
+    // Gmail's labels of the messages already here (#1153), as the server listed them with their
+    // flags: read only, the server's word is the one (a label changes by a move or a copy between
+    // label folders, which the server then says). Cleaned again: a result can say anything.
+    if !reset {
+        for said in delta.gmail_labels.iter().take(MAX_LABELLED) {
+            let Some(id) = on_server.by_uid.get(&(folder, said.uid)).copied() else { continue };
+            let labels = mailcraft_model::gmail::tidy_labels(&said.labels);
+            if mb.message(id).is_some_and(|m| m.folder == folder && m.gmail_labels != labels)
+                && let Ok(m) = mb.message_mut(id)
+            {
+                m.gmail_labels = labels;
+            }
+        }
+    }
     if delta.complete {
         waited_for(mb, account, on_server, folder, &delta.remote, counts);
     }
@@ -2315,6 +2400,10 @@ fn take_in(
         }
     }
 }
+
+/// Most messages of one folder's piece whose Gmail labels are taken in (#1153): more than a
+/// folder a run reads holds.
+const MAX_LABELLED: usize = 1_000_000;
 
 fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let result: SyncResult =

@@ -203,7 +203,7 @@ impl MailApp {
         self.unconfirmed = false;
         self.release_services();
         // A Send/Receive is due now rather than at the next interval.
-        self.last_auto_sync = 0.0;
+        self.session.driver.round.last_auto = 0.0;
         Ok(json!({"confirmed": true, "accounts": self.account_servers()}))
     }
 
