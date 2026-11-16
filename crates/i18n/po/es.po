@@ -2423,12 +2423,6 @@ msgstr "Calendario y contactos"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "El calendario y los contactos necesitan su permiso: Archivo › Información › Conectar calendario y contactos"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "Los calendarios y contactos de un servidor aún no se leen ni se escriben en esta versión."
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -2705,6 +2699,12 @@ msgstr "Modificado después de firmarse"
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "Cambiada: se guarda cuando elija otra firma o salga de esta página."
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "Los cambios en calendarios y contactos de un servidor aún no se envían en esta versión."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20132,6 +20132,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "ninguna cuenta tiene un servidor de calendarios y contactos"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "ninguna cuenta tiene un servidor de calendario"
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "no account here keeps its rules on its server"
@@ -21780,6 +21786,12 @@ msgstr "esta cuenta no tiene carpeta Bandeja de salida"
 #, fuzzy
 msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
 msgstr "esta cuenta no tiene un servidor de calendarios y contactos propio: una cuenta de Microsoft mantiene sus calendarios a través de Microsoft, y un buzón compartido sigue el de su propietario"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "esta cuenta no tiene un servidor de calendario"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23774,6 +23786,10 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "Los calendarios y contactos de un servidor aún no se leen ni se escriben en esta versión."
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

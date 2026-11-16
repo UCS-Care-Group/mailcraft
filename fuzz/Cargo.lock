@@ -1377,6 +1377,7 @@ dependencies = [
  "mailcraft-pst",
  "mailcraft-smime",
  "mailcraft-vcard",
+ "serde_json",
 ]
 
 [[package]]

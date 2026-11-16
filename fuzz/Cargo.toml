@@ -18,6 +18,7 @@ mailcraft-dav = { path = "../crates/dav" }
 # Mailbox files in every form (`mailbox_file`), with the small limits of its tests.
 mailcraft-engine = { path = "../crates/engine", features = ["test-support"] }
 libfuzzer-sys = "0.4"
+serde_json = "1"
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
@@ -166,6 +167,13 @@ bench = false
 [[bin]]
 name = "dav_xml"
 path = "fuzz_targets/dav_xml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_apply"
+path = "fuzz_targets/dav_apply.rs"
 test = false
 doc = false
 bench = false

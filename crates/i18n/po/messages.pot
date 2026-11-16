@@ -2014,11 +2014,6 @@ msgstr ""
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
@@ -2246,6 +2241,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Changed: saved when you choose another signature or leave this page."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
 msgstr ""
 
 #. interface
@@ -16696,6 +16696,11 @@ msgid "no account has a calendar and contacts server"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "no account has a calendar server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "no account here keeps its rules on its server"
 msgstr ""
@@ -18068,6 +18073,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/dav_account.rs
 msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this account has no calendar server"
 msgstr ""
 
 #. what a command says

@@ -1279,6 +1279,9 @@ pub struct Session {
     /// reads `MAILCRAFT_DAV=1` and sets it; off, their commands are disabled and the window offers
     /// nothing. Ships off until the feature is ready. Never saved.
     pub dav_enabled: bool,
+    /// When each account's calendar server was last asked which calendars it has (Unix seconds):
+    /// the homes are listed again after an hour ([`crate::cmd::dav_sync`]). Never saved.
+    pub dav_listed: std::collections::HashMap<Id, i64>,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1402,6 +1405,7 @@ impl Session {
             date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             dav_enabled: false,
+            dav_listed: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

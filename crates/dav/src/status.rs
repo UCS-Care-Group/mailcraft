@@ -139,8 +139,8 @@ pub fn challenges(response: &HttpResponse) -> Vec<String> {
 
 /// Most compliance classes read from a response's `DAV` headers: the cap `mailcraft_net` keeps them
 /// at, so that a class it kept is a class that is read.
-// Must match `MAX_DAV` in `mailcraft_net::http` (64) and its 96-character class cap; D4 adds the
-// cross-crate test.
+// Must match `MAX_DAV` in `mailcraft_net::http` (64) and its 96-character class cap: a test in
+// `mailcraft_net` (`dav_tests`) holds the two together.
 pub const MAX_DAV_CLASSES: usize = 64;
 
 /// The compliance classes a `DAV` header names (RFC 4918 §10.1), lower-cased: the comma-separated

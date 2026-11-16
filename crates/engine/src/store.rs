@@ -163,6 +163,15 @@ pub fn blob_dir(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
+/// Where the documents a calendar server sent are kept as they came (#209, ADR 0026): `<file>.dav`
+/// beside the mailbox file, a folder for each account, a file for each resource named by a hash of
+/// its address. Never named by anything the server wrote.
+pub fn dav_dir(path: &Path) -> PathBuf {
+    let mut name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    name.push(".dav");
+    path.with_file_name(name)
+}
+
 /// Where the word index of the mailbox file at `path` is kept: `<file>.words` beside the file it
 /// stands for ([`crate::words`]).
 pub fn words_file(path: &Path) -> PathBuf {

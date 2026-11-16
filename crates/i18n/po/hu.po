@@ -2426,12 +2426,6 @@ msgstr "Naptár és kapcsolatok"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Naptár és kapcsolatok kell az engedély: Fájl › Info › Csatlakoztassa naptár és kapcsolatok"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "A kiszolgáló naptárait és névjegyeit ez a verzió még nem olvassa és nem írja."
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -2707,6 +2701,12 @@ msgstr "Megváltozott, miután aláírták."
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "Az aláírás mentése automatikus, amikor másik aláírást választ, vagy elhagyja ezt az oldalt."
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "A kiszolgálón lévő naptárak és névjegyek módosításai ebben a verzióban még nem kerülnek elküldésre."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20129,6 +20129,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "egyik fióknak sincs naptár- és névjegykiszolgálója"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "egyik fióknak sincs naptárkiszolgálója"
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "no account here keeps its rules on its server"
@@ -21777,6 +21783,12 @@ msgstr "ez a fiók nem rendelkezik Outbox mappával"
 #, fuzzy
 msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
 msgstr "ennek a fióknak nincs saját naptár- és névjegykiszolgálója: a Microsoft-fiók a naptárait a Microsofton keresztül kezeli, a megosztott postafiók pedig a tulajdonosáét követi"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "ennek a fióknak nincs naptárkiszolgálója"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23775,6 +23787,10 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "A kiszolgáló naptárait és névjegyeit ez a verzió még nem olvassa és nem írja."
 
 #, fuzzy
 #~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."

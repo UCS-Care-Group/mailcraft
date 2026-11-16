@@ -104,6 +104,9 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     }
     let origins = server.origins().len();
     s.mailbox.account_mut(id)?.dav = Some(server);
+    if changed {
+        super::dav_sync::forget_account(s, id);
+    }
     s.dirty = true;
     Ok(json!({"id": id, "origins": origins, "changedServer": changed}))
 }
@@ -113,6 +116,7 @@ fn off(s: &mut Session, v: &Value) -> CmdResult {
     let account = s.mailbox.account_mut(id).map_err(|_| failed!("no account with id {id}", id))?;
     let had = account.dav.take().is_some();
     if had {
+        super::dav_sync::forget_account(s, id);
         s.dirty = true;
     }
     Ok(json!({"id": id, "off": had}))

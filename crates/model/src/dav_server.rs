@@ -205,6 +205,27 @@ impl DavServer {
         origins
     }
 
+    /// The origins of the homes the owner's settings name, each once: the only origins the
+    /// account's mail password may go to ([`DavServer::may_use_mail_password`]). A collection's
+    /// origin is not here for being named in a server's answer.
+    pub fn home_origins(&self) -> Vec<String> {
+        let mut origins: Vec<String> = Vec::new();
+        for origin in self.calendar_homes.iter().chain(&self.contact_homes).filter_map(|home| origin_of(home)) {
+            if !origins.contains(&origin) {
+                origins.push(origin);
+            }
+        }
+        origins
+    }
+
+    /// Whether the account's own (mail) password may be sent to `origin` ([`origin_of`] form): the
+    /// owner didn't give these servers a password of their own, and `origin` is one a home of the
+    /// settings is on. The one place this is decided. (Settings that came in a file were put right
+    /// by [`DavServer::repair`] when it was read, so a home here is one a password may go to.)
+    pub fn may_use_mail_password(&self, origin: &str) -> bool {
+        !self.separate_password && self.home_origins().iter().any(|home| home == origin)
+    }
+
     /// Longest sync token or change tag kept, in characters (a longer one is the server's
     /// mistake, or a file's).
     pub const MAX_TOKEN: usize = 1024;

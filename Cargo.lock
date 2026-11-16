@@ -3412,6 +3412,7 @@ dependencies = [
  "flate2",
  "log",
  "mailcraft-charset",
+ "mailcraft-dav",
  "mailcraft-i18n",
  "mailcraft-mime",
  "mailcraft-mime-model",
