@@ -229,6 +229,8 @@ mod shared_calendars;
 mod shared_calendars_tests;
 mod shared_mailboxes;
 #[cfg(test)]
+mod signature_link_tests;
+#[cfg(test)]
 mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
@@ -1508,6 +1510,9 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The signature open in File › Signatures is to take the keyboard back at its next frame,
+    /// after its formatting bar or the Link dialog changed its text (#1552).
+    pub(crate) signature_focus_wanted: bool,
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
@@ -1867,6 +1872,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
@@ -2262,14 +2268,21 @@ impl MailApp {
         r
     }
 
-    /// The body of the current message being written takes the keyboard back at its next frame.
+    /// The text being edited takes the keyboard back at its next frame: the body of the message
+    /// being written, or the signature open in File › Signatures.
     pub(crate) fn want_body_focus(&mut self) {
         self.body_focus_wanted = self.session.compose_id();
+        self.signature_focus_wanted = self.session.signature_edit.is_some();
     }
 
     /// Whether the body of the current message being written is to take the keyboard back now; asked once.
     pub(crate) fn take_body_focus(&mut self) -> bool {
         self.body_focus_wanted.take().is_some_and(|id| Some(id) == self.session.compose_id())
+    }
+
+    /// Whether the signature open in File › Signatures is to take the keyboard back now; asked once.
+    pub(crate) fn take_signature_focus(&mut self) -> bool {
+        std::mem::take(&mut self.signature_focus_wanted) && self.session.signature_edit.is_some()
     }
 
     /// Whether the Bcc line of the current message being written is shown.
