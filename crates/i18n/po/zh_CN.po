@@ -2850,6 +2850,12 @@ msgid "Check Now"
 msgstr "立即查看"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check Recipients"
+msgstr "检查收件人"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Check both servers before you connect."
@@ -2884,6 +2890,12 @@ msgstr "检查新版本"
 #, fuzzy
 msgid "Check the account's settings"
 msgstr "检查账户设置"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check the recipients before this message goes:"
+msgstr "在发送此邮件之前，请检查收件人："
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8882,6 +8894,12 @@ msgid "Move this rule up: it runs earlier"
 msgstr "将此规则上移，使其提前执行"
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Move to Bcc"
+msgstr "移至密送"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
@@ -13084,6 +13102,12 @@ msgstr "发送/接收"
 #, fuzzy
 msgid "Send Again"
 msgstr "再次发送"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Send Anyway"
+msgstr "仍然发送"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17459,6 +17483,13 @@ msgid "This message has a warning about its sender: move it to Junk E-mail inste
 msgstr "此邮件有关于其发件人的警告：请将其移到垃圾邮件，而不是退订。"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
+msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgstr[0] "此邮件的收件人多于 MailCraft 检查的数量：只检查了第一位。"
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "This message has no text."
@@ -20609,6 +20640,12 @@ msgid "not known until the first Send/Receive"
 msgstr "首次发送/接收后才能知道"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr "未发送：{why}。使用 \"confirmed\": true 发送可强制发送，或使用 \"moveToBcc\": true 先将组织外的人员移至密送"
+
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing is selected in the message"
@@ -22421,6 +22458,12 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr "{address} 不是此处打开的共享邮箱。"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{address} looks like {like}, which you write to, but isn't the same address."
+msgstr "{address} 与你写信的 {like} 很相似，但不是同一个地址。"
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "{address}: {error}. It will try again at the next Send/Receive."
@@ -23566,6 +23609,13 @@ msgstr[0] "无法从邮箱内容文件夹中读取 {n} 个邮件部分"
 msgid "{n} person is invited to this meeting."
 msgid_plural "{n} people are invited to this meeting."
 msgstr[0] "{n}人受邀参加本次会议。"
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
+msgstr[0] "组织外有 {n} 人（分布在 {domains} 个域），会在收件人和抄送中看到其他人的地址。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
