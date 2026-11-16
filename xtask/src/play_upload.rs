@@ -104,7 +104,7 @@ impl Account {
     /// The signed JWT that asks for an access token, valid for an hour from `now`.
     pub fn jwt(&self, now: u64) -> Result<String, String> {
         let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256","typ":"JWT"}"#);
-        let claims = serde_json::json!({ "iss": self.email, "scope": SCOPE, "aud": TOKEN_URL, "iat": now, "exp": now + 3600 });
+        let claims = serde_json::json!({ "iss": self.email, "scope": SCOPE, "aud": TOKEN_URL, "iat": now, "exp": now.saturating_add(3600) });
         let input = format!("{header}.{}", URL_SAFE_NO_PAD.encode(claims.to_string()));
         let pair = RsaKeyPair::from_pkcs8(&self.der).map_err(|_| "the private key doesn't read")?;
         let mut signature = vec![0; pair.public().modulus_len()];
