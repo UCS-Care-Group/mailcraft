@@ -483,6 +483,11 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // Calendar and contacts servers (#209): choosing where an account's calendars and contacts
+    // are, and so where its password may be sent, is the owner's. (The question about a host
+    // outside the owner's domain and trusting a certificate join them when their commands exist.)
+    "account.davSet",
+    "account.davOff",
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
@@ -601,6 +606,11 @@ const NEVER: &[&str] = &[
     "sync.applyEws",
     "sync.ewsFetchRequest",
     "sync.applyEwsFetch",
+    // Calendars and contacts on a server (#209), likewise.
+    "sync.davRequest",
+    "sync.applyDav",
+    "sync.davChanges",
+    "sync.applyDavUploaded",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
