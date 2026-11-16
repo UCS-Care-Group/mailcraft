@@ -377,13 +377,37 @@ impl PastedTable {
             .map(|row| {
                 row.iter()
                     .map(|cell| {
-                        cell.lines.iter().map(|line| line.iter().map(|run| run.text.as_str()).collect::<String>()).collect::<Vec<_>>().join(" ")
+                        cell.lines
+                            .iter()
+                            .map(|line| {
+                                let mut text = String::new();
+                                for run in line {
+                                    append_plain_run(&mut text, &run.text, &run.style);
+                                }
+                                text
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
                     })
                     .collect::<Vec<_>>()
                     .join("\t")
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+}
+
+fn append_plain_run(out: &mut String, text: &str, style: &Style) {
+    out.push_str(text);
+    if let Some(url) = &style.link {
+        let shown = text.trim();
+        let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
+        // A telephone number says its link however it is spaced (`+44 (0)20…`).
+        let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
+        let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
+        if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
+            out.push_str(&format!(" <{url}>"));
+        }
     }
 }
 
@@ -760,17 +784,7 @@ impl RichText {
                     }
                     continue;
                 }
-                out.push_str(&run.text);
-                if let Some(url) = &run.style.link {
-                    let shown = run.text.trim();
-                    let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
-                    // A telephone number says its link however it is spaced (`+44 (0)20…`).
-                    let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
-                    let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
-                    if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
-                        out.push_str(&format!(" <{url}>"));
-                    }
-                }
+                append_plain_run(&mut out, &run.text, &run.style);
             }
         }
         out

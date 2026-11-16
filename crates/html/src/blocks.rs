@@ -477,6 +477,7 @@ struct BoxBuild {
 struct TableBuild {
     rows: Vec<Row>,
     compose_grid: bool,
+    row_group_start: usize,
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
@@ -1619,10 +1620,11 @@ impl Builder {
 
     /// Turn what was read of a table into a block: a data table, a layout table, or, for a table
     /// that only wrapped a column of things, those things.
-    fn end_table(&mut self, table: TableBuild) {
+    fn end_table(&mut self, mut table: TableBuild) {
         if table.flat {
             return;
         }
+        table.finish_row_group();
         let mut rows = table.rows;
         let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
@@ -1762,6 +1764,7 @@ impl Builder {
         let build = TableBuild {
             rows: Vec::new(),
             compose_grid: false,
+            row_group_start: 0,
             width: None,
             background: None,
             align: Align::Left,
@@ -1802,6 +1805,7 @@ impl Builder {
         let float = if inline { floated(tag, &css) } else { None };
         let build = TableBuild {
             rows: Vec::new(),
+            row_group_start: 0,
             compose_grid: match self.compose_tables {
                 ComposeTables::Off => false,
                 ComposeTables::All => true,
@@ -1928,11 +1932,13 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let attr = |attribute: &str| if matches!(name, "td" | "th") { tag.attr(attribute) } else { None };
-        let span = |name: &str, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
+        let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
+        let span =
+            |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
         let build = CellBuild {
             header,
-            colspan: span("colspan", MAX_TABLE_COLUMNS as u16),
-            rowspan: span("rowspan", MAX_ROW_SPAN),
+            colspan: span("colspan", 1, MAX_TABLE_COLUMNS as u16),
+            rowspan: span("rowspan", u32::from(!grid), MAX_ROW_SPAN),
             background: css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
             width: sized(&css, attr("width").and_then(|w| style::attr_length(&w))),
             border: {
@@ -1983,6 +1989,19 @@ impl Builder {
                 _ => {}
             }
         }
+    }
+
+    fn table_row_group(&mut self, data: bool) {
+        let grid =
+            self.overflow == 0 && self.table_index().is_some_and(|index| self.table_at(index).is_some_and(|table| table.compose_grid && !table.full));
+        if grid {
+            // A group boundary also ends its last row when the row's end tag was omitted.
+            self.end_row_tag();
+            if let Some(table) = self.table_index().and_then(|index| self.table_at(index)) {
+                table.finish_row_group();
+            }
+        }
+        self.table_part(data);
     }
 
     fn end_cell_tag(&mut self) {
@@ -2548,8 +2567,10 @@ impl Builder {
             "tr" => self.open_row(tag, "tr"),
             "td" => self.open_cell(tag, "td", false),
             "th" => self.open_cell(tag, "th", true),
-            "caption" | "thead" | "tfoot" => self.table_part(true),
-            "tbody" | "html" | "head" | "option" | "optgroup" => self.table_part(false),
+            "thead" | "tfoot" => self.table_row_group(true),
+            "tbody" => self.table_row_group(false),
+            "caption" => self.table_part(true),
+            "html" | "head" | "option" | "optgroup" => self.table_part(false),
             name => {
                 if let Some(name) = block_name(name) {
                     self.open_block(name, tag);
@@ -2581,7 +2602,8 @@ impl Builder {
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
             // The message's own style lasts to its end, whatever follows `</body>`.
-            "caption" | "thead" | "tbody" | "tfoot" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
+            "thead" | "tbody" | "tfoot" => self.table_row_group(false),
+            "caption" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
             name => {
                 if block_name(name).is_some() {
                     self.end_block(name);
@@ -2703,6 +2725,25 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     let schemeless = url.strip_prefix("//").is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let url = if schemeless { format!("https:{url}") } else { url.to_string() };
     is_safe_url(&url).then_some(url)
+}
+
+impl TableBuild {
+    fn finish_row_group(&mut self) {
+        if !self.compose_grid {
+            return;
+        }
+        let end = self.rows.len();
+        for (offset, row) in self.rows.iter_mut().skip(self.row_group_start).enumerate() {
+            let remaining = end - self.row_group_start - offset;
+            for cell in &mut row.cells {
+                if cell.rowspan == 0 {
+                    // An over-limit group cannot be represented faithfully in a draft.
+                    cell.rowspan = if remaining > usize::from(MAX_ROW_SPAN) { u16::MAX } else { remaining as u16 };
+                }
+            }
+        }
+        self.row_group_start = end;
+    }
 }
 
 /// Grid width including cells carried down from earlier rows. A result above the reader's

@@ -137,8 +137,16 @@ fn write_table(out: &mut String, table: &PastedTable) {
                 CellAlignment::Right => "right",
             };
             out.push_str(&format!("<{tag} colspan=\"{}\" rowspan=\"{}\" align=\"{align}\"", cell.colspan, cell.rowspan));
-            if let Some(color) = cell.background.as_deref().and_then(safe_color) {
-                out.push_str(&format!(" style=\"background-color:{color}\""));
+            let color = cell.background.as_deref().and_then(safe_color);
+            if cell.header || color.is_some() {
+                out.push_str(" style=\"");
+                if cell.header {
+                    out.push_str("font-weight:normal;");
+                }
+                if let Some(color) = color {
+                    out.push_str(&format!("background-color:{color}"));
+                }
+                out.push('"');
             }
             out.push('>');
             for (i, line) in cell.lines.iter().enumerate() {
@@ -564,7 +572,7 @@ impl Reader {
                     Some(mailcraft_html::Align::Right) => CellAlignment::Right,
                     _ => CellAlignment::Left,
                 };
-                let background = cell.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2));
+                let background = cell.background.or(source.background).map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2));
                 cells.push(TableCell { lines, header: cell.header, colspan: cell.colspan, rowspan: cell.rowspan, background, alignment });
             }
             rows.push(cells);

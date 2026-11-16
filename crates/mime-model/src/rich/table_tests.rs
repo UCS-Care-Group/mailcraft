@@ -19,6 +19,33 @@ fn spreadsheet_paste_keeps_cells_and_styles_when_a_draft_reopens() {
 }
 
 #[test]
+fn header_weight_background_and_link_targets_survive_the_round_trip() {
+    let html = r##"<table bgcolor="#ff0000"><tr><th style="font-weight:normal">Normal <b>Bold</b></th><td bgcolor="#0000ff"><a href="https://example.org/manual">Manual</a></td></tr></table>"##;
+    let pasted = from_html_for_compose(html);
+    let saved = to_html(&pasted);
+    assert!(saved.contains("font-weight:normal;background-color:#ff0000\">Normal <b>Bold</b>"), "{saved}");
+    assert!(saved.contains("background-color:#0000ff"), "{saved}");
+    assert_eq!(pasted.to_plain(), "Normal Bold\tManual <https://example.org/manual>");
+    assert_eq!(to_html(&from_html_with_pictures(&saved, &mut |_| None)), saved);
+}
+
+#[test]
+fn zero_row_spans_stop_at_their_row_group() {
+    use mailcraft_model::rich::PastedTable;
+
+    let html = r#"<table><thead><tr><td rowspan="0">A</td><td>B</td><tr><td>C</td></thead><tbody><tr><td rowspan="0">D</td><td>E</td></tr><tr><td>F</td></tr><tr><td>G</td></tr></tbody><tbody><tr><td>H</td><td>I</td></tr></tbody></table>"#;
+    let pasted = from_html_for_compose(html);
+    let table: &PastedTable = pasted.paragraphs()[0].runs[0].table.as_deref().unwrap();
+    assert_eq!(table.columns(), 2);
+    assert_eq!(table.rows().len(), 6);
+    assert_eq!(table.rows()[0][0].rowspan, 2);
+    assert_eq!(table.rows()[2][0].rowspan, 3);
+    assert_eq!(table.rows()[5][0].rowspan, 1);
+    let saved = to_html(&pasted);
+    assert_eq!(to_html(&from_html_with_pictures(&saved, &mut |_| None)), saved);
+}
+
+#[test]
 fn spreadsheet_clipboard_keeps_spacer_rows_columns_and_row_spans() {
     for html in [
         r#"<style>.xl65 { text-align:right }</style><table><colgroup><col span="3"></colgroup><tr><td rowspan="2">Part</td><td></td><td class="xl65">12,30</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"#,
