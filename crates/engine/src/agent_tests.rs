@@ -281,6 +281,10 @@ fn a_mailbox_an_agent_opens_has_its_contacts_marked() {
     s.agent = Some(vec![Class::Mailbox]);
     s.run("file.open", &json!({"name": "made.mailcraft", "data": data})).unwrap();
     assert!(contact_with(&s, "mia@kite.example").by_agent);
+    // The agent opening the same bytes again replaces the contact with one that loads unmarked, with
+    // the same address: it stays the agent's, and nothing but the owner's edit confirms it.
+    s.run("file.open", &json!({"name": "made.mailcraft", "data": data})).unwrap();
+    assert!(contact_with(&s, "mia@kite.example").by_agent, "a second open by the agent cleared the mark");
     // The owner opening the same file brings nothing of the sort.
     s.agent = None;
     s.run("file.open", &json!({"name": "made.mailcraft", "data": data})).unwrap();
