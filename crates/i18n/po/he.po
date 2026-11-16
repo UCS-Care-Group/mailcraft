@@ -835,8 +835,9 @@ msgstr "הוסף למועדפים"
 
 #. command label
 #: crates/engine/src/cmd/junk.rs
+#, fuzzy
 msgid "Add to Safe or Blocked Senders"
-msgstr ""
+msgstr "הוסף לשולחים בטוחים או חסומים"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
@@ -1039,8 +1040,9 @@ msgstr "הורד תמיד תמונות מהשולח"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "Always Move Messages From"
-msgstr ""
+msgstr "העבר תמיד הודעות מאת"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -1283,13 +1285,15 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/search_server.rs
+#, fuzzy
 msgid "Apply Results from the Server"
-msgstr ""
+msgstr "החל את התוצאות מהשרת"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Apply Send/Receive"
-msgstr ""
+msgstr "בצע שליחה וקבלה"
 
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
@@ -1482,8 +1486,9 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Ask to be told when the message is read"
-msgstr ""
+msgstr "בקש אישור קריאה"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -1564,8 +1569,9 @@ msgstr "צרף כרטיס איש קשר"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Attach the same as an iCalendar file"
-msgstr ""
+msgstr "צרף גם כקובץ iCalendar"
 
 #. interface
 #: crates/ui-egui/src/files.rs
@@ -1604,13 +1610,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Attendance"
-msgstr ""
+msgstr "נוכחות"
 
 #. ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
+#, fuzzy
 msgid "Attendees"
-msgstr ""
+msgstr "משתתפים"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -1774,8 +1782,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
 msgid "Availability only: when you are free or busy"
-msgstr ""
+msgstr "זמינות בלבד: מתי אתה פנוי או עסוק"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1883,8 +1892,9 @@ msgstr "סימנייה"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
+#, fuzzy
 msgid "Bring Calendar to Front"
-msgstr ""
+msgstr "העבר את לוח השנה לחזית"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -1905,8 +1915,9 @@ msgstr "תבליטים"
 
 #. name
 #: crates/model/src/calendar.rs
+#, fuzzy
 msgid "Busy"
-msgstr ""
+msgstr "עסוק"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2060,8 +2071,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
 msgid "Cancel All"
-msgstr ""
+msgstr "בטל הכול"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2077,8 +2089,9 @@ msgstr "ביטול פגישה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Cancel Opening the Mailbox"
-msgstr ""
+msgstr "בטל את פתיחת תיבת הדואר"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -2111,8 +2124,9 @@ msgstr "קטגוריות"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
+#, fuzzy
 msgid "Categories:"
-msgstr ""
+msgstr "קטגוריות:"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
@@ -2151,8 +2165,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
 msgid "Change Automatic Replies"
-msgstr ""
+msgstr "שנה תשובות אוטומטיות"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2266,8 +2281,9 @@ msgstr "תווים (כולל רווחים)"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Chart"
-msgstr ""
+msgstr "תרשים"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -2284,8 +2300,9 @@ msgstr "בדיקת נגישות"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Check Again"
-msgstr ""
+msgstr "בדוק שוב"
 
 #. command label, interface
 #, fuzzy
@@ -2295,8 +2312,9 @@ msgstr "בדיקת החיבור ללוח השנה"
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Check Names"
-msgstr ""
+msgstr "בדוק שמות"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2311,8 +2329,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Check for New Versions"
-msgstr ""
+msgstr "בדוק אם קיימות גרסאות חדשות"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
@@ -2385,8 +2404,9 @@ msgstr "מתבצעת בדיקה…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "Choose Default Signature"
-msgstr ""
+msgstr "בחר חתימת ברירת מחדל"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2446,8 +2466,9 @@ msgstr "רצועת הכלים הקלאסית"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Clean Up"
-msgstr ""
+msgstr "נקה"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -2469,8 +2490,9 @@ msgstr "נקה את כל העיצוב"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Clear Downloaded Pictures"
-msgstr ""
+msgstr "נקה תמונות שהורדו"
 
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
@@ -2582,8 +2604,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Collapse Conversation"
-msgstr ""
+msgstr "כווץ שיחה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -2671,8 +2694,9 @@ msgstr "התחברות"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Connect Calendar and Contacts"
-msgstr ""
+msgstr "חבר לוח שנה ואנשי קשר"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -2717,8 +2741,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Contact Attendees"
-msgstr ""
+msgstr "צור קשר עם המשתתפים"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -2838,8 +2863,9 @@ msgstr "העתק בעיות"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
+#, fuzzy
 msgid "Copy the selected items to the folder:"
-msgstr ""
+msgstr "העתק את הפריטים שנבחרו לתיקייה:"
 
 #. interface
 #, fuzzy
@@ -2880,8 +2906,9 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't check for new mail"
-msgstr ""
+msgstr "לא ניתן לבדוק אם התקבל דואר חדש"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -3015,8 +3042,9 @@ msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't send mail"
-msgstr ""
+msgstr "לא ניתן לשלוח דואר"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3095,8 +3123,9 @@ msgstr "נתונים במחשב זה"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Date"
-msgstr ""
+msgstr "תאריך"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3107,8 +3136,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "Date & Time"
-msgstr ""
+msgstr "תאריך ושעה"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3241,8 +3271,9 @@ msgstr "מחק תיקייה"
 
 #. command label
 #: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
 msgid "Delete Meeting Requests after Responding"
-msgstr ""
+msgstr "מחק בקשות לפגישה לאחר מענה"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3276,8 +3307,9 @@ msgstr "מחק חתימה"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Delete Text"
-msgstr ""
+msgstr "מחק טקסט"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -3398,8 +3430,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Digital Signature"
-msgstr ""
+msgstr "חתימה דיגיטלית"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3408,8 +3441,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
+#, fuzzy
 msgid "Digital signatures and encryption"
-msgstr ""
+msgstr "חתימות דיגיטליות והצפנה"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3443,8 +3477,9 @@ msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Direct Replies To"
-msgstr ""
+msgstr "שלח תשובות אל"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -3525,8 +3560,9 @@ msgstr "לא לשמור"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
 msgid "Don't Send"
-msgstr ""
+msgstr "אל תשלח"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -3751,8 +3787,9 @@ msgstr "תאריך יעד"
 
 #. name
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "Due Date"
-msgstr ""
+msgstr "תאריך יעד"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3856,8 +3893,9 @@ msgstr "עריכת חתימה"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Edit Signature as Text"
-msgstr ""
+msgstr "ערוך חתימה כטקסט"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -3950,8 +3988,9 @@ msgstr "ריקון תיבת הדואר"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "Enable Rule"
-msgstr ""
+msgstr "הפעל כלל"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4099,8 +4138,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
+#, fuzzy
 msgid "Expand Conversation"
-msgstr ""
+msgstr "הרחב שיחה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4189,8 +4229,9 @@ msgstr "מועדפים"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "Favorites from Outlook"
-msgstr ""
+msgstr "מועדפים מ-Outlook"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
