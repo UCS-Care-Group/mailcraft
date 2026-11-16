@@ -437,12 +437,14 @@ pub fn summary(account: Option<&Account>, m: &Message) -> Option<Summary> {
     let (parsed, _) = clauses(value);
     let first_of =
         |wanted: &str| parsed.iter().filter_map(|words| result(words)).find(|(method, _)| method == wanted).and_then(|(_, word)| result_word(&word));
-    let signer = dkim_passed(account, m).into_iter().next().map(|(d, _)| d).filter(|d| d.len() <= MAX_SUMMARY_DOMAIN);
+    // Whether a signature passed does not depend on how long its domain is: only the domain shown
+    // is left out when it is over the cap.
+    let signed = dkim_passed(account, m).into_iter().next().map(|(d, _)| d);
     let found = Summary {
         spf: first_of("spf"),
         // A signature that passed is the news, whatever order the server listed them in.
-        dkim: if signer.is_some() { Some("pass".into()) } else { first_of("dkim") },
-        dkim_domain: signer,
+        dkim: if signed.is_some() { Some("pass".into()) } else { first_of("dkim") },
+        dkim_domain: signed.filter(|d| d.len() <= MAX_SUMMARY_DOMAIN),
         dmarc: first_of("dmarc"),
     };
     (found.spf.is_some() || found.dkim.is_some() || found.dmarc.is_some()).then_some(found)

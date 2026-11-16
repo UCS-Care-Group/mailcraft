@@ -94,3 +94,16 @@ fn a_passing_signature_wins_over_a_failing_one_listed_first() {
     let two = "mx.example.org; dkim=fail header.d=other.example; dkim=pass header.d=sender.example";
     assert_eq!(of(&[two]), Some(Summary { dkim: Some("pass".into()), dkim_domain: Some("sender.example".into()), ..Summary::default() }));
 }
+
+#[test]
+fn a_passing_signature_of_a_long_domain_is_still_a_pass_but_names_no_domain() {
+    // 50 + dot + 50 letters: a valid domain over the 100 bytes a summary shows.
+    let long = format!("{}.{}", "a".repeat(50), "b".repeat(50));
+    assert_eq!(long.len(), 101);
+    let two = format!("mx.example.org; dkim=fail header.d=other.example; dkim=pass header.d={long}");
+    assert_eq!(of(&[&two]), Some(Summary { dkim: Some("pass".into()), ..Summary::default() }));
+    // At the cap the domain is still shown.
+    let exact = format!("{}.{}", "a".repeat(50), "b".repeat(49));
+    let at_cap = format!("mx.example.org; dkim=pass header.d={exact}");
+    assert_eq!(of(&[&at_cap]), Some(Summary { dkim: Some("pass".into()), dkim_domain: Some(exact), ..Summary::default() }));
+}
