@@ -14,6 +14,8 @@ coroutines = "1.10.2"
 jna = "5.17.0"
 # The Kotlin half of rustls-platform-verifier; must be the version Cargo.lock names (the build checks).
 platformVerifier = "0.2.0"
+# Background Send/Receive while the app is closed (Apache-2.0; no Play Services).
+work = "2.10.5"
 junit = "4.13.2"
 # Screenshot tests of the shell on the JVM (Apache-2.0); test-only, never in the app.
 paparazzi = "2.0.0-alpha05"
@@ -29,6 +31,7 @@ compose-ui = { module = "androidx.compose.ui:ui" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 platform-verifier = { module = "org.rustls:rustls-platform-verifier", version.ref = "platformVerifier" }
+androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]

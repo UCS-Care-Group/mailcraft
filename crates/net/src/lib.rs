@@ -69,6 +69,8 @@ pub mod report;
 #[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod subscription;
+#[cfg(not(target_arch = "wasm32"))]
 mod sync;
 #[cfg(not(target_arch = "wasm32"))]
 mod tls;
@@ -118,8 +120,8 @@ mod native {
     pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{
-        AutodiscoverTargets, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at,
-        lookup_autodiscover, lookup_autodiscover_at,
+        AutodiscoverTargets, DavRecords, DavService, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets,
+        autodiscover_targets_at, lookup_autodiscover, lookup_autodiscover_at, lookup_dav, lookup_dav_at,
     };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;

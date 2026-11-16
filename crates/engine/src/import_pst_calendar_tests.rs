@@ -338,6 +338,26 @@ fn a_chosen_calendar_is_used_and_one_on_a_server_refused() {
 }
 
 #[test]
+fn a_subscribed_calendar_is_never_imported_into() {
+    let dir = Temp::new("cal-subscribed");
+    let mut s = kept_session(&dir);
+    let id = s.mailbox.alloc_id();
+    let subscription = mailcraft_model::subscription::Subscription { host: "cal.example.org".into(), ..Default::default() };
+    s.mailbox.calendars.push(mailcraft_model::Calendar {
+        id,
+        name: "Fixtures".into(),
+        visible: true,
+        subscription: Some(subscription),
+        ..Default::default()
+    });
+    let bytes = file(vec![folder("Calendar", "IPF.Appointment", vec![appointment("Once", at(2026, 3, 2, 9, 0), at(2026, 3, 2, 10, 0), vec![])])]);
+    let pst = dir.pst(&bytes);
+    let err = run_staged(&mut s, &pst, None, false, &json!({"places": {"calendar": id}})).unwrap_err().to_string();
+    assert!(err.contains("subscribed"), "{err}");
+    assert!(s.mailbox.events.values().all(|e| e.calendar != id));
+}
+
+#[test]
 fn changed_occurrences_stay_within_what_one_import_may_make() {
     let dir = Temp::new("cal-budget");
     let mut s = kept_session(&dir);
