@@ -310,9 +310,12 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
         for attribute in node.attributes() {
             let local = attribute.name();
             let allowed = match attribute.namespace() {
-                None | Some(SVG) => {
-                    ATTRIBUTES.contains(&local) && (shape || local != "opacity") || local.starts_with("data-") || local.starts_with("aria-")
-                }
+                None => ATTRIBUTES.contains(&local) && (shape || local != "opacity") || local.starts_with("data-") || local.starts_with("aria-"),
+                // A prefixed attribute in SVG's own namespace (`<svg xmlns:s=".../svg" s:d="...">`)
+                // is read by usvg by its local name, but not by `attribute("d")` here, where
+                // it would slip past every bound that reads the drawing's own words: nobody
+                // writes one, and it is refused.
+                Some(SVG) => false,
                 // usvg reads XLink's and XML's attributes by their own names (`xml:href` is an
                 // `href`): only `xml:space` and `xml:lang`, which say nothing that is drawn.
                 Some(XLINK) => false,
@@ -324,7 +327,7 @@ fn plain(document: &roxmltree::Document) -> Option<u64> {
             if !allowed || (local == "style" && !plain_style(value, shape)) {
                 return None;
             }
-            if matches!(attribute.namespace(), None | Some(SVG)) {
+            if attribute.namespace().is_none() {
                 let lower = value.to_ascii_lowercase();
                 match local {
                     "d" | "points" => path_text = path_text.saturating_add(text_lines(value)),
@@ -425,7 +428,19 @@ fn extent(root: roxmltree::Node) -> f64 {
 fn declared<'a>(node: roxmltree::Node<'a, '_>, property: &'a str) -> impl Iterator<Item = &'a str> {
     let style = node.attribute("style").unwrap_or("");
     let declarations = style.split(';').filter_map(|d| d.split_once(':')).filter(move |(p, _)| p.trim() == property).map(|(_, v)| v);
-    declarations.chain(node.attribute(property)).map(|v| v.trim().trim_end_matches("important").trim_end().trim_end_matches('!'))
+    declarations.chain(node.attribute(property)).map(without_important)
+}
+
+/// `value` without a trailing `!important`, in any case and with or without a space.
+fn without_important(value: &str) -> &str {
+    let value = value.trim();
+    let at = value.len().saturating_sub("important".len());
+    match (value.get(..at), value.get(at..)) {
+        (Some(head), Some(tail)) if value.len() >= "important".len() && tail.eq_ignore_ascii_case("important") => {
+            head.trim_end().trim_end_matches('!')
+        }
+        _ => value,
+    }
 }
 
 /// The smallest piece a shape is, in its own units: its shortest side, or run of its path, that

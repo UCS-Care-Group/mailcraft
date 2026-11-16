@@ -18,6 +18,10 @@ fn drawn(body: &str) -> Vec<u8> {
     format!("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"100\" height=\"100\">{body}</svg>").into_bytes()
 }
 
+/// How long a drawing that is drawn may take: far over what it takes (a debug build on a busy
+/// machine), far under what an unbounded stroke takes (minutes), so that only that is caught.
+const DRAWN: Duration = Duration::from_secs(20);
+
 /// How long reading `data` takes and what comes of it.
 fn read(data: &[u8]) -> (Duration, Option<[u32; 2]>) {
     let start = Instant::now();
@@ -63,7 +67,7 @@ fn review_11_a_wide_stroke_is_refused_however_it_is_said() {
 fn review_11_strokes_that_are_drawn_are_still_drawn() {
     for width in ["1", "8", "100", "400"] {
         let (took, probed) = read(&wide(100, width));
-        assert!(took < Duration::from_secs(2) && probed == Some([100, 100]), "{width}: {took:?} {probed:?}");
+        assert!(took < DRAWN && probed == Some([100, 100]), "{width}: {took:?} {probed:?}");
     }
     let icon = drawn(
         "<path d=\"M10 50h80M50 10c20 20 20 60 0 80\" fill=\"none\" stroke=\"#000\" stroke-width=\"12\" stroke-linecap=\"round\" \
@@ -90,7 +94,7 @@ fn review_11_a_stroke_is_weighed_by_its_width_over_the_curve() {
         drawn(&format!("<path d=\"M0 0{}\" fill=\"none\" stroke=\"black\" stroke-width=\"400\"/>", cubic.repeat(n)))
     };
     let (took, probed) = read(&small("0.01", 400));
-    assert!(took < Duration::from_secs(2) && probed.is_some(), "{took:?} {probed:?}");
+    assert!(took < DRAWN && probed.is_some(), "{took:?} {probed:?}");
     let (took, probed) = read(&small("0.0000001", 400));
     assert!(took < Duration::from_secs(1) && probed.is_none(), "{took:?} {probed:?}");
     // Shapes of no size at all stroked wide.
@@ -150,10 +154,56 @@ fn review_12_ordinary_styles_are_still_drawn() {
         "style=\"stroke:black;stroke-width:8\"",
         "style=\"stroke:black;stroke-width:8;stroke-width:8\"",
         "style=\"stroke:black;stroke-width:2;stroke-width:8 !important\"",
+        "style=\"stroke:black;stroke-width:2;stroke-width:8 !IMPORTANT\"",
         "stroke=\"black\" stroke-width=\"8\" style=\"stroke-linecap:round;opacity:0.5\"",
         "stroke=\"black\" style=\"stroke-width:400\"",
     ] {
         let (took, probed) = read(&styled(100, attributes));
-        assert!(took < Duration::from_secs(2) && probed == Some([100, 100]), "{attributes}: {took:?} {probed:?}");
+        assert!(took < DRAWN && probed == Some([100, 100]), "{attributes}: {took:?} {probed:?}");
+    }
+}
+
+/// A drawing whose root also binds the prefix `s` to SVG's own namespace, with `body` in it.
+fn prefixed(body: &str) -> Vec<u8> {
+    format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:s=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"100\" height=\"100\">{body}</svg>"
+    )
+    .into_bytes()
+}
+
+/// Review of #830, third round: usvg reads an attribute in SVG's namespace by its local name, but
+/// the bounds read only those of no namespace, so `s:stroke-width="1e8"` (and `s:style`, `s:d`,
+/// `s:width`, ...) went past them. Such an attribute is refused.
+#[test]
+fn review_12_an_attribute_in_svgs_namespace_cannot_go_round_the_bounds() {
+    let cubics = " c1 0-1 1 0 1".repeat(1000);
+    for body in [
+        format!("<path d=\"M0 0{cubics}\" fill=\"none\" stroke=\"black\" s:stroke-width=\"1e8\"/>"),
+        format!("<path d=\"M0 0{cubics}\" fill=\"none\" stroke=\"black\" stroke-width=\"1\" s:stroke-width=\"1e8\"/>"),
+        format!("<path d=\"M0 0{cubics}\" fill=\"none\" stroke=\"black\" s:style=\"stroke-width:1e8\"/>"),
+        format!("<path s:d=\"M0 0{cubics}\" fill=\"none\" stroke=\"black\" stroke-width=\"90\"/>"),
+        "<rect s:width=\"0.0000001\" s:height=\"0.0000001\" fill=\"none\" stroke=\"black\" stroke-width=\"90\"/>".repeat(40),
+        "<circle s:r=\"0.0000001\" fill=\"none\" stroke=\"black\" stroke-width=\"90\"/>".repeat(40),
+        format!("<polyline s:points=\"0 0 {}\" fill=\"none\" stroke=\"black\" stroke-width=\"90\"/>", "1 1 0 0 ".repeat(500)),
+    ] {
+        let (took, probed) = read(&prefixed(&body));
+        assert!(took < Duration::from_secs(1) && probed.is_none(), "{body:.80}: {took:?} {probed:?}");
+    }
+    // The same drawing with the prefix bound and not used is drawn.
+    let plain = format!("<path d=\"M0 0{}\" fill=\"none\" stroke=\"black\" stroke-width=\"8\"/>", " c1 0-1 1 0 1".repeat(100));
+    assert_eq!(read(&prefixed(&plain)).1, Some([100, 100]));
+}
+
+/// `!important` in any case is taken off the width: a valid one is drawn, a wide one refused.
+#[test]
+fn review_12_important_is_read_in_any_case() {
+    for style in ["stroke-width:1e8 !Important", "stroke-width:1e8!IMPORTANT", "stroke-width:1;stroke-width:1e8 !iMpOrTaNt"] {
+        let (took, probed) = read(&styled(100, &format!("stroke=\"black\" style=\"{style}\"")));
+        assert!(took < Duration::from_secs(1) && probed.is_none(), "{style}: {took:?} {probed:?}");
+    }
+    assert_eq!(read(&styled(100, "stroke=\"black\" style=\"stroke-width:8 !ImPoRtAnT\"")).1, Some([100, 100]));
+    // A value shorter than the word, or with a multi-byte character where it would start, is no panic.
+    for width in ["", "!", "imp", "ä", "äimportant", "important", "1é"] {
+        let _ = read(&styled(2, &format!("stroke=\"black\" style=\"stroke-width:{width}\"")));
     }
 }
