@@ -268,6 +268,7 @@ Calendar|Arrange|Schedule View|view.schedule
 Calendar|Manage Calendars|Add Calendar|calendar.addCalendar
 Calendar|Manage Calendars|Delete Calendar|calendar.removeCalendar
 Calendar|Manage Calendars|Open Calendar|calendar.openShared
+Calendar|Manage Calendars|Internet Calendars|calendar.subscribe
 Calendar|Manage Calendars|Show Calendar|calendar.showCalendar
 Calendar|Manage Calendars|Calendar Groups|calendar.groups
 Calendar|Manage Calendars|Overlay Mode|view.overlay

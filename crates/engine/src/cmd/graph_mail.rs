@@ -273,7 +273,7 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
     let shared = shared_mailbox(s, account)?;
-    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none() })
+    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none(), ..Default::default() })
 }
 
 /// Take in messages fetched whole. Not an undo step.
@@ -422,7 +422,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // What was sent (R3.4.2): gone from the Outbox, or held there with what happened.
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
