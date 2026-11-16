@@ -81,6 +81,7 @@ MailCraft connects only to these, over encrypted connections:
 | Mozilla's ISP database (`autoconfig.thunderbird.net`) | Only after that, when neither the domain's DNS records nor what it publishes say where both its mail servers are | The domain of your address, and then, when its mail exchangers are in another domain (a hosting company's), that domain; never the mailbox name |
 | The web address of a picture in a message | Only when you ask for a message's pictures, or for a sender or domain you chose to always download from (and then only for mail that your own mail server, not the sender, says really came from that domain) | The address alone: no cookies, no referrer, no sign-in |
 | The address a mailing list gives for one-click unsubscribing (`List-Unsubscribe`, RFC 8058), in the desktop app | Only when you click Unsubscribe above a message from a list and say yes to the question; never by itself, and only for mail that your own mail server says really came from its sender's domain, with that sender's signature (DKIM) covering the unsubscribe headers, outside Junk E-mail and with no warning about its sender. A list that unsubscribes by mail gets a message from your account through your Outbox, after the same question; one that unsubscribes on a web page has it opened in your browser | One request, over HTTPS, to a public address, with no redirect followed: the address the list gave (which may name you to the list, as its link would) and `List-Unsubscribe=One-Click`, nothing else: no cookies, no referrer, no sign-in |
+| A calendar on the web that you subscribed to (an `https://` or `webcal://` address ending in an `.ics` file, Calendar › Open Calendar › From Internet…), in the desktop app | Only after you press Subscribe, then every hour while MailCraft runs (you can choose 15 minutes to a day in File › Info), when you press Send/Receive and when you choose Update Now, for as long as you keep the subscription; never in the browser build | One HTTPS request to the address you gave, to a public host only (never this computer or a private network, checked again for every redirect, of which five at most are followed, each to HTTPS only), asking for the file and, after the first time, whether it changed (`If-None-Match`, `If-Modified-Since`, with what that server last told us): no cookies, no referrer, no sign-in and nothing that says who you are, and an address with a user name in it, or starting with `http://`, is refused. A private calendar address holds a secret in its path, so it is kept like a password: in your system's credential store when you let MailCraft remember sign-ins, otherwise only until you quit (the calendar then stays listed, with what it held, and asks for its address again); only the address's host name is kept in the mailbox file, and nothing of the address is written to a log. The file is read as calendar events only (at most 8 MB, 20,000 events a calendar), nothing in it runs or is fetched, and the people and reminders in it are dropped |
 | Gravatar (`gravatar.com`), then favicon.im, then Google's favicon service (`www.google.com/s2/favicons`), for sender images | Off unless you turn on File › Options › Show sender images: then while a sender's mail is in the part of the message list on screen, only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for mail in Junk E-mail, and a sender's picture only for mail your mail server says really came from them (its `dmarc=pass`, or, when it gives no DMARC verdict, its `dkim=pass` for their domain's signature; on Microsoft 365, only the verdict Exchange Online writes as it takes the mail in from the internet, and also its word that the mail came from inside your own organisation and your own domain; never for mail MailCraft itself put on a server, moving or copying it there from this computer or another account, which leaves what any server said of it behind); each in turn until one has a picture, and nothing more once you turn it off (a request already on its way finishes, and what it brings is not kept) | Gravatar: a hash (SHA-256) of the sender's address. favicon.im and Google: the domain of the sender's website (`nutrient.io` for mail from `mail.nutrient.io`), never a mail provider's such as `gmail.com` or a hosting platform's such as `onmicrosoft.com`; Google's service passes the request on to its `gstatic.com`, which is told the same domain. Nothing about you: no cookies, no referrer, no sign-in. It does tell those services whose pictures you look at |
 | The certificate authority that issued a server's certificate, on Windows and macOS | When a server MailCraft connects to leaves out the intermediate certificate its own was issued by: the system fetches it from the address the certificate names, as it does for other programs (and may ask whether the certificate was revoked) | Nothing of yours: the authority learns only which of its certificates a server on the way uses |
 | GitHub's API (`api.github.com`), to see whether a new version is out | Off unless you turn it on (the program asks once, and the switch in File › About changes it): then at most once a day; and whenever you press Check for Updates in File › About | One request for the newest release of MailCraft's repository (`GET /repos/UCS-Care-Group/mailcraft/releases/latest`), with nothing about you, your accounts, your mail or this computer in it, not even the version you run |
@@ -232,26 +233,38 @@ not in a release yet are marked "when the app is released".
   that request but the address. The Android app's network security config and manifest allow no
   unencrypted traffic for the phone's own web stack (links open in the browser, which is the
   system's), and the app trusts only the system's own certificate authorities. As built today,
-  the only permissions the Android app asks of the phone are to use the network and to see
-  whether it is connected, how it is metered and whether Data Saver is on. The release adds
-  more, and this section lists them then: notifications, exact alarms for reminders, and what
-  the background checks bring (to run after a restart and to keep the phone awake for a moment).
+  the permissions the Android app asks of the phone are to use the network and to see whether it
+  is connected, how it is metered and whether Data Saver is on; to show notifications (on
+  Android 13 and later asked once, after you have added an account, never at the first start);
+  and what the background checks bring with WorkManager (to run again after a restart and to keep
+  the phone awake for a moment). WorkManager's foreground service and its permission are left out
+  of the app. The release adds exact alarms for reminders, and this section lists them then.
   The phone's proxy settings are ignored.
 - **Background checks, when the app is released.** Android runs a check about every 15 minutes
   (WorkManager) when there is a network, and iPhone, when that app is released, whenever the
   system grants one (BGAppRefreshTask); the app also checks when you open it and when you pull the list down. A check
   asks your own provider (Microsoft) for the headers of each account's Inbox and for changes to
   its calendar and To Do tasks. The bodies of new mail within how long you keep mail offline come
-  only on a connection that is not metered. Pictures, sender images and other folders come only
+  only on a connection that is not metered (when the phone can't tell, it counts as metered). Pictures, sender images and other folders come only
   when you open the app. The system decides when a check runs and may skip it: the app says
   "Updated N min ago" and "Offline" instead of promising. The app asks for no battery exemption
   and runs no foreground service, and exact alarms are used for reminders only, never to check
   mail.
+- **Opening a message, its attachments and a search.** A message whose body isn't on the phone
+  yet is fetched whole from your own provider (Microsoft) when you open it, on any connection,
+  attachments and all, and so is one whose attachment you open; the bodies the phone fetches by
+  itself, between checks, are those of recent mail up to the size you chose (1 MB unless you
+  change it), only on a connection that is not metered (when the phone can't tell, it counts as metered) and not while Data Saver is on. Search on
+  the server, only when you ask for it, sends your provider the words of your search, and the
+  headers of what it finds are kept on the phone until the app is next started. Nothing of this
+  goes anywhere else.
 - **Notifications, when the app is released.** A notification for new mail shows the sender and
   the subject and never the body or a picture, only for mail that would alert (Primary or Focused,
-  as the account's setting says). A switch in Settings shows "New mail" and nothing else, and on a lock
-  screen the system hides private content from, a public version that says only "New mail"
-  stands in for the notification. Reminders for meetings
+  as the account's setting says). A switch in Settings shows "New mail" and nothing else. On the
+  lock screen what shows follows the phone's own setting for sensitive content: where the system
+  hides private content there, a public version that says only "New mail" stands in for the
+  notification; where you let the lock screen show all notification content, the sender and the
+  subject show there too. Reminders for meetings
   and tasks are notifications raised on the phone from what the last check brought. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
