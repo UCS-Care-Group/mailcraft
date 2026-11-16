@@ -43,6 +43,8 @@ pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
+    /// The messages whose reminder the change itself changed (#948).
+    follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
     /// The contacts it added, changed or took away.
     changed_contacts: BTreeSet<Id>,
@@ -142,6 +144,9 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         match (b, a) {
             (Some(b), Some(a)) if a != b => {
                 t.changed_messages.insert(id);
+                if a.follow_up != b.follow_up {
+                    t.follow_up_changed.insert(id);
+                }
                 if relevant(b, &g) || relevant(a, &g) {
                     t.messages.insert(id, Some(a.clone()));
                 }
@@ -293,6 +298,9 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let mut keys = now.public_keys.clone();
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
+    // Reminders kept for a sent copy to come down are what was learnt of the server, not the owner's
+    // change: an undo leaves them as they are now (#948).
+    out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
     subscribed_stay(&mut out, now);
     // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
@@ -419,6 +427,19 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             None => {
                 out.messages.remove(&id);
             }
+        }
+    }
+    // A reminder's state (raised, put off) is not the change's to undo: a message the change
+    // touched goes back to its reminder as it was, with the state it has now (#948).
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        // A step that left the reminder alone leaves it as it is now (ended, raised, put off);
+        // one that changed it goes back to the reminder as it was, with its state now.
+        let undone = if touched.follow_up_changed.contains(id) { mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up) } else { c.follow_up };
+        if undone != t.follow_up
+            && let Some(t) = out.messages.get_mut(id)
+        {
+            Arc::make_mut(t).follow_up = undone;
         }
     }
     // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
@@ -875,6 +896,10 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
         };
     }
     back!(folder, read, flag, flag_due, importance, pinned, answered, forwarded, draft, held, placed, snooze);
+    // A reminder as it was, but what has become of it since (raised, put off) stays (#948).
+    if t.follow_up != a.follow_up {
+        m.follow_up = mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up);
+    }
     // Categories as a list that others add to too (R3 spec S17): what the change added is taken
     // off and what it took off is put back; one added in Outlook meanwhile stays.
     if t.categories != a.categories {

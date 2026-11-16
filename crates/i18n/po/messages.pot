@@ -129,7 +129,7 @@ msgid "(no recipients)"
 msgstr ""
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 msgid "(no subject)"
 msgstr ""
 
@@ -326,6 +326,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "A copy of your whole mailbox is saved next to it first, as always. Mail in the Outbox isn't left behind: it is sent through Microsoft Graph."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "A date"
 msgstr ""
 
 #. interface
@@ -657,6 +662,16 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Add Calendar"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
+msgid "Add Reminder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Add Reminder…"
 msgstr ""
 
 #. interface
@@ -1503,6 +1518,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "At a date and time"
 msgstr ""
 
 #. what a command says
@@ -2356,6 +2376,11 @@ msgid "Choose a category"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Choose a date…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Choose a first and a last day, at most a year apart."
 msgstr ""
@@ -3055,7 +3080,7 @@ msgid "Data on this computer"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/send_later.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 msgid "Date"
 msgstr ""
 
@@ -3416,7 +3441,7 @@ msgid "Dismiss All"
 msgstr ""
 
 #. command label
-#: crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/lib.rs
 msgid "Dismiss Reminder"
 msgstr ""
 
@@ -3700,6 +3725,11 @@ msgstr ""
 #. name
 #: crates/engine/src/session.rs
 msgid "Due Date"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Due Reminders"
 msgstr ""
 
 #. interface
@@ -4350,6 +4380,11 @@ msgstr ""
 msgid "Flag for follow-up"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Flag the message and remind me:"
+msgstr ""
+
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
 msgid "Flagged"
@@ -4431,9 +4466,14 @@ msgid ""
 "Up"
 msgstr ""
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Follow Up"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+msgid "Follow up"
 msgstr ""
 
 #. interface
@@ -5124,7 +5164,7 @@ msgid "Hold Unsent Mail"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 msgid "Home"
 msgstr ""
 
@@ -5176,6 +5216,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "If nobody the message went to has written back in its conversation by then, a reminder is raised and the message is flagged."
 msgstr ""
 
 #. interface
@@ -7550,6 +7595,11 @@ msgid "No Public keys are kept yet."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No Reminder"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "No Send/Receive is running"
 msgstr ""
@@ -7767,6 +7817,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reminders.rs
 msgid "No reminders are due."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+msgid "No reply yet"
 msgstr ""
 
 #. interface, name
@@ -8135,7 +8190,7 @@ msgid "Numbering"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -8317,6 +8372,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 msgid "Only for this time, and send it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Only if nobody replies"
 msgstr ""
 
 #. interface
@@ -9245,6 +9305,11 @@ msgstr ""
 msgid "Quit MailCraft"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Raise Due Reminders"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Range"
@@ -9439,6 +9504,16 @@ msgstr ""
 msgid "Remind me again later"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Remind me if nobody replies"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "Remind me if nobody replies by:"
+msgstr ""
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Reminder"
@@ -9450,7 +9525,7 @@ msgid "Reminder for new appointments"
 msgstr ""
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 msgid "Reminders"
 msgstr ""
 
@@ -9529,6 +9604,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove Recurrence"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+msgid "Remove Reminder"
 msgstr ""
 
 #. command label, interface
@@ -10475,7 +10555,7 @@ msgid "Send & Receive"
 msgstr ""
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr ""
 
@@ -11466,6 +11546,11 @@ msgid "Snooze"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/followup.rs
+msgid "Snooze Reminder"
+msgstr ""
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Snooze Reminders"
 msgstr ""
@@ -11836,7 +11921,7 @@ msgid "Tables"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 msgid "Tags"
 msgstr ""
 
@@ -13329,6 +13414,11 @@ msgid "The text wasn't found."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
 msgstr ""
@@ -14233,7 +14323,7 @@ msgid "Tighter Spacing"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/send_later.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 msgid "Time"
 msgstr ""
 
@@ -15752,6 +15842,11 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/mailbox_followup.rs
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a folder can't move into itself"
 msgstr ""
@@ -16481,7 +16576,7 @@ msgid "no message being written has the id {id}"
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
 msgid "no message is being written"
 msgstr ""
 
@@ -16568,6 +16663,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
 msgid "nobody else is invited to this appointment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/followup.rs
+msgid "none of these messages has a reminder showing"
 msgstr ""
 
 #. what a command says
@@ -17243,6 +17343,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "the proposed end is not after the proposed start"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+msgid "the reminder time must be in the future"
 msgstr ""
 
 #. interface
@@ -18615,7 +18720,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. date and time, interface
-#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
 msgid "{n} day"
 msgid_plural "{n} days"
 msgstr[0] ""

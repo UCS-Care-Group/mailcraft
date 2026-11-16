@@ -155,6 +155,13 @@ const SAFE: &[&str] = &[
     "mail.toggleRead",
     "mail.markAllRead",
     "mail.flag",
+    // Follow-up reminders (#948): an agent may set and clear them, and read what is due (message
+    // text, data); it never dismisses or snoozes one for the owner (see NEVER).
+    "mail.reminder",
+    "mail.clearReminder",
+    "mail.settleReminders",
+    "mail.dueReminders",
+    "compose.followUp",
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
     "mail.clearFlag",
@@ -574,6 +581,10 @@ const SETTINGS: &[&str] = &[
 ];
 
 const NEVER: &[&str] = &[
+    // The owner's Dismiss and Snooze of a follow-up reminder (#948): an agent never does either
+    // for the owner.
+    "mail.dismissReminder",
+    "mail.postponeReminder",
     // The host's side of a synchronisation: what came from a server is the host's to say.
     "sync.request",
     "sync.apply",
