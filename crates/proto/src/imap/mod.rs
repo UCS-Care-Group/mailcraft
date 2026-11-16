@@ -755,9 +755,16 @@ impl<S: Read + Write> Imap<S> {
     ///
     /// Nothing is sent to a server that doesn't offer `ID`, and a server that refuses the command
     /// (NO or BAD) still leaves the owner signed in: what the command says is a courtesy, never
-    /// what the session rests on. The version is this build's own; nothing of the owner or the
-    /// sign-in is in it.
+    /// what the session rests on. A server that hasn't said what it can do yet — after STARTTLS,
+    /// whose [`resume`] clears the list — is asked for its capabilities first. The version is this
+    /// build's own; nothing of the owner or the sign-in is in it.
     fn identify(&mut self) -> Result<(), ProtoError> {
+        // A server that hasn't said what it can do (after STARTTLS, whose `resume` clears them, or
+        // one whose greeting had no `CAPABILITY` code) is asked first: RFC 3501 §6.2.1 has the
+        // client re-issue `CAPABILITY` after STARTTLS, and `ID` can't be offered without them.
+        if self.capabilities.is_none() {
+            self.capabilities()?;
+        }
         if !self.offers("ID") {
             return Ok(());
         }
