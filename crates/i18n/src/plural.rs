@@ -21,6 +21,9 @@ pub enum Rule {
     /// Three forms (`plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`): Polish.
     /// One for 1; another for counts ending 2 to 4 except 12 to 14 (2, 22, 104); the third for the rest.
     Polish,
+    /// Three forms (`plural=(n==1 ? 0 : (n>=2 && n<=4) ? 1 : 2)`): Czech (and Slovak).
+    /// One for 1; another for 2, 3 and 4 alone (22 is "22 zpráv"); the third for the rest, 0 included.
+    Czech,
 }
 
 impl Rule {
@@ -33,6 +36,11 @@ impl Rule {
             Rule::Polish => match n {
                 1 => 0,
                 n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
+                _ => 2,
+            },
+            Rule::Czech => match n {
+                1 => 0,
+                2..=4 => 1,
                 _ => 2,
             },
             Rule::Romanian => match n {
@@ -49,7 +57,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Romanian | Rule::Polish => 3,
+            Rule::Romanian | Rule::Polish | Rule::Czech => 3,
         }
     }
 
@@ -71,6 +79,7 @@ impl Rule {
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
+            (Some(3), Some("n==1?0:(n>=2&&n<=4)?1:2" | "(n==1)?0:(n>=2&&n<=4)?1:2" | "n==1?0:n>=2&&n<=4?1:2")) => Rule::Czech,
             _ => Rule::NotOne,
         }
     }
