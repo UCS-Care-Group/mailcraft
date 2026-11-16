@@ -151,7 +151,7 @@ internal class PickedFiles(private val context: Context) {
 }
 
 /** The program's own words for a refused call; empty when the kind carries none. */
-private fun wordsOf(e: CoreException): String = when (e) {
+internal fun wordsOf(e: CoreException): String = when (e) {
     is CoreException.Init -> e.reason
     is CoreException.BadRequest -> e.reason
     is CoreException.Failed -> e.reason

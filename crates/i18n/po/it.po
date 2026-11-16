@@ -14267,6 +14267,12 @@ msgstr "Alcuni caratteri di questo messaggio non sono leggibili: il programma de
 msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
 msgstr "Una parte è ancora presente, come elencato sopra. MailCraft si chiude quando chiudi questa finestra."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Some of the files were not attached: the message cannot carry any more."
+msgstr "Alcuni file non sono stati allegati: il messaggio non può contenerne altri."
+
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy

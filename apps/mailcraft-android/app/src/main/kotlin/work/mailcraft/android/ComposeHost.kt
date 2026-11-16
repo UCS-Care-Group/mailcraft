@@ -39,7 +39,7 @@ internal fun composerActions(c: ComposeController?): ComposerActions = if (c == 
         onBody = c::onBody,
         onFormat = c::format,
         lines = LineActions(c::typed, c::commit, c::remove, c::pick),
-        files = FileActions(onAttach = c::attach, onPicture = { c.picture(it, "") }, onRemove = c::removeFile),
+        files = FileActions(onAttach = c::attach, onPicture = { c.picture(it, "") }, onRemove = c::removeFile, onTooMuch = c::tooMuch),
     )
 }
 

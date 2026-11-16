@@ -83,6 +83,9 @@ internal sealed interface ComposeNotice {
     /** The line had nobody on it that could be sent to. */
     data object NoRecipient : ComposeNotice
 
+    /** Files chosen were left out: the message cannot carry any more. */
+    data object TooMuch : ComposeNotice
+
     /** The message could not be kept or let go of: it stays open. */
     data object NotClosed : ComposeNotice
 }
@@ -319,6 +322,9 @@ internal class ComposeController(
         enqueue(Op.Attach(name, bytes))
         state.update { it.copy(edits = it.edits + 1, saved = false) }
     }
+
+    /** Files the owner chose were left out: the message's files are full. */
+    fun tooMuch() = state.update { it.copy(notice = ComposeNotice.TooMuch) }
 
     fun removeFile(index: UInt) {
         enqueue(Op.RemoveFile(index))

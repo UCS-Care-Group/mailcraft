@@ -362,4 +362,16 @@ class ComposeControllerTest {
         assertTrue("recipients TO ada@example.org" in source.calls)
         assertEquals("b", c.ui.value.typed[RecipientLine.TO]?.trim())
     }
+
+    @Test
+    fun filesLeftOutForTheMessagesCapAreSaid() {
+        val (_, c) = rig()
+        c.tooMuch()
+        assertEquals(ComposeNotice.TooMuch, c.ui.value.notice)
+    }
+
+    @Test
+    fun aLongTypedListStopsAtItsCap() {
+        assertEquals(200, parseTyped("a@example.org,".repeat(100_000)).size)
+    }
 }
