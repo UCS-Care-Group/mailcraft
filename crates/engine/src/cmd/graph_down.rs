@@ -104,9 +104,10 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         for m in mb.messages.values_mut() {
             // A message sent here is no deletion for a listing that does not have it yet: Exchange
             // files the copy of a draft sent as its draft under the id of its own, a while after
-            // the send, and a listing afresh may be of a time before it (#1175).
+            // the send, and a listing afresh may be of a time before it. Only while Sent Items has
+            // yet to list it: once it has, a listing without it is the server's word (#1175).
             if m.account == account
-                && !m.sent_here
+                && !m.sent_pending
                 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone)
                 && let Some(s) = std::sync::Arc::make_mut(m).server.as_mut()
             {
@@ -299,13 +300,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // the draft from Drafts is no deletion of it either (#1175).
     let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
     if unfiled {
-        // Still a draft there: no listing that has not got it yet has made it gone here, whichever
-        // came first in the run (#1175).
-        if let Ok(m) = mb.message_mut(id)
-            && let Some(s) = m.server.as_mut()
-        {
-            s.gone = false;
-        }
+        // Still a draft there: a listing that has not got it yet is no deletion of it, and an
+        // explicit removal from Sent Items is kept, not cleared here (#1175).
         return false;
     }
     let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
@@ -393,6 +389,11 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let (thread, thread_asked, thread_tries) =
         if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
     m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
+    // Sent Items has it: from here on a listing without it is its deletion, and a removal from
+    // another folder needs no keeping of it (#1175).
+    if in_sent {
+        m.sent_pending = false;
+    }
     *m != before
 }
 

@@ -171,6 +171,9 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft
             {
                 (m.folder, m.draft, m.server_draft, m.held, m.sending) = (sent_items, false, None, String::new(), false);
                 m.sent_here = true;
+                // Its Sent Items copy is yet to be listed: no listing without it, and no removal
+                // from another folder, deletes the message sent before that (#1175).
+                m.sent_pending = true;
                 // Where the server files it, so that the same run's removal from Drafts is not
                 // taken for its deletion before Sent Items lists it (#1175).
                 if let Some(server) = m.server.as_mut().filter(|_| !filed.is_empty()) {

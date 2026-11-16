@@ -427,6 +427,11 @@ pub struct Message {
     /// it is gone from a folder other than Sent Items. False for every other message.
     #[serde(skip_serializing_if = "is_false")]
     pub sent_here: bool,
+    /// A message sent here whose copy Sent Items has yet to list (#1175): a listing that starts
+    /// afresh without it is no deletion of it, and a removal from another folder does not give up
+    /// on it either. Cleared once Sent Items lists it, after which it is a message as any other.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_pending: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
