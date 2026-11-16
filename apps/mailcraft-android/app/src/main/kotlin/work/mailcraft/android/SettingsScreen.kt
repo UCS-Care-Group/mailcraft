@@ -69,6 +69,9 @@ internal fun SettingsScreen(
                     AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
                 SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
                 SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+                SettingsPage.Pictures ->
+                    PicturesPage(texts, data.pictures, actions.onPictures, actions.onClearPictures)
+                SettingsPage.SenderImages -> SenderImagesPage(texts, data.pictures, actions.onPictures)
                 SettingsPage.About -> AboutPage(texts, data.version)
                 else -> Text(
                     text = texts.t("Pending development"),
@@ -88,6 +91,8 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
             SettingsPage.About -> data.version
+            SettingsPage.Pictures -> picturesSummary(texts, data.pictures)
+            SettingsPage.SenderImages -> senderImagesSummary(texts, data.pictures)
             else -> texts.t("Pending development")
         }
         Row(

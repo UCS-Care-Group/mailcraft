@@ -537,8 +537,8 @@ msgstr "此密钥的一部分是 RSA（可能是加密子密钥），MailCraft �
 msgid "A picture couldn't be downloaded."
 msgstr "图片无法下载。"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say."
 msgstr "网络图片会告知发件人您打开了邮件以及打开时间。关闭此选项后，仅下载您指定的邮件、发件人和域的图片。"
@@ -1249,14 +1249,14 @@ msgstr "始终移动来自该发件人的邮件"
 msgid "Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again."
 msgstr "始终下载地址以此结尾的发件人发送的图片。此设置会被记住；可在“文件 › 选项”中查看和移除这些域。"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from {sender}"
 msgstr "始终从 {sender} 下载图片"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always from @{domain}"
 msgstr "始终下载来自 @{domain} 的图片"
@@ -1740,6 +1740,12 @@ msgstr "再次从该域的发件人下载图片之前先询问"
 msgid "Ask before downloading this sender's pictures again"
 msgstr "再次下载该发件人的图片之前先询问"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Ask first again"
+msgstr "再次先询问"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1787,6 +1793,12 @@ msgstr "请邮件列表停止向你发送邮件。MailCraft 会先询问你，�
 #, fuzzy
 msgid "Ask to be told when the message is read"
 msgstr "请求在邮件被阅读时通知我"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Asked first"
+msgstr "已先询问"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -2909,8 +2921,8 @@ msgstr "经典功能区"
 msgid "Clean Up"
 msgstr "清理"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Clear"
 msgstr "清除"
@@ -3685,6 +3697,12 @@ msgstr "深色主题样式"
 msgid "Dark theme"
 msgstr "深色主题"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
+#, fuzzy
+msgid "Data Saver is on, so the pictures wait until you ask for them."
+msgstr "流量节省程序已开启，因此图片会等到您要求时再下载。"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -4337,8 +4355,8 @@ msgstr "下载所有邮件中的图片"
 msgid "Download messages in full:"
 msgstr "下载完整邮件："
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures"
 msgstr "下载图片"
@@ -4355,8 +4373,8 @@ msgstr "下载所有邮件中的图片"
 msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
 msgstr "无需逐封询问即可下载邮件中的图片，垃圾邮件除外。开启此功能前会先征求您的同意；可在“文件 › 选项”中关闭。"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "自动下载邮件中的图片"
@@ -4366,6 +4384,12 @@ msgstr "自动下载邮件中的图片"
 #, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "重新下载此邮件的原始字节，以检查其数字签名"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Downloaded automatically"
+msgstr "自动下载"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5433,8 +5457,8 @@ msgstr "清除已下载的日历和联系人"
 msgid "Forget Trusted Certificate"
 msgstr "取消信任证书"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "清除已保存的图片；您再次请求时会重新下载。"
@@ -5983,8 +6007,8 @@ msgstr "名称云"
 msgid "Graphite"
 msgstr "石墨"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "程序会向 Gravatar 请求发件人的头像，并向其提供发件人地址的哈希值；否则会依次向 favicon.im 和 Google 请求其网站图标，并向这些服务提供发件人的域名。这会让这些服务知道您正在查看哪些人的图片。仅对您认识的人（联系人和您曾写信给的人）以及您允许下载图片的邮件执行此操作，垃圾邮件除外；只有邮件服务器确认邮件确实来自该发件人时，才请求其头像。"
@@ -8843,6 +8867,12 @@ msgstr "永不阻止发件人域"
 msgid "Never ends"
 msgstr "永不结束"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
+msgstr "垃圾邮件中从不下载。开启流量节省程序时，邮件的图片会等到您要求时再下载。"
+
 #. name
 #: crates/ui-egui/src/motion.rs
 #, fuzzy
@@ -9281,6 +9311,12 @@ msgstr "没有凭据存储响应（在 Linux 上，GNOME Keyring 或 KWallet 可
 msgid "No downloaded pictures are kept on this computer."
 msgstr "此计算机上未保存下载的图片。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "No downloaded pictures are kept on this phone."
+msgstr "此手机上没有保存已下载的图片。"
+
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -9419,8 +9455,8 @@ msgstr "{scope} 中没有结果"
 msgid "No rules yet. A rule files, flags or deletes mail as it arrives."
 msgstr "尚无规则。规则会在邮件到达时将其移入文件夹、标记或删除。"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "尚未记住任何发件人。使用邮件上方的“始终下载来自此发件人的图片”可将发件人或其域名添加到此处。"
@@ -9863,8 +9899,8 @@ msgstr "10月"
 msgid "October"
 msgstr "10月"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Off"
 msgstr "关"
@@ -9887,8 +9923,8 @@ msgstr "较早"
 msgid "Oldest on top"
 msgstr "最早邮件置顶"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On"
 msgstr "开"
@@ -10048,6 +10084,12 @@ msgstr "这里只发送通过邮件的退订：一键退订和网页退订由窗
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "仅在确认这些服务器可信时继续。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
+msgstr "仅针对屏幕上的行。开启流量节省程序时，只显示已保存在此手机上的图片。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10815,8 +10857,8 @@ msgstr "图片在文字旁"
 msgid "Pictures"
 msgstr "图片"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "始终下载图片的来源（{n}）："
@@ -10827,8 +10869,8 @@ msgstr "始终下载图片的来源（{n}）："
 msgid "Pictures in mail"
 msgstr "邮件中的图片"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "图片未下载。"
@@ -13423,8 +13465,8 @@ msgstr "深色主题下以浅色背景显示邮件"
 msgid "Show password"
 msgstr "显示密码"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr "显示来自 Gravatar、favicon.im 和 Google 的发件人图像"
@@ -20765,7 +20807,7 @@ msgid "the message can't hold that much text"
 msgstr "邮件中的文本已超过容量上限"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "无法读取邮件"
@@ -22524,6 +22566,13 @@ msgstr[0] "{n} 个通讯组列表，已保存为列出其成员的联系人"
 msgid "{n} downloaded picture is kept on this computer ({size})."
 msgid_plural "{n} downloaded pictures are kept on this computer ({size})."
 msgstr[0] "此计算机上保存了 {n} 张已下载的图片（{size}）。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "{n} downloaded picture is kept on this phone ({size})."
+msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
+msgstr[0] "此手机上保存了 {n} 张已下载的图片（{size}）。"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs

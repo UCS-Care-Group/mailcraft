@@ -537,8 +537,8 @@ msgstr "Część tego klucza to RSA (być może podklucz szyfrujący), którego 
 msgid "A picture couldn't be downloaded."
 msgstr "Nie udało się pobrać obrazu."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say."
 msgstr "Obraz z sieci informuje jego nadawcę, że otworzono wiadomość, i kiedy. Przy wyłączonej opcji obrazy są pobierane tylko dla wiadomości, nadawców i domen, które wskażesz."
@@ -1249,14 +1249,14 @@ msgstr "Zawsze przenoś wiadomości od tego nadawcy"
 msgid "Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again."
 msgstr "Zawsze pobieraj obrazy od wszystkich, których adres kończy się w ten sposób. Zapamiętywane w ustawieniach; Plik › Opcje wyświetla domeny i pozwala je ponownie usunąć."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from {sender}"
 msgstr "Zawsze pobieraj obrazy od {sender}"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always from @{domain}"
 msgstr "Zawsze z @{domain}"
@@ -1742,6 +1742,12 @@ msgstr "Ponownie pytaj przed pobraniem obrazów od nadawców z tej domeny"
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Ponownie pytaj przed pobraniem obrazów tego nadawcy"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Ask first again"
+msgstr "Znów pytaj najpierw"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -1789,6 +1795,12 @@ msgstr "Poproś listę o zaprzestanie wysyłania do Ciebie poczty. MailCraft naj
 #, fuzzy
 msgid "Ask to be told when the message is read"
 msgstr "Poproś o powiadomienie o przeczytaniu wiadomości"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Asked first"
+msgstr "Najpierw pytanie"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -2913,8 +2925,8 @@ msgstr "Wstążka klasyczna"
 msgid "Clean Up"
 msgstr "Czyszczenie"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Clear"
 msgstr "Wyczyść"
@@ -3689,6 +3701,12 @@ msgstr "Styl ciemnego motywu"
 msgid "Dark theme"
 msgstr "Ciemny motyw"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
+#, fuzzy
+msgid "Data Saver is on, so the pictures wait until you ask for them."
+msgstr "Oszczędzanie danych jest włączone, więc obrazy czekają, aż o nie poprosisz."
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -4342,8 +4360,8 @@ msgstr "Pobieraj we wszystkich wiadomościach"
 msgid "Download messages in full:"
 msgstr "Pobieraj wiadomości w całości:"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures"
 msgstr "Pobierz obrazy"
@@ -4360,8 +4378,8 @@ msgstr "Pobieraj obrazy we wszystkich wiadomościach"
 msgid "Download pictures in every message without asking, except in Junk E-mail. It asks first; File › Options turns it off again."
 msgstr "Pobieraj obrazy w każdej wiadomości bez pytania, z wyjątkiem Wiadomości-śmieci. Najpierw pyta; Plik › Opcje wyłącza to ponownie."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "Pobieraj obrazy w wiadomościach automatycznie"
@@ -4371,6 +4389,12 @@ msgstr "Pobieraj obrazy w wiadomościach automatycznie"
 #, fuzzy
 msgid "Download the bytes this message came as again, to check its Digital signature"
 msgstr "Pobierz ponownie bajty, w których przyszła ta wiadomość, aby sprawdzić jej podpis cyfrowy"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Downloaded automatically"
+msgstr "Pobierane automatycznie"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5456,8 +5480,8 @@ msgstr "Zapomnij pobrany kalendarz i kontakty"
 msgid "Forget Trusted Certificate"
 msgstr "Zapomnij zaufany certyfikat"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "Zapomnij przechowywane obrazy; zostaną pobrane ponownie na Twoje życzenie."
@@ -6014,8 +6038,8 @@ msgstr "Różności"
 msgid "Graphite"
 msgstr "Grafit"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr "Gravatar jest pytany o obraz nadawcy i otrzymuje skrót jego adresu; w przeciwnym razie favicon.im, a potem Google są pytane o ikonę jego witryny i otrzymują domenę nadawcy. Dzięki temu te usługi dowiadują się, czyje obrazy oglądasz. Dotyczy to tylko osób, które znasz (kontaktów i adresatów Twoich wiadomości) oraz wiadomości, których obrazy pobierasz, nigdy Wiadomości-śmieci, a obraz nadawcy tylko wtedy, gdy serwer poczty potwierdzi, że wiadomość pochodzi od niego."
@@ -8882,6 +8906,12 @@ msgstr "Nigdy nie blokuj domeny nadawcy"
 msgid "Never ends"
 msgstr "Nigdy się nie kończy"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Never in Junk E-mail. With Data Saver on, a message's pictures wait until you ask for them."
+msgstr "Nigdy w folderze Wiadomości-śmieci. Przy włączonym oszczędzaniu danych obrazy wiadomości czekają, aż o nie poprosisz."
+
 #. name
 #: crates/ui-egui/src/motion.rs
 #, fuzzy
@@ -9322,6 +9352,12 @@ msgstr "Żaden magazyn poświadczeń nie odpowiedział (w systemie Linux udostę
 msgid "No downloaded pictures are kept on this computer."
 msgstr "Na tym komputerze nie przechowuje się pobranych obrazów."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "No downloaded pictures are kept on this phone."
+msgstr "Na tym telefonie nie są przechowywane żadne pobrane obrazy."
+
 #. interface, ribbon
 #: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -9460,8 +9496,8 @@ msgstr "Brak wyników w: {scope}"
 msgid "No rules yet. A rule files, flags or deletes mail as it arrives."
 msgstr "Brak reguł. Reguła przenosi do folderu, oflagowuje lub usuwa pocztę w chwili jej nadejścia."
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "Nie zapamiętano żadnych nadawców. Opcja „Zawsze pobieraj obrazy od” nad wiadomością dodaje tutaj jej nadawcę lub domenę nadawcy."
@@ -9904,8 +9940,8 @@ msgstr "paź"
 msgid "October"
 msgstr "października"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Off"
 msgstr "Wyłączone"
@@ -9928,8 +9964,8 @@ msgstr "Starsze"
 msgid "Oldest on top"
 msgstr "Najstarsze na górze"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On"
 msgstr "Włączone"
@@ -10089,6 +10125,12 @@ msgstr "Stąd wysyłane jest tylko wypisanie się pocztą: wypisanie jednym klik
 #, fuzzy
 msgid "Only confirm if you know these servers."
 msgstr "Potwierdź tylko wtedy, gdy znasz te serwery."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "Only for the rows on screen. With Data Saver on, only pictures already kept on this phone are shown."
+msgstr "Tylko dla wierszy widocznych na ekranie. Przy włączonym oszczędzaniu danych pokazywane są tylko obrazy już przechowywane na tym telefonie."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -10856,8 +10898,8 @@ msgstr "Obraz obok tekstu"
 msgid "Pictures"
 msgstr "Obrazy"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "Obrazy są zawsze pobierane od ({n}):"
@@ -10868,8 +10910,8 @@ msgstr "Obrazy są zawsze pobierane od ({n}):"
 msgid "Pictures in mail"
 msgstr "Obrazy w poczcie"
 
-#. interface
-#: crates/ui-egui/src/reading/remote.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Pictures not downloaded."
 msgstr "Obrazy nie zostały pobrane."
@@ -13476,8 +13518,8 @@ msgstr "Pokazuj wiadomości na jasnym tle w ciemnym motywie"
 msgid "Show password"
 msgstr "Pokaż hasło"
 
-#. interface
-#: crates/ui-egui/src/sender_images.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/sender_images.rs
 #, fuzzy
 msgid "Show sender images from Gravatar, favicon.im and Google"
 msgstr "Pokazuj obrazy nadawców z Gravatar, favicon.im i Google"
@@ -20846,7 +20888,7 @@ msgid "the message can't hold that much text"
 msgstr "wiadomość nie pomieści tak dużo tekstu"
 
 #. what a command says
-#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs
+#: crates/mobile/src/fetch_api.rs crates/mobile/src/message.rs crates/mobile/src/pictures.rs
 #, fuzzy
 msgid "the message could not be read"
 msgstr "nie udało się odczytać wiadomości"
@@ -22651,6 +22693,15 @@ msgid_plural "{n} downloaded pictures are kept on this computer ({size})."
 msgstr[0] "{n} pobrany obraz jest przechowywany na tym komputerze ({size})."
 msgstr[1] "{n} pobrane obrazy są przechowywane na tym komputerze ({size})."
 msgstr[2] "{n} pobranych obrazów jest przechowywanych na tym komputerze ({size})."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "{n} downloaded picture is kept on this phone ({size})."
+msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
+msgstr[0] "{n} pobrany obraz jest przechowywany na tym telefonie ({size})."
+msgstr[1] "{n} pobrane obrazy są przechowywane na tym telefonie ({size})."
+msgstr[2] "{n} pobranych obrazów jest przechowywanych na tym telefonie ({size})."
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs

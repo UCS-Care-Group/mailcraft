@@ -41,6 +41,8 @@ import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
@@ -142,6 +144,7 @@ private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
     return all.firstOrNull { it.id == wanted }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun CoreShell(
     opened: Opened,
@@ -180,9 +183,12 @@ private fun CoreShell(
     }
     val accountsUi by hub.controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
-    val (readingUi, readingActions) = rememberReading(core, list, scope)
+    val pictured = rememberPictures(core, list, scope, appContext)
+    val pictures = pictured.stack
     val mailActions = remember(list, scope, hub) {
-        mailListActions(list, scope, retryOutline, hub::syncNow) { change -> query = change(query) }
+        mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
+            query = change(query)
+        }
     }
     AppShell(
         texts = texts,
@@ -198,7 +204,9 @@ private fun CoreShell(
             categories = categories,
             nowMillis = now,
             swipe = swipe,
-            reading = readingUi,
+            reading = pictured.reading,
+            pictures = pictured.settings,
+            avatars = pictured.avatars,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
@@ -209,27 +217,13 @@ private fun CoreShell(
                 swipe = it
                 prefs.save(it)
             },
-            reading = readingActions,
+            reading = pictures.readingActions(remember(core) { CoreLinks(core) }),
+            onPictures = pictures::changed,
+            onClearPictures = pictures::clear,
         ),
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
-}
-
-/**
- * The message being read is this window's own; marking it read goes through the list, which makes the
- * owner's commands in turn, so that an undo it offers is never taken by the mark.
- */
-@Composable
-private fun rememberReading(
-    core: Core,
-    list: MailListController,
-    scope: CoroutineScope,
-): Pair<ReadingUi, ReadingActions> {
-    val reading = remember(core, list) { ReadingController(CoreReadSource(core, list::markRead), scope) }
-    val links = remember(core) { CoreLinks(core) }
-    val ui by reading.ui.collectAsState()
-    return ui to ReadingActions(onOpen = reading::open, onClose = reading::close, onLink = links::open)
 }
 
 /**
@@ -259,10 +253,32 @@ private fun rememberTicks(list: MailListController): Long {
     return now
 }
 
+/** What the pictures of mail are made of, and what they currently show. */
+private class Pictured(
+    val stack: PictureStack,
+    val reading: ReadingUi,
+    val settings: PicturesUi,
+    val avatars: Map<ULong, ByteArray>?,
+)
+
+@Composable
+private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
+    val stack = remember(core, list) { PictureStack(core, context, scope, list::markRead) }
+    val reading by stack.reading.ui.collectAsState()
+    val avatars by stack.senderImages.images.collectAsState()
+    val settings by stack.settings.collectAsState()
+    // A message may have moved (to Junk, say) or been judged differently: the rows are decided again.
+    val rev by remember(list) { list.ui.map { it.snapshot.rev }.distinctUntilChanged() }.collectAsState(0uL)
+    LaunchedEffect(stack, rev) { stack.senderImages.revChanged(rev) }
+    return Pictured(stack, reading, settings, if (settings.prefs.senderImages) avatars else null)
+}
+
 /** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
+@Suppress("LongParameterList")
 private fun mailListActions(
     controller: MailListController,
     scope: CoroutineScope,
+    senderImages: SenderImages,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
     /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
@@ -280,7 +296,13 @@ private fun mailListActions(
         // (The pages on screen are read again now too; the round's own changes come as revisions.)
         scope.launch { controller.reload() }
     },
-    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onRange = { first, last ->
+        scope.launch {
+            controller.showRange(first, last)
+            val rows = controller.ui.value.snapshot
+            senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+        }
+    },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
     onUndo = { command -> scope.launch { controller.undo(command) } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },
