@@ -341,7 +341,14 @@ fn dav_identity(keys: &RandomState, s: &Session, id: &str, params: &Value) -> u6
         return 0;
     }
     let mut out = keys.build_hasher();
-    match p::id(params, "id").and_then(|a| s.mailbox.account(a)).and_then(|a| a.dav.as_ref().map(|dav| (a, dav))) {
+    let account = p::id(params, "id").and_then(|a| s.mailbox.account(a));
+    // The address is what a request with no user name signs in as, so a change of it between the
+    // question and the yes is a change of what was approved, whatever the request names.
+    if let Some(account) = account {
+        out.write(account.email.trim().to_ascii_lowercase().as_bytes());
+        out.write_u8(0xff);
+    }
+    match account.and_then(|a| a.dav.as_ref().map(|dav| (a, dav))) {
         None => out.write_u8(0),
         Some((account, dav)) => {
             out.write_u8(1);

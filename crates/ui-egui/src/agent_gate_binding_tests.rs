@@ -628,3 +628,21 @@ fn a_yes_to_a_server_change_does_not_reach_another_login_when_none_is_named() {
     assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
     assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().trusted, "");
 }
+
+#[test]
+fn a_yes_that_clears_the_user_name_does_not_reach_another_address() {
+    // The request asks for no user name, so it would sign in as the account's address: an address
+    // changed while the question is up changes what was approved, though the stored name didn't.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"], "username": "bo"})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "username": ""}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().username, "bo");
+}
