@@ -3,12 +3,12 @@
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
 use mailcraft_mime_model::rich::{Img, to_html_with};
-use mailcraft_model::rich::RichText;
+use mailcraft_model::rich::{RichText, Style};
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message, NOT_DOWNLOADED,
-    NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, FollowUp, FontSlot, Id, Importance, MAX_FOLLOW_UP_AHEAD, Message,
+    NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody, Signature, format_list,
 };
 use serde_json::{Value, json};
 
@@ -231,8 +231,23 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
     Ok(())
 }
 
-fn is_response(mode: ComposeMode) -> bool {
+pub(crate) fn is_response(mode: ComposeMode) -> bool {
     matches!(mode, ComposeMode::Reply | ComposeMode::ReplyAll | ComposeMode::Forward)
+}
+
+/// The font what is written in a message from this account takes: its plain-text font for a
+/// plain-text message (which carries no font of its own), its reply font for a reply or forward,
+/// its new-message font otherwise. The message's own — nothing — when the account chose none, or
+/// is gone.
+pub(crate) fn writing_font(s: &Session, account: Id, reply: bool, plain: bool) -> Style {
+    let slot = if plain {
+        FontSlot::Plain
+    } else if reply {
+        FontSlot::Reply
+    } else {
+        FontSlot::New
+    };
+    s.mailbox.account(account).map_or_else(Style::default, |a| a.writing_font(slot))
 }
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
@@ -262,6 +277,8 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         let end = c.body.text().len();
         start_with(&mut c, sig, end)?;
     }
+    // What the owner writes takes the account's own font; the signature keeps its look.
+    c.body.set_default_style(writing_font(s, account, false, false));
     let compose = s.open_compose(c)?;
     s.view.module = crate::Module::Mail;
     Ok(json!({"composing": true, "compose": compose}))
@@ -553,6 +570,9 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     if let Some(sig) = &sig {
         start_with(&mut c, sig, 1)?;
     }
+    // What the owner writes takes the account's font — the plain-text one for a plain-text
+    // message, the reply font otherwise; the signature and the original keep their own looks.
+    c.body.set_default_style(writing_font(s, m.account, true, m.body.html.is_none()));
     let compose = s.open_compose(c)?;
     Ok(json!({"composing": true, "mode": mode, "compose": compose}))
 }
@@ -687,6 +707,9 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
     if let Some(sig) = &sig {
         start_with(&mut c, sig, 1)?;
     }
+    // Forwarded whole, nothing of the originals is written in: what the owner writes is a new
+    // message, and takes the account's new-message font.
+    c.body.set_default_style(writing_font(s, account, false, false));
     let compose = s.open_compose(c)?;
     Ok(json!({"composing": true, "mode": ComposeMode::Forward, "compose": compose}))
 }
@@ -1018,7 +1041,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         None => m.attachments.clone(),
     };
     let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
-    Compose {
+    let mut c = Compose {
         account: m.account,
         to: format_list(&m.to),
         cc: format_list(&m.cc),
@@ -1043,7 +1066,12 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
         ..Default::default()
-    }
+    };
+    // What goes on being written in it takes the account's font: the plain-text one for a
+    // plain-text draft, the reply font for one that answers a message, the new-message font for
+    // one that doesn't. What is already written keeps its own look.
+    c.body.set_default_style(writing_font(s, m.account, !m.in_reply_to.is_empty(), m.body.html.is_none()));
+    c
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {
@@ -1062,6 +1090,11 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     // ponytail: a message that started with no signature gets none; add one when owners ask.
     let swap = match (account, s.compose.as_ref()) {
         (Some(a), Some(c)) if a != c.account && c.signature_unedited() => Some(chosen_signature(s, a, None, is_response(c.mode))),
+        _ => None,
+    };
+    // …and that account's font, for what is written from here on.
+    let font = match (account, s.compose.as_ref()) {
+        (Some(a), Some(c)) if a != c.account => Some(writing_font(s, a, is_response(c.mode), c.format == BodyFormat::Plain)),
         _ => None,
     };
     let c = compose_mut(s)?;
@@ -1083,6 +1116,9 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(a) = account {
         c.account = a;
+        if let Some(font) = font {
+            c.body.set_default_style(font);
+        }
     }
     if *c != before {
         c.dirty = true;

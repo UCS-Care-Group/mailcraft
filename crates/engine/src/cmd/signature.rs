@@ -9,9 +9,9 @@
 //! back. While it is open, the picture and layout commands for it change the open one.
 
 use mailcraft_model::RichBody;
-use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
+use mailcraft_model::rich::{Font, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color};
 use mailcraft_model::signature::{Layout, Signature};
-use mailcraft_model::{AccountKind, Id, clean_name};
+use mailcraft_model::{AccountKind, FontSlot, Id, clean_name};
 use serde_json::{Value, json};
 
 use super::{bad, done, fail};
@@ -29,6 +29,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("signature.rename", "Rename Signature", "File › Signatures", rename).params(r#"{"name": string, "to": string}"#),
         CommandSpec::new("signature.defaults", "Choose Default Signature", "File › Signatures", defaults).params(
             r#"{"account"?: number (default: the default account), "new"?: string ("" for none), "reply"?: string (replies and forwards; "" for none)}"#,
+        ),
+        CommandSpec::new("signature.fonts", "Choose Default Font", "File › Signatures", fonts).params(
+            r##"{"account"?: number (default: the default account), "new"?: font | null (what new messages are written in), "reply"?: font | null (replies, replies to all and forwards), "plain"?: font | null (plain-text messages: what they are written in and read in) — at least one of the three; each one given replaces that font whole, null gives it back to the message's own. font = {"font"?: string | null (a family, or a font-family list, as `format.font` takes it), "size"?: number | null (points, 8–36), "bold"?: bool, "italic"?: bool, "underline"?: bool, "color"?: string | null ("#rrggbb")} — what isn't said is the message's own; a font with nothing in it is the same as null. Answers the account's three fonts, null for the message's own"##,
         ),
         CommandSpec::new("signature.picture.add", "Insert Picture", "File › Signatures", picture_add).params(
             r#"{"name": string (the signature), "data"?: base64 | "path"?: string (PNG, JPEG or GIF; never a web address), "file"?: string (its name), "alt"?: string, "at"?: number (a position in the text; default: the start)} — answers the picture's id"#,
@@ -277,6 +280,80 @@ fn defaults(s: &mut Session, v: &Value) -> CmdResult {
         a.signature = new;
     }
     Ok(json!({"account": account, "new": a.signature, "reply": a.reply_signature()}))
+}
+
+/// One font as a command gives it: an object of its parts, each optional — what isn't said is the
+/// message's own. A family that isn't one, a size out of range and a colour that isn't one are
+/// refused, so a command that answers nothing leaves the account as it was.
+fn font_given(v: &Value) -> Result<Style, CmdError> {
+    p::only(v, &["font", "size", "bold", "italic", "underline", "color"])?;
+    let font = match v.get("font") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(name)) => Some(Font::parse(name).ok_or_else(|| bad("`font` is a font family, as `format.font` takes it"))?),
+        Some(_) => return Err(bad("`font` is a font family, or null")),
+    };
+    let size = match v.get("size") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(
+            p::u64(v, "size")
+                .filter(|n| (u64::from(MIN_SIZE)..=u64::from(MAX_SIZE)).contains(n))
+                .and_then(|n| u8::try_from(n).ok())
+                .ok_or_else(|| bad(format!("`size` is a number of points, {MIN_SIZE} to {MAX_SIZE}, or null")))?,
+        ),
+    };
+    let color = match v.get("color") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(hex)) => Some(safe_color(hex).ok_or_else(|| bad("`color` is \"#rrggbb\", or null"))?),
+        Some(_) => return Err(bad("`color` is \"#rrggbb\", or null")),
+    };
+    Ok(Style {
+        bold: p::opt_bool(v, "bold")?.unwrap_or(false),
+        italic: p::opt_bool(v, "italic")?.unwrap_or(false),
+        underline: p::opt_bool(v, "underline")?.unwrap_or(false),
+        size,
+        color,
+        font,
+        ..Style::default()
+    }
+    .font_only())
+}
+
+/// A font as the answer says it: its parts, or null for the message's own.
+fn font_answer(style: Option<&Style>) -> Result<Value, CmdError> {
+    style.map_or(Ok(Value::Null), |style| serde_json::to_value(style).map_err(|e| fail(e.to_string())))
+}
+
+/// The font an account writes in, one or all three at a time. Each font given replaces that one
+/// whole — the dialog that asks for it says everything about it — and null gives it back to the
+/// message's own. What the account ends up with is answered, so a caller that set one still learns
+/// the other two.
+fn fonts(s: &mut Session, v: &Value) -> CmdResult {
+    let account = account_of(s, v)?;
+    let mut chosen: Vec<(FontSlot, Option<Style>)> = Vec::new();
+    for slot in [FontSlot::New, FontSlot::Reply, FontSlot::Plain] {
+        match v.get(slot.key()) {
+            None => {}
+            Some(Value::Null) => chosen.push((slot, None)),
+            Some(given) => {
+                let style = font_given(given)?;
+                // A font with nothing in it asks for the message's own, however it was written.
+                chosen.push((slot, (!style.is_plain()).then_some(style)));
+            }
+        }
+    }
+    if chosen.is_empty() {
+        return Err(bad("`new`, `reply` or `plain` is required: a font, or null for the message's own"));
+    }
+    let a = s.mailbox.account_mut(account)?;
+    for (slot, style) in chosen {
+        a.set_default_font(slot, style);
+    }
+    Ok(json!({
+        "account": account,
+        "new": font_answer(a.default_font(FontSlot::New))?,
+        "reply": font_answer(a.default_font(FontSlot::Reply))?,
+        "plain": font_answer(a.default_font(FontSlot::Plain))?,
+    }))
 }
 
 fn picture_add(s: &mut Session, v: &Value) -> CmdResult {

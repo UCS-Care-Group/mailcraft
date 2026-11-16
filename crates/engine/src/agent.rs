@@ -563,6 +563,8 @@ const SETTINGS: &[&str] = &[
     "signature.remove",
     "signature.rename",
     "signature.defaults",
+    // The font each account writes in: a setting on this computer, like the signatures with it.
+    "signature.fonts",
     "signature.picture.add",
     "signature.picture.set",
     "signature.picture.remove",
