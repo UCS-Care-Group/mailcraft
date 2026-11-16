@@ -41,6 +41,12 @@ pub enum Dialog {
     /// Move Items or Copy Items (#1176): the folder for Move to Folder or Copy to Folder, when
     /// it was run without one; runs `mail.move` or `mail.copy`.
     MoveItems(crate::move_items::MoveItems),
+    /// Add Reminder on the selected messages, or Follow Up › Choose a date… in the message being
+    /// written (#948); runs `mail.reminder` or `compose.followUp`.
+    AddReminder(crate::reminder_dialog::AddReminder),
+    /// Delay Delivery, Send Later and Change Send Time (#950): a date and a time; runs
+    /// `compose.delay`, `compose.sendLater` or `mail.setSendTime`.
+    SendLater(crate::send_later::Ask),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -65,6 +71,17 @@ pub enum Dialog {
         error: String,
         /// The address that was asked for and is being read.
         reading: Option<String>,
+    },
+    /// The address of a calendar on the web to subscribe to (Calendar › Open Calendar › From
+    /// Internet…, #209): it only collects the address, then runs `calendar.subscribe`
+    /// ([`crate::subscribed`]). The address is a secret like a password: it is not shown back in
+    /// any message, and is never in a log.
+    Subscribe {
+        address: String,
+        name: String,
+        error: String,
+        /// For a refused `http://` address: the same one over `https://`, offered.
+        offer: Option<String>,
     },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
@@ -234,9 +251,12 @@ impl Dialog {
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::MoveItems(d) => d.name(),
+            Dialog::AddReminder(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
+            Dialog::SendLater(d) => d.name(),
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
+            Dialog::Subscribe { .. } => "subscribe",
             Dialog::Link { .. } => "link",
             Dialog::DateTime { .. } => "dateTime",
             Dialog::WordCount { .. } => "wordCount",
@@ -305,7 +325,17 @@ impl Dialog {
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
+            "addReminder" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Messages)?),
+            "followUpDate" => Dialog::AddReminder(crate::reminder_dialog::AddReminder::open(app, crate::reminder_dialog::Target::Composing)?),
             "moveItems" | "copyItems" => Dialog::MoveItems(crate::move_items::MoveItems::open(app, name == "copyItems")?),
+            "delay" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Delay)?),
+            "sendLater" => Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Send)?),
+            "sendTime" => {
+                let queued = id("id")
+                    .or(app.session.sel.focus())
+                    .filter(|id| app.session.mailbox.message(*id).is_some_and(|m| crate::send_later::waits(app, m)))?;
+                Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Change(queued))?)
+            }
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -328,6 +358,12 @@ impl Dialog {
                 let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
                 Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
             }
+            "subscribe" => Dialog::Subscribe {
+                address: params.get("address").and_then(Value::as_str).unwrap_or_default().to_string(),
+                name: String::new(),
+                error: String::new(),
+                offer: None,
+            },
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
                 let sel = c.body.selection();
@@ -632,6 +668,17 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        // A subscribed calendar and its events go from this computer; nothing is sent (#209).
+        "calendar.unsubscribe" => {
+            let calendar = params.get("id").and_then(Value::as_u64).and_then(|c| mb.calendar(c)).filter(|c| c.is_subscribed())?;
+            let text = crate::i18n::fmt(
+                tl!(
+                    "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+                ),
+                &[("name", &calendar.name)],
+            );
+            question(tl!("Unsubscribe from Calendar"), text, tl!("Unsubscribe"))
         }
         // A calendar opened by address is removed here only: the server's is not touched (#70).
         "calendar.removeShared" => {
@@ -1317,6 +1364,9 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "compose.attachItem" if !has("id") => Some("attachItem"),
         "insert.businessCard" if !has("id") => Some("businessCard"),
         "compose.replyTo" if !has("value") => Some("replyTo"),
+        "compose.delay" if !has("at") && !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("delay"),
+        "compose.sendLater" if !has("at") => Some("sendLater"),
+        "mail.setSendTime" if !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("sendTime"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "insert.dateTime" if !has("format") => Some("dateTime"),
@@ -1327,6 +1377,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
+        "calendar.subscribe" if !has("address") => Some("subscribe"),
         "rules.list" => Some("rules"),
         "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
@@ -1619,6 +1670,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, d.title(), 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
             close |= !open || matches!(outcome, crate::move_items::Outcome::Close);
         }
+        Dialog::AddReminder(d) => {
+            let mut outcome = crate::reminder_dialog::Outcome::Open;
+            let title = if d.target == crate::reminder_dialog::Target::Composing { tl!("Follow Up") } else { tl!("Add Reminder") };
+            let open = window(ctx, title, 400.0, |ui| outcome = d.ui(ui, app, &t, enter));
+            close |= !open || matches!(outcome, crate::reminder_dialog::Outcome::Close);
+        }
         Dialog::GoToDate { text, error } => {
             let mut submit = false;
             let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
@@ -1640,6 +1697,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     Ok(_) => close = true,
                     Err(e) => *error = e,
                 }
+            }
+        }
+        Dialog::SendLater(d) => {
+            if matches!(crate::send_later::show(ctx, d, app, &t, enter), crate::send_later::Outcome::Close) {
+                close = true;
             }
         }
         Dialog::ReplyTo { text, error } => {
@@ -1762,6 +1824,56 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 match app.begin_open_shared(*account, address.trim()) {
                     Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
                     Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::Subscribe { address, name, error, offer } => {
+            let mut submit = false;
+            let mut use_offer = false;
+            let open = window(ctx, tl!("Subscribe to Internet Calendar"), 460.0, |ui| {
+                ui.label(tl!("The address of the calendar"));
+                let field = egui::TextEdit::singleline(address)
+                    .password(true)
+                    .hint_text("https://calendar.example.org/club.ics")
+                    .desired_width(f32::INFINITY);
+                let resp = crate::text_menu::field(ui.add(field));
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                ui.add_space(2.0);
+                ui.label(tl!("Name (optional)"));
+                let field = egui::TextEdit::singleline(name).hint_text(tl!("The name the calendar gives itself")).desired_width(f32::INFINITY);
+                crate::text_menu::field(ui.add(field));
+                ui.label(
+                    egui::RichText::new(tl!(
+                        "An https:// or webcal:// address. Nothing is read until you press Subscribe. The calendar is listed under Other Calendars, read-only, and brought up to date from the web every hour and when you press Send/Receive; you can choose another time in File › Info. Its address is asked for over an encrypted connection, with nothing that says who you are. A private address holds a secret: it is kept like a password, in your system's credential store when you let MailCraft remember sign-ins, and otherwise until you quit."
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                if offer.is_some() {
+                    use_offer = ui.link(tl!("Use https:// instead")).clicked();
+                }
+                let (ok, cancel) = buttons(ui, tl!("Subscribe"), !address.trim().is_empty());
+                submit = ok || (enter && !address.trim().is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if use_offer && let Some(better) = offer.take() {
+                *address = better;
+                error.clear();
+            } else if submit && !close {
+                error.clear();
+                *offer = None;
+                match app.begin_subscribe(address, name) {
+                    Ok(_) => close = true,
+                    Err(e) => {
+                        *offer = MailApp::https_offer(address);
+                        *error = e;
+                    }
                 }
             }
         }

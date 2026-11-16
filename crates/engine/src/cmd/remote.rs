@@ -772,14 +772,15 @@ pub fn only_here(mailbox: &Mailbox) -> Vec<(Id, usize)> {
     if server_calendar(mailbox).is_none() {
         return Vec::new();
     }
-    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own = mailbox.calendars.iter().filter(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     own.map(|calendar| (calendar.id, mailbox.events.values().filter(|event| event.calendar == calendar.id).count())).filter(|(_, n)| *n > 0).collect()
 }
 
 /// Whether the event `id` is kept on this computer only although an account's server keeps a
 /// calendar here ([`only_here`]): a change to it goes nowhere, and whoever makes one is told.
 pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
-    let own = |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none());
+    let own =
+        |calendar: Id| mailbox.calendar(calendar).is_some_and(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed());
     server_calendar(mailbox).is_some() && mailbox.event(id).is_some_and(|event| own(event.calendar))
 }
 
@@ -789,7 +790,8 @@ pub fn stays_here(mailbox: &Mailbox, id: Id) -> bool {
 /// not one that is only free and busy blocks.
 pub fn is_own_calendar(mailbox: &Mailbox, calendar: &Calendar) -> bool {
     match keeper(mailbox, &calendar.origin) {
-        None => true,
+        // (Not a copy of somebody's calendar on the web either: nothing in it is the owner's.)
+        None => !calendar.is_subscribed(),
         Some(account) => !account.is_shared() && calendar.rights != Rights::FreeBusy && !super::calendar_settings::is_shared_with(account, calendar),
     }
 }
@@ -855,6 +857,8 @@ fn new_token(event: Id, salt: u64) -> String {
 /// only read (somebody else's, a calendar of holidays): the server would refuse it anyway.
 pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> {
     match mailbox.calendar(calendar) {
+        // A copy of a calendar on the web (Internet Calendars): the next look would take a change back.
+        Some(c) if c.is_subscribed() => Err(failed!("The calendar \"{name}\" is a copy of one on the web: it can only be read here.", name = c.name)),
         // A shared mailbox's calendar, with the rights this account has on it (#70): the owner
         // of the mailbox sets them, and they are read again at every listing.
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some_and(Account::is_shared) => {
@@ -1217,7 +1221,11 @@ fn keep_on_this_computer(mailbox: &mut Mailbox, id: Id) -> bool {
     if mailbox.event(id).is_none() {
         return false;
     }
-    let own = mailbox.calendars.iter().find(|calendar| keeper(mailbox, &calendar.origin).is_none()).map(|calendar| calendar.id);
+    let own = mailbox
+        .calendars
+        .iter()
+        .find(|calendar| keeper(mailbox, &calendar.origin).is_none() && !calendar.is_subscribed())
+        .map(|calendar| calendar.id);
     let own = match own {
         Some(own) => own,
         None if mailbox.calendars.len() < MAX_CALENDARS => {
@@ -2727,7 +2735,7 @@ fn rehome_strays(mailbox: &mut Mailbox) {
         return;
     }
     // (One that is shown, when there is one: what was in view stays in view.)
-    let own = || mailbox.calendars.iter().filter(|c| keeper(mailbox, &c.origin).is_none());
+    let own = || mailbox.calendars.iter().filter(|c| keeper(mailbox, &c.origin).is_none() && !c.is_subscribed());
     let home = match own().find(|c| c.visible).or_else(|| own().next()).map(|c| c.id) {
         Some(calendar) => calendar,
         None if mailbox.calendars.len() < MAX_CALENDARS => {
@@ -3607,7 +3615,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     // to: not another account's, whose server would never be sent it.
     let left_in = |event: &std::sync::Arc<Event>| mailbox.calendars.iter().any(|calendar| calendar.id == event.calendar && followed(calendar));
     let homeless = mailbox.events.values().any(left_in);
-    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.is_own());
     if calendars > 0 && (calendars == mailbox.calendars.len() || (homeless && !own_stays)) {
         // No calendar of the mailbox's own would be left (for what was made here, or at all):
         // one becomes that, the account's main one when it is here (not a Birthdays it lists
@@ -3621,7 +3629,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     }
     let gone: Vec<Id> = mailbox.calendars.iter().filter(|calendar| followed(calendar)).map(|calendar| calendar.id).collect();
     // Events made here that sat in a calendar that goes move to one of the mailbox's own.
-    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.origin.is_local());
+    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.is_own());
     if let Some(home) = home.map(|calendar| calendar.id) {
         for event in mailbox.events.values_mut().filter(|event| gone.contains(&event.calendar)) {
             std::sync::Arc::make_mut(event).calendar = home;
