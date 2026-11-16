@@ -11,9 +11,14 @@ name: Android
 #          apksigner) and the AAB (jarsigner) with the SDK's own tools, verifies both, deletes the
 #          keystore, and hands the signed APK on as release-android (release.yml adds it to the
 #          GitHub release and its checksums). It never runs cargo, Gradle or a built program, and
-#          Gradle holds no key: the signing configuration is not in the build at all.
-#          The signed AAB goes to Google Play's internal track (the upload key; Play re-signs with
-#          the app signing key it holds) when PLAY_SERVICE_ACCOUNT_JSON is there too.
+#          Gradle holds no key: the signing configuration is not in the build at all. The signed
+#          AAB is handed on by digest as android-signed-aab.
+#   uploader  no secret. Builds our own Play uploader (`cargo xtask play-upload`) and hands it on
+#          by digest.
+#   play   the `release` environment, the Play key alone. Checks both digests and runs the uploader:
+#          the signed AAB to Google Play's internal track as a draft (the upload key; Play re-signs
+#          with the app signing key it holds) when PLAY_SERVICE_ACCOUNT_JSON is there. No third
+#          party's action holds the Play key, and a Play failure never fails the Android run.
 #
 # Without the upload key the build stays unsigned: the files are kept as workflow artifacts, a
 # notice says so, and nothing is signed or uploaded. This workflow can't fail the desktop release:
@@ -119,6 +124,7 @@ jobs:
       contents: read
     outputs:
       digest: ${{ steps.seal.outputs.digest }}
+      aab: ${{ steps.seal-aab.outputs.digest }}
     steps:
       - name: Signing only for a pushed version tag
         if: "!(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))"
@@ -197,15 +203,94 @@ jobs:
           path: apk/
           if-no-files-found: error
       # The AAB is for Google Play only: not a file of the GitHub release, so not a release-* artifact.
+      - name: Hand the signed AAB on by digest
+        id: seal-aab
+        if: steps.key.outputs.configured == 'true'
+        run: echo "digest=$(bash packaging/ci/handoff.sh seal aab android-signed-aab)" >>"$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.key.outputs.configured == 'true'
         with:
           name: android-signed-aab
           path: aab/
           if-no-files-found: error
+
+  # Our own uploader (`cargo xtask play-upload`, xtask/src/play_upload.rs), built here without any
+  # secret from the tagged commit's locked dependencies and handed on by digest: the job that holds
+  # the Play key runs it and builds nothing.
+  uploader:
+    name: Build the Google Play uploader (holds no secret)
+    if: inputs.sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.seal.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - name: Build xtask
+        run: cargo build --locked --release --package xtask
+      - name: Hand it on by digest
+        id: seal
+        run: |
+          mkdir -p uploader
+          cp target/release/xtask uploader/xtask
+          echo "digest=$(bash packaging/ci/handoff.sh seal uploader play-uploader)" >>"$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: play-uploader
+          path: uploader/
+          if-no-files-found: error
+
+  # The signed AAB to Google Play's internal track, as a draft the owner promotes in Play Console.
+  # This job holds the Play service account's key and nothing else: not the upload key, no cargo,
+  # no Rust toolchain, no cache; it runs only the uploader handed on above (`cargo xtask workflows`
+  # allows that one program here, and nothing else built). A Play failure (the app not made there
+  # yet, a code already used) is a warning: the job may fail without failing the Android run, so
+  # the signed APK still joins the GitHub release and the desktop release is not held up.
+  play:
+    name: Google Play (internal track)
+    needs: [sign, uploader]
+    if: needs.sign.outputs.aab != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    continue-on-error: true
+    # The protected `release` environment holds the Play key and accepts version tags only.
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Only for a pushed version tag
+        if: "!(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))"
+        run: |
+          echo "::error::the Play upload was asked for on $GITHUB_REF ($GITHUB_EVENT_NAME); only a pushed version tag is uploaded"
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-signed-aab
+          path: aab
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: play-uploader
+          path: uploader
+      - name: The files are the ones their jobs made
+        env:
+          AAB: ${{ needs.sign.outputs.aab }}
+          UPLOADER: ${{ needs.uploader.outputs.digest }}
+        run: |
+          bash packaging/ci/handoff.sh check aab "android-signed-aab=$AAB"
+          bash packaging/ci/handoff.sh check uploader "play-uploader=$UPLOADER"
+          chmod +x uploader/xtask
       - name: Google Play set up?
         id: play
-        if: steps.key.outputs.configured == 'true'
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -214,16 +299,21 @@ jobs:
           else
             echo "::notice::PLAY_SERVICE_ACCOUNT_JSON is not in the release environment: the signed AAB is kept as the android-signed-aab workflow artifact and not uploaded to Google Play"
           fi
-      # The internal track, as a draft: the owner promotes it in Play Console. A Play failure (the
-      # app not made there yet, a code already used) is a warning here: the sealed APK is already
-      # on its way to the GitHub release and the desktop release is not held up by it.
-      - name: Upload the AAB to Google Play (internal track)
+      # The key goes to the uploader in its environment only; it is never on a command line, in a
+      # file or in a log, and an error names the step and the HTTP status alone.
+      - name: Upload the AAB to Google Play (internal track, draft)
         if: steps.play.outputs.configured == 'true'
         continue-on-error: true
-        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: work.mailcraft.android
-          releaseFiles: aab/*.aab
-          track: internal
-          status: draft
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          shopt -s nullglob
+          files=(aab/*.aab)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::warning::expected one signed AAB, found ${#files[@]}"
+            exit 1
+          fi
+          uploader/xtask play-upload "${files[0]}" || {
+            echo "::warning::the AAB didn't reach Google Play; it is kept as the android-signed-aab workflow artifact"
+            exit 1
+          }

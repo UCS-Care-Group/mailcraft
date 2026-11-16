@@ -15,6 +15,7 @@ mod icon;
 mod layers;
 mod mobile;
 mod parity;
+mod play_upload;
 mod release_key;
 mod release_notes;
 mod spdx;
@@ -65,6 +66,9 @@ commands:
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
                   sign <file> into <file>.sig with the key in MAILCRAFT_RELEASE_KEY (base64 PKCS#8)
+  play-upload <file.aab>
+                  the AAB to Google Play's internal track as a draft, with the service account's JSON
+                  key in PLAY_SERVICE_ACCOUNT_JSON (the release workflow; docs/releasing.md)
 ";
 
 fn main() -> ExitCode {
@@ -91,6 +95,7 @@ fn main() -> ExitCode {
         Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("docs-log") => docs_log::run(&root(), &rest),
         Some("release-key") => release_key::run(&rest),
+        Some("play-upload") => play_upload::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

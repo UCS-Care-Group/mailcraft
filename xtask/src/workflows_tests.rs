@@ -284,3 +284,17 @@ fn scripts_run_from_inside_packaging_must_be_signing_scripts() {
     // The next step doesn't inherit the folder.
     assert!(!flagged("      - working-directory: packaging\n        run: ./sign-sums.sh x\n      - run: ./list.sh"));
 }
+
+/// The Play job: the uploader handed on by digest may run where the Play key is the only secret,
+/// and nothing else built may; with any other secret beside it, not even the uploader.
+#[test]
+fn only_the_handed_on_uploader_runs_beside_the_play_key_alone() {
+    let play = "jobs:\n  play:\n    environment: release\n    steps:\n      - run: chmod +x uploader/xtask\n      - env:\n          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}\n        run: uploader/xtask play-upload aab/a.aab\n";
+    assert_eq!(problems(play), Vec::<String>::new());
+    let built = play.replace("chmod +x uploader/xtask", "cargo run --package xtask -- play-upload aab/a.aab");
+    assert!(problems(&built).iter().any(|p| p.contains("runs `cargo`")), "{:#?}", problems(&built));
+    let other = play.replace("uploader/xtask play-upload", "target/release/mailcraft-cli --version; uploader/xtask play-upload");
+    assert!(problems(&other).iter().any(|p| p.contains("target/")), "{:#?}", problems(&other));
+    let keyed = play.replace("      - run: chmod", "      - env:\n          K: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}\n        run: chmod");
+    assert!(problems(&keyed).iter().any(|p| p.contains("`xtask`")), "{:#?}", problems(&keyed));
+}

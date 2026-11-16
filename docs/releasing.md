@@ -95,7 +95,9 @@ release file comes with the digest of the job that made it, and the job that mak
 checks them all before it makes `SHA256SUMS.txt`, which it signs with the runner's OpenSSL, not
 with anything compiled from this repository. `cargo xtask workflows` (part of `cargo xtask ci`)
 fails when a job with a signing secret, an Azure sign-in, a keychain import or the `release`
-environment runs cargo, rustup or a built program. Release builds use no build cache
+environment runs cargo, rustup or a built program. Its one exception is the Google Play
+uploader (below): built in a job without secrets and handed on by digest, it may run in a job
+whose only secret is the Play key, and nothing else built may run there. Release builds use no build cache
 (`Swatinem/rust-cache` is for CI only). The Google desktop client (`MAILCRAFT_GOOGLE_CLIENT_ID`,
 `MAILCRAFT_GOOGLE_CLIENT_SECRET`) is read by the build jobs, which name no environment, so it is
 a secret of the repository, not of the `release` environment.
@@ -277,11 +279,22 @@ The same version tag builds the Android app (`.github/workflows/android.yml`, ca
 3. **Release.** The signed APK is `mailcraft-<version>-android.apk` in the GitHub release, in
    `SHA256SUMS.txt` and the provenance like every other file. `release.yml`'s `publish` takes it
    only when the Android run succeeded: an Android failure never blocks the desktop release.
-4. **Google Play.** The signed AAB goes to the **internal** testing track as a draft with
-   `r0adkll/upload-google-play` (MIT, pinned by commit). The release is promoted by hand in Play
-   Console. A failed upload is a warning, not a failed release. The Gradle Play Publisher plugin
-   isn't used: it would add a build dependency (and a hash entry in
-   `gradle/verification-metadata.xml`) to the app's own tree for something only the release job does.
+4. **Google Play.** The signed AAB goes to the **internal** testing track as a draft with our own
+   uploader, `cargo xtask play-upload` (`xtask/src/play_upload.rs`); no third party's action
+   holds the Play key. A job without secrets builds it and hands it on by digest; the `play` job,
+   in the `release` environment with `PLAY_SERVICE_ACCOUNT_JSON` as its only secret, checks the
+   digests of the uploader and of the signed AAB and runs it. It makes Google's five requests
+   (Android Publisher API v3) with the runner's `curl`, HTTPS only: an access token for the
+   service account (a JWT signed RS256 with its key, scope `androidpublisher`, from
+   `oauth2.googleapis.com/token`), `edits.insert`, `edits.bundles.upload`, `edits.tracks.update`
+   (`internal`, status `draft`, the version code Play read from the bundle) and `edits.commit`.
+   The service account's JSON is read from the environment only, and it, its key and the access
+   token are never on a command line, in a file or in a log: curl reads each request from its
+   standard input, and an error names the step and the HTTP status alone. The release is promoted
+   by hand in Play Console. A failed upload is a warning, not a failed release: the `play` job may
+   fail without failing the Android run. The Gradle Play Publisher plugin isn't used: it would add
+   a build dependency (and a hash entry in `gradle/verification-metadata.xml`) to the app's own
+   tree for something only the release job does.
 
 **Secrets the owner adds** (in the `release` environment, none anywhere else):
 
