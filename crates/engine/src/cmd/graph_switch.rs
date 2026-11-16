@@ -287,6 +287,8 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
     let a = mb.account_mut(account).map_err(|e| fail(e.to_string()))?;
     a.kind = AccountKind::Microsoft;
     (a.incoming, a.outgoing) = (None, None);
+    // (Microsoft keeps its calendars through Graph: no calendar and contacts server of its own.)
+    a.dav = None;
     a.graph_switch = GraphSwitch::NotAsked;
     // What the session kept of the messages that went.
     let mb = &s.mailbox;

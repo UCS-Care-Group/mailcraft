@@ -1500,6 +1500,12 @@ msgid "Apply"
 msgstr "Übernehmen"
 
 #. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Calendars and Contacts Server"
+msgstr "Kalender- und Kontaktserver anwenden"
+
+#. command label
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "Apply Downloaded Automatic Replies"
@@ -1624,6 +1630,12 @@ msgstr "Gesendete Aufgabenänderungen anwenden"
 #, fuzzy
 msgid "Apply Subscribed Calendar"
 msgstr "Abonnierten Kalender anwenden"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Apply Uploaded Calendar and Contacts Changes"
+msgstr "Hochgeladene Kalender- und Kontaktänderungen anwenden"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -2412,6 +2424,18 @@ msgstr "Prüfung der Kalenderverbindung"
 msgid "Calendar Listed Twice"
 msgstr "Kalender doppelt aufgeführt"
 
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendar and Contacts Changes to Send"
+msgstr "Zu sendende Kalender- und Kontaktänderungen"
+
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Calendar and Contacts Server"
+msgstr "Kalender- und Kontaktserver"
+
 #. name
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -2423,6 +2447,12 @@ msgstr "Kalender und Kontakte"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Kalender und Kontakte brauchen Ihre Erlaubnis: Datei › Informationen › Kalender und Kontakte verbinden"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Calendars and contacts on a server are not read or written yet in this version."
+msgstr "Kalender und Kontakte auf einem Server werden in dieser Version noch nicht gelesen oder geschrieben."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5210,7 +5240,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Weniger als zwei dieser Kontakte sind noch vorhanden, daher gibt es nichts zusammenzuführen."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Datei"
@@ -6814,7 +6844,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "E-Mails werden indiziert: {percent} %"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Informationen"
@@ -13012,7 +13042,7 @@ msgid "Send & Receive"
 msgstr "Senden und Empfangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Senden/Empfangen"
@@ -13266,6 +13296,12 @@ msgstr ""
 #, fuzzy
 msgid "Send/Receive All Folders"
 msgstr "Alle Ordner senden/empfangen"
+
+#. command label
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Send/Receive Calendars and Contacts Server"
+msgstr "Kalender- und Kontaktserver senden/empfangen"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -14429,6 +14465,12 @@ msgstr "Indizierung läuft noch: Manche älteren E-Mails werden langsamer durchs
 #, fuzzy
 msgid "Stop"
 msgstr "Anhalten"
+
+#. command label
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "Stop Using Calendar and Contacts Server"
+msgstr "Kalender- und Kontaktserver nicht mehr verwenden"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -20009,6 +20051,12 @@ msgstr "ist kein Ordner, in dem MailCraft seine Daten aufbewahrt: unberührt gel
 msgid "isn't a folder: left alone"
 msgstr "ist kein Ordner: unberührt gelassen"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "isn't switched on yet"
+msgstr "ist noch nicht eingeschaltet"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -20231,6 +20279,12 @@ msgstr "kein Microsoft- oder Exchange-Server-Konto hält E-Mails offline vor"
 msgid "no Public key with that fingerprint is kept for that address"
 msgstr "für diese Adresse ist kein öffentlicher Schlüssel mit diesem Fingerabdruck gespeichert"
 
+#. why a command can't run
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar and contacts server"
+msgstr "kein Konto hat einen Kalender- und Kontaktserver"
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -20274,7 +20328,7 @@ msgid "no account with id {account}"
 msgstr "kein Konto mit der ID {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "kein Konto mit der ID {id}"
@@ -21892,6 +21946,12 @@ msgstr "dieses Konto hat keinen Ordner „Entwürfe“"
 #, fuzzy
 msgid "this account has no Outbox folder"
 msgstr "dieses Konto hat keinen Ordner „Postausgang“"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
+msgstr "dieses Konto hat keinen eigenen Kalender- und Kontaktserver: ein Microsoft-Konto führt seine Kalender über Microsoft, und ein gemeinsames Postfach folgt dem seines Besitzers"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
