@@ -260,7 +260,10 @@ fn with_uid<'a>(s: &'a Session, uid: &str, account: Id) -> Vec<&'a Event> {
     if uid.is_empty() {
         return Vec::new();
     }
-    let same = |event: &&Arc<Event>| event.uid.trim().eq_ignore_ascii_case(uid);
+    // (Not a copy of somebody's calendar on the web: it isn't the owner's meeting, has no organizer
+    // and is replaced at its next refresh.)
+    let same =
+        |event: &&Arc<Event>| event.uid.trim().eq_ignore_ascii_case(uid) && !s.mailbox.calendar(event.calendar).is_some_and(|c| c.is_subscribed());
     let mut found: Vec<&Event> = s.mailbox.events.values().filter(same).map(Arc::as_ref).take(1_000).collect();
     found
         .sort_by_key(|event| (event.origin.account != account, event.recurrence.is_none() && !event.origin.series.is_empty(), event.start, event.id));

@@ -1311,6 +1311,7 @@ dependencies = [
 name = "mailcraft-dav"
 version = "0.13.0"
 dependencies = [
+ "mailcraft-link",
  "mailcraft-model",
  "quick-xml",
 ]
