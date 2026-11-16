@@ -196,6 +196,7 @@ fn mail_written_in_a_shared_mailbox_is_from_it_kept_in_its_drafts_and_sent_throu
 fn a_reply_to_mail_in_a_shared_mailbox_is_from_it_and_made_there_as_an_answer() {
     let (mut s, owner, shared) = both();
     let theirs = theirs(&s, shared);
+    whole(&mut s, theirs[0]);
     s.run("mail.select", &json!({"id": theirs[0]})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     assert_eq!(s.compose.as_ref().map(|c| c.account), Some(shared));
@@ -765,6 +766,7 @@ fn a_reply_in_a_shared_mailbox_starts_with_its_own_reply_signature_and_the_owner
     s.run("signature.defaults", &json!({"account": owner, "new": "Mine", "reply": "Mine"})).unwrap();
     s.run("signature.defaults", &json!({"account": shared, "reply": "Desk"})).unwrap();
     let one = theirs(&s, shared)[0];
+    whole(&mut s, one);
     s.run("mail.select", &json!({"id": one})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     let body = s.compose.as_ref().unwrap().body.plain();
@@ -772,6 +774,7 @@ fn a_reply_in_a_shared_mailbox_starts_with_its_own_reply_signature_and_the_owner
     assert_eq!(s.compose.as_ref().map(|c| c.account), Some(shared));
     s.run("compose.discard", &json!({})).unwrap();
     let mine = s.mailbox.messages.values().find(|m| m.account == owner).map(|m| m.id).unwrap();
+    whole(&mut s, mine);
     s.run("mail.select", &json!({"id": mine})).unwrap();
     s.run("mail.reply", &json!({})).unwrap();
     let body = s.compose.as_ref().unwrap().body.plain();

@@ -94,6 +94,8 @@ fn a_message_the_server_took_leaves_the_outbox_and_its_original_is_marked_answer
     let page = MessagePage { folder: "M1".into(), messages: vec![asked], afresh: true, ..Default::default() };
     apply_jmap_mail(&mut s, JmapMailResult { pages: vec![page], whole: true, partial: false, ..piece() }).unwrap();
     let original = s.mailbox.messages.values().find(|m| m.subject == "Lunch?").unwrap().id;
+    // Whole, as fetching it makes it: a preview is not answered (#653).
+    s.mailbox.message_mut(original).unwrap().unfetched = false;
     s.run("mail.reply", &json!({"id": original})).unwrap();
     let reply = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
     assert_eq!(offered(&s, jmap), [reply]);
