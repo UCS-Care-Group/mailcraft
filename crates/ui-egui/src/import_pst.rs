@@ -136,7 +136,7 @@ impl ImportPst {
     /// Calendars on this computer the file's calendar items can go into.
     fn local_calendars(app: &MailApp) -> Vec<(u64, String)> {
         let mut out: Vec<(u64, String)> =
-            app.session.mailbox.calendars.iter().filter(|c| c.origin.is_local()).map(|c| (c.id, c.name.clone())).take(LISTED).collect();
+            app.session.mailbox.calendars.iter().filter(|c| c.is_own()).map(|c| (c.id, c.name.clone())).take(LISTED).collect();
         out.sort_by_key(|c| c.1.to_lowercase());
         out
     }
