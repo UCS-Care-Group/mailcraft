@@ -354,6 +354,18 @@ msgstr "Egy márka neve egy másik címen."
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "A naptárváltást még nem lehetett elküldeni, és újra meg kell próbálni: {error}"
 
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "Egy naptárkiszolgáló nem engedte a bejelentkezést. A MailCraft később újra próbálkozik, vagy amikor a jelszó megváltozik."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+msgstr "Egy naptárkiszolgáló tanúsítványa nem megbízható, ezért semmit nem küldtünk neki."
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

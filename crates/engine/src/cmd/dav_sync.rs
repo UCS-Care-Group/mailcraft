@@ -56,7 +56,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.davRequest", "Send/Receive Calendars and Contacts Server", "Send / Receive", request)
             .pure()
-            .params(r#"{"account"?: number, "relist"?: bool (look for calendars that came or went now)} — answers what a host should read from an account's calendar server: its homes, the calendars known with their sync token, change tag and (for one without a token) what is here, and the stretch to ask for. Answers {"ask": DavAsk} or {"ask": null} when no account has one."#)
+            .params(r#"{"account"?: number, "skip"?: [number] (accounts to pass over), "relist"?: bool (look for calendars that came or went now)} — answers what a host should read from an account's calendar server: its homes, the calendars known with their sync token, change tag and (for one without a token) what is here, and the stretch to ask for. Answers {"ask": DavAsk} or {"ask": null} when no account has one."#)
             .when(available),
         CommandSpec::new("sync.applyDav", "Apply Calendars and Contacts Server", "Send / Receive", apply)
             .pure()
@@ -108,16 +108,17 @@ pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String
         let _ = s.mailbox.remove_event(*id);
     }
     s.mailbox.event_changes.retain(|c| !(c.account == account && events.contains(&c.event)));
-    // A calendar with something of the owner's left in it, or the mailbox's last, becomes its own.
-    let all = s.mailbox.calendars.len();
-    let mut kept = 0usize;
-    let mut stays: Vec<Id> = Vec::new();
-    for id in &followed {
-        let occupied = s.mailbox.events.values().any(|e| e.calendar == *id);
-        if occupied || (followed.len() == all && kept == 0 && followed.last() == Some(id)) {
-            stays.push(*id);
-            kept += 1;
-        }
+    // A calendar with something of the owner's left in it becomes the mailbox's own. And one
+    // calendar of the mailbox's own always stays, for new events to go in (as `calendar.remove`
+    // keeps one): a subscribed copy of a calendar on the web is not one.
+    let mut stays: Vec<Id> = followed.iter().copied().filter(|id| s.mailbox.events.values().any(|e| e.calendar == *id)).collect();
+    let own_elsewhere =
+        s.mailbox.calendars.iter().any(|c| !followed.contains(&c.id) && super::remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed());
+    if stays.is_empty()
+        && !own_elsewhere
+        && let Some(first) = followed.first()
+    {
+        stays.push(*first);
     }
     for c in s.mailbox.calendars.iter_mut().filter(|c| stays.contains(&c.id)) {
         c.origin = Origin::default();
@@ -145,12 +146,15 @@ fn resource_of(key: &str) -> &str {
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let wanted = v.get("account").and_then(Value::as_u64);
+    // Accounts the host is not to be asked about now (waiting out a back-off, or refused).
+    let skip: Vec<u64> =
+        v.get("skip").and_then(Value::as_array).map(|list| list.iter().filter_map(Value::as_u64).take(1_000).collect()).unwrap_or_default();
     // The account whose server was asked longest ago (or never): each has its turn.
     let account = s
         .mailbox
         .accounts
         .iter()
-        .filter(|a| a.dav.as_ref().is_some_and(|d| !d.calendar_homes.is_empty()) && wanted.is_none_or(|id| id == a.id))
+        .filter(|a| a.dav.as_ref().is_some_and(|d| !d.calendar_homes.is_empty()) && wanted.is_none_or(|id| id == a.id) && !skip.contains(&a.id))
         .min_by_key(|a| (s.dav_asked.get(&a.id).copied().unwrap_or(i64::MIN), a.id))
         .ok_or_else(|| fail("no account has a calendar server"))?;
     let Some(server) = account.dav.as_ref() else { return Err(fail("no account has a calendar server")) };
@@ -169,7 +173,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
             let mut seen: HashSet<&str> = HashSet::new();
             for event in s.mailbox.events.values().filter(|e| e.calendar == calendar.id && e.origin.account == account.id) {
                 let href = resource_of(&event.origin.id);
-                if !href.is_empty() && !event.origin.change_key.is_empty() && seen.insert(href) && ask.known.len() < MAX_RESOURCES {
+                if !href.is_empty() && seen.insert(href) && ask.known.len() < MAX_RESOURCES {
                     ask.known.push(mailcraft_model::DavKnown { href: href.to_string(), etag: event.origin.change_key.clone() });
                 }
             }
@@ -500,16 +504,17 @@ fn take_read(
     // that starts in it, a series with an occurrence in it).
     if read.full && read.complete && !read.capped {
         let present: HashSet<&str> = read.present.iter().map(String::as_str).chain(seen.iter().copied()).collect();
-        // (A series is looked at over the first five years of a stretch at most: the stretch is a
-        // command's parameter too.)
+        // The server compares exact instants (RFC 4791 §9.9), so a day-wise look at where a series
+        // falls would take an occurrence that ended just before the stretch for one inside it: a
+        // series is believed gone only when one of its occurrences lies, whole, a day or more
+        // inside both edges of the stretch (and only over the first five years of it: the stretch
+        // is a command's parameter too).
         let window = read.window.map(|(from, to)| {
-            let days_to = to.min(from.saturating_add(5 * 366 * 86_400));
-            (
-                mailcraft_time::DateTime::from_timestamp(from, 0).date,
-                mailcraft_time::DateTime::from_timestamp(days_to.saturating_sub(1), 0).date,
-                from,
-                to,
-            )
+            let (a, b) = (from.saturating_add(86_400), to.saturating_sub(86_400));
+            let reach = b.min(a.saturating_add(5 * 366 * 86_400));
+            let inner =
+                (a < b).then(|| (mailcraft_time::DateTime::from_timestamp(a, 0).date, mailcraft_time::DateTime::from_timestamp(reach, 0).date, a, b));
+            (from, to, inner)
         });
         let mut gone: Vec<String> = Vec::new();
         for (resource, keys) in &of_resource {
@@ -522,9 +527,15 @@ fn take_read(
             }
             let inside = |id: &Id| match (window, s.mailbox.event(*id)) {
                 (None, Some(_)) => true,
-                (Some((from_day, to_day, from, to)), Some(e)) => {
+                (Some((from, to, inner)), Some(e)) => {
                     if e.recurrence.is_some() {
-                        !e.occurrences_in(from_day, to_day, offset_at).is_empty()
+                        inner.is_some_and(|(from_day, to_day, a, b)| {
+                            e.occurrences_in(from_day, to_day, offset_at).iter().any(|o| {
+                                // (Wall clock to instant: a day's margin covers the offset's own.)
+                                let off = offset_at(o.start.to_timestamp(0));
+                                o.start.to_timestamp(off) >= a && o.end.to_timestamp(off) <= b
+                            })
+                        })
                     } else {
                         (from..to).contains(&e.instants(offset_at).0)
                     }

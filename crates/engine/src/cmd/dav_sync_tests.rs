@@ -515,25 +515,21 @@ fn a_series_deleted_on_the_server_is_removed_from_a_read_of_a_stretch_that_holds
 }
 
 #[test]
-fn five_thousand_changes_take_time_in_proportion_to_their_number() {
+fn five_thousand_changes_look_at_the_documents_folder_once() {
     let dir = std::env::temp_dir().join(format!("mc-dav-many-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let time = |count: usize| {
-        let (mut s, id) = session();
-        s.path = Some(dir.join(format!("mailbox{count}.mailcraft")));
-        apply(&mut s, id, Some(listing()), vec![]);
-        let changes: Vec<DavChange> =
-            (0..count).map(|i| change(&format!("{i}.ics"), "\"1\"", &event(&format!("u{i}"), 2 + (i % 25) as u32, "E"))).collect();
-        let start = std::time::Instant::now();
-        let out = apply(&mut s, id, None, vec![read(changes, true, true, "t")]);
-        assert_eq!(out["added"], count);
-        start.elapsed().as_secs_f64()
-    };
-    let (small, large) = (time(1_000), time(4_000));
-    // Linear is four times as long; a look at the whole folder or the whole mailbox for each
-    // change would be sixteen.
-    assert!(large < small.max(0.05) * 10.0, "1,000 took {small:.2}s, 4,000 took {large:.2}s");
+    let (mut s, id) = session();
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    apply(&mut s, id, Some(listing()), vec![]);
+    let changes: Vec<DavChange> =
+        (0..5_000).map(|i| change(&format!("{i}.ics"), "\"1\"", &event(&format!("u{i}"), 2 + (i % 25) as u32, "E"))).collect();
+    // (Work is counted, not timed: a disk's speed is not the code's.)
+    let before = crate::dav_raw::LISTINGS.with(|n| n.get());
+    let out = apply(&mut s, id, None, vec![read(changes, true, true, "t")]);
+    assert_eq!(out["added"], 5_000);
+    assert_eq!(crate::dav_raw::LISTINGS.with(|n| n.get()) - before, 1, "the folder is listed once for the read, not for each change");
+    assert_eq!(std::fs::read_dir(crate::store::dav_dir(s.path.as_ref().unwrap()).join(id.to_string())).unwrap().count(), 5_000);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -579,5 +575,116 @@ fn removing_an_account_takes_its_kept_documents() {
     s.run("account.remove", &json!({"id": id})).unwrap();
     assert!(!crate::dav_raw::has(&file, id, &format!("{COLLECTION}a.ics")));
     assert!(!crate::store::dav_dir(&file).join(id.to_string()).exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_series_that_ended_just_before_the_stretch_is_not_taken_for_one_the_server_dropped() {
+    // Weekly on Fridays at 09:00Z until 16 October 09:00Z; the read is at 15:00Z the same day
+    // and the stretch starts then: the server rightly doesn't return the series.
+    let doc = |until: &str| {
+        format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:w\r\nDTSTART:20260918T090000Z\r\nDTEND:20260918T100000Z\r\nRRULE:FREQ=WEEKLY;UNTIL={until}\r\nSUMMARY:Weekly\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+    };
+    let from = 1_792_162_800_i64;
+    for offset in [0, -600, 600] {
+        let (mut s, id) = session();
+        s.clock.offset = Some(offset);
+        apply(&mut s, id, Some(listing()), vec![read(vec![change("w.ics", "\"1\"", &doc("20261016T090000Z"))], true, true, "")]);
+        let mut by_query = read(vec![], true, true, "");
+        by_query.window = Some((from, from + 396 * 86_400));
+        apply(&mut s, id, None, vec![by_query]);
+        assert_eq!(titles(&s), vec!["Weekly"], "offset {offset}: it ended before the stretch, the server could not return it");
+        // One with Fridays far inside the stretch, not returned, is gone.
+        let (mut s, id) = session();
+        s.clock.offset = Some(offset);
+        apply(&mut s, id, Some(listing()), vec![read(vec![change("w.ics", "\"1\"", &doc("20261218T090000Z"))], true, true, "")]);
+        let mut by_query = read(vec![], true, true, "");
+        by_query.window = Some((from, from + 396 * 86_400));
+        apply(&mut s, id, None, vec![by_query]);
+        assert!(titles(&s).is_empty(), "offset {offset}: weeks of it lie well inside the stretch");
+    }
+}
+
+#[test]
+fn the_mailbox_keeps_a_calendar_of_its_own_when_the_server_goes() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![]);
+    // Only the server's calendar, and a copy of one on the web (which is nobody's to put events in).
+    s.mailbox.calendars.retain(|c| c.origin.account == id);
+    let copy = s.mailbox.alloc_id();
+    s.mailbox.calendars.push(mailcraft_model::Calendar {
+        id: copy,
+        name: "Holidays".into(),
+        subscription: Some(mailcraft_model::subscription::Subscription::default()),
+        ..Default::default()
+    });
+    s.run("account.davOff", &json!({"id": id})).unwrap();
+    assert!(
+        s.mailbox.calendars.iter().any(|c| c.origin.is_local() && c.subscription.is_none()),
+        "a calendar of the mailbox's own is left: {:?}",
+        s.mailbox.calendars.iter().map(|c| &c.name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn what_is_here_without_an_etag_is_named_in_what_is_asked_so_that_it_is_not_fetched_again() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "", &event("a", 2, "A"))], true, true, "")]);
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    assert_eq!(ask["ask"]["collections"][0]["known"], json!([{"href": format!("{COLLECTION}a.ics"), "etag": ""}]));
+}
+
+#[test]
+fn accounts_named_to_skip_are_passed_over() {
+    let (mut s, first) = session();
+    let second = s
+        .run(
+            "account.add",
+            &json!({"email": "grace@example.org", "incoming": {"host": "imap2.example.org"}, "outgoing": {"host": "smtp2.example.org"}}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    s.run("account.davSet", &json!({"id": second, "calendarHomes": ["https://dav2.example.org/cal/grace/"]})).unwrap();
+    for _ in 0..3 {
+        assert_eq!(s.run("sync.davRequest", &json!({"skip": [first]})).unwrap()["ask"]["account"], second);
+    }
+    assert!(s.run("sync.davRequest", &json!({"skip": [first, second]})).is_err());
+}
+
+#[test]
+fn a_document_older_than_everything_held_makes_no_room_and_is_not_kept() {
+    let dir = std::env::temp_dir().join(format!("mc-dav-newest-first-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("mailbox.mailcraft");
+    let doc = "y".repeat(1_000_000);
+    let hrefs: Vec<String> = (0..70).map(|i| format!("{COLLECTION}{i}.ics")).collect();
+    // Newest first: document 0 is of the event that ends last.
+    let ends: std::collections::HashMap<String, i64> =
+        hrefs.iter().enumerate().map(|(i, h)| (crate::dav_raw::name_of(h), 1_000 - i as i64)).collect();
+    let mut store = crate::dav_raw::Store::open(&file, 1);
+    let kept: Vec<bool> = hrefs.iter().map(|h| store.keep(h, &doc, &|| ends.clone())).collect();
+    assert!(kept[0] && kept[10], "the newest are kept");
+    assert!(!kept[69] && !crate::dav_raw::has(&file, 1, &hrefs[69]), "the oldest has no room made by throwing out newer ones");
+    assert!(crate::dav_raw::has(&file, 1, &hrefs[0]), "and nothing newer was thrown out for it");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_document_is_let_go_of_whether_or_not_it_was_there_when_the_folder_was_listed() {
+    let dir = std::env::temp_dir().join(format!("mc-dav-late-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("mailbox.mailcraft");
+    let href = format!("{COLLECTION}a.ics");
+    let mut store = crate::dav_raw::Store::open(&file, 1);
+    // Written by another store after this one listed the folder.
+    assert!(crate::dav_raw::Store::open(&file, 1).keep(&href, "doc", &std::collections::HashMap::new));
+    assert!(crate::dav_raw::has(&file, 1, &href));
+    store.drop_one(&href);
+    assert!(!crate::dav_raw::has(&file, 1, &href));
     let _ = std::fs::remove_dir_all(&dir);
 }

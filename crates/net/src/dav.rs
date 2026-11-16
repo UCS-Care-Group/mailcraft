@@ -205,6 +205,8 @@ struct Run<'a> {
     signed_in: Vec<String>,
     skipped: u32,
     wait: u64,
+    /// A document found no room among the changes a collection may bring in one read.
+    cap_hit: bool,
 }
 
 /// Read what `ask` says through `x`. The passwords are asked for by origin, and only when that
@@ -224,6 +226,7 @@ pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i6
         signed_in: Vec::new(),
         skipped: 0,
         wait: 0,
+        cap_hit: false,
     };
     // A site for each origin a home of the settings is on, and for none else.
     let mut homes: Vec<&String> = Vec::new();
@@ -593,12 +596,23 @@ impl Run<'_> {
                 if !delta {
                     present.insert(entry.href.clone(), etag.clone());
                 }
-                if known.get(entry.href.as_str()) != Some(&etag.as_str()) {
+                if changed(known, &entry.href, &etag, delta) {
                     page.push((entry.href.clone(), etag.clone()));
                 }
             }
             out.capped |= ms.capped;
-            let fetched = self.fetch(site, &coll.href, &page, &mut gets, out)?;
+            self.cap_hit = false;
+            let fetched = match self.fetch(site, &coll.href, &page, &mut gets, out) {
+                Ok(fetched) => fetched,
+                // More changes than a read may bring: the token is no use to go on from (it
+                // would bring the same first ones for ever), so the collection is read afresh by
+                // address, against what is here, and goes on at each run from what it has.
+                Err(Fail::Skip) if delta && self.cap_hit => return Ok(Pass::TokenInvalid),
+                Err(other) => return Err(other),
+            };
+            if delta && overflow {
+                return Ok(Pass::TokenInvalid);
+            }
             if !fetched || out.capped || overflow {
                 out.complete = false;
                 return self.short(out, delta, &present);
@@ -669,7 +683,7 @@ impl Run<'_> {
             out.complete = false;
         }
         let wanted: Vec<(String, String)> =
-            present.iter().filter(|(href, etag)| known.get(href.as_str()) != Some(&etag.as_str())).map(|(h, e)| (h.clone(), e.clone())).collect();
+            present.iter().filter(|(href, etag)| changed(known, href, etag, false)).map(|(h, e)| (h.clone(), e.clone())).collect();
         let mut gets = 0usize;
         if !self.fetch(site, &coll.href, &wanted, &mut gets, out)? {
             out.complete = false;
@@ -748,6 +762,7 @@ impl Run<'_> {
         // (A collection that has more to bring than one run takes goes on at the next, which is
         // told what is here already; the whole run's bytes end it.)
         if out.changes.len() >= MAX_CHANGES {
+            self.cap_hit = true;
             return Err(Fail::Skip);
         }
         self.raw = self.raw.saturating_add(raw.len());
@@ -757,6 +772,13 @@ impl Run<'_> {
         out.changes.push(DavChange { href: href.to_string(), etag: etag.to_string(), raw: Some(raw), gone: false });
         Ok(())
     }
+}
+
+/// Whether a member is to be read: it isn't here, or is here under another ETag. One the server
+/// gave no ETag for can't be compared: it is read when it isn't here, and, in a change pass
+/// (where it is named because it changed), always.
+fn changed(known: &HashMap<&str, &str>, href: &str, etag: &str, delta: bool) -> bool {
+    if etag.is_empty() { delta || !known.contains_key(href) } else { known.get(href) != Some(&etag) }
 }
 
 /// An ETag as the server wrote it, or none when it wrote none that can be compared.

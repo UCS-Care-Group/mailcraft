@@ -53,6 +53,9 @@ pub struct DavAskCollection {
 #[serde(default, rename_all = "camelCase")]
 pub struct DavKnown {
     pub href: String,
+    /// The ETag the resource's events were kept under. Empty for a resource the server gave none
+    /// for (it is then not asked for again, and a change can only be seen by a sync token): a
+    /// writer (D6) that sends `If-Match` must know it has none, never send an empty one.
     pub etag: String,
 }
 

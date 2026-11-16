@@ -422,36 +422,105 @@ fn a_member_without_a_usable_etag_is_still_there_and_is_asked_for_in_both_passes
     assert_eq!(work.changes.len(), 3);
 }
 
+/// The names of the resources of `/cal/work/` that a request body asks for.
+fn asked(body: &str) -> Vec<String> {
+    body.split("/cal/work/").skip(1).map(|rest| rest.split(['<', '"']).next().unwrap_or_default().to_string()).filter(|n| !n.is_empty()).collect()
+}
+
+const DOC: &str = "BEGIN:VCALENDAR\nEND:VCALENDAR";
+
+fn listing_of(count: usize) -> String {
+    (0..count).map(|i| member(&format!("/cal/work/{i}.ics"), "\"1\"", None)).collect()
+}
+
 #[test]
-fn deletions_past_the_cap_stop_the_pass_short_and_the_token_stays_where_it_was() {
-    let gone = |from: usize, to: usize| -> String {
-        (from..to)
+fn a_change_pass_with_more_deletions_than_a_read_holds_starts_over_by_address_and_ends() {
+    let gone = |count: usize| -> String {
+        (0..count)
             .map(|i| format!("<d:response><d:href>/cal/work/{i}.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>"))
             .collect()
+    };
+    let server = |count: usize| {
+        Scripted::new(move |request| {
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            if body.contains("sync-collection") && body.contains("old") {
+                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(count)))
+            } else if body.contains("sync-collection") {
+                multistatus(&format!("{}<d:sync-token>fresh</d:sync-token>", listing_of(3)))
+            } else {
+                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC))).collect::<String>())
+            }
+        })
     };
     let ask = || {
         let mut ask = collection_ask();
         ask.collections[0].sync_token = "old".into();
         ask
     };
-    let reads = |count: usize| {
-        let x = Scripted::new(move |request| {
+    // Exactly the cap fits.
+    let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &server(MAX_CHANGES), NOW, &Limits::default());
+    let fits = &out.collections[0];
+    assert!(fits.complete && !fits.full && fits.sync_token == "new" && fits.changes.len() == MAX_CHANGES);
+    // One more does not: the collection is read afresh, and what is not named any more is found
+    // by its absence from a complete listing.
+    let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &server(MAX_CHANGES + 1), NOW, &Limits::default());
+    let over = &out.collections[0];
+    assert!(over.complete && over.full, "{:?}", over.sync_token);
+    assert_eq!((over.sync_token.as_str(), over.present.len()), ("fresh", 3));
+}
+
+#[test]
+fn a_change_pass_with_more_changes_than_a_read_holds_goes_on_at_the_next_run() {
+    let count = MAX_CHANGES + 1;
+    let server = || {
+        Scripted::new(move |request| {
             let body = String::from_utf8_lossy(request.body()).to_string();
             if body.contains("sync-collection") {
-                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(0, count)))
+                // (A server that sends all of them, whatever it was asked for.)
+                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", listing_of(count)))
             } else {
-                multistatus("")
+                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC))).collect::<String>())
             }
-        });
-        let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
-        out.collections.into_iter().next().unwrap()
+        })
     };
-    let exact = reads(MAX_CHANGES);
-    assert!(exact.complete && exact.sync_token == "new" && exact.changes.len() == MAX_CHANGES);
-    let over = reads(MAX_CHANGES + 1);
-    assert!(!over.complete, "a deletion that found no room is not lost");
-    assert_eq!(over.sync_token, "old", "so the token does not move past it");
-    assert_eq!(over.changes.len(), MAX_CHANGES);
+    let mut ask = collection_ask();
+    ask.collections[0].sync_token = "old".into();
+    let first = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
+    let first = &first.collections[0];
+    assert!(!first.complete && first.changes.len() == MAX_CHANGES);
+    assert!(first.sync_token.is_empty(), "the token is of no use: the next run asks by address");
+    // The engine took them in, and says what is here.
+    let mut ask = collection_ask();
+    ask.collections[0].known = first.changes.iter().map(|c| DavKnown { href: c.href.clone(), etag: c.etag.clone() }).collect();
+    let second = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
+    let second = &second.collections[0];
+    assert_eq!(second.changes.len(), 1, "only what is not here yet");
+    assert!(second.complete && second.full && second.present.len() == count, "so it is done now");
+}
+
+#[test]
+fn a_member_the_server_gave_no_etag_for_is_not_read_again_at_every_full_read_but_is_when_it_changes() {
+    let server = || {
+        Scripted::new(move |request| {
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            if body.contains("sync-collection") {
+                multistatus(&format!("{}{}<d:sync-token>t</d:sync-token>", bare("/cal/work/a.ics"), bare("/cal/work/b.ics")))
+            } else {
+                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "", Some(DOC))).collect::<String>())
+            }
+        })
+    };
+    let mut ask = collection_ask();
+    // Without a token: a is here (under no ETag), b is not.
+    ask.collections[0].known = vec![DavKnown { href: format!("{ORIGIN}/cal/work/a.ics"), etag: String::new() }];
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
+    let hrefs: Vec<&str> = out.collections[0].changes.iter().map(|c| c.href.as_str()).collect();
+    assert_eq!(hrefs, vec![format!("{ORIGIN}/cal/work/b.ics")], "{hrefs:?}");
+    // A change pass names what changed: both are read.
+    let mut ask = collection_ask();
+    ask.collections[0].sync_token = "old".into();
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
+    assert_eq!(out.collections[0].changes.len(), 2);
 }
 
 #[test]

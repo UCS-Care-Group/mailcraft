@@ -351,6 +351,18 @@ msgstr "品牌名称出现在其他地址上。"
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "日历更改尚无法发送，将重试：{error}"
 
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "日历服务器未接受登录。MailCraft 稍后会重试，或在密码更改后重试。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+msgstr "日历服务器的证书不受信任，因此没有向其发送任何内容。"
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

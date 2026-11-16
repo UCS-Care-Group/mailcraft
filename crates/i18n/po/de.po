@@ -351,6 +351,18 @@ msgstr "Der Name einer Marke auf einer fremden Adresse."
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Eine Kalenderänderung konnte noch nicht gesendet werden und wird erneut versucht: {error}"
 
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "Ein Kalenderserver hat die Anmeldung nicht angenommen. MailCraft versucht es später erneut oder wenn sich das Passwort ändert."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+msgstr "Das Zertifikat eines Kalenderservers wird nicht als vertrauenswürdig eingestuft, daher wurde nichts an ihn gesendet."
+
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy

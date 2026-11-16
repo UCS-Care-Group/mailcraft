@@ -27,6 +27,9 @@ use crate::{MailApp, now_ms};
 /// How long between two jobs when all is well, and the longest wait after trouble (milliseconds).
 const EVERY: f64 = 60_000.0;
 const LONGEST: f64 = 900_000.0;
+/// How long a server that refused the passwords it was given is left alone (milliseconds), unless
+/// the account has others by then.
+const REFUSED_FOR: f64 = 4.0 * 3_600_000.0;
 
 /// What the host is to do: ask the server of one account, with these passwords (by origin).
 pub struct DavJob {
@@ -55,15 +58,20 @@ pub(crate) struct DavSync {
     opening: u64,
     /// The job in flight: its account, and the answer to come.
     job: Option<(Id, Receiver<DavDone>)>,
-    /// When the next job may start (milliseconds).
+    /// When the next job may start (milliseconds), whichever account it is for.
     pub(crate) next: f64,
-    /// Jobs in a row that came to trouble, for the wait.
-    failing: u32,
-    /// What the job in flight was given (by origin), to know what a refusal was of.
-    sent: HashMap<String, String>,
-    /// For each account whose server refused the passwords it was given: those passwords. The
-    /// account is left alone (nothing is sent again, so no lockout) until it has others.
-    refused: HashMap<Id, HashMap<String, String>>,
+    /// For each account: jobs in a row that came to trouble, and when it may be asked again
+    /// (milliseconds). One account's trouble holds up that account alone.
+    pub(crate) trouble: HashMap<Id, (u32, f64)>,
+    /// What the job in flight was given, by origin: the password, and whether it is the account's
+    /// mail password (which is looked up at every job and never held).
+    sent: HashMap<String, (String, bool)>,
+    /// For each account whose server refused the passwords it was given: those passwords, and when.
+    /// The account is left alone (nothing is sent again, so no lockout) until it has others, or
+    /// for [`REFUSED_FOR`].
+    pub(crate) refused: HashMap<Id, (HashMap<String, String>, f64)>,
+    /// The trouble each account was last told to the owner for, so that it is said once.
+    shown: HashMap<Id, DavProblem>,
     /// Whether each account's servers have a password of their own, to see it change.
     separate: HashMap<Id, bool>,
 }
@@ -71,6 +79,7 @@ pub(crate) struct DavSync {
 impl MailApp {
     /// The password the account has for `origin` ([`mailcraft_model::origin_of`] form), by the rules
     /// in the module's note. `None` when the owner has to be asked.
+    #[cfg(test)]
     pub(crate) fn dav_password(&self, account: Id, origin: &str) -> Option<String> {
         self.dav_password_from(account, origin).map(|(password, _)| password)
     }
@@ -144,26 +153,46 @@ impl MailApp {
             return;
         }
         self.dav.next = now + EVERY;
-        let Ok(asked) = self.session.run("sync.davRequest", &json!({})) else { return };
-        let Some(ask) = asked.get("ask").and_then(|a| serde_json::from_value::<DavAsk>(a.clone()).ok()) else { return };
-        let mut passwords: HashMap<String, String> = HashMap::new();
-        if let Some(server) = self.session.mailbox.account(ask.account).and_then(|a| a.dav.as_ref()) {
-            for origin in server.home_origins() {
-                if let Some(password) = self.dav_password(ask.account, &origin) {
-                    passwords.insert(origin, password);
+        // Accounts to pass over: one in its back-off, or whose server refused what it would be
+        // given now (left alone for hours, and until it has other passwords).
+        let ids: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| a.dav.is_some()).map(|a| a.id).collect();
+        let mut skip: Vec<Id> = Vec::new();
+        for id in ids {
+            if self.dav.trouble.get(&id).is_some_and(|(_, next)| now < *next) {
+                skip.push(id);
+                continue;
+            }
+            if let Some((refused, at)) = self.dav.refused.get(&id) {
+                let current: HashMap<String, String> = self.dav_passwords_of(id).into_iter().map(|(o, (p, _))| (o, p)).collect();
+                if now < *at + REFUSED_FOR && current == *refused {
+                    skip.push(id);
+                } else {
+                    self.dav.refused.remove(&id);
                 }
             }
         }
+        let Ok(asked) = self.session.run("sync.davRequest", &json!({"skip": skip})) else { return };
+        let Some(ask) = asked.get("ask").and_then(|a| serde_json::from_value::<DavAsk>(a.clone()).ok()) else { return };
         let account = ask.account;
-        // Passwords a server refused are not sent again, until the account has others.
-        if self.dav.refused.get(&account).is_some_and(|refused| *refused == passwords) {
-            return;
-        }
-        self.dav.refused.remove(&account);
+        let sent = self.dav_passwords_of(account);
+        let passwords: HashMap<String, String> = sent.iter().map(|(o, (p, _))| (o.clone(), p.clone())).collect();
         let Some(start) = &self.services.dav else { return };
-        self.dav.sent = passwords.clone();
+        self.dav.sent = sent;
         let receive = start(DavJob { ask, passwords });
         self.dav.job = Some((account, receive));
+    }
+
+    /// What each origin of the account's homes would be given now, and whether it is the mail password.
+    fn dav_passwords_of(&self, account: Id) -> HashMap<String, (String, bool)> {
+        let mut passwords = HashMap::new();
+        if let Some(server) = self.session.mailbox.account(account).and_then(|a| a.dav.as_ref()) {
+            for origin in server.home_origins() {
+                if let Some(found) = self.dav_password_from(account, &origin) {
+                    passwords.insert(origin, found);
+                }
+            }
+        }
+        passwords
     }
 
     fn take_in_dav(&mut self, done: DavDone) {
@@ -176,30 +205,41 @@ impl MailApp {
                 Value::Null
             }
         };
-        // A password the server took is held for the session, unless it is the mail password:
-        // that one is looked up at every job, by the rule as it stands.
+        // A password the server took is held for the session (the one that was sent, not what
+        // would be found now), unless it is the mail password: that one is looked up at every
+        // job, by the rule as it stands.
+        let sent = std::mem::take(&mut self.dav.sent);
         for origin in signed_in {
-            if let Some((password, from_mail)) = self.dav_password_from(account, &origin)
-                && !from_mail
-            {
-                self.hold_dav_password(account, &origin, &password);
+            if let Some((password, false)) = sent.get(&origin) {
+                self.hold_dav_password(account, &origin, password);
             }
         }
-        if problem == DavProblem::WrongPassword {
-            // Not held, not sent again (at every back-off: a lockout) until the owner gives another.
-            self.dav_passwords.retain(|(held, _), _| *held != account);
-            let sent = std::mem::take(&mut self.dav.sent);
-            self.dav.refused.insert(account, sent);
-        }
         let now = now_ms();
+        if problem == DavProblem::WrongPassword {
+            // Not held, not sent again (at every back-off: a lockout) until the owner gives
+            // another, or for hours (a password changed on the server, a mistaken refusal).
+            self.dav_passwords.retain(|(held, _), _| *held != account);
+            self.dav.refused.insert(account, (sent.into_iter().map(|(o, (p, _))| (o, p)).collect(), now));
+        }
         if problem == DavProblem::None {
-            self.dav.failing = 0;
+            self.dav.trouble.remove(&account);
+            self.dav.shown.remove(&account);
             // (Another look at once when the run stopped for its limits: more is waiting.)
         } else {
-            self.dav.failing = self.dav.failing.saturating_add(1);
+            let failing = self.dav.trouble.get(&account).map_or(0, |(n, _)| *n).saturating_add(1);
             let wait = applied.get("wait").and_then(Value::as_f64).unwrap_or(0.0) * 1000.0;
-            let backoff = (EVERY * 2f64.powi(i32::try_from(self.dav.failing).unwrap_or(10).min(10))).min(LONGEST);
-            self.dav.next = now + wait.max(backoff);
+            let backoff = (EVERY * 2f64.powi(i32::try_from(failing).unwrap_or(10).min(10))).min(LONGEST);
+            self.dav.trouble.insert(account, (failing, now + wait.max(backoff)));
+            // Said to the owner once for each kind of trouble (nothing of the server is named).
+            if self.dav.shown.insert(account, problem) != Some(problem) {
+                match problem {
+                    DavProblem::WrongPassword | DavProblem::NeedsPassword | DavProblem::UnsupportedSignIn => {
+                        self.status(tl!("A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."));
+                    }
+                    DavProblem::Certificate => self.status(tl!("A calendar server's certificate isn't trusted, so nothing was sent to it.")),
+                    _ => {}
+                }
+            }
         }
     }
 }

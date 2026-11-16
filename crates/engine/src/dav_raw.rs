@@ -27,6 +27,12 @@ fn folder(mailbox_file: &Path, account: Id) -> PathBuf {
     crate::store::dav_dir(mailbox_file).join(account.to_string())
 }
 
+// How many times a folder was listed (for tests, which count work instead of timing it).
+#[cfg(test)]
+thread_local! {
+    pub(crate) static LISTINGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The folder of an account's documents as it stands during one taking-in: listed once, with what
 /// is kept in it and how much, so that a thousand changes are a thousand writes and not a thousand
 /// looks at the folder.
@@ -40,6 +46,8 @@ pub struct Store {
 impl Store {
     /// Lists the account's folder (once). A folder that isn't there is empty.
     pub fn open(mailbox_file: &Path, account: Id) -> Store {
+        #[cfg(test)]
+        LISTINGS.with(|n| n.set(n.get() + 1));
         let dir = folder(mailbox_file, account);
         let mut held: HashMap<String, u64> = HashMap::new();
         let mut total: u64 = 0;
@@ -55,13 +63,13 @@ impl Store {
         Store { dir, held, total, made: false }
     }
 
-    /// Lets go of the document of `href`.
+    /// Lets go of the document of `href`, whether or not it was there when the folder was listed.
     pub fn drop_one(&mut self, href: &str) {
         let name = name_of(href);
         if let Some(size) = self.held.remove(&name) {
             self.total = self.total.saturating_sub(size);
-            let _ = std::fs::remove_file(self.dir.join(&name));
         }
+        let _ = std::fs::remove_file(self.dir.join(&name));
     }
 
     /// Keeps `raw` for `href`, when it is small enough and there is room. `ends` is asked for only
@@ -78,12 +86,15 @@ impl Store {
         if self.total.saturating_sub(own).saturating_add(needed) > MAX_ACCOUNT_RAW {
             let ends = ends();
             // The oldest past events first (a file no event names, before them), down to a little
-            // under the cap.
+            // under the cap, but never one that ends later than this event does: a document that
+            // is older than everything held has no room made for it.
+            let mine = ends.get(&name).copied().unwrap_or(i64::MIN);
             let target = MAX_ACCOUNT_RAW - MAX_ACCOUNT_RAW / 16;
-            let mut order: Vec<(String, u64)> = self.held.iter().filter(|(file, _)| **file != name).map(|(f, s)| (f.clone(), *s)).collect();
-            order.sort_by_key(|(file, _)| ends.get(file).copied().unwrap_or(i64::MIN));
-            for (file, size) in order {
-                if self.total.saturating_sub(own).saturating_add(needed) <= target {
+            let mut order: Vec<(String, u64, i64)> =
+                self.held.iter().filter(|(file, _)| **file != name).map(|(f, s)| (f.clone(), *s, ends.get(f).copied().unwrap_or(i64::MIN))).collect();
+            order.sort_by_key(|(_, _, end)| *end);
+            for (file, size, end) in order {
+                if self.total.saturating_sub(own).saturating_add(needed) <= target || end > mine {
                     break;
                 }
                 if std::fs::remove_file(self.dir.join(&file)).is_ok() {

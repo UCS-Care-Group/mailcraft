@@ -163,12 +163,14 @@ fn a_password_the_server_refused_is_not_sent_again_until_the_owner_gives_another
     assert!(a.dav_passwords.is_empty(), "what was refused is not held");
     // (The mail password is another one, and was not refused: it is tried, once.)
     a.dav.next = 0.0;
+    a.dav.trouble.clear();
     a.dav_tick();
     a.dav_tick();
     assert_eq!(jobs.lock().unwrap().len(), 2);
     // Every back-off would send it again, and lock the account out: it isn't.
     for _ in 0..3 {
         a.dav.next = 0.0;
+        a.dav.trouble.clear();
         a.dav_tick();
         a.dav_tick();
     }
@@ -176,6 +178,7 @@ fn a_password_the_server_refused_is_not_sent_again_until_the_owner_gives_another
     // The owner gives another: it goes.
     a.dav_passwords.insert((id, HOME.into()), "new".into());
     a.dav.next = 0.0;
+    a.dav.trouble.clear();
     a.dav_tick();
     assert_eq!(jobs.lock().unwrap().len(), 3);
     assert_eq!(jobs.lock().unwrap()[2].get(HOME).map(String::as_str), Some("new"));
@@ -198,4 +201,70 @@ fn a_password_of_their_own_given_or_taken_back_forgets_what_was_held() {
     a.dav_tick();
     assert!(a.dav_passwords.is_empty());
     assert_eq!(a.dav_password(id, HOME).as_deref(), Some("mail"));
+}
+
+#[test]
+fn a_server_that_refused_a_password_is_tried_again_after_hours_and_the_owner_is_told() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let jobs = failing_job(&mut a, mailcraft_model::DavProblem::WrongPassword);
+    a.dav_tick();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
+    assert!(said.contains("calendar server") && !said.contains("example.org"), "the owner is told, and nothing of the server: {said:?}");
+    // Not at once, whatever the back-off.
+    a.dav.next = 0.0;
+    a.dav.trouble.clear();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    // After hours, with the same password: once more.
+    a.dav.refused.get_mut(&id).unwrap().1 = 0.0;
+    a.dav.next = 0.0;
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn one_account_in_trouble_does_not_hold_up_another() {
+    let (mut a, first) = app(false);
+    let second =
+        a.execute("account.add", json!({"email": "grace@example.org", "incoming": {"host": "imap2.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": second, "calendarHomes": ["https://dav2.example.org/cal/grace/"]})).unwrap();
+    let seen: Arc<Mutex<Vec<Id>>> = Arc::default();
+    let log = seen.clone();
+    a.services.dav = Some(Box::new(move |job: DavJob| {
+        log.lock().unwrap().push(job.ask.account);
+        let (send, receive) = std::sync::mpsc::channel();
+        let problem = if job.ask.account == first { mailcraft_model::DavProblem::Unreachable } else { mailcraft_model::DavProblem::None };
+        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), problem, ..Default::default() };
+        send.send(DavDone { download }).unwrap();
+        receive
+    }));
+    for _ in 0..4 {
+        a.dav.next = 0.0;
+        a.dav_tick();
+        a.dav_tick();
+    }
+    let order = seen.lock().unwrap().clone();
+    assert_eq!(order[0], first);
+    assert!(order[1..].iter().all(|id| *id == second), "the one that is unreachable waits alone, and takes none of the others' turns: {order:?}");
+    assert_eq!(order.len(), 4);
+}
+
+#[test]
+fn what_is_held_is_the_password_that_was_sent_not_what_would_be_found_now() {
+    let (mut a, id) = app(false);
+    a.dav_passwords.insert((id, HOME.into()), "own".into());
+    a.services.dav = Some(Box::new(move |job: DavJob| {
+        let (send, receive) = std::sync::mpsc::channel();
+        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), signed_in: vec![HOME.into()], ..Default::default() };
+        send.send(DavDone { download }).unwrap();
+        receive
+    }));
+    a.dav_tick();
+    // While the job was out, something else was put in its place.
+    a.dav_passwords.insert((id, HOME.into()), "changed".into());
+    a.dav_tick();
+    assert_eq!(a.dav_passwords.get(&(id, HOME.to_string())).map(String::as_str), Some("own"));
 }
