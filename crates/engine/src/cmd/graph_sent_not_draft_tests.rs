@@ -650,3 +650,29 @@ fn an_explicit_sent_items_removal_is_not_cleared_by_a_stale_drafts_listing() {
     super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
     assert!(mb.message(id).is_none(), "the deleted message was kept");
 }
+
+/// #1175 review: a Drafts listing that leaves `isDraft` out is no confirmation that the sent copy
+/// has been filed: the pending mark stands, and a removal from Drafts after it keeps the message
+/// until Sent Items lists it.
+#[test]
+fn a_drafts_listing_without_the_draft_flag_does_not_end_the_pending_mark() {
+    let (mut mb, account) = mailbox();
+    let id = sent_a_draft_here(&mut mb, account);
+    let mut index = ServerIndex::default();
+    // The same id, listed in Drafts with no isDraft at all.
+    let mut listed = page("FD", "AAkD1", None);
+    listed.messages[0].server.change_key = "CK2".into();
+    take_page(&mut mb, &mut index, account, &listed, &mut Down::default());
+    assert!(mb.message(id).unwrap().sent_pending, "a listing without isDraft ended the pending mark");
+    let gone = MessagePage { folder: "FD".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    super::super::graph_down::sweep(&mut mb, account, &mut Down::default());
+    assert!(mb.message(id).is_some(), "the Drafts removal removed the message sent");
+    // A folder it was moved to is a word that it is there, and ends the mark.
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "FI".into(), ..Default::default() });
+    let mut moved = page("FI", "AAkD1", None);
+    moved.messages[0].server.change_key = "CK3".into();
+    take_page(&mut mb, &mut index, account, &moved, &mut Down::default());
+    assert!(!mb.message(id).unwrap().sent_pending, "a listing in the folder it moved to left it pending");
+}
