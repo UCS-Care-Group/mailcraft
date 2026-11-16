@@ -7,7 +7,37 @@ use mailcraft_engine::Session;
 use mailcraft_model::Id;
 use serde_json::json;
 
-use crate::{MailApp, Services};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use crate::secret_read::SecretRead;
+use crate::{MailApp, SecretStore, Services};
+use mailcraft_host::SecretError;
+
+/// A store that keeps what it is given, and, once stuck (a locked keychain), keeps it whatever it
+/// is told to delete.
+#[derive(Default)]
+struct Store {
+    held: Mutex<HashMap<String, String>>,
+    stuck: std::sync::atomic::AtomicBool,
+}
+
+impl SecretStore for Store {
+    fn get(&self, key: &str) -> Option<String> {
+        self.held.lock().ok()?.get(key).cloned()
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+        self.held.lock().map_err(|_| SecretError::Refused)?.insert(key.into(), secret.into());
+        Ok(())
+    }
+    fn delete(&self, key: &str) {
+        if !self.stuck.load(std::sync::atomic::Ordering::Relaxed)
+            && let Ok(mut held) = self.held.lock()
+        {
+            held.remove(key);
+        }
+    }
+}
 
 const NOW: i64 = 1_791_993_600;
 const A: &str = "https://dav.example.org";
@@ -73,4 +103,49 @@ fn another_mailbox_drops_them_all() {
     let (mut a, _) = app();
     a.execute("file.new", json!({})).unwrap();
     assert!(a.dav_passwords.is_empty());
+}
+
+fn with_store(stuck: bool) -> (MailApp, Id, Arc<Store>) {
+    let (mut a, id) = app();
+    let store = Arc::new(Store::default());
+    a.services.secrets = Some(store.clone());
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    store.set(&key, "one").unwrap();
+    a.secret_cache.insert(key.clone(), "one".into());
+    a.index_secret_key(key);
+    store.stuck.store(stuck, std::sync::atomic::Ordering::Relaxed);
+    (a, id, store)
+}
+
+#[test]
+fn a_dropped_key_leaves_the_store_and_the_note_when_the_store_answers() {
+    let (mut a, id, store) = with_store(false);
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    assert!(store.get(&key).is_none() && !a.secret_cache.contains_key(&key) && !a.ui.remembered_keys.contains(&key));
+}
+
+#[test]
+fn a_locked_store_leaves_the_note_for_a_later_try_but_not_the_copy_in_memory() {
+    let (mut a, id, store) = with_store(true);
+    let key = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    assert!(!a.secret_cache.contains_key(&key), "the copy in memory goes at once");
+    assert!(store.get(&key).is_some(), "the store kept it");
+    assert!(a.ui.remembered_keys.contains(&key), "so the note stays, for Remove all data and the next try");
+}
+
+#[test]
+fn a_read_that_was_out_when_the_key_was_dropped_does_not_bring_it_back() {
+    let (mut a, id, _) = with_store(false);
+    let old = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    let new = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), A).unwrap();
+    let (send, receive) = std::sync::mpsc::channel();
+    let answers = vec![(old.clone(), Some("one".to_string())), (new.clone(), Some("fresh".to_string()))];
+    send.send(SecretRead { answers, moved: Vec::new(), migrated: false, trouble: None }).unwrap();
+    a.secret_read = Some((a.session.openings(), receive));
+    a.poll_secret_read();
+    assert!(!a.secret_cache.contains_key(&old), "a name the settings no longer give is let go");
+    assert_eq!(a.secret_cache.get(&new).map(String::as_str), Some("fresh"));
 }

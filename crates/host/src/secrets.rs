@@ -96,9 +96,11 @@ pub fn dav_secret_key(a: &mailcraft_model::Account, origin: &str) -> Option<Stri
     let dav = a.dav.as_ref()?;
     let origin = mailcraft_model::origin_of(origin)?;
     let address = a.email.trim().to_ascii_lowercase();
+    // (The name keeps its case: a server may take "Ada" and "ada" for two users. The address,
+    // which is the name when none is given, is not case-sensitive.)
     let user = match dav.username.trim() {
         "" => address.clone(),
-        name => name.to_ascii_lowercase(),
+        name => name.to_string(),
     };
     let pin = dav.trusted.trim().to_ascii_lowercase();
     Some(format!("{DAV_PASSWORD}:{address}|dav={origin}|user={user}|pin={pin}"))

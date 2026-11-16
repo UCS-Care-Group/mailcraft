@@ -22,7 +22,7 @@ use crate::{Rgb, is_exchange_online, is_google_host, is_microsoft_domain};
 /// in the mailbox file with the account, written in the same step as the events or contacts it
 /// brought, so that a crash can't leave a token ahead of the data. Not a setting: an edit of the
 /// settings leaves it as it is, unless the server changes, which forgets it.
-#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DavCollectionState {
     /// The collection's address, absolute (it may be on another origin than the home: iCloud's).
@@ -49,6 +49,23 @@ pub struct DavCollectionState {
     /// The collection's change tag (`getctag`), opaque, for a server without sync tokens.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub ctag: String,
+}
+
+/// Nothing is known of the owner's rights until the server has said, so a collection starts, and a
+/// file that doesn't say reads, as read-only.
+impl Default for DavCollectionState {
+    fn default() -> Self {
+        DavCollectionState {
+            href: String::new(),
+            name: String::new(),
+            contacts: false,
+            color: None,
+            read_only: true,
+            components: Vec::new(),
+            sync_token: String::new(),
+            ctag: String::new(),
+        }
+    }
 }
 
 /// The address and name stay out of debug output, which may reach a log.
@@ -208,18 +225,20 @@ impl DavServer {
             all
         };
         homes(self) != homes(other)
-            || self.username.trim().to_lowercase() != other.username.trim().to_lowercase()
+            || self.username.trim() != other.username.trim()
             || self.trusted.trim().to_lowercase() != other.trusted.trim().to_lowercase()
     }
 }
 
 /// The origin of `address` (`https://dav.example.org`, `https://dav.example.org:8443`): the scheme
 /// and host in lower case and the port when it isn't the scheme's own; `None` when the address
-/// may not be used ([`DavServer::check_home`] says why). Two addresses with the same origin share
+/// may not be used ([`DavServer::check_home`] says why: Microsoft's and Google's hosts have no origin). Two addresses with the same origin share
 /// a password; one with another origin never does.
 pub fn origin_of(address: &str) -> Option<String> {
-    use crate::jmap_server::{accepted, after_scheme, split_authority};
-    accepted(address).ok()?;
+    use crate::jmap_server::{after_scheme, split_authority};
+    // (The refusals of a home are the origin's too: no password is ever held for Microsoft's or
+    // Google's hosts.)
+    DavServer::check_home(address).ok()?;
     let (scheme, default_port, rest) =
         if let Some(rest) = after_scheme(address, "https://") { ("https", "443", rest) } else { ("http", "80", after_scheme(address, "http://")?) };
     let authority = rest.get(..rest.find(['/', '?', '#']).unwrap_or(rest.len()))?;

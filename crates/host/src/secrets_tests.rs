@@ -72,3 +72,23 @@ fn a_dav_password_is_named_by_its_origin_user_and_pin() {
     assert_eq!(dav_secret_key(&a, "https://user:pw@dav.lumen.example/"), None);
     assert!(dav_secret_keys(&Account::default()).is_empty());
 }
+
+#[test]
+fn a_dav_user_name_keeps_its_case_in_the_key_and_the_host_and_origin_do_not() {
+    use crate::dav_secret_key;
+    let a = dav_account();
+    let with = |name: &str| {
+        let mut b = a.clone();
+        b.dav.as_mut().unwrap().username = name.into();
+        dav_secret_key(&b, "https://DAV.lumen.example/").unwrap()
+    };
+    assert_ne!(with("Ada"), with("ada"));
+    assert!(with("Ada").contains("|user=Ada|"));
+    assert_eq!(dav_secret_key(&a, "https://dav.lumen.example/"), dav_secret_key(&a, "https://DAV.Lumen.Example/"));
+    // No key for a host nobody's password goes to.
+    let mut g = a.clone();
+    g.dav.as_mut().unwrap().calendar_homes = vec!["https://www.googleapis.com/x/".into()];
+    assert_eq!(dav_secret_key(&g, "https://www.googleapis.com/x/"), None);
+    assert_eq!(dav_secret_key(&g, "https://outlook.office365.com/"), None);
+    assert!(crate::dav_secret_keys(&g).iter().all(|k| !k.contains("googleapis")));
+}

@@ -111,7 +111,8 @@ fn a_changed_server_is_told_from_a_changed_setting() {
     ] {
         assert!(a.is_another_server(&other));
     }
-    assert!(!a.is_another_server(&DavServer { username: " ADA ".into(), ..server() }));
+    assert!(a.is_another_server(&DavServer { username: " ADA ".into(), ..server() }), "case counts");
+    assert!(!a.is_another_server(&DavServer { username: " ada ".into(), ..server() }));
 }
 
 #[test]
@@ -177,4 +178,39 @@ fn what_a_later_version_wrote_is_kept_and_an_earlier_one_reads_the_file() {
     let account = Account { id: 4, email: "ada@example.org".into(), kind: AccountKind::Imap, dav: Some(server()), ..Default::default() };
     let older: Older = serde_json::from_str(&serde_json::to_string(&account).unwrap()).unwrap();
     assert_eq!((older.id, older.email.as_str(), older.kind), (4, "ada@example.org", AccountKind::Imap));
+}
+
+#[test]
+fn a_user_name_is_another_user_when_its_case_differs() {
+    let a = DavServer { username: "Ada".into(), ..server() };
+    assert!(a.is_another_server(&DavServer { username: "ada".into(), ..server() }));
+    assert!(!a.is_another_server(&DavServer { username: " Ada ".into(), ..server() }));
+}
+
+#[test]
+fn no_origin_exists_for_microsoft_or_google() {
+    for address in [
+        "https://outlook.office365.com/dav/",
+        "https://calendar.hotmail.com/",
+        "https://apidata.googleusercontent.com/caldav/v2/",
+        "https://www.googleapis.com/carddav/v1/",
+        "https://mail.gmail.com/",
+    ] {
+        assert_eq!(origin_of(address), None, "{address}");
+    }
+    // A file that names such a home gets no origin from it, so no password is ever held for it.
+    let s = DavServer { calendar_homes: vec!["https://www.googleapis.com/x/".into()], ..server() };
+    assert_eq!(s.origins(), ["https://dav.example.org"]);
+    assert!(origin_of("https://evil-google.com/").is_some());
+}
+
+#[test]
+fn a_collection_is_read_only_until_the_server_says_otherwise() {
+    assert!(DavCollectionState::default().read_only);
+    let read: DavCollectionState = serde_json::from_str(r#"{"href":"https://dav.example.org/c/"}"#).unwrap();
+    assert!(read.read_only);
+    let read: DavCollectionState = serde_json::from_str(r#"{"href":"https://dav.example.org/c/","readOnly":false}"#).unwrap();
+    assert!(!read.read_only);
+    let list: DavServer = serde_json::from_str(r#"{"collections":[{"href":"https://dav.example.org/c/"}]}"#).unwrap();
+    assert!(list.collections[0].read_only);
 }

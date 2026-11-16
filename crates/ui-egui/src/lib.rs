@@ -2927,17 +2927,23 @@ impl MailApp {
         let kept = |origin: &str| Self::dav_secret_key(before, origin).is_some_and(|key| now.contains(&key));
         self.dav_passwords.retain(|(id, origin), _| *id != before.id || kept(origin));
         let stale: Vec<String> = Self::dav_secret_keys(before).into_iter().filter(|key| !now.contains(key)).collect();
+        // (The copy in memory goes at once. The name stays noted until the store has said the
+        // entry is gone, so that a locked store leaves it for a later try, Remove all data's
+        // included.)
         for key in &stale {
             self.secret_cache.remove(key);
-            self.ui.remembered_keys.retain(|k| k != key);
         }
-        if let Some(store) = &self.services.secrets {
-            for key in &stale {
-                store.delete(key);
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for key in &stale {
+            store.delete(key);
+            if store.get(key).is_none() {
+                gone.push(key.clone());
             }
-            if let Some(trouble) = store.take_trouble() {
-                self.note_secret_trouble(trouble);
-            }
+        }
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
         }
     }
 
