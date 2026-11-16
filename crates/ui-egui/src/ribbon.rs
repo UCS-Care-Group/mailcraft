@@ -1204,10 +1204,8 @@ fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>, bool) {
         let first = out.len();
         walk_folders(app, a, None, 0, many, &mut out);
         // (The account's name above the first of its folders, none for an account that has none.)
-        if many {
-            if let Some(row) = out.get_mut(first) {
-                row.heading = Some(crate::nav::account_label(a));
-            }
+        if many && let Some(row) = out.get_mut(first) {
+            row.heading = Some(crate::nav::account_label(a));
         }
     }
     (out, many)
@@ -1271,11 +1269,9 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
         for i in shown {
             let Some(row) = list.get(i) else { continue };
             // (Above each account's tree: its name, which a search's matches show instead.)
-            if !searching {
-                if let Some(heading) = &row.heading {
-                    ui.add_space(2.0);
-                    ui.label(egui::RichText::new(heading).small().color(Tokens::get(ui.ctx()).text_dim));
-                }
+            if !searching && let Some(heading) = &row.heading {
+                ui.add_space(2.0);
+                ui.label(egui::RichText::new(heading).small().color(Tokens::get(ui.ctx()).text_dim));
             }
             let label = if searching {
                 // (A search's matches name their mailbox: the same place exists in each.)

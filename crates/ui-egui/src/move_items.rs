@@ -175,19 +175,20 @@ impl MoveItems {
                 let row = &self.rows[i];
                 // (Above each account's tree: its name, which a search's matches show instead.
                 // With one account there is nothing to tell apart, so no heading.)
-                if wanted.is_empty() && several {
-                    if let Some(heading) = &row.heading {
-                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), egui::Sense::hover());
-                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, heading));
-                        crate::theme::paint_clipped(
-                            ui.painter(),
-                            egui::pos2(r.min.x + 10.0, r.center().y),
-                            (r.max.x - r.min.x - 20.0).max(40.0),
-                            heading,
-                            crate::theme::bold(12.0),
-                            t.text_dim,
-                        );
-                    }
+                if wanted.is_empty()
+                    && several
+                    && let Some(heading) = &row.heading
+                {
+                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), egui::Sense::hover());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, heading));
+                    crate::theme::paint_clipped(
+                        ui.painter(),
+                        egui::pos2(r.min.x + 10.0, r.center().y),
+                        (r.max.x - r.min.x - 20.0).max(40.0),
+                        heading,
+                        crate::theme::bold(12.0),
+                        t.text_dim,
+                    );
                 }
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
                 let can = Some(row.folder) != here;
