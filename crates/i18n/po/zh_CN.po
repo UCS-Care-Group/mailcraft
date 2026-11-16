@@ -399,6 +399,12 @@ msgstr "和往常一样，会先在原位置旁边保存整个邮箱的副本。
 msgid "A date"
 msgstr "某个日期"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "A file"
+msgstr "一个文件"
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -803,8 +809,9 @@ msgstr "添加账户"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Add Appointment to Tasks"
-msgstr ""
+msgstr "将约会添加到任务"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -814,8 +821,9 @@ msgstr "添加日历"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Add Contact to Tasks"
-msgstr ""
+msgstr "将联系人添加到任务"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
@@ -933,8 +941,9 @@ msgstr "将任务添加到 {address}（授权使用 To Do 前，任务会保留�
 
 #. interface
 #: crates/ui-egui/src/todo_bar.rs
+#, fuzzy
 msgid "Add a task…"
-msgstr ""
+msgstr "添加任务…"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
@@ -980,8 +989,9 @@ msgstr "添加为 Microsoft 账户"
 
 #. interface
 #: crates/ui-egui/src/todo_bar.rs
+#, fuzzy
 msgid "Add contacts to Favorites to keep them here"
-msgstr ""
+msgstr "将联系人添加到收藏夹即可保留在此处"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2043,8 +2053,9 @@ msgstr "与会者"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Attendees:"
-msgstr ""
+msgstr "与会者:"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -2300,8 +2311,9 @@ msgstr "生日"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Birthday:"
-msgstr ""
+msgstr "生日:"
 
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
@@ -3126,7 +3138,7 @@ msgid "Clipboard"
 msgstr "剪贴板"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "关闭"
@@ -4265,8 +4277,8 @@ msgstr "将回复发送至"
 msgid "Discard"
 msgstr "丢弃"
 
-#. interface
-#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "关闭"
@@ -4838,8 +4850,9 @@ msgstr "向此会议的参与者发送邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Email:"
-msgstr ""
+msgstr "电子邮件:"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -5385,6 +5398,12 @@ msgstr "指纹："
 #, fuzzy
 msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
 msgstr "请在浏览器中的 Microsoft 页面上完成操作。MailCraft 正在等待。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Finish or close the message you are writing, then try again."
+msgstr "请先完成或关闭正在撰写的邮件，然后重试。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -7252,8 +7271,9 @@ msgstr "加入 {service} 会议"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Join:"
-msgstr ""
+msgstr "加入:"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
@@ -8805,8 +8825,9 @@ msgstr "目前无法在服务器上请求更多结果"
 
 #. interface
 #: crates/ui-egui/src/todo_bar.rs
+#, fuzzy
 msgid "More tasks are in the Tasks module."
-msgstr ""
+msgstr "更多任务在“任务”模块中。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -10030,8 +10051,9 @@ msgstr "其中没有任何内容：将替换此处打开的邮箱"
 
 #. interface
 #: crates/ui-egui/src/todo_bar.rs
+#, fuzzy
 msgid "Nothing in the next 7 days"
-msgstr ""
+msgstr "未来 7 天内没有任何事项"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -10813,8 +10835,9 @@ msgstr "组织者"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Organizer:"
-msgstr ""
+msgstr "组织者:"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -11112,8 +11135,9 @@ msgstr "电话"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Phone:"
-msgstr ""
+msgstr "电话:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11641,6 +11665,12 @@ msgstr "读取自动回复时意外中断"
 msgid "Reading the calendar from Microsoft…"
 msgstr "正在从 Microsoft 读取日历…"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
+#, fuzzy
+msgid "Reading what was shared"
+msgstr "正在读取共享的内容"
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -12057,8 +12087,9 @@ msgstr "删除 {name}"
 
 #. interface
 #: crates/ui-egui/src/todo_bar.rs
+#, fuzzy
 msgid "Remove {part} from the To-Do Bar"
-msgstr ""
+msgstr "从待办栏中移除 {part}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -17947,15 +17978,19 @@ msgstr "要使用其他服务器或用户名，请移除账户并重新添加。
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "To-Do\n"
 "Bar"
 msgstr ""
+"待办\n"
+"栏"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "To-Do Bar"
-msgstr ""
+msgstr "待办栏"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -18632,8 +18667,9 @@ msgstr "想成为其中一员吗？在 #11 中注册"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Web page:"
-msgstr ""
+msgstr "网页:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -18815,8 +18851,9 @@ msgstr "切换时："
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "When:"
-msgstr ""
+msgstr "时间:"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -18838,8 +18875,9 @@ msgstr "存在差异时，保留的联系人包含："
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "Where:"
-msgstr ""
+msgstr "地点:"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -20071,6 +20109,12 @@ msgid "folder {id} is not that account's"
 msgstr "文件夹 {id} 不属于该账户"
 
 #. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "文件夹 {p} 不属于该账户"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "folders are nested too deeply"
@@ -20462,8 +20506,9 @@ msgstr "未回复"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
 msgid "no appointment with id {id}"
-msgstr ""
+msgstr "没有 id 为 {id} 的约会"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
@@ -20500,6 +20545,12 @@ msgstr "没有文件夹“{path}”"
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "没有 ID 为 {id} 的文件夹"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "没有 ID 为 {p} 的文件夹"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -22739,6 +22790,12 @@ msgstr "{name} 接受了本次会议。"
 msgid "{name} answered this invitation."
 msgstr "{name} 回复了此邀请。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} could not be read, so it was not attached."
+msgstr "无法读取 {name}，因此未附加。"
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -22954,6 +23011,24 @@ msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表�
 #, fuzzy
 msgid "{name} tentatively accepted this meeting."
 msgstr "{name} 暂时接受了本次会议。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is larger than 25 MB."
+msgstr "未附加 {name}：文件大于 25 MB。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is not a file this app may read."
+msgstr "未附加 {name}：此应用无权读取该文件。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: the files on a message can be 50 MB together."
+msgstr "未附加 {name}：一封邮件的文件总共最多 50 MB。"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -23485,6 +23560,13 @@ msgstr[0] "{n} 分钟"
 msgid "{n} minute before"
 msgid_plural "{n} minutes before"
 msgstr[0] "提前 {n} 分钟"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{n} more file was not attached: a message takes at most {max} files from a share."
+msgid_plural "{n} more files were not attached: a message takes at most {max} files from a share."
+msgstr[0] "另有 {n} 个文件未附加：一封邮件最多接受 {max} 个共享文件。"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
