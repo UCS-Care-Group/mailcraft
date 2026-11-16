@@ -470,6 +470,28 @@ struct Job {
     chain: u8,
 }
 
+/// The listing of a kind's homes: every home the principal names, and the plain containers one
+/// level down, read one at a time; what each brings is merged.
+struct Listing {
+    /// Addresses still to list, with their depth below a home (0 a home, 1 a container in it).
+    queue: VecDeque<(String, u8)>,
+    /// The depth of the listing that is being asked.
+    level: u8,
+    /// Addresses queued so far, so that none is asked twice.
+    seen: Vec<String>,
+    /// Container listings queued beyond the homes.
+    extra: u8,
+    /// The first home that answered.
+    home: Option<String>,
+    /// What the listings brought.
+    collections: Collections,
+}
+
+/// Most homes read of one kind (a principal may name several, RFC 4791 section 6.2.1, RFC 6352
+/// section 7.1.1), and most listings of containers below them.
+const MAX_HOMES: usize = 4;
+const MAX_CONTAINER_LISTINGS: u8 = 8;
+
 fn kind_index(kind: Kind) -> usize {
     match kind {
         Kind::Calendar => 0,
@@ -506,6 +528,8 @@ pub struct Discovery {
     /// The kinds still to search for, the first being the one in hand.
     todo: VecDeque<Kind>,
     job: Option<Job>,
+    /// The homes of the kind in hand being listed.
+    listing: Option<Listing>,
     found: Discovered,
     /// Origins that are the owner's: the typed ones, the SRV record's, the ones agreed to.
     trusted: Vec<String>,
@@ -554,6 +578,7 @@ impl Discovery {
             typed: [None, None],
             typed_origins: Vec::new(),
             via_loopback: false,
+            listing: None,
             unproven: Vec::new(),
             todo,
             job: None,
@@ -643,6 +668,8 @@ impl Discovery {
     }
 
     fn finish(&mut self, outcome: Outcome) {
+        // (What the listings brought so far is kept, as a kind found before is.)
+        self.commit_listing();
         let outcome = self.settle(outcome);
         self.waiting = Waiting::Done(outcome);
     }
@@ -663,6 +690,24 @@ impl Discovery {
         // Each round takes one place or one kind off a list; the rounds are bounded by those and
         // by the requests.
         for _ in 0..usize::from(MAX_REQUESTS).saturating_mul(8) {
+            // The homes of a kind come before anything else: one listing at a time.
+            if self.listing.is_some() {
+                let next = self.listing.as_mut().and_then(|listing| {
+                    let (url, level) = listing.queue.pop_front()?;
+                    listing.level = level;
+                    Some(url)
+                });
+                match next {
+                    Some(url) => {
+                        self.issue(Stage::Collections, url, false);
+                        if !matches!(self.waiting, Waiting::Idle) {
+                            return;
+                        }
+                    }
+                    None => self.commit_listing(),
+                }
+                continue;
+            }
             if self.job.is_none() {
                 let Some(kind) = self.todo.pop_front() else {
                     let outcome = if self.found.calendars.is_some() || self.found.contacts.is_some() {
@@ -975,18 +1020,52 @@ impl Discovery {
             }
             Stage::Homes => {
                 let base = listing.entries.iter().find(|entry| entry.is_base).or_else(|| listing.entries.first());
-                match base.and_then(|entry| home_of(entry, kind)) {
-                    Some(home) => self.issue(Stage::Collections, home, false),
-                    None => self.fail_candidate(Failure::NoHome),
+                let homes = base.map(|entry| homes_of(entry, kind)).unwrap_or_default();
+                if homes.is_empty() {
+                    return self.fail_candidate(Failure::NoHome);
                 }
+                self.listing = Some(Listing {
+                    seen: homes.clone(),
+                    queue: homes.into_iter().map(|home| (home, 0)).collect(),
+                    level: 0,
+                    extra: 0,
+                    home: None,
+                    collections: Collections::default(),
+                });
+                self.waiting = Waiting::Idle;
             }
             Stage::Collections => self.located(ask, listing),
         }
     }
 
-    /// The home's listing: this kind is found.
+    /// A listing of a home, or of a plain container in it: what it holds is merged, and the plain
+    /// containers of a home are listed too (one level down, no further).
     fn located(&mut self, ask: &Ask, listing: Multistatus) {
-        let located = Located { home: ask.url.clone(), collections: Collections::from_listing(listing) };
+        let Some(state) = self.listing.as_mut() else { return };
+        state.home.get_or_insert_with(|| ask.url.clone());
+        if state.level == 0 {
+            for entry in &listing.entries {
+                let plain = !entry.is_base && !entry.is_gone() && entry.is_collection && !entry.is_calendar && !entry.is_addressbook;
+                if plain
+                    && state.extra < MAX_CONTAINER_LISTINGS
+                    && state.seen.len() < MAX_HOMES + usize::from(MAX_CONTAINER_LISTINGS)
+                    && !state.seen.contains(&entry.href)
+                {
+                    state.seen.push(entry.href.clone());
+                    state.queue.push_back((entry.href.clone(), 1));
+                    state.extra += 1;
+                }
+            }
+        }
+        state.collections.merge(Collections::from_listing(listing));
+        self.waiting = Waiting::Idle;
+    }
+
+    /// The listings are over: what they brought is this kind found (nothing, when none answered).
+    fn commit_listing(&mut self) {
+        let Some(state) = self.listing.take() else { return };
+        let Some(home) = state.home else { return };
+        let located = Located { home, collections: state.collections };
         match self.kind() {
             Kind::Calendar => self.found.calendars = Some(located),
             Kind::AddressBook => self.found.contacts = Some(located),
@@ -1137,13 +1216,20 @@ impl Grant {
     }
 }
 
-/// The home of `kind` a principal names: on its own origin, else another one's.
-fn home_of(entry: &Entry, kind: Kind) -> Option<String> {
+/// The homes of `kind` a principal names (it may name several): on its own origin first, then
+/// another one's, each once, at most [`MAX_HOMES`].
+fn homes_of(entry: &Entry, kind: Kind) -> Vec<String> {
     let (own, other) = match kind {
         Kind::Calendar => (&entry.calendar_homes, &entry.foreign_calendar_homes),
         Kind::AddressBook => (&entry.addressbook_homes, &entry.foreign_addressbook_homes),
     };
-    own.first().or_else(|| other.first()).cloned()
+    let mut homes: Vec<String> = Vec::new();
+    for home in own.iter().chain(other.iter()) {
+        if homes.len() < MAX_HOMES && !homes.contains(home) {
+            homes.push(home.clone());
+        }
+    }
+    homes
 }
 
 /// Whether `path` is an absolute path of plain characters, as a TXT `path=` must be: it is put

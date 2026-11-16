@@ -1135,3 +1135,125 @@ fn a_looping_web_site_does_not_outrank_what_a_server_said() {
     let outcome = search(USER, true, false).mail_host("imap.example.org").run(&world, no_srv, never_asked);
     assert_eq!(outcome, Outcome::Failed(Failure::NotDavServer));
 }
+
+// A server scripted by path: what its multistatus holds for a path, the anonymous asks answered by
+// a challenge naming both services.
+fn tree_world(tree: impl Fn(&str) -> Option<String> + 'static) -> World {
+    World::new(&[]).with(move |r| {
+        if r.field("authorization").is_none() {
+            return Some(Ok(challenge(&[("DAV", DAV_HEADER)])));
+        }
+        let path = r.url().strip_prefix("https://dav.example.net").unwrap_or("").to_owned();
+        let inner = tree(&path)?;
+        let body = format!(
+            "<d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" xmlns:card=\"urn:ietf:params:xml:ns:carddav\">{inner}</d:multistatus>"
+        );
+        Some(Ok(HttpResponse::new(207, body.into_bytes())))
+    })
+}
+
+fn item(href: &str, props: &str) -> String {
+    format!("<d:response><d:href>{href}</d:href><d:propstat><d:prop>{props}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>")
+}
+
+const CAL: &str = "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>";
+const BOOK: &str = "<d:resourcetype><d:collection/><card:addressbook/></d:resourcetype>";
+const PLAIN: &str = "<d:resourcetype><d:collection/></d:resourcetype>";
+
+fn principal_with(homes: impl Into<String>) -> impl Fn(&str) -> Option<String> {
+    let homes = homes.into();
+    move |path| match path {
+        "/dav/" => Some(item("/dav/", "<d:current-user-principal><d:href>/p/</d:href></d:current-user-principal>")),
+        "/p/" => Some(item("/p/", &homes)),
+        _ => None,
+    }
+}
+
+fn run_typed(kind: Kind, world: &World) -> Outcome {
+    typed(kind, "https://dav.example.net/dav/").run(world, no_srv, never_asked)
+}
+
+#[test]
+fn every_home_a_principal_names_is_read_and_an_empty_or_failing_first_does_not_lose_the_rest() {
+    let principal = principal_with("<c:calendar-home-set><d:href>/h1/</d:href><d:href>/h2/</d:href><d:href>/h3/</d:href></c:calendar-home-set>");
+    let world = tree_world(move |path| {
+        principal(path).or_else(|| match path {
+            "/h1/" => Some(item("/h1/", PLAIN)),
+            "/h2/" => None,
+            "/h3/" => Some(item("/h3/", PLAIN) + &item("/h3/a/", &format!("{CAL}<d:displayname>A</d:displayname>"))),
+            _ => None,
+        })
+    });
+    let done = found(run_typed(Kind::Calendar, &world));
+    assert_eq!(names(done.calendars().unwrap()), ["A"]);
+    for path in ["/h1/", "/h2/", "/h3/"] {
+        assert!(world.sent().iter().any(|s| s.path == path && s.credential), "{path} was listed");
+    }
+    // At most four homes are read.
+    let many: String = (1..=7).map(|n| format!("<d:href>/h{n}/</d:href>")).collect();
+    let principal = principal_with(format!("<c:calendar-home-set>{many}</c:calendar-home-set>"));
+    let world = tree_world(move |path| principal(path).or_else(|| path.starts_with("/h").then(|| item(path, PLAIN))));
+    let _ = run_typed(Kind::Calendar, &world);
+    let listed = world.sent().iter().filter(|s| s.credential && s.path.starts_with("/h")).count();
+    assert_eq!(listed, 4);
+}
+
+#[test]
+fn a_home_that_is_itself_a_calendar_or_an_address_book_is_found() {
+    let principal = principal_with("<c:calendar-home-set><d:href>/h/</d:href></c:calendar-home-set>");
+    let world = tree_world(move |path| {
+        principal(path).or_else(|| (path == "/h/").then(|| item("/h/", &format!("{CAL}<d:displayname>Only</d:displayname>"))))
+    });
+    assert_eq!(names(found(run_typed(Kind::Calendar, &world)).calendars().unwrap()), ["Only"]);
+    let principal = principal_with("<card:addressbook-home-set><d:href>/b/</d:href></card:addressbook-home-set>");
+    let world = tree_world(move |path| {
+        principal(path).or_else(|| (path == "/b/").then(|| item("/b/", &format!("{BOOK}<d:displayname>Book</d:displayname>"))))
+    });
+    let done = found(run_typed(Kind::AddressBook, &world));
+    assert_eq!(done.contacts().unwrap().collections().address_books.len(), 1);
+}
+
+#[test]
+fn collections_under_a_plain_container_are_found_one_level_down_and_no_further() {
+    let principal = principal_with("<c:calendar-home-set><d:href>/h/</d:href></c:calendar-home-set>");
+    let world = tree_world(move |path| {
+        principal(path).or_else(|| match path {
+            "/h/" => Some(item("/h/", PLAIN) + &item("/h/team/", PLAIN) + &item("/h/own/", &format!("{CAL}<d:displayname>Own</d:displayname>"))),
+            "/h/team/" => Some(
+                item("/h/team/", PLAIN)
+                    + &item("/h/team/work/", &format!("{CAL}<d:displayname>Work</d:displayname>"))
+                    + &item("/h/team/deep/", PLAIN),
+            ),
+            "/h/team/deep/" => {
+                Some(item("/h/team/deep/", PLAIN) + &item("/h/team/deep/x/", &format!("{CAL}<d:displayname>Too deep</d:displayname>")))
+            }
+            _ => None,
+        })
+    });
+    let done = found(run_typed(Kind::Calendar, &world));
+    let mut got = names(done.calendars().unwrap());
+    got.sort();
+    assert_eq!(got, ["Own", "Work"]);
+    assert!(world.sent().iter().all(|s| s.path != "/h/team/deep/"), "a third level was not listed");
+}
+
+#[test]
+fn the_listings_of_containers_are_capped_and_what_was_found_stays() {
+    let principal = principal_with("<c:calendar-home-set><d:href>/h/</d:href></c:calendar-home-set>");
+    let world = tree_world(move |path| {
+        principal(path).or_else(|| {
+            if path == "/h/" {
+                let boxes: String = (0..20).map(|n| item(&format!("/h/box{n}/"), PLAIN)).collect();
+                Some(item("/h/", PLAIN) + &item("/h/own/", &format!("{CAL}<d:displayname>Own</d:displayname>")) + &boxes)
+            } else if path.starts_with("/h/box") {
+                Some(item(path, PLAIN) + &item(&format!("{path}c/"), &format!("{CAL}<d:displayname>In {path}</d:displayname>")))
+            } else {
+                None
+            }
+        })
+    });
+    let done = found(run_typed(Kind::Calendar, &world));
+    let boxes = world.sent().iter().filter(|s| s.credential && s.path.starts_with("/h/box")).count();
+    assert_eq!(boxes, usize::from(MAX_CONTAINER_LISTINGS));
+    assert_eq!(done.calendars().unwrap().collections().calendars.len(), 1 + usize::from(MAX_CONTAINER_LISTINGS));
+}

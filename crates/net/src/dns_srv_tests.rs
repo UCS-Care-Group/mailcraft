@@ -369,6 +369,12 @@ fn a_txt_path_is_taken_only_when_it_is_a_plain_absolute_path() {
     assert_eq!(path(r#""\"path=/cal\" \"dav/\"""#).as_deref(), Some("/cal"));
     assert_eq!(path(r#""\"txtvers=1\" \"PATH=/dav/\" \"path=/other/\"""#).as_deref(), Some("/dav/"));
     assert_eq!(path(r#""\"txtvers=1\"""#), None);
+    // An escaped quote does not end a string: a record with a backslash is passed over, and the
+    // next record may give the path.
+    let escaped = r#""\"note=\\\"x\\\"path=/wrong\" \"path=/real\"""#;
+    assert_eq!(path(escaped), None);
+    let two = format!(r#"{{"Status":0,"Answer":[{{"type":16,"data":{escaped}}},{{"type":16,"data":"\"path=/real\""}}]}}"#);
+    assert_eq!(path_of(&Answer { status: 200, body: two.into_bytes() }).unwrap().as_deref(), Some("/real"));
     assert_eq!(path(r#""path=/caldav/""#).as_deref(), Some("/caldav/"));
     for bad in [
         r#""\"path=\"""#,

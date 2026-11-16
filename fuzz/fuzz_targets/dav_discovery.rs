@@ -72,6 +72,8 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     // Origins that answered a request without the password in a way that says they are calendar
     // servers; and the hosts the owner agreed to.
     let mut evidenced: Vec<String> = Vec::new();
+    // Origins that answered a request without the password with a Basic challenge.
+    let mut challenged: Vec<String> = Vec::new();
     let mut agreed: Vec<String> = Vec::new();
     let mut requests = 0usize;
     for _ in 0..1024 {
@@ -96,9 +98,10 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                 assert!(known, "a request went to {origin} before the owner said yes");
                 let carries = request.field("authorization").is_some();
                 if carries {
+                    // (The host the owner typed needs no DAV header, but it asks for the password itself.)
+                    assert!(challenged.contains(&origin), "a password went to {origin} before it asked for one");
                     let proven = evidenced.contains(&origin) || (typed && origin == TYPED);
                     assert!(proven, "a password went to {origin} before it said it is a calendar server");
-                    assert!(host == "imap.example.org" && origin == "https://imap.example.org" || host != "imap.example.org");
                     assert!(
                         (typed && origin == TYPED) || origin == "https://imap.example.org" || srv_named.contains(&origin) || agreed.contains(&origin),
                         "the password went to {origin}, which is nobody's"
@@ -138,15 +141,23 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                 ];
                 let place = if kind % 4 == 0 { PLACES[usize::from(kind / 4) % PLACES.len()] } else { rest.as_str() };
                 let mut response = HttpResponse::new(status, body).with_field("Location", place);
-                response = response.with_field("WWW-Authenticate", if kind % 2 == 0 { "Basic realm=\"x\"" } else { rest.as_str() });
+                let www = if kind % 2 == 0 { "Basic realm=\"x\"" } else { rest.as_str() };
+                response = response.with_field("WWW-Authenticate", www);
                 let dav_header = if dav_ok { "1, calendar-access, addressbook" } else { rest.as_str() };
                 response = response.with_field("DAV", dav_header);
                 let lower = dav_header.to_ascii_lowercase();
                 let names_service = lower.contains("calendar-access") || lower.contains("addressbook");
                 // (What the machine takes for evidence: an answer to a request without the
                 // password that names the service, by a 401 or by an OPTIONS that answers.)
-                if !carries && names_service && ((status == 401) || (options && matches!(status, 200 | 204))) {
-                    evidenced.push(origin);
+                // Only an answer that arrived counts.
+                let arrived = !matches!(kind, 0xfe | 0xfd);
+                if arrived && !carries {
+                    if status == 401 && www.to_ascii_lowercase().contains("basic") {
+                        challenged.push(origin.clone());
+                    }
+                    if names_service && ((status == 401) || (options && matches!(status, 200 | 204))) {
+                        evidenced.push(origin);
+                    }
                 }
                 // A certificate that is not accepted, and a connection that fails.
                 let result = match kind {

@@ -344,6 +344,10 @@ fn a_calendar_server_s_dav_and_etag_headers_come_back_as_classes() {
     let long = format!("HTTP/1.1 200 OK\r\nETag: {}\r\nContent-Length: 0\r\n\r\n", "x".repeat(2_000));
     let server = FakeHttp::answering(long.into_bytes());
     assert_eq!(get(&server.url("/x"), "").unwrap().etag, None);
+    // So is one that is not text: no repaired ETag is kept.
+    let mut raw = b"HTTP/1.1 200 OK\r\nETag: \"a\xff\xfeb\"\r\nContent-Length: 0\r\n\r\n".to_vec();
+    let server = FakeHttp::answering(std::mem::take(&mut raw));
+    assert_eq!(get(&server.url("/x"), "").unwrap().etag, None);
 }
 
 #[test]

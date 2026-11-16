@@ -298,7 +298,9 @@ pub(crate) fn path_of(answer: &Answer) -> Result<Option<String>, NetError> {
 fn character_strings(data: &str) -> Option<Vec<String>> {
     let data = data.trim();
     let room = MAX_PATH + 8;
-    if data.len() > 4 * MAX_PATH {
+    // A backslash is an escape (`\"` inside a string) that is not read here: such a record is
+    // unsupported and passed over, never split at a quote that was escaped.
+    if data.len() > 4 * MAX_PATH || data.contains('\\') {
         return None;
     }
     if !data.contains('"') {

@@ -789,7 +789,9 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             }
         } else if name.eq_ignore_ascii_case("etag") {
             // (Kept whole or not at all: a cut ETag is another ETag.)
-            head.etag = Some(value.to_string()).filter(|etag| etag.len() <= MAX_ETAG && !etag.chars().any(char::is_control));
+            // (The line was read lossily: a replacement character marks bytes that were no UTF-8, and
+            // an ETag that is not text is dropped, not repaired into another one.)
+            head.etag = Some(value.to_string()).filter(|etag| etag.len() <= MAX_ETAG && !etag.chars().any(|c| c.is_control() || c == '\u{fffd}'));
         } else if name.eq_ignore_ascii_case("content-range") {
             head.content_range = Some(value.to_string());
         }
