@@ -24,7 +24,6 @@ import uniffi.mailcraft_mobile.ListMark
 import uniffi.mailcraft_mobile.RecipientLine
 import uniffi.mailcraft_mobile.SuggestionRecord
 
-private const val TOLERANCE = 0.1
 private val PhoneTall = DeviceConfig.PIXEL_5.copy(screenHeight = 2_400)
 
 /** The composer on invented messages: a new one, a reply that quotes and a forward with a file. */

@@ -111,6 +111,11 @@ internal class ShellActions(
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
+    val writing: WritingActions = WritingActions(),
+)
+
+/** What the shell asks of the message being written: the composer's own, a new message, a line said. */
+internal class WritingActions(
     val composer: ComposerActions = ComposerActions.None,
     val onNewMessage: () -> Unit = {},
     val onSnackShown: () -> Unit = {},
@@ -147,7 +152,7 @@ internal fun AppShell(
         Box(modifier = if (composing) Modifier.clearAndSetSemantics {} else Modifier) {
             AppFrame(texts, data, actions, calendar, initialNav, initialDrawer, requestTab, onTabRequested)
         }
-        if (composing) ComposerRoute(texts, data.compose, actions.composer)
+        if (composing) ComposerRoute(texts, data.compose, actions.writing.composer)
     }
 }
 
@@ -167,7 +172,7 @@ private fun AppFrame(
     LaunchedEffect(data.snack) {
         data.snack?.let {
             snackbar.showSnackbar(it)
-            actions.onSnackShown()
+            actions.writing.onSnackShown()
         }
     }
     var nav by rememberSaveable(stateSaver = NavState.Saver) { mutableStateOf(initialNav) }
@@ -269,7 +274,7 @@ private fun ShellScreen(
             onMenu = onMenu,
             onBack = if (nav.message != null) ({ nav.back()?.let(onNav) }) else null,
             snackbar = snackbar,
-            onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.onNewMessage else null,
+            onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.writing.onNewMessage else null,
         ) { modifier, expanded ->
             when (nav.tab) {
                 // (No account is said only after a read that worked and found none.)
@@ -428,7 +433,7 @@ private fun isDraft(data: ShellData): Boolean {
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
         onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures,
-        composer, onNewMessage, onSnackShown,
+        writing,
     )
 
 @Composable
