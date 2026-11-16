@@ -1375,13 +1375,15 @@ msgstr "סידור לפי"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Arrange Contacts By"
-msgstr ""
+msgstr "סידור אנשי קשר לפי"
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Arrange Tasks By"
-msgstr ""
+msgstr "סידור משימות לפי"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -1935,8 +1937,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
+#, fuzzy
 msgid "Calendar Colour"
-msgstr ""
+msgstr "צבע לוח השנה"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -2676,8 +2679,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Contact Card"
-msgstr ""
+msgstr "כרטיס איש קשר"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2733,28 +2737,33 @@ msgstr "העתק מידע לאבחון"
 
 #. command label
 #: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
 msgid "Copy Event"
-msgstr ""
+msgstr "העתקת אירוע"
 
 #. interface, name
 #: crates/ui-egui/src/move_items.rs
+#, fuzzy
 msgid "Copy Items"
-msgstr ""
+msgstr "העתקת פריטים"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Copy Link"
-msgstr ""
+msgstr "העתקת קישור"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Link Address"
-msgstr ""
+msgstr "העתקת כתובת קישור"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Selected Text"
-msgstr ""
+msgstr "העתקת הטקסט שנבחר"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -2982,8 +2991,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "Create Rule"
-msgstr ""
+msgstr "יצירת כלל"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -3149,8 +3159,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "Delete Calendar"
-msgstr ""
+msgstr "מחיקת לוח שנה"
 
 #. command label
 #: crates/engine/src/cmd/category.rs
@@ -3754,23 +3765,27 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Edit Contact"
-msgstr ""
+msgstr "עריכת איש קשר"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
+#, fuzzy
 msgid "Edit Event"
-msgstr ""
+msgstr "עריכת אירוע"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Edit Message"
-msgstr ""
+msgstr "עריכת הודעה"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
+#, fuzzy
 msgid "Edit Signature"
-msgstr ""
+msgstr "עריכת חתימה"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -3779,8 +3794,9 @@ msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
+#, fuzzy
 msgid "Edit Task"
-msgstr ""
+msgstr "עריכת משימה"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -4064,8 +4080,9 @@ msgstr "ייצוא תיקייה"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "Export…"
-msgstr ""
+msgstr "ייצוא…"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -4182,8 +4199,9 @@ msgstr "חפש"
 
 #. command label
 #: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
 msgid "Find Duplicate Contacts"
-msgstr ""
+msgstr "איתור אנשי קשר כפולים"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -4294,13 +4312,15 @@ msgstr ""
 
 #. command label, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/view.rs
+#, fuzzy
 msgid "Folder Pane"
-msgstr ""
+msgstr "חלונית תיקיות"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "Folder Properties"
-msgstr ""
+msgstr "מאפייני תיקייה"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -4953,8 +4973,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
 msgid "Hide Details"
-msgstr ""
+msgstr "הסתרת פרטים"
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -5155,13 +5176,15 @@ msgstr "יבא"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Import Calendar File"
-msgstr ""
+msgstr "ייבוא קובץ לוח שנה"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Import Contacts"
-msgstr ""
+msgstr "ייבוא אנשי קשר"
 
 #. command label
 #: crates/engine/src/cmd/keys.rs
@@ -6907,8 +6930,9 @@ msgstr "העברת הכול ושליחת הזמנות"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Move Down"
-msgstr ""
+msgstr "העברה למטה"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -6923,8 +6947,9 @@ msgstr "העברת תיקייה"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
+#, fuzzy
 msgid "Move Items"
-msgstr ""
+msgstr "העברת פריטים"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -6939,8 +6964,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Move Up"
-msgstr ""
+msgstr "העברה למעלה"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7180,13 +7206,15 @@ msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
 msgid "New Contact"
-msgstr ""
+msgstr "איש קשר חדש"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "New Email"
-msgstr ""
+msgstr "הודעת דוא״ל חדשה"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
@@ -7196,13 +7224,15 @@ msgstr "תיקייה חדשה"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "New Items"
-msgstr ""
+msgstr "פריטים חדשים"
 
 #. command label
 #: crates/engine/src/cmd/file.rs
+#, fuzzy
 msgid "New Mailbox"
-msgstr ""
+msgstr "תיבת דואר חדשה"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -7212,8 +7242,9 @@ msgstr "פגישה חדשה"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "New Task"
-msgstr ""
+msgstr "משימה חדשה"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8108,8 +8139,9 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Data Folder"
-msgstr ""
+msgstr "פתיחת תיקיית נתונים"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
