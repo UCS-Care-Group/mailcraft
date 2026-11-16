@@ -1667,6 +1667,9 @@ fn main() -> eframe::Result {
                 // Search answers from a word index kept beside the mailbox file, built in the
                 // background (R6.2).
                 session.index_words = true;
+                // Calendar and contacts servers (#209) ship switched off: `MAILCRAFT_DAV=1` turns
+                // them on, until they are ready.
+                session.dav_enabled = std::env::var("MAILCRAFT_DAV").is_ok_and(|v| v == "1");
                 // A run that keeps its mailbox and its settings keeps downloaded pictures too.
                 let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
                 let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());

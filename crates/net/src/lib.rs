@@ -122,8 +122,8 @@ mod native {
     pub use crate::discover::{PLACES, Places, discover, discover_at};
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::dns_srv::{
-        AutodiscoverTargets, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets, autodiscover_targets_at,
-        lookup_autodiscover, lookup_autodiscover_at,
+        AutodiscoverTargets, DavRecords, DavService, SrvTarget, autodiscover_hosts, autodiscover_hosts_at, autodiscover_targets,
+        autodiscover_targets_at, lookup_autodiscover, lookup_autodiscover_at, lookup_dav, lookup_dav_at,
     };
     pub use crate::imap_fetch::fetch_imap;
     pub use crate::pinned::pin_check_under_way;
