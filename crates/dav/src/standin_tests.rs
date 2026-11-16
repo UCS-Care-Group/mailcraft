@@ -220,6 +220,57 @@ fn creates_changes_and_deletes_with_the_right_preconditions() {
 }
 
 #[test]
+fn wildcard_if_match_cannot_overwrite_a_concurrent_change() {
+    let (s, e) = server();
+    let c = s.collection_url("work");
+    let stale = s.put_directly("work", "a.ics", &event("original", "20260301T100000Z")).unwrap();
+    let concurrent = event("concurrent", "20260401T100000Z");
+    let current = s.put_directly("work", "a.ics", &concurrent).unwrap();
+    let url = format!("{c}a.ics");
+    let writes = s.writes();
+
+    let stale_response = run(&s, e.put_change(Kind::Calendar, &c, &url, &stale, &event("stale", "20260501T100000Z")).unwrap());
+    assert_eq!(stale_response.status(), 412);
+    assert_eq!(s.body_of("work", "a.ics"), Some(concurrent.clone()));
+    assert_eq!(s.writes(), writes);
+
+    let request = e.put_change(Kind::Calendar, &c, &url, "*", &event("wildcard", "20260601T100000Z"));
+    if let Ok(request) = &request {
+        let _ = run(&s, request.clone());
+    }
+    assert_eq!(s.body_of("work", "a.ics"), Some(concurrent));
+    assert_eq!(s.etag_of("work", "a.ics"), Some(current));
+    assert_eq!(s.writes(), writes);
+    assert!(matches!(request, Err(crate::request::RequestError::Invalid)));
+}
+
+#[test]
+fn wildcard_if_match_cannot_delete_a_concurrent_change() {
+    let (s, e) = server();
+    let c = s.collection_url("work");
+    let stale = s.put_directly("work", "a.ics", &event("original", "20260301T100000Z")).unwrap();
+    let concurrent = event("concurrent", "20260401T100000Z");
+    let current = s.put_directly("work", "a.ics", &concurrent).unwrap();
+    let url = format!("{c}a.ics");
+    let writes = s.writes();
+
+    let stale_response = run(&s, e.delete(&c, &url, &stale).unwrap());
+    assert_eq!(stale_response.status(), 412);
+    assert_eq!(s.count("work"), 1);
+    assert_eq!(s.body_of("work", "a.ics"), Some(concurrent));
+    assert_eq!(s.writes(), writes);
+
+    let request = e.delete(&c, &url, "*");
+    if let Ok(request) = &request {
+        let _ = run(&s, request.clone());
+    }
+    assert_eq!(s.count("work"), 1);
+    assert_eq!(s.etag_of("work", "a.ics"), Some(current));
+    assert_eq!(s.writes(), writes);
+    assert!(matches!(request, Err(crate::request::RequestError::Invalid)));
+}
+
+#[test]
 fn a_read_only_collection_refuses_writes() {
     let (s, e) = server();
     let c = s.collection_url("shared");
