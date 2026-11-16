@@ -355,10 +355,11 @@ fn an_options_answer_that_names_calendar_access_is_evidence_enough() {
             (anonymous && r.method().as_str() == "PROPFIND" && r.url().ends_with("/dav/")).then(|| Ok(challenge(&[])))
         })
         .with(|r| (r.method().as_str() == "OPTIONS").then(|| Ok(HttpResponse::new(200, Vec::new()).with_field("DAV", DAV_HEADER))));
-    let mut disc = typed(Kind::Calendar, "https://dav.example.net/dav/");
+    let mut disc = search(USER, true, false).mail_host("dav.example.net");
     let outcome = disc.run(&world, no_srv, never_asked);
     assert!(found(outcome).calendars().is_some());
     only_after_a_challenge(&world);
+    assert!(world.sent().iter().any(|s| s.method == "OPTIONS"), "OPTIONS was asked");
 }
 
 #[test]

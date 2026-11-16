@@ -362,8 +362,13 @@ fn path(data: &str) -> Option<String> {
 #[test]
 fn a_txt_path_is_taken_only_when_it_is_a_plain_absolute_path() {
     assert_eq!(path(r#""\"path=/caldav/\"""#).as_deref(), Some("/caldav/"));
-    // Strings of one record are joined (RFC 1035), and an unquoted one is read as it is.
-    assert_eq!(path(r#""\"path=/cal\" \"dav/\"""#).as_deref(), Some("/caldav/"));
+    // Each string of a record is an attribute of its own (RFC 6763), in either order, and an
+    // unquoted one is read as it is; strings are never joined into another path.
+    assert_eq!(path(r#""\"path=/dav/\" \"txtvers=1\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"txtvers=1\" \"path=/dav/\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"path=/cal\" \"dav/\"""#).as_deref(), Some("/cal"));
+    assert_eq!(path(r#""\"txtvers=1\" \"PATH=/dav/\" \"path=/other/\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"txtvers=1\"""#), None);
     assert_eq!(path(r#""path=/caldav/""#).as_deref(), Some("/caldav/"));
     for bad in [
         r#""\"path=\"""#,

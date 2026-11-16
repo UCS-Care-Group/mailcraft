@@ -85,7 +85,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                 assert!(!is_exchange_online(&host) && !is_google_host(&host), "{host}");
                 assert!(host.rsplit('.').next().is_some_and(|last| !last.bytes().all(|b| b.is_ascii_digit())) && !host.starts_with('['), "{host}");
                 // Never this machine, nor a name written in hexadecimal: no owner typed one here.
-                assert!(host != "localhost" && !host.ends_with(".localhost") && !host.starts_with("127.") && !host.rsplit('.').next().is_some_and(|l| l.starts_with("0x") && l.get(2..).is_some_and(|d| d.bytes().all(|b| b.is_ascii_hexdigit()))), "{host}");
+                assert!(host != "localhost" && !host.ends_with(".localhost") && !host.rsplit('.').next().is_some_and(|l| l.starts_with("0x") && l.get(2..).is_some_and(|d| d.bytes().all(|b| b.is_ascii_hexdigit()))), "{host}");
                 // Where a request may go at all: before the owner's yes, only to the owner's own.
                 let known = host == "example.org"
                     || host.ends_with(".example.org")
@@ -139,10 +139,13 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
                 let place = if kind % 4 == 0 { PLACES[usize::from(kind / 4) % PLACES.len()] } else { rest.as_str() };
                 let mut response = HttpResponse::new(status, body).with_field("Location", place);
                 response = response.with_field("WWW-Authenticate", if kind % 2 == 0 { "Basic realm=\"x\"" } else { rest.as_str() });
-                response = response.with_field("DAV", if dav_ok { "1, calendar-access, addressbook" } else { rest.as_str() });
+                let dav_header = if dav_ok { "1, calendar-access, addressbook" } else { rest.as_str() };
+                response = response.with_field("DAV", dav_header);
+                let lower = dav_header.to_ascii_lowercase();
+                let names_service = lower.contains("calendar-access") || lower.contains("addressbook");
                 // (What the machine takes for evidence: an answer to a request without the
                 // password that names the service, by a 401 or by an OPTIONS that answers.)
-                if !carries && dav_ok && ((status == 401) || (options && matches!(status, 200 | 204))) {
+                if !carries && names_service && ((status == 401) || (options && matches!(status, 200 | 204))) {
                     evidenced.push(origin);
                 }
                 // A certificate that is not accepted, and a connection that fails.

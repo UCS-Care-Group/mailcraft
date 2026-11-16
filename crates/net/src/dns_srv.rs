@@ -260,18 +260,24 @@ pub fn lookup_dav_at(endpoints: &[&str], service: DavService, domain: &str) -> R
 }
 
 /// The `path=` an answer about a text record gives: `{"type":16,"data":"\"path=/caldav/\""}`. The
-/// data is one or more quoted character strings (RFC 1035 §3.3, joined as the RFC says); the
-/// first record that has a `path=` with a usable value gives it, and anything else is passed over.
+/// data is one or more quoted character strings (RFC 1035 §3.3), each its own `key=value`
+/// (RFC 6763 §6); the first record that has a `path=` with a usable value gives it, and anything
+/// else is passed over.
 pub(crate) fn path_of(answer: &Answer) -> Result<Option<String>, NetError> {
     for record in records(answer)? {
         if record.get("type").and_then(Value::as_u64) != Some(TXT) {
             continue;
         }
         let Some(data) = record.get("data").and_then(Value::as_str) else { continue };
-        // A piece that was cut is no path: a cut path is another path.
-        let Some(text) = joined_strings(data) else { continue };
-        // (The key is read in any case, as DNS-SD's attribute names are, RFC 6763 §6.4.)
-        let Some(value) = text.get(..5).filter(|key| key.eq_ignore_ascii_case("path=")).and_then(|_| text.get(5..)) else { continue };
+        // Each character string is one attribute (RFC 6763 §6); a record with a piece too long to
+        // be one is passed over whole.
+        let Some(strings) = character_strings(data) else { continue };
+        // (The key is read in any case, as DNS-SD's attribute names are, RFC 6763 §6.4; the first
+        // `path` of the record is the one.)
+        let Some(value) = strings.iter().find_map(|text| text.get(..5).filter(|key| key.eq_ignore_ascii_case("path=")).and_then(|_| text.get(5..)))
+        else {
+            continue;
+        };
         // An absolute path of plain characters: it is put in an address, and an address that a
         // name server made up must not climb out of its host or carry a query to somebody.
         let plain = value.len() <= MAX_PATH
@@ -285,31 +291,37 @@ pub(crate) fn path_of(answer: &Answer) -> Result<Option<String>, NetError> {
     Ok(None)
 }
 
-/// A text record's data as one string: the quoted pieces of `"path=/a" "b"` joined (`path=/ab`),
-/// or the whole of it when nothing is quoted. `None` when the data is more than a path can be (over
-/// [`MAX_PATH`] and a margin of characters in all): nothing is cut and joined.
-fn joined_strings(data: &str) -> Option<String> {
+/// A text record's data as its character strings: the quoted pieces of `"path=/a" "txtvers=1"`
+/// one by one, or the whole of it when nothing is quoted. `None` when the data is more than a path
+/// can be (over four times [`MAX_PATH`] in all) or a string is over [`MAX_PATH`] and a margin:
+/// nothing is cut.
+fn character_strings(data: &str) -> Option<Vec<String>> {
     let data = data.trim();
     let room = MAX_PATH + 8;
     if data.len() > 4 * MAX_PATH {
         return None;
     }
     if !data.contains('"') {
-        return (data.len() <= room).then(|| data.to_owned());
+        return (data.len() <= room).then(|| vec![data.to_owned()]);
     }
-    let mut out = String::new();
+    let mut strings = Vec::new();
+    let mut current = String::new();
     let mut inside = false;
     for c in data.chars() {
         match (c, inside) {
-            ('"', _) => inside = !inside,
-            (c, true) => out.push(c),
+            ('"', true) => {
+                strings.push(std::mem::take(&mut current));
+                inside = false;
+            }
+            ('"', false) => inside = true,
+            (c, true) => current.push(c),
             _ => {}
         }
-        if out.len() > room {
+        if current.len() > room {
             return None;
         }
     }
-    Some(out)
+    Some(strings)
 }
 
 fn ask(endpoint: &str, name: &str) -> Result<Vec<SrvTarget>, NetError> {
