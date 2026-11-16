@@ -62,3 +62,12 @@ proptest! {
     #[test]
     fn arbitrary_bytes_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) { let _ = parse(&bytes); }
 }
+
+#[test]
+fn attributes_are_kept_only_where_they_are_read() {
+    let doc = b"<d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:response a=\"1\" b=\"2\"/><c:time-range start=\"s\" end=\"e\"/><c:comp name=\"VEVENT\"/></d:multistatus>";
+    let root = parse(doc).unwrap();
+    assert!(root.children[0].attributes.is_empty());
+    assert_eq!(root.children[1].attribute("start"), Some("s"));
+    assert_eq!(root.children[2].component_name.as_deref(), Some("VEVENT"));
+}

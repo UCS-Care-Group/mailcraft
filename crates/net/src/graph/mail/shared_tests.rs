@@ -75,7 +75,14 @@ fn a_shared_mailbox_is_read_at_its_own_address_with_the_owners_token() {
     let mut links: Vec<GraphLink> = Vec::new();
     for page in pieces.iter().flat_map(|p| &p.pages) {
         links.retain(|l| l.folder != page.folder);
-        links.push(GraphLink { folder: page.folder.clone(), link: page.link.clone(), caught_up: page.caught_up, counts: page.counts });
+        links.push(GraphLink {
+            folder: page.folder.clone(),
+            link: page.link.clone(),
+            caught_up: page.caught_up,
+            counts: page.counts,
+            afresh: false,
+            ..Default::default()
+        });
     }
     assert!(links.iter().all(|l| l.link.contains(&format!("/v1.0/users/{SHARED}/mailFolders/"))));
     server.state().other(SHARED).unwrap().mailbox.add(&theirs, "One more", NOW + 60);
@@ -86,7 +93,8 @@ fn a_shared_mailbox_is_read_at_its_own_address_with_the_owners_token() {
     assert!(server.state().requests.iter().all(|r| !r.path.join("/").starts_with("v1.0/me")));
 
     // Fetched whole at its address too.
-    let fetch = GraphFetchRequest { account: 4, email: SHARED.into(), shared: true, ids: vec![ids[0].clone()], background: false };
+    let fetch =
+        GraphFetchRequest { account: 4, email: SHARED.into(), shared: true, ids: vec![ids[0].clone()], background: false, ..Default::default() };
     let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &fetch, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
     assert_eq!(got.fetched.len(), 1, "{:?}", got.errors);
     assert!(String::from_utf8_lossy(&got.fetched[0].mime).contains("Subject: Message 0\r\n"));
@@ -433,7 +441,8 @@ fn an_address_that_isnt_one_is_never_sent() {
     {
         let pieces = run(&server, &request(hostile, Vec::new()));
         assert!(pieces.len() == 1 && !pieces[0].errors.is_empty() && pieces[0].listing.is_none(), "{hostile:?}");
-        let fetch = GraphFetchRequest { account: 4, email: hostile.into(), shared: true, ids: vec!["AAkA".into()], background: false };
+        let fetch =
+            GraphFetchRequest { account: 4, email: hostile.into(), shared: true, ids: vec!["AAkA".into()], background: false, ..Default::default() };
         let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &fetch, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
         assert!(got.fetched.is_empty() && !got.errors.is_empty());
     }
