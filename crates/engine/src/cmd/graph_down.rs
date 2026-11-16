@@ -102,7 +102,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
     if page.afresh {
         for m in mb.messages.values_mut() {
+            // A message sent here is no deletion for a listing that does not have it yet: Exchange
+            // files the copy of a draft sent as its draft under the id of its own, a while after
+            // the send, and a listing afresh may be of a time before it (#1175).
             if m.account == account
+                && !m.sent_here
                 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone)
                 && let Some(s) = std::sync::Arc::make_mut(m).server.as_mut()
             {
@@ -132,8 +136,15 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         };
         if let Ok(m) = mb.message_mut(m) {
             // A draft sent here, gone from Drafts there: Exchange has filed it, and a listing of it
-            // as a draft outside Sent Items is no longer one from before that (#1160).
+            // as a draft outside Sent Items is no longer one from before that (#1160). One the
+            // server has nowhere else yet (its Sent Items folder had no server id when it was
+            // sent) is kept as the message sent: the draft's removal is no deletion of it, and a
+            // Sent Items listing that has it files it (#1175).
             if m.sent_here && !in_sent {
+                let unfiled = m.server.as_ref().is_some_and(|s| s.folder == page.folder);
+                if unfiled {
+                    continue;
+                }
                 m.sent_here = false;
             }
             if let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone) {
@@ -288,6 +299,13 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // the draft from Drafts is no deletion of it either (#1175).
     let unfiled = m.sent_here && !in_sent && there.draft == Some(true);
     if unfiled {
+        // Still a draft there: no listing that has not got it yet has made it gone here, whichever
+        // came first in the run (#1175).
+        if let Ok(m) = mb.message_mut(id)
+            && let Some(s) = m.server.as_mut()
+        {
+            s.gone = false;
+        }
         return false;
     }
     let follows = last.gone || was_here.is_none_or(|was| m.folder == was);
