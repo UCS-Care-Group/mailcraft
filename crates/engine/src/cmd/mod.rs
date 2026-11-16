@@ -170,6 +170,8 @@ mod thread_ids;
 pub mod unsubscribe;
 #[cfg(test)]
 mod unsubscribe_tests;
+#[cfg(test)]
+mod upcoming_reminders_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -178,8 +180,6 @@ pub mod writing_tools;
 mod writing_tools_tests;
 #[cfg(test)]
 mod written_quote_tests;
-#[cfg(test)]
-mod upcoming_reminders_tests;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;
