@@ -125,6 +125,35 @@ pub(crate) fn set_storage(session: &mut Session, megabytes: u64) -> Result<(), m
     session.run("account.deviceLimits", &serde_json::json!({"storage": bytes})).map(|_| ())
 }
 
+/// What the phone holds of mail, against its cap: for Settings.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct DeviceStorage {
+    /// The most megabytes of mail the phone keeps, all accounts together.
+    pub cap_mb: u64,
+    /// About how many bytes of mail are kept on the phone now (what the cap is measured by).
+    pub used_bytes: u64,
+    /// How many messages are kept.
+    pub messages: u64,
+    /// The caps Settings offers, smallest first, the present one among them.
+    pub choices_mb: Vec<u64>,
+}
+
+/// The caps offered, in megabytes (all within `account.deviceLimits`' bounds).
+const STORAGE_CHOICES_MB: [u64; 6] = [250, 500, 1024, 2048, 5120, 10240];
+
+/// What the phone holds now, against a cap of `cap_mb`.
+pub(crate) fn storage_of(session: &Session) -> DeviceStorage {
+    let cap = session.mailbox.device_limits.map_or(PHONE_STORAGE, |l| l.storage);
+    let cap_mb = cap >> 20;
+    let used_bytes = session.mailbox.messages.values().map(|m| mailcraft_engine::cmd::device_limits::local_bytes(m)).fold(0u64, u64::saturating_add);
+    let mut choices_mb = STORAGE_CHOICES_MB.to_vec();
+    if !choices_mb.contains(&cap_mb) {
+        choices_mb.push(cap_mb);
+        choices_mb.sort_unstable();
+    }
+    DeviceStorage { cap_mb, used_bytes, messages: u64::try_from(session.mailbox.messages.len()).unwrap_or(u64::MAX), choices_mb }
+}
+
 /// Messages one step of keeping within the limits thins or takes off the phone: a mailbox moved
 /// to the limits from years of headers gets there in a few steps, none holding the session long.
 pub(crate) const TRIM_BATCH: u64 = 5_000;
@@ -172,6 +201,26 @@ impl Core {
     /// What the phone keeps unless the owner chooses otherwise: what Add Account offers first.
     pub fn default_download_settings(&self) -> DownloadSettings {
         DownloadSettings::default()
+    }
+
+    /// What the phone holds of mail against its cap, for Settings.
+    pub async fn device_storage(&self) -> Result<DeviceStorage, crate::CoreError> {
+        self.call(|s| Ok(storage_of(s))).await
+    }
+
+    /// Set the phone's storage cap in megabytes (brought within 50 MB to 64 GB) through
+    /// `account.deviceLimits`, whatever the accounts' windows. A smaller cap takes the oldest mail
+    /// back to its headers, then off the phone (never off the server), between runs. Answers what
+    /// the phone holds now.
+    pub async fn set_storage_cap(&self, megabytes: u64) -> Result<DeviceStorage, crate::CoreError> {
+        let kept = self
+            .call(move |s| {
+                set_storage(s, megabytes)?;
+                Ok(storage_of(s))
+            })
+            .await?;
+        self.sync.trim_soon();
+        Ok(kept)
     }
 
     /// What the phone keeps of `account`'s mail: its window, and the phone's storage cap.

@@ -381,12 +381,35 @@ pub struct Collections {
 }
 
 impl Collections {
+    /// Adds what another listing brought: a collection already held (by address) is not added
+    /// twice, and the cap holds for the whole.
+    pub fn merge(&mut self, other: Collections) {
+        self.passed_over = self.passed_over.saturating_add(other.passed_over);
+        self.skipped = self.skipped.saturating_add(other.skipped);
+        self.capped |= other.capped;
+        for (entries, books) in [(other.calendars, false), (other.address_books, true)] {
+            for entry in entries {
+                let held = self.calendars.iter().chain(self.address_books.iter()).any(|have| have.href == entry.href);
+                if held {
+                    self.passed_over = self.passed_over.saturating_add(1);
+                } else if self.calendars.len() + self.address_books.len() >= MAX_COLLECTIONS {
+                    self.capped = true;
+                } else if books {
+                    self.address_books.push(entry);
+                } else {
+                    self.calendars.push(entry);
+                }
+            }
+        }
+    }
+
     /// Sorts a read listing of the home asked at `base`.
     pub fn from_listing(listing: Multistatus) -> Self {
         let mut out = Self { skipped: listing.skipped, ..Self::default() };
         for entry in listing.entries {
             let book = entry.is_addressbook && entry.is_collection;
-            let usable = !entry.is_base && !entry.is_gone() && entry.is_collection && (book || entry.holds_events());
+            // (A home that is itself a calendar or an address book lists itself: it is kept.)
+            let usable = !entry.is_gone() && entry.is_collection && (book || entry.holds_events());
             if !usable {
                 out.passed_over += 1;
             } else if out.calendars.len() + out.address_books.len() >= MAX_COLLECTIONS {

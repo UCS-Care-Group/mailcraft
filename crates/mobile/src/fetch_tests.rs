@@ -21,7 +21,7 @@ use serde_json::json;
 
 use crate::fake_tests::{FakePlatform, block_on, now};
 use crate::fetch::{Answer, BACKGROUND_BATCH, BACKGROUND_TOTAL, FetchDone, FetchRunner, OPEN_MOST_BYTES, Work, bounded, room_for_more};
-use crate::{AttachmentVerdict, Core, CoreError, Event, FetchFailure, NetworkKind, OpenState};
+use crate::{Core, CoreError, Event, FetchFailure, NetworkKind, OpenState, OpenVerdict};
 
 pub(crate) const EMAIL: &str = "owner@example.org";
 const DAY: i64 = 86_400;
@@ -357,7 +357,7 @@ fn a_fetch_under_way_is_called_off_when_its_account_goes_or_the_core_shuts_down(
     core.shutdown();
     fake.release();
     // A call after it ends rather than waiting for ever.
-    assert!(block_on(core.fetch_attachment(m2, 0)).is_err());
+    assert!(block_on(core.attachment(m2, 0)).is_err());
 }
 
 #[test]
@@ -471,19 +471,19 @@ fn an_attachment_comes_with_its_message_and_is_judged_as_the_desktop_judges_it()
     let (core, _, _) = core_with(run, false);
     let m1 = id_of(&core, "m1");
     // Only its headers are here: it is fetched first, and the call waits for it.
-    let file = block_on(core.fetch_attachment(m1, 0)).unwrap();
-    assert_eq!((file.name.as_str(), file.verdict, file.bytes.as_slice()), ("notes.txt", AttachmentVerdict::Open, b"Hello".as_slice()));
+    let file = block_on(core.attachment(m1, 0)).unwrap();
+    assert_eq!((file.check.name.as_str(), file.check.verdict, file.bytes.as_slice()), ("notes.txt", OpenVerdict::Open, b"Hello".as_slice()));
     assert_eq!(fake.fetches().len(), 1);
     // Whole now: read at once.
-    assert_eq!(block_on(core.fetch_attachment(m1, 0)).unwrap().bytes, b"Hello");
+    assert_eq!(block_on(core.attachment(m1, 0)).unwrap().bytes, b"Hello");
     assert_eq!(fake.fetches().len(), 1);
-    assert!(matches!(block_on(core.fetch_attachment(m1, 7)), Err(CoreError::BadRequest { .. })));
-    assert!(matches!(block_on(core.fetch_attachment(m1, u32::MAX)), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.attachment(m1, 7)), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.attachment(m1, u32::MAX)), Err(CoreError::BadRequest { .. })));
     // A program is never to be opened, and its name is made safe.
     let m2 = id_of(&core, "m2");
-    let program = block_on(core.fetch_attachment(m2, 0)).unwrap();
-    assert_eq!(program.verdict, AttachmentVerdict::SaveOnly);
-    assert!(!program.name.contains('/') && !program.name.starts_with('.'), "{}", program.name);
+    let program = block_on(core.attachment(m2, 0)).unwrap();
+    assert_eq!(program.check.verdict, OpenVerdict::Blocked);
+    assert!(!program.check.name.contains('/') && !program.check.name.starts_with('.'), "{}", program.check.name);
 }
 
 #[test]
@@ -573,7 +573,7 @@ fn hostile_ids_and_indexes_are_refused_without_a_crash() {
     let (core, _, _) = core_with(run, false);
     for id in [0, u64::MAX, 1 << 53] {
         assert!(matches!(block_on(core.open_message(id)), Err(CoreError::BadRequest { .. })));
-        assert!(block_on(core.fetch_attachment(id, 0)).is_err());
+        assert!(block_on(core.attachment(id, 0)).is_err());
     }
     assert!(fake.fetches().is_empty());
 }
