@@ -4,10 +4,12 @@
 //! The protocol layer: requests ([`request`]), typed answers ([`answer`]), addresses held to the
 //! account's origin ([`href`]), statuses ([`status`]), and a strict in-process server for the tests
 //! of the crates above (`standin`, behind the `stand-in` feature). Discovery, sync, account
-//! settings and writes are not wired in here.
+//! settings and writes are not wired in here; [`discovery`] finds an account's servers and decides
+//! where its password may go.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 pub use mailcraft_model::dav::{Collection, Resource};
 pub mod answer;
+pub mod discovery;
 pub mod document;
 pub mod href;
 pub mod http;

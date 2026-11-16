@@ -98,7 +98,7 @@ fn with_server(
     trusting(vec![authority.root()], || {
         let server = Tls::start(config, answer);
         let allowed = [server.at()];
-        let names = move |host: &str, _: u16, _: Duration| {
+        let names = move |host: &str, _: u16, _: Duration, _: &crate::pictures::Cancel| {
             if matches!(host.trim_end_matches('.'), "calendar.example" | "other.example") { allowed.to_vec() } else { Vec::new() }
         };
         let look = |address: &str, etag: &str, modified: &str, limits: &Limits| {
@@ -388,7 +388,7 @@ fn a_certificate_that_is_not_trusted_is_no_connection() {
     // A server whose certificate comes from an authority nobody trusts.
     let server = Tls::start(Authority::new("Unknown Authority").server(&["calendar.example"]), |_, _| reply("200 OK", "", CALENDAR));
     let allowed = [server.at()];
-    let lookup = move |_: &str, _: u16, _: Duration| allowed.to_vec();
+    let lookup = move |_: &str, _: u16, _: Duration, _: &crate::pictures::Cancel| allowed.to_vec();
     let reach = Reach { lookup: &lookup, stand_ins: &allowed, dial: None };
     let trusted = Authority::new("MailCraft Test Authority");
     trusting(vec![trusted.root()], || {

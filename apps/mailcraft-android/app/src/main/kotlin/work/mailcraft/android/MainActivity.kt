@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("TooManyFunctions")
+
 package work.mailcraft.android
 
 import android.content.ClipData
@@ -8,6 +10,7 @@ import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -34,6 +37,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import androidx.lifecycle.ViewModelProvider
 import java.time.ZoneId
 import java.util.Locale
@@ -41,6 +45,8 @@ import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 
@@ -52,11 +58,15 @@ class MainActivity : AppCompatActivity() {
     /** What outlives this window when Android makes it again: a file handed over, the calendar's editor. */
     private val window: WindowModel by lazy { ViewModelProvider(this)[WindowModel::class.java] }
 
+    /** What another app asked for (a mailto: link, a share), until the window has taken it up. */
+    private val incoming = mutableStateOf<Incoming?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // The intent this window is for from now on, so that a window made again reads this one.
         setIntent(intent)
         takeHandedOver(intent)
+        incoming.value = incomingOf(intent)
     }
 
     /** Reads the calendar file [intent] carries, if it carries one, off the main thread. */
@@ -70,6 +80,8 @@ class MainActivity : AppCompatActivity() {
         // A new window reads what it was opened with; a window made again after the app was put away
         // reads it again only when the file it carried was never taken in.
         if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
+        // A window built again (turned, or its language changed) has already taken a message it was asked for up.
+        if (savedInstanceState == null) incoming.value = incomingOf(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
@@ -95,7 +107,8 @@ class MainActivity : AppCompatActivity() {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         var chosen by remember { mutableStateOf(LanguageChoice.current()) }
                         val handedOver by window.handoff.file.collectAsState()
-                        Root(started, version, chosen, handedOver, window.handoff::handled, window) {
+                        val asked = Asked({ incoming.value }, { incoming.value = null })
+                        Root(started, version, chosen, handedOver, window.handoff::handled, window, asked) {
                             chosen = it
                             LanguageChoice.choose(it)
                         }
@@ -106,6 +119,56 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+/**
+ * What an intent from another app asks for ([routeIncoming] decides; nothing here is believed): its action,
+ * link, text, subject and the addresses of the files it carries. A bundle that can't be read is nothing.
+ * An intent restored from the recent apps list is not asked for again.
+ */
+internal fun incomingOf(intent: Intent?): Incoming? {
+    if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+    return try {
+        routeIncoming(
+            action = intent.action,
+            data = intent.dataString,
+            text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
+            subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString(),
+            streams = streamsOf(intent).map { it.toString() },
+        )
+    } catch (_: RuntimeException) {
+        // A hostile extra that will not unparcel: the intent is ignored.
+        null
+    }
+}
+
+/** The addresses of the files an intent carries: one for a send, a list for several. */
+private fun streamsOf(intent: Intent): List<Uri> = when (intent.action) {
+    Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+    Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+    else -> emptyList()
+}
+
+/** The message another app asked for, read when the window is drawn, and what says it was taken up. */
+internal class Asked(val current: () -> Incoming?, val handled: () -> Unit) {
+    companion object {
+        val None = Asked({ null }, {})
+    }
+}
+
+/** Starts the message another app asked for (a mailto: link or a share), once. */
+@Composable
+private fun TakeIncoming(texts: Texts, asked: Asked, writing: ComposeHost, context: Context) {
+    val shareReader = remember(context) { ResolverShareReader(context) }
+    val wanted = asked.current()
+    LaunchedEffect(wanted) {
+        if (wanted != null) {
+            asked.handled()
+            writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+        }
+    }
+    IncomingLayers(texts, writing)
+}
+
 @Composable
 internal fun Root(
     started: Started,
@@ -114,10 +177,12 @@ internal fun Root(
     handedOver: IcsRead? = null,
     onHandled: () -> Unit = {},
     window: WindowModel? = null,
+    asked: Asked = Asked.None,
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
-        is Phase.Ready -> CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, onLanguage)
+        is Phase.Ready ->
+            CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, asked, onLanguage)
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
@@ -142,6 +207,7 @@ private fun chosenFolder(outline: MailboxOutline?, picked: ULong): FolderItem? {
     return all.firstOrNull { it.id == wanted }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun CoreShell(
     opened: Opened,
@@ -150,9 +216,11 @@ private fun CoreShell(
     handedOver: IcsRead?,
     onHandled: () -> Unit,
     window: WindowModel?,
+    asked: Asked,
     onLanguage: (String) -> Unit,
 ) {
     val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
+    val settings = opened.settings
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
@@ -174,15 +242,21 @@ private fun CoreShell(
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
     val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
+    val accountsUi by hub.controller.ui.collectAsState()
+    val (settingsUi, settingsActions) = rememberSettings(settings)
     // The right to notify is asked for once there is an account to bring mail, never at a first start.
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
     }
-    val accountsUi by hub.controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
-    val (readingUi, readingActions) = rememberReading(core, list, scope)
+    val pictured = rememberPictures(core, list, scope, appContext)
+    val pictures = pictured.stack
+    val writing = rememberComposeHost(core, texts, scope)
+    TakeIncoming(texts, asked, writing, appContext)
     val mailActions = remember(list, scope, hub) {
-        mailListActions(list, scope, retryOutline, hub::syncNow) { change -> query = change(query) }
+        mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
+            query = change(query)
+        }
     }
     AppShell(
         texts = texts,
@@ -194,42 +268,50 @@ private fun CoreShell(
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
+            settingsUi = settingsUi,
             outline = outlineStatus(outlined != null, outline),
             categories = categories,
             nowMillis = now,
             swipe = swipe,
-            reading = readingUi,
+            reading = pictured.reading,
+            pictures = pictured.settings,
+            avatars = pictured.avatars,
+            attachments = pictured.attachments,
+            compose = writing.ui(),
+            snack = writing.snack,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
             accounts = hub.controller.actions(),
+            settings = settingsActions,
             mail = mailActions,
             onSwipe = {
                 swipe = it
                 prefs.save(it)
             },
-            reading = readingActions,
+            reading = pictured.reader.actions(writing::begin),
+            onPictures = pictures::changed,
+            onClearPictures = pictures::clear,
+            writing = WritingActions(writing.actions(), writing::newMessage, writing::snackShown),
         ),
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
 }
 
-/**
- * The message being read is this window's own; marking it read goes through the list, which makes the
- * owner's commands in turn, so that an undo it offers is never taken by the mark.
- */
+/** What the Settings pages draw, and what they do, with the system's own settings and web links. */
 @Composable
-private fun rememberReading(
-    core: Core,
-    list: MailListController,
-    scope: CoroutineScope,
-): Pair<ReadingUi, ReadingActions> {
-    val reading = remember(core, list) { ReadingController(CoreReadSource(core, list::markRead), scope) }
-    val links = remember(core) { CoreLinks(core) }
-    val ui by reading.ui.collectAsState()
-    return ui to ReadingActions(onOpen = reading::open, onClose = reading::close, onLink = links::open)
+private fun rememberSettings(settings: SettingsController): Pair<SettingsUi, SettingsActions> {
+    val ui by settings.ui.collectAsState()
+    val context = LocalContext.current
+    val actions = remember(settings, context) {
+        settings.actions(
+            onChannelSettings = { id -> openChannelSettings(context, id) },
+            onOpenLink = { url -> openWebLink(context, url) },
+        )
+    }
+    return ui to actions
 }
 
 /**
@@ -259,10 +341,37 @@ private fun rememberTicks(list: MailListController): Long {
     return now
 }
 
+/** What the reading pane is made of (pictures, links, attachments), and what they currently show. */
+private class Pictured(
+    val reader: ReadingStack,
+    val reading: ReadingUi,
+    val settings: PicturesUi,
+    val avatars: Map<ULong, ByteArray>?,
+    val attachments: AttachmentUi,
+) {
+    val stack: PictureStack get() = reader.pictures
+}
+
+@Composable
+private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
+    val reader = remember(core, list) { ReadingStack(core, context, scope, list::markRead) }
+    val stack = reader.pictures
+    val attachments by reader.attachments.ui.collectAsState()
+    val reading by stack.reading.ui.collectAsState()
+    val avatars by stack.senderImages.images.collectAsState()
+    val settings by stack.settings.collectAsState()
+    // A message may have moved (to Junk, say) or been judged differently: the rows are decided again.
+    val rev by remember(list) { list.ui.map { it.snapshot.rev }.distinctUntilChanged() }.collectAsState(0uL)
+    LaunchedEffect(stack, rev) { stack.senderImages.revChanged(rev) }
+    return Pictured(reader, reading, settings, if (settings.prefs.senderImages) avatars else null, attachments)
+}
+
 /** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
+@Suppress("LongParameterList")
 private fun mailListActions(
     controller: MailListController,
     scope: CoroutineScope,
+    senderImages: SenderImages,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
     /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
@@ -280,7 +389,13 @@ private fun mailListActions(
         // (The pages on screen are read again now too; the round's own changes come as revisions.)
         scope.launch { controller.reload() }
     },
-    onRange = { first, last -> scope.launch { controller.showRange(first, last) } },
+    onRange = { first, last ->
+        scope.launch {
+            controller.showRange(first, last)
+            val rows = controller.ui.value.snapshot
+            senderImages.onScreen((first..last).mapNotNull { rows.row(it) })
+        }
+    },
     onTriage = { triage, row -> scope.launch { controller.triage(triage, listOf(row)) } },
     onUndo = { command -> scope.launch { controller.undo(command) } },
     onNoticeShown = { seq -> controller.noticeShown(seq) },

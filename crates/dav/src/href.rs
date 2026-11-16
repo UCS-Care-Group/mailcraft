@@ -88,8 +88,13 @@ impl Origin {
                 Some((host, port)) => (host.to_ascii_lowercase(), parse_port(port).ok_or(EndpointError::Malformed)?),
             }
         };
+        // A name with its root dot is the same name: one form for every check that follows.
+        let host = match host.strip_suffix('.') {
+            Some(bare) if !host.starts_with('[') => bare.to_owned(),
+            _ => host,
+        };
         let name_ok = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']' | ':');
-        if host.is_empty() || host.starts_with('.') || !host.chars().all(name_ok) {
+        if host.is_empty() || host.starts_with('.') || host.ends_with('.') || host.contains("..") || !host.chars().all(name_ok) {
             return Err(EndpointError::Malformed);
         }
         Ok(Self { secure, host, port })
@@ -107,10 +112,10 @@ impl Origin {
     pub fn port(&self) -> u16 {
         self.port
     }
-    /// `localhost`, `127.0.0.0/8` or `[::1]`.
+    /// `localhost` and the names under it (RFC 6761 §6.3), `127.0.0.0/8` or `[::1]`.
     pub fn is_loopback(&self) -> bool {
         let host = self.host.as_str();
-        host == "localhost" || host == "[::1]" || {
+        host == "localhost" || host.ends_with(".localhost") || host == "[::1]" || {
             let mut parts = host.split('.');
             parts.next() == Some("127")
                 && parts.clone().count() == 3

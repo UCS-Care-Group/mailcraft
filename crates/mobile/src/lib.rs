@@ -24,8 +24,10 @@ mod accounts;
 pub mod android;
 #[cfg(target_os = "android")]
 mod android_jni;
+mod attachments;
 pub mod blocks;
 mod calendar_queries;
+mod compose;
 mod core;
 mod error;
 mod events;
@@ -36,10 +38,12 @@ mod limits;
 mod links;
 mod list;
 mod message;
+mod pictures;
 mod platform;
 mod queries;
 mod queue;
 mod records;
+pub mod settings;
 mod sync;
 mod sync_api;
 pub mod text;
@@ -47,7 +51,13 @@ pub mod text;
 #[cfg(test)]
 mod accounts_tests;
 #[cfg(test)]
+mod attachments_tests;
+#[cfg(test)]
 mod calendar_tests;
+#[cfg(test)]
+mod compose_share_tests;
+#[cfg(test)]
+mod compose_tests;
 #[cfg(test)]
 mod fake_tests;
 #[cfg(test)]
@@ -67,11 +77,15 @@ mod links_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
+mod pictures_tests;
+#[cfg(test)]
 mod preview_tests;
 #[cfg(test)]
 mod queue_tests;
 #[cfg(test)]
 mod review_tests;
+#[cfg(test)]
+mod settings_tests;
 #[cfg(test)]
 mod sync_stop_tests;
 #[cfg(test)]
@@ -82,12 +96,17 @@ mod tests;
 mod zone_tests;
 
 pub use accounts::{Permission, PermissionOutcome, PermissionState, SignInOutcome};
+pub use attachments::{AttachmentCheck, AttachmentFile, CalendarImported, OpenVerdict, attachment_check};
+pub use compose::{
+    ComposeFile, ComposeFormat, ComposeKind, ComposeParagraph, ComposePicture, ComposeSpan, ComposeStart, ComposeView, FromChoice, ListMark,
+    RecipientLine, RecipientRecord, SentRecord, SuggestionRecord,
+};
 pub use core::Core;
 pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
 pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
-pub use fetch_api::{AttachmentFile, AttachmentVerdict};
-pub use limits::{DownloadSettings, KeepWindow};
+pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
 pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
+pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};
 pub use sync::{SyncAnswer, SyncStatus, SyncSummary, UnsupportedAccount};
