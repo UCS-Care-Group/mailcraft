@@ -8245,8 +8245,9 @@ msgstr "Maak een handtekening met Nieuw."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Make an Item from a Message"
-msgstr ""
+msgstr "Een item maken van een bericht"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8724,8 +8725,9 @@ msgstr "Mobiel"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Module bar"
-msgstr ""
+msgstr "Modulebalk"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs

@@ -7151,8 +7151,9 @@ msgstr "Element"
 
 #. command label
 #: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
 msgid "Item from Message"
-msgstr ""
+msgstr "Element din mesaj"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8266,8 +8267,9 @@ msgstr "Creați o semnătură cu Nou."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Make an Item from a Message"
-msgstr ""
+msgstr "Creează un element dintr-un mesaj"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8746,8 +8748,9 @@ msgstr "Mobil"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Module bar"
-msgstr ""
+msgstr "Bara de module"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -9835,8 +9838,9 @@ msgstr "Niciunul"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Niciunul dintre aceste mesaje nu mai este în această căsuță poștală."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23620,11 +23624,12 @@ msgstr[2] "{n} de mesaje erau deja aici"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "{n} message was dragged: only the first was opened."
 msgid_plural "{n} messages were dragged: only the first was opened."
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} mesaj a fost tras: doar primul a fost deschis."
+msgstr[1] "{n} mesaje au fost trase: doar primul a fost deschis."
+msgstr[2] "{n} de mesaje au fost trase: doar primul a fost deschis."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

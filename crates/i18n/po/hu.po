@@ -7120,8 +7120,9 @@ msgstr "Tétel"
 
 #. command label
 #: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
 msgid "Item from Message"
-msgstr ""
+msgstr "Tétel levélből"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8233,8 +8234,9 @@ msgstr "Az Új gombbal hozhat létre aláírást."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Make an Item from a Message"
-msgstr ""
+msgstr "Tétel létrehozása levélből"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8712,8 +8714,9 @@ msgstr "Mobil"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Module bar"
-msgstr ""
+msgstr "Modulsáv"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -9797,8 +9800,9 @@ msgstr "Nincs"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "Ezek közül a levelek közül egy sincs már ebben a postafiókban."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23484,10 +23488,11 @@ msgstr[1] "{n} üzenet már itt volt"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "{n} message was dragged: only the first was opened."
 msgid_plural "{n} messages were dragged: only the first was opened."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} levelet húztak: csak az elsőt nyitotta meg."
+msgstr[1] "{n} levelet húztak: csak az elsőt nyitotta meg."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -7120,8 +7120,9 @@ msgstr "项目"
 
 #. command label
 #: crates/engine/src/cmd/item_from_message.rs
+#, fuzzy
 msgid "Item from Message"
-msgstr ""
+msgstr "从邮件创建项目"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8231,8 +8232,9 @@ msgstr "使用“新建”创建签名。"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Make an Item from a Message"
-msgstr ""
+msgstr "从邮件创建项目"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8709,8 +8711,9 @@ msgstr "手机"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Module bar"
-msgstr ""
+msgstr "模块栏"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -9796,8 +9799,9 @@ msgstr "无"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "None of those messages is in this mailbox any more."
-msgstr ""
+msgstr "这些邮件已不在此邮箱中。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23412,9 +23416,10 @@ msgstr[0] "已有 {n} 封邮件在此"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "{n} message was dragged: only the first was opened."
 msgid_plural "{n} messages were dragged: only the first was opened."
-msgstr[0] ""
+msgstr[0] "已拖动 {n} 封邮件：只打开了第一封。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

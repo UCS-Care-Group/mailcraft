@@ -8237,8 +8237,9 @@ msgstr "Cree una firma con Nuevo."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Make an Item from a Message"
-msgstr ""
+msgstr "Crear un elemento a partir de un mensaje"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8715,8 +8716,9 @@ msgstr "Móvil"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Module bar"
-msgstr ""
+msgstr "Barra de módulos"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
