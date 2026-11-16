@@ -96,8 +96,7 @@ class MailCraftApplication : Application() {
 
     /** Sets the reminders' alarms again from [core], off the caller's way. */
     private fun refreshRemindersSoon(core: Core) {
-        // (Off the main thread: the store reads and writes a preferences file.)
-        scope.launch(Dispatchers.IO) { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core, it) } }
+        scope.launch { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core, it) } }
     }
 
     /**

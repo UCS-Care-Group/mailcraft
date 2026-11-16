@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
@@ -57,6 +60,8 @@ internal class ReminderScheduler(
     private val alarms: AlarmSink,
     private val store: ReminderStore,
     private val nowMillis: () -> Long,
+    /** Where the store is read and written (a preferences file): never the main thread. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
     /** The owner's Reminders switch. */
     private val on: () -> Boolean,
 ) {
@@ -69,12 +74,14 @@ internal class ReminderScheduler(
      * ended between) is not shown, as [ReminderReceiver] checks its key against what is kept.
      */
     suspend fun refresh(words: ReminderWords, ask: suspend (skip: List<Long>) -> Asked?) = lock.withLock {
-        val switchedOn = on()
-        val skip = store.update { it to skipped(it, nowMillis()) }
+        val switchedOn = withContext(io) { on() }
+        val skip = withContext(io) { store.update { it to skipped(it, nowMillis()) } }
         val asked = if (switchedOn) ask(skip) ?: return@withLock else Asked(emptyList())
-        val plan = store.update { remembered ->
-            val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
-            plan.remembered to plan
+        val plan = withContext(io) {
+            store.update { remembered ->
+                val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
+                plan.remembered to plan
+            }
         }
         plan.cancel.forEach(alarms::cancel)
         plan.withdraw.forEach(alarms::withdraw)
