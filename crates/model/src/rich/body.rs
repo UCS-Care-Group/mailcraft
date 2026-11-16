@@ -65,6 +65,12 @@ pub struct RichBody {
     /// The style the next typed character takes, when it was chosen with nothing selected.
     #[serde(skip)]
     pending: Option<Style>,
+    /// The font this body is being written in, chosen before any of it was typed (the account's
+    /// own, R4.5): what a character takes when it has nothing to look like — an empty body, or an
+    /// empty paragraph. Not stored: a draft reopened takes its account's font again, as it is by
+    /// then.
+    #[serde(skip)]
+    default: Style,
     #[serde(skip)]
     undo: Vec<Step>,
     #[serde(skip)]
@@ -130,14 +136,31 @@ impl RichBody {
         self.pending.as_ref()
     }
 
-    /// The style the next typed character takes: what was chosen for it, or the style of the
-    /// character before the caret (a link doesn't grow by typing at its end).
+    /// The style the next typed character takes: what was chosen for it with nothing selected;
+    /// else, where the caret's paragraph has text, the look of the character before the caret (a
+    /// link doesn't grow by typing at its end); else the font this body is being written in
+    /// ([`RichBody::default_style`]) — an empty body, or an empty paragraph, has nothing to look
+    /// like.
     pub fn typing_style(&self) -> Style {
         self.pending.clone().unwrap_or_else(|| {
-            let mut style = self.text.style_at(self.selection.start());
+            let at = self.selection.start();
+            let mut style = if self.text.is_empty() || self.text.paragraph_is_empty(at) { self.default.clone() } else { self.text.style_at(at) };
             style.link = None;
             style
         })
+    }
+
+    /// The font this body is being written in: what a character typed where there is nothing to
+    /// look like takes ([`RichBody::typing_style`]). Plain for the message's own.
+    pub fn default_style(&self) -> &Style {
+        &self.default
+    }
+
+    /// Write this body in `style` from now on: what is typed where there is nothing to look like
+    /// takes it. What is already written keeps its own look — a signature and a quoted original
+    /// are not restyled by the account's font.
+    pub fn set_default_style(&mut self, style: Style) {
+        self.default = style.clean();
     }
 
     /// The look Format Painter copied and has yet to put down.
@@ -551,7 +574,10 @@ impl RichBody {
             t.set_list(sel.start(), sel.end(), ListKind::None)
         })?;
         if sel.is_empty() {
-            self.pending = Some(Style::default());
+            // Plain means the message's own look, which for an account with a font of its own is
+            // that font: what Clear All Formatting on a selection gives back is what typing there
+            // takes again.
+            self.pending = Some(self.default.clone());
         }
         self.typing = None;
         Ok(())

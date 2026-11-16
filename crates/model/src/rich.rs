@@ -433,6 +433,14 @@ impl Style {
     pub fn is_plain(&self) -> bool {
         *self == Style::default()
     }
+
+    /// The look a message can be *written* in: bold, italic, underline, a size, a colour and a
+    /// font, cleaned. Where a whole [`Style`] says how one piece of text looks, this is the font a
+    /// message is begun in — a link is where text leads and a highlight is put behind it, neither
+    /// of which is part of a font, so both go.
+    pub fn font_only(self) -> Style {
+        Style { link: None, highlight: None, ..self.clean() }
+    }
 }
 
 /// A size in points, within [`MIN_SIZE`]..=[`MAX_SIZE`].

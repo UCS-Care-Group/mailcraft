@@ -16,6 +16,7 @@ mod bulk;
 mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
+use crate::rich::Style;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -389,6 +390,16 @@ pub struct Account {
     /// before there were two, which has [`Account::signature`] for both ([`Account::reply_signature`]).
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub reply_signature: Option<String>,
+    /// The font this account's new messages are written in ([`Account::default_font`]); `None`
+    /// for the message's own, as in a file from before there were per-account fonts.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub new_font: Option<Style>,
+    /// The font this account's replies and forwards are written in.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub reply_font: Option<Style>,
+    /// The font this account's plain-text messages are written and read in.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub plain_font: Option<Style>,
     /// Set when the owner signs in on the provider's own page (OAuth 2.0) instead of with a
     /// password. No token is ever stored here.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -734,10 +745,71 @@ impl Directory {
     }
 }
 
+/// Which of an account's own fonts is meant ([`Account::default_font`]): what a new message is
+/// written in, what a reply or a forward is written in, and what a plain-text message is written
+/// and read in. Outlook's "Signatures and Stationery" asks for these three; MailCraft keeps them
+/// per account, beside its two signatures.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FontSlot {
+    /// New messages.
+    New,
+    /// Replies, replies to all and forwards.
+    Reply,
+    /// Plain-text messages, which carry no font of their own.
+    Plain,
+}
+
+impl FontSlot {
+    /// From a command's word (`"new"`, `"reply"`, `"plain"`); `None` for any other.
+    pub fn parse(name: &str) -> Option<FontSlot> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "new" => Some(FontSlot::New),
+            "reply" => Some(FontSlot::Reply),
+            "plain" => Some(FontSlot::Plain),
+            _ => None,
+        }
+    }
+
+    /// The word a command names it by.
+    pub fn key(self) -> &'static str {
+        match self {
+            FontSlot::New => "new",
+            FontSlot::Reply => "reply",
+            FontSlot::Plain => "plain",
+        }
+    }
+}
+
 impl Account {
     /// The name of the signature replies and forwards start with (empty for none).
     pub fn reply_signature(&self) -> &str {
         self.reply_signature.as_deref().unwrap_or(&self.signature)
+    }
+
+    /// The font `slot` says this account writes in, as it was chosen; `None` for the message's
+    /// own ([`Account::writing_font`]).
+    pub fn default_font(&self, slot: FontSlot) -> Option<&Style> {
+        match slot {
+            FontSlot::New => self.new_font.as_ref(),
+            FontSlot::Reply => self.reply_font.as_ref(),
+            FontSlot::Plain => self.plain_font.as_ref(),
+        }
+    }
+
+    /// The font `slot` says this account writes in: its own, or nothing when it chose none, which
+    /// is how a message with no font of its own is written.
+    pub fn writing_font(&self, slot: FontSlot) -> Style {
+        self.default_font(slot).cloned().unwrap_or_default()
+    }
+
+    /// Make `font` (cleaned by the caller) the font this account writes in for `slot`; `None`
+    /// gives it back to the message's own.
+    pub fn set_default_font(&mut self, slot: FontSlot, font: Option<Style>) {
+        match slot {
+            FontSlot::New => self.new_font = font,
+            FontSlot::Reply => self.reply_font = font,
+            FontSlot::Plain => self.plain_font = font,
+        }
     }
 
     pub fn address(&self) -> crate::Address {
