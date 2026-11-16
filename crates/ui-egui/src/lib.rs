@@ -134,6 +134,8 @@ mod folder_properties;
 #[cfg(test)]
 mod folder_search_tests;
 mod follow_up_tick;
+/// The font an account writes in: Outlook's Font dialog, for one of its three fonts.
+mod font_dialog;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
@@ -1187,7 +1189,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals"|"font", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender); font: "slot": "new"|"reply"|"plain" (which of its fonts), "account"?: number (default: the default account) — the dialog an account's Default fonts button opens, which runs `signature.fonts`) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"classicLight"|"dark"|"system"}"#),
@@ -2465,13 +2467,22 @@ impl MailApp {
                     Value::Object(map)
                 }
                 ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                // Choose Default Font opens on the font for new messages; which of the three, is
+                // said in the dialog itself (#1549).
+                ("signature.fonts", Value::Object(mut map)) => {
+                    map.entry("slot").or_insert(json!("new"));
+                    Value::Object(map)
+                }
+                ("signature.fonts", _) => json!({"slot": "new"}),
                 (_, asked) => asked,
             };
             let dialog = dialogs::open_dialog(self, name, &asked);
             self.set_dialog(dialog);
             // Folder Properties asks the engine first: when the engine refuses, there is no
             // dialog, and the command runs below so that the refusal is said as any command's is.
-            if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount") {
+            // Choose Default Font too: no such account, no dialog, and `signature.fonts` says why
+            // (#1549).
+            if self.dialog.is_some() || !matches!(name, "folderProperties" | "wordCount" | "font") {
                 return Ok(json!({"pending": name}));
             }
         }
@@ -4168,8 +4179,10 @@ impl MailApp {
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
             // A question about the mailbox that was open goes with it: it names messages and
-            // accounts by ids, which the other mailbox may have too (#503).
-            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+            // accounts by ids, which the other mailbox may have too (#503). A font being chosen
+            // names an account the same way, and its OK writes to whichever mailbox is open now
+            // (#1549).
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. }) | Some(dialogs::Dialog::Font(_))) {
                 self.set_dialog(None);
             }
             // An agent's too.

@@ -130,7 +130,7 @@ pub fn owns_chord(key: Key) -> bool {
 }
 
 /// A size in points as the screen draws it (as the reading pane draws `font-size: Npt`).
-fn on_screen(size: Option<u8>) -> f32 {
+pub(crate) fn on_screen(size: Option<u8>) -> f32 {
     size.map_or(BASE_SIZE, |pt| f32::from(pt) * 4.0 / 3.0)
 }
 
