@@ -1,0 +1,103 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+package work.mailcraft.android
+
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import uniffi.mailcraft_mobile.Core
+import uniffi.mailcraft_mobile.CoreException
+
+/** The words a reminder's notification uses, in the interface language, put with each alarm when it is set. */
+internal data class ReminderWords(
+    /** What a locked screen that hides private content shows instead of the title. */
+    val hidden: String,
+    val dismiss: String,
+    val snooze: String,
+    val task: String,
+    val allDay: String,
+) {
+    fun toList() = listOf(hidden, dismiss, snooze, task, allDay)
+
+    companion object {
+        /** The words in English, the catalogues' own keys. */
+        val ENGLISH = ReminderWords("Reminders", "Dismiss", "Snooze", "Task", "All day")
+
+        /** The words in the interface language. */
+        fun from(t: (String) -> String) =
+            ReminderWords(t("Reminders"), t("Dismiss"), t("Snooze"), t("Task"), t("All day"))
+
+        /** The words in [given] order, English for each one missing or empty. */
+        fun fromList(given: List<String>): ReminderWords {
+            val words = ENGLISH.toList()
+                .mapIndexed { i, english -> given.getOrNull(i)?.takeIf { it.isNotEmpty() } ?: english }
+                .iterator()
+            return ReminderWords(words.next(), words.next(), words.next(), words.next(), words.next())
+        }
+    }
+}
+
+/** The system's alarms as the scheduler uses them (Android's AlarmManager in the app; a list in tests). */
+internal interface AlarmSink {
+    fun set(alarm: ReminderAlarm, words: ReminderWords)
+
+    fun cancel(key: Long)
+
+    /** Takes away the notification of [key] when it shows. */
+    fun withdraw(key: Long)
+}
+
+/**
+ * Keeps the system's alarms in step with the core's next reminders: asked at every open, when the
+ * core says its schedule changed (a sync or an edit moved, added or deleted one), when the
+ * Reminders switch is changed, and after the phone restarts or its clock or zone changes (the
+ * alarms are kept by the instant they are due, and a whole-day event's instant moves with the
+ * zone). One refresh at a time.
+ */
+internal class ReminderScheduler(
+    private val alarms: AlarmSink,
+    private val store: ReminderStore,
+    private val nowMillis: () -> Long,
+    /** Where the store is read and written (a preferences file): never the main thread. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** The owner's Reminders switch. */
+    private val on: () -> Boolean,
+) {
+    private val lock = Mutex()
+
+    /**
+     * Asks [ask] for the schedule, leaving out the reminders shown already (null when the core
+     * couldn't say: nothing is changed then, and the answer is false), and sets, replaces and calls off the alarms. The
+     * plan is kept before the alarms are called off; an alarm that outlives it (the process
+     * ended between) is not shown, as [ReminderReceiver] checks its key against what is kept.
+     */
+    suspend fun refresh(
+        words: ReminderWords,
+        ask: suspend (skip: List<Long>) -> ReminderAnswer?,
+    ): Boolean = lock.withLock {
+        val switchedOn = withContext(io) { on() }
+        val skip = withContext(io) { store.update { it to skipped(it, nowMillis()) } }
+        val asked = if (switchedOn) ask(skip) ?: return@withLock false else ReminderAnswer(emptyList())
+        val plan = withContext(io) {
+            store.update { remembered ->
+                val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
+                plan.remembered to plan
+            }
+        }
+        plan.cancel.forEach(alarms::cancel)
+        plan.withdraw.forEach(alarms::withdraw)
+        plan.set.forEach { alarms.set(it, words) }
+        true
+    }
+}
+
+/** The core's next reminders, less those in [skip]; null when it can't say. */
+internal suspend fun askSchedule(core: Core, skip: List<Long>): ReminderAnswer? =
+    try {
+        val answer = core.reminderSchedule(REMINDERS_ASKED.toUInt(), skip.map { it.toULong() })
+        ReminderAnswer(answer.reminders, answer.kept.mapTo(HashSet()) { it.toLong() })
+    } catch (_: CoreException) {
+        null
+    }

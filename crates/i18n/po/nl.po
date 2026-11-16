@@ -1130,7 +1130,7 @@ msgid "All accounts"
 msgstr "Alle accounts"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "All day"
 msgstr "Hele dag"
@@ -4244,7 +4244,7 @@ msgid "Discard"
 msgstr "Verwerpen"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Negeren"
@@ -11795,7 +11795,7 @@ msgid "Reminder for new appointments"
 msgstr "Herinnering voor nieuwe afspraken"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Herinneringen"
@@ -13787,8 +13787,8 @@ msgstr "Een bureaubladmelding weergeven wanneer nieuwe e-mail binnenkomt"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
-msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
-msgstr "Toont een melding wanneer een agendaherinnering afgaat. Uit: er wordt geen melding getoond; de herinneringen blijven in de agenda."
+msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
+msgstr "Toont een melding wanneer een agenda- of taakherinnering afgaat, ook als de app gesloten is. Uit: er wordt geen melding getoond; de herinneringen blijven in de agenda en in Taken."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14314,8 +14314,8 @@ msgstr "Kleinste bovenaan"
 msgid "Smartcard {label}"
 msgstr "Smartcard {label}"
 
-#. command label, interface
-#: crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
+#. android, command label, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
 msgstr "Uitstellen"
@@ -14829,8 +14829,8 @@ msgstr "Haal de vergadering die is afgezegd uit uw agenda. Niemand wordt aangesc
 msgid "Take this key off the card"
 msgstr "Deze sleutel van de kaart halen"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Task"
 msgstr "Taak"
@@ -24092,6 +24092,10 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
+#~ msgstr "Toont een melding wanneer een agendaherinnering afgaat. Uit: er wordt geen melding getoond; de herinneringen blijven in de agenda."
 
 #, fuzzy
 #~ msgid "Writing a message is not available in this version yet."

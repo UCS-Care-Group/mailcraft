@@ -244,7 +244,10 @@ not in a release yet are marked "when the app is released".
   Android 13 and later asked once, after you have added an account, never at the first start);
   and what the background checks bring with WorkManager (to run again after a restart and to keep
   the phone awake for a moment). WorkManager's foreground service and its permission are left out
-  of the app. The release adds exact alarms for reminders, and this section lists them then.
+  of the app. For reminders the app also holds exact alarms (`USE_EXACT_ALARM` on Android 13 and
+  later, as a calendar does; on Android 12 the right to schedule them, which you can take away in
+  the phone's settings, and a reminder then comes within the system's window, possibly a few
+  minutes late) and hears that the phone has restarted, so that the reminders are set again.
   The phone's proxy settings are ignored.
 - **Background checks, when the app is released.** Android runs a check about every 15 minutes
   (WorkManager) when there is a network, and iPhone, when that app is released, whenever the
@@ -273,9 +276,16 @@ not in a release yet are marked "when the app is released".
   hides private content there, a public version that says only "New mail" stands in for the
   notification; where you let the lock screen show all notification content, the sender and the
   subject show there too. Reminders for meetings
-  and tasks are not posted on Android yet. When they are, they will be notifications raised on
-  the phone from what the last check brought. The switch Reminders in Settings is on by default;
-  turning it off will stop them, and New mail only does not change them. Nothing about
+  and tasks are notifications raised on the phone at their time, even when the app is closed: at
+  every open, after a check that changed them and when the phone restarts or its clock or time
+  zone changes, the app has the system set alarms for the next 64 reminders of what is on the
+  phone (nothing is asked of a server for them, and only your own calendars remind, not a shared
+  mailbox's). A reminder shows the title of the meeting or task, when it is and where; on the
+  lock screen, where the system hides private content, only "Reminders" shows. Dismiss and Snooze
+  (five minutes) are on the notification; what the app keeps of them, and of the alarms it set, is
+  a number for each reminder and its time, never a title. Reminders have a notification channel
+  of their own, which the phone's settings can silence. The switch Reminders in Settings is on by
+  default; turning it off calls off every alarm, and New mail only does not change them. Nothing about
   a notification goes to a server of the project, or to Google's or Apple's push services: no
   push token is made and none is sent.
 - **Pictures on the web.** The rules are the desktop's, as in the table above: a message's

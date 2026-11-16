@@ -97,6 +97,8 @@ internal class CoreSettings(
     private val store: SwitchesStore,
     private val dir: File,
     private val keep: suspend () -> Unit,
+    /** Hears the switches the owner saved (the Reminders switch sets or calls off the alarms). */
+    private val changed: (Switches) -> Unit = {},
 ) : SettingsApi {
     override fun codes(): List<String> =
         runCatching { keepOfflineCodes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: OFFLINE_CODES
@@ -178,6 +180,7 @@ internal class CoreSettings(
     override fun saveSwitches(switches: Switches) {
         store.save(switches)
         followSwitches(core, switches)
+        changed(switches)
     }
 
     private companion object {

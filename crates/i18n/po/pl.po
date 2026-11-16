@@ -1130,7 +1130,7 @@ msgid "All accounts"
 msgstr "Wszystkie konta"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "All day"
 msgstr "Cały dzień"
@@ -4247,7 +4247,7 @@ msgid "Discard"
 msgstr "Odrzuć"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Zamknij"
@@ -11821,7 +11821,7 @@ msgid "Reminder for new appointments"
 msgstr "Przypomnienie dla nowych terminów"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Przypomnienia"
@@ -13817,8 +13817,8 @@ msgstr "Pokazuj alert na pulpicie po nadejściu nowej poczty"
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
-msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
-msgstr "Pokazuj powiadomienie, gdy nadejdzie czas przypomnienia z kalendarza. Gdy wyłączone, żadne nie jest pokazywane; same przypomnienia pozostają w kalendarzu."
+msgid "Show a notification when a calendar or task reminder falls due, even when the app is closed. Off, none is shown; the reminders themselves stay in the calendar and in Tasks."
+msgstr "Pokazuj powiadomienie, gdy nadejdzie czas przypomnienia z kalendarza lub zadania, także gdy aplikacja jest zamknięta. Gdy wyłączone, żadne nie jest pokazywane; same przypomnienia pozostają w kalendarzu i w Zadaniach."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14344,8 +14344,8 @@ msgstr "Najmniejsze na górze"
 msgid "Smartcard {label}"
 msgstr "Karta inteligentna {label}"
 
-#. command label, interface
-#: crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
+#. android, command label, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
 msgstr "Odłóż"
@@ -14860,8 +14860,8 @@ msgstr "Usuń odwołane spotkanie z kalendarza. Nikt nie otrzyma wiadomości."
 msgid "Take this key off the card"
 msgstr "Usuń ten klucz z karty"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Task"
 msgstr "Zadanie"
@@ -24250,6 +24250,10 @@ msgstr "„{subject}” była zbyt duża, aby ją pobrać: jest tu tylko jej nag
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można jej przekazać dalej jako załącznika"
+
+#, fuzzy
+#~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
+#~ msgstr "Pokazuj powiadomienie, gdy nadejdzie czas przypomnienia z kalendarza. Gdy wyłączone, żadne nie jest pokazywane; same przypomnienia pozostają w kalendarzu."
 
 #, fuzzy
 #~ msgid "Writing a message is not available in this version yet."
