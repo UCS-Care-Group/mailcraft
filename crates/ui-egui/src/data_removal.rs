@@ -188,6 +188,8 @@ impl MailApp {
             ));
         }
         self.passwords.clear();
+        self.dav_passwords.clear();
+        self.subscribed.forget_addresses();
         self.tokens.clear();
         self.graph_tokens.clear();
         if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
