@@ -53,6 +53,7 @@ const ALLOWED_PHRASES: &[(&str, &str)] = &[
     ("Favorites from Outlook", "the Favorites read from the account's server"),
     ("Favorites in Outlook", "the Favorites read from the account's server"),
     ("Favorites come from Outlook", "the Favorites read from the account's server"),
+    ("Favorites Are Set in Outlook", "the folder menu's item for the Favorites read from the account's server"),
     ("your Outlook calendar", "the account's calendar on Microsoft's server, kept in step"),
     ("where Outlook and your other devices", "the account's calendar on the server, which other programs show too"),
     ("appear in Outlook or on your other devices", "what is kept on this computer only and not on the server"),

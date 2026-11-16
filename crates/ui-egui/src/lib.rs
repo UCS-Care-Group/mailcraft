@@ -36,6 +36,16 @@ macro_rules! tln {
     };
 }
 
+/// An English UI string that reaches `tl!` later, through a variable: a label in a table, a
+/// constant, the reason a check gives. It is the literal itself; the mark is for `cargo xtask
+/// i18n`, which finds it as it finds `tl!("…")` (a bare literal there would never be translated).
+#[macro_export]
+macro_rules! tl_later {
+    ($s:literal) => {
+        $s
+    };
+}
+
 mod account_setup;
 mod advanced_search;
 pub mod agent_gate;

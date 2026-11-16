@@ -942,9 +942,9 @@ fn pending_tip(resp: egui::Response, item: &Item) -> egui::Response {
 
 fn send_receive(app: &MailApp) -> Tab {
     let note = if !app.services.can_sync() {
-        "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+        tl_later!("This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import.")
     } else if !app.session.enabled("sync.request") {
-        "No account is connected to a mail server yet."
+        tl_later!("No account is connected to a mail server yet.")
     } else {
         ""
     };
@@ -1624,16 +1624,16 @@ pub(crate) fn font_menu(ui: &mut Ui, app: &mut MailApp) {
 
 /// Text colours offered: an original palette, readable on white.
 pub(crate) const COLORS: [(&str, &str); 10] = [
-    ("Black", "#000000"),
-    ("Grey", "#595959"),
-    ("Dark Red", "#c00000"),
-    ("Orange", "#c55a11"),
-    ("Gold", "#bf8f00"),
-    ("Green", "#2e7d32"),
-    ("Teal", "#00796b"),
-    ("Navy", "#1f4e79"),
-    ("Blue", "#0563c1"),
-    ("Purple", "#7030a0"),
+    (tl_later!("Black"), "#000000"),
+    (tl_later!("Grey"), "#595959"),
+    (tl_later!("Dark Red"), "#c00000"),
+    (tl_later!("Orange"), "#c55a11"),
+    (tl_later!("Gold"), "#bf8f00"),
+    (tl_later!("Green"), "#2e7d32"),
+    (tl_later!("Teal"), "#00796b"),
+    (tl_later!("Navy"), "#1f4e79"),
+    (tl_later!("Blue"), "#0563c1"),
+    (tl_later!("Purple"), "#7030a0"),
 ];
 
 /// The text colours (`format.color`): Automatic, the palette as swatches, and a value of the
@@ -1675,14 +1675,14 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
 
 /// Highlights offered behind text: an original palette of light colours, which dark text reads on.
 pub(crate) const HIGHLIGHTS: [(&str, &str); 8] = [
-    ("Yellow", "#fff176"),
-    ("Lime", "#c5e1a5"),
-    ("Aqua", "#80deea"),
-    ("Sky", "#90caf9"),
-    ("Pink", "#f8bbd0"),
-    ("Lavender", "#d1c4e9"),
-    ("Peach", "#ffcc80"),
-    ("Grey", "#d9d9d9"),
+    (tl_later!("Yellow"), "#fff176"),
+    (tl_later!("Lime"), "#c5e1a5"),
+    (tl_later!("Aqua"), "#80deea"),
+    (tl_later!("Sky"), "#90caf9"),
+    (tl_later!("Pink"), "#f8bbd0"),
+    (tl_later!("Lavender"), "#d1c4e9"),
+    (tl_later!("Peach"), "#ffcc80"),
+    (tl_later!("Grey"), "#d9d9d9"),
 ];
 
 /// The highlights (`format.highlight`): No Color, and the palette as swatches.

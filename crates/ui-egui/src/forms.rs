@@ -1667,13 +1667,13 @@ mod event {
         fn wrong(&self) -> Option<&'static str> {
             let from = Date::parse_iso(&self.start);
             if !self.all_day && !(time_ok(&self.start_time, true) && time_ok(&self.end_time, true)) {
-                Some("The start and the end need a time")
+                Some(tl_later!("The start and the end need a time"))
             } else if from.is_none() {
-                Some("The range needs a day to start on")
+                Some(tl_later!("The range needs a day to start on"))
             } else if self.repeat.ends == Ends::Until && !date_ok(&self.repeat.until, true) {
-                Some("The range needs a day to end by")
+                Some(tl_later!("The range needs a day to end by"))
             } else if from.and_then(|from| self.first_day(from)).is_none() {
-                Some("No day fits this pattern")
+                Some(tl_later!("No day fits this pattern"))
             } else {
                 None
             }
@@ -2705,11 +2705,11 @@ mod event {
             let times = self.all_day || (time_ok(&self.start_time, true) && time_ok(&self.end_time, true));
             let until = self.repeat.freq.is_none() || self.repeat.ends != Ends::Until || date_ok(&self.repeat.until, true);
             if self.title.trim().is_empty() {
-                Some("Give it a title first")
+                Some(tl_later!("Give it a title first"))
             } else if !(date_ok(&self.start_date, true) && date_ok(&self.end_date, true) && times) {
-                Some("The start and the end need a date and a time")
+                Some(tl_later!("The start and the end need a date and a time"))
             } else if !until {
-                Some("The series needs a day to end by")
+                Some(tl_later!("The series needs a day to end by"))
             } else {
                 None
             }
@@ -3313,7 +3313,9 @@ mod event {
                     (command, params, if close { After::Close } else { After::Stay })
                 }
                 Act::Send { pressed } => {
-                    if let Some(missing) = self.missing().or((!self.invites() && !self.was_meeting).then_some("Name somebody to invite first")) {
+                    if let Some(missing) =
+                        self.missing().or((!self.invites() && !self.was_meeting).then_some(tl_later!("Name somebody to invite first")))
+                    {
                         self.error = tl!(missing).to_string();
                         return Verdict::Stay;
                     }

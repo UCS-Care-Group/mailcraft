@@ -610,7 +610,11 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
         );
     });
     ui.separator();
-    for (label, value) in [("High Importance", Importance::High), ("Normal Importance", Importance::Normal), ("Low Importance", Importance::Low)] {
+    for (label, value) in [
+        (tl_later!("High Importance"), Importance::High),
+        (tl_later!("Normal Importance"), Importance::Normal),
+        (tl_later!("Low Importance"), Importance::Low),
+    ] {
         mi_check(ui, app, label, importance == value, "tasks.edit", json!({"id": id, "importance": value.code()}));
     }
     ui.separator();

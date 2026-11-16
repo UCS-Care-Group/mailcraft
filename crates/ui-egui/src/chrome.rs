@@ -507,9 +507,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if app.session.view.module == Module::Mail {
                         let pane = app.session.view.reading_pane;
                         for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, "Reading pane off"),
-                            ("previewLines", "bottom", pane == Pane::Bottom, "Reading pane at the bottom"),
-                            ("readingPane", "right", pane == Pane::Right, "Reading pane on the right"),
+                            ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
+                            ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
+                            ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
                         ] {
                             let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
                             if on {
