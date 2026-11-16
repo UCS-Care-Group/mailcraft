@@ -465,10 +465,12 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => reply_source(s, v)?,
     };
     // Only its headers and a preview are here (#653): a reply would quote the preview and a
-    // forward would send it as the message, without its files. The window fetches it first when
-    // it can; one moved within its account has no UID until the next Send/Receive, and offline
-    // nothing comes.
-    if m.unfetched && !s.mailbox.fetchable(&m) {
+    // forward would send it as the message, without its files. Refused whether or not a host
+    // could fetch it (a message with its UID and folder can be): a headless run, the CLI and
+    // MCP call this command directly and fetch nothing. The window fetches it first and runs
+    // the command again once it is whole (`Session::fetch_first_plan`); one moved within its
+    // account has no UID until the next Send/Receive, and offline nothing comes.
+    if m.unfetched {
         return Err(fail("this message isn't downloaded yet: open it once you're online, then reply to it or forward it"));
     }
     let mine: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.to_lowercase()).filter(|e| !e.is_empty()).collect();
