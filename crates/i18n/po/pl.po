@@ -2854,6 +2854,12 @@ msgid "Check Now"
 msgstr "Sprawdź teraz"
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check Recipients"
+msgstr "Sprawdź odbiorców"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Check both servers before you connect."
@@ -2888,6 +2894,12 @@ msgstr "Sprawdzaj nowe wersje"
 #, fuzzy
 msgid "Check the account's settings"
 msgstr "Sprawdź ustawienia konta"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check the recipients before this message goes:"
+msgstr "Sprawdź odbiorców, zanim ta wiadomość zostanie wysłana:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8921,6 +8933,12 @@ msgid "Move this rule up: it runs earlier"
 msgstr "Przenieś tę regułę w górę: będzie uruchamiana wcześniej"
 
 #. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Move to Bcc"
+msgstr "Przenieś do UDW"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
@@ -13131,6 +13149,12 @@ msgstr "Wyślij/Odbierz"
 #, fuzzy
 msgid "Send Again"
 msgstr "Wyślij ponownie"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Send Anyway"
+msgstr "Wyślij mimo to"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17528,6 +17552,15 @@ msgid "This message has a warning about its sender: move it to Junk E-mail inste
 msgstr "Ta wiadomość ma ostrzeżenie dotyczące nadawcy: przenieś ją do Wiadomości-śmieci zamiast się wypisywać."
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
+msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgstr[0] "Ta wiadomość ma więcej odbiorców, niż sprawdza MailCraft: sprawdzono tylko pierwszego."
+msgstr[1] "Ta wiadomość ma więcej odbiorców, niż sprawdza MailCraft: sprawdzono tylko pierwszych {n}."
+msgstr[2] "Ta wiadomość ma więcej odbiorców, niż sprawdza MailCraft: sprawdzono tylko pierwszych {n}."
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "This message has no text."
@@ -20678,6 +20711,12 @@ msgid "not known until the first Send/Receive"
 msgstr "nieznane do pierwszego Wyślij/Odbierz"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr "nie wysłano: {why}. Wyślij z \"confirmed\": true, aby mimo to ją wysłać, lub z \"moveToBcc\": true, aby najpierw przenieść osoby spoza organizacji do UDW"
+
+#. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing is selected in the message"
@@ -22494,6 +22533,12 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr "{address} nie jest udostępnioną skrzynką pocztową otwartą tutaj."
 
 #. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{address} looks like {like}, which you write to, but isn't the same address."
+msgstr "{address} wygląda jak {like}, do którego piszesz, ale nie jest tym samym adresem."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "{address}: {error}. It will try again at the next Send/Receive."
@@ -23809,6 +23854,15 @@ msgid_plural "{n} people are invited to this meeting."
 msgstr[0] "{n} osoba jest zaproszona na to spotkanie."
 msgstr[1] "{n} osoby są zaproszone na to spotkanie."
 msgstr[2] "{n} osób jest zaproszonych na to spotkanie."
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
+msgstr[0] "{n} osoba spoza Twojej organizacji, w {domains} domenach, zobaczyłaby adresy pozostałych w polach Do i DW."
+msgstr[1] "{n} osoby spoza Twojej organizacji, w {domains} domenach, zobaczyłyby swoje adresy w polach Do i DW."
+msgstr[2] "{n} osób spoza Twojej organizacji, w {domains} domenach, zobaczyłoby swoje adresy w polach Do i DW."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

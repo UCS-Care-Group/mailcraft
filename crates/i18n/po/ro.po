@@ -2855,8 +2855,9 @@ msgstr "Verificare acum"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check Recipients"
-msgstr ""
+msgstr "Verifică destinatarii"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2896,8 +2897,9 @@ msgstr "Verificați setările contului"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check the recipients before this message goes:"
-msgstr ""
+msgstr "Verifică destinatarii înainte ca acest mesaj să plece:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8930,8 +8932,9 @@ msgstr "Mutați această regulă mai sus: rulează mai devreme"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Move to Bcc"
-msgstr ""
+msgstr "Mută în Cci"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13147,8 +13150,9 @@ msgstr "Trimitere din nou"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Send Anyway"
-msgstr ""
+msgstr "Trimite oricum"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17547,11 +17551,12 @@ msgstr "Acest mesaj are un avertisment despre expeditor: mutați-l în E-mail ne
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
 msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Acest mesaj are mai mulți destinatari decât verifică MailCraft: doar primul a fost examinat."
+msgstr[1] "Acest mesaj are mai mulți destinatari decât verifică MailCraft: doar primii {n} au fost examinați."
+msgstr[2] "Acest mesaj are mai mulți destinatari decât verifică MailCraft: doar primii {n} de destinatari au fost examinați."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -20702,8 +20707,9 @@ msgstr "necunoscut până la prima Trimitere/primire"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
-msgstr ""
+msgstr "netrimis: {why}. Trimite cu \"confirmed\": true pentru a-l trimite oricum, sau cu \"moveToBcc\": true pentru a muta mai întâi în Cci persoanele din afara organizației"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -22523,8 +22529,9 @@ msgstr "{address} nu este o cutie poștală partajată deschisă aici."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{address} looks like {like}, which you write to, but isn't the same address."
-msgstr ""
+msgstr "{address} seamănă cu {like}, căruia îi scrii, dar nu este aceeași adresă."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -23845,11 +23852,12 @@ msgstr[2] "{n} de persoane sunt invitate la această întâlnire."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
 msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} persoană din afara organizației tale, în {domains} domenii, ar vedea adresele celorlalți în La și Cc."
+msgstr[1] "{n} persoane din afara organizației tale, în {domains} domenii, ar vedea adresele celorlalți în La și Cc."
+msgstr[2] "{n} de persoane din afara organizației tale, în {domains} domenii, ar vedea adresele celorlalți în La și Cc."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

@@ -2848,8 +2848,9 @@ msgstr "Verifica ora"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check Recipients"
-msgstr ""
+msgstr "Controlla destinatari"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2889,8 +2890,9 @@ msgstr "Controllare le impostazioni dell'account"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check the recipients before this message goes:"
-msgstr ""
+msgstr "Controlla i destinatari prima che questo messaggio venga inviato:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8894,8 +8896,9 @@ msgstr "Sposta questa regola in alto: viene eseguita prima"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Move to Bcc"
-msgstr ""
+msgstr "Sposta in Ccn"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13093,8 +13096,9 @@ msgstr "Invia di nuovo"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Send Anyway"
-msgstr ""
+msgstr "Invia comunque"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17470,10 +17474,11 @@ msgstr "Questo messaggio ha un avviso sul mittente: lo sposti in Posta indesider
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
 msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Questo messaggio ha più destinatari di quanti ne controlli MailCraft: è stato esaminato solo il primo."
+msgstr[1] "Questo messaggio ha più destinatari di quanti ne controlli MailCraft: sono stati esaminati solo i primi {n}."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -20610,8 +20615,9 @@ msgstr "non noto fino al primo Invia/Ricevi"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
-msgstr ""
+msgstr "non inviato: {why}. Invia con \"confirmed\": true per inviarlo comunque, oppure con \"moveToBcc\": true per spostare prima in Ccn le persone esterne all'organizzazione"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -22429,8 +22435,9 @@ msgstr "{address} non è una cassetta postale condivisa aperta qui."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{address} looks like {like}, which you write to, but isn't the same address."
-msgstr ""
+msgstr "{address} somiglia a {like}, a cui scrivi, ma non è lo stesso indirizzo."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -23665,10 +23672,11 @@ msgstr[1] "{n} persone sono invitate a questa riunione."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
 msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} persona esterna alla tua organizzazione, in {domains} domini, vedrebbe gli indirizzi degli altri in A e Cc."
+msgstr[1] "{n} persone esterne alla tua organizzazione, in {domains} domini, vedrebbero gli indirizzi degli altri in A e Cc."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

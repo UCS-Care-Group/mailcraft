@@ -2853,8 +2853,9 @@ msgstr "Nu controleren"
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check Recipients"
-msgstr ""
+msgstr "Ontvangers controleren"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -2894,8 +2895,9 @@ msgstr "De instellingen van het account controleren"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Check the recipients before this message goes:"
-msgstr ""
+msgstr "Controleer de ontvangers voordat dit bericht wordt verzonden:"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8907,8 +8909,9 @@ msgstr "Deze regel omhoog verplaatsen: hij wordt eerder uitgevoerd"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Move to Bcc"
-msgstr ""
+msgstr "Naar BCC verplaatsen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -13121,8 +13124,9 @@ msgstr "Opnieuw verzenden"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "Send Anyway"
-msgstr ""
+msgstr "Toch verzenden"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17510,10 +17514,11 @@ msgstr "Dit bericht heeft een waarschuwing over de afzender: verplaats het naar 
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
 msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "Dit bericht heeft meer ontvangers dan MailCraft controleert: alleen de eerste is bekeken."
+msgstr[1] "Dit bericht heeft meer ontvangers dan MailCraft controleert: alleen de eerste {n} zijn bekeken."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -20659,8 +20664,9 @@ msgstr "niet bekend tot het eerste Verzenden/ontvangen"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
-msgstr ""
+msgstr "niet verzonden: {why}. Verzend met \"confirmed\": true om het toch te verzenden, of met \"moveToBcc\": true om de personen buiten de organisatie eerst naar BCC te verplaatsen"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -22478,8 +22484,9 @@ msgstr "{address} is geen gedeeld postvak dat hier geopend is."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{address} looks like {like}, which you write to, but isn't the same address."
-msgstr ""
+msgstr "{address} lijkt op {like}, waar u naar schrijft, maar is niet hetzelfde adres."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -23714,10 +23721,11 @@ msgstr[1] "{n} personen zijn uitgenodigd voor deze vergadering."
 
 #. interface
 #: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
 msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
 msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} persoon buiten uw organisatie, in {domains} domeinen, zou de adressen van de anderen zien in Aan en CC."
+msgstr[1] "{n} personen buiten uw organisatie, in {domains} domeinen, zouden elkaars adressen zien in Aan en CC."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
