@@ -3201,6 +3201,7 @@ name = "mailcraft-dav"
 version = "0.13.0"
 dependencies = [
  "mailcraft-ical",
+ "mailcraft-link",
  "mailcraft-model",
  "mailcraft-time",
  "mailcraft-vcard",
