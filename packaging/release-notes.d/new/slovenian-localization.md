@@ -1,0 +1,1 @@
+- **Slovenian.** MailCraft's window now comes in Slovenian as a preview language: every text is translated, not yet reviewed line by line by a native speaker, and File › Options names it Slovenščina (predogled). Dates read day first (`d.m.Y`) with a 24-hour clock and weeks from Monday, and counts take Slovenian's four plural forms.

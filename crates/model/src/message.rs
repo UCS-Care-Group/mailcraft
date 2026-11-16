@@ -778,14 +778,15 @@ impl Message {
 }
 
 /// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `Re[2]:`; German `AW:`, `WG:`;
-/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`; Dutch `Antw:`, `Doorst:`), however many there are.
+/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`; Dutch `Antw:`, `Doorst:`; Slovenian `Odg:`,
+/// `Posl:`), however many there are.
 pub fn normalize_subject(subject: &str) -> String {
     topic_of(subject).to_string()
 }
 
 /// [`normalize_subject`] as a part of `subject`, without a copy.
 pub(crate) fn topic_of(subject: &str) -> &str {
-    const PREFIXES: [&str; 13] = ["re", "fw", "fwd", "aw", "wg", "sv", "vs", "tr", "rv", "r", "i", "antw", "doorst"];
+    const PREFIXES: [&str; 15] = ["re", "fw", "fwd", "aw", "wg", "sv", "vs", "tr", "rv", "r", "i", "antw", "doorst", "odg", "posl"];
     let mut s = subject.trim();
     while let Some((prefix, rest)) = s.split_once(':') {
         let p = prefix.trim().split('[').next().unwrap_or("").trim();
@@ -819,6 +820,7 @@ mod tests {
         assert_eq!(normalize_subject("RE: RV: Almuerzo"), "Almuerzo");
         assert_eq!(normalize_subject("R: I: Pranzo"), "Pranzo");
         assert_eq!(normalize_subject("Antw: Doorst: Lunch"), "Lunch");
+        assert_eq!(normalize_subject("Odg: Posl: Kosilo"), "Kosilo");
         assert_eq!(normalize_subject("Ristorante: Pranzo"), "Ristorante: Pranzo");
     }
 

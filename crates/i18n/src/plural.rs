@@ -21,6 +21,10 @@ pub enum Rule {
     /// Three forms (`plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`): Polish.
     /// One for 1; another for counts ending 2 to 4 except 12 to 14 (2, 22, 104); the third for the rest.
     Polish,
+    /// Four forms (`plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3)`): Slovenian.
+    /// Singular when the last two digits are 1 (1, 101); dual when they are 2 (2, 102); the nominative
+    /// plural for 3 and 4 (3, 4, 103); the genitive plural for the rest (0, 5, 11, 12, 22, 100).
+    Slovenian,
 }
 
 impl Rule {
@@ -34,6 +38,12 @@ impl Rule {
                 1 => 0,
                 n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
                 _ => 2,
+            },
+            Rule::Slovenian => match n % 100 {
+                1 => 0,
+                2 => 1,
+                3 | 4 => 2,
+                _ => 3,
             },
             Rule::Romanian => match n {
                 1 => 0,
@@ -50,6 +60,7 @@ impl Rule {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
             Rule::Romanian | Rule::Polish => 3,
+            Rule::Slovenian => 4,
         }
     }
 
@@ -71,6 +82,7 @@ impl Rule {
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
+            (Some(4), Some("n%100==1?0:n%100==2?1:n%100==3||n%100==4?2:3")) => Rule::Slovenian,
             _ => Rule::NotOne,
         }
     }
