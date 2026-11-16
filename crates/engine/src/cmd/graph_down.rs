@@ -389,11 +389,10 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let (thread, thread_asked, thread_tries) =
         if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
     m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
-    // Sent Items has it: from here on a listing without it is its deletion, and a removal from
-    // another folder needs no keeping of it (#1175).
-    if in_sent {
-        m.sent_pending = false;
-    }
+    // The server has listed it: Sent Items, or the folder the owner moved it to. From here on a
+    // listing without it is its deletion, and a removal from another folder needs no keeping of it
+    // (#1175). A listing of it as a draft outside Sent Items returned before this, unfiled.
+    m.sent_pending = false;
     *m != before
 }
 
