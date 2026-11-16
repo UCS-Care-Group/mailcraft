@@ -173,6 +173,11 @@ impl Endpoint {
     pub fn new(origin: TrustedOrigin, auth: Option<Secret>) -> Self {
         Self { origin: origin.origin().clone(), auth }
     }
+    /// An endpoint that sends `auth` to the origin a discovery has granted it to
+    /// ([`crate::discovery::Grant`], which only a discovery can make).
+    pub(crate) fn granted(grant: &crate::discovery::Grant, auth: Secret) -> Self {
+        Self { origin: grant.origin().clone(), auth: Some(auth) }
+    }
     /// An endpoint that sends no credential: a probe, or anything on an origin a server named.
     pub fn anonymous(origin: Origin) -> Self {
         Self { origin, auth: None }

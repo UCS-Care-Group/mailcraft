@@ -15,6 +15,7 @@ workspace = true
 stand-in = []
 
 [dependencies]
+mailcraft-link = { workspace = true }
 mailcraft-model = { workspace = true }
 quick-xml = { workspace = true }
 

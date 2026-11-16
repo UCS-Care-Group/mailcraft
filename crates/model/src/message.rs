@@ -273,6 +273,9 @@ pub struct Message {
     /// Follow-up due date of a flagged message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag_due: Option<Timestamp>,
+    /// Its follow-up reminder (#948), kept on this computer only. `None` for a message with none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub follow_up: Option<crate::FollowUp>,
     pub importance: Importance,
     /// Written here with Request a Read Receipt on: it goes with `Disposition-Notification-To`
     /// naming its sender (RFC 8098), or Exchange's own flag for one. Only ever set by the owner's

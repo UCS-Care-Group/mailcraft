@@ -703,6 +703,9 @@ pub struct Compose {
     /// How many ids `pictures` have been given, so that none is given twice.
     #[serde(skip_serializing_if = "is_zero_u32")]
     pub picture_seq: u32,
+    /// Follow Up (#948): remind me if nobody replies, once it has gone (`compose.followUp`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<crate::cmd::followup::FollowUpPlan>,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
     /// The owner, not only an agent, changed it since it was opened (#494): an agent asks the
@@ -1272,6 +1275,10 @@ pub struct Session {
     /// is disabled, the window offers nothing, and no move is put in a request for Gmail's API.
     /// Never saved.
     pub gmail_category_moves: bool,
+    /// Whether calendar and contacts servers (CalDAV and CardDAV, #209) are switched on: the host
+    /// reads `MAILCRAFT_DAV=1` and sets it; off, their commands are disabled and the window offers
+    /// nothing. Ships off until the feature is ready. Never saved.
+    pub dav_enabled: bool,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1394,6 +1401,7 @@ impl Session {
             interface_language: mailcraft_i18n::Lang::English,
             date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
+            dav_enabled: false,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

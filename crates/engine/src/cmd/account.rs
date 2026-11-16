@@ -334,7 +334,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap, a.ews) = (None, None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews, a.dav) = (None, None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -356,6 +356,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             (a.jmap, a.ews) = (None, None);
+            // An account that only lives here has no calendar and contacts server.
+            if a.kind == AccountKind::Local {
+                a.dav = None;
+            }
         }
     }
     if a.name.is_empty() {
@@ -1445,7 +1449,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let gmail_moves = gmail_moves_go(s, account);
     let now = s.now();
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result);
+    let sent = file_sent(mb, account, result, now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1543,7 +1547,7 @@ impl OnServer {
 /// each): a message of the account's that is in Sent Items and not on the server yet is marked
 /// all the same. One whose copy didn't get to the server after all (`unfiled`) is no longer
 /// expected there. Returns how many were sent.
-fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
+pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now: i64) -> usize {
     let (Some(outbox), Some(sent_items)) = (mb.folder_of_kind(account, FolderKind::Outbox), mb.folder_of_kind(account, FolderKind::Sent)) else {
         return 0;
     };
@@ -1555,6 +1559,8 @@ fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult) -> usize {
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // A reminder "after so many days" counts them from now that it has gone (#948).
+            mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
             // send files it in Sent Items, so it is no longer to be put on the server as a
             // message moved in, which would put it there twice. An original elsewhere goes once
