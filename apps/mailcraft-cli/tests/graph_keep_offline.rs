@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicBool;
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::graph_mail::{apply_graph_fetch, apply_graph_mail, graph_fetch_request, graph_mail_request};
 use mailcraft_model::{Id, Mailbox, Message};
-use mailcraft_net::graph::standin::{StandIn, TOKEN};
+use mailcraft_net::graph::standin::{Attached, StandIn, TOKEN};
 use serde_json::{Value, json};
 
 /// Friday 2027-01-15 08:00 UTC.
@@ -104,6 +104,12 @@ Content-Transfer-Encoding: base64\r\n\r\n{file}\r\n--b--\r\n"
     )
 }
 
+/// The file [`mime`] attaches, as the server lists it.
+fn pdf(n: usize) -> Attached {
+    let bytes = format!("attachment {n} ").repeat(300).into_bytes();
+    Attached { id: format!("pdf{n}"), name: format!("report{n}.pdf"), content_type: "application/pdf".into(), bytes, ..Default::default() }
+}
+
 /// The content files beside the mailbox file at `path`.
 fn content_files(path: &std::path::Path) -> usize {
     let dir = mailcraft_engine::store::blob_dir(path);
@@ -122,8 +128,13 @@ fn temp(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
 fn mail_outside_a_shortened_window_goes_back_to_its_headers_and_its_files_leave_the_disk() {
     let (mut rig, ids) = Rig::new("all", &[1, 40, 41, 400]);
     for (n, id) in ids.iter().enumerate() {
-        rig.server.state().mailbox.update(id, |m| m.mime = Some(mime(n)));
+        rig.server.state().mailbox.update(id, |m| {
+            m.mime = Some(mime(n));
+            // So that the server says it has attachments (`hasAttachments`), as its MIME has (#575).
+            m.attachments = vec![pdf(n)];
+        });
     }
+    rig.run();
     rig.fetch(None);
     assert!(ids.iter().all(|id| !rig.here(id).unfetched), "everything, with All");
     let (dir, path) = temp("thin");

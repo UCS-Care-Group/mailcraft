@@ -63,7 +63,9 @@ fn a_good_file_is_read_and_a_missing_one_is_nothing_to_say() {
 #[test]
 fn a_file_that_doesnt_parse_is_set_aside_and_said() {
     let s = Scratch::new("aside");
-    let bad = r#"{"theme": "dark", "view": {"sort": "colour"}}"#;
+    // A switch written as a word: not a file this build can read (an arrangement it doesn't
+    // know is no longer one: it reads as By Date).
+    let bad = r#"{"theme": "dark", "view": {"sortDescending": "yes"}}"#;
     let path = s.file("ui.json", bad);
     let (ui, unread) = read_prefs(&path);
     assert!(ui.is_none());

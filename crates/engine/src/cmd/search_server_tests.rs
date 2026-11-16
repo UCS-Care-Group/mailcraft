@@ -231,7 +231,7 @@ fn opening_a_result_puts_it_in_its_folder_to_be_fetched_and_selects_it() {
     let requests = asked(&mut s);
     let theirs = requests.iter().find(|r| r.account == shared).unwrap().clone();
     let mut message = found("AAkA-1", "ar", "Budget archived", NOW);
-    message.has_attachments = true;
+    message.has_attachments = Some(true);
     answer(&mut s, &theirs, vec![message], "");
     let archive = s.mailbox.folder_by_server(shared, "ar").unwrap();
     let before = s.mailbox.count(archive);

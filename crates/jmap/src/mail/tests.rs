@@ -193,7 +193,7 @@ fn a_first_run_lists_the_mailboxes_and_reads_each_window_whole() {
     assert_eq!((m.message_id.as_str(), m.from.name.as_str(), m.from.email.as_str()), ("third@example.org", "Zoe Park", "zoe@example.org"));
     assert_eq!((m.to.len(), m.to[0].name.as_str(), m.to[0].email.as_str()), (1, "Ada", ME));
     assert_eq!((m.sent, m.received), (time("2026-10-15T07:30:00Z"), time("2026-01-01T00:00:03Z")));
-    assert_eq!((m.preview.as_str(), m.has_attachments, m.draft), ("Hello about third.", false, Some(false)));
+    assert_eq!((m.preview.as_str(), m.has_attachments, m.draft), ("Hello about third.", Some(false), Some(false)));
     assert_eq!(m.server.size, u64::try_from(mail("third").len()).unwrap());
     assert_eq!(
         (m.server.folder.as_str(), m.server.read, m.server.flag, m.server.answered, m.server.forwarded),

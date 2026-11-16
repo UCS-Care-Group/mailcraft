@@ -154,7 +154,7 @@ msgid "(no recipients)"
 msgstr "(sin destinatarios)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(sin asunto)"
@@ -314,6 +314,11 @@ msgstr "5 años"
 #, fuzzy
 msgid "6 months"
 msgstr "6 meses"
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "<- Remove"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -800,6 +805,18 @@ msgstr ""
 "Agregar\n"
 "cuenta"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Add\n"
+"Columns"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Add ->"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -811,6 +828,11 @@ msgstr "Agregar cuenta"
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Agregar calendario"
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Add Columns…"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
@@ -2004,8 +2026,8 @@ msgstr "Opciones de datos adjuntos"
 msgid "Attachment options for {name}"
 msgstr "Opciones de datos adjuntos de {name}"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Datos adjuntos"
@@ -2203,6 +2225,11 @@ msgid "Availability only: when you are free or busy"
 msgstr "Solo disponibilidad: cuándo está libre u ocupado"
 
 #. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Available columns:"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Available formats:"
@@ -2371,6 +2398,11 @@ msgstr "Finaliza el"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+msgid "By Attachments"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "By Categories"
 msgstr "Por categorías"
@@ -2380,6 +2412,11 @@ msgstr "Por categorías"
 #, fuzzy
 msgid "By Date"
 msgstr "Por fecha"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "By Flag"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -2608,7 +2645,7 @@ msgid "Cancelled"
 msgstr "Cancelada"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Categorías"
@@ -3188,6 +3225,11 @@ msgstr "Contraer la cinta"
 #, fuzzy
 msgid "Colour"
 msgstr "Color"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Columns"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
@@ -3815,7 +3857,7 @@ msgid "Data on this computer"
 msgstr "Datos en este equipo"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Date"
 msgstr "Fecha"
@@ -5398,8 +5440,8 @@ msgstr "Nombre"
 msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
 msgstr "Primero guarde la configuración IMAP y SMTP estándar de Google y un nombre de usuario de correo coincidente antes de cambiar de método de inicio de sesión."
 
-#. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Flag"
 msgstr "Marca"
@@ -5435,7 +5477,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Contraer los calendarios de este grupo"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Carpeta"
@@ -5735,7 +5777,7 @@ msgid "Friday"
 msgstr "viernes"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "De"
@@ -6624,7 +6666,7 @@ msgstr[0] "¿Importar {n} mensaje de {name} a {folder}?"
 msgstr[1] "¿Importar {n} mensajes de {name} a {folder}?"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Importance"
 msgstr "Importancia"
@@ -8370,6 +8412,11 @@ msgid "Mark as verified"
 msgstr "Marcar como verificado"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Marked on top"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Match case"
@@ -8815,7 +8862,7 @@ msgid "Move All and Send Invitations"
 msgstr "Mover todo y enviar invitaciones"
 
 #. interface
-#: crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Down"
 msgstr "Bajar"
@@ -8851,7 +8898,7 @@ msgid "Move Rule"
 msgstr "Mover la regla"
 
 #. interface
-#: crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Up"
 msgstr "Subir"
@@ -10141,7 +10188,7 @@ msgid "Numbering"
 msgstr "Numeración"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "Aceptar"
@@ -11901,6 +11948,11 @@ msgstr "Quitar calendario compartido"
 msgid "Remove Shared Mailbox"
 msgstr "Quitar buzón compartido"
 
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Remove This Column"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -12304,7 +12356,7 @@ msgstr ""
 "orden"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Reverse Sort"
 msgstr "Invertir orden"
@@ -13680,6 +13732,11 @@ msgstr "Mostrar como"
 msgid "Show Calendar"
 msgstr "Mostrar calendario"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Show Columns"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
@@ -13886,6 +13943,11 @@ msgstr "Mostrar los mensajes de esta conversación"
 #, fuzzy
 msgid "Show the whole original"
 msgstr "Mostrar todo el original"
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Show these columns in this order:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -14255,7 +14317,7 @@ msgid "Single Line"
 msgstr "Una sola línea"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Tamaño"
@@ -14609,7 +14671,7 @@ msgid "Subfolders"
 msgstr "Subcarpetas"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "Subject"
 msgstr "Asunto"
@@ -17785,7 +17847,7 @@ msgid "Title"
 msgstr "Título"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "To"
 msgstr "Para"
@@ -18161,6 +18223,11 @@ msgstr "Deshacer escritura"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "Deshacer {what}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Unmarked on top"
+msgstr ""
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
@@ -19447,7 +19514,7 @@ msgid "Zoom the Message"
 msgstr "Ampliar el mensaje"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/columns.rs
 #, fuzzy
 msgid "[Draft]"
 msgstr "[Borrador]"

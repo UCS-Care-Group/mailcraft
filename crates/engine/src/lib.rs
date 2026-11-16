@@ -28,6 +28,7 @@ pub mod agent;
 pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
+pub mod columns;
 pub mod composing;
 mod conversations;
 pub mod counts;
