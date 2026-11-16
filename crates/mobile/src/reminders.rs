@@ -7,6 +7,7 @@
 //! [`crate::Event::ReminderScheduleChanged`] comes, at every open, after a background round, and
 //! when the phone restarts or its clock or zone changes. Nothing here is sent anywhere.
 
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use mailcraft_engine::Session;
@@ -19,6 +20,14 @@ use crate::{Core, CoreError};
 /// local notifications an app, kept on Android too so that both phones remind of the same ones
 /// (and far inside Android's 500 alarms an app). Another ask after a sync moves the window on.
 pub const MAX_SCHEDULED: u32 = 64;
+
+/// The most keys of reminders already shown that one ask leaves out (the app remembers 400).
+pub const MAX_SKIPPED: usize = 1_000;
+
+/// How old the schedule a change is told against may be: time alone moves the four weeks the
+/// schedule looks at, so before a job it is looked at afresh when older than this (and not at
+/// every job, which would work the reminders out at every read).
+const STALE_AFTER_SECONDS: i64 = 60;
 
 /// What a reminder is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, uniffi::Enum)]
@@ -49,8 +58,11 @@ pub struct ScheduledReminder {
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct ReminderSchedule {
     pub rev: u64,
-    /// Soonest first, at most `count` (and [`MAX_SCHEDULED`]).
+    /// Soonest first, at most `count` (and [`MAX_SCHEDULED`]), none of those asked to be left out.
     pub reminders: Vec<ScheduledReminder>,
+    /// The keys asked to be left out that are still to come (so the app can tell a reminder it
+    /// showed from one whose event went away).
+    pub kept: Vec<u64>,
 }
 
 /// FNV-1a: a hash that is the same in every run of the program (the standard library's isn't
@@ -80,9 +92,19 @@ fn record(u: &Upcoming) -> ScheduledReminder {
     ScheduledReminder { key: key_of(u), kind, at: u.at, starts: u.starts, all_day, title: text::clip(&u.title, MAX_TITLE), location }
 }
 
-pub(crate) fn schedule(s: &Session, count: u32) -> Vec<ScheduledReminder> {
+/// Every reminder still to come that one ask can need: those it gives and those it leaves out.
+fn all(s: &Session) -> Vec<ScheduledReminder> {
+    let most = usize::try_from(MAX_SCHEDULED).unwrap_or(0).saturating_add(MAX_SKIPPED);
+    upcoming_reminders(s, s.now(), most).iter().map(record).collect()
+}
+
+/// The next `count` reminders (at most [`MAX_SCHEDULED`]) that aren't in `skip`, and the keys of
+/// `skip` that are still to come. The cap is taken after the skipped are left out, so reminders
+/// already shown never keep a later one from its alarm.
+pub(crate) fn schedule(s: &Session, count: u32, skip: &HashSet<u64>) -> (Vec<ScheduledReminder>, Vec<u64>) {
     let count = usize::try_from(count.min(MAX_SCHEDULED)).unwrap_or(0);
-    upcoming_reminders(s, s.now(), count).iter().map(record).collect()
+    let (kept, given): (Vec<ScheduledReminder>, Vec<ScheduledReminder>) = all(s).into_iter().partition(|r| skip.contains(&r.key));
+    (given.into_iter().take(count).collect(), kept.into_iter().map(|r| r.key).collect())
 }
 
 /// Says when the schedule has changed since it was last looked at, on the session thread after
@@ -90,6 +112,8 @@ pub(crate) fn schedule(s: &Session, count: u32) -> Vec<ScheduledReminder> {
 #[derive(Default)]
 pub(crate) struct ScheduleWatch {
     last: Option<u64>,
+    /// When `last` was worked out (the session's clock).
+    taken: i64,
 }
 
 impl ScheduleWatch {
@@ -97,18 +121,34 @@ impl ScheduleWatch {
     /// app asks for the schedule at every open).
     pub(crate) fn changed(&mut self, s: &Session) -> bool {
         let mut h = DefaultHasher::new();
-        schedule(s, MAX_SCHEDULED).hash(&mut h);
+        all(s).hash(&mut h);
         let now = h.finish();
+        self.taken = s.now();
         let before = self.last.replace(now);
         before.is_some_and(|b| b != now)
+    }
+
+    /// Before a job: the schedule is noted again when time alone may have moved it since (an
+    /// event came into the four weeks), so that the job's own change is told against it.
+    pub(crate) fn before_job(&mut self, s: &Session) {
+        if self.last.is_none() || s.now().saturating_sub(self.taken) >= STALE_AFTER_SECONDS {
+            let _ = self.changed(s);
+        }
     }
 }
 
 #[uniffi::export]
 impl Core {
     /// The next reminders of events and tasks for the system to raise, soonest first, at most
-    /// `count` and [`MAX_SCHEDULED`].
-    pub async fn reminder_schedule(&self, count: u32) -> Result<ReminderSchedule, CoreError> {
-        self.call(move |s| Ok(ReminderSchedule { rev: s.rev(), reminders: schedule(s, count) })).await
+    /// `count` and [`MAX_SCHEDULED`], leaving out those in `skip` (the ones the app showed
+    /// already; at most [`MAX_SKIPPED`] of them are read).
+    pub async fn reminder_schedule(&self, count: u32, skip: Vec<u64>) -> Result<ReminderSchedule, CoreError> {
+        let skip: HashSet<u64> = skip.into_iter().take(MAX_SKIPPED).collect();
+        let held = skip.len().saturating_mul(std::mem::size_of::<u64>());
+        self.call_holding(held, move |s| {
+            let (reminders, kept) = schedule(s, count, &skip);
+            Ok(ReminderSchedule { rev: s.rev(), reminders, kept })
+        })
+        .await
     }
 }

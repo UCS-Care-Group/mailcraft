@@ -6,7 +6,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
-import uniffi.mailcraft_mobile.ScheduledReminder
 
 /** The words a reminder's notification uses, in the interface language, put with each alarm when it is set. */
 internal data class ReminderWords(
@@ -64,14 +63,17 @@ internal class ReminderScheduler(
     private val lock = Mutex()
 
     /**
-     * Asks [ask] for the schedule (null when the core couldn't say: nothing is changed then) and
-     * sets, replaces and calls off the alarms.
+     * Asks [ask] for the schedule, leaving out the reminders shown already (null when the core
+     * couldn't say: nothing is changed then), and sets, replaces and calls off the alarms. The
+     * plan is kept before the alarms are called off; an alarm that outlives it (the process
+     * ended between) is not shown, as [ReminderReceiver] checks its key against what is kept.
      */
-    suspend fun refresh(words: ReminderWords, ask: suspend () -> List<ScheduledReminder>?) = lock.withLock {
+    suspend fun refresh(words: ReminderWords, ask: suspend (skip: List<Long>) -> Asked?) = lock.withLock {
         val switchedOn = on()
-        val schedule = if (switchedOn) ask() ?: return@withLock else emptyList()
+        val skip = store.update { it to skipped(it, nowMillis()) }
+        val asked = if (switchedOn) ask(skip) ?: return@withLock else Asked(emptyList())
         val plan = store.update { remembered ->
-            val plan = planReminders(schedule, remembered, nowMillis(), switchedOn)
+            val plan = planReminders(asked, remembered, nowMillis(), switchedOn)
             plan.remembered to plan
         }
         plan.cancel.forEach(alarms::cancel)
@@ -80,10 +82,11 @@ internal class ReminderScheduler(
     }
 }
 
-/** The core's next reminders; null when it can't say. */
-internal suspend fun askSchedule(core: Core): List<ScheduledReminder>? =
+/** The core's next reminders, less those in [skip]; null when it can't say. */
+internal suspend fun askSchedule(core: Core, skip: List<Long>): Asked? =
     try {
-        core.reminderSchedule(REMINDERS_ASKED.toUInt()).reminders
+        val answer = core.reminderSchedule(REMINDERS_ASKED.toUInt(), skip.map { it.toULong() })
+        Asked(answer.reminders, answer.kept.mapTo(HashSet()) { it.toLong() })
     } catch (_: CoreException) {
         null
     }

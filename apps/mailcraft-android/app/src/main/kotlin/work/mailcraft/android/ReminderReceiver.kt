@@ -50,7 +50,10 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     private fun fire(context: Context, payload: ReminderPayload) {
-        PrefsReminderStore(context).update { handledOne(it, payload.key) to Unit }
+        // Only a reminder the last schedule still has (or a snooze): an alarm whose event moved or
+        // went, and that outlived the call to cancel it, shows nothing.
+        val current = PrefsReminderStore(context).update { firing(it, payload.key) }
+        if (!current) return
         // The owner's Reminders switch, the right to notify and the channel, read as it comes.
         if (!DeviceSwitches(context).load().reminders) return
         if (!mailNotificationsAllowed(context, CHANNEL_REMINDERS)) return

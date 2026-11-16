@@ -3,9 +3,12 @@
 //! The reminders a phone schedules: what the core hands over, that a key holds from one ask to
 //! the next and changes with its event, and that a change to them is said.
 
+use mailcraft_engine::Session;
+use mailcraft_model::Mailbox;
 use serde_json::{Value, json};
 
 use crate::fake_tests::{block_on, now, sample_core};
+use crate::reminders::ScheduleWatch;
 use crate::{Core, CoreError, Event, MAX_SCHEDULED, ReminderKind, ScheduledReminder};
 
 fn exec(core: &Core, id: &str, params: Value) -> Result<Value, CoreError> {
@@ -13,7 +16,7 @@ fn exec(core: &Core, id: &str, params: Value) -> Result<Value, CoreError> {
 }
 
 fn schedule(core: &Core) -> Vec<ScheduledReminder> {
-    block_on(core.reminder_schedule(MAX_SCHEDULED)).unwrap().reminders
+    block_on(core.reminder_schedule(MAX_SCHEDULED, Vec::new())).unwrap().reminders
 }
 
 /// Whether a `ReminderScheduleChanged` is among the events waiting (the queue is read to its end).
@@ -41,9 +44,9 @@ fn the_schedule_is_soonest_first_bounded_and_keyed_the_same_at_every_ask() {
     assert_eq!(schedule(&sample_core()).iter().map(|r| r.key).collect::<Vec<_>>(), first.iter().map(|r| r.key).collect::<Vec<_>>());
     let keys: std::collections::HashSet<u64> = first.iter().map(|r| r.key).collect();
     assert_eq!(keys.len(), first.len());
-    assert!(block_on(core.reminder_schedule(0)).unwrap().reminders.is_empty());
-    assert!(block_on(core.reminder_schedule(u32::MAX)).unwrap().reminders.len() <= MAX_SCHEDULED as usize);
-    assert_eq!(block_on(core.reminder_schedule(1)).unwrap().reminders, first[..1]);
+    assert!(block_on(core.reminder_schedule(0, Vec::new())).unwrap().reminders.is_empty());
+    assert!(block_on(core.reminder_schedule(u32::MAX, Vec::new())).unwrap().reminders.len() <= MAX_SCHEDULED as usize);
+    assert_eq!(block_on(core.reminder_schedule(1, Vec::new())).unwrap().reminders, first[..1]);
 }
 
 #[test]
@@ -94,4 +97,46 @@ fn a_long_title_is_cut() {
     exec(&core, "calendar.new", json!({"title": "é".repeat(5_000), "start": "2026-10-15T08:00", "end": "2026-10-15T08:30", "reminder": 5})).unwrap();
     let long = schedule(&core).into_iter().find(|r| r.title.starts_with('é')).unwrap();
     assert_eq!(long.title.chars().count(), crate::text::MAX_TITLE);
+}
+
+#[test]
+fn reminders_already_shown_are_left_out_before_the_cap_and_said_to_be_still_there() {
+    let core = sample_core();
+    for day in 15..=28 {
+        for hour in [8, 10, 12, 14, 16] {
+            let start = format!("2026-10-{day}T{hour:02}:00");
+            let end = format!("2026-10-{day}T{hour:02}:30");
+            exec(&core, "calendar.new", json!({"title": format!("Slot {day} {hour}"), "start": start, "end": end, "reminder": 5})).unwrap();
+        }
+    }
+    let first = schedule(&core);
+    assert_eq!(first.len(), MAX_SCHEDULED as usize);
+    // The first ten were shown: the next ask gives ten later ones in their place.
+    let shown: Vec<u64> = first.iter().take(10).map(|r| r.key).collect();
+    let next = block_on(core.reminder_schedule(MAX_SCHEDULED, shown.clone())).unwrap();
+    assert_eq!(next.reminders.len(), MAX_SCHEDULED as usize);
+    assert!(next.reminders.iter().all(|r| !shown.contains(&r.key)));
+    assert_eq!(next.reminders[..54], first[10..]);
+    assert_eq!(next.kept.iter().copied().collect::<std::collections::HashSet<_>>(), shown.iter().copied().collect());
+    // A key that is no reminder is not kept.
+    assert!(block_on(core.reminder_schedule(1, vec![12345])).unwrap().kept.is_empty());
+}
+
+#[test]
+fn a_reminder_that_came_into_the_window_by_time_alone_is_told_gone_when_deleted() {
+    let start = now();
+    let mut s = Session::at(Mailbox::with_local_account("", ""), start, 0);
+    let id =
+        s.run("calendar.new", &json!({"title": "Far off", "start": "2026-11-20T09:00", "end": "2026-11-20T10:00", "reminder": 15})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+    let (mut watch, mut naive) = (ScheduleWatch::default(), ScheduleWatch::default());
+    assert!(!watch.changed(&s) && !naive.changed(&s));
+    // Ten days on, the event is inside the four weeks the schedule looks at.
+    s.clock.now = Some(start + 10 * 86_400);
+    watch.before_job(&s);
+    s.run("calendar.delete", &json!({"id": id})).unwrap();
+    // Told against a schedule from before the event came in, its deletion would change nothing.
+    assert!(!naive.changed(&s));
+    assert!(watch.changed(&s));
 }

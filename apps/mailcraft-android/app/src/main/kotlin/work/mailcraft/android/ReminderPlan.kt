@@ -31,6 +31,15 @@ internal data class Remembered(
     val snoozed: Map<Long, Long> = emptyMap(),
 )
 
+/** What the core said: the next reminders not yet shown, and which of those shown are still to come. */
+internal data class Asked(val reminders: List<ScheduledReminder>, val kept: Set<Long> = emptySet())
+
+/** The keys the core is asked to leave out: shown or dismissed, and not snoozed (a snooze is set again). */
+internal fun skipped(remembered: Remembered, nowMillis: Long): List<Long> {
+    val snoozed = remembered.snoozed.filterValues { it > nowMillis }.keys
+    return remembered.handled.filter { it !in snoozed }
+}
+
 /** One alarm to set: the reminder, and when the system is to raise it (ms). */
 internal data class ReminderAlarm(val reminder: ScheduledReminder, val atMillis: Long) {
     val key: Long get() = reminder.key.toLong()
@@ -54,7 +63,8 @@ internal fun secondsToMillis(seconds: Long): Long = when {
 }
 
 /**
- * Works out the alarms for [schedule], the core's next reminders, against what was [remembered].
+ * Works out the alarms for [asked], the core's next reminders, against what was [remembered].
+ * A key the core says is [Asked.kept] (shown already and still to come) has not left the schedule.
  * A reminder already shown or dismissed is not raised again, unless it is snoozed (then it comes
  * at the snooze's end). One that left the schedule has its alarm called off; when its event had
  * not started yet (it moved or was deleted), a notification of it that shows is taken away too,
@@ -62,7 +72,7 @@ internal fun secondsToMillis(seconds: Long): Long = when {
  * is called off and nothing is set.
  */
 internal fun planReminders(
-    schedule: List<ScheduledReminder>,
+    asked: Asked,
     remembered: Remembered,
     nowMillis: Long,
     on: Boolean,
@@ -72,8 +82,8 @@ internal fun planReminders(
         val all = (remembered.scheduled.keys + live.keys).distinct()
         return ReminderPlan(emptyList(), all, emptyList(), Remembered(handled = remembered.handled))
     }
-    val current = schedule.take(REMINDERS_ASKED).distinctBy { it.key }
-    val keys = current.mapTo(HashSet()) { it.key.toLong() }
+    val current = asked.reminders.take(REMINDERS_ASKED).distinctBy { it.key }
+    val keys = current.mapTo(HashSet()) { it.key.toLong() } + asked.kept
     val handled = remembered.handled.toHashSet()
     val removed = remembered.scheduled.filterKeys { it !in keys }
     val withdraw = removed.filterValues { it > nowMillis }.keys
@@ -87,7 +97,8 @@ internal fun planReminders(
             else -> ReminderAlarm(r, secondsToMillis(r.at))
         }
     }
-    val scheduled = current.associate { it.key.toLong() to secondsToMillis(it.starts) }
+    val scheduled = remembered.scheduled.filterKeys { it in asked.kept } +
+        current.associate { it.key.toLong() to secondsToMillis(it.starts) }
     return ReminderPlan(set, cancel, withdraw.toList(), Remembered(scheduled, remembered.handled, snoozed))
 }
 
@@ -95,6 +106,15 @@ internal fun planReminders(
 internal fun handledOne(remembered: Remembered, key: Long): Remembered {
     val handled = (remembered.handled.filter { it != key } + key).takeLast(REMINDERS_REMEMBERED)
     return remembered.copy(handled = handled, snoozed = remembered.snoozed - key)
+}
+
+/**
+ * An alarm of [key] came: whether it is shown (the last schedule still has it, or it is snoozed),
+ * and [remembered] with it handled when it is.
+ */
+internal fun firing(remembered: Remembered, key: Long): Pair<Remembered, Boolean> {
+    val known = key in remembered.scheduled || key in remembered.snoozed
+    return (if (known) handledOne(remembered, key) else remembered) to known
 }
 
 /** [remembered] with [key] put off until [untilMillis]. */

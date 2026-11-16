@@ -400,6 +400,9 @@ fn run_session(make: impl FnOnce() -> Session, inbox: mpsc::Receiver<Job>, sink:
                 Err(_) => break,
             },
         };
+        if job.is_some() {
+            let _ = catch_unwind(AssertUnwindSafe(|| reminders.before_job(&session)));
+        }
         // (A job catches its own panic; this is for what it does outside it.)
         if let Some(job) = job
             && catch_unwind(AssertUnwindSafe(|| job(&mut session))).is_err()

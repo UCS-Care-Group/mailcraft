@@ -96,7 +96,8 @@ class MailCraftApplication : Application() {
 
     /** Sets the reminders' alarms again from [core], off the caller's way. */
     private fun refreshRemindersSoon(core: Core) {
-        scope.launch { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core) } }
+        // (Off the main thread: the store reads and writes a preferences file.)
+        scope.launch(Dispatchers.IO) { reminders.refresh(ReminderWords.from(core::t)) { askSchedule(core, it) } }
     }
 
     /**
@@ -106,7 +107,7 @@ class MailCraftApplication : Application() {
     internal suspend fun refreshRemindersNow(): Boolean {
         begin()
         val opened = (started.first { it !is Phase.Loading } as? Phase.Ready)?.value ?: return false
-        reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core) }
+        reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
         return true
     }
 
