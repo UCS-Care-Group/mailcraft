@@ -18,6 +18,7 @@ import uniffi.mailcraft_mobile.SecretStore
  * through UniFFI. Showing and scheduling notifications are for the notification slice and say
  * [HostException.Unsupported] until then (the channels they will use exist already).
  */
+@Suppress("TooManyFunctions") // One function per entry of the core's `Platform`, which is that long.
 internal class AndroidPlatform(
     context: Context,
     private val handback: SignInHandback,
@@ -30,6 +31,7 @@ internal class AndroidPlatform(
     )
     private val page = SignInPage(context, handback, foreground)
     private val files = OpenedFiles(context)
+    private val links = SystemLinks(context, foreground)
 
     override fun secrets(): SecretStore? = secrets
 
@@ -47,9 +49,14 @@ internal class AndroidPlatform(
 
     override fun openFile(name: String, bytes: ByteArray) = guarded { files.open(name, bytes) }
 
+    override fun openLink(url: String) = guarded { links.launch(url) }
+
     override fun now(): Long = System.currentTimeMillis() / MILLIS_PER_SECOND
 
     override fun utcOffsetMinutes(at: Long): Int = guarded { utcOffsetMinutes(TimeZone.getDefault(), at) }
+
+    /** The IANA id (`Europe/Berlin`); the core uses it when it knows the name, else the offset above. */
+    override fun timeZoneName(): String = guarded { TimeZone.getDefault().id }
 
     override fun memoryBudget(): ULong? = guarded { device.memoryBudget() }
 

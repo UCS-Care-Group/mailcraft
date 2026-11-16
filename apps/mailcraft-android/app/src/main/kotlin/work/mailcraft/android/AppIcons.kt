@@ -142,6 +142,14 @@ internal object AppIcons {
         }
     }
 
+    /** A plus, for adding. */
+    val Add: ImageVector by lazy {
+        icon("Add") {
+            line(12f, 5f, 12f, 19f)
+            line(5f, 12f, 19f, 12f)
+        }
+    }
+
     /** A tick, for the choice that is on. */
     val Check: ImageVector by lazy {
         icon("Check") {
@@ -151,20 +159,66 @@ internal object AppIcons {
         }
     }
 
-    /** A plus, for making a new task. */
-    val Add: ImageVector by lazy {
-        icon("Add") {
-            line(12f, 5f, 12f, 19f)
-            line(5f, 12f, 19f, 12f)
-        }
-    }
-
     /** A pointing chevron, for a row that opens another page. */
     val Next: ImageVector by lazy {
         icon("Next") {
             moveTo(9f, 5f)
             lineTo(16f, 12f)
             lineTo(9f, 19f)
+        }
+    }
+
+    /** A sheet with a folded corner, for a file. */
+    val File: ImageVector by lazy {
+        icon("File") {
+            moveTo(6f, 3f)
+            lineTo(14f, 3f)
+            lineTo(19f, 8f)
+            lineTo(19f, 21f)
+            lineTo(6f, 21f)
+            close()
+            moveTo(14f, 3f)
+            lineTo(14f, 8f)
+            lineTo(19f, 8f)
+        }
+    }
+
+    /** Three dots one above the other: more actions. */
+    val More: ImageVector by lazy {
+        icon("More") {
+            circle(12f, 5f, 1.4f)
+            circle(12f, 12f, 1.4f)
+            circle(12f, 19f, 1.4f)
+        }
+    }
+
+    /** A cross, to close. */
+    val Close: ImageVector by lazy {
+        icon("Close") {
+            line(6f, 6f, 18f, 18f)
+            line(18f, 6f, 6f, 18f)
+        }
+    }
+
+    /** A paperclip. */
+    val Attach: ImageVector by lazy {
+        icon("Attach") {
+            moveTo(19f, 11f)
+            lineTo(11.5f, 18.5f)
+            arcTo(4f, 4f, 0f, false, true, 5.8f, 12.8f)
+            lineTo(13f, 5.6f)
+            arcTo(2.7f, 2.7f, 0f, false, true, 16.9f, 9.4f)
+            lineTo(9.7f, 16.6f)
+            arcTo(1.3f, 1.3f, 0f, false, true, 7.8f, 14.8f)
+            lineTo(14.2f, 8.3f)
+        }
+    }
+
+    /** A plus, for a new message. */
+    val Plus: ImageVector by lazy {
+        icon("Plus") {
+            line(12f, 5f, 12f, 19f)
+            line(5f, 12f, 19f, 12f)
         }
     }
 }

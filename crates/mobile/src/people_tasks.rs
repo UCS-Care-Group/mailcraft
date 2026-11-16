@@ -9,7 +9,7 @@ use mailcraft_engine::Session;
 use mailcraft_engine::cmd::tasks_remote::{local_task_count, task_accounts};
 use mailcraft_model::{Labeled, LocalTasks};
 
-use crate::queries::{bad, task_record};
+use crate::queries::{account_kind, bad, task_record};
 use crate::records::{AccountRecord, LabeledRecord, PersonDetail, TaskDetail, TaskSetup};
 use crate::text::{self, MAX_ADDRESS, MAX_LISTED, MAX_NAME, MAX_PEOPLE_IN_ITEM};
 use crate::{Core, CoreError};
@@ -28,6 +28,7 @@ fn setup(s: &Session) -> TaskSetup {
         name: text::clip(&a.name, MAX_NAME),
         email: text::clip(&a.email, MAX_ADDRESS),
         display_name: text::clip(&a.display_name, MAX_NAME),
+        kind: account_kind(a.kind).to_string(),
     });
     let (answered, sent_to) = match s.mailbox.local_tasks {
         LocalTasks::Unasked => (false, None),

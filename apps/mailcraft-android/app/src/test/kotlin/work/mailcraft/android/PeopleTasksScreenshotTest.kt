@@ -27,7 +27,7 @@ class PhonePeopleTasksScreenshotTest {
         paparazzi.unsafeUpdateConfig(
             DeviceConfig.PIXEL_5.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale),
         )
-        paparazzi.snapshot(name) { ShellShots.Shell(shown.first, shown = shown.second) }
+        paparazzi.snapshot(name) { ShellShots.Shell(shown.first, with = shown.second) }
     }
 
     private val todayPage = page(Tab.Today)
@@ -90,7 +90,7 @@ class TabletPeopleTasksScreenshotTest {
         paparazzi.unsafeUpdateConfig(
             DeviceConfig.NEXUS_10.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale),
         )
-        paparazzi.snapshot(name) { ShellShots.Shell(shown.first, shown = shown.second) }
+        paparazzi.snapshot(name) { ShellShots.Shell(shown.first, with = shown.second) }
     }
 
     private val todayPage = page(Tab.Today)

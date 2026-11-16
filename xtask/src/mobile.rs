@@ -74,7 +74,7 @@ pub fn check_report(report: &str, list: &Allowlist) -> Vec<String> {
         let mut parts = coords.splitn(3, ':');
         let (group, name) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
         let artifact = format!("{group}:{name}");
-        if BANNED_GROUPS.iter().any(|b| group == *b || group.starts_with(&format!("{b}."))) {
+        if banned_group(group) {
             problems.push(format!("{coords}: Google Play Services and Firebase may not ship"));
             continue;
         }
@@ -90,18 +90,61 @@ pub fn check_report(report: &str, list: &Allowlist) -> Vec<String> {
     problems
 }
 
-/// The banned groups named anywhere in the text of `gradlew :app:dependencies` (every
-/// configuration, the build's own tooling included).
+/// Where the app's Licences screen keeps its list, relative to the app directory.
+const LICENCE_PAGE: &str = "app/src/main/kotlin/work/mailcraft/android/Licence.kt";
+
+/// The Maven groups the Licences screen claims, from the `groups = listOf("…")` of each row of
+/// `Licence.kt` (the rows for the program's own code and the Rust core claim none).
+pub fn licence_page_groups(source: &str) -> Vec<String> {
+    let mut groups = Vec::new();
+    for line in source.lines().filter(|l| !l.trim_start().starts_with("//")) {
+        let Some(at) = line.find("groups = listOf(") else { continue };
+        let rest = line.get(at..).unwrap_or("");
+        let inside = rest.split_once('(').map_or("", |(_, r)| r);
+        let inside = inside.split_once(')').map_or(inside, |(l, _)| l);
+        groups.extend(inside.split('"').skip(1).step_by(2).map(str::to_string));
+    }
+    groups
+}
+
+fn covers(claim: &str, group: &str) -> bool {
+    group == claim || group.strip_prefix(claim).is_some_and(|rest| rest.starts_with('.'))
+}
+
+/// Where the Licences screen and the dependency report disagree: a group that ships and no row
+/// claims, and a row claiming a group that no longer ships. Returns the problems, empty when they agree.
+pub fn check_licence_page(report: &str, page_source: &str) -> Vec<String> {
+    let claims = licence_page_groups(page_source);
+    let shipped: Vec<&str> = report.lines().filter_map(|l| l.split(':').next()).filter(|g| !g.trim().is_empty()).collect();
+    let mut problems = Vec::new();
+    for group in &shipped {
+        if !claims.iter().any(|c| covers(c, group)) && !problems.iter().any(|p: &String| p.starts_with(&format!("{group}:"))) {
+            problems.push(format!("{group}: ships in the app, but no row of Licence.kt claims it"));
+        }
+    }
+    for claim in &claims {
+        if !shipped.iter().any(|g| covers(claim, g)) {
+            problems.push(format!("{claim}: a row of Licence.kt claims it, but nothing of it ships"));
+        }
+    }
+    problems
+}
+
+/// Whether a group is banned: exactly, or as a subgroup (`com.google.firebase.tools`).
+fn banned_group(group: &str) -> bool {
+    BANNED_GROUPS.iter().any(|b| group == *b || group.starts_with(&format!("{b}.")))
+}
+
+/// The banned groups (or their subgroups) named anywhere in the text of `gradlew :app:dependencies`
+/// (every configuration, the build's own tooling included).
 pub fn banned_in_tree(tree: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for line in tree.lines() {
-        for group in BANNED_GROUPS {
-            let needle = format!("{group}:");
-            if let Some(at) = line.find(&needle) {
-                let coord: String = line[at..].chars().take_while(|c| !c.is_whitespace()).collect();
-                if !found.contains(&coord) {
-                    found.push(coord);
-                }
+        for token in line.split_whitespace() {
+            let coord = token.trim_start_matches(|c: char| !c.is_alphanumeric());
+            let Some((group, _)) = coord.split_once(':') else { continue };
+            if banned_group(group) && !found.iter().any(|f| f == coord) {
+                found.push(coord.to_string());
             }
         }
     }
@@ -145,6 +188,8 @@ pub fn run(root: &Path) -> Result<(), String> {
         parse_allowlist(&std::fs::read_to_string(root.join(APP).join("licences-allowed.txt")).map_err(|e| format!("licences-allowed.txt: {e}"))?)?;
     let report = std::fs::read_to_string(root.join(APP).join(REPORT)).map_err(|e| format!("{REPORT}: {e}"))?;
     let mut problems = check_report(&report, &list);
+    let page = std::fs::read_to_string(root.join(APP).join(LICENCE_PAGE)).map_err(|e| format!("{LICENCE_PAGE}: {e}"))?;
+    problems.extend(check_licence_page(&report, &page));
 
     let tree = gradle(root, &[":app:dependencies"]).output().map_err(|e| format!("gradlew dependencies: {e}"))?;
     if !tree.status.success() {

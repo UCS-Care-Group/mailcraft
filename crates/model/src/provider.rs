@@ -5,7 +5,9 @@
 //!
 //! Plain data: nothing is looked up here. A host with sockets asks the DNS for the exchangers and
 //! passes the answer in, which is how an address at a company's own domain is recognised as
-//! (say) Microsoft 365. The server names are the ones each provider publishes.
+//! (say) Microsoft 365. The server names are the ones each provider publishes. The hosts the
+//! domain names for Autodiscover tell an Exchange server from an IMAP one the same way
+//! ([`by_autodiscover`]).
 
 use crate::{OAuthProvider, Security, Server};
 
@@ -71,12 +73,15 @@ pub fn is_microsoft_imap_host(host: &str) -> bool {
 ///
 /// Only what the provider publishes: Google documents `mx.google.com` as the authserv-id of the
 /// header Gmail adds (Gmail help, "Trace an email with its full headers"), and Gmail and Google
-/// Workspace share `imap.gmail.com`. Other providers are left out until their ids are
-/// documented: for them (and for an unknown host) the caller falls back to the IMAP host's own
-/// domain, or asks the owner.
+/// Workspace share `imap.gmail.com`. IONOS's servers write `kundenserver.de`, the domain of its
+/// own mail servers (IONOS help, "IP addresses of the IONOS mail servers": `mout.kundenserver.de`
+/// and the rest; seen as the id on a tester's mail, #1311), for every country's IMAP host. Other
+/// providers are left out until their ids are known: for them (and for an unknown host) the
+/// caller falls back to the IMAP host's own domain, or asks the owner.
 pub fn authserv_ids(imap_host: &str) -> &'static [&'static str] {
     match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
         "imap.gmail.com" => &["mx.google.com"],
+        "imap.ionos.co.uk" | "imap.ionos.de" | "imap.ionos.com" | "imap.ionos.es" | "imap.ionos.fr" | "imap.ionos.it" => &["kundenserver.de"],
         _ => &[],
     }
 }
@@ -248,6 +253,98 @@ pub fn by_mx(host: &str) -> Option<Preset> {
     None
 }
 
+/// What a domain's DNS says about its Autodiscover, from the hosts it names for it (the targets
+/// of its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`), before any
+/// of them is asked anything.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Autodiscover {
+    /// No host, or only hosts that answer Autodiscover for mail on IMAP servers.
+    Nothing,
+    /// Microsoft 365: the mailbox is a Microsoft account, signed in on Microsoft's page.
+    Microsoft,
+    /// An Exchange server somebody runs for the domain (the organisation itself, or a hoster).
+    Exchange,
+}
+
+/// Hosts (and everything under them) whose Autodiscover hands out the settings of IMAP servers
+/// for Outlook, not an Exchange server's: cPanel names its own in the SRV record of every domain
+/// it hosts.
+const IMAP_AUTODISCOVER: &[&str] = &["cpanel.net"];
+
+/// Whose the Autodiscover the hosts in `hosts` serve is. Microsoft's anywhere in the list wins:
+/// the mail is in Microsoft 365, and nothing is sent to the others either.
+pub fn by_autodiscover(hosts: &[String]) -> Autodiscover {
+    let hosts: Vec<String> =
+        hosts.iter().take(16).map(|host| host.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|host| is_domain(host)).collect();
+    if hosts.iter().any(|host| crate::is_exchange_online(host)) {
+        return Autodiscover::Microsoft;
+    }
+    let exchange = |host: &String| !IMAP_AUTODISCOVER.iter().any(|imap| crate::is_within(host, imap));
+    if hosts.iter().any(exchange) { Autodiscover::Exchange } else { Autodiscover::Nothing }
+}
+
+/// Where a known provider keeps an account's calendars and contacts (CalDAV and CardDAV, Q6 of
+/// the server-calendars spec): addresses a host uses without looking anything up, and the hosts
+/// the password may go to for that provider's accounts (and no other account's).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DavPreset {
+    /// The provider's name.
+    pub service: &'static str,
+    /// The CalDAV server's address.
+    pub caldav: &'static str,
+    /// The CardDAV server's address.
+    pub carddav: &'static str,
+    /// Host names that a numbered host of the provider ends in: `p<digits>-` and one of these
+    /// (iCloud puts each account on a numbered host of its own, which the server's answer names).
+    shards: &'static [&'static str],
+}
+
+impl DavPreset {
+    /// Whether `host` (lower case, no port) is one of the provider's own DAV hosts: the two
+    /// addresses' hosts, or a numbered one (`p07-caldav.icloud.com`).
+    pub fn trusts(&self, host: &str) -> bool {
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        let named = |address: &str| address.strip_prefix("https://").and_then(|rest| rest.split('/').next()).is_some_and(|own| own == host);
+        named(self.caldav)
+            || named(self.carddav)
+            || self.shards.iter().any(|tail| {
+                host.strip_suffix(tail)
+                    .and_then(|front| front.strip_prefix('p'))
+                    .and_then(|front| front.strip_suffix('-'))
+                    .is_some_and(|digits| !digits.is_empty() && digits.len() <= 4 && digits.bytes().all(|b| b.is_ascii_digit()))
+            })
+    }
+}
+
+const ICLOUD_DAV: DavPreset = DavPreset {
+    service: "iCloud",
+    caldav: "https://caldav.icloud.com/",
+    carddav: "https://contacts.icloud.com/",
+    shards: &["caldav.icloud.com", "contacts.icloud.com"],
+};
+const FASTMAIL_DAV: DavPreset =
+    DavPreset { service: "Fastmail", caldav: "https://caldav.fastmail.com/", carddav: "https://carddav.fastmail.com/", shards: &[] };
+
+/// The calendar and contacts servers of the provider whose address's domain this is (`icloud.com`,
+/// `fastmail.com`), or whose IMAP server (`imap.fastmail.com`) holds the account; `None` for any
+/// other domain. Only iCloud and Fastmail: the others wait until their public documents are checked.
+pub fn dav_by_domain(domain: &str) -> Option<DavPreset> {
+    match domain.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
+        "icloud.com" | "me.com" | "mac.com" => Some(ICLOUD_DAV),
+        "fastmail.com" | "fastmail.fm" => Some(FASTMAIL_DAV),
+        _ => None,
+    }
+}
+
+/// [`dav_by_domain`] for an account whose mail is on `imap_host` (a custom domain at a provider).
+pub fn dav_by_imap_host(imap_host: &str) -> Option<DavPreset> {
+    match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
+        "imap.mail.me.com" => Some(ICLOUD_DAV),
+        "imap.fastmail.com" => Some(FASTMAIL_DAV),
+        _ => None,
+    }
+}
+
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
 /// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`).
 pub fn by_name(name: &str) -> Option<Preset> {
@@ -272,18 +369,28 @@ pub enum Via {
     /// The domain's own DNS: an `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp` or
     /// `_submission._tcp` SRV record (RFC 6186).
     Srv,
+    /// What the domain publishes for mail programs: `https://autoconfig.<domain>/…` or
+    /// `https://<domain>/.well-known/autoconfig/…` (Thunderbird's autoconfig document, #1112).
+    Autoconfig,
+    /// Mozilla's ISP database (`autoconfig.thunderbird.net`), asked about the domain, or about
+    /// the domain of its mail exchanger (#1112).
+    Ispdb,
 }
 
 impl Via {
     pub fn code(self) -> &'static str {
         match self {
             Via::Srv => "srv",
+            Via::Autoconfig => "autoconfig",
+            Via::Ispdb => "ispdb",
         }
     }
 
     pub fn parse(code: &str) -> Option<Via> {
         match code.trim() {
             "srv" => Some(Via::Srv),
+            "autoconfig" => Some(Via::Autoconfig),
+            "ispdb" => Some(Via::Ispdb),
             _ => None,
         }
     }
@@ -309,7 +416,7 @@ impl std::fmt::Debug for FoundServer {
 
 /// What a host with sockets found out about a domain nobody here knows, once the owner pressed
 /// Connect: its mail exchangers (by which [`by_mx`] may know whose it is), and, when they say
-/// nothing, the servers the domain's own records name, for the owner to confirm.
+/// nothing, the servers the domain's own records or a database name, for the owner to confirm.
 /// Nothing here was looked up by the model: `mailcraft_net::discover` fills it in.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Discovered {
@@ -317,6 +424,9 @@ pub struct Discovered {
     pub exchangers: Vec<String>,
     pub incoming: Option<FoundServer>,
     pub outgoing: Option<FoundServer>,
+    /// How the owner signs in, as the servers' source wrote it: the address or one of its
+    /// parts, `%EMAILADDRESS%`, `%EMAILLOCALPART%` or `%EMAILDOMAIN%`; empty for the address.
+    pub username: String,
 }
 
 /// The hosts are the organisation's own: not for a log.
@@ -411,3 +521,7 @@ mod tests {
         assert!(is_domain("mail.lumen.example") && !is_domain("localhost") && !is_domain(&format!("{}.example", "a".repeat(64))));
     }
 }
+
+#[cfg(test)]
+#[path = "provider_tests.rs"]
+mod provider_tests;

@@ -42,17 +42,18 @@ private fun launch(context: Context, action: String, link: String?): Boolean {
 }
 
 /**
- * The state of the three tabs over [core], once [ready]. Contacts are read a window at a time; a
+ * The state of the three tabs over [core], once [ready], read again whenever [reload] moves on (the
+ * mailbox changed: a synchronisation brought contacts or tasks). Contacts are read a window at a time; a
  * change to a task is a command (`tasks.new`, `tasks.edit`, `tasks.complete`, `tasks.delete`) and
  * the lists are read again after it. Nothing is sent to a server from here.
  */
 @Composable
-internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean): Hosted {
+internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: Int = 0): Hosted {
     val context = LocalContext.current
     val tick = remember { mutableIntStateOf(0) }
-    val people = rememberPeople(core, texts, ready, context)
-    val tasks = rememberTasks(core, texts, ready, tick)
-    val today by produceState<TodayState>(TodayState.Loading, ready, tick.intValue) {
+    val people = rememberPeople(core, texts, ready, reload, context)
+    val tasks = rememberTasks(core, texts, ready, reload, tick)
+    val today by produceState<TodayState>(TodayState.Loading, ready, reload, tick.intValue) {
         if (ready) value = loadToday(core)
     }
     return Hosted(today, people.first, tasks.first, people.second, tasks.second)
@@ -63,6 +64,7 @@ private fun rememberPeople(
     core: Core,
     texts: Texts,
     ready: Boolean,
+    reload: Int,
     context: Context,
 ): Pair<PeopleData, PeopleActions> {
     val scope = rememberCoroutineScope()
@@ -70,10 +72,10 @@ private fun rememberPeople(
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf<PeopleState>(PeopleState.Loading) }
-    val person by produceState<PersonState?>(null, ready, open) {
+    val person by produceState<PersonState?>(null, ready, reload, open) {
         value = open?.let { if (ready) loadPerson(core, it.toULong()) else PersonState.Loading }
     }
-    LaunchedEffect(ready, query) { if (ready) state = loadPeople(core, query, 0) }
+    LaunchedEffect(ready, reload, query) { if (ready) state = loadPeople(core, query, 0) }
     val actions = PeopleActions(
         onQuery = { query = it.take(MAX_QUERY) },
         onMore = {
@@ -118,6 +120,7 @@ private fun rememberTasks(
     core: Core,
     texts: Texts,
     ready: Boolean,
+    reload: Int,
     tick: MutableIntState,
 ): Pair<TasksData, TasksActions> {
     val scope = rememberCoroutineScope()
@@ -125,7 +128,7 @@ private fun rememberTasks(
     var editor by remember { mutableStateOf<DraftState?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var depth by remember { mutableStateOf<Map<String, UInt>>(emptyMap()) }
-    val state by produceState<TasksState>(TasksState.Loading, ready, showCompleted, depth, tick.intValue) {
+    val state by produceState<TasksState>(TasksState.Loading, ready, reload, showCompleted, depth, tick.intValue) {
         if (ready) value = loadTasks(core, showCompleted, depth)
     }
     // Runs a command and reads the lists again; says so when the core refused it.

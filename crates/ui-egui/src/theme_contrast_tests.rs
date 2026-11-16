@@ -91,7 +91,7 @@ const STRONG_PAIRS: &[Pair] = &[
     ("text on pill_quiet", |t| t.text, |t| t.pill_quiet, TEXT),
 ];
 
-/// Every accent, light and dark, with high contrast off and on.
+/// Every accent, light and dark (in both its styles, #1384), with high contrast off and on.
 fn every_theme() -> Vec<(String, Tokens, bool)> {
     let mut all = Vec::new();
     for accent in Accent::ALL {
@@ -99,6 +99,10 @@ fn every_theme() -> Vec<(String, Tokens, bool)> {
             for high in [false, true] {
                 let name = format!("{} {} {}", accent.code(), if dark { "dark" } else { "light" }, if high { "high contrast" } else { "normal" });
                 all.push((name, Tokens::build(dark, accent, high), high));
+                if dark {
+                    let name = format!("{} blue dark {}", accent.code(), if high { "high contrast" } else { "normal" });
+                    all.push((name, Tokens::build_dark(super::DarkStyle::Blue, accent, high), high));
+                }
             }
         }
     }

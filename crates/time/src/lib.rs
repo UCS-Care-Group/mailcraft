@@ -3,16 +3,20 @@
 //! MailCraft dates and times.
 //!
 //! Calendar maths is our own (proleptic Gregorian, no leap seconds) so it is the same on every
-//! platform and never panics on hostile input. The clock ([`now`]) and this computer's time zone
-//! ([`Zone::system`], [`local_offset_minutes`]) are the only things that ask the system (or the
-//! browser). Time zones ([`Zone`]) come from a database that is compiled in.
+//! platform and never panics on hostile input. The clock ([`now`], [`Stopwatch`]) and this
+//! computer's time zone ([`Zone::system`], [`local_offset_minutes`]) are the only things that ask
+//! the system (or the browser). Time zones ([`Zone`]) come from a database that is compiled in.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod stopwatch;
+#[cfg(test)]
+mod stopwatch_tests;
 mod text;
 pub mod zone;
 
 use serde::{Deserialize, Serialize};
 
+pub use stopwatch::Stopwatch;
 pub use text::{format_iso_utc, format_rfc5322, iso_to_timestamp, parse_iso, parse_rfc5322};
 pub use zone::{MAX_ZONE_NAME, Transition, Zone};
 
@@ -248,10 +252,16 @@ impl Date {
     /// From `YYYY-MM-DD` (or `YYYYMMDD`).
     pub fn parse_iso(s: &str) -> Option<Date> {
         let s = s.trim();
-        let digits: String = s.chars().filter(char::is_ascii_digit).collect();
-        if digits.len() != 8 || s.chars().any(|c| !c.is_ascii_digit() && c != '-') {
+        let b = s.as_bytes();
+        let ok = match b.len() {
+            8 => b.iter().all(u8::is_ascii_digit),
+            10 => b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() }),
+            _ => false,
+        };
+        if !ok {
             return None;
         }
+        let digits: String = s.chars().filter(char::is_ascii_digit).collect();
         Date::new(digits.get(0..4)?.parse().ok()?, digits.get(4..6)?.parse().ok()?, digits.get(6..8)?.parse().ok()?)
     }
 

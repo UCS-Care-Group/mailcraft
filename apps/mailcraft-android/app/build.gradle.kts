@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation("${libs.jna.get()}@aar")
     implementation(libs.platform.verifier)
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
 }
@@ -193,6 +194,13 @@ val dependencyLicences by tasks.registering {
     val out = layout.buildDirectory.file("reports/dependency-licences.tsv")
     outputs.file(out)
     val configuration = configurations.named("releaseRuntimeClasspath")
+    // The resolved tree is the input: a changed version (or a new dependency) reruns the task.
+    inputs.property(
+        "resolvedComponents",
+        configuration.map { c ->
+            c.incoming.resolutionResult.allComponents.map { it.id.displayName }.sorted().joinToString("\n")
+        },
+    )
     doLast {
         val ids = configuration.get().incoming.resolutionResult.allComponents
             .mapNotNull { it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier }

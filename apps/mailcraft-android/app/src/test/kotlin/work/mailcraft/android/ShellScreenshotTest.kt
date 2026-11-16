@@ -55,6 +55,19 @@ class PhoneShellScreenshotTest {
     @Test
     fun languageLight100() =
         shoot("phone_language_light_100", night = false, fontScale = 1f, nav = NavState().openPage(SettingsPage.Language))
+
+    private fun shootOpening(name: String, night: Boolean, fontScale: Float) {
+        paparazzi.unsafeUpdateConfig(
+            DeviceConfig.PIXEL_5.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale),
+        )
+        paparazzi.snapshot(name) { ShellShots.Starting() }
+    }
+
+    @Test
+    fun openingLight100() = shootOpening("phone_opening_light_100", night = false, fontScale = 1f)
+
+    @Test
+    fun openingDark200() = shootOpening("phone_opening_dark_200", night = true, fontScale = 2f)
 }
 
 /** The shell on a tablet (an expanded window): the rail of five items instead of the bottom bar. */
@@ -87,4 +100,4 @@ class TabletShellScreenshotTest {
 }
 
 // The goldens are drawn on one machine and checked on another; anti-aliasing may differ by a hair.
-private const val TOLERANCE = 0.1
+internal const val TOLERANCE = 0.1

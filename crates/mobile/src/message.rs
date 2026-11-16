@@ -33,7 +33,7 @@ fn attachment_of<'a>(message: &'a Message, src: &str) -> Option<(usize, &'a Atta
 }
 
 /// A picture's kind, told from its own bytes.
-fn sniff(bytes: &[u8]) -> Option<&'static str> {
+pub(crate) fn sniff(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
@@ -107,6 +107,7 @@ impl Core {
                 blocks: views,
                 dark_design,
                 remote_pictures: text::count_of(remote_pictures),
+                whole: !m.unfetched && !m.incomplete && m.not_downloaded == 0,
             })
         })
         .await
@@ -116,7 +117,10 @@ impl Core {
     /// image block): a part of the message, or one written into it. Only a PNG, JPEG, GIF or
     /// WebP, by its own bytes, within 20 MB, is handed over.
     pub async fn picture(&self, id: u64, reference: String) -> Result<PictureBytes, CoreError> {
-        self.call(move |s| {
+        if reference.len() > text::MAX_URL {
+            return Err(bad("that is not a picture of the message"));
+        }
+        self.call_holding(reference.len(), move |s| {
             let m = load(s, id)?;
             let bytes: Vec<u8> = if let Some(rest) = reference.strip_prefix("data:") {
                 let mut parts = rest.split(':');

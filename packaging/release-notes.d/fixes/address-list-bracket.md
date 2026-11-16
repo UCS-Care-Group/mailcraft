@@ -1,1 +1,0 @@
-- A group whose name holds an unclosed `[`, such as `[EXT Team: ada@example.org;`, again gives its members instead of one address made of the whole text; a `[` now starts a domain literal only right after `@`.

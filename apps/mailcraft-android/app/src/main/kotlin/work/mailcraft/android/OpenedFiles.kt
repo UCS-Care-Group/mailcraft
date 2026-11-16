@@ -20,10 +20,29 @@ internal fun safeFileName(name: String): String {
     val last = name.substringAfterLast('/').substringAfterLast('\\')
     val cleaned = last.filter { it.code >= SPACE && it !in RESERVED }.trim().trim('.').trim()
     if (cleaned.isEmpty()) return FALLBACK
-    if (cleaned.length <= MAX_NAME) return cleaned
+    if (utf8Length(cleaned) <= MAX_NAME_BYTES) return cleaned
     val dot = cleaned.lastIndexOf('.')
-    val extension = if (dot > 0 && cleaned.length - dot <= MAX_EXTENSION) cleaned.substring(dot) else ""
-    return cleaned.take(MAX_NAME - extension.length) + extension
+    val tail = if (dot > 0) cleaned.substring(dot) else ""
+    val extension = if (utf8Length(tail) <= MAX_EXTENSION_BYTES) tail else ""
+    val stem = cleaned.substring(0, cleaned.length - extension.length)
+    val base = takeBytes(stem, MAX_NAME_BYTES - utf8Length(extension))
+    return base.trim().trim('.').ifEmpty { FALLBACK } + extension
+}
+
+private fun utf8Length(s: String): Int = s.toByteArray(Charsets.UTF_8).size
+
+/** The longest start of [s] that is at most [max] UTF-8 bytes, cut between code points. */
+private fun takeBytes(s: String, max: Int): String {
+    var bytes = 0
+    var i = 0
+    while (i < s.length) {
+        val cp = s.codePointAt(i)
+        val width = String(Character.toChars(cp)).toByteArray(Charsets.UTF_8).size
+        if (bytes + width > max) break
+        bytes += width
+        i += Character.charCount(cp)
+    }
+    return s.substring(0, i)
 }
 
 /** Whether the system's package installers would take this file; they are never handed one. */
@@ -39,16 +58,36 @@ internal fun refuseUnlessOpenable(safeName: String, size: Int) {
     if (size > MAX_OPEN_BYTES) throw HostException.TooLong()
 }
 
+/**
+ * Where a temporary copy is written: a folder of its own ([folder], a random name made by the caller)
+ * under [root], and [name] (already made safe) in it. Never anywhere else: a name that would leave the folder
+ * is refused.
+ */
+internal fun stagedFile(root: File, folder: String, name: String): File {
+    if (folder.any { it == '/' || it == '\\' } || folder.contains("..")) throw IOException("outside")
+    val own = File(root, folder)
+    val file = File(own, safeFileName(name))
+    if (file.canonicalFile.parentFile?.canonicalFile != own.canonicalFile) throw IOException("outside")
+    return file
+}
+
 /** Removes everything under [dir], and [dir] itself. */
 internal fun clearDirectory(dir: File) {
     dir.walkBottomUp().forEach { it.delete() }
 }
 
+/** Removes each copy folder under [dir] last written more than [maxAgeMillis] before [now]. */
+internal fun clearOlderThan(dir: File, maxAgeMillis: Long, now: Long) {
+    dir.listFiles()?.forEach { child ->
+        if (now - child.lastModified() > maxAgeMillis) clearDirectory(child)
+    }
+}
+
 private val RESERVED = setOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
 private val INSTALLABLE = setOf("apk", "apks", "xapk", "aab")
 private const val SPACE = 0x20
-private const val MAX_NAME = 100
-private const val MAX_EXTENSION = 12
+private const val MAX_NAME_BYTES = 255
+private const val MAX_EXTENSION_BYTES = 12
 private const val FALLBACK = "attachment"
 
 /**
@@ -61,19 +100,23 @@ private const val FALLBACK = "attachment"
 internal class OpenedFiles(private val context: Context) {
     private val root: File get() = File(context.cacheDir, FOLDER)
 
-    fun open(name: String, bytes: ByteArray) {
+    /** Writes the temporary copy and gives back its read-only address and the name it is under. */
+    private fun stage(name: String, bytes: ByteArray): Pair<android.net.Uri, String> {
         val safe = safeFileName(name)
         refuseUnlessOpenable(safe, bytes.size)
-        val folder = File(root, UUID.randomUUID().toString())
-        if (!folder.mkdirs() && !folder.isDirectory) throw IOException("no folder")
-        val file = File(folder, safe)
+        val file = stagedFile(root, UUID.randomUUID().toString(), safe)
+        file.parentFile?.let { if (!it.mkdirs() && !it.isDirectory) throw IOException("no folder") }
         file.writeBytes(bytes)
-        val uri = FileProvider.getUriForFile(context, authority(context), file)
-        val mime = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(safe.substringAfterLast('.', "").lowercase(Locale.ROOT))
-            ?: "application/octet-stream"
+        return FileProvider.getUriForFile(context, authority(context), file) to safe
+    }
+
+    private fun mimeOf(safe: String): String =
+        mimeFor(safe) { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+
+    fun open(name: String, bytes: ByteArray) {
+        val (uri, safe) = stage(name, bytes)
         val intent = Intent(Intent.ACTION_VIEW)
-        intent.setDataAndType(uri, mime)
+        intent.setDataAndType(uri, mimeOf(safe))
         // The clip is what carries the grant to the program that answers.
         intent.clipData = ClipData.newRawUri(safe, uri)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -84,13 +127,33 @@ internal class OpenedFiles(private val context: Context) {
         }
     }
 
-    /** The copies left by an earlier run; none is needed once the app has been restarted. */
-    fun clear() {
-        clearDirectory(root)
+    /** Offers the file to the system's share sheet: the program the owner picks gets one read-only grant. */
+    fun share(name: String, bytes: ByteArray) {
+        val (uri, safe) = stage(name, bytes)
+        val send = Intent(Intent.ACTION_SEND).setType(mimeOf(safe)).putExtra(Intent.EXTRA_STREAM, uri)
+        send.clipData = ClipData.newRawUri(safe, uri)
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val chooser = Intent.createChooser(send, null)
+        chooser.clipData = ClipData.newRawUri(safe, uri)
+        chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(chooser)
+        } catch (_: ActivityNotFoundException) {
+            throw HostException.Failed()
+        }
+    }
+
+    /**
+     * Takes away the copies older than a day. A viewer the owner left open may still be reading a
+     * recent one after the app's process restarted, so only the old ones go.
+     */
+    fun clearOld(now: Long = System.currentTimeMillis()) {
+        clearOlderThan(root, MAX_AGE_MILLIS, now)
     }
 
     internal companion object {
         const val FOLDER = "attachments"
+        const val MAX_AGE_MILLIS = 24L * 60 * 60 * 1000
 
         fun authority(context: Context): String = context.packageName + ".files"
     }
@@ -110,6 +173,12 @@ internal object SaveToFiles {
         try {
             open()?.use { it.write(bytes) } != null
         } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: IllegalStateException) {
             false
         }
 }

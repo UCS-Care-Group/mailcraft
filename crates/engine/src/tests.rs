@@ -817,6 +817,66 @@ fn accounts_that_sign_in_on_the_providers_page() {
     );
     // A guess is never "outside": it is made from the address's own domain.
     assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // #1112: what the domain publishes for mail programs or Mozilla's ISP database lists is
+    // taken the same way, and the user name is what the source's placeholders make of the address.
+    let published = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "found": {
+            "incoming": {"host": "mail.lumen.example", "security": "tls", "via": "autoconfig"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "ispdb"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!(
+        (published["known"].as_bool(), published["via"].as_str(), published["username"].as_str()),
+        (Some(false), Some("autoconfig"), Some("Avery"))
+    );
+    assert_eq!(
+        (published["incoming"]["port"].as_u64(), published["incoming"]["via"].as_str(), published["incoming"]["outside"].as_bool()),
+        (Some(993), Some("autoconfig"), Some(false))
+    );
+    assert_eq!(
+        (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
+        (Some(587), Some("ispdb"), Some(true))
+    );
+    // What is put in for a placeholder is never read as one again: a `%` in the address stays.
+    for (email, template, name) in [
+        ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
+        ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
+        ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+    ] {
+        let filled = run(
+            &mut s,
+            "account.preset",
+            json!({"email": email, "found": {"incoming": {"host": "imap.lumen.example", "security": "tls", "via": "autoconfig"}, "username": template}}),
+        );
+        assert_eq!(filled["username"], name, "{email} {template}");
+    }
+    // A placeholder nobody knows, or a user name without a found incoming server: the address.
+    for (records, why) in [
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
+            "unknown placeholder",
+        ),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
+        (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+        (
+            json!({"outgoing": {"host": "smtp.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%"}),
+            "no incoming server found",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
+            "half a placeholder",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}),
+            "an SRV record writes no user name",
+        ),
+    ] {
+        let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
+        assert_eq!(odd["username"], "avery@lumen.example", "{why}");
+    }
     // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
     // usual names stand in.
     for (bad, why) in [
@@ -2399,6 +2459,15 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // A folder named as a kind or a path (#1200): the branch that reads the text, walks the
+        // paths of every account and then tries the digits as an id. Without one of these, that
+        // whole branch is never entered by this test. No `account` on the first four, because one
+        // that is refused ends the call before `folder` is looked at.
+        json!({"folder": "\u{0}inbox/../..", "ids": [[[]]]}),
+        json!({"folder": "x".repeat(100_000)}),
+        json!({"folder": "18446744073709551615", "query": "\u{202e}"}),
+        json!({"folder": "///", "limit": 1e300}),
+        json!({"folder": "inbox", "account": 18446744073709551615u64}),
         // Messages forwarded together (#360): more than one message carries, each named again and
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
@@ -2410,6 +2479,18 @@ fn hostile_params_never_panic() {
         json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
         json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
         json!({"ids": [1], "until": {"deep": [[[]]]}}),
+        // Follow-up reminders (#948): times and days that are none, far or the end of time.
+        json!({"ids": [1], "at": i64::MAX, "days": 1e300, "ifNoReply": "x"}),
+        json!({"ids": [1], "days": 0}),
+        json!({"ids": [1], "days": 4294967296u64, "at": "9999-12-31T23:59:59+23:59"}),
+        json!({"id": 1, "at": {"deep": [[[]]]}, "ifNoReply": true, "clear": 5}),
+        // Subscribed calendars (#209): addresses that are none, an outcome that is nonsense.
+        json!({"address": "https://user:pw@cal.example.org/x.ics", "name": "\u{0}", "color": 5}),
+        json!({"address": "webcal://[::1", "intervalMinutes": 1e300}),
+        json!({"address": "http://cal.example.org/".repeat(500), "id": 1}),
+        json!({"calendar": 1, "outcome": {"kind": "changed", "text": "BEGIN:VCALENDAR", "etag": "\r\n", "lastModified": [1]}}),
+        json!({"calendar": 1, "outcome": {"kind": "failed", "failure": "status:99999999999"}}),
+        json!({"calendar": 18446744073709551615u64, "outcome": {"kind": "notModified"}, "all": "yes"}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),
@@ -2512,6 +2593,17 @@ fn hostile_params_never_panic() {
     junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
     junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
     junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Calendar and contacts servers (#209), switched on so that their commands get past the door:
+    // homes that are none, too many, or not lists; names and pins that are none; answers that make
+    // no sense.
+    s.dav_enabled = true;
+    junk.push(
+        json!({"id": ews, "calendarHomes": ["https://dav.example.org/cal/", "http://evil.example/", "https://u:p@x.example/", 5, null, "\u{0}"]}),
+    );
+    junk.push(json!({"id": ews, "contactHomes": (0..1000).map(|n| format!("https://h{n}.example.org/")).collect::<Vec<_>>(), "username": "x".repeat(100_000)}));
+    junk.push(json!({"id": ews, "calendarHomes": {"deep": [[[]]]}, "contactHomes": "x", "trusted": [1], "separatePassword": "yes"}));
+    junk.push(json!({"id": jmap, "calendarHomes": ["https://outlook.office365.com/", "https://www.googleapis.com/"], "trusted": "zz".repeat(40)}));
+    junk.push(json!({"account": ews, "result": {"collections": [{"href": "\u{0}", "syncToken": "x".repeat(100_000)}], "uploaded": [null, 5]}}));
     // Several messages being written (#286): ids of messages being written that are none, of
     // another kind, the largest there is, and ones open beside others.
     junk.push(json!({"compose": null, "text": "x"}));

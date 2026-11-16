@@ -9,7 +9,7 @@
 //! authorities handed in). Nothing is sent anywhere for it, and revocation isn't checked (#30 R7).
 //!
 //! What an opaque signed message holds is its text and files already, read with it
-//! (`mailcraft_mime::parse`); the file it came as is the Digital signature, told here by its bytes
+//! (`mailcraft_mime_model::parse`); the file it came as is the Digital signature, told here by its bytes
 //! ([`Session::digital_signature_part`]).
 //!
 //! A signer's certificate that rests on a trusted authority, is valid now and is for the sender
@@ -667,7 +667,7 @@ impl Session {
             if !mailcraft_mime::signed_parts(&bytes).is_some_and(|p| p.kind == mailcraft_mime::SignedKind::SmimeOpaque) {
                 continue;
             }
-            let read = mailcraft_mime::parse(&bytes);
+            let read = mailcraft_mime_model::parse(&bytes);
             let files: Vec<mailcraft_model::Attachment> = read.attachments.into_iter().skip(1).collect();
             if read.body.text.trim().is_empty() && read.body.html.is_none() && files.is_empty() {
                 continue;

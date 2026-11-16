@@ -48,30 +48,6 @@ internal data class TaskDraft(
             important == base.important
 }
 
-/** [text] as a JSON string: quoted, with what JSON needs escaped. */
-internal fun jsonString(text: String): String {
-    val out = StringBuilder("\"")
-    for (c in text) {
-        when {
-            c == '"' -> out.append("\\\"")
-            c == '\\' -> out.append("\\\\")
-            c == '\n' -> out.append("\\n")
-            c == '\r' -> out.append("\\r")
-            c == '\t' -> out.append("\\t")
-            c.code < SPACE || c == LINE_SEPARATOR || c == PARAGRAPH_SEPARATOR ->
-                out.append("\\u").append(c.code.toString(HEX).padStart(HEX_DIGITS, '0'))
-            else -> out.append(c)
-        }
-    }
-    return out.append('"').toString()
-}
-
-private const val SPACE = 0x20
-private const val LINE_SEPARATOR = '\u2028'
-private const val PARAGRAPH_SEPARATOR = '\u2029'
-private const val HEX = 16
-private const val HEX_DIGITS = 4
-
 internal fun draftOf(detail: TaskDetail): TaskDraft {
     val task = detail.task
     val base = TaskDraft(

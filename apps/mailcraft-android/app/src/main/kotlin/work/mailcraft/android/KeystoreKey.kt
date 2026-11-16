@@ -19,9 +19,10 @@ import javax.crypto.SecretKey
  */
 internal class KeystoreKey(private val alias: String = ALIAS) {
     /** The key, made on first use. Fails with a [GeneralSecurityException] when the Keystore won't. */
-    @Synchronized
     @Throws(GeneralSecurityException::class)
-    fun get(): SecretKey {
+    fun get(): SecretKey = synchronized(LOCK) { lookupOrCreate() }
+
+    private fun lookupOrCreate(): SecretKey {
         val store = KeyStore.getInstance(PROVIDER)
         store.load(null)
         val existing = store.getKey(alias, null)
@@ -52,6 +53,8 @@ internal class KeystoreKey(private val alias: String = ALIAS) {
     }
 
     private companion object {
+        /** One lock for every instance: lookup and creation must not interleave, whoever asks. */
+        val LOCK = Any()
         const val PROVIDER = "AndroidKeyStore"
         const val ALIAS = "work.mailcraft.secrets.v1"
         const val KEY_BITS = 256
