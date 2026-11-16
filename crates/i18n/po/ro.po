@@ -238,13 +238,13 @@ msgid "1 hour"
 msgstr "1 oră"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "1 month"
 msgstr "1 lună"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "1 week"
 msgstr "1 săptămână"
@@ -255,26 +255,26 @@ msgstr "1 săptămână"
 msgid "1. Copy the message below and send it to your organisation's administrator."
 msgstr "1. Copiați mesajul de mai jos și trimiteți-l administratorului organizației dvs."
 
-#. interface, name
-#: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "10 years"
 msgstr "10 ani"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "12 months"
 msgstr "12 luni"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "2 weeks"
 msgstr "2 săptămâni"
 
-#. interface, name
-#: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "2 years"
 msgstr "2 ani"
@@ -285,14 +285,14 @@ msgstr "2 ani"
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. După ce a aprobat MailCraft, reveniți aici și conectați-vă din nou."
 
-#. interface, name
-#: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "3 days"
 msgstr "3 zile"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "3 months"
 msgstr "3 luni"
@@ -303,14 +303,14 @@ msgstr "3 luni"
 msgid "3D Models"
 msgstr "Modele 3D"
 
-#. interface, name
-#: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "5 years"
 msgstr "5 ani"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "6 months"
 msgstr "6 luni"
@@ -518,6 +518,12 @@ msgstr "O notă însoțitoare (opțional)"
 #, fuzzy
 msgid "A note to the organizer (optional)"
 msgstr "O notă pentru organizator (opțional)"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "A notification says only \"New mail\", never the sender or the subject, even when the lock screen shows everything."
+msgstr "O notificare spune doar „E-mail nou”, niciodată expeditorul sau subiectul, chiar dacă ecranul de blocare arată tot."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -1110,6 +1116,18 @@ msgstr "Toate conturile"
 #, fuzzy
 msgid "All day"
 msgstr "Toată ziua"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt
+#, fuzzy
+msgid "All mail"
+msgstr "Tot e-mailul"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "All mail and every account kept on this phone are removed, with every sign-in. Nothing is deleted from your mail provider's servers. This can't be undone."
+msgstr "Tot e-mailul și toate conturile păstrate pe acest telefon sunt eliminate, împreună cu toate autentificările. Nu se șterge nimic de pe serverele furnizorului dvs. de e-mail. Acțiunea nu poate fi anulată."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -4555,6 +4573,12 @@ msgstr "În timpul dezvoltării, Google poate limita conectarea la utilizatorii 
 msgid "E-mail"
 msgstr "E-mail"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Each account's signature goes at the end of its new messages, replies and forwards. Leave it empty for none."
+msgstr "Semnătura fiecărui cont se pune la sfârșitul mesajelor noi, al răspunsurilor și al redirecționărilor sale. Lăsați gol pentru nicio semnătură."
+
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -4963,6 +4987,12 @@ msgstr "Totul de aici într-un singur fișier .mailcraft"
 #, fuzzy
 msgid "Everything in \"{folder}\" will be permanently deleted."
 msgstr "Tot conținutul din „{folder}” va fi șters definitiv."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Everything kept on this phone was removed."
+msgstr "Tot ce era păstrat pe acest telefon a fost eliminat."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6276,6 +6306,12 @@ msgstr "Linie orizontală"
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
 msgstr "Cât de vechi pot fi e-mailurile păstrate integral pe acest computer. E-mailurile mai vechi își păstrează anteturile și o previzualizare și se descarcă la deschidere. Rămân pe server."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "How far back mail is kept in full on this phone, by the date it arrived. Older mail keeps its sender, subject and a preview, and is fetched again when you open it. A shorter window frees space; a longer one fetches more mail, and asks first when the phone is short of room."
+msgstr "Cât de departe în timp se păstrează e-mailul integral pe acest telefon, după data sosirii. E-mailul mai vechi își păstrează expeditorul, subiectul și o previzualizare și este descărcat din nou când îl deschideți. O perioadă mai scurtă eliberează spațiu; una mai lungă descarcă mai mult e-mail și întreabă mai întâi când telefonul are puțin spațiu."
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -7219,6 +7255,12 @@ msgid "Keep account"
 msgstr "Păstrare cont"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Keep data"
+msgstr "Păstrează datele"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
 msgid "Keep it here, invite nobody"
@@ -7439,6 +7481,12 @@ msgstr "Vreau să-mi configurez contul manual"
 #, fuzzy
 msgid "Let people know you're away or can't answer for a while: your mailbox replies by itself"
 msgstr "Anunțați-i pe ceilalți că sunteți plecat sau nu puteți răspunde o vreme: cutia poștală răspunde singură"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Licences"
+msgstr "Licențe"
 
 #. name
 #: crates/ui-egui/src/theme.rs
@@ -7758,6 +7806,12 @@ msgstr "E-mail păstrat offline"
 msgid "Mail to keep offline:"
 msgstr "E-mail păstrat offline:"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Mail, accounts and sign-ins on this phone"
+msgstr "E-mail, conturi și autentificări pe acest telefon"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -7787,6 +7841,12 @@ msgstr "MailCraft nu poate păstra regulile acestui cont pe serverul lui"
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft nu se poate conecta încă la acest server în acest fel (cere Kerberos). Întrebați administratorul dacă poate accepta un nume de utilizator și o parolă printr-o conexiune criptată."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
+msgstr "MailCraft include software-ul de mai jos. Bibliotecile Rust ale nucleului său sunt listate, cu versiunile lor, în depozitul codului sursă."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -7853,6 +7913,12 @@ msgstr "MailCraft desenează fără placa grafică, ceea ce consumă mult timp d
 #, fuzzy
 msgid "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
 msgstr "MailCraft este open source (MIT sau Apache-2.0). Fiecare buton de aici rulează o comandă pe care o pot rula și scripturile și agenții: vedeți Căutare comenzi."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
+msgstr "MailCraft este open source, sub licențele MIT și Apache 2.0."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9082,6 +9148,18 @@ msgstr "E-mail nou"
 msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
 msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "New mail only"
+msgstr "Doar „E-mail nou”"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "New mail only, Primary mail only"
+msgstr "Doar „E-mail nou”, doar e-mailul principal"
+
 #. interface, what a command says
 #: crates/mobile/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -9231,7 +9309,7 @@ msgid "No account signs in with Microsoft"
 msgstr "Niciun cont nu se conectează cu Microsoft"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
 #, fuzzy
 msgid "No account yet"
 msgstr "Niciun cont încă"
@@ -9584,8 +9662,8 @@ msgstr "Nu este invitat nimeni cu adresă"
 msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Nu se potrivește niciunul sau se potrivesc mai multe contacte: {names}"
 
-#. interface, what a command says
-#: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. android, interface, what a command says
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Niciunul"
@@ -9692,6 +9770,12 @@ msgstr "Nu au fost verificate toate aranjamentele."
 msgid "Not every server was found: the rest is only a guess made from the domain. Check it with your provider or administrator before you connect."
 msgstr "Nu au fost găsite toate serverele: restul este doar o presupunere făcută pe baza domeniului. Verificați cu furnizorul sau administratorul dvs. înainte de a vă conecta."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Not everything could be removed. Some of it is still here. Try again."
+msgstr "Nu s-a putut elimina totul. O parte este încă aici. Încercați din nou."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -9704,8 +9788,14 @@ msgstr "Nu este în lista Outlook: acolo nu are culoare"
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Încă nu e păstrat nicăieri: folosiți Deschidere și export › Salvare cutie poștală ca."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Not much room on this phone"
+msgstr "Puțin spațiu pe acest telefon"
+
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Nu acum"
@@ -9890,6 +9980,12 @@ msgstr "Nu s-a trimis nimic: cutia poștală nu a putut fi salvată înainte ({e
 msgid "Notifications"
 msgstr "Notificări"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Notify only for Primary mail in Gmail accounts. Microsoft accounts do not tell Focused from Other yet, so they notify for all mail."
+msgstr "Notifică doar pentru e-mailul principal din conturile Gmail. Conturile Microsoft nu fac încă diferența între Prioritare și Altele, așa că notifică pentru tot e-mailul."
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -9915,7 +10011,7 @@ msgid "Numbering"
 msgstr "Numerotare"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -10596,6 +10692,12 @@ msgstr "Calendarele altor persoane pot fi deschise sub un cont Microsoft de serv
 msgid "Other people's calendars weren't allowed: {error}"
 msgstr "Calendarele altor persoane nu au fost permise: {error}"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Otherwise a notification shows the sender and the subject, never the message text or its pictures. What shows on the lock screen follows the phone's own privacy setting."
+msgstr "Altfel, o notificare arată expeditorul și subiectul, niciodată textul mesajului sau imaginile lui. Ce apare pe ecranul de blocare urmează setarea de confidențialitate a telefonului."
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -10801,7 +10903,7 @@ msgid "Pattern"
 msgstr "Model"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "În dezvoltare"
@@ -11102,11 +11204,23 @@ msgstr "Pagina anterioară"
 msgid "Primary"
 msgstr "Principale"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Primary mail only"
+msgstr "Doar e-mailul principal"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
 msgstr "Principale, Rețele sociale, Promoții, Actualizări și Forumuri, așa cum sortează Gmail dosarul Mesaje primite. E-mailurile rămân în Mesaje primite."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Privacy"
+msgstr "Confidențialitate"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -11525,7 +11639,7 @@ msgid "Reminder for new appointments"
 msgstr "Memento pentru programări noi"
 
 #. android, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Reminders"
 msgstr "Mementouri"
@@ -11547,7 +11661,7 @@ msgid "Reminders Window"
 msgstr "Fereastră mementouri"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove"
 msgstr "Eliminare"
@@ -11660,6 +11774,12 @@ msgstr "Eliminare cheie proprie"
 msgid "Remove account"
 msgstr "Eliminare cont"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Remove all local data?"
+msgstr "Eliminați toate datele locale?"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11700,6 +11820,12 @@ msgstr "Eliminare din Favorite"
 msgid "Remove from Safe or Blocked Senders"
 msgstr "Eliminare din Expeditori siguri sau blocați"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Remove local data"
+msgstr "Elimină datele locale"
+
 #. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -11735,6 +11861,12 @@ msgstr "Eliminați această condiție"
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr "Eliminați de pe acest computer cheia {format} pentru {who}? Este ștearsă din depozitul de acreditări al sistemului, iar MailCraft nu mai poate semna cu ea. Păstrați o copie a fișierului dacă vă poate mai trebui."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
+msgstr "Elimină e-mailul, calendarele, contactele și sarcinile păstrate pe acest telefon, conturile dvs. și toate autentificările. Nu se șterge nimic de pe serverele furnizorului dvs. de e-mail, iar conturile pot fi adăugate din nou mai târziu."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12245,7 +12377,7 @@ msgid "Saturday"
 msgstr "sâmbătă"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Salvare"
@@ -13094,6 +13226,12 @@ msgid "Send/Receive with Microsoft Graph"
 msgstr "Trimitere/primire prin Microsoft Graph"
 
 #. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Sender and subject shown"
+msgstr "Se afișează expeditorul și subiectul"
+
+#. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Sender images"
@@ -13464,6 +13602,12 @@ msgstr "Afișați o alertă pe desktop pentru mementouri"
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afișați o alertă pe desktop când sosește un e-mail nou"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
+msgstr "Afișează o notificare când scade un memento din calendar. Dezactivat, nu se afișează niciuna; mementourile rămân în calendar."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -13820,8 +13964,8 @@ msgstr "Conectați-vă cu Trimitere/primire ca să vedeți când sunt ocupate al
 msgid "Sign-in cancelled"
 msgstr "Conectare anulată"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Signature"
 msgstr "Semnătură"
@@ -13832,8 +13976,8 @@ msgstr "Semnătură"
 msgid "Signature file:"
 msgstr "Fișier semnătură:"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#. android, command label, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Semnături"
@@ -14054,6 +14198,12 @@ msgstr "Ceva nu a trecut sau nu a ajuns așa cum a fost trimis. Pașii de mai jo
 msgid "Sort by"
 msgstr "Sortare după"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Sound, vibration and lock screen, in the phone's settings"
+msgstr "Sunet, vibrații și ecran de blocare, în setările telefonului"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -14168,8 +14318,8 @@ msgstr "Stare:"
 msgid "Still indexing: some older mail is searched more slowly"
 msgstr "Indexarea continuă: unele e-mailuri mai vechi se caută mai încet"
 
-#. interface
-#: crates/ui-egui/src/sync_panel.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop"
 msgstr "Oprire"
@@ -14239,6 +14389,12 @@ msgstr "Se oprește…"
 #, fuzzy
 msgid "Stopping… what has come in stays."
 msgstr "Se oprește… ce a sosit rămâne."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "Storage on this phone"
+msgstr "Spațiu pe acest telefon"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14401,6 +14557,12 @@ msgstr "Simbol"
 #, fuzzy
 msgid "Symbols"
 msgstr "Simboluri"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Sync anyway"
+msgstr "Sincronizează oricum"
 
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
@@ -14715,10 +14877,22 @@ msgid "That did not work."
 msgstr "Nu a funcționat."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "That didn't go through."
 msgstr "Nu a reușit."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "That didn't go through. The limit is as it was."
+msgstr "Nu a reușit. Limita a rămas neschimbată."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "That didn't go through. The window is as it was."
+msgstr "Nu a reușit. Perioada a rămas neschimbată."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarController.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarTab.kt
@@ -15476,8 +15650,8 @@ msgstr "Lista de expeditori este plină: eliminați câțiva din Fișier › Op�
 #. what a command says
 #: crates/mobile/src/core.rs
 #, fuzzy
-msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
-msgstr "Lista autentificărilor păstrate pe acest telefon a fost deteriorată, deci unele autentificări mai vechi pot fi încă păstrate pe el. Golirea spațiului de stocare MailCraft din Setările Android le elimină."
+msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
+msgstr "Lista autentificărilor păstrate pe acest telefon era deteriorată, așa că unele autentificări mai vechi ar putea fi încă păstrate. Setările telefonului pentru MailCraft vă permit să ștergeți ce păstrează."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -15628,6 +15802,12 @@ msgstr "Mesajul pe care îl scriați a fost salvat în Ciorne; un link a deschis
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
 msgstr "Mesajele dosarului afișat, ca .mbox"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
+msgstr "Cea mai mare cantitate de e-mail pe care o păstrează acest telefon, toate conturile la un loc. Peste ea, cel mai vechi e-mail revine la antetele sale, apoi dispare de pe telefon. Nu se șterge nimic de pe server."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -16192,6 +16372,12 @@ msgstr "Spațiul pe care îl ocupă pe acest computer mesajele proprii ale dosar
 #, fuzzy
 msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."
 msgstr "Trecerea lui {account} la Microsoft Graph așteaptă până când MailCraft poate contacta serverul."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "The sync waits for your answer. A shorter window in Settings needs less room."
+msgstr "Sincronizarea așteaptă răspunsul dvs. O perioadă mai scurtă în Setări necesită mai puțin spațiu."
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -17255,6 +17441,18 @@ msgstr "Contul acestei cutii poștale partajate nu mai există"
 msgid "This shared mailbox's account is gone: remove the shared mailbox and add it again"
 msgstr "Contul acestei cutii poștale partajate nu mai există: eliminați cutia poștală partajată și adăugați-o din nou"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "This signature has a picture or its own layout. Change it on the computer."
+msgstr "Această semnătură are o imagine sau o aranjare proprie. Modificați-o pe computer."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
+msgstr "Această sincronizare necesită aproximativ {needed}. Acest telefon are {free} liberi, iar MailCraft lasă puțin spațiu pentru ca telefonul să funcționeze în continuare. Sincronizați oricum?"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -18099,7 +18297,7 @@ msgid "Verify…"
 msgstr "Verificare…"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
 msgid "Version"
 msgstr "Versiune"
@@ -18236,6 +18434,12 @@ msgstr "Numerele săptămânilor"
 msgid "Week starts on"
 msgstr "Săptămâna începe"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "What MailCraft sends, and to whom"
+msgstr "Ce trimite MailCraft și cui"
+
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
@@ -18253,6 +18457,12 @@ msgstr "Ce s-a întâmplat și ce vă așteptați însumează {n} caractere: un 
 #, fuzzy
 msgid "What happens to mail as it arrives"
 msgstr "Ce se întâmplă cu e-mailurile la sosire"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "What is bundled in this app, and under which licence"
+msgstr "Ce este inclus în această aplicație și sub ce licență"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -18753,6 +18963,12 @@ msgstr "Calendarul dvs.: {day}"
 #, fuzzy
 msgid "Your certificates and keys"
 msgstr "Certificatele și cheile dvs."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Your data was removed"
+msgstr "Datele dvs. au fost eliminate"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22530,6 +22746,15 @@ msgstr[0] "{n} cont"
 msgstr[1] "{n} conturi"
 msgstr[2] "{n} de conturi"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{n} account has one"
+msgid_plural "{n} accounts have one"
+msgstr[0] "{n} cont are una"
+msgstr[1] "{n} conturi au una"
+msgstr[2] "{n} de conturi au una"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -23202,6 +23427,15 @@ msgstr "{n} din {total}"
 msgid "{n} of {total} so far."
 msgstr "{n} din {total} până acum."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "{n} older message taken back to its headers"
+msgid_plural "{n} older messages taken back to its headers"
+msgstr[0] "{n} mesaj mai vechi readus la antete"
+msgstr[1] "{n} mesaje mai vechi readuse la antete"
+msgstr[2] "{n} de mesaje mai vechi readuse la antete"
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -23565,6 +23799,15 @@ msgstr "acum {time}"
 msgid "{title} (all day)"
 msgstr "{title} (toată ziua)"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{used} of {cap} used by {n} message"
+msgid_plural "{used} of {cap} used by {n} messages"
+msgstr[0] "{used} din {cap} folosiți de {n} mesaj"
+msgstr[1] "{used} din {cap} folosiți de {n} mesaje"
+msgstr[2] "{used} din {cap} folosiți de {n} de mesaje"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -23648,6 +23891,22 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
+
+#, fuzzy
+#~ msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. Clearing MailCraft's storage in Android's Settings removes them."
+#~ msgstr "Lista autentificărilor păstrate pe acest telefon a fost deteriorată, deci unele autentificări mai vechi pot fi încă păstrate pe el. Golirea spațiului de stocare MailCraft din Setările Android le elimină."
+
+#, fuzzy
+#~ msgid "New mail only, Primary or Focused only"
+#~ msgstr "Doar „E-mail nou”, doar Principale sau Focalizate"
+
+#, fuzzy
+#~ msgid "Notify only for the mail that would alert: Primary for Gmail, Focused for Microsoft."
+#~ msgstr "Notifică doar pentru e-mailul care ar alerta: Principale pentru Gmail, Focalizate pentru Microsoft."
+
+#, fuzzy
+#~ msgid "Primary or Focused only"
+#~ msgstr "Doar Principale sau Focalizate"
 
 #, fuzzy
 #~ msgid "a .pst file is imported into a calendar on this computer only, never an account on a server"

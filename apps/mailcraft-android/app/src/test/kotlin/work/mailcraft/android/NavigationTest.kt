@@ -20,7 +20,7 @@ class NavigationTest {
         assertEquals(
             listOf(
                 "Accounts", "Mail to keep offline", "Notifications", "Swipe actions", "Pictures", "Sender images",
-                "Language", "About",
+                "Signatures", "Language", "Remove local data", "About",
             ),
             SettingsPage.entries.map { it.label(EnglishTexts) },
         )

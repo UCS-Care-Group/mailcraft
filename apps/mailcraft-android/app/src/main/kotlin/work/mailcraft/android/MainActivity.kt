@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("TooManyFunctions")
+
 package work.mailcraft.android
 
 import android.content.ClipData
@@ -156,6 +158,7 @@ private fun CoreShell(
     onLanguage: (String) -> Unit,
 ) {
     val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
+    val settings = opened.settings
     val texts = remember(core) { CoreTexts(core) }
     // The mailbox was opened with the core, when the application started, and not by a window. It is
     // read again whenever it changed (`AccountsHub.reloads`: an account's work, or a revision the core
@@ -177,11 +180,12 @@ private fun CoreShell(
     LaunchedEffect(folder?.id, query) { folder?.let { list.show(query.copy(folder = it.id)) } }
     val calendar = rememberCalendarTab(core, texts, window, reload, outlined != null, handedOver, onHandled)
     SideEffect { hub.showing(accounts) }
+    val accountsUi by hub.controller.ui.collectAsState()
+    val (settingsUi, settingsActions) = rememberSettings(settings)
     // The right to notify is asked for once there is an account to bring mail, never at a first start.
     AskForNotificationsOnce(hasAccount = accounts.isNotEmpty()) {
         (appContext as? MailCraftApplication)?.followNotificationSwitch()
     }
-    val accountsUi by hub.controller.ui.collectAsState()
     val scope = rememberCoroutineScope()
     val pictured = rememberPictures(core, list, scope, appContext)
     val pictures = pictured.stack
@@ -200,6 +204,7 @@ private fun CoreShell(
             version = version,
             chosenLanguage = chosenLanguage,
             accountsUi = accountsUi,
+            settingsUi = settingsUi,
             outline = outlineStatus(outlined != null, outline),
             categories = categories,
             nowMillis = now,
@@ -212,6 +217,7 @@ private fun CoreShell(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
             onLanguage = onLanguage,
             accounts = hub.controller.actions(),
+            settings = settingsActions,
             mail = mailActions,
             onSwipe = {
                 swipe = it
@@ -224,6 +230,20 @@ private fun CoreShell(
         calendar = calendar.pane,
         requestTab = calendar.requestTab, onTabRequested = calendar.onTabRequested,
     )
+}
+
+/** What the Settings pages draw, and what they do, with the system's own settings and web links. */
+@Composable
+private fun rememberSettings(settings: SettingsController): Pair<SettingsUi, SettingsActions> {
+    val ui by settings.ui.collectAsState()
+    val context = LocalContext.current
+    val actions = remember(settings, context) {
+        settings.actions(
+            onChannelSettings = { id -> openChannelSettings(context, id) },
+            onOpenLink = { url -> openWebLink(context, url) },
+        )
+    }
+    return ui to actions
 }
 
 /**
