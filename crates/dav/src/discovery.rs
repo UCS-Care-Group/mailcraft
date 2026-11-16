@@ -540,6 +540,8 @@ pub struct Discovery {
     /// the owner typed, behind a proxy that asks for a sign-in first): until an answer is a DAV
     /// multistatus, nothing else is believed of them.
     unproven: Vec<String>,
+    /// Origins that refused the password in the listing phase: they are sent it no more.
+    refused: Vec<String>,
     /// The kinds still to search for, the first being the one in hand.
     todo: VecDeque<Kind>,
     job: Option<Job>,
@@ -595,6 +597,7 @@ impl Discovery {
             via_loopback: false,
             listing: None,
             unproven: Vec::new(),
+            refused: Vec::new(),
             todo,
             job: None,
             found: Discovered::default(),
@@ -886,6 +889,8 @@ impl Discovery {
             // The password went to a host that never said what it is: what answers with it must be
             // a DAV multistatus, or the search is over. No redirect is followed with it, no other
             // place is asked, and nothing is sent to it again.
+            // (In the listing phase, a refusal is that home's: see below.)
+            Ok(response) if ask.authed && response.status() == 401 && self.in_listing(&ask) => self.home_refused(&ask),
             Ok(response) if ask.authed && self.unproven.contains(&ask.origin) => match response.status() {
                 207 => self.answered(&ask, &response),
                 401 => self.finish(Outcome::Failed(Failure::SignInRefused)),
@@ -893,7 +898,6 @@ impl Discovery {
             },
             Ok(response) => match response.status() {
                 // (In the listing phase it is that home's refusal: the others are still asked.)
-                401 if ask.authed && ask.stage == Stage::Collections && self.listing.is_some() => self.fail_candidate(Failure::SignInRefused),
                 401 if ask.authed => self.finish(Outcome::Failed(Failure::SignInRefused)),
                 401 => self.challenged(ask, &response),
                 301 | 302 | 303 | 307 | 308 => self.redirected(&ask, &response),
@@ -913,6 +917,24 @@ impl Discovery {
     fn says_dav(&self, response: &HttpResponse) -> bool {
         let class = if self.kind() == Kind::Calendar { "calendar-access" } else { "addressbook" };
         status::dav_classes(response).iter().any(|have| have == class)
+    }
+
+    /// Whether `ask` is a listing of a home or a container.
+    fn in_listing(&self, ask: &Ask) -> bool {
+        ask.stage == Stage::Collections && self.listing.is_some()
+    }
+
+    /// A home refused the password: that home fails, the others and the other kind go on, and the
+    /// origin, if it never said what it is, is sent the password no more (it had it once).
+    fn home_refused(&mut self, ask: &Ask) {
+        // (A host that has answered as DAV, and refuses one home, is still asked for the others.)
+        if self.unproven.contains(&ask.origin) {
+            self.signed_in.retain(|origin| *origin != ask.origin);
+            if !self.refused.contains(&ask.origin) && self.refused.len() < MAX_TRUSTED {
+                self.refused.push(ask.origin.clone());
+            }
+        }
+        self.fail_candidate(Failure::SignInRefused);
     }
 
     /// A host answered `401` to a request without the password. That is a challenge only from a
@@ -962,6 +984,9 @@ impl Discovery {
         let Ok(origin) = Origin::parse(&ask.url) else { return self.fail_candidate(Failure::Unreadable) };
         if self.declined.contains(&ask.origin) {
             return self.fail_candidate(Failure::Declined);
+        }
+        if self.refused.contains(&ask.origin) {
+            return self.fail_candidate(Failure::SignInRefused);
         }
         if self.may_sign_in(&origin) {
             return self.sign_in(ask);

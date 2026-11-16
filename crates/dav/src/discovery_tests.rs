@@ -1320,3 +1320,42 @@ fn a_home_that_is_microsoft_s_or_google_s_or_refuses_the_password_fails_only_its
         assert!(world.sent().iter().all(|s| !s.origin.contains("office365") && !s.origin.contains("google")), "{bad}: nothing sent there");
     }
 }
+
+#[test]
+fn an_unproven_home_that_refuses_the_password_fails_only_itself_and_is_sent_it_no_more() {
+    // web.example.net is typed for contacts behind a proxy that answers 401 to all; the calendar
+    // principal names a home there, then one on a shard.
+    let world = hosts_world(|host, path| match (host, path) {
+        ("dav.example.net", "/dav/") => Some(item("/dav/", "<d:current-user-principal><d:href>/p/</d:href></d:current-user-principal>")),
+        ("dav.example.net", "/p/") => Some(item(
+            "/p/",
+            "<c:calendar-home-set><d:href>https://web.example.net/h/</d:href><d:href>https://shard.example.net/h2/</d:href></c:calendar-home-set>",
+        )),
+        ("shard.example.net", "/h2/") => Some(item("/h2/", PLAIN) + &item("/h2/b/", &format!("{CAL}<d:displayname>B</d:displayname>"))),
+        _ => None,
+    });
+    // (hosts_world answers anonymous asks with a DAV-naming challenge; the proxy's are bare.)
+    let world = World {
+        over: [Box::new(|r: &HttpRequest| {
+            r.url()
+                .starts_with("https://web.example.net")
+                .then(|| Ok(HttpResponse::new(401, Vec::new()).with_field("WWW-Authenticate", "Basic realm=\"proxy\"")))
+        }) as Override]
+        .into_iter()
+        .chain(world.over)
+        .collect(),
+        ..world
+    };
+    let outcome = search(USER, true, true)
+        .typed(Kind::Calendar, "https://dav.example.net/dav/")
+        .unwrap()
+        .typed(Kind::AddressBook, "https://web.example.net/")
+        .unwrap()
+        .run(&world, no_srv, |_| true);
+    let done = found(outcome);
+    assert_eq!(names(done.calendars().unwrap()), ["B"]);
+    // The other kind was still searched (asked without the password), and the proxy had the
+    // password exactly once.
+    assert!(world.to("web.example.net").iter().any(|s| s.path == "/" && !s.credential));
+    assert_eq!(world.to("web.example.net").iter().filter(|s| s.credential).count(), 1);
+}
