@@ -1045,8 +1045,10 @@ fn calendar_place(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
         Some(Value::Number(n)) => {
             let id = n.as_u64().ok_or_else(|| crate::cmd::bad("`places.calendar` is a calendar id or \"new\""))?;
             let calendar = s.mailbox.calendar(id).ok_or_else(|| failed!("no calendar with id {id}", id = id))?;
-            if !calendar.origin.is_local() {
-                return Err(fail("a .pst file is imported into a calendar on this computer only, never an account on a server"));
+            if !calendar.is_own() {
+                return Err(fail(
+                    "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar",
+                ));
             }
             Ok(Some(id))
         }
@@ -1306,7 +1308,7 @@ impl Running {
         }
         let prefix = format!("{}:", self.identity);
         let earlier = s.mailbox.events.values().find(|e| e.imported.starts_with(&prefix)).map(|e| e.calendar);
-        if let Some(id) = earlier.filter(|id| s.mailbox.calendar(*id).is_some_and(|c| c.origin.is_local())) {
+        if let Some(id) = earlier.filter(|id| s.mailbox.calendar(*id).is_some_and(|c| c.is_own())) {
             self.calendar = Some(id);
             return Ok(id);
         }
@@ -1461,7 +1463,7 @@ fn put(s: &mut Session, run: &mut Running, batch: Batch) -> Result<usize, CmdErr
             e.calendar = run.calendar(s, &batch.calendar_name)?;
         }
         // (Gone while the file was read: an event never falls to another, perhaps a server's.)
-        if !s.mailbox.calendar(e.calendar).is_some_and(|c| c.origin.is_local()) {
+        if !s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_own()) {
             return Err(fail("the calendar the .pst file was being imported into was removed: the import stopped"));
         }
         let id = s.mailbox.add_event(e).map_err(|e| fail(e.to_string()))?;

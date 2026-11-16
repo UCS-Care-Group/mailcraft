@@ -31,6 +31,8 @@ internal class AccountsController(
 
     fun actions(): AccountActions = AccountActions(
         onEmail = ::typed,
+        onKeepSpan = { span -> chose { it.copy(span = span) } },
+        onStorage = { mb -> chose { it.copy(storageMb = mb) } },
         onSignIn = ::signIn,
         onCancelSignIn = ::cancelSignIn,
         onCopyMessage = ::copyMessage,
@@ -84,6 +86,19 @@ internal class AccountsController(
         }
     }
 
+    /** What the phone keeps of the new account's mail, changed on the form. */
+    private fun chose(change: (KeepChoice) -> KeepChoice) = ui.update { state ->
+        val add = state.add
+        if (add is AddAccountState.Form) state.copy(add = add.copy(keep = change(add.keep))) else state
+    }
+
+    private fun keepOf(add: AddAccountState): KeepChoice = when (add) {
+        is AddAccountState.Form -> add.keep
+        is AddAccountState.Approval -> add.keep
+        is AddAccountState.Waiting -> add.keep
+        is AddAccountState.Done -> KeepChoice()
+    }
+
     private fun emailOf(add: AddAccountState): String? = when (add) {
         is AddAccountState.Form -> add.email
         is AddAccountState.Approval -> add.email
@@ -108,7 +123,7 @@ internal class AccountsController(
             ui.update { state ->
                 val add = state.add
                 if (add is AddAccountState.Waiting) {
-                    state.copy(add = AddAccountState.Form(add.email, Notice.Cancelled))
+                    state.copy(add = AddAccountState.Form(add.email, Notice.Cancelled, add.keep))
                 } else {
                     state
                 }
@@ -119,8 +134,9 @@ internal class AccountsController(
     /** Opens Microsoft's page and waits for the owner. Only from the form or the approval help. */
     fun signIn() {
         val email = emailOf(ui.value.add) ?: return
+        val keep = keepOf(ui.value.add)
         val operation = ++signInOperation
-        ui.update { it.copy(add = AddAccountState.Waiting(email)) }
+        ui.update { it.copy(add = AddAccountState.Waiting(email, keep)) }
         val previous = signInJob
         signInJob = scope.launch {
             // A sign-in the owner left (leaving the screen calls it off) is over before this one begins:
@@ -133,7 +149,7 @@ internal class AccountsController(
             }
             // (Called off, or left for a newer one, while it waited: it never opens its page.)
             if (operation != signInOperation) return@launch
-            val result = api.signIn(email)
+            val result = api.signIn(email, keep)
             val link = if (result is SignInResult.NeedsApproval) api.approvalLink(email) else null
             if (result is SignInResult.SignedIn) {
                 // The sign-in is new: where this account's permissions stand is asked again, now (the
@@ -144,7 +160,7 @@ internal class AccountsController(
             ui.update { state ->
                 // (The owner may have left the screen meanwhile: what is there is left as it is.)
                 val current = operation == signInOperation && state.add is AddAccountState.Waiting
-                if (current) state.copy(add = afterSignIn(email, result, link)) else state
+                if (current) state.copy(add = afterSignIn(email, result, link, keep)) else state
             }
         }
     }

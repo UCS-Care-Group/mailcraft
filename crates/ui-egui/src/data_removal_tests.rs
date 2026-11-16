@@ -567,3 +567,14 @@ fn the_folder_shown_follows_the_mailbox_opened_since_start() {
     a.execute("ui.openDataFolder", json!({})).unwrap();
     assert_eq!(asked.lock().unwrap().as_slice(), [at("home/ada/.config/mailcraft"), at("media/usb/archive"), at("home/ada/.config/mailcraft")]);
 }
+
+#[test]
+fn the_addresses_of_subscribed_calendars_in_memory_go_too() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = false;
+    a.execute("calendar.subscribe", json!({"address": "https://cal.example.org/private/T0KEN/basic.ics"})).unwrap();
+    assert!(!a.subscribed.addresses_are_empty());
+    a.run("ui.removeAllData", json!({"confirmed": true})).unwrap();
+    assert!(a.subscribed.addresses_are_empty());
+}
