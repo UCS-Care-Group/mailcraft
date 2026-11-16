@@ -142,6 +142,8 @@ mod late_work_tests;
 mod leave_message_tests;
 #[cfg(test)]
 mod list_keys_tests;
+#[cfg(test)]
+mod list_rearrange_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -1512,6 +1514,9 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The list was rearranged (#1511): the scroll to the selected row puts it in the middle of
+    /// the list, not at the nearest edge as for a move from the keyboard.
+    pub(crate) reveal_centered: bool,
     /// The rows the message list was last drawn from, the selection then (its messages, and those
     /// picked as their conversation) and what the rows drew selected: worked out again only when
     /// one of them changes, not at every frame (#503).
@@ -1862,6 +1867,7 @@ impl MailApp {
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            reveal_centered: false,
             drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
@@ -2438,6 +2444,13 @@ impl MailApp {
                     self.jmap_refused.remove(&account);
                 }
             }
+        }
+        // A new arrangement moves the rows: the list scrolls to the selected message, from the
+        // window's menus and keys as from an agent through the control channel (#1511). With
+        // nothing selected it stays where it is.
+        if r.is_ok() && keys::REARRANGES_LIST.contains(&id) {
+            self.reveal_selection = true;
+            self.reveal_centered = true;
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
         // (What is remembered of a message being written goes with it.)
