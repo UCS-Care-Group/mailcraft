@@ -106,6 +106,9 @@ class AttachmentRoutingTest {
         assertFalse(asksFirst(OpenVerdict.BLOCKED))
         // They can still be opened: after the question.
         assertTrue(AttachmentAction.Open in actionsOf(item("budget.xlsm", OpenVerdict.MACROS)))
+        // And they are not shared from the message: that would hand them on without the question.
+        assertFalse(AttachmentAction.Share in actionsOf(item("budget.xlsm", OpenVerdict.MACROS)))
+        assertFalse(AttachmentAction.Share in actionsOf(item("page.html", OpenVerdict.SCRIPTS)))
     }
 
     @Test
@@ -328,6 +331,14 @@ class AttachmentControllerTest {
         controller.act(7uL, item("report.pdf"), AttachmentAction.Share)
         assertTrue(device.shared.isEmpty())
         assertEquals("MailCraft doesn't open run.exe", (controller.ui.value.notice as AttachmentNotice.Said).why)
+    }
+
+    @Test
+    fun aFileThatTurnsOutToCarryMacrosWhenReadIsNotShared() {
+        source.files[0u] = AttachmentBytes.Got(png, "budget.xlsm", picture = false, OpenVerdict.MACROS)
+        controller.act(7uL, item("report.pdf"), AttachmentAction.Share)
+        assertTrue(device.shared.isEmpty())
+        assertEquals(AttachmentNotice.ShareFailed, controller.ui.value.notice)
     }
 
     @Test
