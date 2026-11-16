@@ -29,16 +29,32 @@
 //!   collection, resources for a collection, documents per request. A run that reaches a limit
 //!   returns what it has, says what was cut short and goes on at the next.
 //!
+//! How a collection is read, two ways and no third:
+//!
+//! - **From its token** (RFC 6578 `sync-collection`), page by page. A page is taken in whole or not
+//!   at all, and the token moves past a page only when everything it names is in the download, so
+//!   that nothing it said (a deletion least of all) is passed over. A page that could never be
+//!   taken whole, a token the server forgot and a report it refuses send the read to the other way.
+//! - **By listing it** (`PROPFIND`, Depth 1, each member's ETag), then fetching what is new or
+//!   changed by `calendar-multiget` (one by one what that couldn't bring). Only a listing that is
+//!   whole says what the collection holds ([`DavRead::members`]): that, and the server's own "gone",
+//!   are the only things that ever remove an event here. No time range is asked for, so nothing
+//!   depends on how the server or this program places a recurrence or a floating time.
+//!
+//! Each run is told what is here already ([`DavAskCollection::known`]), so one that stopped short
+//! (on its limits, its changes or a document that couldn't be had) goes on where it stopped: every
+//! run takes in at least one document or ends for a reason it says.
+//!
 //! Nothing of an address, a name, a user name or a password is logged.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use mailcraft_dav::answer::{Collections, Entry, Multistatus};
 use mailcraft_dav::href::{Origin, TrustedOrigin};
 use mailcraft_dav::http::{HttpExchange, HttpRequest, HttpResponse, Secret, TransportError};
-use mailcraft_dav::request::{Endpoint, Kind, MAX_MULTIGET, MAX_PAGE, RequestError, Stamp};
+use mailcraft_dav::request::{Endpoint, Kind, MAX_MULTIGET, MAX_PAGE, RequestError};
 use mailcraft_dav::status::{self, Verdict};
 use mailcraft_model::dav_down::{MAX_CHANGES, MAX_READ, MAX_RESOURCES};
 use mailcraft_model::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavListing, DavProblem, DavRead, DavReadState, DavServer, Rgb};
@@ -158,6 +174,8 @@ enum Fail {
     Stop(DavProblem),
     /// This collection (or home) can't be read just now; the run goes on.
     Skip,
+    /// The answer was larger than a request may bring: asking the same again brings the same.
+    TooLarge,
 }
 
 /// One origin the account's homes are on.
@@ -180,16 +198,35 @@ struct Found {
     sync: Option<bool>,
 }
 
-/// How a pass over a collection's changes ended.
-enum Pass {
-    /// To its end.
+/// How a pass over a collection's changes from its token ended.
+enum Delta {
+    /// Every page was taken in: `changes` is all that changed, and the token is the last page's.
     Done,
-    /// The token isn't known to the server any more.
-    TokenInvalid,
-    /// The server doesn't do `sync-collection` for it.
-    NoSync,
-    /// Stopped short (pages, resources or a document that couldn't be had): what was read stands.
+    /// Stopped after the last page that was taken in whole (or before the first): what was read
+    /// stands, the token is that page's, and the next run goes on from it.
     Short,
+    /// The token can't be gone on from (the server forgot it, or refused the report, or a page
+    /// came that could never be taken in whole): the collection is listed afresh. `sync`: whether
+    /// a token is still worth keeping for the next time.
+    Afresh { sync: bool },
+}
+
+/// What came of fetching a set of documents.
+enum Fetched {
+    /// Each was taken in, or can never be had (gone since, too large to read, off the collection).
+    All,
+    /// Some could not be had now; they are asked for again at the next run.
+    Partly,
+}
+
+/// One document asked for by itself.
+enum Got {
+    Doc(Option<String>, String),
+    /// It is not there any more, is too large to read, or is not on the collection: asking again
+    /// brings the same.
+    Never,
+    /// Not now (an error, or an answer that was no document).
+    NotNow,
 }
 
 struct Run<'a> {
@@ -205,14 +242,15 @@ struct Run<'a> {
     signed_in: Vec<String>,
     skipped: u32,
     wait: u64,
-    /// A document found no room among the changes a collection may bring in one read.
-    cap_hit: bool,
+    /// The last request ([`Run::call`]) was answered at another address than the one it was
+    /// made to.
+    redirected: bool,
 }
 
 /// Read what `ask` says through `x`. The passwords are asked for by origin, and only when that
 /// origin challenges ([`Passwords`]). `now` is Unix seconds (for a `Retry-After` date).
 pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i64, limits: &Limits) -> DavDownload {
-    let mut out = DavDownload { account: ask.account, email: ask.email.clone(), ..Default::default() };
+    let mut out = DavDownload { account: ask.account, email: ask.email.clone(), server: ask.server.clone(), ..Default::default() };
     let mut run = Run {
         x,
         user: ask.username.clone(),
@@ -226,7 +264,7 @@ pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i6
         signed_in: Vec::new(),
         skipped: 0,
         wait: 0,
-        cap_hit: false,
+        redirected: false,
     };
     // A site for each origin a home of the settings is on, and for none else.
     let mut homes: Vec<&String> = Vec::new();
@@ -275,6 +313,10 @@ impl Run<'_> {
         self.sites.iter().position(|site| site.key == key)
     }
 
+    fn skip(&mut self, count: usize) {
+        self.skipped = self.skipped.saturating_add(u32::try_from(count).unwrap_or(u32::MAX));
+    }
+
     fn work(&mut self, ask: &DavAsk, homes: &[&String], left_out: bool, out: &mut DavDownload) -> Result<(), Fail> {
         // The calendars of the homes, when they are to be listed.
         let mut found: Vec<Found> = Vec::new();
@@ -284,7 +326,7 @@ impl Run<'_> {
             for home in homes {
                 match self.list_home(home) {
                     Ok(listed) => {
-                        listing.capped |= listed.capped;
+                        listing.complete &= listed.whole;
                         for item in listed.found {
                             if found.iter().all(|have| have.calendar.href != item.calendar.href) {
                                 if found.len() >= DavServer::MAX_COLLECTIONS {
@@ -295,12 +337,12 @@ impl Run<'_> {
                             }
                         }
                     }
-                    Err(Fail::Skip) => listing.complete = false,
                     Err(Fail::Stop(problem)) => {
                         listing.complete = false;
                         stopped = Some(problem);
                         break;
                     }
+                    Err(_) => listing.complete = false,
                 }
             }
             listing.complete &= !listing.capped;
@@ -316,36 +358,26 @@ impl Run<'_> {
             found
                 .iter()
                 .map(|f| {
-                    (
-                        known
-                            .get(f.calendar.href.as_str())
-                            .map(|c| (*c).clone())
-                            .unwrap_or_else(|| DavAskCollection { href: f.calendar.href.clone(), ..Default::default() }),
-                        Some(f),
-                    )
+                    let ask = known
+                        .get(f.calendar.href.as_str())
+                        .map(|c| (*c).clone())
+                        .unwrap_or_else(|| DavAskCollection { href: f.calendar.href.clone(), ..Default::default() });
+                    (ask, Some(f))
                 })
                 .collect()
         } else {
             ask.collections.iter().take(DavServer::MAX_COLLECTIONS).map(|c| (c.clone(), None)).collect()
         };
         for (collection, listed) in &targets {
-            let mut read = DavRead { href: collection.href.clone(), complete: true, ..Default::default() };
-            let ended = self.read_collection(ask, collection, *listed, &mut read);
-            let stop = match ended {
-                Ok(()) => None,
-                Err(Fail::Skip) => {
-                    read.complete = false;
-                    None
-                }
-                Err(Fail::Stop(problem)) => {
-                    read.complete = false;
-                    Some(problem)
-                }
-            };
+            let mut read = DavRead { href: collection.href.clone(), ..Default::default() };
+            let ended = self.read_collection(collection, *listed, &mut read);
+            if ended.is_err() {
+                read.complete = false;
+            }
             if read.state != DavReadState::Skipped || !read.changes.is_empty() {
                 out.collections.push(read);
             }
-            if let Some(problem) = stop {
+            if let Err(Fail::Stop(problem)) = ended {
                 return Err(Fail::Stop(problem));
             }
         }
@@ -353,11 +385,13 @@ impl Run<'_> {
     }
 
     /// One request, with its challenge and its redirects. `build` makes the request for an address
-    /// on the endpoint it is given.
+    /// on the endpoint it is given. [`Run::redirected`] says afterwards whether the answer came
+    /// from another address than `url`.
     fn call(&mut self, site: usize, url: &str, build: &dyn Fn(&Endpoint, &str) -> Result<HttpRequest, RequestError>) -> Result<HttpResponse, Fail> {
         let mut target = url.to_string();
         let mut redirects = 0;
         let mut retried = false;
+        self.redirected = false;
         loop {
             if self.requests >= self.limits.requests || self.started.elapsed() >= self.limits.patience {
                 return Err(Fail::Stop(DavProblem::Limits));
@@ -372,20 +406,20 @@ impl Run<'_> {
                 Ok(request) => request,
                 Err(_) => {
                     // An address off the origin, or one that is none: left alone.
-                    self.skipped = self.skipped.saturating_add(1);
+                    self.skip(1);
                     return Err(Fail::Skip);
                 }
             };
             // Never to Microsoft's or Google's hosts, whatever an answer said.
             if DavServer::check_home(request.url()).is_err() {
-                self.skipped = self.skipped.saturating_add(1);
+                self.skip(1);
                 return Err(Fail::Skip);
             }
             let response = match self.x.exchange(&request) {
                 Ok(response) => response,
                 Err(TransportError::Certificate) => return Err(Fail::Stop(DavProblem::Certificate)),
                 Err(TransportError::Unreachable) => return Err(Fail::Stop(DavProblem::Unreachable)),
-                Err(TransportError::BodyTooLarge) => return Err(Fail::Skip),
+                Err(TransportError::BodyTooLarge) => return Err(Fail::TooLarge),
                 // (One more try of what may be asked twice.)
                 Err(TransportError::Failed) if request.is_repeatable() && !retried => {
                     retried = true;
@@ -424,6 +458,7 @@ impl Run<'_> {
                             self.signed_in.push(key);
                         }
                     }
+                    self.redirected = redirects > 0;
                     return Ok(response);
                 }
             }
@@ -449,36 +484,51 @@ impl Run<'_> {
         let origin = &self.sites.get(site).ok_or(Fail::Skip)?.origin;
         match status::classify(response, self.now) {
             Verdict::Multistatus => Multistatus::parse(response.body(), origin, base).map_err(|_| Fail::Skip),
-            Verdict::Forbidden | Verdict::Other(_) | Verdict::PreconditionFailed | Verdict::Gone => Err(Fail::Skip),
             _ => Err(Fail::Skip),
         }
     }
 
+    /// Whether `href` is a resource inside `collection` on its origin: what a member must be.
+    fn inside(&self, site: usize, collection: &str, href: &str) -> bool {
+        self.sites.get(site).is_some_and(|s| s.origin.is_within(collection, href))
+    }
+
     // ---- listing --------------------------------------------------------------------------
 
+    /// A home's calendars. `whole` only when every child of the home was understood: one whose
+    /// properties failed, whose address was left out or that was past a cap may be a calendar, and
+    /// a calendar that is not listed is taken for one that is gone.
     fn list_home(&mut self, home: &str) -> Result<Listed, Fail> {
         let Some(site) = self.site_of(home) else { return Err(Fail::Skip) };
         let response = self.call(site, home, &|ep, url| ep.propfind_collections(url))?;
-        let ms = self.multistatus(site, &response, home)?;
-        let skipped = ms.skipped;
-        self.skipped = self.skipped.saturating_add(u32::try_from(skipped).unwrap_or(u32::MAX));
-        let capped = ms.capped;
-        let listed = Collections::from_listing(ms);
-        let mut out = Listed { found: Vec::new(), capped: capped || listed.capped };
-        for entry in listed.calendars {
-            out.found.push(found_of(&entry));
+        // (Answered at another address: what it lists is no proof of what this home holds.)
+        let redirected = self.redirected;
+        let mut ms = self.multistatus(site, &response, home)?;
+        self.skip(ms.skipped);
+        let understood = ms.entries.iter().filter(|e| !e.is_base).all(|e| (200..300).contains(&e.status) && e.typed);
+        let mut whole = !redirected && understood && ms.skipped == 0 && !ms.capped && !ms.truncated;
+        // Only what is inside the home is one of its calendars.
+        let before = ms.entries.len();
+        ms.entries.retain(|e| e.is_base || self.inside(site, home, &e.href));
+        if ms.entries.len() != before {
+            self.skip(before - ms.entries.len());
+            whole = false;
         }
-        Ok(out)
+        let listed = Collections::from_listing(ms);
+        whole &= !listed.capped && listed.skipped == 0;
+        Ok(Listed { found: listed.calendars.iter().map(found_of).collect(), whole })
     }
 
     // ---- one collection -------------------------------------------------------------------
 
-    fn read_collection(&mut self, ask: &DavAsk, coll: &DavAskCollection, listed: Option<&Found>, out: &mut DavRead) -> Result<(), Fail> {
+    fn read_collection(&mut self, coll: &DavAskCollection, listed: Option<&Found>, out: &mut DavRead) -> Result<(), Fail> {
         let Some(site) = self.site_of(&coll.href) else {
             // (Not on an origin of the homes: never asked.)
-            self.skipped = self.skipped.saturating_add(1);
+            self.skip(1);
             return Err(Fail::Skip);
         };
+        // (Asked before anything is read: a change made while the collection is read is after
+        // them, and is seen again at the next run.)
         let (ctag, token) = match listed {
             Some(found) => (found.ctag.clone(), found.token.clone()),
             None => self.state_of(site, &coll.href)?,
@@ -490,26 +540,23 @@ impl Run<'_> {
             return Ok(());
         }
         out.state = DavReadState::Read;
-        out.ctag = String::new();
         let known: HashMap<&str, &str> = coll.known.iter().map(|k| (k.href.as_str(), k.etag.as_str())).collect();
-        let sync_known = listed.and_then(|f| f.sync);
-        let mut ended = Pass::NoSync;
-        if sync_known != Some(false) {
-            if !coll.sync_token.is_empty() {
-                ended = self.sync_pass(site, coll, &known, Some(coll.sync_token.clone()), out)?;
-                if matches!(ended, Pass::TokenInvalid) {
-                    // Read afresh and match by address: what came before is not trusted.
-                    *out = DavRead { href: coll.href.clone(), complete: true, state: DavReadState::Read, ..Default::default() };
-                    ended = self.sync_pass(site, coll, &known, None, out)?;
+        let mut sync = listed.and_then(|f| f.sync) != Some(false);
+        if sync && !coll.sync_token.is_empty() {
+            match self.delta(site, coll, &known, out)? {
+                Delta::Done => {
+                    out.complete = true;
+                    out.ctag = ctag.unwrap_or_default();
+                    return Ok(());
                 }
-            } else {
-                ended = self.sync_pass(site, coll, &known, None, out)?;
+                Delta::Short => return Ok(()),
+                Delta::Afresh { sync: still } => {
+                    sync = still;
+                    *out = DavRead { href: coll.href.clone(), state: DavReadState::Read, ..Default::default() };
+                }
             }
         }
-        if matches!(ended, Pass::TokenInvalid | Pass::NoSync) {
-            *out = DavRead { href: coll.href.clone(), complete: true, state: DavReadState::Read, ..Default::default() };
-            self.query_pass(site, ask, coll, &known, out)?;
-        }
+        self.full(site, coll, &known, if sync { token } else { None }, out)?;
         if out.complete {
             out.ctag = ctag.unwrap_or_default();
         }
@@ -518,265 +565,271 @@ impl Run<'_> {
 
     /// The change tag and sync token of a collection, asked for by themselves.
     fn state_of(&mut self, site: usize, href: &str) -> Result<(Option<String>, Option<String>), Fail> {
-        let response = self.call(site, href, &|ep, url| ep.propfind_state(url))?;
+        let response = match self.call(site, href, &|ep, url| ep.propfind_state(url)) {
+            Err(Fail::TooLarge) => return Ok((None, None)),
+            other => other?,
+        };
         // (A server that can't be asked this way is read as if it had changed.)
         let Ok(ms) = self.multistatus(site, &response, href) else { return Ok((None, None)) };
         let own = ms.entries.iter().find(|e| e.is_base).or_else(|| ms.entries.first());
         Ok((own.and_then(|e| e.ctag.clone()), own.and_then(|e| e.sync_token.clone())))
     }
 
-    /// Whether `href` is a resource inside `collection` on its origin: what a member must be.
-    fn inside(&self, site: usize, collection: &str, href: &str) -> bool {
-        self.sites.get(site).is_some_and(|s| s.origin.is_within(collection, href))
-    }
-
-    /// Reads a collection's changes by `sync-collection` (RFC 6578) from `token` (none: the first
-    /// read, of everything), page by page.
-    fn sync_pass(
+    /// Every member of a collection (`PROPFIND`, Depth 1), and then each one that is new or
+    /// changed. `out.members` is set only from a listing that is whole; `out.complete` (and the
+    /// token, `token`, taken before the listing) only when every member that can be held was
+    /// fetched.
+    fn full(
         &mut self,
         site: usize,
         coll: &DavAskCollection,
         known: &HashMap<&str, &str>,
-        start: Option<String>,
+        token: Option<String>,
         out: &mut DavRead,
-    ) -> Result<Pass, Fail> {
-        let delta = start.is_some();
-        // (A pass that goes on from a token keeps it until a page is taken in.)
-        out.sync_token = start.clone().unwrap_or_default();
-        let mut token = start;
-        let mut present: BTreeMap<String, String> = BTreeMap::new();
-        let mut total = 0usize;
-        let mut pages = 0usize;
-        let mut gets = 0usize;
-        loop {
-            // (Whether a deletion of this page found no room: the token then stays where it was.)
-            let mut overflow = false;
-            pages += 1;
-            if pages > self.limits.pages {
-                out.complete = false;
-                return self.short(out, delta, &present);
-            }
-            let asked = token.clone();
-            let response = self.call(site, &coll.href, &|ep, url| ep.sync_collection(url, asked.as_deref(), Some(MAX_PAGE)))?;
-            match status::classify(&response, self.now) {
-                Verdict::Multistatus => {}
-                Verdict::SyncTokenInvalid if delta || pages > 1 => return Ok(Pass::TokenInvalid),
-                // (A server that doesn't do the report, and says so: another way is tried.)
-                Verdict::Forbidden | Verdict::Other(_) | Verdict::PreconditionFailed if token.is_none() && pages == 1 => return Ok(Pass::NoSync),
-                _ => return Err(Fail::Skip),
-            }
-            let ms = self.multistatus(site, &response, &coll.href)?;
-            self.skipped = self.skipped.saturating_add(u32::try_from(ms.skipped).unwrap_or(u32::MAX));
-            let mut page: Vec<(String, String)> = Vec::new();
-            for entry in &ms.entries {
-                if entry.is_base {
-                    continue;
-                }
-                if !self.inside(site, &coll.href, &entry.href) {
-                    self.skipped = self.skipped.saturating_add(1);
-                    continue;
-                }
-                if entry.is_gone() {
-                    present.remove(&entry.href);
-                    if out.changes.len() < MAX_CHANGES {
-                        out.changes.push(DavChange { href: entry.href.clone(), gone: true, ..Default::default() });
-                    } else {
-                        overflow = true;
-                    }
-                    continue;
-                }
-                // (A member without a usable ETag is still a member: it is kept, and asked for.)
-                let etag = usable(entry.etag.as_deref());
-                total += 1;
-                if total > MAX_RESOURCES {
-                    // (The first ones stand; what is over is said once, never taken in.)
-                    out.capped = true;
-                    continue;
-                }
-                if !delta {
-                    present.insert(entry.href.clone(), etag.clone());
-                }
-                if changed(known, &entry.href, &etag, delta) {
-                    page.push((entry.href.clone(), etag.clone()));
-                }
-            }
-            out.capped |= ms.capped;
-            self.cap_hit = false;
-            let fetched = match self.fetch(site, &coll.href, &page, &mut gets, out) {
-                Ok(fetched) => fetched,
-                // More changes than a read may bring: the token is no use to go on from (it
-                // would bring the same first ones for ever), so the collection is read afresh by
-                // address, against what is here, and goes on at each run from what it has.
-                Err(Fail::Skip) if delta && self.cap_hit => return Ok(Pass::TokenInvalid),
-                Err(other) => return Err(other),
-            };
-            if delta && overflow {
-                return Ok(Pass::TokenInvalid);
-            }
-            if !fetched || out.capped || overflow {
-                out.complete = false;
-                return self.short(out, delta, &present);
-            }
-            if ms.truncated {
-                match ms.sync_token {
-                    Some(next) if Some(&next) != token.as_ref() => {
-                        // (A token between pages is good to go on from only for changes: a first read
-                        // that stops short starts over, so that what is gone is found.)
-                        if delta {
-                            out.sync_token = next.clone();
-                        }
-                        token = Some(next);
-                    }
-                    _ => {
-                        out.complete = false;
-                        return self.short(out, delta, &present);
-                    }
-                }
-                continue;
-            }
-            out.sync_token = ms.sync_token.unwrap_or_default();
-            if !delta {
-                out.full = true;
-                out.present = present.into_keys().collect();
-            }
-            return Ok(Pass::Done);
+    ) -> Result<(), Fail> {
+        out.complete = false;
+        out.sync_token = String::new();
+        let response = match self.call(site, &coll.href, &|ep, url| ep.propfind_members(url)) {
+            Err(Fail::TooLarge) => return Err(Fail::Skip),
+            other => other?,
+        };
+        // (Answered at another address: its members are not this collection's, as far as can be
+        // told. Nothing is read, and nothing is taken to be gone.)
+        if self.redirected {
+            return Err(Fail::Skip);
         }
-    }
-
-    /// A pass that stopped short: a first read keeps nothing to go on from.
-    fn short(&mut self, out: &mut DavRead, delta: bool, present: &BTreeMap<String, String>) -> Result<Pass, Fail> {
-        if !delta {
-            out.sync_token = String::new();
-            out.full = true;
-            out.present = present.keys().cloned().collect();
-        }
-        Ok(Pass::Short)
-    }
-
-    /// The fallback for a server that can't say what changed: the events of the stretch, by ETag,
-    /// then what is new or different (`calendar-query`, RFC 4791 §7.8).
-    fn query_pass(&mut self, site: usize, ask: &DavAsk, coll: &DavAskCollection, known: &HashMap<&str, &str>, out: &mut DavRead) -> Result<(), Fail> {
-        let (Some(start), Some(end)) = (stamp(ask.from), stamp(ask.to)) else { return Err(Fail::Skip) };
-        let response = self.call(site, &coll.href, &|ep, url| ep.calendar_query(url, &start, &end))?;
         let ms = self.multistatus(site, &response, &coll.href)?;
-        self.skipped = self.skipped.saturating_add(u32::try_from(ms.skipped).unwrap_or(u32::MAX));
-        let mut present: BTreeMap<String, String> = BTreeMap::new();
-        for entry in ms.entries.iter().filter(|e| !e.is_base && !e.is_gone()) {
+        self.skip(ms.skipped);
+        // Whether the listing is all there is (what isn't in it is gone), and whether every member
+        // that can be held is in it (the change tag and token may be kept once they are fetched).
+        let mut whole = ms.skipped == 0 && !ms.capped && !ms.truncated;
+        let mut all = !ms.capped && !ms.truncated;
+        let mut members: Vec<(String, String)> = Vec::new();
+        let mut seen: HashSet<&str> = HashSet::new();
+        for entry in ms.entries.iter().filter(|e| !e.is_base) {
             if !self.inside(site, &coll.href, &entry.href) {
-                self.skipped = self.skipped.saturating_add(1);
+                // (Never to be held here: it doesn't stop the read, but the listing is not whole.)
+                self.skip(1);
+                whole = false;
                 continue;
             }
-            let etag = usable(entry.etag.as_deref());
-            if present.len() >= MAX_RESOURCES {
-                out.capped = true;
-                out.complete = false;
+            if !(200..300).contains(&entry.status) {
+                whole = false;
+                continue;
+            }
+            if entry.typed && entry.is_collection {
+                continue;
+            }
+            // (A member whose kind didn't come is read as a resource; but it might have been
+            // something else, so the listing is not proof of anything.)
+            whole &= entry.typed;
+            if !seen.insert(entry.href.as_str()) {
+                continue;
+            }
+            if members.len() >= MAX_RESOURCES {
+                // (The first ones stand; what is over is said, and the listing is not all.)
+                whole = false;
+                all = false;
                 break;
             }
-            present.insert(entry.href.clone(), etag);
+            members.push((entry.href.clone(), usable(entry.etag.as_deref())));
         }
-        out.capped |= ms.capped;
-        out.full = true;
-        out.window = Some((ask.from, ask.to));
-        out.sync_token = String::new();
-        out.present = present.keys().cloned().collect();
-        if out.capped {
-            out.complete = false;
+        if whole {
+            out.members = Some(members.iter().map(|(h, _)| h.clone()).collect());
         }
-        let wanted: Vec<(String, String)> =
-            present.iter().filter(|(href, etag)| changed(known, href, etag, false)).map(|(h, e)| (h.clone(), e.clone())).collect();
+        let wanted: Vec<(String, String)> = members.into_iter().filter(|(href, etag)| changed(known, href, etag, false)).collect();
         let mut gets = 0usize;
-        if !self.fetch(site, &coll.href, &wanted, &mut gets, out)? {
-            out.complete = false;
+        let fetched = self.fetch(site, &coll.href, &wanted, &mut gets, out)?;
+        out.complete = all && matches!(fetched, Fetched::All);
+        if out.complete {
+            out.sync_token = token.unwrap_or_default();
         }
         Ok(())
     }
 
+    /// Reads a collection's changes by `sync-collection` (RFC 6578) from its token, page by page.
+    /// A page is taken in whole or not at all: the token moves past it only when everything it
+    /// names is in `out.changes` (or can never be had).
+    fn delta(&mut self, site: usize, coll: &DavAskCollection, known: &HashMap<&str, &str>, out: &mut DavRead) -> Result<Delta, Fail> {
+        out.sync_token = coll.sync_token.clone();
+        let mut token = coll.sync_token.clone();
+        let mut gets = 0usize;
+        let mut pages = 0usize;
+        loop {
+            // (A page that can never be taken in whole, the first: by token there is no way on.)
+            let stuck = |pages: usize| if pages == 0 { Delta::Afresh { sync: true } } else { Delta::Short };
+            if pages >= self.limits.pages.max(1) {
+                return Ok(Delta::Short);
+            }
+            let asked = token.clone();
+            let response = match self.call(site, &coll.href, &|ep, url| ep.sync_collection(url, Some(&asked), Some(MAX_PAGE))) {
+                Err(Fail::TooLarge) => return Ok(stuck(pages)),
+                other => other?,
+            };
+            if self.redirected {
+                return Err(Fail::Skip);
+            }
+            match status::classify(&response, self.now) {
+                Verdict::Multistatus => {}
+                Verdict::SyncTokenInvalid => return Ok(Delta::Afresh { sync: true }),
+                // A server that refuses the report (400, 403, 405, 501 and the like) is read by
+                // listing from now on; one that failed (5xx) may do it again later.
+                Verdict::Other(code) if code >= 500 && code != 501 => return Ok(Delta::Afresh { sync: true }),
+                _ => return Ok(Delta::Afresh { sync: false }),
+            }
+            let Ok(ms) = self.multistatus(site, &response, &coll.href) else { return Ok(stuck(pages)) };
+            self.skip(ms.skipped);
+            if ms.capped {
+                return Ok(stuck(pages));
+            }
+            let mut gone: Vec<String> = Vec::new();
+            let mut wanted: Vec<(String, String)> = Vec::new();
+            for entry in ms.entries.iter().filter(|e| !e.is_base) {
+                if !self.inside(site, &coll.href, &entry.href) {
+                    // (Never held here, so nothing here can be missing it.)
+                    self.skip(1);
+                    continue;
+                }
+                if entry.is_gone() {
+                    gone.push(entry.href.clone());
+                    continue;
+                }
+                let etag = usable(entry.etag.as_deref());
+                if changed(known, &entry.href, &etag, true) {
+                    wanted.push((entry.href.clone(), etag));
+                }
+            }
+            if gone.len().saturating_add(wanted.len()) > MAX_CHANGES.saturating_sub(out.changes.len()) {
+                return Ok(stuck(pages));
+            }
+            out.changes.extend(gone.into_iter().map(|href| DavChange { href, gone: true, ..Default::default() }));
+            if let Fetched::Partly = self.fetch(site, &coll.href, &wanted, &mut gets, out)? {
+                return Ok(Delta::Short);
+            }
+            // The page is in, whole.
+            pages += 1;
+            match ms.sync_token {
+                Some(next) if next != token => {
+                    out.sync_token = next.clone();
+                    token = next;
+                }
+                // (A page without a new token: there is nothing to go on from.)
+                _ if ms.truncated => return Ok(stuck(pages.saturating_sub(1))),
+                _ => {}
+            }
+            if !ms.truncated {
+                return Ok(Delta::Done);
+            }
+        }
+    }
+
     /// The documents of `wanted` (address, ETag), into `out.changes`: by multiget in batches, and
-    /// one by one what a multiget left out or sent too large to hold. False when one couldn't be had.
-    fn fetch(&mut self, site: usize, collection: &str, wanted: &[(String, String)], gets: &mut usize, out: &mut DavRead) -> Result<bool, Fail> {
-        let mut all = true;
+    /// one by one what a multiget left out, sent too large to hold, or couldn't bring at all.
+    fn fetch(&mut self, site: usize, collection: &str, wanted: &[(String, String)], gets: &mut usize, out: &mut DavRead) -> Result<Fetched, Fail> {
         let etags: HashMap<&str, &str> = wanted.iter().map(|(h, e)| (h.as_str(), e.as_str())).collect();
         let mut single: Vec<String> = Vec::new();
         for batch in wanted.chunks(MAX_MULTIGET) {
+            if out.changes.len() >= MAX_CHANGES {
+                return Ok(Fetched::Partly);
+            }
             let hrefs: Vec<&str> = batch.iter().map(|(h, _)| h.as_str()).collect();
-            let response = self.call(site, collection, &|ep, url| ep.multiget(Kind::Calendar, url, &hrefs))?;
-            let ms = match self.multistatus(site, &response, collection) {
-                Ok(ms) => ms,
-                // (The batch is asked for one by one instead.)
-                Err(Fail::Skip) => {
-                    single.extend(batch.iter().map(|(h, _)| h.clone()));
-                    continue;
-                }
+            let ms = match self.call(site, collection, &|ep, url| ep.multiget(Kind::Calendar, url, &hrefs)) {
+                Ok(response) if !self.redirected => self.multistatus(site, &response, collection).ok(),
+                Ok(_) | Err(Fail::Skip | Fail::TooLarge) => None,
                 Err(stop) => return Err(stop),
             };
-            self.skipped = self.skipped.saturating_add(u32::try_from(ms.skipped).unwrap_or(u32::MAX));
+            // (A batch that couldn't be had together is asked for one by one.)
+            let Some(ms) = ms else {
+                single.extend(batch.iter().map(|(h, _)| h.clone()));
+                continue;
+            };
+            self.skip(ms.skipped);
             let mut got: HashSet<String> = HashSet::new();
             for entry in ms.entries.iter().filter(|e| !e.is_base && !e.is_gone()) {
                 // Only what was asked for: a server may name others, and none of them is taken.
                 let Some(asked) = etags.get(entry.href.as_str()) else {
-                    self.skipped = self.skipped.saturating_add(1);
+                    self.skip(1);
                     continue;
                 };
+                if got.contains(&entry.href) {
+                    continue;
+                }
                 if let Some(data) = &entry.data {
-                    self.take(out, &entry.href, entry.etag.as_deref().unwrap_or(asked), data.clone())?;
-                    got.insert(entry.href.clone());
-                } else if entry.data_too_large {
-                    single.push(entry.href.clone());
+                    if !self.take(out, &entry.href, entry.etag.as_deref().unwrap_or(asked), data.clone())? {
+                        return Ok(Fetched::Partly);
+                    }
                     got.insert(entry.href.clone());
                 }
             }
             single.extend(batch.iter().filter(|(h, _)| !got.contains(h)).map(|(h, _)| h.clone()));
         }
+        let mut all = true;
         for href in single {
+            if out.changes.len() >= MAX_CHANGES {
+                return Ok(Fetched::Partly);
+            }
             if *gets >= self.limits.gets {
                 all = false;
                 break;
             }
             *gets += 1;
-            match self.get(site, collection, &href) {
-                Ok(Some((etag, body))) => {
-                    self.take(out, &href, etag.as_deref().or_else(|| etags.get(href.as_str()).copied()).unwrap_or_default(), body)?
+            match self.get(site, collection, &href)? {
+                Got::Doc(etag, body) => {
+                    let etag = etag.as_deref().or_else(|| etags.get(href.as_str()).copied()).unwrap_or_default().to_string();
+                    if !self.take(out, &href, &etag, body)? {
+                        return Ok(Fetched::Partly);
+                    }
                 }
-                Ok(None) | Err(Fail::Skip) => all = false,
-                Err(stop) => return Err(stop),
+                Got::Never => {}
+                Got::NotNow => all = false,
             }
         }
-        Ok(all)
+        Ok(if all { Fetched::All } else { Fetched::Partly })
     }
 
-    /// One document, by `GET`: its ETag and text, when it is one that is read.
-    fn get(&mut self, site: usize, collection: &str, href: &str) -> Result<Option<(Option<String>, String)>, Fail> {
+    /// One document, by `GET`.
+    fn get(&mut self, site: usize, collection: &str, href: &str) -> Result<Got, Fail> {
         if !self.inside(site, collection, href) {
-            return Ok(None);
+            return Ok(Got::Never);
         }
-        let response = self.call(site, href, &|ep, url| ep.get(url))?;
-        if !matches!(status::classify(&response, self.now), Verdict::Done) || response.body().len() > MAX_READ {
-            return Ok(None);
+        let response = match self.call(site, href, &|ep, url| ep.get(url)) {
+            Ok(response) => response,
+            Err(Fail::TooLarge) => return Ok(Got::Never),
+            Err(Fail::Skip) => return Ok(Got::NotNow),
+            Err(stop) => return Err(stop),
+        };
+        match status::classify(&response, self.now) {
+            Verdict::Done if response.body().len() > MAX_READ => Ok(Got::Never),
+            Verdict::Done => {
+                let etag = response.header("etag").map(str::to_owned);
+                Ok(Got::Doc(etag, String::from_utf8_lossy(response.body()).into_owned()))
+            }
+            // (Not there, or refused for good: asking again brings the same.)
+            Verdict::Gone | Verdict::Forbidden | Verdict::Other(405) => Ok(Got::Never),
+            _ => Ok(Got::NotNow),
         }
-        let etag = response.header("etag").map(str::to_owned);
-        Ok(Some((etag, String::from_utf8_lossy(response.body()).into_owned())))
     }
 
-    /// Keeps one document, within what a run may take in.
-    fn take(&mut self, out: &mut DavRead, href: &str, etag: &str, raw: String) -> Result<(), Fail> {
-        // (A collection that has more to bring than one run takes goes on at the next, which is
-        // told what is here already; the whole run's bytes end it.)
+    /// Keeps one document. False when the read holds as many changes as it may (the document is
+    /// not kept, and is asked for again at the next run). The run's bytes end the run, after this
+    /// document: each run takes at least one.
+    fn take(&mut self, out: &mut DavRead, href: &str, etag: &str, raw: String) -> Result<bool, Fail> {
         if out.changes.len() >= MAX_CHANGES {
-            self.cap_hit = true;
-            return Err(Fail::Skip);
+            return Ok(false);
         }
         self.raw = self.raw.saturating_add(raw.len());
+        out.changes.push(DavChange { href: href.to_string(), etag: etag.to_string(), raw: Some(raw), gone: false });
         if self.raw > self.limits.raw_bytes {
             return Err(Fail::Stop(DavProblem::Limits));
         }
-        out.changes.push(DavChange { href: href.to_string(), etag: etag.to_string(), raw: Some(raw), gone: false });
-        Ok(())
+        Ok(true)
     }
 }
 
 /// Whether a member is to be read: it isn't here, or is here under another ETag. One the server
-/// gave no ETag for can't be compared: it is read when it isn't here, and, in a change pass
-/// (where it is named because it changed), always.
+/// gave no ETag for can't be compared: it is read when it isn't here (the engine leaves it out of
+/// what is here once a day, so that it is read again), and, in a change pass (where it is named
+/// because it changed), always.
 fn changed(known: &HashMap<&str, &str>, href: &str, etag: &str, delta: bool) -> bool {
     if etag.is_empty() { delta || !known.contains_key(href) } else { known.get(href) != Some(&etag) }
 }
@@ -788,7 +841,8 @@ fn usable(etag: Option<&str>) -> String {
 
 struct Listed {
     found: Vec<Found>,
-    capped: bool,
+    /// Every child of the home was understood, and none was left out.
+    whole: bool,
 }
 
 fn found_of(entry: &Entry) -> Found {
@@ -805,13 +859,6 @@ fn found_of(entry: &Entry) -> Found {
         token: entry.sync_token.clone(),
         sync: (!entry.reports.is_empty()).then(|| entry.supports_sync()),
     }
-}
-
-/// `YYYYMMDDTHHMMSSZ` for a Unix time (RFC 4791 §9.9).
-fn stamp(at: i64) -> Option<Stamp> {
-    let when = mailcraft_time::DateTime::from_timestamp(at, 0);
-    Stamp::parse(&format!("{:04}{:02}{:02}T{:02}{:02}{:02}Z", when.date.year, when.date.month, when.date.day, when.hour, when.minute, when.second))
-        .ok()
 }
 
 #[cfg(test)]

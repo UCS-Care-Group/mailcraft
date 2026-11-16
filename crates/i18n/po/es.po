@@ -351,18 +351,6 @@ msgstr "El nombre de una marca en otra dirección."
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Aún no se pudo enviar un cambio del calendario; se volverá a intentar: {error}"
 
-#. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
-msgstr "Un servidor de calendarios no permitió iniciar sesión. MailCraft lo intentará de nuevo más tarde o cuando cambie la contraseña."
-
-#. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
-msgstr "El certificado de un servidor de calendarios no es de confianza, así que no se le envió nada."
-
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
@@ -15472,6 +15460,18 @@ msgstr ""
 "¿Quitar la copia abierta por dirección? La otra se mantiene y no cambia nada en el servidor."
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr "El servidor de calendario de {account} tiene un certificado que no es de confianza, así que no se le envió nada."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "El servidor de calendario de {account} no aceptó el inicio de sesión. MailCraft lo intentará de nuevo más tarde o cuando cambie la contraseña."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
@@ -22118,6 +22118,12 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "este mensaje no está descargado: ábralo cuando esté en línea y vuelva a enviarlo"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this read was made under the calendar server's earlier settings"
+msgstr "esta lectura se hizo con la configuración anterior del servidor de calendario"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
@@ -24026,6 +24032,14 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+#~ msgstr "Un servidor de calendarios no permitió iniciar sesión. MailCraft lo intentará de nuevo más tarde o cuando cambie la contraseña."
+
+#, fuzzy
+#~ msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+#~ msgstr "El certificado de un servidor de calendarios no es de confianza, así que no se le envió nada."
 
 #, fuzzy
 #~ msgid "Calendars and contacts on a server are not read or written yet in this version."

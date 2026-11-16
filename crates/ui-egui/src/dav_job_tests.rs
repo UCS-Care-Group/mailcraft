@@ -76,6 +76,7 @@ fn a_job_is_started_with_the_homes_passwords_and_its_answer_is_taken_in_once() {
         let download = DavDownload {
             account: job.ask.account,
             email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
             listing: Some(DavListing {
                 calendars: vec![DavCalendar { href: collection.clone(), name: "Work".into(), ..Default::default() }],
                 complete: true,
@@ -84,10 +85,9 @@ fn a_job_is_started_with_the_homes_passwords_and_its_answer_is_taken_in_once() {
             collections: vec![DavRead {
                 href: collection.clone(),
                 state: DavReadState::Read,
-                full: true,
                 complete: true,
                 changes: vec![DavChange { href: format!("{collection}a.ics"), etag: "\"1\"".into(), raw: Some(event.into()), gone: false }],
-                present: vec![format!("{collection}a.ics")],
+                members: Some(vec![format!("{collection}a.ics")]),
                 ..Default::default()
             }],
             signed_in: vec![HOME.into()],
@@ -144,7 +144,8 @@ fn failing_job(a: &mut MailApp, problem: mailcraft_model::DavProblem) -> Arc<Mut
     a.services.dav = Some(Box::new(move |job: DavJob| {
         seen.lock().unwrap().push(job.passwords.clone());
         let (send, receive) = std::sync::mpsc::channel();
-        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), problem, ..Default::default() };
+        let download =
+            DavDownload { account: job.ask.account, email: job.ask.email.clone(), server: job.ask.server.clone(), problem, ..Default::default() };
         send.send(DavDone { download }).unwrap();
         receive
     }));
@@ -212,7 +213,7 @@ fn a_server_that_refused_a_password_is_tried_again_after_hours_and_the_owner_is_
     a.dav_tick();
     assert_eq!(jobs.lock().unwrap().len(), 1);
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert!(said.contains("calendar server") && !said.contains("example.org"), "the owner is told, and nothing of the server: {said:?}");
+    assert!(said.contains("calendar server") && !said.contains("dav.example.org"), "the owner is told, and nothing of the server: {said:?}");
     // Not at once, whatever the back-off.
     a.dav.next = 0.0;
     a.dav.trouble.clear();
@@ -237,7 +238,8 @@ fn one_account_in_trouble_does_not_hold_up_another() {
         log.lock().unwrap().push(job.ask.account);
         let (send, receive) = std::sync::mpsc::channel();
         let problem = if job.ask.account == first { mailcraft_model::DavProblem::Unreachable } else { mailcraft_model::DavProblem::None };
-        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), problem, ..Default::default() };
+        let download =
+            DavDownload { account: job.ask.account, email: job.ask.email.clone(), server: job.ask.server.clone(), problem, ..Default::default() };
         send.send(DavDone { download }).unwrap();
         receive
     }));
@@ -258,7 +260,13 @@ fn what_is_held_is_the_password_that_was_sent_not_what_would_be_found_now() {
     a.dav_passwords.insert((id, HOME.into()), "own".into());
     a.services.dav = Some(Box::new(move |job: DavJob| {
         let (send, receive) = std::sync::mpsc::channel();
-        let download = DavDownload { account: job.ask.account, email: job.ask.email.clone(), signed_in: vec![HOME.into()], ..Default::default() };
+        let download = DavDownload {
+            account: job.ask.account,
+            email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
+            signed_in: vec![HOME.into()],
+            ..Default::default()
+        };
         send.send(DavDone { download }).unwrap();
         receive
     }));
@@ -267,4 +275,68 @@ fn what_is_held_is_the_password_that_was_sent_not_what_would_be_found_now() {
     a.dav_passwords.insert((id, HOME.into()), "changed".into());
     a.dav_tick();
     assert_eq!(a.dav_passwords.get(&(id, HOME.to_string())).map(String::as_str), Some("own"));
+}
+
+// ---- the invariants, held by design (round 5) -------------------------------------------------
+
+fn say(a: &MailApp) -> String {
+    a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default()
+}
+
+#[test]
+fn i2_a_run_that_stopped_for_its_limits_is_not_trouble() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Limits);
+    a.dav_tick();
+    a.dav_tick();
+    assert!(!a.dav.trouble.contains_key(&id), "no back-off: more is waiting, and it goes on at the next run");
+}
+
+#[test]
+fn i5_the_owner_is_told_which_account_by_its_own_name_and_again_for_another_account() {
+    let (mut a, first) = app(false);
+    a.execute("account.edit", json!({"id": first, "name": "Work mail"})).unwrap();
+    let second =
+        a.execute("account.add", json!({"email": "grace@example.org", "incoming": {"host": "imap2.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.edit", json!({"id": second, "name": "Home mail"})).unwrap();
+    a.execute("account.davSet", json!({"id": second, "calendarHomes": ["https://dav2.example.org/cal/grace/"]})).unwrap();
+    a.passwords.insert(first, "m1".into());
+    a.passwords.insert(second, "m2".into());
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::WrongPassword);
+    a.dav_tick();
+    a.dav_tick();
+    let said = say(&a);
+    assert!(said.contains("Work mail") && !said.contains("example.org"), "{said:?}");
+    a.status_msg = None;
+    a.dav.next = 0.0;
+    a.dav_tick();
+    a.dav_tick();
+    let said = say(&a);
+    assert!(said.contains("Home mail") && !said.contains("example.org"), "the same kind of trouble, for another account: {said:?}");
+}
+
+#[test]
+fn i5_a_refusal_is_forgotten_when_the_user_name_is_put_right() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let jobs = failing_job(&mut a, mailcraft_model::DavProblem::WrongPassword);
+    a.dav_tick();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    a.execute("account.davSet", json!({"id": id, "username": "ada.lovelace"})).unwrap();
+    a.dav.next = 0.0;
+    a.dav.trouble.clear();
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 2, "the same password under another name is another try");
+}
+
+#[test]
+fn r_a_job_whose_thread_died_is_trouble_and_waits_its_back_off() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    a.services.dav = Some(Box::new(|_| std::sync::mpsc::channel().1));
+    a.dav_tick();
+    a.dav_tick();
+    assert!(a.dav.trouble.contains_key(&id), "not tried again every minute");
 }

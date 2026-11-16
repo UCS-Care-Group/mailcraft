@@ -34,17 +34,7 @@ fn home(_: &StandIn) -> String {
 }
 
 fn ask(s: &StandIn, list: bool, collections: Vec<DavAskCollection>) -> DavAsk {
-    DavAsk {
-        account: 7,
-        email: USER.into(),
-        username: USER.into(),
-        homes: vec![home(s)],
-        list_homes: list,
-        from: NOW - 31 * 86_400,
-        to: NOW + 366 * 86_400,
-        collections,
-        ..Default::default()
-    }
+    DavAsk { account: 7, email: USER.into(), username: USER.into(), homes: vec![home(s)], list_homes: list, collections, ..Default::default() }
 }
 
 /// The passwords of the tests, with the origins that were asked.
@@ -94,7 +84,7 @@ fn the_class_cap_is_the_same_on_both_sides() {
 }
 
 #[test]
-fn a_first_sync_lists_the_homes_and_reads_every_calendar_by_sync_collection() {
+fn a_first_sync_lists_the_homes_and_reads_every_calendar_by_listing_it() {
     let s = server();
     s.put_directly("work", "a.ics", &event("a", "20261201T100000Z")).unwrap();
     s.put_directly("work", "b.ics", &event("b", "20261202T100000Z")).unwrap();
@@ -110,9 +100,9 @@ fn a_first_sync_lists_the_homes_and_reads_every_calendar_by_sync_collection() {
     assert!(listing.complete && !listing.capped);
     let work = out.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap();
     assert_eq!(names(work), vec!["a.ics", "b.ics"]);
-    assert!(work.complete && work.full && work.window.is_none());
-    assert_eq!(work.present.len(), 2);
-    assert_eq!(Some(work.sync_token.clone()), s.token("work"));
+    assert!(work.complete);
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(2), "a whole listing");
+    assert_eq!(Some(work.sync_token.clone()), s.token("work"), "the token from before the listing");
     assert!(work.changes.iter().all(|c| c.raw.as_deref().is_some_and(|r| r.contains("BEGIN:VCALENDAR")) && !c.etag.is_empty()));
     assert_eq!(out.collections.len(), 2);
     assert_eq!(out.signed_in, vec![ORIGIN.to_string()]);
@@ -146,7 +136,7 @@ fn a_delta_brings_what_changed_and_what_went() {
     let second = read(&s, &ask(&s, false, vec![state.clone()]));
     let work = &second.collections[0];
     assert_eq!(work.state, DavReadState::Read);
-    assert!(!work.full && work.complete);
+    assert!(work.members.is_none() && work.complete, "changes only: nothing is taken to be gone but what the server said");
     assert_eq!(names(work), vec!["c.ics"]);
     assert_eq!(work.changes.iter().filter(|c| c.gone).count(), 1);
     assert!(work.changes.iter().find(|c| c.gone).unwrap().href.ends_with("a.ics"));
@@ -160,7 +150,7 @@ fn a_delta_brings_what_changed_and_what_went() {
 }
 
 #[test]
-fn a_server_without_sync_collection_is_read_by_query_and_multiget_then_by_change_tag() {
+fn a_server_without_sync_collection_is_read_by_listing_and_multiget_then_by_change_tag() {
     let s = server();
     s.set_quirks(Quirks { no_sync_collection: true, ..Quirks::default() });
     s.put_directly("work", "a.ics", &event("a", "20261201T100000Z")).unwrap();
@@ -168,58 +158,63 @@ fn a_server_without_sync_collection_is_read_by_query_and_multiget_then_by_change
     let first = read(&s, &ask(&s, true, Vec::new()));
     let work = first.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap();
     assert_eq!(names(work), vec!["a.ics", "b.ics"]);
-    assert!(work.full && work.complete && work.window.is_some() && work.sync_token.is_empty());
-    assert_eq!(work.present.len(), 2);
-    let etag_a = s.etag_of("work", "a.ics").unwrap();
+    assert!(work.complete && work.sync_token.is_empty() && !work.ctag.is_empty());
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(2));
     // The next read fetches only what is new or different.
+    let a = s.collection_url("work") + "a.ics";
+    let etag_a = s.etag_of("work", "a.ics").unwrap();
     s.put_directly("work", "c.ics", &event("c", "20261203T100000Z")).unwrap();
-    let known = [(work.present[0].as_str(), etag_a.as_str())];
-    let mut state = next(work, &known);
-    state.ctag = String::new();
-    let second = read(&s, &ask(&s, false, vec![state]));
+    let second = read(&s, &ask(&s, false, vec![next(work, &[(a.as_str(), etag_a.as_str())])]));
     let work = &second.collections[0];
-    assert!(work.full && work.complete);
-    assert_eq!(work.present.len(), 3);
-    let fetched = names(work);
-    assert!(fetched.contains(&"c.ics".to_string()) && fetched.contains(&"b.ics".to_string()), "{fetched:?}");
-    assert!(
-        !fetched.contains(&work.present[0].rsplit('/').next().unwrap().to_string())
-            || work.present[0].ends_with("c.ics")
-            || work.present[0].ends_with("b.ics")
-    );
+    assert!(work.complete);
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(3));
+    assert_eq!(names(work), vec!["b.ics", "c.ics"]);
+    // And then nothing changed: the change tag says so.
+    let third = read(&s, &ask(&s, false, vec![next(work, &[])]));
+    assert_eq!(third.collections[0].state, DavReadState::Unchanged);
 }
-
 #[test]
-fn pages_cut_short_with_507_are_followed_to_the_end() {
+fn change_pages_cut_short_with_507_are_followed_to_the_end() {
     let s = server();
+    let first = read(&s, &ask(&s, true, Vec::new()));
+    let state = next(first.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap(), &[]);
     s.set_quirks(Quirks { page_size: Some(2), ..Quirks::default() });
     for i in 0..5 {
         s.put_directly("work", &format!("{i}.ics"), &event(&i.to_string(), "20261201T100000Z")).unwrap();
     }
-    let out = read(&s, &ask(&s, true, Vec::new()));
-    let work = out.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap();
+    let out = read(&s, &ask(&s, false, vec![state]));
+    let work = &out.collections[0];
     assert_eq!(names(work).len(), 5);
-    assert!(work.complete && work.full);
-    assert_eq!(work.present.len(), 5);
+    assert!(work.complete && work.members.is_none());
     assert_eq!(Some(work.sync_token.clone()), s.token("work"));
 }
-
 #[test]
-fn a_first_read_that_stops_short_keeps_no_token_and_says_it_is_not_all_there() {
+fn a_first_read_that_stops_short_keeps_no_token_and_goes_on_at_the_next_run() {
     let s = server();
-    s.set_quirks(Quirks { page_size: Some(2), ..Quirks::default() });
     for i in 0..5 {
         s.put_directly("work", &format!("{i}.ics"), &event(&i.to_string(), "20261201T100000Z")).unwrap();
     }
     let held = Held::new(Some(PASSWORD));
-    let limits = Limits { pages: 2, ..Limits::default() };
-    let out = run(&ask(&s, true, Vec::new()), &held.lookup(), &s, NOW, &limits);
-    let work = out.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap();
-    assert!(!work.complete);
-    assert!(work.sync_token.is_empty(), "a first read that stops short starts over");
-    assert!(work.present.len() < 5 && !work.changes.is_empty());
+    // A run that may take in hardly any bytes still takes one document.
+    let limits = Limits { raw_bytes: 1, ..Limits::default() };
+    let mut known: Vec<(String, String)> = Vec::new();
+    let mut state = DavAskCollection { href: s.collection_url("work"), ..Default::default() };
+    for run_no in 0..5 {
+        state.known = known.iter().map(|(h, e)| DavKnown { href: h.clone(), etag: e.clone() }).collect();
+        let out = run(&ask(&s, false, vec![state.clone()]), &held.lookup(), &s, NOW, &limits);
+        assert_eq!(out.problem, DavProblem::Limits);
+        let work = &out.collections[0];
+        assert_eq!(work.changes.len(), 1, "run {run_no}: one more each run");
+        assert!(!work.complete && work.sync_token.is_empty() && work.ctag.is_empty(), "nothing is kept to go on from");
+        assert_eq!(work.members.as_ref().map(Vec::len), Some(5), "but the listing was whole");
+        known.extend(work.changes.iter().map(|c| (c.href.clone(), c.etag.clone())));
+    }
+    state.known = known.iter().map(|(h, e)| DavKnown { href: h.clone(), etag: e.clone() }).collect();
+    let out = run(&ask(&s, false, vec![state]), &held.lookup(), &s, NOW, &limits);
+    let work = &out.collections[0];
+    assert!(work.complete && work.changes.is_empty() && out.problem == DavProblem::None, "{:?}", out.problem);
+    assert_eq!(Some(work.sync_token.clone()), s.token("work"));
 }
-
 #[test]
 fn a_change_pass_that_stops_short_keeps_the_token_of_the_last_page_it_took_in() {
     let s = server();
@@ -234,7 +229,7 @@ fn a_change_pass_that_stops_short_keeps_the_token_of_the_last_page_it_took_in() 
     let limits = Limits { pages: 2, ..Limits::default() };
     let out = run(&ask(&s, false, vec![state.clone()]), &held.lookup(), &s, NOW, &limits);
     let work = &out.collections[0];
-    assert!(!work.complete && !work.full);
+    assert!(!work.complete && work.members.is_none());
     assert_ne!(work.sync_token, state.sync_token, "what was taken in is not asked for again");
     assert_eq!(work.changes.len(), 4, "two pages of two");
 }
@@ -250,14 +245,14 @@ fn a_token_the_server_forgot_is_read_afresh_and_matched_by_address() {
     s.put_directly("work", "c.ics", &event("c", "20261203T100000Z")).unwrap();
     let out = read(&s, &ask(&s, false, vec![state]));
     let work = &out.collections[0];
-    assert!(work.full && work.complete, "read again, all of it");
+    assert!(work.complete, "read again, all of it");
     assert_eq!(names(work), vec!["a.ics", "b.ics", "c.ics"]);
-    assert_eq!(work.present.len(), 3);
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(3));
     assert_eq!(Some(work.sync_token.clone()), s.token("work"));
 }
 
 #[test]
-fn a_resource_over_a_megabyte_is_read_whole_for_showing_and_one_over_two_is_not_taken() {
+fn a_resource_over_a_megabyte_is_read_whole_for_showing_and_one_over_two_is_never_asked_for_again() {
     let s = server();
     let pad = |n: usize| {
         format!(
@@ -272,8 +267,9 @@ fn a_resource_over_a_megabyte_is_read_whole_for_showing_and_one_over_two_is_not_
     let work = out.collections.iter().find(|c| c.href == s.collection_url("work")).unwrap();
     assert_eq!(names(work), vec!["a.ics", "big.ics"]);
     assert!(work.changes.iter().find(|c| c.href.ends_with("big.ics")).unwrap().raw.as_ref().unwrap().len() > 1_000_000);
-    assert!(!work.complete, "what couldn't be had is not a finished read: no token is kept past it");
-    assert_eq!(work.present.len(), 3);
+    // (It can never be had: asking again brings the same, so it does not hold up the token.)
+    assert!(work.complete);
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(3), "and it is still there");
 }
 
 #[test]
@@ -292,36 +288,27 @@ fn a_collection_with_more_than_one_run_takes_goes_on_at_the_next_run() {
     let known: Vec<(&str, &str)> = known.iter().map(|(h, e)| (h.as_str(), e.as_str())).collect();
     let out = read(&s, &ask(&s, false, vec![next(shared, &known)]));
     let shared = &out.collections[0];
-    assert!(shared.complete && shared.full);
+    assert!(shared.complete);
     assert_eq!(shared.changes.len(), 300);
-    assert_eq!(shared.present.len(), total);
+    assert_eq!(shared.members.as_ref().map(Vec::len), Some(total));
     assert_eq!(Some(shared.sync_token.clone()), s.token("shared"));
 }
 
 #[test]
-fn more_than_twenty_thousand_resources_are_capped_and_said() {
-    // A server that answers a thousand at a time, and has twenty thousand and fifty.
+fn more_than_twenty_thousand_resources_are_capped_and_prove_nothing() {
     let many = mailcraft_model::dav_down::MAX_RESOURCES + 50;
-    let x = Scripted::new(move |request| {
-        let body = String::from_utf8_lossy(request.body()).to_string();
-        let page: usize = body.split("<d:sync-token>t").nth(1).and_then(|t| t.split('<').next()).and_then(|n| n.parse().ok()).unwrap_or(0);
-        let (from, to) = (page * 1_000, ((page + 1) * 1_000).min(many));
-        let members: String = (from..to).map(|i| member(&format!("/cal/work/{i}.ics"), &format!("\"{i}\""), None)).collect();
-        let more =
-            if to < many { "<d:response><d:href>/cal/work/</d:href><d:status>HTTP/1.1 507 Insufficient Storage</d:status></d:response>" } else { "" };
-        multistatus(&format!("{members}{more}<d:sync-token>t{}</d:sync-token>", page + 1))
+    let x = Scripted::new(move |request| match kind(request) {
+        "members" => multistatus(&(0..many).map(|i| member(&format!("/cal/work/{i}.ics"), &format!("\"{i}\""), None)).collect::<String>()),
+        _ => multistatus(""),
     });
     let mut ask = collection_ask();
     // (Everything is here already: nothing needs fetching.)
     ask.collections[0].known = (0..many).map(|i| DavKnown { href: format!("{ORIGIN}/cal/work/{i}.ics"), etag: format!("\"{i}\"") }).collect();
-    let held = Held::new(Some(PASSWORD));
-    let out = run(&ask, &held.lookup(), &x, NOW, &Limits::default());
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
     let work = &out.collections[0];
-    assert!(work.capped && !work.complete);
-    assert!(work.present.len() <= mailcraft_model::dav_down::MAX_RESOURCES);
+    assert!(!work.complete && work.members.is_none(), "a listing cut short says nothing of what is gone");
     assert!(work.sync_token.is_empty(), "nothing is kept to go on from");
 }
-
 /// A server whose answers are written by the test.
 struct Scripted {
     answer: Box<dyn Fn(&HttpRequest) -> HttpResponse>,
@@ -347,11 +334,28 @@ fn multistatus(body: &str) -> HttpResponse {
     HttpResponse::new(207, format!("{XML}{body}</d:multistatus>").into_bytes())
 }
 
+/// A member, as a listing or a report names it (a plain resource: its `resourcetype` is empty).
 fn member(href: &str, etag: &str, data: Option<&str>) -> String {
     let data = data.map(|d| format!("<c:calendar-data>{d}</c:calendar-data>")).unwrap_or_default();
     format!(
-        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>{etag}</d:getetag>{data}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:resourcetype/><d:getetag>{etag}</d:getetag>{data}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
     )
+}
+
+/// What a request to a scripted server is.
+fn kind(request: &HttpRequest) -> &'static str {
+    let body = String::from_utf8_lossy(request.body()).to_string();
+    if body.contains("sync-collection") {
+        "sync"
+    } else if body.contains("multiget") {
+        "multiget"
+    } else if body.contains("propfind") && body.contains("getetag") {
+        "members"
+    } else if body.contains("propfind") {
+        "state"
+    } else {
+        "get"
+    }
 }
 
 fn collection_ask() -> DavAsk {
@@ -361,8 +365,6 @@ fn collection_ask() -> DavAsk {
         username: USER.into(),
         homes: vec![format!("{ORIGIN}/cal/")],
         collections: vec![DavAskCollection { href: format!("{ORIGIN}/cal/work/"), ..Default::default() }],
-        from: NOW - 86_400,
-        to: NOW + 86_400,
         ..Default::default()
     }
 }
@@ -370,58 +372,39 @@ fn collection_ask() -> DavAsk {
 /// A member whose ETag the server didn't give (a property that is 404 there).
 fn bare(href: &str) -> String {
     format!(
-        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>"
+        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat><d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>"
     )
 }
 
 #[test]
 fn a_member_without_a_usable_etag_is_still_there_and_is_asked_for_in_both_passes() {
     let doc = "BEGIN:VCALENDAR\nEND:VCALENDAR";
-    let members = |with_data: Option<&str>| {
-        format!("{}{}{}", member("/cal/work/a.ics", "\"1\"", with_data), bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", with_data))
-    };
-    // By sync-collection.
-    let x = Scripted::new(move |request| {
-        let body = String::from_utf8_lossy(request.body()).to_string();
-        if body.contains("sync-collection") {
-            multistatus(&format!("{}<d:sync-token>t1</d:sync-token>", members(None)))
-        } else {
-            multistatus(&format!(
-                "{}{}{}",
-                member("/cal/work/a.ics", "\"1\"", Some(doc)),
-                member("/cal/work/b.ics", "", Some(doc)),
-                member("/cal/work/c.ics", "", Some(doc))
-            ))
+    let x = Scripted::new(move |request| match kind(request) {
+        "members" => {
+            multistatus(&format!("{}{}{}", member("/cal/work/a.ics", "\"1\"", None), bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", None)))
         }
+        "sync" => multistatus(&format!("{}{}<d:sync-token>t2</d:sync-token>", bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", None))),
+        _ => multistatus(&format!(
+            "{}{}{}",
+            member("/cal/work/a.ics", "\"1\"", Some(doc)),
+            member("/cal/work/b.ics", "", Some(doc)),
+            member("/cal/work/c.ics", "", Some(doc))
+        )),
     });
+    // By listing.
     let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
     let work = &out.collections[0];
-    assert!(work.full && work.complete, "{work:?} {:?} {:?}", out.problem, x.seen.borrow());
-    assert_eq!(work.present.len(), 3, "none of them may look gone: {:?}", work.present);
+    assert!(work.complete, "{work:?} {:?} {:?}", out.problem, x.seen.borrow());
+    assert_eq!(work.members.as_ref().map(Vec::len), Some(3), "none of them may look gone");
     assert_eq!(work.changes.len(), 3, "and each is read");
-    // By calendar-query, for a server without the report.
-    let x = Scripted::new(move |request| {
-        let body = String::from_utf8_lossy(request.body()).to_string();
-        if body.contains("sync-collection") {
-            HttpResponse::new(403, Vec::new())
-        } else if body.contains("calendar-query") {
-            multistatus(&members(None))
-        } else {
-            multistatus(&format!(
-                "{}{}{}",
-                member("/cal/work/a.ics", "\"1\"", Some(doc)),
-                member("/cal/work/b.ics", "", Some(doc)),
-                member("/cal/work/c.ics", "", Some(doc))
-            ))
-        }
-    });
-    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
-    let work = &out.collections[0];
-    assert!(work.full && work.window.is_some());
-    assert_eq!(work.present.len(), 3, "{:?}", work.present);
-    assert_eq!(work.changes.len(), 3);
+    // By token: both are named, both are read.
+    let mut ask = collection_ask();
+    ask.collections[0].sync_token = "t1".into();
+    ask.collections[0].known =
+        ["a.ics", "b.ics", "c.ics"].iter().map(|n| DavKnown { href: format!("{ORIGIN}/cal/work/{n}"), etag: String::new() }).collect();
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert_eq!(out.collections[0].changes.len(), 2);
 }
-
 /// The names of the resources of `/cal/work/` that a request body asks for.
 fn asked(body: &str) -> Vec<String> {
     body.split("/cal/work/").skip(1).map(|rest| rest.split(['<', '"']).next().unwrap_or_default().to_string()).filter(|n| !n.is_empty()).collect()
@@ -434,22 +417,25 @@ fn listing_of(count: usize) -> String {
 }
 
 #[test]
-fn a_change_pass_with_more_deletions_than_a_read_holds_starts_over_by_address_and_ends() {
+fn a_change_pass_with_more_deletions_than_a_read_holds_starts_over_by_listing_and_ends() {
     let gone = |count: usize| -> String {
         (0..count)
             .map(|i| format!("<d:response><d:href>/cal/work/{i}.ics</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>"))
             .collect()
     };
     let server = |count: usize| {
-        Scripted::new(move |request| {
-            let body = String::from_utf8_lossy(request.body()).to_string();
-            if body.contains("sync-collection") && body.contains("old") {
-                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(count)))
-            } else if body.contains("sync-collection") {
-                multistatus(&format!("{}<d:sync-token>fresh</d:sync-token>", listing_of(3)))
-            } else {
-                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC))).collect::<String>())
-            }
+        Scripted::new(move |request| match kind(request) {
+            "sync" => multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(count))),
+            "members" => multistatus(&listing_of(3)),
+            "state" => multistatus(
+                "<d:response><d:href>/cal/work/</d:href><d:propstat><d:prop><d:sync-token>fresh</d:sync-token></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
+            ),
+            _ => multistatus(
+                &asked(&String::from_utf8_lossy(request.body()))
+                    .iter()
+                    .map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC)))
+                    .collect::<String>(),
+            ),
         })
     };
     let ask = || {
@@ -460,27 +446,30 @@ fn a_change_pass_with_more_deletions_than_a_read_holds_starts_over_by_address_an
     // Exactly the cap fits.
     let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &server(MAX_CHANGES), NOW, &Limits::default());
     let fits = &out.collections[0];
-    assert!(fits.complete && !fits.full && fits.sync_token == "new" && fits.changes.len() == MAX_CHANGES);
-    // One more does not: the collection is read afresh, and what is not named any more is found
-    // by its absence from a complete listing.
+    assert!(fits.complete && fits.members.is_none() && fits.sync_token == "new" && fits.changes.len() == MAX_CHANGES);
+    // One more does not: the page is not taken in part (its last deletion would be passed over
+    // for good). The collection is listed afresh, and what is not in it is found by its absence.
     let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &server(MAX_CHANGES + 1), NOW, &Limits::default());
     let over = &out.collections[0];
-    assert!(over.complete && over.full, "{:?}", over.sync_token);
-    assert_eq!((over.sync_token.as_str(), over.present.len()), ("fresh", 3));
+    assert!(over.complete, "{:?}", over.sync_token);
+    assert_eq!((over.sync_token.as_str(), over.members.as_ref().map(Vec::len)), ("fresh", Some(3)));
+    assert!(over.changes.iter().all(|c| !c.gone), "nothing of the page that couldn't be taken whole");
 }
-
 #[test]
 fn a_change_pass_with_more_changes_than_a_read_holds_goes_on_at_the_next_run() {
     let count = MAX_CHANGES + 1;
     let server = || {
-        Scripted::new(move |request| {
-            let body = String::from_utf8_lossy(request.body()).to_string();
-            if body.contains("sync-collection") {
-                // (A server that sends all of them, whatever it was asked for.)
-                multistatus(&format!("{}<d:sync-token>new</d:sync-token>", listing_of(count)))
-            } else {
-                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC))).collect::<String>())
-            }
+        Scripted::new(move |request| match kind(request) {
+            // (A server that sends all of them, whatever it was asked for.)
+            "sync" => multistatus(&format!("{}<d:sync-token>new</d:sync-token>", listing_of(count))),
+            "members" => multistatus(&listing_of(count)),
+            "state" => multistatus(""),
+            _ => multistatus(
+                &asked(&String::from_utf8_lossy(request.body()))
+                    .iter()
+                    .map(|n| member(&format!("/cal/work/{n}"), "\"1\"", Some(DOC)))
+                    .collect::<String>(),
+            ),
         })
     };
     let mut ask = collection_ask();
@@ -488,26 +477,26 @@ fn a_change_pass_with_more_changes_than_a_read_holds_goes_on_at_the_next_run() {
     let first = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
     let first = &first.collections[0];
     assert!(!first.complete && first.changes.len() == MAX_CHANGES);
-    assert!(first.sync_token.is_empty(), "the token is of no use: the next run asks by address");
+    assert!(first.sync_token.is_empty(), "the token is of no use: the next run lists the collection");
     // The engine took them in, and says what is here.
     let mut ask = collection_ask();
     ask.collections[0].known = first.changes.iter().map(|c| DavKnown { href: c.href.clone(), etag: c.etag.clone() }).collect();
     let second = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &server(), NOW, &Limits::default());
     let second = &second.collections[0];
     assert_eq!(second.changes.len(), 1, "only what is not here yet");
-    assert!(second.complete && second.full && second.present.len() == count, "so it is done now");
+    assert!(second.complete && second.members.as_ref().map(Vec::len) == Some(count), "so it is done now");
 }
 
 #[test]
 fn a_member_the_server_gave_no_etag_for_is_not_read_again_at_every_full_read_but_is_when_it_changes() {
     let server = || {
-        Scripted::new(move |request| {
-            let body = String::from_utf8_lossy(request.body()).to_string();
-            if body.contains("sync-collection") {
-                multistatus(&format!("{}{}<d:sync-token>t</d:sync-token>", bare("/cal/work/a.ics"), bare("/cal/work/b.ics")))
-            } else {
-                multistatus(&asked(&body).iter().map(|n| member(&format!("/cal/work/{n}"), "", Some(DOC))).collect::<String>())
-            }
+        Scripted::new(move |request| match kind(request) {
+            "sync" => multistatus(&format!("{}{}<d:sync-token>t</d:sync-token>", bare("/cal/work/a.ics"), bare("/cal/work/b.ics"))),
+            "members" => multistatus(&format!("{}{}", bare("/cal/work/a.ics"), bare("/cal/work/b.ics"))),
+            "state" => multistatus(""),
+            _ => multistatus(
+                &asked(&String::from_utf8_lossy(request.body())).iter().map(|n| member(&format!("/cal/work/{n}"), "", Some(DOC))).collect::<String>(),
+            ),
         })
     };
     let mut ask = collection_ask();
@@ -538,25 +527,22 @@ fn a_home_that_was_left_out_makes_the_listing_incomplete() {
 #[test]
 fn an_address_off_the_origin_or_outside_the_collection_is_skipped_and_never_asked_for() {
     let evil = "https://evil.example.net/cal/work/x.ics";
-    let x = Scripted::new(move |request| {
-        let body = String::from_utf8_lossy(request.body()).to_string();
-        if body.contains("sync-collection") {
-            multistatus(&format!(
-                "{}{}{}{}{}",
-                member("/cal/work/ok.ics", "\"1\"", None),
-                member(evil, "\"2\"", None),
-                member("/cal/other/steal.ics", "\"3\"", None),
-                member("/cal/work/../other/up.ics", "\"4\"", None),
-                member("/cal/work/%2e%2e/other/up2.ics", "\"5\"", None),
-            ))
-        } else {
-            // A multiget answer that names what was not asked for, with data.
-            multistatus(&format!(
-                "{}{}",
-                member("/cal/work/ok.ics", "\"1\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR")),
-                member("/cal/other/steal.ics", "\"3\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR")),
-            ))
-        }
+    let x = Scripted::new(move |request| match kind(request) {
+        "members" => multistatus(&format!(
+            "{}{}{}{}{}",
+            member("/cal/work/ok.ics", "\"1\"", None),
+            member(evil, "\"2\"", None),
+            member("/cal/other/steal.ics", "\"3\"", None),
+            member("/cal/work/../other/up.ics", "\"4\"", None),
+            member("/cal/work/%2e%2e/other/up2.ics", "\"5\"", None),
+        )),
+        "state" => multistatus(""),
+        // A multiget answer that names what was not asked for, with data.
+        _ => multistatus(&format!(
+            "{}{}",
+            member("/cal/work/ok.ics", "\"1\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR")),
+            member("/cal/other/steal.ics", "\"3\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR")),
+        )),
     });
     let held = Held::new(Some(PASSWORD));
     let out = run(&collection_ask(), &held.lookup(), &x, NOW, &Limits::default());
@@ -566,6 +552,7 @@ fn an_address_off_the_origin_or_outside_the_collection_is_skipped_and_never_aske
     assert!(out.skipped >= 3);
     assert!(x.seen.borrow().iter().all(|(url, _)| url.starts_with(ORIGIN)), "nothing was asked of another server");
     assert!(x.seen.borrow().iter().all(|(url, _)| !url.contains("other") && !url.contains("..")));
+    assert!(work.members.is_none(), "a listing with members left out is no proof of what is gone");
 }
 
 #[test]
@@ -812,9 +799,11 @@ fn local_server() -> (u16, std::thread::JoinHandle<Vec<String>>) {
             let text = String::from_utf8_lossy(&request).to_string();
             seen.push(text.lines().next().unwrap_or_default().to_string());
             let authorized = text.to_ascii_lowercase().contains("authorization: basic");
-            let body = if text.contains("sync-collection") {
+            let body = if text.contains("calendar-multiget") {
+                member("/cal/work/a.ics", "\"1\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR"))
+            } else if text.starts_with("PROPFIND") && text.contains("getetag") {
                 member("/cal/work/a.ics", "\"1\"", None)
-            } else if text.contains("calendar-multiget") {
+            } else if text.contains("calendar-multiget-never") {
                 member("/cal/work/a.ics", "\"1\"", Some("BEGIN:VCALENDAR\nEND:VCALENDAR"))
             } else {
                 "<d:response><d:href>/cal/work/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>".to_string()
@@ -845,8 +834,6 @@ fn the_wire_carries_a_job_to_a_server_on_this_machine_and_the_password_only_afte
         username: USER.into(),
         homes: vec![format!("http://127.0.0.1:{port}/cal/")],
         list_homes: true,
-        from: NOW - 86_400,
-        to: NOW + 86_400,
         ..Default::default()
     };
     let asked = RefCell::new(Vec::new());
@@ -913,4 +900,139 @@ mod property {
             prop_assert!(held.asked.borrow().iter().all(|origin| origin == ORIGIN));
         }
     }
+}
+
+// ---- the invariants, held by design (round 5) -------------------------------------------------
+
+/// A home listing: the home, and one child per `children` entry (a whole `<d:response>`).
+fn home_listing(children: &str) -> HttpResponse {
+    multistatus(&format!(
+        "<d:response><d:href>/cal/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>{children}"
+    ))
+}
+
+fn calendar_child(href: &str) -> String {
+    format!(
+        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>W</d:displayname></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+    )
+}
+
+#[test]
+fn i1_a_calendar_whose_properties_failed_makes_the_listing_incomplete() {
+    let x = Scripted::new(|request| {
+        if request.field("depth") == Some("1") && request.url().ends_with("/cal/") {
+            home_listing(&format!(
+                "{}<d:response><d:href>/cal/other/</d:href><d:propstat><d:prop><d:resourcetype/><d:displayname/></d:prop><d:status>HTTP/1.1 503 Service Unavailable</d:status></d:propstat></d:response>",
+                calendar_child("/cal/work/")
+            ))
+        } else {
+            multistatus("")
+        }
+    });
+    let mut ask = collection_ask();
+    ask.list_homes = true;
+    ask.collections.clear();
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let listing = out.listing.as_ref().unwrap();
+    assert!(!listing.complete, "a child that couldn't be told apart may be a calendar: nothing is known to be gone");
+}
+
+#[test]
+fn i1_a_collection_that_was_redirected_is_no_proof_that_anything_is_gone() {
+    let x = Scripted::new(|request| {
+        let url = request.url().to_string();
+        if url.ends_with("/cal/work/") {
+            HttpResponse::new(301, Vec::new()).with_field("location", "/cal/moved/")
+        } else {
+            // The moved collection, with its members under its new address.
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            if body.contains("multiget") {
+                multistatus(&member("/cal/moved/a.ics", "\"1\"", Some(DOC)))
+            } else {
+                multistatus(&format!("{}<d:sync-token>t</d:sync-token>", member("/cal/moved/a.ics", "\"1\"", None)))
+            }
+        }
+    });
+    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(work.members.is_none() && !work.complete, "answered at another address: nothing is read, nothing is gone: {work:?}");
+}
+
+#[test]
+fn i2_a_multiget_too_large_to_hold_is_asked_for_one_by_one() {
+    struct Big;
+    impl HttpExchange for Big {
+        fn exchange(&self, request: &HttpRequest) -> Result<HttpResponse, TransportError> {
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            if body.contains("multiget") {
+                return Err(TransportError::BodyTooLarge);
+            }
+            if request.method().as_str() == "GET" {
+                return Ok(HttpResponse::new(200, DOC.as_bytes().to_vec()).with_field("etag", "\"1\""));
+            }
+            Ok(multistatus(&format!(
+                "{}{}<d:sync-token>t</d:sync-token>",
+                member("/cal/work/a.ics", "\"1\"", None),
+                member("/cal/work/b.ics", "\"1\"", None)
+            )))
+        }
+    }
+    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &Big, NOW, &Limits::default());
+    assert_eq!(out.collections[0].changes.len(), 2, "each came by itself");
+}
+
+#[test]
+fn i2_a_change_pass_the_server_refuses_reads_the_collection_afresh_instead_of_stalling() {
+    let x = Scripted::new(|request| {
+        let body = String::from_utf8_lossy(request.body()).to_string();
+        if body.contains("sync-collection") {
+            HttpResponse::new(501, Vec::new())
+        } else if body.contains("multiget") {
+            multistatus(&member("/cal/work/a.ics", "\"1\"", Some(DOC)))
+        } else {
+            multistatus(&member("/cal/work/a.ics", "\"1\"", None))
+        }
+    });
+    let mut ask = collection_ask();
+    ask.collections[0].sync_token = "old".into();
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(work.complete, "read another way: {work:?}");
+    assert_eq!(work.changes.len(), 1);
+}
+
+// ---- found in review ---------------------------------------------------------------------------
+
+#[test]
+fn r_a_home_answered_at_another_address_or_listing_calendars_outside_it_is_no_whole_listing() {
+    let held = Held::new(Some(PASSWORD));
+    let mut ask = collection_ask();
+    ask.list_homes = true;
+    ask.collections.clear();
+    let moved = Scripted::new(|request| {
+        if request.url().ends_with("/cal/") {
+            HttpResponse::new(301, Vec::new()).with_field("location", "/cal2/")
+        } else {
+            home_listing(&calendar_child("/cal2/work/"))
+        }
+    });
+    let out = run(&ask, &held.lookup(), &moved, NOW, &Limits::default());
+    assert!(!out.listing.as_ref().unwrap().complete, "redirected");
+    let outside = Scripted::new(|_| home_listing(&format!("{}{}", calendar_child("/cal/work/"), calendar_child("/other/x/"))));
+    let out = run(&ask, &held.lookup(), &outside, NOW, &Limits::default());
+    let listing = out.listing.as_ref().unwrap();
+    assert!(!listing.complete);
+    assert_eq!(listing.calendars.len(), 1, "only what is inside the home");
+}
+
+#[test]
+fn r_a_resource_the_server_refuses_for_good_does_not_hold_the_read_up() {
+    let x = Scripted::new(|request| match kind(request) {
+        "members" => multistatus(&member("/cal/work/a.ics", "\"1\"", None)),
+        "state" => multistatus(""),
+        "multiget" => HttpResponse::new(501, Vec::new()),
+        _ => HttpResponse::new(403, Vec::new()),
+    });
+    let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert!(out.collections[0].complete, "{:?}", out.collections[0]);
 }

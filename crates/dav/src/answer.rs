@@ -61,6 +61,9 @@ pub struct Entry {
     pub data_too_large: bool,
     /// `resourcetype` holds `collection`.
     pub is_collection: bool,
+    /// `resourcetype` came with a 200: what the entry is (`is_collection` and the rest) is known.
+    /// An entry without it may be a calendar, or a member, whose properties failed.
+    pub typed: bool,
     /// `resourcetype` holds `calendar` (RFC 4791 §4.2).
     pub is_calendar: bool,
     /// `resourcetype` holds `addressbook` (RFC 6352 §5.2).
@@ -248,6 +251,7 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
                 }
             }
             (DAV, "resourcetype") => {
+                e.typed = true;
                 e.is_collection = p.child(DAV, "collection").is_some();
                 e.is_calendar = p.child(CALDAV, "calendar").is_some();
                 e.is_addressbook = p.child(CARDDAV, "addressbook").is_some();

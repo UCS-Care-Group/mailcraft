@@ -9,7 +9,6 @@
 //! collection it claims to be in before any of it is kept. `Debug` shows counts, never an
 //! address, a name or a document.
 
-use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::{Id, Rgb};
@@ -32,8 +31,9 @@ pub const MAX_HREF: usize = crate::remote::MAX_KEY;
 /// Most known resources a request names (a collection read without a token).
 pub const MAX_KNOWN: usize = MAX_RESOURCES;
 
-/// Which collection to ask what, as the engine says it: the state kept at the last complete read
-/// and, for a read that has no token to go on, what is here already.
+/// Which collection to ask what, as the engine says it: the state kept at the last complete read,
+/// and what is here already (so that a read, or a read that goes on after one that stopped short,
+/// fetches only what is new or changed).
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DavAskCollection {
@@ -43,8 +43,9 @@ pub struct DavAskCollection {
     pub sync_token: String,
     /// Its change tag, for a server without sync tokens.
     pub ctag: String,
-    /// Without a token: each resource that is here, by address, with the ETag it was read at, so
-    /// that only what is new or changed is fetched again.
+    /// Each resource that is here, by address, with the ETag it was read at: one under the same
+    /// ETag is not fetched again. (One the server gave no ETag for is left out once a day, so that
+    /// a read fetches it again: nothing else would show that it changed.)
     pub known: Vec<DavKnown>,
 }
 
@@ -54,8 +55,7 @@ pub struct DavAskCollection {
 pub struct DavKnown {
     pub href: String,
     /// The ETag the resource's events were kept under. Empty for a resource the server gave none
-    /// for (it is then not asked for again, and a change can only be seen by a sync token): a
-    /// writer (D6) that sends `If-Match` must know it has none, never send an empty one.
+    /// for: a writer (D6) that sends `If-Match` must know it has none, never send an empty one.
     pub etag: String,
 }
 
@@ -75,9 +75,9 @@ pub struct DavAsk {
     /// List the homes' collections before reading them (first run, or when it is time to look for
     /// calendars that came or went).
     pub list_homes: bool,
-    /// The stretch for a server that can't say what changed (a month back, a year ahead), Unix seconds.
-    pub from: Timestamp,
-    pub to: Timestamp,
+    /// The settings the read is made under ([`crate::DavServer::identity`]), handed back in the
+    /// download: one read under settings that have changed since is not taken in.
+    pub server: String,
     /// The collections already known, with their state.
     pub collections: Vec<DavAskCollection>,
 }
@@ -148,29 +148,30 @@ pub enum DavReadState {
 }
 
 /// One collection's part of a download.
+///
+/// **What may remove a resource here.** Only two things are evidence that the server no longer
+/// has one: a change that says it is `gone` (the server's own 404 in a `sync-collection`), and
+/// `members` (a listing of the whole collection that went to its end with nothing left out).
+/// Nothing else is: not a read that stopped short, not a time range, not a recurrence worked out
+/// here.
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DavRead {
     pub href: String,
     pub state: DavReadState,
-    /// `changes` is everything the collection holds (of `window`), not only what changed: what
-    /// isn't in it is gone, once `complete`.
-    pub full: bool,
-    /// The read went to its end: nothing was cut short, capped or failed.
+    /// Every new or changed resource is in `changes`: the change tag may be kept.
     pub complete: bool,
-    /// For a full read of a server that can't say what changed: the stretch it was of (Unix
-    /// seconds, from and to). Without one, a full read is of everything.
-    pub window: Option<(Timestamp, Timestamp)>,
     /// What to keep to go on from: a token consistent with `changes`, empty for none.
     pub sync_token: String,
-    /// The change tag at the end of a complete read.
+    /// The change tag, at the end of a complete read.
     pub ctag: String,
     pub changes: Vec<DavChange>,
-    /// For a full read: the address of every resource it found, changed or not (what was read
-    /// before and isn't here, or in `changes`, is gone).
-    pub present: Vec<String>,
-    /// More resources came than are kept (spec Q18).
-    pub capped: bool,
+    /// The address of every resource the collection holds, from a listing of all of it
+    /// (`PROPFIND`, Depth 1) that was whole: not capped, not cut short, not redirected, and with
+    /// every member understood and on the collection. What is here and isn't in it (or in
+    /// `changes`) is gone. `None` when there was no such listing: then nothing is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<String>>,
 }
 
 /// Why a run stopped short, as a code the owner can act on. Never a server's own words.
@@ -207,6 +208,8 @@ pub enum DavProblem {
 pub struct DavDownload {
     pub account: Id,
     pub email: String,
+    /// The settings the read was made under, as the request said ([`DavAsk::server`]).
+    pub server: String,
     /// The homes' collections, when they were listed.
     pub listing: Option<DavListing>,
     pub collections: Vec<DavRead>,

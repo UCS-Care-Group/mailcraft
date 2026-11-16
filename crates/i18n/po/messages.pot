@@ -293,16 +293,6 @@ msgstr ""
 msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/dav_job.rs
-msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/dav_job.rs
-msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
-msgstr ""
-
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -12822,6 +12812,16 @@ msgid ""
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr ""
@@ -18348,6 +18348,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this read was made under the calendar server's earlier settings"
 msgstr ""
 
 #. what a command says

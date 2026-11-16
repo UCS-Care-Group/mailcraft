@@ -46,23 +46,30 @@ fn listing() -> DavListing {
     }
 }
 
-fn read(changes: Vec<DavChange>, full: bool, complete: bool, token: &str) -> DavRead {
-    let present = if full { changes.iter().filter(|c| !c.gone).map(|c| c.href.clone()).collect() } else { Vec::new() };
+/// A read: with `listed`, of a whole listing of the collection (what isn't among `changes` is
+/// gone), else of changes alone.
+fn read(changes: Vec<DavChange>, listed: bool, complete: bool, token: &str) -> DavRead {
+    let members = listed.then(|| changes.iter().filter(|c| !c.gone).map(|c| c.href.clone()).collect());
     DavRead {
         href: COLLECTION.into(),
         state: DavReadState::Read,
-        full,
         complete,
         sync_token: token.into(),
         ctag: if complete { "ctag-1".into() } else { String::new() },
         changes,
-        present,
-        ..Default::default()
+        members,
     }
 }
 
+/// The settings a read of the account is made under now.
+fn server_of(s: &Session, id: Id) -> String {
+    let a = s.mailbox.account(id).unwrap();
+    a.dav.as_ref().unwrap().identity(&a.email)
+}
+
 fn apply(s: &mut Session, id: Id, listing: Option<DavListing>, reads: Vec<DavRead>) -> Value {
-    let download = DavDownload { account: id, email: "ada@example.org".into(), listing, collections: reads, ..Default::default() };
+    let server = server_of(s, id);
+    let download = DavDownload { account: id, email: "ada@example.org".into(), server, listing, collections: reads, ..Default::default() };
     s.run("sync.applyDav", &json!({"result": download})).unwrap()
 }
 
@@ -93,9 +100,7 @@ fn it_asks_what_the_settings_name_and_the_calendars_it_knows() {
     let ask = s.run("sync.davRequest", &json!({"relist": true})).unwrap();
     assert_eq!(ask["ask"]["listHomes"], true);
     assert_eq!(ask["ask"]["collections"][0]["syncToken"], "tok-1");
-    assert_eq!(ask["ask"]["collections"][0]["known"], json!([]), "a token needs nothing more");
-    s.clock.offset = Some(0);
-    assert!(ask["ask"]["to"].as_i64().unwrap() > ask["ask"]["from"].as_i64().unwrap() + 390 * 86_400);
+    assert_eq!(ask["ask"]["server"], server_of(&s, id), "the settings the read is made under");
 }
 
 #[test]
@@ -148,7 +153,7 @@ fn a_delta_changes_adds_and_removes_and_the_token_moves_with_it() {
 }
 
 #[test]
-fn a_deletion_is_believed_only_from_a_complete_listing() {
+fn a_deletion_is_believed_only_from_a_whole_listing_or_the_servers_own_word() {
     let (mut s, id) = session();
     apply(
         &mut s,
@@ -156,44 +161,23 @@ fn a_deletion_is_believed_only_from_a_complete_listing() {
         Some(listing()),
         vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A")), change("b.ics", "\"2\"", &event("b", 3, "B"))], true, true, "")],
     );
-    // A full read that stopped short, or was capped, leaves absent events alone.
-    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, false, "")]);
+    // A read without a whole listing leaves what it didn't name alone, however it ended.
+    for complete in [false, true] {
+        apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], false, complete, "")]);
+        assert_eq!(titles(&s), vec!["A", "B"]);
+    }
+    // A listing too long to be one is none.
+    let mut long = read(vec![], true, false, "");
+    long.members = Some((0..=mailcraft_model::dav_down::MAX_RESOURCES).map(|n| format!("{COLLECTION}{n}.ics")).collect());
+    apply(&mut s, id, None, vec![long]);
     assert_eq!(titles(&s), vec!["A", "B"]);
-    let mut capped = read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "");
-    capped.capped = true;
-    apply(&mut s, id, None, vec![capped]);
-    assert_eq!(titles(&s), vec!["A", "B"]);
-    // A complete one removes what isn't in it, and the stale token isn't kept.
-    let said = apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "tok-9")]);
+    // A whole one removes what isn't in it (even when fetching what changed stopped short).
+    let said = apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, false, "")]);
     assert_eq!(said["removed"], 1);
     assert_eq!(titles(&s), vec!["A"]);
-    // A read of a stretch only removes what is in the stretch (a series, when one of its days is).
-    let (mut s, id) = session();
-    let series = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20270101T100000Z\r\nDTEND:20270101T110000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nSUMMARY:Series\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-    apply(
-        &mut s,
-        id,
-        Some(listing()),
-        vec![read(
-            vec![
-                change("a.ics", "\"1\"", &event("a", 2, "A")),
-                change("old.ics", "\"2\"", &event("old", 3, "Old")),
-                change("s.ics", "\"3\"", series),
-            ],
-            true,
-            true,
-            "",
-        )],
-    );
-    let now = s.now();
-    let mut query = read(vec![], true, true, "");
-    query.window = Some((now - 86_400, now + 86_400));
-    apply(&mut s, id, None, vec![query]);
-    assert_eq!(titles(&s).len(), 3, "events and a series with no day in the stretch stay");
-    let mut query = read(vec![], true, true, "");
-    query.window = Some((0, i64::MAX / 2));
-    apply(&mut s, id, None, vec![query]);
-    assert_eq!(titles(&s), vec!["Series"]);
+    // And the server's own "gone" does.
+    apply(&mut s, id, None, vec![read(vec![gone("a.ics")], false, true, "t")]);
+    assert!(titles(&s).is_empty());
 }
 
 #[test]
@@ -346,7 +330,7 @@ fn an_account_keeps_at_most_sixty_four_megabytes_and_lets_the_oldest_past_events
     let asked = std::cell::Cell::new(0);
     let mut store = crate::dav_raw::Store::open(&file, 1);
     for href in &hrefs {
-        assert!(store.keep(href, &doc, &|| {
+        assert!(store.keep(href, &doc, ends[&crate::dav_raw::name_of(href)], &|| {
             asked.set(asked.get() + 1);
             ends.clone()
         }));
@@ -357,7 +341,7 @@ fn an_account_keeps_at_most_sixty_four_megabytes_and_lets_the_oldest_past_events
     assert!(count as u64 * 1_000_000 <= crate::dav_raw::MAX_ACCOUNT_RAW && count >= 55, "{count}");
     assert!(!kept[0] && kept[69], "the oldest went, the newest stayed");
     // Another account's budget is its own, and a document over the cap is never kept.
-    assert!(!crate::dav_raw::Store::open(&file, 2).keep("x", &"z".repeat(crate::dav_raw::MAX_RAW + 1), &|| ends.clone()));
+    assert!(!crate::dav_raw::Store::open(&file, 2).keep("x", &"z".repeat(crate::dav_raw::MAX_RAW + 1), 0, &|| ends.clone()));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -394,7 +378,14 @@ fn junk_and_a_wrong_account_are_refused_and_change_nothing() {
 #[test]
 fn the_problem_and_the_wait_are_answered_and_the_wait_is_capped() {
     let (mut s, id) = session();
-    let download = DavDownload { account: id, email: "ada@example.org".into(), problem: DavProblem::Busy, wait: 99_999, ..Default::default() };
+    let download = DavDownload {
+        account: id,
+        email: "ada@example.org".into(),
+        server: server_of(&s, id),
+        problem: DavProblem::Busy,
+        wait: 99_999,
+        ..Default::default()
+    };
     let said = s.run("sync.applyDav", &json!({"result": download})).unwrap();
     assert_eq!((said["problem"].clone(), said["wait"].clone()), (json!("busy"), json!(600)));
 }
@@ -480,40 +471,6 @@ fn each_account_with_a_server_has_its_turn() {
     assert_eq!(s.run("sync.davRequest", &json!({})).unwrap()["ask"]["account"], second);
 }
 
-fn series(uid: &str, title: &str) -> String {
-    format!(
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART:20261102T100000Z\r\nDTEND:20261102T110000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\nSUMMARY:{title}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
-    )
-}
-
-#[test]
-fn a_series_deleted_on_the_server_is_removed_from_a_read_of_a_stretch_that_holds_one_of_its_days() {
-    let (mut s, id) = session();
-    let first = read(
-        vec![
-            change("series.ics", "\"1\"", &series("s", "Daily")),
-            change("old.ics", "\"2\"", &series("o", "Old daily").replace("20261102", "20200102").replace("COUNT=5", "COUNT=3")),
-        ],
-        true,
-        true,
-        "",
-    );
-    apply(&mut s, id, Some(listing()), vec![first]);
-    assert_eq!(titles(&s), vec!["Daily", "Old daily"]);
-    // The query of the stretch of November found neither (the server dropped both), one of them
-    // has days in November, the other long before.
-    let mut by_query = read(vec![], true, true, "");
-    by_query.window = Some((1_793_491_200, 1_795_996_800));
-    apply(&mut s, id, None, vec![by_query]);
-    assert_eq!(titles(&s), vec!["Old daily"], "the series with a day in the stretch is gone, the one with none is not judged");
-    // And one the query did return stays.
-    let mut kept = read(vec![], true, true, "");
-    kept.window = Some((1_793_491_200, 1_795_996_800));
-    kept.present = vec![format!("{COLLECTION}old.ics")];
-    apply(&mut s, id, None, vec![kept]);
-    assert_eq!(titles(&s), vec!["Old daily"]);
-}
-
 #[test]
 fn five_thousand_changes_look_at_the_documents_folder_once() {
     let dir = std::env::temp_dir().join(format!("mc-dav-many-{}", std::process::id()));
@@ -529,6 +486,8 @@ fn five_thousand_changes_look_at_the_documents_folder_once() {
     let out = apply(&mut s, id, None, vec![read(changes, true, true, "t")]);
     assert_eq!(out["added"], 5_000);
     assert_eq!(crate::dav_raw::LISTINGS.with(|n| n.get()) - before, 1, "the folder is listed once for the read, not for each change");
+    // (The writing is done on the documents' own thread: what is on disk is looked at once it is.)
+    crate::dav_raw::settle();
     assert_eq!(std::fs::read_dir(crate::store::dav_dir(s.path.as_ref().unwrap()).join(id.to_string())).unwrap().count(), 5_000);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -574,37 +533,9 @@ fn removing_an_account_takes_its_kept_documents() {
     .unwrap();
     s.run("account.remove", &json!({"id": id})).unwrap();
     assert!(!crate::dav_raw::has(&file, id, &format!("{COLLECTION}a.ics")));
+    crate::dav_raw::settle();
     assert!(!crate::store::dav_dir(&file).join(id.to_string()).exists());
     let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn a_series_that_ended_just_before_the_stretch_is_not_taken_for_one_the_server_dropped() {
-    // Weekly on Fridays at 09:00Z until 16 October 09:00Z; the read is at 15:00Z the same day
-    // and the stretch starts then: the server rightly doesn't return the series.
-    let doc = |until: &str| {
-        format!(
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:w\r\nDTSTART:20260918T090000Z\r\nDTEND:20260918T100000Z\r\nRRULE:FREQ=WEEKLY;UNTIL={until}\r\nSUMMARY:Weekly\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
-        )
-    };
-    let from = 1_792_162_800_i64;
-    for offset in [0, -600, 600] {
-        let (mut s, id) = session();
-        s.clock.offset = Some(offset);
-        apply(&mut s, id, Some(listing()), vec![read(vec![change("w.ics", "\"1\"", &doc("20261016T090000Z"))], true, true, "")]);
-        let mut by_query = read(vec![], true, true, "");
-        by_query.window = Some((from, from + 396 * 86_400));
-        apply(&mut s, id, None, vec![by_query]);
-        assert_eq!(titles(&s), vec!["Weekly"], "offset {offset}: it ended before the stretch, the server could not return it");
-        // One with Fridays far inside the stretch, not returned, is gone.
-        let (mut s, id) = session();
-        s.clock.offset = Some(offset);
-        apply(&mut s, id, Some(listing()), vec![read(vec![change("w.ics", "\"1\"", &doc("20261218T090000Z"))], true, true, "")]);
-        let mut by_query = read(vec![], true, true, "");
-        by_query.window = Some((from, from + 396 * 86_400));
-        apply(&mut s, id, None, vec![by_query]);
-        assert!(titles(&s).is_empty(), "offset {offset}: weeks of it lie well inside the stretch");
-    }
 }
 
 #[test]
@@ -666,7 +597,7 @@ fn a_document_older_than_everything_held_makes_no_room_and_is_not_kept() {
     let ends: std::collections::HashMap<String, i64> =
         hrefs.iter().enumerate().map(|(i, h)| (crate::dav_raw::name_of(h), 1_000 - i as i64)).collect();
     let mut store = crate::dav_raw::Store::open(&file, 1);
-    let kept: Vec<bool> = hrefs.iter().map(|h| store.keep(h, &doc, &|| ends.clone())).collect();
+    let kept: Vec<bool> = hrefs.iter().map(|h| store.keep(h, &doc, ends[&crate::dav_raw::name_of(h)], &|| ends.clone())).collect();
     assert!(kept[0] && kept[10], "the newest are kept");
     assert!(!kept[69] && !crate::dav_raw::has(&file, 1, &hrefs[69]), "the oldest has no room made by throwing out newer ones");
     assert!(crate::dav_raw::has(&file, 1, &hrefs[0]), "and nothing newer was thrown out for it");
@@ -682,9 +613,180 @@ fn a_document_is_let_go_of_whether_or_not_it_was_there_when_the_folder_was_liste
     let href = format!("{COLLECTION}a.ics");
     let mut store = crate::dav_raw::Store::open(&file, 1);
     // Written by another store after this one listed the folder.
-    assert!(crate::dav_raw::Store::open(&file, 1).keep(&href, "doc", &std::collections::HashMap::new));
+    assert!(crate::dav_raw::Store::open(&file, 1).keep(&href, "doc", 0, &std::collections::HashMap::new));
     assert!(crate::dav_raw::has(&file, 1, &href));
     store.drop_one(&href);
     assert!(!crate::dav_raw::has(&file, 1, &href));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- the invariants, held by design (round 5) -------------------------------------------------
+
+#[test]
+fn i1_a_series_the_expansion_misjudges_is_never_removed_by_a_read_of_a_stretch() {
+    // BYMONTH is not expanded here: read as daily it has days in the stretch, and the server (which
+    // knows better) leaves it out of the stretch's answer. Nothing but the server's own word may
+    // remove it.
+    let (mut s, id) = session();
+    s.clock.now = Some(1_793_000_000);
+    let series = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20261101T100000Z\r\nDTEND:20261101T110000Z\r\nRRULE:FREQ=DAILY;BYMONTH=7;COUNT=3\r\nSUMMARY:Summer\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("s.ics", "\"1\"", series)], true, true, "")]);
+    // What a time-range read would have been: complete, not naming it. It is no listing of the
+    // collection, so it says nothing of what is gone.
+    apply(&mut s, id, None, vec![read(vec![], false, true, "")]);
+    assert_eq!(titles(&s), vec!["Summer"]);
+}
+
+#[test]
+fn i1_a_body_that_is_not_a_whole_calendar_leaves_the_events_as_they_were() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "t1")]);
+    for junk in ["BEGIN:VCALENDAR\r\n", "", "<html>Service Unavailable</html>", "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\n"] {
+        let said = apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"2\"", junk)], false, true, "t2")]);
+        assert_eq!(said["removed"], 0, "{junk:?}");
+        assert_eq!(titles(&s), vec!["A"], "{junk:?}");
+    }
+}
+
+#[test]
+fn i1_a_listing_longer_than_is_taken_in_removes_no_calendar() {
+    let (mut s, id) = session();
+    let mut first = listing();
+    first.calendars[0].href = "https://dav.example.org/cal/ada/zz-last/".into();
+    apply(&mut s, id, Some(first), vec![]);
+    assert!(s.mailbox.calendars.iter().any(|c| c.origin.account == id));
+    // The server lists more than are taken in, the held one last, and says it is complete.
+    let mut long = DavListing { complete: true, capped: false, calendars: Vec::new() };
+    for n in 0..mailcraft_model::DavServer::MAX_COLLECTIONS {
+        long.calendars.push(mailcraft_model::DavCalendar { href: format!("https://dav.example.org/cal/ada/c{n:03}/"), ..Default::default() });
+    }
+    long.calendars.push(mailcraft_model::DavCalendar { href: "https://dav.example.org/cal/ada/zz-last/".into(), ..Default::default() });
+    apply(&mut s, id, Some(long), vec![]);
+    assert!(
+        s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections.iter().any(|c| c.href.ends_with("zz-last/")),
+        "a calendar past the cap was listed: it is not gone"
+    );
+}
+
+#[test]
+fn i2_the_token_does_not_move_past_changes_that_were_not_taken_in() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![], true, true, "t1")]);
+    let changes: Vec<DavChange> =
+        (0..mailcraft_model::dav_down::MAX_CHANGES + 1).map(|n| change(&format!("{n}.ics"), "\"1\"", &event(&format!("u{n}"), 2, "E"))).collect();
+    apply(&mut s, id, None, vec![read(changes, false, true, "t2")]);
+    let state = &s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0];
+    assert_eq!(state.sync_token, "t1", "the last change was never taken in: the token stays where it was");
+}
+
+#[test]
+fn i2_a_download_read_for_other_settings_is_not_taken_in() {
+    let (mut s, id) = session();
+    s.run("account.davSet", &json!({"id": id, "username": "grace"})).unwrap();
+    // A job that went out under the old user name comes back now.
+    let stale = DavDownload { account: id, email: "ada@example.org".into(), listing: Some(listing()), ..Default::default() };
+    let _ = s.run("sync.applyDav", &json!({"result": stale}));
+    assert!(!s.mailbox.calendars.iter().any(|c| c.origin.account == id), "nothing of the old settings' read is taken in");
+}
+
+#[test]
+fn i2_another_mailbox_starts_with_no_memory_of_when_calendars_were_listed() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![]);
+    assert!(!s.dav_listed.is_empty());
+    let other = s.mailbox.clone();
+    s.replace_mailbox(other);
+    assert!(s.dav_listed.is_empty() && s.dav_asked.is_empty());
+}
+
+#[test]
+fn i2_what_is_here_is_named_even_while_a_token_is_kept_so_a_retry_skips_it() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "t1")]);
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    assert_eq!(ask["ask"]["collections"][0]["syncToken"], "t1");
+    assert_eq!(ask["ask"]["collections"][0]["known"], json!([{"href": format!("{COLLECTION}a.ics"), "etag": "\"1\""}]));
+}
+
+#[test]
+fn i2_what_is_here_without_an_etag_is_read_again_once_a_day() {
+    let (mut s, id) = session();
+    s.clock.now = Some(1_793_000_000);
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "", &event("a", 2, "A"))], true, true, "")]);
+    let known = |s: &mut Session| s.run("sync.davRequest", &json!({})).unwrap()["ask"]["collections"][0]["known"].clone();
+    assert_eq!(known(&mut s), json!([{"href": format!("{COLLECTION}a.ics"), "etag": ""}]), "read a moment ago");
+    s.clock.now = Some(1_793_000_000 + 86_400 + 1);
+    assert_eq!(known(&mut s), json!([]), "a day on: it is not named, so a read fetches it again");
+}
+
+#[test]
+fn i3_the_events_are_looked_at_once_for_a_whole_store_however_many_documents_are_refused() {
+    let dir = std::env::temp_dir().join(format!("mc-dav-once-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("mailbox.mailcraft");
+    let doc = "y".repeat(1_000_000);
+    let hrefs: Vec<String> = (0..120).map(|i| format!("{COLLECTION}{i}.ics")).collect();
+    // Newest first: from the cap on, every one that comes is older than all that is held.
+    let ends: std::collections::HashMap<String, i64> =
+        hrefs.iter().enumerate().map(|(i, h)| (crate::dav_raw::name_of(h), 1_000 - i as i64)).collect();
+    let asked = std::cell::Cell::new(0);
+    let mut store = crate::dav_raw::Store::open(&file, 1);
+    for href in &hrefs {
+        store.keep(href, &doc, ends[&crate::dav_raw::name_of(href)], &|| {
+            asked.set(asked.get() + 1);
+            ends.clone()
+        });
+    }
+    assert_eq!(asked.get(), 1, "once, not at every document that finds no room");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- found in review ---------------------------------------------------------------------------
+
+#[test]
+fn r_a_resource_that_gives_no_event_is_named_in_what_is_asked_so_that_it_is_not_fetched_again() {
+    let (mut s, id) = session();
+    let todo = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:t\r\nSUMMARY:Task\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("t.ics", "\"7\"", todo), change("x.ics", "\"8\"", "not a calendar")], true, false, "")]);
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    let known = &ask["ask"]["collections"][0]["known"];
+    for name in ["t.ics", "x.ics"] {
+        assert!(known.as_array().unwrap().iter().any(|k| k["href"] == format!("{COLLECTION}{name}")), "{name}: {known}");
+    }
+    // Gone from a whole listing: forgotten.
+    apply(&mut s, id, None, vec![read(vec![], true, true, "")]);
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    assert_eq!(ask["ask"]["collections"][0]["known"], json!([]));
+}
+
+#[test]
+fn r_a_new_version_that_cannot_be_read_whole_removes_nothing_of_the_old() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
+    // A calendar with an event that doesn't parse: what is here stays.
+    let broken = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nEND:VCALENDAR\r\n";
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"2\"", broken)], false, true, "t")]);
+    assert_eq!(titles(&s), vec!["A"]);
+}
+
+#[test]
+fn r_a_read_that_stopped_short_with_no_token_leaves_the_token_where_it_was() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![], false, true, "tok-1")]);
+    apply(&mut s, id, None, vec![read(vec![], true, false, "")]);
+    assert_eq!(s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0].sync_token, "tok-1");
+}
+
+#[test]
+fn r_a_calendar_the_server_no_longer_lists_stays_while_something_in_it_waits_to_be_sent() {
+    use mailcraft_model::remote::{EventChange, EventChangeKind};
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
+    let event = *s.mailbox.events.keys().next().unwrap();
+    s.mailbox.event_changes.push(EventChange { account: id, kind: EventChangeKind::Update, event, ..Default::default() });
+    let mut empty = listing();
+    empty.calendars.clear();
+    apply(&mut s, id, Some(empty), vec![]);
+    assert_eq!(titles(&s), vec!["A"]);
 }

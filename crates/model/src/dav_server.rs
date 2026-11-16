@@ -282,6 +282,22 @@ impl DavServer {
         self.calendar_homes.iter().chain(&self.contact_homes).find_map(|home| crate::jmap_server::accepted(home).ok())
     }
 
+    /// What a read of these calendars is made under, for the account at `email`: the address, the
+    /// name that signs in, the pinned certificate and the calendar homes. A read made under one
+    /// identity is never taken in under another ([`crate::DavAsk::server`]): a job that went out
+    /// before the settings changed brings the old server's calendars, or the old user's. Held in
+    /// memory only, and never logged.
+    pub fn identity(&self, email: &str) -> String {
+        let email = email.trim().to_lowercase();
+        let user = if self.username.trim().is_empty() { email.clone() } else { self.username.trim().to_string() };
+        let mut out = format!("{email}\n{user}\n{}", self.trusted.trim().to_lowercase());
+        for home in &self.calendar_homes {
+            out.push('\n');
+            out.push_str(home.trim());
+        }
+        out
+    }
+
     /// Whether `other` is another server than this: other homes, another user name or another
     /// pinned certificate. What was kept for the old one (the collections' tokens, the secrets
     /// held for it) is not given to the new.

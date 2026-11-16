@@ -1263,11 +1263,10 @@ fn services(
         // certificate the owner trusted when there is one. Nothing here is logged but counts.
         dav: Some(Box::new(move |job: mailcraft_ui_egui::DavJob| {
             background(&dav_ctx, "calendar server", move || {
-                let account = job.ask.account;
                 let passwords = job.passwords;
                 let (download, certificate) = mailcraft_net::dav::look(&job.ask, &|origin: &str| passwords.get(origin).cloned());
                 if certificate.is_some() {
-                    log::warn!("calendar server (account {account}): its certificate isn't one the system or the owner trusts");
+                    log::warn!("a calendar server's certificate isn't one the system or the owner trusts");
                 }
                 mailcraft_ui_egui::DavDone { download }
             })

@@ -2484,6 +2484,10 @@ fn hostile_params_never_panic() {
         json!({"ids": [1], "days": 0}),
         json!({"ids": [1], "days": 4294967296u64, "at": "9999-12-31T23:59:59+23:59"}),
         json!({"id": 1, "at": {"deep": [[[]]]}, "ifNoReply": true, "clear": 5}),
+        // Accounts a calendar server job passes over (#209): ids that are none, and no list.
+        json!({"skip": [-1, "x", null, 1e300, [[[]]]]}),
+        json!({"skip": "x"}),
+        json!({"skip": (0..10_000u64).collect::<Vec<_>>(), "account": 1, "relist": "x"}),
         // Subscribed calendars (#209): addresses that are none, an outcome that is nonsense.
         json!({"address": "https://user:pw@cal.example.org/x.ics", "name": "\u{0}", "color": 5}),
         json!({"address": "webcal://[::1", "intervalMinutes": 1e300}),

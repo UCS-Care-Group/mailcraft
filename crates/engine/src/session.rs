@@ -1285,6 +1285,12 @@ pub struct Session {
     /// When each account's calendar server was last asked for anything (a Unix time that goes up
     /// by at least one at each ask): the one asked longest ago is next, so that every account has its turn. Never saved.
     pub dav_asked: std::collections::HashMap<Id, i64>,
+    /// Resources of a calendar server read in that no event here names, by account and address:
+    /// one without an ETag (read again after a day, since nothing else shows that it changed) or
+    /// one that gave no event (a to-do, a document that isn't a calendar), so that it is not
+    /// fetched again until it changes ([`crate::cmd::dav_sync`]). Never saved: after a restart
+    /// each is read once.
+    pub dav_seen: std::collections::HashMap<Id, std::collections::HashMap<String, crate::cmd::dav_sync::Seen>>,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1410,6 +1416,7 @@ impl Session {
             dav_enabled: false,
             dav_listed: Default::default(),
             dav_asked: Default::default(),
+            dav_seen: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };
@@ -3235,6 +3242,10 @@ impl Session {
         self.graph_listed_short.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
+        // When a calendar server was asked, and what of it was read, is of the old mailbox's accounts.
+        self.dav_listed.clear();
+        self.dav_asked.clear();
+        self.dav_seen.clear();
         // The background fetch's waits and offline flag were the old mailbox's.
         self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);

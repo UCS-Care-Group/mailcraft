@@ -7,8 +7,9 @@
 //! sockets (`mailcraft_net::dav`) does the part in between.
 //!
 //! **Calendars down (D5).** `sync.davRequest` says per collection what the host asks: the sync
-//! token or change tag kept at the last complete read, the stretch for a server that can't say
-//! what changed, and, for a read that has no token to go on, what is here already. `sync.applyDav`
+//! token or change tag kept at the last complete read, and what is here already (by address and
+//! ETag), so that only what is new or changed is fetched, and a read that stopped short goes on
+//! where it stopped. `sync.applyDav`
 //! takes the answer in: the calendars of the account's homes (each a calendar here, read-only until
 //! changes are sent up, D6) and each collection's changed resources. A resource is one `VCALENDAR`;
 //! `mailcraft_ical` reads it into events (a single event, or a series with the days it skips and
@@ -18,9 +19,16 @@
 //! ([`crate::dav_raw`], ADR 0026).
 //!
 //! Everything the answer says is hostile: an address must be on an origin of the account's homes
-//! and inside the collection it was read from; counts, sizes and texts are capped; a deletion is
-//! believed only from a complete listing or the server's own "gone"; a token or change tag moves
-//! only with a read that went to its end (or, for changes, to the end of a page that was taken in).
+//! and inside the collection it was read from; counts, sizes and texts are capped; a token or
+//! change tag moves only with a read that went to its end (or, for changes, to the end of a page
+//! that was taken in whole), and only when every change in it was taken in here; and a read made
+//! under settings that have changed since is not taken in at all.
+//!
+//! **Nothing the server still has is removed here.** A resource goes only on the server's own
+//! word: a change that says it is gone, or a whole listing of its collection
+//! ([`DavRead::members`](mailcraft_model::DavRead::members)) that doesn't name it; a calendar only
+//! when a whole listing of the homes doesn't. A read that stopped short, a time range, a
+//! recurrence worked out here or a document that isn't a whole calendar never removes anything.
 //! Where the server's copy and a change here meet, the server's wins (v1): nothing here is
 //! changed yet, so nothing waits.
 //!
@@ -28,11 +36,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mailcraft_model::dav_down::{MAX_ACCOUNT_RESOURCES, MAX_CHANGES, MAX_READ, MAX_RESOURCES};
+use mailcraft_model::dav_down::{MAX_ACCOUNT_RESOURCES, MAX_CHANGES, MAX_KNOWN, MAX_READ, MAX_RESOURCES};
 use mailcraft_model::remote::MAX_KEY;
 use mailcraft_model::{
-    Calendar, DavAsk, DavAskCollection, DavCollectionState, DavDownload, DavListing, DavProblem, DavReadState, DavServer, Event, Id, Origin, Rights,
-    origin_of,
+    Calendar, DavAsk, DavAskCollection, DavChange, DavCollectionState, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState,
+    DavServer, Event, Id, Origin, Rights, origin_of,
 };
 use serde_json::{Value, json};
 
@@ -44,9 +52,24 @@ const NOT_YET: &str = "Changes to calendars and contacts on a server are not sen
 
 /// A look at the account's calendars (which it has) is repeated after this many seconds.
 const RELIST_AFTER: i64 = 3_600;
-/// The stretch asked for by a server that can't say what changed: a month back, a year ahead.
-const BACK: i64 = 31 * 86_400;
-const AHEAD: i64 = 366 * 86_400;
+/// A resource the server gave no ETag for is read again after this many seconds: nothing else
+/// shows that it changed.
+const REREAD_AFTER: i64 = 86_400;
+/// At most this many resources an account is remembered by in [`Session::dav_seen`].
+const MAX_SEEN: usize = 50_000;
+
+/// A resource read in that no event here names by its ETag ([`Session::dav_seen`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Seen {
+    /// The collection it is in.
+    pub collection: String,
+    /// The ETag it came with (empty: none).
+    pub etag: String,
+    /// When it was read (Unix seconds).
+    pub at: i64,
+    /// It gave no event here (a to-do, or a document that isn't a calendar).
+    pub bare: bool,
+}
 /// Most events one resource is taken to hold (a series with its changed occurrences).
 const MAX_PER_RESOURCE: usize = 1_000;
 /// Most calendars a mailbox has (as for those made elsewhere).
@@ -56,11 +79,11 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.davRequest", "Send/Receive Calendars and Contacts Server", "Send / Receive", request)
             .pure()
-            .params(r#"{"account"?: number, "skip"?: [number] (accounts to pass over), "relist"?: bool (look for calendars that came or went now)} — answers what a host should read from an account's calendar server: its homes, the calendars known with their sync token, change tag and (for one without a token) what is here, and the stretch to ask for. Answers {"ask": DavAsk} or {"ask": null} when no account has one."#)
+            .params(r#"{"account"?: number, "skip"?: [number] (accounts to pass over), "relist"?: bool (look for calendars that came or went now)} — answers what a host should read from an account's calendar server: its homes, the calendars known with their sync token, change tag and what is here (by address and ETag), and the settings the read is made under (`server`, handed back in the download). Answers {"ask": DavAsk} or {"ask": null} when no account has one."#)
             .when(available),
         CommandSpec::new("sync.applyDav", "Apply Calendars and Contacts Server", "Send / Receive", apply)
             .pure()
-            .params(r#"{"result": DavDownload} — takes in what a host read from a calendar server: the calendars its homes list, and each collection's changed or gone resources. Answers {"added", "updated", "removed", "calendars", "skipped", "problem", "wait"}."#)
+            .params(r#"{"result": DavDownload} — takes in what a host read from a calendar server: the calendars its homes list, and each collection's changed or gone resources. Refused, and nothing taken in, when the download was read under settings that have changed since. Answers {"added", "updated", "removed", "calendars", "skipped", "problem", "wait"}."#)
             .when(super::dav_account::switched_on),
         CommandSpec::new("sync.davChanges", "Calendar and Contacts Changes to Send", "Send / Receive", changes)
             .pure()
@@ -97,11 +120,12 @@ pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String
     let hrefs: HashSet<&str> = collections.iter().map(String::as_str).collect();
     let followed: Vec<Id> =
         s.mailbox.calendars.iter().filter(|c| c.origin.account == account && hrefs.contains(c.origin.id.as_str())).map(|c| c.id).collect();
-    let events: Vec<Id> = s
+    let followed_set: HashSet<Id> = followed.iter().copied().collect();
+    let events: HashSet<Id> = s
         .mailbox
         .events
         .values()
-        .filter(|e| followed.contains(&e.calendar) && e.origin.account == account && !e.origin.id.is_empty())
+        .filter(|e| followed_set.contains(&e.calendar) && e.origin.account == account && !e.origin.id.is_empty())
         .map(|e| e.id)
         .collect();
     for id in &events {
@@ -111,9 +135,13 @@ pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String
     // A calendar with something of the owner's left in it becomes the mailbox's own. And one
     // calendar of the mailbox's own always stays, for new events to go in (as `calendar.remove`
     // keeps one): a subscribed copy of a calendar on the web is not one.
-    let mut stays: Vec<Id> = followed.iter().copied().filter(|id| s.mailbox.events.values().any(|e| e.calendar == *id)).collect();
-    let own_elsewhere =
-        s.mailbox.calendars.iter().any(|c| !followed.contains(&c.id) && super::remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed());
+    let in_use: HashSet<Id> = s.mailbox.events.values().map(|e| e.calendar).filter(|c| followed_set.contains(c)).collect();
+    let mut stays: Vec<Id> = followed.iter().copied().filter(|id| in_use.contains(id)).collect();
+    let own_elsewhere = s
+        .mailbox
+        .calendars
+        .iter()
+        .any(|c| !followed_set.contains(&c.id) && super::remote::keeper(&s.mailbox, &c.origin).is_none() && !c.is_subscribed());
     if stays.is_empty()
         && !own_elsewhere
         && let Some(first) = followed.first()
@@ -124,9 +152,10 @@ pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String
         c.origin = Origin::default();
         c.rights = Rights::default();
     }
-    s.mailbox.calendars.retain(|c| !followed.contains(&c.id) || stays.contains(&c.id));
+    s.mailbox.calendars.retain(|c| !followed_set.contains(&c.id) || stays.contains(&c.id));
     s.dav_listed.remove(&account);
     s.dav_asked.remove(&account);
+    s.dav_seen.remove(&account);
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(file) = s.path.clone() {
         crate::dav_raw::drop_all(&file, account);
@@ -147,8 +176,8 @@ fn resource_of(key: &str) -> &str {
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let wanted = v.get("account").and_then(Value::as_u64);
     // Accounts the host is not to be asked about now (waiting out a back-off, or refused).
-    let skip: Vec<u64> =
-        v.get("skip").and_then(Value::as_array).map(|list| list.iter().filter_map(Value::as_u64).take(1_000).collect()).unwrap_or_default();
+    let skip: HashSet<u64> =
+        v.get("skip").and_then(Value::as_array).map(|list| list.iter().take(1_000).filter_map(Value::as_u64).collect()).unwrap_or_default();
     // The account whose server was asked longest ago (or never): each has its turn.
     let account = s
         .mailbox
@@ -161,24 +190,47 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     let now = s.now();
     let listed = s.dav_listed.get(&account.id).copied().unwrap_or(0);
     let relist = v.get("relist").and_then(Value::as_bool).unwrap_or(false);
-    let calendars: Vec<&DavCollectionState> = server.collections.iter().filter(|c| !c.contacts).collect();
+    let calendars: Vec<&DavCollectionState> = server.collections.iter().filter(|c| !c.contacts).take(DavServer::MAX_COLLECTIONS).collect();
     let list_homes = relist || calendars.is_empty() || now.saturating_sub(listed) >= RELIST_AFTER || listed > now;
-    let mut collections: Vec<DavAskCollection> = Vec::new();
-    for state in calendars {
-        let mut ask =
-            DavAskCollection { href: state.href.clone(), sync_token: state.sync_token.clone(), ctag: state.ctag.clone(), known: Vec::new() };
-        if state.sync_token.is_empty()
-            && let Some(calendar) = s.mailbox.calendars.iter().find(|c| c.origin.account == account.id && c.origin.id == state.href)
-        {
-            let mut seen: HashSet<&str> = HashSet::new();
-            for event in s.mailbox.events.values().filter(|e| e.calendar == calendar.id && e.origin.account == account.id) {
-                let href = resource_of(&event.origin.id);
-                if !href.is_empty() && seen.insert(href) && ask.known.len() < MAX_RESOURCES {
-                    ask.known.push(mailcraft_model::DavKnown { href: href.to_string(), etag: event.origin.change_key.clone() });
-                }
-            }
+    let mut collections: Vec<DavAskCollection> = calendars
+        .iter()
+        .map(|state| DavAskCollection { href: state.href.clone(), sync_token: state.sync_token.clone(), ctag: state.ctag.clone(), known: Vec::new() })
+        .collect();
+    // What is here, by collection, in one look at the events: a read (and one that goes on after a
+    // read that stopped short) fetches only what is new or changed. A resource the server gave no
+    // ETag for is left out once a day, so that it is read again.
+    let by_calendar: HashMap<Id, usize> = s
+        .mailbox
+        .calendars
+        .iter()
+        .filter(|c| c.origin.account == account.id)
+        .filter_map(|c| collections.iter().position(|ask| ask.href == c.origin.id).map(|at| (c.id, at)))
+        .collect();
+    let read_in = s.dav_seen.get(&account.id);
+    // (Without an ETag, a resource is read again once a day.)
+    let due = |href: &str, etag: &str| {
+        etag.is_empty() && read_in.and_then(|f| f.get(href)).is_none_or(|r| now.saturating_sub(r.at) >= REREAD_AFTER || r.at > now)
+    };
+    let mut seen: Vec<HashSet<&str>> = vec![HashSet::new(); collections.len()];
+    for event in s.mailbox.events.values().filter(|e| e.origin.account == account.id && !e.origin.id.is_empty()) {
+        let (Some(&at), href) = (by_calendar.get(&event.calendar), resource_of(&event.origin.id)) else { continue };
+        let (Some(ask), Some(seen)) = (collections.get_mut(at), seen.get_mut(at)) else { continue };
+        if href.is_empty() || ask.known.len() >= MAX_KNOWN || !seen.insert(href) {
+            continue;
         }
-        collections.push(ask);
+        let etag = &event.origin.change_key;
+        if !due(href, etag) {
+            ask.known.push(DavKnown { href: href.to_string(), etag: etag.clone() });
+        }
+    }
+    // And what was read in without giving an event here: it is here too, as far as fetching goes.
+    let by_href: HashMap<String, usize> = collections.iter().enumerate().map(|(at, c)| (c.href.clone(), at)).collect();
+    for (href, r) in read_in.into_iter().flatten().filter(|(_, r)| r.bare) {
+        let Some(&at) = by_href.get(r.collection.as_str()) else { continue };
+        let (Some(ask), Some(seen)) = (collections.get_mut(at), seen.get_mut(at)) else { continue };
+        if ask.known.len() < MAX_KNOWN && seen.insert(href.as_str()) && !due(href, &r.etag) {
+            ask.known.push(DavKnown { href: href.clone(), etag: r.etag.clone() });
+        }
     }
     let ask = DavAsk {
         account: account.id,
@@ -187,8 +239,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         trusted: server.trusted.clone(),
         homes: server.calendar_homes.clone(),
         list_homes,
-        from: now.saturating_sub(BACK),
-        to: now.saturating_add(AHEAD),
+        server: server.identity(&account.email),
         collections,
     };
     // (After every other, even within one second.)
@@ -228,27 +279,57 @@ pub(crate) fn within(collection: &str, href: &str) -> bool {
         })
 }
 
+/// Whether `raw` is a whole `VCALENDAR`: it begins with one and ends it. A document cut short, an
+/// error page or nothing at all says nothing of what the resource holds, and is not taken to say
+/// that its events are gone.
+fn whole_calendar(raw: &str) -> bool {
+    let mut lines = raw.trim_start_matches('\u{feff}').lines().map(str::trim).filter(|l| !l.is_empty());
+    lines.next().is_some_and(|l| l.eq_ignore_ascii_case("BEGIN:VCALENDAR"))
+        && lines.next_back().is_some_and(|l| l.eq_ignore_ascii_case("END:VCALENDAR"))
+}
+
 fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let download = v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?;
-    let download: DavDownload = serde_json::from_value(download)
-        .map_err(|e| bad(format!("`result`: {}", e.to_string().chars().filter(|c| !c.is_control()).take(200).collect::<String>())))?;
+    // (Nothing of the parameter in the error: it is the server's text, and may be logged.)
+    let download: DavDownload = serde_json::from_value(download).map_err(|_| bad("`result` is not what a calendar server's read brings"))?;
     let took = take_in(s, &download)?;
     Ok(json!({
         "added": took.added, "updated": took.updated, "removed": took.removed, "calendars": took.calendars,
         "skipped": took.skipped.saturating_add(download.skipped as usize),
         "problem": serde_json::to_value(download.problem).unwrap_or(Value::Null),
         "wait": download.wait.min(600),
-        "signedIn": download.signed_in,
     }))
 }
 
+/// The documents kept as they came, for one taking-in: the account's folder is listed at the
+/// first need, and once.
+struct Docs<'a> {
+    file: Option<&'a std::path::Path>,
+    account: Id,
+    store: Option<raw::Store>,
+}
+
+impl Docs<'_> {
+    fn store(&mut self) -> Option<&mut raw::Store> {
+        let file = self.file?;
+        Some(self.store.get_or_insert_with(|| raw::Store::open(file, self.account)))
+    }
+}
+
 fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
-    let account = super::remote::owner(&s.mailbox, download.account, &download.email)?.id;
-    let server = s.mailbox.account(account).and_then(|a| a.dav.clone()).ok_or_else(|| fail("this account has no calendar server"))?;
+    let owner = super::remote::owner(&s.mailbox, download.account, &download.email)?;
+    let account = owner.id;
+    let server = owner.dav.clone().ok_or_else(|| fail("this account has no calendar server"))?;
+    // A read made under other settings (another user name, server or certificate) is the old
+    // server's: nothing of it is taken in, before anything is touched.
+    if download.server != server.identity(&owner.email) {
+        return Err(fail("this read was made under the calendar server's earlier settings"));
+    }
     let mut took = Took::default();
     let offset_at = super::remote::offset_of(s);
     let now = s.now();
     let file = s.path.clone();
+    let mut docs = Docs { file: file.as_deref(), account, store: None };
     let mut changed = false;
     let homes = server.home_origins();
     let ok_collection = |href: &str| DavServer::check_home(href).is_ok() && origin_of(href).is_some_and(|o| homes.contains(&o));
@@ -259,8 +340,17 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
             s.dav_listed.insert(account, now);
         }
     }
+    // (Counted once: each read adds to it. What waits to be sent is looked at once, too.)
+    let mut total = s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()).count();
+    let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
     let mut reads = 0usize;
+    let mut done: HashSet<&str> = HashSet::new();
     for read in &download.collections {
+        // (A collection read twice in one download is taken in once.)
+        if !done.insert(read.href.as_str()) {
+            took.skipped += 1;
+            continue;
+        }
         let Some(state) =
             s.mailbox.account(account).and_then(|a| a.dav.as_ref()).and_then(|d| d.collections.iter().find(|c| c.href == read.href)).cloned()
         else {
@@ -278,14 +368,23 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
             took.skipped += 1;
             continue;
         };
-        changed |= take_read(s, account, calendar, &state.href, read, &offset_at, file.as_deref(), &mut took);
-        // The state moves with what was taken in, in the same step.
+        let to = Target { account, calendar, collection: &state.href, now, pending: &pending };
+        let read_in = take_read(s, to, read, &offset_at, &mut docs, &mut total, &mut took);
+        changed |= read_in.changed;
+        // The state moves with what was taken in, and only when all of it was: a change that
+        // found no room here is asked for again, from where the token was.
+        if !read_in.all {
+            continue;
+        }
         let token = if read.sync_token.chars().count() <= DavServer::MAX_TOKEN { read.sync_token.clone() } else { String::new() };
         let tag = if read.ctag.chars().count() <= DavServer::MAX_TOKEN { read.ctag.clone() } else { String::new() };
         if let Some(d) = s.mailbox.account_mut(account)?.dav.as_mut()
             && let Some(c) = d.collections.iter_mut().find(|c| c.href == read.href)
         {
             let new_ctag = if read.complete { tag } else { c.ctag.clone() };
+            // (A read that stopped short with nothing to go on from leaves the token where it
+            // was: asked again from there, the server answers as it did, and nothing is lost.)
+            let token = if read.complete || !token.is_empty() { token } else { c.sync_token.clone() };
             if c.sync_token != token || c.ctag != new_ctag {
                 (c.sync_token, c.ctag) = (token, new_ctag);
                 changed = true;
@@ -297,12 +396,15 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
         s.mailbox_changed();
     }
     if download.problem != DavProblem::None {
-        log::info!("calendar server (account {account}): {:?}", download.problem);
+        // (Nothing that names the account or the server.)
+        log::info!("a calendar server's read ended early: {:?}", download.problem);
     }
     Ok(took)
 }
 
-/// The calendars the homes list: each is one here, read-only. Whether anything changed.
+/// The calendars the homes list: each is one here, read-only. Whether anything changed. A
+/// calendar the server no longer lists goes only when the listing is whole: it said it went to
+/// its end, nothing was capped, and every calendar in it was taken in here.
 fn take_listing(
     s: &mut Session,
     account: Id,
@@ -312,13 +414,16 @@ fn take_listing(
     file: Option<&std::path::Path>,
 ) -> bool {
     let mut changed = false;
+    let mut whole = listing.complete && !listing.capped && listing.calendars.len() <= DavServer::MAX_COLLECTIONS;
     let mut listed: Vec<&mailcraft_model::DavCalendar> = Vec::new();
     for calendar in listing.calendars.iter().take(DavServer::MAX_COLLECTIONS) {
         let events = calendar.components.is_empty() || calendar.components.iter().any(|c| c == "VEVENT");
-        if ok_collection(&calendar.href) && events && listed.iter().all(|l| l.href != calendar.href) {
-            listed.push(calendar);
-        } else {
+        if !ok_collection(&calendar.href) {
+            // (Never to be held here: but it is a calendar, so the listing is not all there is.)
             took.skipped += 1;
+            whole = false;
+        } else if events && listed.iter().all(|l| l.href != calendar.href) {
+            listed.push(calendar);
         }
     }
     for item in &listed {
@@ -346,7 +451,10 @@ fn take_listing(
                 });
                 changed = true;
             }
-            None => continue,
+            None => {
+                whole = false;
+                continue;
+            }
         }
         // The calendar here. Read-only for now: nothing is sent up yet.
         let mailbox = &mut s.mailbox;
@@ -370,53 +478,81 @@ fn take_listing(
             None => took.skipped += 1,
         }
     }
-    // What the server no longer lists goes, with its events and their documents, but only from a
-    // listing that went to its end.
-    if listing.complete && !listing.capped {
-        let keep: HashSet<&str> = listed.iter().map(|l| l.href.as_str()).collect();
-        let gone: Vec<String> = s
-            .mailbox
-            .account(account)
-            .and_then(|a| a.dav.as_ref())
-            .map(|d| d.collections.iter().filter(|c| !c.contacts && !keep.contains(c.href.as_str())).map(|c| c.href.clone()).collect())
-            .unwrap_or_default();
-        for href in gone {
-            let ids: Vec<Id> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account && c.origin.id == href).map(|c| c.id).collect();
-            for id in &ids {
-                let events: Vec<Id> = s.mailbox.events.values().filter(|e| e.calendar == *id).map(|e| e.id).collect();
-                for event in events {
-                    let _ = s.mailbox.remove_event(event);
-                    took.removed += 1;
-                }
-            }
-            s.mailbox.calendars.retain(|c| !ids.contains(&c.id));
-            if let Ok(a) = s.mailbox.account_mut(account)
-                && let Some(d) = a.dav.as_mut()
-            {
-                d.collections.retain(|c| c.href != href);
-            }
-            took.calendars += 1;
-            changed = true;
-        }
-        sweep(s, account, file);
+    if !whole {
+        return changed;
     }
+    // What the server no longer lists goes, with its events and their documents.
+    let keep: HashSet<&str> = listed.iter().map(|l| l.href.as_str()).collect();
+    let gone: Vec<String> = s
+        .mailbox
+        .account(account)
+        .and_then(|a| a.dav.as_ref())
+        .map(|d| d.collections.iter().filter(|c| !c.contacts && !keep.contains(c.href.as_str())).map(|c| c.href.clone()).collect())
+        .unwrap_or_default();
+    let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
+    for href in gone {
+        let ids: HashSet<Id> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account && c.origin.id == href).map(|c| c.id).collect();
+        let events: Vec<Id> = s.mailbox.events.values().filter(|e| ids.contains(&e.calendar)).map(|e| e.id).collect();
+        // (A calendar with something in it that waits to be sent stays until that is settled.)
+        if events.iter().any(|e| pending.contains(e)) {
+            continue;
+        }
+        for event in events {
+            let _ = s.mailbox.remove_event(event);
+            took.removed += 1;
+        }
+        s.mailbox.calendars.retain(|c| !ids.contains(&c.id));
+        if let Ok(a) = s.mailbox.account_mut(account)
+            && let Some(d) = a.dav.as_mut()
+        {
+            d.collections.retain(|c| c.href != href);
+        }
+        if let Some(read_in) = s.dav_seen.get_mut(&account) {
+            read_in.retain(|_, r| r.collection != href);
+        }
+        took.calendars += 1;
+        changed = true;
+    }
+    sweep(s, account, file);
     changed
 }
 
-/// Takes in what one collection's read brought. Whether anything changed.
+/// The collection a read is of, and where its events go.
+struct Target<'a> {
+    account: Id,
+    calendar: Id,
+    collection: &'a str,
+    now: i64,
+    /// The events with something that waits to be sent: never changed or removed by a read.
+    pending: &'a HashSet<Id>,
+}
+
+/// What taking in one read came to.
+struct ReadIn {
+    /// Something here changed.
+    changed: bool,
+    /// Every change was taken in, or can never be (an address off the collection, a document
+    /// that is too large or no calendar): the read's token may be kept. Not when a change found
+    /// no room here.
+    all: bool,
+}
+
+/// Takes in what one collection's read brought.
+///
+/// A resource is removed here only on the server's word: a change that says it is gone, or a whole
+/// listing of the collection ([`DavRead::members`]) that doesn't name it. Never for anything else.
 #[allow(clippy::too_many_arguments)]
 fn take_read(
     s: &mut Session,
-    account: Id,
-    calendar: Id,
-    collection: &str,
-    read: &mailcraft_model::DavRead,
+    to: Target<'_>,
+    read: &DavRead,
     offset_at: &dyn Fn(i64) -> i32,
-    file: Option<&std::path::Path>,
+    docs: &mut Docs<'_>,
+    total: &mut usize,
     took: &mut Took,
-) -> bool {
+) -> ReadIn {
+    let Target { account, calendar, collection, now, pending } = to;
     let owner = s.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
-    let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
     // What is here of this collection, by key, and the keys of each resource (so that a change
     // looks at its own resource's and not at all).
     let mut here: HashMap<String, Id> = HashMap::new();
@@ -425,37 +561,48 @@ fn take_read(
         here.insert(event.origin.id.clone(), event.id);
         of_resource.entry(resource_of(&event.origin.id).to_string()).or_default().push(event.origin.id.clone());
     }
-    let mut total = s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()).count();
-    // The documents' folder is listed once for the whole read.
-    let mut store = file.map(|file| raw::Store::open(file, account));
     let before = (took.added, took.updated, took.removed);
-    let mut seen: HashSet<&str> = HashSet::new();
+    let mut all = read.changes.len() <= MAX_CHANGES;
+    let mut named: HashSet<&str> = HashSet::new();
     for change in read.changes.iter().take(MAX_CHANGES) {
         if !within(collection, &change.href) {
             took.skipped += 1;
             continue;
         }
-        seen.insert(change.href.as_str());
+        named.insert(change.href.as_str());
+        // What it brings, and whether that is all of it (when not, nothing of it is removed).
         let mut fresh: Vec<(String, Event)> = Vec::new();
+        let mut whole = true;
         if !change.gone {
-            let Some(raw) = change.raw.as_deref().filter(|r| r.len() <= MAX_READ && change.etag.len() <= MAX_KEY) else {
+            let raw = change.raw.as_deref().filter(|r| r.len() <= MAX_READ && change.etag.len() <= MAX_KEY);
+            let Some(raw) = raw.filter(|r| whole_calendar(r)) else {
+                // (Not a calendar this can read: what is here of it stays, and it is not
+                // fetched again until it changes.)
                 took.skipped += 1;
+                remember(s, account, collection, change, now, true);
                 continue;
             };
-            fresh = keyed(&change.href, mailcraft_ical::parse(raw, offset_at).events);
+            let events = mailcraft_ical::parse(raw, offset_at).events;
+            let parsed = events.len();
+            fresh = keyed(&change.href, events);
+            whole = parsed <= MAX_PER_RESOURCE && fresh.len() == parsed && (parsed > 0 || !raw.contains("BEGIN:VEVENT"));
         }
         let old: Vec<(String, Id)> =
             of_resource.get(change.href.as_str()).into_iter().flatten().filter_map(|k| here.get(k).map(|i| (k.clone(), *i))).collect();
         let new_keys: HashSet<String> = fresh.iter().map(|(k, _)| k.clone()).collect();
-        for (key, id) in old.iter().filter(|(k, _)| !new_keys.contains(k)) {
+        for (key, id) in old.iter().filter(|(k, _)| (change.gone || whole) && !new_keys.contains(k)) {
             if !pending.contains(id) && s.mailbox.remove_event(*id).is_ok() {
                 here.remove(key);
                 if let Some(keys) = of_resource.get_mut(change.href.as_str()) {
                     keys.retain(|k| k != key);
                 }
+                *total = total.saturating_sub(1);
                 took.removed += 1;
             }
         }
+        // (When its events end, for the documents' room: a series is as late as can be.)
+        let end = fresh.iter().map(|(_, e)| if e.recurrence.is_some() { i64::MAX } else { e.instants(offset_at).1 }).max().unwrap_or(i64::MIN);
+        let gives = !fresh.is_empty();
         for (key, mut event) in fresh {
             event.calendar = calendar;
             event.origin = Origin {
@@ -479,87 +626,85 @@ fn take_read(
                         took.updated += 1;
                     }
                 }
-                None if total < MAX_ACCOUNT_RESOURCES => {
+                None if *total < MAX_ACCOUNT_RESOURCES => {
                     if let Ok(id) = s.mailbox.add_event(event) {
                         of_resource.entry(change.href.clone()).or_default().push(key.clone());
                         here.insert(key, id);
-                        total += 1;
+                        *total += 1;
                         took.added += 1;
                     }
                 }
-                None => took.skipped += 1,
+                None => {
+                    // (No room: asked for again, so the token stays.)
+                    took.skipped += 1;
+                    all = false;
+                }
             }
         }
-        if let Some(store) = store.as_mut() {
+        if change.gone {
+            forget_seen(s, account, &change.href);
+        } else {
+            remember(s, account, collection, change, now, !gives);
+        }
+        if let Some(store) = docs.store() {
             store.drop_one(&change.href);
-            if let Some(doc) = change.raw.as_deref().filter(|_| !change.gone) {
-                // (What is asked of the events when there is no room is how they are now.)
-                store.keep(&change.href, doc, &|| ends_of(s, account, offset_at));
+            // (Kept for an event to be edited by: a document that gave none is not kept.)
+            if let Some(doc) = change.raw.as_deref().filter(|_| !change.gone && gives) {
+                // (What is asked of the events when there is no room is how they are now, once.)
+                store.keep(&change.href, doc, end, &|| ends_of(s, account, offset_at));
             }
         }
     }
-    // What a full read that went to its end didn't find is gone (of the stretch it was of): a
-    // resource goes whole, its series, its changed occurrences and all, when it is none of what
-    // the server named and, for a read of a stretch, something of it is in that stretch (an event
-    // that starts in it, a series with an occurrence in it).
-    if read.full && read.complete && !read.capped {
-        let present: HashSet<&str> = read.present.iter().map(String::as_str).chain(seen.iter().copied()).collect();
-        // The server compares exact instants (RFC 4791 §9.9), so a day-wise look at where a series
-        // falls would take an occurrence that ended just before the stretch for one inside it: a
-        // series is believed gone only when one of its occurrences lies, whole, a day or more
-        // inside both edges of the stretch (and only over the first five years of it: the stretch
-        // is a command's parameter too).
-        let window = read.window.map(|(from, to)| {
-            let (a, b) = (from.saturating_add(86_400), to.saturating_sub(86_400));
-            let reach = b.min(a.saturating_add(5 * 366 * 86_400));
-            let inner =
-                (a < b).then(|| (mailcraft_time::DateTime::from_timestamp(a, 0).date, mailcraft_time::DateTime::from_timestamp(reach, 0).date, a, b));
-            (from, to, inner)
-        });
-        let mut gone: Vec<String> = Vec::new();
-        for (resource, keys) in &of_resource {
-            if present.contains(resource.as_str()) {
-                continue;
-            }
-            let ids: Vec<Id> = keys.iter().filter_map(|k| here.get(k).copied()).collect();
-            if ids.is_empty() || ids.iter().any(|id| pending.contains(id)) {
-                continue;
-            }
-            let inside = |id: &Id| match (window, s.mailbox.event(*id)) {
-                (None, Some(_)) => true,
-                (Some((from, to, inner)), Some(e)) => {
-                    if e.recurrence.is_some() {
-                        inner.is_some_and(|(from_day, to_day, a, b)| {
-                            e.occurrences_in(from_day, to_day, offset_at).iter().any(|o| {
-                                // (Wall clock to instant: a day's margin covers the offset's own.)
-                                let off = offset_at(o.start.to_timestamp(0));
-                                o.start.to_timestamp(off) >= a && o.end.to_timestamp(off) <= b
-                            })
-                        })
-                    } else {
-                        (from..to).contains(&e.instants(offset_at).0)
-                    }
-                }
-                _ => false,
-            };
-            if ids.iter().any(inside) {
-                gone.push(resource.clone());
-            }
-        }
+    // What a whole listing of the collection doesn't name is gone: a resource goes whole, its
+    // series, its changed occurrences and all, unless something here waits to be sent for it.
+    if let Some(members) = read.members.as_ref().filter(|m| m.len() <= MAX_RESOURCES) {
+        let present: HashSet<&str> = members.iter().map(String::as_str).chain(named.iter().copied()).collect();
+        let gone: Vec<String> = of_resource
+            .iter()
+            .filter(|(resource, keys)| {
+                !present.contains(resource.as_str()) && !keys.is_empty() && keys.iter().all(|k| here.get(k).is_some_and(|id| !pending.contains(id)))
+            })
+            .map(|(resource, _)| resource.clone())
+            .collect();
         for resource in gone {
             for key in of_resource.get(&resource).into_iter().flatten() {
                 if let Some(id) = here.get(key)
                     && s.mailbox.remove_event(*id).is_ok()
                 {
+                    *total = total.saturating_sub(1);
                     took.removed += 1;
                 }
             }
-            if let Some(store) = store.as_mut() {
+            if let Some(store) = docs.store() {
                 store.drop_one(&resource);
             }
         }
+        if let Some(read_in) = s.dav_seen.get_mut(&account) {
+            read_in.retain(|href, r| r.collection != collection || present.contains(href.as_str()));
+        }
     }
-    (took.added, took.updated, took.removed) != before
+    ReadIn { changed: (took.added, took.updated, took.removed) != before, all }
+}
+
+/// Remembers a resource read in that no event here can be told by: one without an ETag (so that
+/// it is read again after a day) or one that gave no event (so that it is not fetched again until
+/// it changes). Anything else is forgotten.
+fn remember(s: &mut Session, account: Id, collection: &str, change: &DavChange, now: i64, bare: bool) {
+    if !bare && !change.etag.is_empty() {
+        forget_seen(s, account, &change.href);
+        return;
+    }
+    let read_in = s.dav_seen.entry(account).or_default();
+    if read_in.len() < MAX_SEEN || read_in.contains_key(&change.href) {
+        let seen = Seen { collection: collection.to_string(), etag: change.etag.clone(), at: now, bare };
+        read_in.insert(change.href.clone(), seen);
+    }
+}
+
+fn forget_seen(s: &mut Session, account: Id, href: &str) {
+    if let Some(read_in) = s.dav_seen.get_mut(&account) {
+        read_in.remove(href);
+    }
 }
 
 /// The end of each of the account's events that has a kept document, by the document's name, as
@@ -567,9 +712,9 @@ fn take_read(
 fn ends_of(s: &Session, account: Id, offset_at: &dyn Fn(i64) -> i32) -> HashMap<String, i64> {
     let mut ends: HashMap<String, i64> = HashMap::new();
     for e in s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()) {
-        let end = e.instants(offset_at).1;
+        let end = if e.recurrence.is_some() { i64::MAX } else { e.instants(offset_at).1 };
         let slot = ends.entry(raw::name_of(resource_of(&e.origin.id))).or_insert(i64::MIN);
-        *slot = (*slot).max(if e.recurrence.is_some() { i64::MAX } else { end });
+        *slot = (*slot).max(end);
     }
     ends
 }
@@ -596,9 +741,10 @@ fn keyed(href: &str, events: Vec<Event>) -> Vec<(String, Event)> {
         events.into_iter().take(MAX_PER_RESOURCE).partition(|e| !e.uid.split_once('#').is_some_and(|(base, _)| uids.contains(base)));
     main.append(&mut others);
     let mut out: Vec<(String, Event)> = Vec::new();
+    let mut keys: HashSet<String> = HashSet::new();
     for (n, event) in main.into_iter().enumerate() {
         let key = if n == 0 { href.to_string() } else { format!("{href}#{}", if event.uid.is_empty() { n.to_string() } else { event.uid.clone() }) };
-        if key.len() <= MAX_KEY && out.iter().all(|(k, _)| *k != key) {
+        if key.len() <= MAX_KEY && keys.insert(key.clone()) {
             out.push((key, event));
         }
     }
@@ -636,7 +782,7 @@ mod raw {
             Store
         }
         pub(super) fn drop_one(&mut self, _: &str) {}
-        pub(super) fn keep(&mut self, _: &str, _: &str, _: &dyn Fn() -> HashMap<String, i64>) -> bool {
+        pub(super) fn keep(&mut self, _: &str, _: &str, _: i64, _: &dyn Fn() -> HashMap<String, i64>) -> bool {
             false
         }
     }
