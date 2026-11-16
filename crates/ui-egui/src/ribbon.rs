@@ -1121,7 +1121,8 @@ struct FolderSearch {
     text: String,
     /// The row the arrow keys are on, among the rows they can choose.
     at: usize,
-    /// The frame the menu was last drawn in: a gap means it was closed, and it opens afresh.
+    /// The frame the menu was last drawn in: a popup's sizing pass draws it twice in one frame,
+    /// and the second must keep the first's state.
     seen: Option<u64>,
 }
 
@@ -1259,15 +1260,20 @@ fn folder_menu_scope(ui: &mut Ui, app: &mut MailApp, scope: FolderScope, mut pic
     let list_key = ui.scope_id().with("folder-list");
     let frame = ui.ctx().cumulative_frame_nr();
     let mut st: FolderSearch = ui.data(|d| d.get_temp(key)).unwrap_or_default();
-    let fresh = st.seen.is_none_or(|seen| frame > seen.saturating_add(2));
+    // (The menu opens afresh when its layer wasn't on screen in the pass before, which egui knows
+    // itself: no frame count guesses at it, and a menu that stayed open through a pass with no
+    // repaint keeps its list. The frame keeps a popup's sizing pass, which draws the menu twice
+    // in one frame, from reading the folders twice.)
+    let was_open = ui.ctx().memory(|m| m.areas().visible_last_frame(&ui.layer_id()));
+    let fresh = st.seen != Some(frame) && !was_open;
     if fresh {
         st = FolderSearch::default();
     }
     st.seen = Some(frame);
     // (The folders are read once, when the menu opens, and kept while it is drawn: reading every
     // account's tree on every frame made the menu stutter with thousands of folders (#1176).)
-    let list: Arc<FolderList> = match ui.data(|d| d.get_temp::<Arc<FolderList>>(list_key)) {
-        Some(list) if !fresh => list,
+    let list: Arc<FolderList> = match (fresh, ui.data(|d| d.get_temp::<Arc<FolderList>>(list_key))) {
+        (false, Some(list)) => list,
         _ => {
             let (rows, many) = folder_rows(app, scope);
             let list = Arc::new(FolderList { rows, many });

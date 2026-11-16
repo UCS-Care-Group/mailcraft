@@ -68,29 +68,31 @@ fn every_mailboxs_folders_are_in_the_move_menu() {
 }
 
 /// The folders are read once, when the menu opens, and kept while it stays open: a folder added
-/// meanwhile doesn't appear until it is opened again (#1176).
+/// meanwhile doesn't appear until it is opened again. Dismissing it without choosing a folder
+/// and opening it again a single pass later reads them again (#1176).
 #[test]
 fn the_menu_keeps_its_rows_while_it_stays_open_and_reads_them_again_when_reopened() {
     let a = app();
     let account = a.session.mailbox.default_account().map(|x| x.id).unwrap();
     let mut h =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(400.0, 500.0)).build_ui_state(
-            |ui, (app, picked, open): &mut (MailApp, Option<Id>, bool)| {
-                if *open {
-                    folder_menu_all(ui, app, |_, id| *picked = Some(id));
-                }
+            |ui, (app, picked): &mut (MailApp, Option<Id>)| {
+                ui.menu_button("Folders", |ui| folder_menu_all(ui, app, |_, id| *picked = Some(id)));
             },
-            (a, None, true),
+            (a, None),
         );
+    h.run_steps(3);
+    h.get_by_label("Folders").click_accesskit();
     h.run_steps(3);
     assert!(h.query_by_label_contains("Zebra").is_none(), "no such folder yet");
     h.state_mut().0.session.mailbox.add_folder(account, None, "Zebra").unwrap();
     h.run_steps(3);
     assert!(h.query_by_label_contains("Zebra").is_none(), "the menu keeps the rows it opened with");
-    // Closed for a few frames, then opened again: the list is read afresh.
-    h.state_mut().2 = false;
-    h.run_steps(4);
-    h.state_mut().2 = true;
+    // Dismissed without a folder chosen: one pass with the menu shut, then opened again.
+    h.get_by_label("Folders").click_accesskit();
+    h.run_steps(1);
+    assert!(h.query_by_label_contains("Zebra").is_none() && h.query_by_label_contains("Inbox").is_none(), "the menu is shut");
+    h.get_by_label("Folders").click_accesskit();
     h.run_steps(3);
     assert!(h.query_by_label_contains("Zebra").is_some(), "a menu opened again reads the folders again");
 }
