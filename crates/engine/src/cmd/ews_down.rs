@@ -295,6 +295,7 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
         link: String::new(),
         caught_up: false,
         afresh: page.afresh,
+        relist_gen: 0,
         counts: None,
     };
     graph_down::take_page(mb, index, account, &as_page, down);

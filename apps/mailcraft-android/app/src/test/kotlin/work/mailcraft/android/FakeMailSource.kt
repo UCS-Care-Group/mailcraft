@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 
 /** A mail source over a list of invented rows that records what it is asked, for the tests. */
@@ -15,8 +14,6 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     var failWindows = false
     var failCommands = false
     var isOffline = false
-    val refreshes = AtomicInteger()
-    var refreshOutcome: RefreshOutcome = RefreshOutcome.Refused("There is no account to send and receive.")
 
     /** When set, a window is answered only once it is completed: a read still on its way. */
     var gate: CompletableDeferred<Unit>? = null
@@ -72,11 +69,6 @@ internal class FakeMailSource(var rows: List<InboxRow> = emptyList()) : MailSour
     }
 
     override suspend fun categories() = listOf(CategoryItem("Green category", 0x2E8B57))
-
-    override suspend fun refresh(): RefreshOutcome {
-        refreshes.incrementAndGet()
-        return refreshOutcome
-    }
 
     override suspend fun offline() = isOffline
 

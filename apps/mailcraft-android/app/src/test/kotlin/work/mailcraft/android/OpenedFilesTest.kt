@@ -108,6 +108,16 @@ class OpenedFilesTest {
         assertFalse(SaveToFiles.write({ throw SecurityException("revoked") }, byteArrayOf(1)))
     }
 
+    @Test
+    fun savingWhereTheProviderRefusesOrBreaksIsFalse() {
+        val broken = listOf(
+            SecurityException("revoked"),
+            IllegalArgumentException("unknown"),
+            IllegalStateException("broken"),
+        )
+        broken.forEach { e -> assertFalse(SaveToFiles.write({ throw e }, byteArrayOf(1))) }
+    }
+
     @Suppress("ThrowsCount")
     @Test
     fun guardTurnsWhatTheSystemThrowsIntoTheBindingsError() {

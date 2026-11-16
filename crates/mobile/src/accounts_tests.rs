@@ -159,6 +159,10 @@ impl Platform for Phone {
         Err(HostError::Unsupported)
     }
 
+    fn open_link(&self, _: String) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+
     fn now(&self) -> Result<i64, HostError> {
         Ok(now())
     }
@@ -211,7 +215,7 @@ impl Rig {
     }
 
     fn sign_in(&self, hint: &str) -> SignInOutcome {
-        block_on(self.core.sign_in_microsoft(hint.to_string())).unwrap()
+        block_on(self.core.sign_in_microsoft(hint.to_string(), Default::default())).unwrap()
     }
 
     fn secret(&self, key: &str) -> Option<String> {
@@ -252,6 +256,8 @@ fn a_sign_in_adds_the_account_and_keeps_only_the_refresh_token_in_the_secure_sto
     let SignInOutcome::SignedIn { account, email, name } = outcome.clone() else { panic!("{outcome:?}") };
     assert_eq!((email.as_str(), name.as_str()), (ADA, "Ada Lumen"));
     assert_eq!(rig.accounts(), vec![(account, ADA.to_string())]);
+    // A phone keeps a month of mail offline until the owner says otherwise (the desktop, twelve).
+    assert_eq!(block_on(rig.core.keep_offline(account)).unwrap(), "1m");
     // The refresh token is in the store, under the account's address, and nothing else is.
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph").as_deref(), Some("refresh-token-1"));
     assert_eq!(rig.secrets_kept(), 1);
@@ -692,7 +698,7 @@ fn a_sign_in_dropped_before_its_account_is_in_keeps_no_sign_in_and_makes_no_acco
     rig.page_comes_back_with(CODE_BACK);
     // The session is busy when the page comes back: the account waits for it.
     let release = hold_session(&rig.core);
-    drop_when(rig.core.sign_in_microsoft(String::new()), || server.asked() == 1);
+    drop_when(rig.core.sign_in_microsoft(String::new(), Default::default()), || server.asked() == 1);
     // (A moment for anything the dropped call might still do on its own.)
     std::thread::sleep(std::time::Duration::from_millis(200));
     assert_eq!(rig.secrets_kept(), 0, "a sign-in was kept for no account");
@@ -781,7 +787,7 @@ fn no_sign_in_begins_once_the_core_is_shut_down() {
     let rig = Rig::new(&server);
     rig.page_comes_back_with(CODE_BACK);
     rig.core.shutdown();
-    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new())), Err(CoreError::Cancelled)));
+    assert!(matches!(block_on(rig.core.sign_in_microsoft(String::new(), Default::default())), Err(CoreError::Cancelled)));
     assert!(rig.phone.pages.lock().unwrap().is_empty());
 }
 
@@ -912,6 +918,22 @@ fn add_account_whose_sign_in_send_receive_refuses_says_so_and_leaves_nothing() {
 }
 
 #[test]
+fn a_refused_add_account_puts_back_the_phones_storage_cap() {
+    let rig = Rig::new(&good_server());
+    let cap = |rig: &Rig| block_on(rig.core.call(|s| Ok(s.mailbox.device_limits.map(|l| l.storage)))).unwrap();
+    block_on(rig.core.call(|s| crate::limits::set_storage(s, 5 << 10).map_err(CoreError::from))).unwrap();
+    let before = cap(&rig);
+    assert_eq!(before, Some(5 << 30));
+    // The new account's own choice (the least the phone takes) is the mailbox's cap while it is
+    // being set up; a sign-in Send/Receive refuses leaves what the owner had.
+    rig.core.sync.refuse_adopt.store(true, Ordering::Relaxed);
+    rig.page_comes_back_with(CODE_BACK);
+    assert!(matches!(rig.sign_in(""), SignInOutcome::Failed { .. }));
+    assert!(rig.accounts().is_empty());
+    assert_eq!(cap(&rig), before);
+}
+
+#[test]
 fn a_refused_add_account_puts_back_only_the_refresh_token() {
     let rig = Rig::new(&good_server());
     // Something else kept under the address (a password) is not the sign-in's to take.
@@ -1002,4 +1024,18 @@ fn a_renewal_and_a_removal_sent_at_once_are_applied_one_after_the_other() {
     assert!(rig.accounts().is_empty());
     assert_eq!(rig.secret("refresh:ada@lumen.example|graph"), None);
     assert_eq!(rig.secrets_kept(), 0);
+}
+
+#[test]
+fn an_account_added_on_the_phone_keeps_a_month_and_fetches_whole_only_up_to_a_megabyte() {
+    let server = good_server();
+    let rig = Rig::new(&server);
+    let account = signed_in(&rig);
+    let (keep, size, limits) = block_on(rig.core.call(move |s| {
+        let a = s.mailbox.account(account).ok_or(CoreError::Internal)?;
+        Ok((a.keep_offline, a.download_in_full, s.mailbox.device_limits))
+    }))
+    .unwrap();
+    assert_eq!((keep, size), (mailcraft_model::KeepOffline::Month1, mailcraft_model::DownloadInFull::UpTo1Mb));
+    assert_eq!(limits.map(|l| l.storage), Some(mailcraft_model::PHONE_STORAGE));
 }
