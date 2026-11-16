@@ -42,6 +42,8 @@ mod invitation;
 #[cfg(test)]
 mod font_faces_tests;
 pub(crate) mod layout;
+#[cfg(test)]
+mod plain_font_tests;
 pub(crate) mod react;
 #[cfg(test)]
 mod react_tests;

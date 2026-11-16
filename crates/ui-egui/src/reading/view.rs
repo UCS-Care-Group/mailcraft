@@ -221,6 +221,30 @@ impl Look {
     }
 }
 
+/// The font a plain-text message is read in: the account it came to's own, when it chose one and
+/// the message has no HTML of its own to be read in.
+fn plain_font(session: &mailcraft_engine::Session, message: &Message) -> Option<mailcraft_model::rich::Style> {
+    if message.body.html.is_some() {
+        return None;
+    }
+    session.mailbox.account(message.account).and_then(|a| a.default_font(mailcraft_model::FontSlot::Plain)).cloned()
+}
+
+/// The font a plain-text message is read in, as a [`Key`] names it: what it is drawn in, and
+/// nothing else of it.
+fn plain_key(plain: Option<&mailcraft_model::rich::Style>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    match plain {
+        None => 0u8.hash(&mut hasher),
+        Some(style) => {
+            1u8.hash(&mut hasher);
+            (style.font.as_ref().map(|f| f.list()), style.size, style.bold, style.italic, style.underline, style.color.as_deref()).hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
 /// What a layout was made for: when any of it changes, it is made again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Key {
@@ -245,6 +269,9 @@ struct Key {
     /// The message fonts egui had ([`crate::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
+    /// The font plain-text messages are read in, named by what it is: the owner chose another for
+    /// the account this message came to.
+    plain: u64,
 }
 
 struct Entry {
@@ -507,7 +534,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let showing = access == Access::Allowed && !entry.doc.remote.is_empty();
     // The zoom is the owner's for the message being read (`view.zoom`), not for a quote or a preview.
     let zoom = if matches!(place, Place::Pane | Place::Window(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
+    // A plain-text message is read in the font its account writes plain text in.
+    let plain = plain_font(&app.session, &entry.message);
     let key = Key {
+        plain: plain_key(plain.as_ref()),
         width: width as u32,
         zoom: zoom.to_bits(),
         dark: t.dark,
@@ -535,7 +565,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
                     .on_light_page(light)
                     .sender_dark(entry.doc.sender_dark)
                     .cut(entry.doc.cuts.clone())
-                    .zoomed(zoom),
+                    .zoomed(zoom)
+                    .written_in(plain.clone()),
             ));
             #[cfg(test)]
             {
@@ -544,8 +575,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         }
     } else {
         entry.key = Some(key);
-        entry.laid =
-            Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone()).zoomed(zoom);
+        entry.laid = Laid::new(width)
+            .showing_remote(showing)
+            .on_light_page(light)
+            .sender_dark(entry.doc.sender_dark)
+            .cut(entry.doc.cuts.clone())
+            .zoomed(zoom)
+            .written_in(plain.clone());
         entry.next = None;
         #[cfg(test)]
         {
