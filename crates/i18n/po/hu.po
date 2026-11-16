@@ -3134,6 +3134,12 @@ msgid "Check for Updates"
 msgstr "Frissítések ellenőrzése"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check for new versions"
@@ -5643,6 +5649,12 @@ msgstr "Kapcsolódó üzenetek keresése"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Időpont keresése"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8217,6 +8229,12 @@ msgstr "- Hasonlít a címre."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "A szerver tanúsítványát nézve…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -25800,6 +25818,14 @@ msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint 
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• címzett: {to}, tárgy: „{subject}”"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

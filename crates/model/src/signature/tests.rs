@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 
 use super::*;
-use crate::rich::{Font, Format, OBJECT};
+use crate::rich::{Built, Font, Format, OBJECT};
 
 /// The smallest PNG signature there is, and some bytes after it.
 fn png(extra: usize) -> Vec<u8> {
@@ -24,7 +24,7 @@ fn a_rich_signature_with_pictures_round_trips_and_keeps_its_words_for_earlier_ve
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1F6FEB".into()))).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
     sig.set_body(body).unwrap();
     let logo = sig.add_picture("lumen-logo.png", png(100), None, Some(0)).unwrap();
     let badge = sig.add_picture("badge.gif", b"GIF89a....".to_vec(), Some("Certified"), None).unwrap();
@@ -163,18 +163,18 @@ proptest! {
 
 #[test]
 fn a_signature_in_a_font_this_version_doesnt_know_keeps_the_rest_of_its_look() {
-    // A signature saved by a later version, in a font this one doesn't know, keeps its colour and
-    // bold, and loses only the font (#969, a review point on #1327).
+    // A signature saved by a later version, in a font this one doesn't know, keeps its colour, its
+    // bold and the name of the font it asks for (#969, a review point on #1327; #1493).
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1F6FEB".into()))).unwrap();
     body.format(0, 11, &Format::Bold(true)).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
     sig.set_body(body).unwrap();
-    let saved = serde_json::to_string(&sig).unwrap().replace("\"georgia\"", "\"aFontFromLater\"");
+    let saved = serde_json::to_string(&sig).unwrap().replace("\"georgia,serif\"", "\"aFontFromLater\"");
     assert!(saved.contains("aFontFromLater"), "{saved}");
     let back: Signature = serde_json::from_str(&saved).unwrap();
     let style = back.body().style_at(3);
-    assert_eq!((style.color.as_deref(), style.bold, style.font), (Some("#1f6feb"), true, None));
+    assert_eq!((style.color.as_deref(), style.bold, style.font), (Some("#1f6feb"), true, Font::parse("aFontFromLater")));
     assert_eq!(back.plain(), "Avery Quinn\nLumen Studio");
 }

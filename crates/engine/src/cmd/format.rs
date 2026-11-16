@@ -64,7 +64,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
-            .params(r#"{"value": "Arial"|"Calibri"|"Courier New"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
+            .params(r#"{"value": string (a font family, as it is named on this computer — the window offers what is installed; "ui.fonts" over the control port lists them; a family that isn't installed is drawn in the window's own font), or null (the message's own font), "from"?: number, "to"?: number}"#)
             .when_writing(needs_html),
         CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
@@ -351,15 +351,15 @@ fn symbol(s: &mut Session, v: &Value) -> CmdResult {
 fn font(s: &mut Session, v: &Value) -> CmdResult {
     let value = match v.get("value") {
         Some(Value::Null) => None,
-        Some(_) => Some(
-            p::str(v, "value")
-                .and_then(Font::parse)
-                .ok_or_else(|| bad("`value` is Arial, Calibri, Courier New, Georgia, Verdana or System, or null"))?,
-        ),
+        // Any family the owner has installed, named by its own name: the window lists what this
+        // computer has (`FontIndex`), and this only checks the shape of the name — the engine
+        // never looks at the fonts folders, and a font that isn't installed here is drawn in the
+        // window's own and named to the recipient all the same.
+        Some(_) => Some(p::str(v, "value").and_then(Font::parse).ok_or_else(|| bad("`value` is a font family, or null"))?),
         None => return Err(bad("`value` (a font, or null) is required")),
     };
-    edit(s, v, |b| b.format(Format::Font(value)))?;
-    Ok(json!({"value": value.map(Font::label)}))
+    edit(s, v, |b| b.format(Format::Font(value.clone())))?;
+    Ok(json!({"value": value.as_ref().map(|f| f.label().to_string())}))
 }
 
 fn size(s: &mut Session, v: &Value) -> CmdResult {
