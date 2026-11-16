@@ -563,8 +563,9 @@ msgstr "Een poort is een getal van 1 tot en met 65535"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "A preview may omit some content from the original file."
-msgstr ""
+msgstr "Een voorbeeld bevat mogelijk niet alle inhoud van het oorspronkelijke bestand."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1790,8 +1791,9 @@ msgstr "Opnieuw vragen voordat afbeeldingen van deze afzender worden gedownload"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Ask before previewing this type of file"
-msgstr ""
+msgstr "Vragen voordat een voorbeeld van dit bestandstype wordt getoond"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3097,8 +3099,9 @@ msgstr "Zoekopdracht wissen (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Click to select {name}; double-click to open it"
-msgstr ""
+msgstr "Klik om {name} te selecteren; dubbelklik om het te openen"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9644,8 +9647,9 @@ msgstr "Er is geen voorbeeldhulpprogramma beschikbaar voor deze bijlage."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "No preview is available for this attachment."
-msgstr ""
+msgstr "Er is geen voorbeeld beschikbaar voor deze bijlage."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -11299,8 +11303,9 @@ msgstr "Voorbeeld van bijlage"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview File"
-msgstr ""
+msgstr "Voorbeeld bekijken"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -11322,8 +11327,9 @@ msgstr "Voorbeeld van bijlagen bekijken met lokale PhotoCraft"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview files only when you trust the sender."
-msgstr ""
+msgstr "Bekijk alleen voorbeelden van bestanden als u de afzender vertrouwt."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11824,10 +11830,13 @@ msgstr "Verwijderen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
+"Bijlage\n"
+"verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
@@ -12295,8 +12304,9 @@ msgstr "Opnieuw starten om bij te werken is de klik van de eigenaar."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Restore attachment preview warnings"
-msgstr ""
+msgstr "Waarschuwingen voor bijlagevoorbeelden herstellen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -12590,10 +12600,13 @@ msgstr "Opslaan & sluiten"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
+"Alle bijlagen\n"
+"opslaan"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -12717,8 +12730,9 @@ msgstr "Wegschrijven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Save to Computer"
-msgstr ""
+msgstr "Opslaan op computer"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -13688,10 +13702,13 @@ msgstr "Weergeven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Message"
 msgstr ""
+"Bericht\n"
+"weergeven"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13751,8 +13768,9 @@ msgstr "MailCraft tonen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Show Message"
-msgstr ""
+msgstr "Bericht weergeven"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
