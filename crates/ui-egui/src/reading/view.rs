@@ -240,7 +240,7 @@ struct Key {
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
-    /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
+    /// The message fonts egui had ([`crate::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
 }
@@ -505,8 +505,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
         fonts: {
             // What the fonts' threads brought is taken in first (#600).
-            super::fonts::tick(&ctx);
-            super::fonts::generation(&ctx)
+            crate::fonts::tick(&ctx);
+            crate::fonts::generation(&ctx)
         },
     };
     if entry.key == Some(key) {

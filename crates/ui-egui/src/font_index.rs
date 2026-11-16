@@ -1,16 +1,20 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The fonts installed on this computer, by the names of their families (#600): what a message's
-//! `font-family` is looked up in. Nothing is fetched, nothing is installed and no font is bundled
-//! for it; a message gets the fonts its reader already has.
+//! `font-family` is looked up in, and what the composer's font menu is made of. Nothing is
+//! fetched, nothing is installed and no font is bundled for it; a message gets the fonts its
+//! reader already has, and the composer offers the ones this computer has.
 //!
 //! The fonts folders ([`crate::theme::font_dirs`]; on Windows the system's and the owner's own)
 //! are walked once, on a thread of their own, and of each font file only its table directory and
-//! its `name` and `OS/2` tables are read (a few kilobytes, never the outlines): the family names
-//! in every language the file gives (name ids 1 and 16), the weight and whether the face is
-//! italic. A face is read whole only when a message is to be drawn in it
-//! (`reading::fonts`). Everything here is capped: the files looked at, the faces of a collection,
-//! the size of a table, the names kept. The browser has no fonts folder: there the index is empty.
+//! its `name`, `OS/2` and `post` tables are read (a few kilobytes, never the outlines): the
+//! family names in every language the file gives (name ids 1 and 16), the weight, whether the
+//! face is italic, whether it is fixed width and whether it is a serif face. A face is read whole
+//! only when text is to be drawn in it ([`crate::fonts`]). Everything here is capped: the files
+//! looked at, the faces of a collection, the size of a table, the names kept. A family known by
+//! several names — in other languages, or by its typographic name as well as its family one — is
+//! one family, shown by the name it gives itself in English. The browser has no fonts folder:
+//! there the index is empty.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 use std::collections::HashMap;
@@ -30,14 +34,30 @@ const MAX_TABLES: u16 = 512;
 /// The largest `name` table that is read: a font with names in many languages has a few dozen
 /// kilobytes of them.
 const MAX_NAME_TABLE: u32 = 512 * 1024;
-/// The most family names kept, and the most faces kept for one of them.
+/// The most families kept, and the most faces kept for one of them.
 const MAX_FAMILIES: usize = 20_000;
 const MAX_FACES_A_FAMILY: usize = 64;
+/// The most names one family is kept under: its own, its typographic one, and the same in the
+/// languages the file names them in.
+const MAX_KEYS_A_FAMILY: usize = 32;
 /// The longest family name kept, in characters.
 const MAX_NAME: usize = 64;
 
 /// `usWidthClass` of a face that is neither condensed nor expanded.
 const NORMAL_WIDTH: u16 = 5;
+
+/// `panose.bProportion` of a face whose characters are as wide as each other.
+const PANOSE_MONOSPACED: u8 = 9;
+
+/// `OS/2.sFamilyClass` major classes that are serif families: oldstyle (1), transitional (2),
+/// modern (3), Clarendon (4), slab (5) and freeform (7). A family whose file says nothing (0) is
+/// not taken for one. (The IBM classes the field is filled with: 8 is a sans-serif, 9 ornamentals
+/// and 12 symbols, and there is no class 6 or 11.)
+const SERIF_CLASSES: [u8; 6] = [1, 2, 3, 4, 5, 7];
+
+/// `OS/2.sFamilyClass` major class that is written rather than set. Neither serif nor sans-serif
+/// describes it; `cursive` does.
+const SCRIPT_CLASSES: [u8; 1] = [10];
 
 /// One installed face.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,10 +72,50 @@ pub struct Face {
     pub italic: bool,
 }
 
+/// One installed family: its faces, the names it answers to (lower case), the name it shows
+/// itself by, and the two facts the composer needs to know about it.
+#[derive(Debug)]
+struct Family {
+    /// The name it gives itself, as it wrote it: what a menu lists.
+    display: String,
+    keys: Vec<String>,
+    faces: Vec<Face>,
+    /// Whether its characters are as wide as each other, so text lined up with spaces keeps its
+    /// columns and a bold of it is not drawn in another family's face (#969).
+    fixed: bool,
+    /// Whether it is a serif family, as its own classification says.
+    serif: bool,
+    /// Whether it is written rather than set: a script or a blackletter.
+    script: bool,
+}
+
+/// The names one face calls its family, and what kind of face it is.
+struct FamilyNames {
+    display: String,
+    keys: Vec<String>,
+    fixed: bool,
+    serif: bool,
+    script: bool,
+}
+
+/// One family as a menu lists it: the name it gives itself, and the same name lower cased, which
+/// is what is searched. Built once with the index, so that a menu open for a minute doesn't build
+/// three thousand names again every frame (#1493).
+#[derive(Clone, Debug)]
+pub struct Listed {
+    pub name: String,
+    pub folded: String,
+}
+
 /// The installed faces by family name, lower case.
 #[derive(Debug, Default)]
 pub struct FontIndex {
-    families: HashMap<String, Vec<Face>>,
+    families: Vec<Family>,
+    by_name: HashMap<String, usize>,
+    /// Every family a `font-family` could be written with, in order.
+    listed: Vec<Listed>,
+    /// The same, without the six the composer already offers: what its font menu lists after them.
+    menu: Vec<Listed>,
 }
 
 impl FontIndex {
@@ -74,6 +134,7 @@ impl FontIndex {
                 index.add(names, face);
             }
         }
+        index.finish();
         index
     }
 
@@ -83,26 +144,70 @@ impl FontIndex {
         FontIndex::default()
     }
 
-    fn add(&mut self, names: Vec<String>, face: Face) {
-        for name in names {
-            if !self.families.contains_key(&name) && self.families.len() >= MAX_FAMILIES {
-                continue;
+    fn add(&mut self, names: FamilyNames, face: Face) {
+        if names.display.is_empty() {
+            return;
+        }
+        match names.keys.iter().find_map(|key| self.by_name.get(key).copied()) {
+            Some(at) => {
+                let family = &mut self.families[at];
+                for key in names.keys {
+                    if !family.keys.contains(&key) && family.keys.len() < MAX_KEYS_A_FAMILY {
+                        self.by_name.insert(key.clone(), at);
+                        family.keys.push(key);
+                    }
+                }
+                // The first file of a face is kept (the owner's own folders come first).
+                let known = family.faces.iter().any(|f| f.weight == face.weight && f.width == face.width && f.italic == face.italic);
+                if !known && family.faces.len() < MAX_FACES_A_FAMILY {
+                    family.faces.push(face);
+                }
             }
-            let faces = self.families.entry(name).or_default();
-            // The first file of a face is kept (the owner's own folders come first).
-            let known = faces.iter().any(|f| f.weight == face.weight && f.width == face.width && f.italic == face.italic);
-            if !known && faces.len() < MAX_FACES_A_FAMILY {
-                faces.push(face.clone());
+            None => {
+                if self.families.len() >= MAX_FAMILIES {
+                    return;
+                }
+                let at = self.families.len();
+                let keys: Vec<String> = names.keys.into_iter().take(MAX_KEYS_A_FAMILY).collect();
+                for key in &keys {
+                    self.by_name.insert(key.clone(), at);
+                }
+                self.families.push(Family {
+                    display: names.display,
+                    keys,
+                    faces: vec![face],
+                    fixed: names.fixed,
+                    serif: names.serif,
+                    script: names.script,
+                });
             }
         }
     }
 
-    /// Whether a family of that name (lower case) is installed.
-    pub fn has(&self, family: &str) -> bool {
-        self.families.contains_key(family)
+    /// The lists a menu shows, once, instead of every frame it is open (#1493).
+    fn finish(&mut self) {
+        let mut listed: Vec<Listed> = self
+            .families
+            .iter()
+            .filter_map(|f| {
+                // A name a `font-family` couldn't be written with (too long, or a character CSS
+                // and HTML can't carry) is left out — such a family still draws a message naming it.
+                let usable = mailcraft_model::rich::Font::parse(&f.display).is_some_and(|p| p.key() == f.display.to_lowercase());
+                usable.then(|| Listed { name: f.display.clone(), folded: f.display.to_lowercase() })
+            })
+            .collect();
+        listed.sort_by(|a, b| (a.folded.as_str(), a.name.as_str()).cmp(&(b.folded.as_str(), b.name.as_str())));
+        let menu = listed.iter().filter(|l| mailcraft_model::rich::Built::from_loose(&l.folded).is_none()).cloned().collect();
+        self.listed = listed;
+        self.menu = menu;
     }
 
-    /// How many family names are known.
+    /// Whether a family of that name (lower case) is installed.
+    pub fn has(&self, family: &str) -> bool {
+        self.by_name.contains_key(family)
+    }
+
+    /// How many families are known.
     pub fn len(&self) -> usize {
         self.families.len()
     }
@@ -113,13 +218,44 @@ impl FontIndex {
         self.families.is_empty()
     }
 
+    /// The families, each by the name it gives itself, in order: what a font menu lists. A name
+    /// that a `font-family` couldn't be written with (too long, or a character CSS and HTML
+    /// can't carry) is left out — such a family still draws a message that names it.
+    pub fn names(&self) -> Vec<&str> {
+        self.listed.iter().map(|l| l.name.as_str()).collect()
+    }
+
+    /// The same without the six the composer offers first: what a font menu lists after them.
+    pub fn menu(&self) -> &[Listed] {
+        &self.menu
+    }
+
+    /// Whether the family of that name (lower case) has characters as wide as each other.
+    pub fn fixed(&self, family: &str) -> bool {
+        self.family(family).is_some_and(|f| f.fixed)
+    }
+
+    /// Whether the family of that name (lower case) is a serif one, as its own file says.
+    pub fn serif(&self, family: &str) -> bool {
+        self.family(family).is_some_and(|f| f.serif)
+    }
+
+    /// Whether it is written rather than set: a script, or a blackletter.
+    pub fn script(&self, family: &str) -> bool {
+        self.family(family).is_some_and(|f| f.script)
+    }
+
+    fn family(&self, family: &str) -> Option<&Family> {
+        self.by_name.get(family).map(|at| &self.families[*at])
+    }
+
     /// The face of `family` (lower case) to draw text in: for regular text the face nearest to
     /// weight 400 (a family of heavy faces alone, Arial Black, has its own), for bold text a face
     /// of weight 600 or more, nearest to 700; of normal width before condensed or expanded (a
     /// family's condensed faces often share its name), and upright before italic. `None` when the
     /// family has no such face: bold text in a family without a bold face.
     pub fn face(&self, family: &str, bold: bool) -> Option<&Face> {
-        let faces = self.families.get(family)?;
+        let faces = &self.family(family)?.faces;
         let target: i32 = if bold { 700 } else { 400 };
         faces
             .iter()
@@ -224,7 +360,7 @@ fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
 /// The faces of the font file at `path`, each with its family names; none when it is not a font
 /// or can't be read.
 #[cfg(not(target_arch = "wasm32"))]
-fn faces_of(path: &Path) -> Vec<(Vec<String>, Face)> {
+fn faces_of(path: &Path) -> Vec<(FamilyNames, Face)> {
     let Ok(mut file) = File::open(path) else { return Vec::new() };
     let Some(head) = read_at(&mut file, 0, 12) else { return Vec::new() };
     let starts: Vec<u32> = if u32_at(&head, 0) == Some(0x7474_6366) {
@@ -249,7 +385,7 @@ fn faces_of(path: &Path) -> Vec<(Vec<String>, Face)> {
 
 /// The family names, and the weight, width and slant, of the face whose directory starts at `start`.
 #[cfg(not(target_arch = "wasm32"))]
-fn face_at(file: &mut File, start: u64) -> Option<(Vec<String>, (u16, u16, bool))> {
+fn face_at(file: &mut File, start: u64) -> Option<(FamilyNames, (u16, u16, bool))> {
     let head = read_at(file, start, 12)?;
     // TrueType outlines, `OTTO` (CFF outlines) or Apple's `true`: what the font reader takes.
     if !matches!(u32_at(&head, 0), Some(0x0001_0000 | 0x4F54_544F | 0x7472_7565)) {
@@ -260,6 +396,7 @@ fn face_at(file: &mut File, start: u64) -> Option<(Vec<String>, (u16, u16, bool)
     let mut name = None;
     let mut os2 = None;
     let mut head_table = None;
+    let mut post = None;
     for i in 0..usize::from(tables) {
         let record = i.saturating_mul(16);
         let tag = directory.get(record..record.saturating_add(4))?;
@@ -268,6 +405,7 @@ fn face_at(file: &mut File, start: u64) -> Option<(Vec<String>, (u16, u16, bool)
             b"name" => name = Some(place),
             b"OS/2" => os2 = Some(place),
             b"head" => head_table = Some(place),
+            b"post" => post = Some(place),
             _ => {}
         }
     }
@@ -275,18 +413,15 @@ fn face_at(file: &mut File, start: u64) -> Option<(Vec<String>, (u16, u16, bool)
     if len == 0 || len > MAX_NAME_TABLE {
         return None;
     }
-    let names = family_names(&read_at(file, u64::from(at), len as usize)?);
-    if names.is_empty() {
-        return None;
-    }
+    let (display, keys) = family_names(&read_at(file, u64::from(at), len as usize)?)?;
     // The weight, width and slant from `OS/2` (`usWeightClass`, `usWidthClass`, `fsSelection`),
     // else the weight and slant from `head` (`macStyle`).
     let os2 = os2.filter(|(_, len)| *len >= 64).and_then(|(at, _)| read_at(file, u64::from(at), 64));
-    let (weight, width, italic) = match os2 {
+    let (weight, width, italic) = match &os2 {
         Some(t) => (
-            u16_at(&t, 4).filter(|w| (1..=1000).contains(w)).unwrap_or(400),
-            u16_at(&t, 6).filter(|w| (1..=9).contains(w)).unwrap_or(NORMAL_WIDTH),
-            u16_at(&t, 62).is_some_and(|s| s & 1 != 0),
+            u16_at(t, 4).filter(|w| (1..=1000).contains(w)).unwrap_or(400),
+            u16_at(t, 6).filter(|w| (1..=9).contains(w)).unwrap_or(NORMAL_WIDTH),
+            u16_at(t, 62).is_some_and(|s| s & 1 != 0),
         ),
         None => {
             let style = head_table
@@ -297,19 +432,33 @@ fn face_at(file: &mut File, start: u64) -> Option<(Vec<String>, (u16, u16, bool)
             (if style & 1 != 0 { 700 } else { 400 }, NORMAL_WIDTH, style & 2 != 0)
         }
     };
-    Some((names, (weight, width, italic)))
+    // Whether its characters are as wide as each other: `post`'s own word for it, or panose's
+    // proportion. And whether it is a serif family, as `OS/2` classifies it — most files say
+    // nothing, and nothing is guessed then.
+    let fixed =
+        post.filter(|(_, len)| *len >= 24).and_then(|(at, _)| read_at(file, u64::from(at), 24)).is_some_and(|t| u32_at(&t, 20).unwrap_or(0) != 0)
+            || os2.as_ref().is_some_and(|t| t.get(35) == Some(&PANOSE_MONOSPACED));
+    // The major class is the high byte of `sFamilyClass`; the low byte is its minor division.
+    let class = os2.as_ref().and_then(|t| u16_at(t, 30)).map(|class| (class >> 8) as u8);
+    let serif = class.is_some_and(|class| SERIF_CLASSES.contains(&class));
+    let script = class.is_some_and(|class| SCRIPT_CLASSES.contains(&class));
+    Some((FamilyNames { display, keys, fixed, serif, script }, (weight, width, italic)))
 }
 
-/// The family names a `name` table gives (ids 1 and 16), in every language it has them in, lower
-/// case and trimmed, each once.
+/// What a `name` table calls the face's family: the name to show (the typographic one in English
+/// where the file gives one, else the family name in English, else the first that can be read),
+/// and every one of them lower case, which is what a `font-family` is looked up by. Names in
+/// every language the file has them in are keys, so that a message naming a family in any of the
+/// spellings it is sold under finds it; only one name is shown.
 #[cfg(not(target_arch = "wasm32"))]
-fn family_names(table: &[u8]) -> Vec<String> {
+fn family_names(table: &[u8]) -> Option<(String, Vec<String>)> {
     use skrifa::raw::tables::name::Name;
     use skrifa::raw::types::NameId;
     use skrifa::raw::{FontData, FontRead};
-    let Ok(name) = Name::read(FontData::new(table)) else { return Vec::new() };
+    let Ok(name) = Name::read(FontData::new(table)) else { return None };
     let data = name.string_data();
-    let mut names: Vec<String> = Vec::new();
+    let mut keys: Vec<String> = Vec::new();
+    let mut best: Option<(u8, bool, String)> = None;
     for record in name.name_record() {
         let id = record.name_id();
         if id != NameId::FAMILY_NAME && id != NameId::TYPOGRAPHIC_FAMILY_NAME {
@@ -322,13 +471,35 @@ fn family_names(table: &[u8]) -> Vec<String> {
         }
         let Ok(text) = record.string(data) else { continue };
         let text: String = text.chars().take(MAX_NAME.saturating_add(1)).collect();
-        let text = text.trim().to_lowercase();
-        if text.is_empty() || text.chars().count() > MAX_NAME || text.chars().any(char::is_control) || names.contains(&text) {
+        let text = text.trim();
+        if text.is_empty() || text.chars().count() > MAX_NAME || text.chars().any(char::is_control) {
             continue;
         }
-        names.push(text);
+        // English reads best in a menu, and a typographic family name ("Segoe UI" for the face
+        // "Segoe UI Light") is the family's own name more truly than the family one.
+        let english = record.language_id() == 0x0409 || (record.platform_id() == 1 && record.language_id() == 0);
+        let score = u8::from(english) * 2 + u8::from(record.is_unicode());
+        let typographic = id == NameId::TYPOGRAPHIC_FAMILY_NAME;
+        if best.as_ref().is_none_or(|(s, t, _)| (*s, *t) < (score, typographic)) {
+            best = Some((score, typographic, text.to_string()));
+        }
+        let key = text.to_lowercase();
+        if !keys.contains(&key) && keys.len() < MAX_KEYS_A_FAMILY {
+            keys.push(key);
+        }
     }
-    names
+    let (_, _, display) = best?;
+    // The name that is shown must be a name the family answers to as well: a file that names
+    // itself in English after thirty-two other spellings would otherwise be listed under a name
+    // that choosing it couldn't find again (#1493).
+    let shown = display.to_lowercase();
+    if !keys.contains(&shown) {
+        if keys.len() >= MAX_KEYS_A_FAMILY {
+            keys.pop();
+        }
+        keys.push(shown);
+    }
+    Some((display, keys))
 }
 
 #[cfg(test)]
