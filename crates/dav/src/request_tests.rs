@@ -117,7 +117,7 @@ fn creates_name_one_segment_and_never_overwrite() {
 fn changes_and_deletes_carry_if_match_and_checked_etags() {
     let e = ep();
     let longest = format!("\"{}\"", "x".repeat(MAX_TOKEN - 2));
-    for etag in ["\"abc\"", "W/\"abc\"", "\"a,b\"", "\"\"", longest.as_str()] {
+    for etag in ["\"abc\"", "W/\"abc\"", "\"a,b\"", "\"\"", "\"é\"", "\"\u{85}\"", longest.as_str()] {
         let r = e.put_change(Kind::Calendar, COLL, "/cal/owner/work/a.ics", etag, "BEGIN:VCALENDAR").unwrap();
         assert_eq!(r.field("if-match"), Some(etag), "{etag:?}");
         assert!(r.field("if-none-match").is_none());
