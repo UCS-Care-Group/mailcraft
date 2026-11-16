@@ -111,7 +111,7 @@ pub enum Place {
 pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
     remote::tick(app, &ctx);
-    select::begin(app, ui, m, place);
+    select::begin(app, ui, m, place, true);
     let doc = view::doc_shown(&ctx, m, place, false, view::env_of(app, ui, place));
     let access = Access::Blocked;
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
@@ -196,7 +196,11 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-    if crate::attachment_preview::show(app, ui, m) {
+    if crate::attachment_preview::showing(app, m.id) {
+        select::begin(app, ui, m, place, false);
+        header(app, ui, m, place, |_, _, _| {});
+        crate::attachment_preview::show(app, ui, m);
+        select::settle(app, ui, place);
         return;
     }
     // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
@@ -205,7 +209,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         let _ = app.session.load_for_display(m.id);
     }
     remote::tick(app, &ctx);
-    select::begin(app, ui, m, place);
+    select::begin(app, ui, m, place, true);
     let doc = view::doc_shown(&ctx, m, place, remote::available(app), view::env_of(app, ui, place));
     let access = if doc.remote.is_empty() { Access::Blocked } else { remote::access(app, m) };
     // Asked for: what has not come yet is sent for, while the message is on screen.
@@ -347,7 +351,7 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     let Some(m) = quote_message(app, &ctx) else { return };
     remote::tick(app, &ctx);
-    select::begin(app, ui, &m, Place::Quote);
+    select::begin(app, ui, &m, Place::Quote, true);
     let doc = view::doc_shown(&ctx, &m, Place::Quote, remote::available(app), view::env_of(app, ui, Place::Quote));
     // A quote whose original isn't known (a reopened draft, an original since deleted) has no
     // folder or sender to judge by: it never fetches anything.

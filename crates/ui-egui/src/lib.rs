@@ -930,7 +930,7 @@ pub struct UiState {
     pub sender_images: bool,
     pub attachment_previews: bool,
     /// Attachment formats the owner chose to preview without a separate confirmation.
-    #[serde(skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    #[serde(deserialize_with = "read_attachment_preview_without_warning", skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     pub attachment_preview_without_warning: std::collections::BTreeSet<attachment_preview::Format>,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
@@ -963,6 +963,14 @@ pub struct UiState {
     /// The public facts of the private keys imported in File › Options › Security (#30): never
     /// a key or a passphrase, which the system's credential store holds ([`own_keys`]).
     pub imported_keys: Vec<own_keys::ImportedKey>,
+}
+
+/// A format from a newer version must not discard the rest of the owner's settings.
+fn read_attachment_preview_without_warning<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<std::collections::BTreeSet<attachment_preview::Format>, D::Error> {
+    let saved = Value::deserialize(deserializer)?;
+    Ok(saved.as_array().into_iter().flatten().filter_map(|value| serde_json::from_value(value.clone()).ok()).collect())
 }
 
 impl Default for UiState {

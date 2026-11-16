@@ -327,12 +327,23 @@ fn one_click_selects_the_file_and_confirmation_previews_it() {
     h.run_steps(30);
     assert!(received.lock().unwrap().is_empty(), "selecting a file starts no renderer");
     assert_eq!(h.state().ui.tab, "Attachments");
+    let back = h.state().hit.rect("attachmentPreviewBack", A).unwrap();
+    let message = h.state().session.mailbox.message(A).unwrap();
+    let address = h.get_by_label(&format!("<{}>", message.from.email)).rect();
+    let date = crate::dates::header_label(message.date, h.state().session.offset_at(message.date), h.state().session.prefs.twelve_hour);
+    assert!(address.bottom() < back.top(), "sender stays above the preview");
+    assert!(h.query_all_by_label(&date).any(|node| node.rect().bottom() < back.top()), "date stays above the preview");
+    assert!(h.query_all_by_label(&message.subject).any(|node| node.rect().bottom() < back.top()), "subject stays above the preview");
     let warning = h.get_by_label("Ask before previewing this type of file").rect().center();
     click(&mut h, warning, PointerButton::Primary, 1);
     assert!(h.state().ui.attachment_preview_without_warning.is_empty(), "only confirming a preview saves the choice");
     let preview = h.state().hit.rect("attachmentPreviewStart", A).unwrap().center();
     click(&mut h, preview, PointerButton::Primary, 1);
     h.run_steps(6);
+    assert!(
+        h.get_by_label(&format!("<{}>", h.state().session.mailbox.message(A).unwrap().from.email)).rect().bottom()
+            < h.state().hit.rect("attachmentPreviewImage", A).unwrap().top()
+    );
     let next = h.state().hit.rect("attachmentPreviewNext", A).unwrap().center();
     click(&mut h, next, PointerButton::Primary, 1);
     assert_eq!(*received.lock().unwrap(), vec![(1, bytes.clone()), (2, bytes)]);
@@ -350,17 +361,99 @@ fn one_click_selects_the_file_and_confirmation_previews_it() {
 }
 
 #[test]
-fn without_a_helper_the_file_view_and_its_open_command_still_work() {
+fn without_a_helper_selection_keeps_the_message_and_its_open_command_still_works() {
     let (mut h, opened_files) = window();
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     h.run_steps(30);
-    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_some());
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
     assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
+    assert_eq!(crate::attachment_preview::pane_target(h.state()), Some((A, 0)));
+    assert!(
+        h.output()
+            .shapes
+            .iter()
+            .any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text().contains("Round three is attached.")))
+    );
     assert!(opened(&opened_files).is_empty());
     let open = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("mail.openAttachment")).unwrap().center();
     click(&mut h, open, PointerButton::Primary, 1);
     assert_eq!(opened(&opened_files), vec![("notes.pdf".into(), b"a0".to_vec())]);
+}
+
+#[test]
+fn an_attachment_preview_keeps_header_copying_but_cannot_copy_the_hidden_body() {
+    use crate::attachment_preview::{Host, Page};
+
+    let (mut h, _) = window();
+    let app = h.state_mut();
+    app.ui.attachment_previews = true;
+    app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new("notes.pdf", "application/pdf", b"%PDF-1.7 test".to_vec())];
+    app.services.attachment_preview = Some(Host {
+        pdf: true,
+        images: false,
+        render: Box::new(|_| {
+            let (send, receive) = std::sync::mpsc::channel();
+            send.send(Ok(Page { image: egui::ColorImage::filled([2, 2], egui::Color32::WHITE), pages: 1 })).unwrap();
+            receive
+        }),
+    });
+    h.run_steps(5);
+    h.state_mut().execute("ui.selectAllInMessage", json!({"pane": true})).unwrap();
+    assert!(h.state().enabled("ui.copySelection"));
+    h.state_mut().execute("ui.previewAttachment", json!({"id": A, "index": 0})).unwrap();
+    h.run_steps(6);
+    assert!(!h.state().enabled("ui.copySelection"));
+    assert!(h.state_mut().execute("ui.selectAllInMessage", json!({"pane": true})).is_err());
+    assert!(h.state_mut().execute("ui.copySelection", json!({"pane": true})).is_err());
+
+    let image = h.state().hit.rect("attachmentPreviewImage", A).unwrap();
+    click(&mut h, image.center(), PointerButton::Primary, 1);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    assert!(!h.state().enabled("ui.copySelection"));
+    assert_eq!(h.state().session.sel.messages.len(), 1);
+
+    let address = format!("<{}>", h.state().session.mailbox.message(A).unwrap().from.email);
+    let at = h.get_by_label(&address).rect().center();
+    click(&mut h, at, PointerButton::Primary, 3);
+    assert_eq!(h.state_mut().execute("ui.copySelection", json!({"pane": true})).unwrap()["chars"], address.chars().count());
+
+    h.state_mut().execute("ui.showAttachmentMessage", json!({})).unwrap();
+    h.run_steps(4);
+    h.state_mut().execute("ui.selectAllInMessage", json!({"pane": true})).unwrap();
+    assert!(h.state_mut().execute("ui.copySelection", json!({"pane": true})).unwrap()["chars"].as_u64().unwrap() > 100);
+}
+
+#[test]
+fn unsupported_files_keep_the_message_when_previews_are_enabled() {
+    use crate::attachment_preview::Host;
+
+    for (name, mime) in [
+        ("notes.txt", "text/plain"),
+        ("invoice.csv", "text/csv"),
+        ("document.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ] {
+        let (mut h, _) = window();
+        let app = h.state_mut();
+        app.ui.attachment_previews = true;
+        app.services.attachment_preview =
+            Some(Host { pdf: true, images: true, render: Box::new(|_| panic!("an unsupported file reached the preview helper")) });
+        app.session.mailbox.message_mut(A).unwrap().attachments = vec![Attachment::new(name, mime, b"content".to_vec())];
+        h.run_steps(4);
+        let at = chip(&h, A, 0).center();
+        click(&mut h, at, PointerButton::Primary, 1);
+        h.run_steps(30);
+        assert_eq!(h.state().ui.tab, "Attachments");
+        assert_eq!(crate::attachment_preview::pane_target(h.state()), Some((A, 0)));
+        assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+        assert!(
+            h.output()
+                .shapes
+                .iter()
+                .any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text().contains("Round three is attached.")))
+        );
+    }
 }
 
 #[test]
@@ -371,7 +464,8 @@ fn the_attachment_ribbon_in_a_message_window_acts_on_its_own_file() {
     let at = h.state().hit.rect_in(window, "attachment", attachment_key(B, 0)).unwrap().center();
     click(&mut h, at, PointerButton::Primary, 1);
     h.run_steps(30);
-    assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_some());
+    assert!(h.state().hit.rect_in(window, "attachmentPreviewBack", B).is_none());
+    assert_eq!(crate::attachment_preview::target(h.state(), window, B), Some(0));
     assert_eq!(h.state().ui.tab, "Home");
     let open = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("mail.openAttachment")).unwrap().center();
     click(&mut h, open, PointerButton::Primary, 1);
@@ -415,6 +509,14 @@ fn previews_are_off_by_default_and_double_click_only_opens_the_file() {
     h.run_steps(30);
     assert!(opened(&opened_files).is_empty());
     assert!(!crate::attachment_preview::available(h.state(), A, 0));
+    assert_eq!(h.state().ui.tab, "Attachments");
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
+    assert!(
+        h.output()
+            .shapes
+            .iter()
+            .any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text().contains("Round three is attached.")))
+    );
     h.state_mut().ui.attachment_previews = true;
     h.state_mut().execute("ui.showAttachmentMessage", json!({})).unwrap();
     h.run_steps(3);
@@ -469,7 +571,7 @@ fn assert_junk_preview_restrictions(in_subfolder: bool) {
     let at = chip(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);
     h.run_steps(30);
-    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_some());
+    assert!(h.state().hit.rect("attachmentPreviewBack", A).is_none());
     assert!(h.state().hit.rect("attachmentPreviewStart", A).is_none());
     let at = arrow(&h, A, 0).center();
     click(&mut h, at, PointerButton::Primary, 1);

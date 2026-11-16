@@ -563,8 +563,9 @@ msgstr "Un port este un număr de la 1 la 65535"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "A preview may omit some content from the original file."
-msgstr ""
+msgstr "Previzualizarea poate omite o parte din conținutul fișierului original."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1791,8 +1792,9 @@ msgstr "Întreabă din nou înainte de a descărca imaginile acestui expeditor"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Ask before previewing this type of file"
-msgstr ""
+msgstr "Întreabă înainte de previzualizarea acestui tip de fișier"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3099,8 +3101,9 @@ msgstr "Ștergere căutare (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Click to select {name}; double-click to open it"
-msgstr ""
+msgstr "Faceți clic pentru a selecta {name}; faceți dublu clic pentru a-l deschide"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9667,8 +9670,9 @@ msgstr "Pentru acest atașament nu există un ajutor de previzualizare."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "No preview is available for this attachment."
-msgstr ""
+msgstr "Nu este disponibilă o previzualizare pentru acest atașament."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -11322,8 +11326,9 @@ msgstr "Previzualizare atașament"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview File"
-msgstr ""
+msgstr "Previzualizare fișier"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -11345,8 +11350,9 @@ msgstr "Previzualizare atașamente cu PhotoCraft local"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview files only when you trust the sender."
-msgstr ""
+msgstr "Previzualizați fișierele numai dacă aveți încredere în expeditor."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11848,10 +11854,13 @@ msgstr "Eliminare"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
+"Eliminare\n"
+"atașament"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
@@ -12319,8 +12328,9 @@ msgstr "Repornirea pentru actualizare e decizia proprietarului."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Restore attachment preview warnings"
-msgstr ""
+msgstr "Restabilire avertismente de previzualizare a atașamentelor"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -12614,10 +12624,13 @@ msgstr "Salvare și închidere"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
+"Salvare toate\n"
+"atașamentele"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -12741,8 +12754,9 @@ msgstr "Salvare în afară"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Save to Computer"
-msgstr ""
+msgstr "Salvare pe computer"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -13716,10 +13730,13 @@ msgstr "Afișare"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Message"
 msgstr ""
+"Afișare\n"
+"mesaj"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13779,8 +13796,9 @@ msgstr "Afișare MailCraft"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Show Message"
-msgstr ""
+msgstr "Afișare mesaj"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

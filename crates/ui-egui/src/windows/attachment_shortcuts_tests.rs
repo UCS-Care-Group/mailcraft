@@ -35,7 +35,8 @@ fn a_native_message_window_keeps_its_delete_shortcut_with_the_attachment_ribbon(
     attachment_preview::queue_click(app, &ctx, MESSAGE, 0);
     app.hit.scope(old_scope);
     h.run_steps(30);
-    assert!(h.state().0.hit.rect_in(WINDOW, "attachmentPreviewBack", MESSAGE).is_some());
+    assert_eq!(attachment_preview::target(&h.state().0, WINDOW, MESSAGE), Some(0));
+    assert!(h.state().0.hit.rect_in(WINDOW, "ribbon", crate::ribbon::hit_id("ui.showAttachmentMessage")).is_some());
     h.key_down(Key::Delete);
     h.step();
     assert!(h.state().2, "the message window closed");

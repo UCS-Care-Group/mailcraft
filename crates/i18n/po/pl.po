@@ -563,8 +563,9 @@ msgstr "Port to liczba od 1 do 65535"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "A preview may omit some content from the original file."
-msgstr ""
+msgstr "Podgląd może nie pokazywać całej zawartości oryginalnego pliku."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -1791,8 +1792,9 @@ msgstr "Ponownie pytaj przed pobraniem obrazów tego nadawcy"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Ask before previewing this type of file"
-msgstr ""
+msgstr "Pytaj przed wyświetleniem podglądu plików tego typu"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -3099,8 +3101,9 @@ msgstr "Wyczyść wyszukiwanie (Esc)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
+#, fuzzy
 msgid "Click to select {name}; double-click to open it"
-msgstr ""
+msgstr "Kliknij, aby zaznaczyć {name}; kliknij dwukrotnie, aby otworzyć"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -9669,8 +9672,9 @@ msgstr "Brak programu pomocniczego do podglądu tego załącznika."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "No preview is available for this attachment."
-msgstr ""
+msgstr "Podgląd tego załącznika jest niedostępny."
 
 #. interface
 #: crates/ui-egui/src/recent_attachments.rs
@@ -11324,8 +11328,9 @@ msgstr "Podgląd załącznika"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview File"
-msgstr ""
+msgstr "Podgląd pliku"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -11347,8 +11352,9 @@ msgstr "Podgląd załączników w lokalnym programie PhotoCraft"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Preview files only when you trust the sender."
-msgstr ""
+msgstr "Wyświetlaj podgląd plików tylko wtedy, gdy ufasz nadawcy."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11850,10 +11856,13 @@ msgstr "Usuń"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Remove\n"
 "Attachment"
 msgstr ""
+"Usuń\n"
+"załącznik"
 
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
@@ -12321,8 +12330,9 @@ msgstr "Uruchomienie ponownie w celu aktualizacji należy do właściciela."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
 msgid "Restore attachment preview warnings"
-msgstr ""
+msgstr "Przywróć ostrzeżenia przed podglądem załączników"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -12616,10 +12626,13 @@ msgstr "Zapisz i zamknij"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Save All\n"
 "Attachments"
 msgstr ""
+"Zapisz wszystkie\n"
+"załączniki"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -12743,8 +12756,9 @@ msgstr "Zapisz poza programem"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Save to Computer"
-msgstr ""
+msgstr "Zapisz na komputerze"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -13718,10 +13732,13 @@ msgstr "Pokaż"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Show\n"
 "Message"
 msgstr ""
+"Pokaż\n"
+"wiadomość"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13781,8 +13798,9 @@ msgstr "Pokaż MailCraft"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Show Message"
-msgstr ""
+msgstr "Pokaż wiadomość"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs

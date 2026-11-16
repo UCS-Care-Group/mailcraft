@@ -292,6 +292,34 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
 }
 
 #[test]
+fn unknown_attachment_preview_formats_preserve_the_other_settings() {
+    use crate::attachment_preview::Format;
+
+    let saved = json!({
+        "theme": "dark",
+        "language": "nl",
+        "attachmentPreviews": true,
+        "attachmentPreviewWithoutWarning": ["pdf", "future-format", "png", "pdf", null, 7],
+    });
+    let settings: UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(settings.attachment_preview_without_warning, [Format::Pdf, Format::Png].into_iter().collect());
+    assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    assert_eq!(settings.language, "nl");
+    assert!(settings.attachment_previews);
+    let round_trip = serde_json::to_value(&settings).unwrap();
+    assert_eq!(round_trip["attachmentPreviewWithoutWarning"], json!(["pdf", "png"]));
+
+    for value in [json!(["future-format"]), json!("pdf"), json!(null), json!({"format": "png"})] {
+        let settings: UiState = serde_json::from_value(json!({"theme": "dark", "attachmentPreviewWithoutWarning": value})).unwrap();
+        assert!(settings.attachment_preview_without_warning.is_empty());
+        assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    }
+    let older: UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
+    assert!(older.attachment_preview_without_warning.is_empty());
+    assert_eq!(older.theme, crate::theme::Appearance::Dark);
+}
+
+#[test]
 fn the_control_channel_answers() {
     let (tx, rx) = std::sync::mpsc::channel();
     let a = app().with_control(rx);

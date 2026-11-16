@@ -462,11 +462,16 @@ pub(crate) fn poll(app: &mut MailApp, ctx: &egui::Context) {
     }
 }
 
-/// The attachment view replaces the message header and body, while its other chips stay reachable.
-pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) -> bool {
+/// Keep the message visible when selecting a file cannot offer a preview.
+pub(crate) fn showing(app: &MailApp, message: Id) -> bool {
+    target(app, app.hit.window(), message)
+        .is_some_and(|index| app.attachment_preview.is_some() || (available(app, message, index) && !in_junk(app, message)))
+}
+
+/// The attachment view sits beneath the message header and its attachment chips.
+pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) {
     let id = message.id;
-    let Some(index) = target(app, app.hit.window(), id) else { return false };
-    let tokens = crate::theme::Tokens::get(ui.ctx());
+    let Some(index) = target(app, app.hit.window(), id) else { return };
     let mut back = false;
     egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
         let response = crate::widgets::icon_text_button(ui, "back", tl!("Back to Message"), true);
@@ -475,22 +480,17 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) -> b
     });
     if back {
         let _ = app.run("ui.showAttachmentMessage", json!({}));
-        return false;
+        return;
     }
     ui.separator();
-    egui::Frame::NONE.inner_margin(egui::Margin::symmetric(12, 6)).show(ui, |ui| {
-        crate::reading::attachments(app, ui, message, &tokens);
-    });
-    ui.separator();
-    if target(app, app.hit.window(), id) != Some(index) {
-        return true;
+    if !showing(app, id) {
+        return;
     }
     if app.attachment_preview.is_some() {
         show_page(app, ui, id, index);
     } else {
         preview_prompt(app, ui, id, index);
     }
-    true
 }
 
 fn preview_prompt(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
