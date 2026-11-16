@@ -44,8 +44,6 @@ const MAX_SHARED_CHARS: usize = 100_000;
 const MAX_SHARED_LINKS: usize = 20;
 const MAX_SUGGEST_QUERY: usize = 200;
 const MAX_ALT: usize = 500;
-/// The most characters of a signature written on a phone.
-pub const MAX_SIGNATURE_CHARS: usize = 2_000;
 
 /// What the message being written is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -768,33 +766,6 @@ impl Core {
         self.call(move |s| {
             let id = current(s, compose)?;
             run(s, id, "compose.close", json!({"discard": discard.then_some(true)}))?;
-            Ok(())
-        })
-        .await
-    }
-
-    /// The text of the signature new messages from `account` start with (empty when it has none).
-    pub async fn account_signature(&self, account: u64) -> Result<String, CoreError> {
-        self.call(move |s| {
-            let a = s.mailbox.account(account).ok_or_else(|| failed(s, "no such account"))?;
-            let text = s.mailbox.signature(&a.signature).map(mailcraft_model::Signature::plain).unwrap_or_default();
-            Ok(text::clip(&text, MAX_SIGNATURE_CHARS))
-        })
-        .await
-    }
-
-    /// Makes `text` the signature of `account`, for new messages and for replies and forwards; an empty text
-    /// is none. A signature of the owner's with the same name is replaced, so the desktop's own are never changed.
-    pub async fn set_account_signature(&self, account: u64, text: String) -> Result<(), CoreError> {
-        self.call(move |s| {
-            let email = s.mailbox.account(account).ok_or_else(|| failed(s, "no such account"))?.email.clone();
-            let text = text::clip(text.replace("\r\n", "\n").trim_end(), MAX_SIGNATURE_CHARS);
-            if text.trim().is_empty() {
-                s.run("signature.defaults", &json!({"account": account, "new": "", "reply": ""}))?;
-            } else {
-                let name = format!("Phone: {}", text::clip(&email, MAX_ADDRESS));
-                s.run("signature.set", &json!({"name": name, "text": text, "default": true, "account": account}))?;
-            }
             Ok(())
         })
         .await

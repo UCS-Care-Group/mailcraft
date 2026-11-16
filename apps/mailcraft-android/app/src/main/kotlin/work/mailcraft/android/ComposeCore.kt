@@ -8,9 +8,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
-import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.io.InputStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -124,23 +122,6 @@ internal class PickedFile(val name: String, val bytes: ByteArray)
 
 /** The most bytes read from one picked file (the core's own cap is the same: it refuses more). */
 internal const val MAX_PICKED_BYTES = 25 * 1024 * 1024
-
-/** Everything of [stream] up to [cap] bytes, or null when there is more: a file larger than the cap is never held. */
-internal fun readCapped(stream: InputStream, cap: Int, expected: Long? = null): ByteArray? {
-    val out = ByteArrayOutputStream(expected?.coerceIn(BUFFER.toLong(), cap.toLong().coerceAtLeast(BUFFER.toLong()))?.toInt() ?: BUFFER)
-    val buffer = ByteArray(BUFFER)
-    var total = 0
-    while (true) {
-        val n = stream.read(buffer)
-        if (n < 0) break
-        total += n
-        if (total > cap) return null
-        out.write(buffer, 0, n)
-    }
-    return out.toByteArray()
-}
-
-private const val BUFFER = 16 * 1024
 
 /** Reads what the picker chose, through the system's own resolver (no storage permission is held). */
 internal class PickedFiles(private val context: Context) {

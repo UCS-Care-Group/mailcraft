@@ -27,11 +27,11 @@ internal fun rowDescription(texts: Texts, row: InboxRow): String = listOfNotNull
     },
 ).joinToString(", ")
 
-/** The heading over the first row of a group (a day or a week), in the owner's language. */
+/** The heading over the first row of a group: a day or a week in the owner's language, or a category as spelt. */
 @Composable
-internal fun GroupHeader(texts: Texts, group: String) {
+internal fun GroupHeader(texts: Texts, group: String, isCategory: Boolean = false) {
     Text(
-        text = texts.t(group),
+        text = if (isCategory) group else texts.t(group),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 6.dp),

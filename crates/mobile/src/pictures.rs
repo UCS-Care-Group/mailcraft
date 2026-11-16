@@ -8,9 +8,12 @@
 //! an ICO). Whether the owner allowed a download, and when to wait (data saving), is the app's to
 //! decide before it calls; nothing here is called by the core by itself.
 
+use std::sync::Arc;
+
 use mailcraft_engine::store::Digest;
 use mailcraft_model::auth_results;
 use mailcraft_model::provider;
+use mailcraft_net::pictures::{Cancel, PictureError};
 
 use crate::message::sniff;
 use crate::records::{FetchedPicture, SenderFacts};
@@ -35,11 +38,45 @@ fn is_icon(bytes: &[u8]) -> bool {
     bytes.starts_with(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0")
 }
 
-fn download(url: &str, cap: usize, icons: bool) -> Result<FetchedPicture, CoreError> {
+/// Whether bytes are a picture that may be shown, by their own bytes: a PNG, JPEG, GIF or WebP, and
+/// with `icons` an ICO too (a sender's site's icon). The app asks this of what it reads back from
+/// its cache, so that nothing from outside is read by anything but this.
+#[uniffi::export]
+pub fn picture_accepted(bytes: Vec<u8>, icons: bool) -> bool {
+    accepted(&bytes, icons)
+}
+
+fn accepted(bytes: &[u8], icons: bool) -> bool {
+    sniff(bytes).is_some() || (icons && is_icon(bytes))
+}
+
+/// A signal that the owner left the message: a download that is waiting or reading stops within
+/// a moment, and one not yet begun never begins. Every message gets one of its own; once given it
+/// stays given.
+#[derive(uniffi::Object)]
+pub struct PictureStop(Cancel);
+
+#[uniffi::export]
+impl PictureStop {
+    #[uniffi::constructor]
+    pub fn new() -> Arc<Self> {
+        Arc::new(PictureStop(Cancel::new()))
+    }
+
+    /// Give the signal.
+    pub fn stop(&self) {
+        self.0.cancel();
+    }
+}
+
+fn download(url: &str, cap: usize, icons: bool, cancel: &Cancel) -> Result<FetchedPicture, CoreError> {
     if url.len() > MAX_URL {
         return Err(CoreError::BadRequest { reason: "that address is too long".to_string() });
     }
-    let bytes = mailcraft_net::pictures::fetch(url).map_err(|e| CoreError::Failed { reason: e.to_string() })?;
+    let bytes = mailcraft_net::pictures::fetch_cancellable(url, cancel).map_err(|e| match e {
+        PictureError::Cancelled => failed("it was stopped"),
+        e => CoreError::Failed { reason: e.to_string() },
+    })?;
     if bytes.len() > cap {
         return Err(failed("the picture is too large"));
     }
@@ -77,11 +114,11 @@ fn site(domain: &str) -> &str {
 }
 
 /// Download the picture at `url`, an address a message gave, and hand it over as a picture. It
-/// blocks for 30 seconds at most, so the app calls it off its main thread. It is for a message's
+/// blocks for 30 seconds at most (less when `stop` is given), so the app calls it off its main thread. It is for a message's
 /// pictures only after the owner allowed them: nothing in the core calls it by itself.
 #[uniffi::export]
-pub fn fetch_picture(url: String) -> Result<FetchedPicture, CoreError> {
-    download(&url, MAX_BYTES, false)
+pub fn fetch_picture(url: String, stop: Arc<PictureStop>) -> Result<FetchedPicture, CoreError> {
+    download(&url, MAX_BYTES, false, &stop.0)
 }
 
 /// The places a picture of the sender `address` may be had, in the order they are asked: Gravatar
@@ -101,7 +138,7 @@ pub fn fetch_sender_picture(url: String) -> Result<FetchedPicture, CoreError> {
     if !places.iter().any(|p| url.starts_with(p)) {
         return Err(CoreError::BadRequest { reason: "that is not a place sender pictures come from".to_string() });
     }
-    download(&url, MAX_SENDER_BYTES, true)
+    download(&url, MAX_SENDER_BYTES, true, &Cancel::new())
 }
 
 #[uniffi::export]

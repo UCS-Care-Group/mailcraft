@@ -35,6 +35,7 @@ internal fun AppDrawer(
     accounts: List<AccountItem>,
     selectedFolder: ULong?,
     onFolder: (AccountItem, FolderItem) -> Unit,
+    onAddAccount: () -> Unit,
     onSettings: () -> Unit,
 ) {
     ModalDrawerSheet {
@@ -47,6 +48,13 @@ internal fun AppDrawer(
             }
         }
         HorizontalDivider()
+        NavigationDrawerItem(
+            label = { Text(texts.t("Add account")) },
+            icon = { Icon(AppIcons.Add, contentDescription = null) },
+            selected = false,
+            onClick = onAddAccount,
+            modifier = Modifier.padding(NavigationDrawerItemDefaultsPadding),
+        )
         NavigationDrawerItem(
             label = { Text(texts.t("Settings")) },
             icon = { Icon(AppIcons.Settings, contentDescription = null) },

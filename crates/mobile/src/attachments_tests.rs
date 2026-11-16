@@ -157,7 +157,9 @@ fn a_calendar_file_that_is_not_one_is_an_error_and_changes_nothing() {
 #[test]
 fn what_was_read_is_checked_again_before_it_is_handed_over() {
     use crate::attachments::refuse_unless_openable;
-    for (name, confirmed, ok) in [("a.pdf", false, true), ("a.xlsm", false, false), ("a.xlsm", true, true), ("a.exe", true, false), ("a.exe", false, false)] {
+    for (name, confirmed, ok) in
+        [("a.pdf", false, true), ("a.xlsm", false, false), ("a.xlsm", true, true), ("a.exe", true, false), ("a.exe", false, false)]
+    {
         assert_eq!(refuse_unless_openable(&attachment_check(name.to_string()), confirmed).is_ok(), ok, "{name} {confirmed}");
     }
 }

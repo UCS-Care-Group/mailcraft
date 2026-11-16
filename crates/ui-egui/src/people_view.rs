@@ -36,12 +36,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     keep_picked(app);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list")
-        .default_size(320.0f32.min(max))
-        .size_range(240.0..=max)
-        .resizable(true)
-        .frame(frame)
-        .show(ui, |ui| list(app, ui, &layout));
+    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
+        list(app, ui, &layout);
+    });
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui, layout.total));
 }
 
@@ -289,11 +287,17 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     ui: &mut Ui,
     layout: &Layout<G>,
     reveal: Option<(Id, u16)>,
+    overlay_scroll_bars: bool,
     label: impl Fn(G) -> String,
     mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
+    let plain = ui.style().clone();
+    if overlay_scroll_bars {
+        crate::widgets::overlay_scroll_style(ui, &t);
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        ui.set_style(plain.clone());
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
         if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
@@ -309,6 +313,7 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
             row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+    ui.set_style(plain);
 }
 
 /// The contact list as laid out, with the names of the categories its headings stand for when it
@@ -590,7 +595,14 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     let labelled = labelled(app);
-    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+    show_rows(
+        ui,
+        layout,
+        reveal,
+        app.overlay_scroll_bars,
+        |g| group_label(g, &layout.names),
+        |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled),
+    );
 }
 
 /// Whether each row says where its contact is: every account's contacts are in one list.
@@ -745,7 +757,15 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
         ui.painter().text(pos2(r.center().x, y + 50.0), Align2::CENTER_CENTER, tl!("Select a contact to see the details"), regular(13.0), t.text_dim);
         return;
     };
-    egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt(("contact_card", c.id)).show(ui, |ui| {
+    // One scroll state for the card, at the top again for another contact: not one in egui's
+    // memory for every contact ever shown.
+    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("contact_card");
+    let shown = egui::Id::unique("mailcraft-contact-card-shown");
+    if ui.ctx().data(|d| d.get_temp::<Id>(shown)) != Some(c.id) {
+        ui.ctx().data_mut(|d| d.insert_temp(shown, c.id));
+        area = area.vertical_scroll_offset(0.0);
+    }
+    area.show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 28, right: 28, top: 24, bottom: 28 }).show(ui, |ui| {
             ui.set_max_width(ui.available_width().min(CARD_W));
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);

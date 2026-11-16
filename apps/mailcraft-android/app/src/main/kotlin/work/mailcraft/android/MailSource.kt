@@ -10,18 +10,6 @@ import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.ListQuery
 import uniffi.mailcraft_mobile.NetworkKind
 
-/** What asking the core to check for mail came to. */
-internal enum class RefreshOutcome {
-    /** No account is kept in step with a server: there is nothing to check. */
-    NoAccount,
-
-    /** The core was asked. */
-    Requested,
-
-    /** The core refused or could not be asked. */
-    Failed,
-}
-
 /**
  * What the mail list needs of the core, so that its logic runs without the native library. Every
  * call may take long and is made off the main thread; a failure is an answer (null, false), never a throw.
@@ -36,10 +24,13 @@ internal interface MailSource {
     /** Runs a command by its id; whether it was done. */
     suspend fun run(command: String, params: String): Boolean
 
-    suspend fun categories(): List<CategoryItem>
+    /**
+     * Every message the row [id] of the list [query] stands for (a conversation can stand for more
+     * than the ids a row carries); empty when the list has no such row now, null when it can't be read.
+     */
+    suspend fun members(query: MailQuery, id: ULong): List<ULong>?
 
-    /** Asks the core to check [hasServer] accounts for mail. */
-    suspend fun refresh(hasServer: Boolean): RefreshOutcome
+    suspend fun categories(): List<CategoryItem>
 
     /** Whether the device is online. */
     suspend fun offline(): Boolean
@@ -76,18 +67,20 @@ internal class CoreMailSource(
         }
     }
 
+    override suspend fun members(query: MailQuery, id: ULong): List<ULong>? = withContext(dispatcher) {
+        try {
+            core.rowMembers(query.toCore(), id)
+        } catch (_: CoreException) {
+            null
+        }
+    }
+
     override suspend fun categories(): List<CategoryItem> = withContext(dispatcher) {
         try {
             core.categories(0uL).categories.map { CategoryItem(it.name, it.color.toInt()) }
         } catch (_: CoreException) {
             emptyList()
         }
-    }
-
-    override suspend fun refresh(hasServer: Boolean): RefreshOutcome = when {
-        !hasServer -> RefreshOutcome.NoAccount
-        run("sync.request", "{}") -> RefreshOutcome.Requested
-        else -> RefreshOutcome.Failed
     }
 
     override suspend fun offline(): Boolean = withContext(dispatcher) { core.network() == NetworkKind.Offline }
@@ -115,6 +108,7 @@ internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     members = members.toInt(),
     memberIds = memberIds,
     group = group,
+    groupIsCategory = groupIsCategory,
     categories = categories,
     account = account,
     folder = folder,

@@ -88,6 +88,8 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         full: full_sweep_due(s, account),
         // The conversation ids of mail listed before they were asked for (#795).
         threads: super::thread_ids::to_ask(&s.mailbox, account),
+        // A phone lists only its window's mail (MB3.16); a computer everything.
+        since: s.mailbox.listed_since(account, s.now()),
     })
 }
 
@@ -116,10 +118,11 @@ pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest>
     let shared = shared_mailbox(s, account).ok()?;
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).and_then(|id| s.mailbox.folder(id))?;
     let (id, links) = match inbox.server.as_ref()? {
-        server if server.id.is_empty() => return None,
+        // (One to be listed afresh is the whole run's to list: MB3.16.)
+        server if server.id.is_empty() || server.relist => return None,
         server if server.delta.is_empty() => (server.id.clone(), Vec::new()),
         server if server.caught_up => {
-            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }])
+            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, ..Default::default() }])
         }
         _ => return None,
     };
@@ -129,6 +132,7 @@ pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest>
         shared,
         links,
         inbox_pass: Some(GraphFolder { id, name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
+        since: s.mailbox.listed_since(account, s.now()),
         ..Default::default()
     })
 }
@@ -154,8 +158,21 @@ fn links(mb: &Mailbox, account: Id) -> Vec<GraphLink> {
         .iter()
         .filter(|f| f.account == account)
         .filter_map(|f| f.server.as_ref())
-        .filter(|s| !s.delta.is_empty())
-        .map(|s| GraphLink { folder: s.id.clone(), link: s.delta.clone(), caught_up: s.caught_up, counts: s.counts.filter(|_| s.caught_up) })
+        .filter(|s| !s.delta.is_empty() || s.relist)
+        .map(|s| {
+            if s.relist {
+                // Listed afresh from its start (MB3.16): the link it had is never followed.
+                return GraphLink { folder: s.id.clone(), afresh: true, relist_gen: s.relist_gen, ..Default::default() };
+            }
+            GraphLink {
+                folder: s.id.clone(),
+                link: s.delta.clone(),
+                caught_up: s.caught_up,
+                counts: s.counts.filter(|_| s.caught_up),
+                afresh: false,
+                relist_gen: 0,
+            }
+        })
         .collect()
 }
 
@@ -256,7 +273,7 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
     let shared = shared_mailbox(s, account)?;
-    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none() })
+    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none(), ..Default::default() })
 }
 
 /// Take in messages fetched whole. Not an undo step.
@@ -405,7 +422,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // What was sent (R3.4.2): gone from the Outbox, or held there with what happened.
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
@@ -441,7 +459,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        let since = s.mailbox.listed_since(account, s.now());
+        graph_down::sweep(&mut s.mailbox, account, since, &mut down);
         // Every folder read and none passed over: the full sweep is done for the hour (#276).
         if !result.partial && result.timings.skipped == 0 {
             let now = s.now();
@@ -598,6 +617,8 @@ pub(super) fn change_done(
                 counts: None,
                 sync_state: String::new(),
                 well_known: false,
+                relist: false,
+                relist_gen: 0,
             });
             taken.pushed += 1;
             None
@@ -684,6 +705,17 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
         }
         let Some(name) = clean_name(&there.name) else { continue };
         let parent_here = if there.parent.is_empty() { None } else { here.get(&there.parent).copied() };
+        // A folder in one this account doesn't have (a calendar, contacts or tasks folder; one that
+        // couldn't be read; the root when it couldn't be told) is at the top here, and is kept as
+        // at the top on the server too: kept with the parent the server said, the difference
+        // would go up as a move of the owner's folder to the top of the mailbox (#1108).
+        let unplaced;
+        let there = if !there.parent.is_empty() && parent_here.is_none() {
+            unplaced = GraphFolder { parent: String::new(), ..there.clone() };
+            &unplaced
+        } else {
+            there
+        };
         let found = here.get(&there.id).copied().or_else(|| adopt(mb, account, there, parent_here, &name));
         match found {
             Some(id) => {
@@ -827,6 +859,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         sync_state: last.sync_state,
         // (Once the server's own, always: one odd answer doesn't clear it.)
         well_known: own,
+        relist: last.relist,
+        relist_gen: last.relist_gen,
     });
     *f != before
 }

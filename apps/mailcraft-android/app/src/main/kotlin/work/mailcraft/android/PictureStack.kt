@@ -24,12 +24,14 @@ internal class PictureStack(
     core: Core,
     context: Context,
     private val scope: CoroutineScope,
+    /** Marks a message read through the list, which runs the owner's commands in turn. */
+    mark: suspend (ULong) -> Boolean,
     /** Where the cache's folder is read and written: never the main thread. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     val prefs: PicturePrefsStore = DevicePicturePrefs(context)
-    val cache = PictureCache(File(context.cacheDir, FOLDER))
-    private val source = CoreReadSource(core)
+    val cache = PictureCache(File(context.cacheDir, FOLDER), CorePictureCheck)
+    private val source = CoreReadSource(core, mark)
     val reading = ReadingController(source, cache, prefs, scope, io)
     val senderImages = SenderImages(source, cache, prefs, scope, reading::isAsked, io)
 
@@ -82,6 +84,8 @@ internal class PictureStack(
         },
         onAllow = {
             reading.allow(it)
+            // Settings reads the choices from here: a sender or domain just allowed must be in them.
+            state.update { s -> s.copy(prefs = prefs.load()) }
             senderImages.redecide()
         },
         onDownloadNow = reading::downloadNow,
@@ -96,8 +100,8 @@ internal class PictureStack(
 }
 
 /** What the reading pane is made of: pictures, the links it follows, and attachments (open, save, share). */
-internal class ReadingStack(core: Core, context: Context, scope: CoroutineScope) {
-    val pictures = PictureStack(core, context, scope)
+internal class ReadingStack(core: Core, context: Context, scope: CoroutineScope, mark: suspend (ULong) -> Boolean) {
+    val pictures = PictureStack(core, context, scope, mark)
     val attachments = AttachmentController(CoreAttachments(core), AndroidAttachmentDevice(context), scope)
     private val links = CoreLinks(core)
 

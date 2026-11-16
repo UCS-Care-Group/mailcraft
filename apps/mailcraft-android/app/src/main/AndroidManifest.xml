@@ -8,6 +8,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- New-mail notifications (Android 13 and later ask the owner, once an account exists). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The background Send/Receive never runs as a foreground service: WorkManager's is left out,
+         and the permission for it with it. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:node="remove" />
 
     <application
         android:name=".MailCraftApplication"
@@ -32,13 +39,26 @@
                 android:value="true" />
         </service>
 
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            tools:node="remove" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask">
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- A calendar file (.ics) another program opens with us goes into our own calendar:
+                 only a content address, only these types; the phone's own calendar is not used. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="application/ics" />
             </intent-filter>
 
             <!-- mailto: links from any app start a message (RFC 6068: the core reads the link, and only the
@@ -70,7 +90,8 @@
         </activity>
 
         <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
-             scheme is the reverse of a domain the project owns; the path is checked in the app
+             scheme is the reverse of a domain the project owns and the host is the registered one
+             (Entra takes only the `//` form); the whole address is checked in the app
              and again by the Rust side, to the letter. Nothing else is registered for it. -->
         <activity
             android:name=".RedirectActivity"
@@ -81,7 +102,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="work.mailcraft.android" />
+                <data android:scheme="work.mailcraft.android" android:host="oauth2redirect" />
             </intent-filter>
         </activity>
 

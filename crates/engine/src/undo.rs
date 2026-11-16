@@ -31,7 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
+use mailcraft_model::{AccountKind, Calendar, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
@@ -43,6 +43,8 @@ pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
+    /// The messages whose reminder the change itself changed (#948).
+    follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
     /// The contacts it added, changed or took away.
     changed_contacts: BTreeSet<Id>,
@@ -55,6 +57,18 @@ pub(crate) struct Touched {
 }
 
 impl Touched {
+    /// The message `id` as the change left it, when it noted one: for letting go of its content.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn message_mut(&mut self, id: Id) -> Option<&mut Arc<Message>> {
+        self.messages.get_mut(&id).and_then(Option::as_mut)
+    }
+
+    /// Every message noted as the change left it.
+    #[cfg(test)]
+    pub(crate) fn noted_messages(&self) -> impl Iterator<Item = &Arc<Message>> {
+        self.messages.values().flatten()
+    }
+
     /// Whether the change imported, removed or changed a Public key: an undo of it changes
     /// them back, which is a setting's change.
     pub(crate) fn changed_keys(&self) -> bool {
@@ -67,9 +81,11 @@ impl Touched {
     }
 }
 
-/// The accounts of `mb` kept in step through Graph.
+/// The accounts of `mb` whose mail is known to its server by the ids the server hands out, and
+/// whose changes go up as the difference to what the server last said: kept in step through
+/// Graph, through Exchange Web Services, or over JMAP.
 fn graph_accounts(mb: &Mailbox) -> BTreeSet<Id> {
-    mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)).map(|a| a.id).collect()
+    mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap)).map(|a| a.id).collect()
 }
 
 /// Whether `m` is one of those accounts' (or is being moved out of one).
@@ -128,6 +144,9 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         match (b, a) {
             (Some(b), Some(a)) if a != b => {
                 t.changed_messages.insert(id);
+                if a.follow_up != b.follow_up {
+                    t.follow_up_changed.insert(id);
+                }
                 if relevant(b, &g) || relevant(a, &g) {
                     t.messages.insert(id, Some(a.clone()));
                 }
@@ -279,7 +298,16 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let mut keys = now.public_keys.clone();
     keys.put_back(&out.public_keys, &touched.keys);
     out.public_keys = keys;
+    // Reminders kept for a sent copy to come down are what was learnt of the server, not the owner's
+    // change: an undo leaves them as they are now (#948).
+    out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
+    subscribed_stay(&mut out, now);
+    // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
+    // and redo leave it as it is now, or its mark would be lost and it could be sent twice (#950).
+    for m in now.messages.values().filter(|m| m.sending) {
+        out.messages.insert(m.id, m.clone());
+    }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
@@ -307,6 +335,30 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     server_lists(&mut out, now, &g);
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines(lang))
+}
+
+/// Subscribed calendars and their events are the web's and the refresh's, never the change's to
+/// undo: undoing a subscribe must not drop the calendar and orphan its address in the credential
+/// store, and undoing an unsubscribe must not bring one back without its address.
+fn subscribed_stay(out: &mut Mailbox, now: &Mailbox) {
+    let theirs: BTreeSet<Id> = out.calendars.iter().filter(|c| c.is_subscribed()).map(|c| c.id).collect();
+    out.events.retain(|_, e| !theirs.contains(&e.calendar));
+    // What the owner set on one (its colour, whether it is shown, a name given) is the change's to
+    // undo when the calendar is on both sides; the subscription and its events are as now.
+    let before: Vec<Calendar> = out.calendars.iter().filter(|c| c.is_subscribed()).cloned().collect();
+    out.calendars.retain(|c| !c.is_subscribed());
+    for c in now.calendars.iter().filter(|c| c.is_subscribed()) {
+        let mut c = c.clone();
+        if let Some(was) = before.iter().find(|b| b.id == c.id) {
+            (c.name, c.color, c.visible, c.own_color) = (was.name.clone(), was.color, was.visible, was.own_color);
+        }
+        out.calendars.push(c);
+    }
+    for (id, e) in &now.events {
+        if now.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
+            out.events.insert(*id, e.clone());
+        }
+    }
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept: a name
@@ -377,6 +429,19 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
             }
         }
     }
+    // A reminder's state (raised, put off) is not the change's to undo: a message the change
+    // touched goes back to its reminder as it was, with the state it has now (#948).
+    for id in &touched.changed_messages {
+        let (Some(t), Some(c)) = (out.messages.get(id), now.messages.get(id)) else { continue };
+        // A step that left the reminder alone leaves it as it is now (ended, raised, put off);
+        // one that changed it goes back to the reminder as it was, with its state now.
+        let undone = if touched.follow_up_changed.contains(id) { mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up) } else { c.follow_up };
+        if undone != t.follow_up
+            && let Some(t) = out.messages.get_mut(id)
+        {
+            Arc::make_mut(t).follow_up = undone;
+        }
+    }
     // What Gmail last said of a message's category is Gmail's, not the change's (#911): a message
     // the change moved between Gmail's categories goes back to the one it was in, against what
     // Gmail says now, so that a move Gmail has had already is moved back there at the next run.
@@ -427,6 +492,7 @@ fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet
                 let mut f = t;
                 (f.remote, f.uid_validity, f.uid_seen, f.uid_from) = (c.remote.clone(), c.uid_validity, c.uid_seen, c.uid_from);
                 (f.whole, f.server, f.awaiting_listing) = (c.whole, c.server.clone(), c.awaiting_listing);
+                f.imap_status = c.imap_status;
                 kept.push(f);
             }
             (true, None) => kept.push(t),
@@ -731,13 +797,22 @@ fn merge(
     }
 }
 
+/// Whether `m` is a JMAP account's and was never on its server: nothing is made on such a server
+/// from a message here, so one with no word of the server's has no original there.
+fn never_on_its_jmap_server(now: &Mailbox, m: &Message) -> bool {
+    m.server.is_none() && m.moving_out.is_none() && now.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap)
+}
+
 /// A message here before the change, after it and now: as it is now, but for what the change
 /// changed, which is as it was before.
 fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) -> Option<Arc<Message>> {
     let mut m = c.as_ref().clone();
     if t.account != c.account {
         let placed = c.server.as_ref().filter(|s| !s.gone && !s.id.is_empty() && g.contains(&c.account));
-        if g.contains(&t.account) && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
+        // A message its JMAP server never had (a draft written here, one brought in from a file):
+        // nothing of it was removed there, so it goes back as one of an account with no server would.
+        let from_server = g.contains(&t.account) && !never_on_its_jmap_server(now, t);
+        if from_server && c.moving_out.as_ref().is_none_or(|out| out.account != t.account) {
             // The copy it was first moved out of, in a third mailbox, is kept while it may hold the
             // bytes a protected message came as (#30, `Mailbox::place_called_off`): it stays the
             // one this message is moved out of, and the copy made here goes instead.
@@ -772,7 +847,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
             }
             (m.server, m.uid, m.synced) = (None, 0, None);
-        } else if g.contains(&t.account) {
+        } else if from_server {
             // Moved out of a Microsoft account: back while the server's copy is still there.
             let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account && !out.left) else {
                 said.moved_out.push(t.subject.clone());
@@ -821,6 +896,10 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
         };
     }
     back!(folder, read, flag, flag_due, importance, pinned, answered, forwarded, draft, held, placed, snooze);
+    // A reminder as it was, but what has become of it since (raised, put off) stays (#948).
+    if t.follow_up != a.follow_up {
+        m.follow_up = mailcraft_model::FollowUp::undone(t.follow_up, c.follow_up);
+    }
     // Categories as a list that others add to too (R3 spec S17): what the change added is taken
     // off and what it took off is put back; one added in Outlook meanwhile stays.
     if t.categories != a.categories {

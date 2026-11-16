@@ -77,7 +77,7 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use mailcraft_charset::base64::STANDARD;
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::remote::{
     BusyTime, CalendarsDownload, CategoriesDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventTime,
     EventsDownload, EventsUpload, EventsUploaded, FreeBusy, FreeBusyAsk, MAX_BUSY, MAX_CONTACTS, MAX_EVENT_OPS, MAX_EVENTS, MAX_REMOTE_CALENDARS,
@@ -207,7 +207,7 @@ pub struct SendOptions {
 /// Send one message through Microsoft Graph, as the owner of `token` (an access token for
 /// Graph). Graph also files a copy in the account's Sent Items.
 ///
-/// The message goes as it would over SMTP (`mailcraft_mime::write`), in base64. Graph has no
+/// The message goes as it would over SMTP (`mailcraft_mime_model::write`), in base64. Graph has no
 /// envelope: it reads who the message is for from the message's own header fields. So the `Bcc`
 /// field is written here, which it never is for SMTP; Exchange delivers to the people it names
 /// and leaves the field out of what everybody else gets.
@@ -882,7 +882,7 @@ fn mime_body_with(message: &Message, options: &SendOptions) -> Result<String, Ne
     let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
     let offset_minutes = options.offset_minutes.unwrap_or_else(|| mailcraft_time::local_offset_minutes(message.date));
     // With the Bcc field: it is the only way Graph learns of those it names.
-    let mime = mailcraft_mime::write(&message, &WriteOptions { include_bcc: true, offset_minutes });
+    let mime = mailcraft_mime_model::write(&message, &WriteOptions { include_bcc: true, offset_minutes });
     if mime.len() > MAX_MESSAGE {
         return Err(NetError::Config("the message is too large to send through Microsoft Graph".into()));
     }
