@@ -46,6 +46,20 @@ fn zero_row_spans_stop_at_their_row_group() {
 }
 
 #[test]
+fn implied_rows_stay_in_their_row_group() {
+    let html = r#"<table><tbody><tr><td rowspan="0">A</td><td rowspan="2">B</td></tr></tbody><tbody><tr><td>C</td><td>D</td></tr></tbody></table>"#;
+    let pasted = from_html_for_compose(html);
+    let table = pasted.paragraphs()[0].runs[0].table.as_deref().unwrap();
+    assert_eq!(table.columns(), 2);
+    assert_eq!(table.rows().len(), 3);
+    assert!(table.rows()[0].iter().all(|cell| cell.rowspan == 2));
+    assert!(table.rows()[1].is_empty());
+    assert_eq!(table.rows()[2].len(), 2);
+    let saved = to_html(&pasted);
+    assert_eq!(to_html(&from_html_with_pictures(&saved, &mut |_| None)), saved);
+}
+
+#[test]
 fn spreadsheet_clipboard_keeps_spacer_rows_columns_and_row_spans() {
     for html in [
         r#"<style>.xl65 { text-align:right }</style><table><colgroup><col span="3"></colgroup><tr><td rowspan="2">Part</td><td></td><td class="xl65">12,30</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"#,

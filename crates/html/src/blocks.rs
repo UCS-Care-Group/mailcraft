@@ -2732,13 +2732,34 @@ impl TableBuild {
         if !self.compose_grid {
             return;
         }
-        let end = self.rows.len();
+        let explicit_end = self.rows.len();
+        let implied_end = self
+            .rows
+            .iter()
+            .enumerate()
+            .skip(self.row_group_start)
+            .flat_map(|(row, data)| data.cells.iter().map(move |cell| row + usize::from(cell.rowspan)))
+            .max()
+            .unwrap_or(explicit_end);
+        let end = explicit_end.max(implied_end);
+        if end > MAX_TABLE_ROWS {
+            // Keep the existing text fallback rather than let a span cross into the next group.
+            self.compose_grid = false;
+        } else {
+            self.rows.resize_with(end, || Row { cells: Vec::new() });
+        }
         for (offset, row) in self.rows.iter_mut().skip(self.row_group_start).enumerate() {
             let remaining = end - self.row_group_start - offset;
             for cell in &mut row.cells {
                 if cell.rowspan == 0 {
                     // An over-limit group cannot be represented faithfully in a draft.
-                    cell.rowspan = if remaining > usize::from(MAX_ROW_SPAN) { u16::MAX } else { remaining as u16 };
+                    cell.rowspan = if !self.compose_grid {
+                        1
+                    } else if remaining > usize::from(MAX_ROW_SPAN) {
+                        u16::MAX
+                    } else {
+                        remaining as u16
+                    };
                 }
             }
         }
