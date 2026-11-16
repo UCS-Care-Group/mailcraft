@@ -35,5 +35,8 @@ fn window_and_agent_use_the_same_read_only_suggestions() {
     let (request, response) = ControlRequest::new("engine.execute", json!({"command": "mail.suggestFolders", "params": params}));
     assert!(matches!(handle(&mut app, &ctx, &request.from_agent(vec![])), Outcome::Pending));
     assert_eq!(response.recv_timeout(Duration::from_secs(5)).unwrap(), json!({"ok": true, "result": expected}));
+    let (request, response) = ControlRequest::new("mail.suggestFolders", params);
+    assert!(matches!(handle(&mut app, &ctx, &request), Outcome::Pending));
+    assert_eq!(response.recv_timeout(Duration::from_secs(5)).unwrap(), json!({"ok": true, "result": expected}));
     assert_eq!(app.session.mailbox.message(100).unwrap().folder, 10);
 }

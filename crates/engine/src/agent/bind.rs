@@ -78,16 +78,21 @@ pub fn object(id: &str) -> Option<Object> {
         | "mail.copy"
         | "mail.removeAttachment"
         | "mail.sendAgain"
+        | "mail.setSendTime"
         | "mail.dismissWarnings"
         | "junk.blockSender"
         | "junk.neverBlockSender"
         | "junk.neverBlockDomain"
         | "rules.fromMessage"
         | "ui.downloadPictures"
+        | "ui.unsubscribe"
+        | "mail.unsubscribe"
         | "ui.retryPictures"
         | "ui.alwaysDownloadPictures" => Messages,
         "folder.empty" | "folder.delete" => FolderContent,
-        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" => Folder,
+        // (The clean-up of #1401 reaches every folder when it names none: its question counts
+        // what goes, and is described again on the yes.)
+        "rules.run" | "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
         "people.delete" | "people.merge" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
@@ -100,10 +105,14 @@ pub fn object(id: &str) -> Option<Object> {
         | "account.edit"
         | "account.remove"
         | "account.forgetEwsCertificate"
+        | "account.davSet"
+        | "account.davOff"
         | "account.graphSwitch"
         | "account.addSharedMailbox"
         | "account.removeSharedMailbox"
         | "account.thinOffline"
+        | "account.deviceLimits"
+        | "account.trimDevice"
         | "ui.keepOffline"
         | "ui.connectMicrosoft"
         | "ui.automaticRepliesSignIn"
@@ -126,20 +135,23 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.list" => Account,
         "rules.add" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,
-        "compose.send" | "compose.discard" | "compose.close" => Compose,
+        "compose.send" | "compose.sendLater" | "compose.discard" | "compose.close" => Compose,
         "ui.closeWindow" | "ui.eventWindow" | "ui.dialog" | "ui.closeDialog" => Window,
         "file.new" | "file.open" | "file.save" | "file.saveAs" => Mailbox,
         "edit.undo" | "edit.redo" => Undo,
         "file.options"
         | "sync.offline"
+        | "sync.waitBeforeSending"
         | "ui.downloadPicturesAutomatically"
         | "ui.senderImages"
         | "ui.desktopAlerts"
+        | "ui.closeToTray"
         | "ui.repliesInWindow"
         | "ui.updateCheck"
         | "ui.updateInstall"
         | "ui.dismissUpdateNotice"
         | "ui.dismissSettingsNotice"
+        | "ui.dismissSoftwareNotice"
         | "ui.reportProblem"
         // The Public keys kept (File › Options › Security, #30): the question names the key.
         | "keys.import"
@@ -153,6 +165,10 @@ const CALENDARS: &[&str] = &[
     "calendar.removeCalendar",
     "calendar.openShared",
     "calendar.removeShared",
+    "calendar.subscribe",
+    "calendar.unsubscribe",
+    "calendar.subscriptionSettings",
+    "calendar.refreshSubscribed",
     "calendar.hideListedCopy",
     "calendar.moveToAccount",
     "calendar.addCalendar",
@@ -186,6 +202,11 @@ pub struct Shown {
     held: Option<Held>,
     /// Everybody a calendar command writes to, in full (the question names the first few).
     people: Vec<String>,
+    /// Where the account a calendar and contacts server command acts on had its server when the
+    /// question was asked (homes, user name, pin), as a digest keyed for this question alone: the
+    /// text of the question names none of it, and a yes must not reach another server than the
+    /// owner was asked about (#209).
+    dav: u64,
 }
 
 /// A folder emptied or deleted, as the question showed it.
@@ -224,6 +245,7 @@ impl Shown {
     pub fn new(s: &Session, id: &str, params: &Value, what: &str) -> Option<Shown> {
         let object = object(id)?;
         let keys = RandomState::new();
+        let dav = dav_identity(&keys, s, id, params);
         let held = (object == Object::FolderContent).then(|| held(s, id, params)).flatten();
         Some(Shown {
             object,
@@ -235,6 +257,7 @@ impl Shown {
             keys,
             held,
             people: people(s, object, params),
+            dav,
         })
     }
 
@@ -259,7 +282,7 @@ impl Shown {
         if window && !COUNTED.contains(&id) && (self.object != Object::FolderContent || s.view.folder != self.view.folder) {
             return changed();
         }
-        if people(s, self.object, params) != self.people {
+        if people(s, self.object, params) != self.people || dav_identity(&self.keys, s, id, params) != self.dav {
             return changed();
         }
         if self.object == Object::FolderContent {
@@ -308,6 +331,48 @@ fn people(s: &Session, object: Object, params: &Value) -> Vec<String> {
     let mut who = super::invitees(s, params);
     who.extend(super::addresses(params.get("to")));
     who
+}
+
+/// The identity of the calendar and contacts server of the account `account.davSet` or
+/// `account.davOff` acts on, as one number keyed by `keys`: its homes, user name, pinned
+/// certificate and password flag. Zero for any other command.
+fn dav_identity(keys: &RandomState, s: &Session, id: &str, params: &Value) -> u64 {
+    if !matches!(id, "account.davSet" | "account.davOff") {
+        return 0;
+    }
+    let mut out = keys.build_hasher();
+    let account = p::id(params, "id").and_then(|a| s.mailbox.account(a));
+    // The address is what a request with no user name signs in as, so a change of it between the
+    // question and the yes is a change of what was approved, whatever the request names.
+    if let Some(account) = account {
+        out.write(account.email.trim().to_ascii_lowercase().as_bytes());
+        out.write_u8(0xff);
+    }
+    match account.and_then(|a| a.dav.as_ref().map(|dav| (a, dav))) {
+        None => out.write_u8(0),
+        Some((account, dav)) => {
+            out.write_u8(1);
+            for list in [&dav.calendar_homes, &dav.contact_homes] {
+                out.write_usize(list.len());
+                for home in list {
+                    out.write(home.trim().as_bytes());
+                    out.write_u8(0xff);
+                }
+            }
+            // The name that signs in, as the credential's name has it: the one given, else the
+            // account's address (case-folded).
+            let login = match dav.username.trim() {
+                "" => account.email.trim().to_ascii_lowercase(),
+                name => name.to_string(),
+            };
+            for text in [login.as_str(), dav.trusted.trim()] {
+                out.write(text.as_bytes());
+                out.write_u8(0xff);
+            }
+            out.write_u8(u8::from(dav.separate_password));
+        }
+    }
+    out.finish()
 }
 
 /// The messages being written, whole, in order, as one number keyed by `keys`: an agent can't

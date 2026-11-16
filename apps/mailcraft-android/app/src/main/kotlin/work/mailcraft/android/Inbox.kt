@@ -1,0 +1,82 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+package work.mailcraft.android
+
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import uniffi.mailcraft_mobile.Core
+import uniffi.mailcraft_mobile.CoreException
+
+/** One folder as the drawer lists it; [depth] is how far down the folder tree it sits. */
+internal data class FolderItem(
+    val id: ULong,
+    val parent: ULong?,
+    val name: String,
+    val kind: String,
+    val unread: UInt,
+    val depth: Int = 0,
+)
+
+/** An account and its folders, top folders first and each folder's own just after it. */
+internal data class AccountItem(val id: ULong, val name: String, val email: String, val folders: List<FolderItem>)
+
+/** The accounts of the mailbox, and the folder the Mail tab opens on. */
+internal data class MailboxOutline(val accounts: List<AccountItem>, val inboxId: ULong?)
+
+/** How far down the folder tree the drawer goes; deeper folders sit at this depth. */
+internal const val MAX_FOLDER_DEPTH = 4
+
+/** Who a row is from: the name, or the address when the message has no name. */
+internal fun senderLabel(name: String, address: String): String = name.ifBlank { address }
+
+/**
+ * Puts a flat list of folders in tree order: each folder's own just after it, with its depth.
+ * Order among folders of one parent is kept. A folder whose parent is not in the list is a top
+ * folder; a loop of parents (hostile data) ends where it closes, and no folder is listed twice.
+ */
+internal fun folderTree(folders: List<FolderItem>): List<FolderItem> {
+    val ids = folders.mapTo(HashSet()) { it.id }
+    val byParent = folders.groupBy { it.parent?.takeIf { parent -> parent in ids } }
+    val out = ArrayList<FolderItem>(folders.size)
+    val seen = HashSet<ULong>()
+    // Depth first, with a stack of its own: a chain of folders as long as the data says is safe.
+    val pending = ArrayDeque<Pair<FolderItem, Int>>()
+    fun pushChildren(parent: ULong?, depth: Int) {
+        byParent[parent].orEmpty().asReversed().forEach { pending.addLast(it to depth) }
+    }
+    pushChildren(null, 0)
+    while (pending.isNotEmpty()) {
+        val (folder, depth) = pending.removeLast()
+        if (!seen.add(folder.id)) continue
+        out.add(folder.copy(depth = minOf(depth, MAX_FOLDER_DEPTH)))
+        pushChildren(folder.id, depth + 1)
+    }
+    // Folders only reachable through a loop of parents are still the owner's.
+    folders.filter { seen.add(it.id) }.forEach { out.add(it.copy(depth = 0)) }
+    return out
+}
+
+/**
+ * Lists the Microsoft accounts of the mailbox and their folders, read-only. The phone app has no
+ * other kind of account in v1: the mailbox's empty local one, which the core always has, is not shown.
+ */
+internal suspend fun loadOutline(
+    core: Core,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+): MailboxOutline? = withContext(dispatcher) {
+    try {
+        val list = core.folders(0uL)
+        val accounts = list.accounts.filter { it.kind == "microsoft" }.map { account ->
+            val own = list.folders.filter { it.account == account.id }.map {
+                FolderItem(it.id, it.parent, it.name, it.kind, it.unread)
+            }
+            val name = account.displayName.ifBlank { account.name }.ifBlank { account.email }
+            AccountItem(account.id, name, account.email, folderTree(own))
+        }
+        val inbox = accounts.firstNotNullOfOrNull { account -> account.folders.firstOrNull { it.kind == "inbox" } }
+        MailboxOutline(accounts, inbox?.id)
+    } catch (_: CoreException) {
+        null
+    }
+}

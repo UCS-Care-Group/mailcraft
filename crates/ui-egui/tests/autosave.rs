@@ -45,7 +45,7 @@ fn app(path: &Path, saver: Box<dyn BackgroundSave>) -> MailApp {
     let mut session = Session::at(mailbox, NOW, 0);
     session.path = Some(path.to_path_buf());
     let mut app = MailApp::new(session, Services { saver: Some(saver), ..Services::default() });
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app
 }
 

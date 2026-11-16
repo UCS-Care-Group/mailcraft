@@ -17,7 +17,7 @@ type Window = egui_kittest::Harness<'static, MailApp>;
 fn window(tight: bool, one_line: bool) -> Window {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
-    app.auto_sync = false;
+    app.session.driver.set_auto_sync(false);
     app.overlay_scroll_bars = false;
     app.execute("view.density", json!({"value": tight})).unwrap();
     app.execute("view.oneLine", json!({"value": one_line})).unwrap();

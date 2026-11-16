@@ -48,7 +48,7 @@ pub fn prepare(session: &mut crate::Session, params: &serde_json::Value) -> Resu
 pub struct Scan {
     messages: mailcraft_model::messages::Messages,
     message: Arc<Message>,
-    folders: HashMap<Id, (FolderKind, Option<Id>)>,
+    folders: HashMap<Id, (FolderKind, Option<Id>, bool)>,
     destinations: Option<HashSet<Id>>,
     topic: Vec<String>,
     seen: HashSet<(Id, String)>,
@@ -61,10 +61,16 @@ pub struct Scan {
 impl Scan {
     pub fn new(mailbox: &Mailbox, id: Id) -> Option<Self> {
         let message = mailbox.messages.get(&id)?;
-        if message.draft || mailbox.stays_on_server(id) {
+        if message.draft {
             return None;
         }
-        let folders: HashMap<_, _> = mailbox.folders.iter().filter(|f| f.account == message.account).map(|f| (f.id, (f.kind, f.parent))).collect();
+        let on_jmap_server = mailbox.on_jmap_server(id);
+        let folders: HashMap<_, _> = mailbox
+            .folders
+            .iter()
+            .filter(|f| f.account == message.account)
+            .map(|f| (f.id, (f.kind, f.parent, !on_jmap_server || Mailbox::jmap_mailbox_of(f, message.account).is_some())))
+            .collect();
         if !under(&folders, message.folder, |kind| kind != FolderKind::Junk) {
             return None;
         }
@@ -86,8 +92,9 @@ impl Scan {
         let destinations = self.destinations.get_or_insert_with(|| {
             self.folders
                 .iter()
-                .filter(|(id, (kind, _))| {
-                    *kind == FolderKind::Custom
+                .filter(|(id, (kind, _, movable))| {
+                    *movable
+                        && *kind == FolderKind::Custom
                         && under(&self.folders, **id, |kind| matches!(kind, FolderKind::Custom | FolderKind::Inbox | FolderKind::Archive))
                 })
                 .map(|(&id, _)| id)
@@ -167,9 +174,9 @@ fn reference(word: &str) -> bool {
     word.len() >= 5 && word.bytes().any(|b| b.is_ascii_digit()) && word.bytes().any(|b| b.is_ascii_alphabetic())
 }
 
-fn under(folders: &HashMap<Id, (FolderKind, Option<Id>)>, mut folder: Id, allowed: impl Fn(FolderKind) -> bool) -> bool {
+fn under(folders: &HashMap<Id, (FolderKind, Option<Id>, bool)>, mut folder: Id, allowed: impl Fn(FolderKind) -> bool) -> bool {
     for _ in 0..32 {
-        let Some(&(kind, parent)) = folders.get(&folder) else { return false };
+        let Some(&(kind, parent, _)) = folders.get(&folder) else { return false };
         if !allowed(kind) {
             return false;
         }

@@ -150,9 +150,9 @@ fn a_signature_with_a_logo_goes_out_with_the_picture_inside_the_message() {
     // The plain-text part has the words, and the picture said in words.
     assert!(m.body.text.starts_with("Hello\n\n[Lumen Studio logo]Avery Quinn\nLumen Studio"), "{:?}", m.body.text);
     // On the wire the picture is part of the HTML, and it reads back.
-    let bytes = mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default());
+    let bytes = mailcraft_mime_model::write(&m, &mailcraft_mime_model::WriteOptions::default());
     assert!(String::from_utf8_lossy(&bytes).contains("multipart/related"));
-    let back = mailcraft_mime::parse(&bytes);
+    let back = mailcraft_mime_model::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
 }
@@ -305,7 +305,7 @@ fn a_signature_made_from_details_has_working_links_and_follows_them_until_edited
     let sig = s.mailbox.signature("Card").unwrap();
     assert_eq!(sig.layout, mailcraft_model::signature::Layout::PictureLeft);
     assert_eq!(sig.body().pictures().len(), 1);
-    let html = mailcraft_mime::rich::signature_html(sig, &|p| format!("p{}", p.id));
+    let html = mailcraft_mime_model::rich::signature_html(sig, &|p| format!("p{}", p.id));
     for link in ["href=\"tel:+442079460000\"", "href=\"tel:07700900000\"", "href=\"mailto:avery@lumen.example\"", "href=\"https://lumen.example\""] {
         assert!(html.contains(link), "{link} in {html}");
     }
@@ -526,4 +526,18 @@ fn new_words_for_an_html_signature_make_it_rich_text_and_the_message_says_them_a
     run(&mut s, "signature.html", json!({"name": "Generated", "html": GENERATED}));
     run(&mut s, "signature.save", json!({}));
     assert_eq!(s.mailbox.signature("Generated").unwrap().html(), Some(GENERATED));
+}
+
+#[test]
+fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
+    // #969: text art in a signature keeps its font through a save and the mailbox file.
+    let mut s = session();
+    run(&mut s, "signature.open", json!({"name": "standard"}));
+    let end = s.signature_edit.as_ref().unwrap().body.text().len();
+    run(&mut s, "format.font", json!({"value": "courier new", "from": 0, "to": end}));
+    run(&mut s, "signature.save", json!({}));
+    let json = serde_json::to_string(&s.mailbox).unwrap();
+    let back: mailcraft_model::Mailbox = serde_json::from_str(&json).unwrap();
+    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
+    assert_eq!(first.map(|f| f.label()), Some("Courier New"));
 }

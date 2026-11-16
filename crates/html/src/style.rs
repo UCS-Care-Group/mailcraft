@@ -28,7 +28,8 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block`, exactly (any other `display` but `none` says nothing) |
+//! | boxes on a line | `display: inline-block` |
+//! | table parts | `display: table-row` and `display: table-cell` on ordinary blocks and spans |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
@@ -50,8 +51,8 @@
 //! nothing around it (without that, such a message showed no text at all).
 
 use crate::{
-    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
-    MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
+    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
+    MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
 };
 
 /// Longest `style` attribute read, in bytes; the rest is ignored.
@@ -66,6 +67,9 @@ const MAX_VALUE: usize = 1024;
 /// The size text has when a message doesn't say, in CSS pixels: what a relative size (`120%`,
 /// `<small>`) is measured against.
 pub(crate) const BASE_FONT_PX: f32 = 13.0;
+
+/// The largest font size a message can ask for in the reading pane, in CSS pixels.
+pub const MAX_FONT_PX: u8 = 48;
 
 /// A margin up to this many pixels is no paragraph gap: lines that close are still one block of lines.
 const SLIGHT_MARGIN_PX: f32 = 6.0;
@@ -85,7 +89,7 @@ pub(crate) enum Size {
 impl Size {
     /// The size in whole pixels, clamped to what is readable, given the size around it; `None`
     /// when it is so small that the text is meant not to be seen.
-    pub fn resolve(self, parent: Option<u8>) -> Option<u8> {
+    pub fn resolve(self, parent: Option<u8>, max_font_px: u8) -> Option<u8> {
         let px = match self {
             Size::Px(px) => px,
             Size::Scale(scale) => scale * parent.map_or(BASE_FONT_PX, f32::from),
@@ -93,7 +97,7 @@ impl Size {
         if !px.is_finite() || px <= HIDDEN_FONT_PX {
             return None;
         }
-        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(MAX_FONT_PX)) as u8)
+        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(max_font_px)) as u8)
     }
 }
 
@@ -104,6 +108,13 @@ pub(crate) enum MsoList {
     Ignore,
     /// The item's level, from 1.
     Level(u8),
+}
+
+/// The two table roles a style can give an ordinary element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TableDisplay {
+    Row,
+    Cell,
 }
 
 /// The whitelisted facts of one `style` attribute.
@@ -152,6 +163,8 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// A row or cell role on an ordinary element in a block context.
+    pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
 }
@@ -227,6 +240,11 @@ impl Css {
                 "display" => {
                     display_none = value == "none";
                     css.inline_block = value == "inline-block";
+                    css.table_display = match value {
+                        "table-row" => Some(TableDisplay::Row),
+                        "table-cell" => Some(TableDisplay::Cell),
+                        _ => None,
+                    };
                 }
                 "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
                 "opacity" => opacity_zero = number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
@@ -1170,6 +1188,7 @@ mod style_family_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MAX_FONT_PX;
 
     #[test]
     fn colour_names_are_sorted() {
@@ -1253,7 +1272,7 @@ mod tests {
         assert_eq!(css.background, Some(Rgb(255, 255, 0)));
         assert_eq!((css.bold, css.italic, css.underline, css.strike), (Some(true), Some(true), Some(true), Some(true)));
         assert_eq!(css.align, Some(Align::Right));
-        assert_eq!(css.size.and_then(|s| s.resolve(None)), Some(15));
+        assert_eq!(css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)), Some(15));
         assert!(!css.hidden);
         // Later declarations win; `!important` is only a word.
         let css = Css::parse("font-weight:bold;font-weight:normal !important;text-decoration:none;color:red;color:nonsense");
@@ -1316,7 +1335,7 @@ mod tests {
 
     #[test]
     fn font_sizes() {
-        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent));
+        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent, MAX_FONT_PX));
         assert_eq!(size("font-size:14px", None), Some(14));
         assert_eq!(size("font-size:12pt", None), Some(16));
         assert_eq!(size("font-size:small", None), Some(13));
@@ -1331,7 +1350,7 @@ mod tests {
         assert_eq!(size("font-size:big", None), None);
         // The shorthand: weight, slant and size (its families: `style_family_tests.rs`).
         let css = Css::parse("font: italic bold 7.0pt/1.2 \"Times New Roman\"");
-        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None))), (Some(true), Some(true), Some(MIN_FONT_PX)));
+        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None, MAX_FONT_PX))), (Some(true), Some(true), Some(MIN_FONT_PX)));
         assert_eq!(Css::parse("font: 12px bold").bold, None);
     }
 
@@ -1375,11 +1394,11 @@ mod tests {
         for tiny in ["font-size:0", "font-size:1px", "font-size:0.0pt", "font-size:2px;line-height:0"] {
             let css = Css::parse(tiny);
             assert!(!css.hidden, "{tiny}");
-            assert_eq!(css.size.and_then(|s| s.resolve(Some(16))), None, "{tiny}");
+            assert_eq!(css.size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None, "{tiny}");
         }
         // A relative size is judged against the size around it.
-        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16))), None);
-        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16))), None);
+        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
+        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
     }
 
     #[test]
@@ -1635,7 +1654,7 @@ mod tests {
         #[test]
         fn any_style_parses(s in proptest::prelude::any::<String>()) {
             let css = Css::parse(&s);
-            if let Some(size) = css.size.and_then(|s| s.resolve(None)) {
+            if let Some(size) = css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)) {
                 proptest::prop_assert!((MIN_FONT_PX..=MAX_FONT_PX).contains(&size));
             }
             proptest::prop_assert!(in_range(&css));

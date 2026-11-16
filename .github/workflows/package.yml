@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: ${{ matrix.target }}
@@ -319,7 +319,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: aarch64-apple-darwin, x86_64-apple-darwin
@@ -467,7 +467,7 @@ jobs:
         env:
           DEB_ARCH: ${{ matrix.deb }}
         run: |
-          sudo apt-get update
+          .github/scripts/apt-mirrors.sh
           sudo apt-get install -y --no-install-recommends \
             libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
             desktop-file-utils appstream zsync file xvfb libxkbcommon-x11-0 libegl1 mesa-vulkan-drivers
@@ -480,7 +480,7 @@ jobs:
           esac
           echo "$expected  $RUNNER_TEMP/nfpm.deb" | sha256sum -c -
           sudo dpkg -i "$RUNNER_TEMP/nfpm.deb"
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
       - name: Build and package (AppImage, deb, rpm, tar.gz)
@@ -537,7 +537,7 @@ jobs:
           path: dist/linux
       - name: Install flatpak-builder
         run: |
-          sudo apt-get update
+          .github/scripts/apt-mirrors.sh
           sudo apt-get install -y --no-install-recommends flatpak flatpak-builder librsvg2-common
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build the Flatpak bundle
@@ -624,14 +624,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
           targets: wasm32-unknown-unknown
       # Pinned trunk and wasm-bindgen releases (prebuilt, checked by install-action against its
       # own checksums). wasm-bindgen must be the version in Cargo.lock: trunk runs offline below,
       # so a mismatch fails the build instead of trunk downloading one.
-      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: trunk@0.21.14,wasm-bindgen@0.2.129
       # wasm-opt from binaryen version_123 (the one trunk 0.21.14 asks for), pinned and checked:

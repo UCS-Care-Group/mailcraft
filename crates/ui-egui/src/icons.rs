@@ -8,9 +8,6 @@
 use egui::epaint::{Mesh, TextShape};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 
-mod mark;
-pub use mark::app_mark;
-
 /// Draws on the 20-unit grid of one icon, fitted to the screen's pixels.
 ///
 /// Everything is worked out in device pixels: the grid's origin is a whole pixel, a stroke is a
@@ -906,6 +903,15 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(7.0, 3.5), (7.0, 16.5)], a);
         }
+        // The switch between the modules at the foot of the pane (#1174): the pane, with a row
+        // of four dots along its lower edge where the modules sit.
+        "navigationBar" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            pen.line_c(&[(2.5, 12.5), (17.5, 12.5)], a);
+            for i in 0..4 {
+                pen.fcircle(4.75 + i as f32 * 3.5, 14.5, 0.9, a);
+            }
+        }
         // Messages one behind another.
         "conversations" => {
             pen.rounded(&[(5.5, 13.0), (2.5, 13.0), (2.5, 3.5), (13.5, 3.5), (13.5, 6.0)], false, 1.0, c);
@@ -1404,6 +1410,7 @@ pub const NAMES: &[&str] = &[
     "filter",
     "readingPane",
     "folderPane",
+    "navigationBar",
     "conversations",
     "ribbon",
     "sort",

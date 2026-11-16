@@ -245,6 +245,12 @@ pub const BLOCKED: &[&str] = &[
     "rqy",
     "ica",
     "mobileconfig",
+    // Phone app packages and bundles: installed by sideloading, never opened from mail.
+    "apk",
+    "apks",
+    "xapk",
+    "aab",
+    "ipa",
     "mobileprovision",
     "rdg",
     "term",

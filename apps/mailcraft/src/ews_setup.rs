@@ -6,7 +6,8 @@
 //! **What goes where.** The address, then the password, only to the server Autodiscover found or
 //! the owner named, and only in answer to that server's own challenge during Autodiscover (the
 //! search never sends a credential unasked: `mailcraft_ews::Autodiscover`). The DNS lookups (the
-//! domain's mail exchangers, the `_autodiscover._tcp` SRV record) go over DNS-over-HTTPS with the
+//! domain's mail exchangers, the `_autodiscover._tcp` SRV record and the alias of
+//! `autodiscover.<domain>`) go over DNS-over-HTTPS with the
 //! domain and nothing else. A host outside the owner's domain is asked about first, naming it
 //! (`EwsSetupEvent::Consent`), and no password goes there before a yes. A mailbox in Microsoft 365
 //! is a Microsoft account: the search ends with that said, and nothing is sent there.
@@ -58,8 +59,9 @@ pub(crate) trait World {
     fn exchange(&self, request: &HttpRequest) -> Result<HttpResponse, TransportError>;
     /// The domain's mail exchangers; empty when they can't be had.
     fn mail_exchangers(&self, domain: &str) -> Vec<String>;
-    /// The hosts and ports of the domain's `_autodiscover._tcp` SRV record; `None` when the lookup failed.
-    fn srv(&self, name: &str) -> Option<Vec<(String, u16)>>;
+    /// The hosts and ports of the domain's `_autodiscover._tcp` SRV record (`None` when the lookup
+    /// failed), and the hosts `autodiscover.<domain>` is an alias of, kept apart.
+    fn srv(&self, name: &str) -> (Option<Vec<(String, u16)>>, Vec<String>);
     /// Test the account at `url`: one request for the Inbox.
     fn probe(&self, url: &str, who: &Who, trusted: &str) -> Probed;
     /// Look at the certificate of the server at `url`, signing nobody in.
@@ -97,10 +99,16 @@ impl World for Real {
         mailcraft_net::lookup_mx(domain).unwrap_or_default()
     }
 
-    fn srv(&self, name: &str) -> Option<Vec<(String, u16)>> {
-        // (The machine asks for `_autodiscover._tcp.<domain>`; the resolver adds the service itself.)
-        let domain = name.strip_prefix("_autodiscover._tcp.")?;
-        mailcraft_net::lookup_autodiscover(domain).ok().map(|targets| targets.into_iter().map(|t| (t.host, t.port)).collect())
+    fn srv(&self, name: &str) -> (Option<Vec<(String, u16)>>, Vec<String>) {
+        // (The machine asks for `_autodiscover._tcp.<domain>`; the resolver adds the service
+        // itself, and the host `autodiscover.<domain>` is an alias of: a split DNS may keep the
+        // SRV record from the public resolvers while the alias is public. The alias's host is
+        // no SRV record's word, and is handed over as what it is.)
+        let Some(domain) = name.strip_prefix("_autodiscover._tcp.") else { return (None, Vec::new()) };
+        match mailcraft_net::autodiscover_targets(domain) {
+            Ok(found) => (Some(found.srv.into_iter().map(|t| (t.host, t.port)).collect()), found.aliases),
+            Err(_) => (None, Vec::new()),
+        }
     }
 
     fn probe(&self, url: &str, who: &Who, trusted: &str) -> Probed {
@@ -173,6 +181,7 @@ fn reason_of(reason: ConsentReason) -> EwsConsentReason {
         ConsentReason::OtherDomain => EwsConsentReason::OtherDomain,
         ConsentReason::MailServer => EwsConsentReason::MailServer,
         ConsentReason::SignIn => EwsConsentReason::SignIn,
+        ConsentReason::Alias => EwsConsentReason::Alias,
     }
 }
 
@@ -265,7 +274,10 @@ fn decide(world: &dyn World, job: &EwsSetupJob, emit: &mut dyn FnMut(EwsSetupEve
             }
             match search.step() {
                 Step::Request(request) => search.response(world.exchange(&request)),
-                Step::LookupSrv(name) => search.srv(world.srv(name.as_str())),
+                Step::LookupSrv(name) => {
+                    let (srv, aliases) = world.srv(name.as_str());
+                    search.srv_and_aliases(srv, aliases);
+                }
                 Step::NeedsYes(consent) => {
                     emit(EwsSetupEvent::Consent { host: consent.host().to_owned(), reason: reason_of(consent.reason()) });
                     match answer(job) {

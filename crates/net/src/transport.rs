@@ -130,6 +130,29 @@ impl<'a> Stream<'a> {
         tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io))
     }
 
+    /// A connection that waits for the server to speak (IDLE, #276): a read gives up after `poll`
+    /// of silence, so that its owner can look at the clock and at whether it was told to stop,
+    /// and the connection is good for `patience` after the last command was sent, not for the
+    /// few minutes a command and its answer are.
+    pub(crate) fn wait_for_news(&mut self, poll: Duration, patience: Duration) -> std::io::Result<()> {
+        self.patience = patience;
+        let tcp = match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        };
+        tcp.set_read_timeout(Some(poll.max(Duration::from_millis(1))))
+    }
+
+    /// The waits of an ordinary command and its answer again, after [`Stream::wait_for_news`].
+    pub(crate) fn answer_normally(&mut self) -> std::io::Result<()> {
+        self.patience = COMMAND_TIMEOUT;
+        let tcp = match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        };
+        tcp.set_read_timeout(Some(IO_TIMEOUT))
+    }
+
     /// The DER of the certificate the server showed first (its end-entity certificate), on an
     /// encrypted connection whose handshake is done: for channel binding.
     pub(crate) fn server_certificate(&self) -> Option<Vec<u8>> {
@@ -378,10 +401,37 @@ fn handshake_problem(e: &std::io::Error) -> Text {
     match e.kind() {
         ErrorKind::TimedOut | ErrorKind::WouldBlock => said!("the server took too long"),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => said!("the server closed the connection"),
+        // No suite in common: an old server that offers only CBC suites, which are not used here (#977).
+        _ if no_suite_in_common(e) => {
+            said!("the server offers only older encryption (CBC suites) that MailCraft doesn't use; its administrator can turn on the AES-GCM suites")
+        }
+        // The server's alert has other causes too (a version, a curve), so the suites are said as the likely one.
+        _ if refused_handshake(e) => said!(
+            "the server and MailCraft found no encryption in common; often the server offers only older encryption (CBC suites) that MailCraft doesn't use, and its administrator can turn on the AES-GCM suites"
+        ),
         // rustls says what is wrong with the certificate or the protocol, in its own words.
         _ => Text::verbatim(e.to_string().chars().filter(|c| !c.is_control()).take(200).collect::<String>()),
     }
 }
+
+/// Whether the library itself found no cipher suite in common.
+fn no_suite_in_common(e: &std::io::Error) -> bool {
+    use rustls::{Error, PeerIncompatible};
+    matches!(e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()), Some(Error::PeerIncompatible(PeerIncompatible::NoCipherSuitesInCommon)))
+}
+
+/// Whether the server answered the handshake with an alert that most often means no suite in common.
+fn refused_handshake(e: &std::io::Error) -> bool {
+    use rustls::{AlertDescription, Error};
+    matches!(
+        e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()),
+        Some(Error::AlertReceived(AlertDescription::HandshakeFailure | AlertDescription::InsufficientSecurity))
+    )
+}
+
+#[cfg(test)]
+#[path = "transport_tls_error_tests.rs"]
+mod tls_error_tests;
 
 #[cfg(test)]
 #[path = "transport_dial_tests.rs"]

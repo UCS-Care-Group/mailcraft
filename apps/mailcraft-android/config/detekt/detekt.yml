@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: MailCraft contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# detekt on top of its defaults. Everything is an error (maxIssues 0). The never-crash rules of
+# the project, for Kotlin: no `!!`, no `lateinit` where it can be avoided, no TODO and no
+# NotImplementedError. Kotlin here draws the interface and gives the platform's services; it never
+# parses anything that comes from outside.
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+  LateinitUsage:
+    active: true
+  CastNullableToNonNullableType:
+    active: true
+  UnnecessarySafeCall:
+    active: true
+  ImplicitDefaultLocale:
+    active: true
+  IgnoredReturnValue:
+    active: true
+
+exceptions:
+  NotImplementedDeclaration:
+    active: true
+  TooGenericExceptionCaught:
+    active: true
+    # A native call fails with a RuntimeException of the JVM's making; it is caught where it
+    # is made, in one place.
+    exceptionNames:
+      - ArrayIndexOutOfBoundsException
+      - Error
+      - Exception
+      - IllegalMonitorStateException
+      - IndexOutOfBoundsException
+      - NullPointerException
+      - Throwable
+  PrintStackTrace:
+    active: true
+  SwallowedException:
+    active: false
+
+style:
+  ForbiddenComment:
+    active: true
+    comments:
+      - value: 'TODO:'
+      - value: 'FIXME:'
+      - value: 'STOPSHIP:'
+  MagicNumber:
+    active: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignorePropertyDeclaration: true
+    ignoreExtensionFunctions: false
+    ignoreNamedArgument: true
+    ignoreRanges: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+  ReturnCount:
+    active: true
+    max: 3
+  WildcardImport:
+    active: true
+
+complexity:
+  TooManyFunctions:
+    active: true
+    # The message list's controller is one cohesive state holder: show, scroll, revision, refresh,
+    # triage and undo, each a line or two over the same state.
+    thresholdInClasses: 15
+  LongParameterList:
+    active: true
+    # A holder of the callbacks a screen calls (one for each thing the owner can do) is one parameter
+    # of the screens and as many as there are things to do.
+    constructorThreshold: 12
+    # A screen takes what it draws and what it does as parameters; that is how Compose is written.
+    ignoreAnnotated:
+      - 'Composable'
+
+naming:
+  FunctionNaming:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'

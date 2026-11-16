@@ -3,7 +3,8 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::{Folder, FolderKind, Id, Mailbox, Message};
+use mailcraft_model::sync::ServerMessage;
+use mailcraft_model::{Account, AccountKind, Folder, FolderKind, Id, Mailbox, Message, ServerFolder};
 
 use super::{Reason, Scan, Suggestion};
 
@@ -88,6 +89,24 @@ fn junk_sources_and_junk_or_deleted_destinations_are_ignored() {
     assert_eq!(suggest(&m, 100), [Suggestion { folder: 11, reason: Reason::SenderAndSubject }]);
     assert!(suggest(&m, 101).is_empty());
     assert!(suggest(&m, 102).is_empty());
+}
+
+#[test]
+fn mail_on_a_jmap_server_only_suggests_folders_that_server_has() {
+    let mut m = mailbox();
+    m.accounts.push(Account { id: 1, kind: AccountKind::Jmap, ..Account::default() });
+    m.folders.iter_mut().find(|f| f.id == 11).unwrap().server = Some(ServerFolder { id: "M1".into(), ..ServerFolder::default() });
+    for (id, target) in [(100, 10), (101, 11), (102, 12)] {
+        message(&mut m, id, 1, target, "a@example.com", "Project ABC123", "");
+    }
+    m.message_mut(100).unwrap().server = Some(ServerMessage { id: "E1".into(), ..ServerMessage::default() });
+    assert_eq!(suggest(&m, 100), [Suggestion { folder: 11, reason: Reason::SenderAndSubject }]);
+
+    m.message_mut(100).unwrap().server = None;
+    assert_eq!(
+        suggest(&m, 100),
+        [Suggestion { folder: 11, reason: Reason::SenderAndSubject }, Suggestion { folder: 12, reason: Reason::SenderAndSubject },]
+    );
 }
 
 #[test]

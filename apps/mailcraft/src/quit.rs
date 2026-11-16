@@ -17,8 +17,15 @@ use mailcraft_ui_egui::MailApp;
 
 /// Once per frame, at the end of `eframe::App::logic`: the app's decision first, then the
 /// platform's quit for a close nothing held. Returns whether the platform took the close over.
-pub fn on_frame(ctx: &Context, app: &mut MailApp) -> bool {
-    on_frame_with(ctx, app, |ctx| take_over_close(ctx, platform_terminate))
+pub fn on_frame(ctx: &Context, app: &mut MailApp, tray_available: bool) -> bool {
+    on_frame_with_tray(ctx, app, tray_available, |ctx| take_over_close(ctx, platform_terminate))
+}
+
+/// An explicit Quit, distinct from hiding the main window with its close button.
+pub fn request(ctx: &Context) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft.explicitQuit"), true));
+    ctx.send_viewport_cmd(ViewportCommand::Close);
+    ctx.request_repaint();
 }
 
 /// The id of the app menu's Quit item (macOS), as `muda` reports it.
@@ -50,8 +57,7 @@ pub fn on_menu_event(ctx: &Context, id: &str) -> bool {
     if id != QUIT_MENU_ID {
         return false;
     }
-    ctx.send_viewport_cmd(ViewportCommand::Close);
-    ctx.request_repaint();
+    request(ctx);
     true
 }
 
@@ -66,7 +72,32 @@ fn platform_terminate() -> bool {
 }
 
 /// [`on_frame`] with the platform's take-over passed in (tests).
+#[cfg(test)]
 fn on_frame_with(ctx: &Context, app: &mut MailApp, take_over: impl FnOnce(&Context) -> bool) -> bool {
+    on_frame_with_tray(ctx, app, false, take_over)
+}
+
+fn on_frame_with_tray(ctx: &Context, app: &mut MailApp, tray_available: bool, take_over: impl FnOnce(&Context) -> bool) -> bool {
+    let after_notice = mailcraft_ui_egui::close_to_tray::take_hide_request(ctx);
+    if after_notice && !ctx.input(|i| i.viewport().close_requested()) && !app.quit_requested {
+        if tray_available && app.ui.close_to_tray {
+            crate::tray::hide(ctx);
+        }
+        return false;
+    }
+    if ctx.input(|i| i.viewport().close_requested()) {
+        let explicit = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("mailcraft.explicitQuit"))).unwrap_or(false);
+        if explicit || app.quit_requested {
+            mailcraft_ui_egui::close_to_tray::cancel_notice(ctx);
+        }
+        if tray_available && app.ui.close_to_tray && !explicit && !app.quit_requested {
+            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            if mailcraft_ui_egui::close_to_tray::confirm_hide(ctx, app) {
+                crate::tray::hide(ctx);
+            }
+            return false;
+        }
+    }
     decide(ctx, app);
     // Last, so it sees a `CancelClose` sent above and leaves that close alone.
     take_over(ctx)
@@ -79,7 +110,10 @@ fn on_frame_with(ctx: &Context, app: &mut MailApp, take_over: impl FnOnce(&Conte
 /// request, decided on the next frame like any other.
 fn decide(ctx: &Context, app: &mut MailApp) {
     if ctx.input(|i| i.viewport().close_requested()) && !app.close_requested() {
+        #[cfg(target_os = "macos")]
+        crate::tray::unhide_app();
         ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+        ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         if ctx.input(|i| i.viewport().minimized == Some(true)) {
             ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
         }
@@ -88,7 +122,7 @@ fn decide(ctx: &Context, app: &mut MailApp) {
     if app.quit_requested {
         // Asked once: a quit that is held again asks again, and sets this again when answered.
         app.quit_requested = false;
-        ctx.send_viewport_cmd(ViewportCommand::Close);
+        request(ctx);
     }
 }
 

@@ -402,10 +402,22 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             ok(json!({}))
         }
+        "ui.minimize" => {
+            // `false`: back from the taskbar. (What the window lets go of while out of sight is
+            // measured with it: `docs/control-protocol.md`.)
+            let minimized = p.get("minimized").and_then(Value::as_bool).unwrap_or(true);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(minimized));
+            if !minimized {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            ok(json!({}))
+        }
         "app.quit" => {
             app.quit_requested = true;
             ok(json!({}))
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        "mail.suggestFolders" => filing_suggestions(app, req, p),
         other => {
             // Anything else: a command id.
             match app.execute(other, p.clone()) {
