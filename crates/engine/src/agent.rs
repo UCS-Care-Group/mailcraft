@@ -1953,6 +1953,8 @@ pub(crate) fn mark_agent_contacts(before: &Mailbox, after: &mut Mailbox) {
             None => c.emails.iter().any(|e| !e.value.trim().is_empty()),
             // A contact the agent's command replaced keeps what it was: the agent's stays the agent's
             // (the same file opened a second time brings it back unmarked, with the same addresses).
+            // Re-marking after an undo or redo of an owner-confirmed agent contact is deliberate: it errs
+            // toward not trusting.
             Some(old) if old.by_agent => true,
             Some(old) => c.emails.iter().any(|e| !e.value.trim().is_empty() && !old.emails.iter().any(|o| same(&o.value, &e.value))),
         })
