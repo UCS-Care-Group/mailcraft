@@ -1328,6 +1328,10 @@ pub struct Session {
     /// is disabled, the window offers nothing, and no move is put in a request for Gmail's API.
     /// Never saved.
     pub gmail_category_moves: bool,
+    /// Whether calendar and contacts servers (CalDAV and CardDAV, #209) are switched on: the host
+    /// reads `MAILCRAFT_DAV=1` and sets it; off, their commands are disabled and the window offers
+    /// nothing. Ships off until the feature is ready. Never saved.
+    pub dav_enabled: bool,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1450,6 +1454,7 @@ impl Session {
             interface_language: mailcraft_i18n::Lang::English,
             date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
+            dav_enabled: false,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

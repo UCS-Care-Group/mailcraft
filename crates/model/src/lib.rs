@@ -16,6 +16,7 @@ mod calendar;
 pub mod confusables;
 mod contact;
 pub mod dav;
+mod dav_server;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_tests;
@@ -67,8 +68,9 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
-pub use ews_server::{EwsServer, is_exchange_online, is_microsoft_domain, is_within};
+pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use headers::{HeaderBlock, HeaderLine};
 pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
