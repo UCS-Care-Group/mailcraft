@@ -212,6 +212,7 @@ private fun CoreShell(
             reading = pictured.reading,
             pictures = pictured.settings,
             avatars = pictured.avatars,
+            attachments = pictured.attachments,
         ),
         actions = ShellActions(
             onFolder = { _, selected -> query = MailQuery(selected.id) },
@@ -223,7 +224,7 @@ private fun CoreShell(
                 swipe = it
                 prefs.save(it)
             },
-            reading = pictures.readingActions(remember(core) { CoreLinks(core) }),
+            reading = pictured.reader.actions(),
             onPictures = pictures::changed,
             onClearPictures = pictures::clear,
         ),
@@ -273,24 +274,29 @@ private fun rememberTicks(list: MailListController): Long {
     return now
 }
 
-/** What the pictures of mail are made of, and what they currently show. */
+/** What the reading pane is made of (pictures, links, attachments), and what they currently show. */
 private class Pictured(
-    val stack: PictureStack,
+    val reader: ReadingStack,
     val reading: ReadingUi,
     val settings: PicturesUi,
     val avatars: Map<ULong, ByteArray>?,
-)
+    val attachments: AttachmentUi,
+) {
+    val stack: PictureStack get() = reader.pictures
+}
 
 @Composable
 private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
-    val stack = remember(core, list) { PictureStack(core, context, scope, list::markRead) }
+    val reader = remember(core, list) { ReadingStack(core, context, scope, list::markRead) }
+    val stack = reader.pictures
+    val attachments by reader.attachments.ui.collectAsState()
     val reading by stack.reading.ui.collectAsState()
     val avatars by stack.senderImages.images.collectAsState()
     val settings by stack.settings.collectAsState()
     // A message may have moved (to Junk, say) or been judged differently: the rows are decided again.
     val rev by remember(list) { list.ui.map { it.snapshot.rev }.distinctUntilChanged() }.collectAsState(0uL)
     LaunchedEffect(stack, rev) { stack.senderImages.revChanged(rev) }
-    return Pictured(stack, reading, settings, if (settings.prefs.senderImages) avatars else null)
+    return Pictured(reader, reading, settings, if (settings.prefs.senderImages) avatars else null, attachments)
 }
 
 /** The list screen's actions: each changes what is asked for (the query) or runs on the controller. */
