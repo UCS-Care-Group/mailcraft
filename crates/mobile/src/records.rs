@@ -97,6 +97,10 @@ pub struct EventRecord {
     pub meeting: bool,
     pub cancelled: bool,
     pub categories: Vec<String>,
+    /// Somebody else organizes it and the owner is invited: it can be answered.
+    pub invited: bool,
+    /// The owner's answer to it: `none`, `accepted`, `tentative` or `declined`.
+    pub answer: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -224,6 +228,94 @@ pub struct MessageView {
     /// Pictures on the web the message asks for (none is fetched): what the banner offering to
     /// download them counts.
     pub remote_pictures: u32,
+    /// The whole message is on the phone. When not, only its headers and preview are (the body
+    /// shows the preview): `Core::open_message` fetches it.
+    pub whole: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarRecord {
+    pub id: u64,
+    /// The account whose server keeps it; 0 for a calendar on this phone only.
+    pub account: u64,
+    pub name: String,
+    /// `0xRRGGBB`.
+    pub color: u32,
+    pub visible: bool,
+    /// Events in it can be made and changed here.
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct CalendarList {
+    pub rev: u64,
+    pub calendars: Vec<CalendarRecord>,
+    /// The calendar new events go into (0 when there is none).
+    pub current: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AttendeeRecord {
+    pub name: String,
+    pub address: String,
+    pub optional: bool,
+    /// `none`, `accepted`, `tentative` or `declined`.
+    pub response: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct RecurrenceRecord {
+    /// `daily`, `weekly`, `monthly` or `yearly`.
+    pub freq: String,
+    pub interval: u32,
+    /// `mon` to `sun`.
+    pub by_day: Vec<String>,
+    pub nth: Option<i8>,
+    pub count: Option<u32>,
+    /// `YYYY-MM-DD`.
+    pub until: Option<String>,
+}
+
+/// One event whole, as the editor and the detail page need it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventDetail {
+    pub rev: u64,
+    pub event: u64,
+    pub calendar: u64,
+    pub title: String,
+    pub location: String,
+    pub description: String,
+    /// `YYYY-MM-DDTHH:MM:SS`, or for a whole-day event `YYYY-MM-DD` (the last day included).
+    pub start: String,
+    pub end: String,
+    pub all_day: bool,
+    pub organizer: Option<AddressRecord>,
+    pub attendees: Vec<AttendeeRecord>,
+    /// `attendees` is not the whole list (more people than are handed over, or an address cut to
+    /// size): the editor must not send it back as the list, which would drop whoever is missing.
+    pub people_cut: bool,
+    pub recurrence: Option<RecurrenceRecord>,
+    pub reminder_minutes: Option<u32>,
+    pub show_as: String,
+    pub meeting: bool,
+    pub invited: bool,
+    pub answer: String,
+    pub cancelled: bool,
+    pub editable: bool,
+    /// An account's server keeps it: a change to a meeting with people invited has to say
+    /// whether they are written to (`send`).
+    pub on_server: bool,
+}
+
+/// One event whole with the start and end of one of its times, both read in one look at the
+/// calendar, so the times and the series they belong to always agree.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventOccurrence {
+    pub detail: EventDetail,
+    /// `YYYY-MM-DDTHH:MM:SS` of the time asked for, as the range gives it; `None` when the event
+    /// has no time on that day (it was moved or deleted since the row was read).
+    pub start: Option<String>,
+    pub end: Option<String>,
 }
 
 /// What a window of the message list is asked for: where, how filtered, in which of the Inbox
@@ -275,6 +367,48 @@ pub struct CategoryRecord {
 pub struct CategoryList {
     pub rev: u64,
     pub categories: Vec<CategoryRecord>,
+}
+
+/// A picture downloaded from the web: its kind told from its own bytes.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct FetchedPicture {
+    /// `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `image/x-icon` for a sender's picture only.
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+/// What the owner's rules for a sender's picture need to know about a message, from the mailbox
+/// and the server's word and nothing the sender wrote: who sent it, whether it is in Junk E-mail
+/// (or under it), whether the receiving server vouches for the sender (DMARC), and whether the
+/// owner knows the sender (a contact, or somebody mail in Sent Items went to).
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SenderFacts {
+    pub address: String,
+    pub junk: bool,
+    pub vouched: bool,
+    pub known: bool,
+}
+
+/// What a link is and where it goes, as the owner is shown it and as it is launched.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LinkTarget {
+    pub kind: LinkKind,
+    /// The address written as it is shown and launched: for a web address, the host in lower case
+    /// with international labels as Punycode, so that the host shown is the host reached.
+    pub shown: String,
+}
+
+/// The only kinds of link that are followed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum LinkKind {
+    /// `http` or `https`: to the browser.
+    Web,
+    /// `mailto`: to the composer.
+    Mail,
+    /// `tel`: to the dialer.
+    Phone,
+    /// `cid`: a part of the message itself; nothing is followed.
+    Part,
 }
 
 /// What "remove account and data" came to (`Core::delete_local_data`).

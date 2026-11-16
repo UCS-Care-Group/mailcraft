@@ -216,6 +216,10 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if place == Place::Pane && m.draft {
         draft_bar(app, ui, m);
     }
+    // One waiting in the Outbox for its Send time: when it goes, and the way to change or cancel that (#950).
+    if place == Place::Pane {
+        crate::send_later::queued_bar(app, ui, m);
+    }
     header(app, ui, m, place, |app, ui, t| {
         remote::line(app, ui, m, &doc, access, progress, place, t);
         unreadable_line(ui, m, t, app.windows.len());
