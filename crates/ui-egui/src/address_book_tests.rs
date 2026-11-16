@@ -200,6 +200,113 @@ fn people_shows_the_address_list_and_a_click_shows_the_card() {
     assert!(h.state().address_book.is_none());
 }
 
+/// Polls as typing pausing would: what can be looked up is.
+fn settle(app: &mut MailApp, ctx: &egui::Context) {
+    for _ in 0..3 {
+        app.poll_address_book(ctx);
+        if let Some(book) = &mut app.address_book {
+            book.typed.1 -= PAUSE_MS * 2.0;
+        }
+    }
+}
+
+/// Text typed in the contacts' search is not looked up when a script or an agent shows the address
+/// list later; when the owner chooses the list, what the box holds is.
+#[test]
+fn text_typed_for_the_contacts_is_not_looked_up_when_a_script_shows_the_list() {
+    let (mut app, account, asked) = window(false);
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.run("view.peopleAccount", json!({"value": "all"})).unwrap();
+    app.poll_address_book(&ctx);
+    app.type_people_search("ada");
+    settle(&mut app, &ctx);
+    app.execute("people.addressBook", json!({"account": account})).unwrap();
+    settle(&mut app, &ctx);
+    assert!(texts(&asked).is_empty());
+    // The owner chooses the list: what the box holds is looked up in it.
+    app.run("view.peopleAccount", json!({"value": "all"})).unwrap();
+    app.poll_address_book(&ctx);
+    choose_address_list(&mut app, account);
+    settle(&mut app, &ctx);
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    // A script puts something else in the box and then the owner's text again: that is no longer
+    // the owner's, and isn't looked up again.
+    app.execute("people.search", json!({"query": "bob"})).unwrap();
+    settle(&mut app, &ctx);
+    app.execute("people.search", json!({"query": "ada"})).unwrap();
+    settle(&mut app, &ctx);
+    assert_eq!(texts(&asked).len(), 1);
+}
+
+/// Text that came through the control channel (a script typing) is searched for among the
+/// contacts and not looked up.
+#[test]
+fn text_from_the_control_channel_is_not_looked_up() {
+    let (mut app, _, asked) = window(false);
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.driven = true;
+    search(&mut app, &ctx, "ada");
+    settle(&mut app, &ctx);
+    assert!(texts(&asked).is_empty());
+    assert_eq!(app.session.view.people_search, "ada");
+    app.driven = false;
+    search(&mut app, &ctx, "ada");
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+}
+
+/// Without the password, or working offline, it is said why; once that has gone, what is typed is
+/// looked up without being typed again.
+#[test]
+fn once_what_kept_it_from_asking_has_gone_it_asks() {
+    let (mut app, account, asked) = window(false);
+    let ctx = egui::Context::default();
+    app.passwords.remove(&account);
+    app.session.prefs.offline = true;
+    app.run("people.addressBook", json!({})).unwrap();
+    search(&mut app, &ctx, "ada");
+    settle(&mut app, &ctx);
+    assert!(texts(&asked).is_empty());
+    assert_eq!(app.address_book.as_ref().unwrap().error.as_deref(), Some(crate::send_receive::said().as_str()));
+    app.session.prefs.offline = false;
+    settle(&mut app, &ctx);
+    assert!(texts(&asked).is_empty());
+    assert!(app.address_book.as_ref().unwrap().error.as_deref().is_some_and(|e| e.contains("password")));
+    app.passwords.insert(account, "an invented password".into());
+    settle(&mut app, &ctx);
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    assert!(app.address_book.as_ref().unwrap().error.is_none());
+}
+
+/// A password the server turns down is forgotten, and what is typed is looked up again once
+/// another is typed.
+#[test]
+fn a_password_the_server_turns_down_is_forgotten_and_the_search_waits_for_another() {
+    let (mut app, account, _) = window(false);
+    let ctx = egui::Context::default();
+    let asked = Arc::new(Mutex::new(0usize));
+    let count = asked.clone();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        *count.lock().unwrap() += 1;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let error = Some("The server turned the password down".to_string());
+        tx.send(EwsResolveResult { account: job.request.account, error, auth_refused: true, ..Default::default() }).unwrap();
+        rx
+    }));
+    app.run("people.addressBook", json!({})).unwrap();
+    search(&mut app, &ctx, "ada");
+    settle(&mut app, &ctx);
+    assert_eq!(*asked.lock().unwrap(), 1);
+    assert!(!app.passwords.contains_key(&account) && app.jmap_refused.contains(&account));
+    assert_eq!(app.address_book.as_ref().unwrap().error.as_deref(), Some("The server turned the password down"));
+    settle(&mut app, &ctx);
+    assert_eq!(*asked.lock().unwrap(), 1, "not asked again with no password");
+    app.passwords.insert(account, "another invented password".into());
+    settle(&mut app, &ctx);
+    assert_eq!(*asked.lock().unwrap(), 2);
+}
+
 /// What a script or an agent puts in the search box is searched for among the contacts, and not
 /// looked up in the address list: only what the owner types is.
 #[test]

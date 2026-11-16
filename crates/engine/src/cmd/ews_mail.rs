@@ -86,14 +86,14 @@ fn named_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
         .ok_or_else(|| fail("no account is an Exchange server account"))
 }
 
-/// The account `account` and its server, when it is an Exchange server account whose server
-/// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
 /// Whether `account` is an Exchange server account whose server can be asked (for its address
 /// list, People's Address Book).
 pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
     ews_account(mb, account).is_ok()
 }
 
+/// The account `account` and its server, when it is an Exchange server account whose server
+/// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
 fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Exchange {

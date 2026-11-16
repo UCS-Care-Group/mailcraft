@@ -1816,9 +1816,6 @@ pub struct MailApp {
     pub(crate) resolving: Option<check_names::Resolving>,
     /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
     pub(crate) address_book: Option<address_book::AddressBook>,
-    /// What the owner typed in People's search box: only that is looked up in an address list,
-    /// never what a script or an agent put there (#1262).
-    pub(crate) people_typed: String,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -1999,7 +1996,6 @@ impl MailApp {
             free_busy: Default::default(),
             resolving: None,
             address_book: None,
-            people_typed: String::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,

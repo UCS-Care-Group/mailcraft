@@ -181,6 +181,29 @@ fn several_found_without_the_warning_are_read_the_same() {
     assert!(!found.more);
 }
 
+/// `IncludesLastItemInRange` is an `xs:boolean`: "0" says that more are left as "false" does,
+/// with or without `TotalItemsInView`.
+#[test]
+fn more_left_is_read_from_either_spelling_of_false() {
+    for (attributes, more) in [
+        ("IncludesLastItemInRange=\"0\"", true),
+        ("IncludesLastItemInRange=\"false\"", true),
+        ("IncludesLastItemInRange=\"1\"", false),
+        ("IncludesLastItemInRange=\"true\"", false),
+        ("TotalItemsInView=\"5\" IncludesLastItemInRange=\"1\"", true),
+    ] {
+        let body = format!(
+            "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:m=\"http://schemas.microsoft.com/exchange/services/2006/messages\" xmlns:t=\"http://schemas.microsoft.com/exchange/services/2006/types\"><s:Body>\
+             <m:ResolveNamesResponse><m:ResponseMessages><m:ResolveNamesResponseMessage ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>\
+             <m:ResolutionSet {attributes}><t:Resolution><t:Mailbox><t:Name>Chris</t:Name><t:EmailAddress>chris@example.org</t:EmailAddress>\
+             <t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Resolution></m:ResolutionSet></m:ResolveNamesResponseMessage></m:ResponseMessages></m:ResolveNamesResponse></s:Body></s:Envelope>"
+        );
+        let reply = Reply::judge(&HttpResponse::new(200, body.into_bytes()), 1 << 20).unwrap();
+        let found = ResolveNames::new("chris").unwrap().answer(&reply).unwrap();
+        assert_eq!((found.candidates.len(), found.more), (1, more), "{attributes}");
+    }
+}
+
 /// A phone number is kept only when it is written as one: not a link, a script, a line of words
 /// or a number of great length; the office is one line of bounded length.
 #[test]

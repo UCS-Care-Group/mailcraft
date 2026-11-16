@@ -116,11 +116,13 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
-/// A contact just made or picked is in view: where the list doesn't show it, the list moves to it,
-/// and a search that would leave it out is cleared, so its row is there beside its card.
+/// A contact just made or picked is in view: People shows the contacts (not an address list),
+/// where the list doesn't show it, the list moves to it, and a search that would leave it out is
+/// cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
     let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
+    s.view.people_book = None;
     let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
     if hidden {
         s.view.people_account = choice;

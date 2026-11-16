@@ -37,6 +37,11 @@ fn people_shows_an_exchange_server_accounts_address_list_until_the_contacts_are_
     s.run("view.peopleAccount", &json!({"value": "all"})).unwrap();
     assert_eq!(shown_book(&s), None);
 
+    // A contact made while the address list is shown (Add to Contacts) is shown among the contacts.
+    s.run("people.addressBook", &json!({"account": second})).unwrap();
+    s.run("people.new", &json!({"first": "Grace", "last": "Hopper", "email": "grace@example.org"})).unwrap();
+    assert_eq!(shown_book(&s), None);
+
     // An account that goes takes its address list along.
     s.run("people.addressBook", &json!({"account": second})).unwrap();
     s.run("account.remove", &json!({"id": second})).unwrap();

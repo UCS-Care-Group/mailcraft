@@ -47,6 +47,20 @@ pub(crate) struct AddressBook {
     pending: Option<Pending>,
     /// What the search box held when it was last seen to change, and when.
     typed: (String, f64),
+    /// What the owner typed in the search box while this list was shown (or held there when they
+    /// chose it): only that is looked up, and only while the box still holds it.
+    owner: String,
+    /// What kept it from asking, said in `error`: once that has gone, it asks again.
+    blocked: Option<Blocked>,
+}
+
+/// What can keep the Address Book from asking, and go by itself.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Blocked {
+    /// Work Offline is on.
+    Offline,
+    /// There is no password at hand, or the server turned it down.
+    Password,
 }
 
 /// A look-up under way, for `query`.
@@ -74,6 +88,8 @@ impl AddressBook {
             selected: None,
             pending: None,
             typed: (String::new(), 0.0),
+            owner: String::new(),
+            blocked: None,
         }
     }
 
@@ -89,14 +105,16 @@ impl AddressBook {
 
     fn clear(&mut self) {
         (self.query, self.people, self.more, self.error, self.selected, self.pending) = (String::new(), Vec::new(), false, None, None, None);
+        self.blocked = None;
     }
 }
 
-/// The text the search box holds, as it would be looked up, when the owner typed it; else nothing
-/// (a search a script or an agent put in the box is not looked up).
+/// The text the search box holds, as it would be looked up, when the owner typed it for the list
+/// shown; else nothing (a search a script or an agent put in the box is not looked up).
 fn search_text(app: &MailApp) -> String {
     let typed = one_line(&app.session.view.people_search, MAX_RESOLVE_TEXT);
-    if typed == one_line(&app.people_typed, MAX_RESOLVE_TEXT) { typed } else { String::new() }
+    let owner = app.address_book.as_ref().map(|book| one_line(&book.owner, MAX_RESOLVE_TEXT));
+    if owner.as_deref() == Some(typed.as_str()) { typed } else { String::new() }
 }
 
 impl MailApp {
@@ -105,10 +123,19 @@ impl MailApp {
         (self.session.view.module == Module::People).then(|| people::shown_book(&self.session)).flatten()
     }
 
-    /// `text` typed by the owner in People's search box: the contacts are searched for it, and an
-    /// address list that is shown is asked for it.
+    /// `text` typed in People's search box: the contacts are searched for it, and an address list
+    /// that is shown is asked for it when the owner typed it (not the control channel's input).
     pub fn type_people_search(&mut self, text: &str) {
-        self.people_typed = text.to_string();
+        if !self.driven
+            && let Some(account) = self.address_book_shown()
+        {
+            let opening = self.session.openings();
+            let book = self.address_book.get_or_insert_with(|| AddressBook::new(account, opening));
+            if book.account != account || book.opening != opening {
+                *book = AddressBook::new(account, opening);
+            }
+            book.owner = text.to_string();
+        }
         let _ = self.execute("people.search", json!({"query": text}));
     }
 
@@ -126,11 +153,24 @@ impl MailApp {
         };
         let opening = self.session.openings();
         let now = crate::now_ms();
-        let typed = search_text(self);
-        let book = self.address_book.get_or_insert_with(|| AddressBook::new(account, opening));
-        if book.account != account || book.opening != opening {
-            *book = AddressBook::new(account, opening);
+        if self.address_book.as_ref().is_none_or(|book| book.account != account || book.opening != opening) {
+            self.address_book = Some(AddressBook::new(account, opening));
         }
+        // The box holds something else than the owner typed (a script changed it): what they typed
+        // no longer counts.
+        if let Some(book) = &mut self.address_book
+            && one_line(&book.owner, MAX_RESOLVE_TEXT) != one_line(&self.session.view.people_search, MAX_RESOLVE_TEXT)
+        {
+            book.owner.clear();
+        }
+        let typed = search_text(self);
+        let ready = match self.address_book.as_ref().and_then(|book| book.blocked) {
+            Some(Blocked::Offline) => !self.offline(),
+            Some(Blocked::Password) => self.ews_secret(account).is_some(),
+            None => false,
+        };
+        let mut refused = false;
+        let Some(book) = &mut self.address_book else { return };
         if let Some(pending) = &book.pending {
             match pending.rx.try_recv() {
                 Ok(result) => {
@@ -145,6 +185,8 @@ impl MailApp {
                     book.selected = (book.people.len() == 1).then_some(0);
                     book.query = query;
                     book.pending = None;
+                    refused = result.auth_refused;
+                    book.blocked = refused.then_some(Blocked::Password);
                 }
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
@@ -154,6 +196,16 @@ impl MailApp {
                 }
             }
         }
+        // What kept it from asking has gone (Work Offline is off, the password was typed): what is
+        // typed is asked for again.
+        if ready && book.pending.is_none() {
+            (book.blocked, book.error) = (None, None);
+            book.query.clear();
+        }
+        if refused {
+            self.ews_password_refused(account);
+        }
+        let Some(book) = &mut self.address_book else { return };
         if typed != book.typed.0 {
             book.typed = (typed.clone(), now);
         }
@@ -174,22 +226,28 @@ impl MailApp {
         if let Some(book) = &mut self.address_book {
             match started {
                 Ok(pending) => book.pending = Some(pending),
-                Err(error) => {
-                    // Said, and not asked again until something else is typed.
+                Err((error, blocked)) => {
+                    // Said, and not asked again until something else is typed, or what kept it
+                    // from asking has gone.
                     (book.query, book.people, book.more, book.selected, book.pending) = (typed, Vec::new(), false, None, None);
-                    book.error = Some(error);
+                    (book.error, book.blocked) = (Some(error), blocked);
                 }
             }
         }
     }
 
-    fn start_address_book(&mut self, account: Id, typed: &str) -> Result<Pending, String> {
-        let request = ews_resolve_request_for(&self.session, account, &[typed.to_string()]).map_err(|e| tl!(&e.to_string()).to_string())?;
+    /// The look-up of `typed`, or what keeps it from being asked, and what that is when it can go
+    /// by itself (working offline, no password).
+    fn start_address_book(&mut self, account: Id, typed: &str) -> Result<Pending, (String, Option<Blocked>)> {
+        if self.offline() {
+            return Err((crate::send_receive::said(), Some(Blocked::Offline)));
+        }
+        let request = ews_resolve_request_for(&self.session, account, &[typed.to_string()]).map_err(|e| (tl!(&e.to_string()).to_string(), None))?;
         let Some(resolve) = &self.services.ews_resolve else {
-            return Err(tl!("This version of MailCraft can't search an address list").to_string());
+            return Err((tl!("This version of MailCraft can't search an address list").to_string(), None));
         };
         let Some(secret) = self.ews_secret(account) else {
-            return Err(tl!("The account's password is needed first: press Send/Receive and type it").to_string());
+            return Err((tl!("The account's password is needed first: press Send/Receive and type it").to_string(), Some(Blocked::Password)));
         };
         let cancel = Arc::new(AtomicBool::new(false));
         let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
@@ -263,10 +321,18 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
         Some(Book::Contacts(choice)) => {
             let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
         }
-        Some(Book::List(account)) => {
-            let _ = app.run("people.addressBook", json!({"account": account}));
-        }
+        Some(Book::List(account)) => choose_address_list(app, account),
         None => {}
+    }
+}
+
+/// The owner chose `account`'s address list in People: what the search box holds as they choose
+/// is looked up in it.
+pub(crate) fn choose_address_list(app: &mut MailApp, account: Id) {
+    if app.run("people.addressBook", json!({"account": account})).is_ok() {
+        let mut book = AddressBook::new(account, app.session.openings());
+        book.owner = app.session.view.people_search.clone();
+        app.address_book = Some(book);
     }
 }
 

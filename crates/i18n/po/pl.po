@@ -76,6 +76,12 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr "„{name}” jest przechowywany na serwerze: {who}. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu scalić."
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr "„{name}” nie ma już w wierszach adresatów"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
@@ -1029,8 +1035,9 @@ msgstr "Dodane przez nowszą wersję programu MailCraft: wysyłaj i odbieraj poc
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Added to Contacts"
-msgstr ""
+msgstr "Dodano do kontaktów"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
@@ -1040,25 +1047,31 @@ msgstr "Adres"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Address\n"
 "Book"
 msgstr ""
+"Książka\n"
+"adresowa"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Address Book"
-msgstr ""
+msgstr "Książka adresowa"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Address list"
-msgstr ""
+msgstr "Lista adresów"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Address list · {account}"
-msgstr ""
+msgstr "Lista adresów · {account}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1170,8 +1183,9 @@ msgstr "Cała poczta i wszystkie konta przechowywane na tym telefonie zostaną u
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "All names are checked"
-msgstr ""
+msgstr "Wszystkie nazwy zostały sprawdzone"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -3365,8 +3379,9 @@ msgstr "Karta kontaktu"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Contacts"
-msgstr ""
+msgstr "Kontakty"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4333,8 +4348,9 @@ msgstr "Nazwa wyświetlana"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Distribution list"
-msgstr ""
+msgstr "Lista dystrybucyjna"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5822,8 +5838,9 @@ msgstr "Spoza Twojej organizacji."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr ""
+msgstr "Z listy adresów organizacji konta {account}. Wyświetlane podczas wyszukiwania i nie zachowywane: „Dodaj do kontaktów” zachowuje kopię na tym komputerze."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -6219,8 +6236,9 @@ msgstr "Gravatar jest pytany o obraz nadawcy i otrzymuje skrót jego adresu; w p
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Group"
-msgstr ""
+msgstr "Grupa"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -7802,13 +7820,15 @@ msgstr "Wyszukiwanie serwera Exchange…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up in the organisation's address list…"
-msgstr ""
+msgstr "Wyszukiwanie nazw na liście adresów organizacji…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr ""
+msgstr "Wyszukiwanie nazw nieoczekiwanie się zatrzymało"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -8866,8 +8886,9 @@ msgstr "Na razie nie można poprosić o więcej wyników z serwera"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "More than one person matches \"{name}\". Choose one:"
-msgstr ""
+msgstr "Do „{name}” pasuje więcej niż jedna osoba. Wybierz jedną:"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -9841,8 +9862,9 @@ msgstr "Nikt nie zaproponował innego terminu."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
-msgstr ""
+msgstr "Nikt z listy adresów nie pasuje"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -9864,8 +9886,9 @@ msgstr "Nikt nie pasuje do wyszukiwania"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Nobody matches: {names}"
-msgstr ""
+msgstr "Brak dopasowań: {names}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -10004,6 +10027,12 @@ msgstr "Brak na liście Outlooka: nie ma tam koloru"
 #, fuzzy
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Jeszcze nigdzie niezachowane: użyj Otwórz i eksportuj › Zapisz skrzynkę pocztową jako."
+
+#. interface
+#: crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Not looked up in the address list: {names}"
+msgstr "Nie wyszukano na liście adresów: {names}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -10529,8 +10558,9 @@ msgstr "Jest tu tylko początek tej wiadomości. Reszta zostanie pobrana przy na
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr ""
+msgstr "Wyświetlono tylko pierwsze {n}: wpisz więcej liter nazwy, aby znaleźć kogoś innego."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -11018,8 +11048,9 @@ msgstr "Poza moją organizacją (włączone)"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Outside the organisation"
-msgstr ""
+msgstr "Spoza organizacji"
 
 #. name
 #: crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -11565,8 +11596,9 @@ msgstr "Klucze publiczne"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Public folder"
-msgstr ""
+msgstr "Folder publiczny"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13070,8 +13102,9 @@ msgstr "Szukaj osób"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "Search the address list"
-msgstr ""
+msgstr "Przeszukaj listę adresów"
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -13081,8 +13114,9 @@ msgstr "Szukaj stref czasowych"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr ""
+msgstr "Przeszukiwanie listy adresów nieoczekiwanie się zatrzymało"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -13092,8 +13126,9 @@ msgstr "Przeszukiwanie serwera…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching…"
-msgstr ""
+msgstr "Wyszukiwanie…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13193,8 +13228,9 @@ msgstr "Najpierw zaznacz jakiś tekst"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Select somebody to see the details"
-msgstr ""
+msgstr "Wybierz kogoś, aby zobaczyć szczegóły"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -15405,9 +15441,10 @@ msgid "The account {address} is opened through is gone."
 msgstr "Konto, przez które otwarto {address}, już nie istnieje."
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr ""
+msgstr "Najpierw potrzebne jest hasło konta: naciśnij Wyślij/Odbierz i wpisz je"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -15453,8 +15490,9 @@ msgstr "Serwer konta tworzy je po wysłaniu spotkania; łącze do dołączenia w
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr ""
+msgstr "Lista adresów zawiera więcej osób o tej nazwie, niż pokazuje: wpisz więcej liter, aby znaleźć kogoś spoza listy."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -17819,8 +17857,9 @@ msgstr "Ten system nie ma miejsca znanego programowi MailCraft dla certyfikatów
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "This version of MailCraft can't search an address list"
-msgstr ""
+msgstr "Ta wersja MailCraft nie może przeszukiwać listy adresów"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -18264,8 +18303,9 @@ msgstr "Typ"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Type a name in the search box to search the organisation's address list"
-msgstr ""
+msgstr "Wpisz nazwę w polu wyszukiwania, aby przeszukać listę adresów organizacji"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19126,8 +19166,9 @@ msgstr "Praca offline: wysyłane wiadomości czekają w Skrzynce nadawczej"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Workplace"
-msgstr ""
+msgstr "Miejsce pracy"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -19935,8 +19976,9 @@ msgstr "zadanie wymaga tytułu"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "add an Exchange server account first: its organisation's address list is searched"
-msgstr ""
+msgstr "najpierw dodaj konto serwera Exchange: przeszukiwana jest lista adresów jego organizacji"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -23408,11 +23450,12 @@ msgstr[2] "{n} folderów"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} found in the address list"
 msgid_plural "{n} found in the address list"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} znaleziony na liście adresów"
+msgstr[1] "{n} znalezione na liście adresów"
+msgstr[2] "{n} znalezionych na liście adresów"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs

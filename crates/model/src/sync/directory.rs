@@ -17,6 +17,8 @@ use crate::{Address, Id, MAX_ADDRESS};
 
 /// The most names one request looks up.
 pub const MAX_RESOLVE_TEXTS: usize = 10;
+/// The most names one Check Names looks up, [`MAX_RESOLVE_TEXTS`] a request.
+pub const MAX_CHECK_NAMES: usize = 50;
 /// The most people kept for one name.
 pub const MAX_RESOLVE_PEOPLE: usize = 100;
 /// The longest text looked up, in characters.
@@ -73,10 +75,17 @@ impl DirectoryPerson {
     /// The person as hostile data is to be taken: `None` when the address isn't one mail can go to;
     /// else every field one line and bounded.
     pub fn checked(self) -> Option<Self> {
-        let email = one_line(&self.email, MAX_ADDRESS.saturating_add(1));
-        let address = Address::new(one_line(&self.name, MAX_FIELD), email.as_str());
-        let odd = email.contains([',', ';', '<', '>', '"', '(', ')', ' ']) || email.matches('@').count() != 1;
-        if !address.is_valid() || odd || email.chars().count() > MAX_ADDRESS {
+        // The whole address is judged before anything of it is cut: a good address with more after
+        // it is no address.
+        let email = self.email.trim();
+        let odd = email.contains([',', ';', '<', '>', '"', '(', ')'])
+            || email.contains(|c: char| c.is_whitespace() || c.is_control())
+            || email.matches('@').count() != 1;
+        if odd || email.chars().nth(MAX_ADDRESS).is_some() {
+            return None;
+        }
+        let address = Address::new(one_line(&self.name, MAX_FIELD), email);
+        if !address.is_valid() {
             return None;
         }
         Some(Self {

@@ -165,7 +165,8 @@ impl ResolveNames {
         }
         let last = set.attribute("IncludesLastItemInRange").map(str::trim);
         let total = set.attribute("TotalItemsInView").and_then(|n| n.trim().parse::<usize>().ok());
-        out.more |= last == Some("false") || total.is_some_and(|total| total > read);
+        // An `xs:boolean`: "0" is false as well.
+        out.more |= matches!(last, Some("false" | "0")) || total.is_some_and(|total| total > read);
         Ok(out)
     }
 }

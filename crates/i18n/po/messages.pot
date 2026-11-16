@@ -64,6 +64,11 @@ msgid "\"{name}\" is kept by the server of {who}. Changes made here are not sent
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "\"{name}\" is no longer on the recipient lines"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"
 msgstr ""
@@ -8276,6 +8281,11 @@ msgstr ""
 msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/check_names.rs
+msgid "Not looked up in the address list: {names}"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 msgid "Not much room on this phone"
@@ -12748,7 +12758,7 @@ msgid "The account {address} is opened through is gone."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "The account's password is needed first: press Send/Receive and type it"
 msgstr ""
 
