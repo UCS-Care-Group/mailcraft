@@ -168,7 +168,7 @@ pub fn erase(roots: &Roots, mailbox: Option<&Path>) -> WipeReport {
         // The file, and what sits beside it (its content folder and word index): all private
         // mail, all left, all said.
         report.left.push((file.display().to_string(), Why::KeptByOwner));
-        for beside in [mailcraft_engine::store::blob_dir(file), mailcraft_engine::store::words_file(file)] {
+        for beside in [mailcraft_engine::store::blob_dir(file), mailcraft_engine::store::words_file(file), mailcraft_engine::store::dav_dir(file)] {
             if fs::symlink_metadata(&beside).is_ok() {
                 report.left.push((beside.display().to_string(), Why::KeptByOwner));
             }

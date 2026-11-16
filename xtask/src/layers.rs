@@ -84,8 +84,9 @@ pub const TABLE: &[(&str, Class)] = &[
 /// Explicit orderings *within* a layer (earlier may be used by later): the socket transport
 /// (`net`) drives the protocol state machines (`proto`), and web addresses (`link`) refuse the
 /// format characters of the one list (`names`), and the mailbox's messages (`mime-model`) are read
-/// and written by the reader that knows nothing of a mailbox (`mime`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["mime", "mime-model"]];
+/// and written by the reader that knows nothing of a mailbox (`mime`), and the socket transport
+/// (`net`) runs the calendar server requests that `dav` builds without any (#209).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["dav", "net"], &["names", "link"], &["mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

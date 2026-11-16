@@ -102,6 +102,17 @@ fn missing_properties_are_not_deletions() {
 }
 
 #[test]
+fn a_member_with_an_empty_or_unusable_etag_is_still_a_member_without_one() {
+    let long = "x".repeat(crate::request::MAX_TOKEN + 1);
+    for etag in [String::new(), long] {
+        let m = ms(&prop("/cal/owner/a.ics", &format!("<d:getetag>{etag}</d:getetag>")));
+        assert_eq!(m.members().count(), 1, "it must not vanish and look gone");
+        assert!(m.entries[0].etag.is_none());
+        assert_eq!(m.skipped, 0);
+    }
+}
+
+#[test]
 fn tokens_etags_names_colours_and_data_are_bounded() {
     let long = "x".repeat(crate::request::MAX_TOKEN + 1);
     assert_eq!(
@@ -113,8 +124,8 @@ fn tokens_etags_names_colours_and_data_are_bounded() {
         prop("/cal/owner/a.ics", &format!("<d:getetag>{long}</d:getetag>")),
         prop("/cal/owner/b.ics", "<d:getetag></d:getetag>")
     ));
-    assert!(m.entries.is_empty());
-    assert_eq!(m.skipped, 2);
+    // (Members without an ETag they can be compared by, not dropped: a drop looks like a deletion.)
+    assert!(m.entries.iter().all(|e| e.etag.is_none()) && m.entries.len() == 2);
     let name = "é".repeat(500);
     let e = ms(&prop("/a/", &format!("<d:displayname>{name}</d:displayname><cs:getctag>{long}</cs:getctag>"))).entries.remove(0);
     assert_eq!(e.display_name.unwrap().chars().count(), MAX_NAME);

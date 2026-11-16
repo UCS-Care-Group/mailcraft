@@ -76,6 +76,9 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+mod dav_job;
+#[cfg(test)]
+mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
 #[cfg(test)]
@@ -277,6 +280,7 @@ use serde_json::{Value, json};
 
 pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
+pub use dav_job::{DavDone, DavJob};
 pub use files::FileDialogRequest;
 pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
@@ -499,6 +503,12 @@ pub struct Services {
     /// arrives through the channel and the host wakes the UI. Absent in the browser and the
     /// tests: subscribed calendars are then listed with what they held and not updated.
     pub subscription: Option<Box<dyn Fn(SubscriptionJob) -> Receiver<SubscriptionDone>>>,
+    /// Desktop: read an account's calendars from its CalDAV server (#209, `mailcraft_net::dav::look`),
+    /// on a background thread, when `MAILCRAFT_DAV=1` and the account is due. The job holds the
+    /// account's passwords by origin; the host sends one only in answer to that origin's own
+    /// challenge, over TLS, to the pinned certificate when one is set. Absent in the browser and
+    /// the tests.
+    pub dav: Option<Box<dyn Fn(DavJob) -> Receiver<DavDone>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -1619,6 +1629,8 @@ pub struct MailApp {
     open_shared: open_shared::OpenShared,
     /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
     subscribed: subscribed::Subscribed,
+    /// Reading an account's calendars from its CalDAV server ([`dav_job`]).
+    dav: dav_job::DavSync,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1905,6 +1917,7 @@ impl MailApp {
             auto_replies: Default::default(),
             open_shared: Default::default(),
             subscribed: Default::default(),
+            dav: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
@@ -3021,11 +3034,10 @@ impl MailApp {
     }
 
     /// Whether the entry under `key` is waiting to be removed from the credential store, or is
-    /// being removed. **Every write of a calendar and contacts password to the store must ask
-    /// this first** (D5 wires it in): a write for a name with a forget pending would be removed
+    /// being removed. **Every write of a calendar and contacts password to the store, or into
+    /// [`MailApp::dav_passwords`], must ask this first** ([`MailApp::hold_dav_password`] does): a write for a name with a forget pending would be removed
     /// along with the old password, so it waits until the forget has completed
     /// ([`poll_dav_forgetting`](Self::poll_dav_forgetting)), or is queued again then.
-    #[allow(dead_code)] // D5's writes call it; until then only the tests do
     pub(crate) fn dav_forget_pending(&self, key: &str) -> bool {
         self.dav_forget_queue.iter().any(|k| k == key) || self.dav_forgetting.iter().any(|(_, keys)| keys.iter().any(|k| k == key))
     }
@@ -4945,6 +4957,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The calendars subscribed to, when they are due ([`subscribed`]).
             self.subscribed_tick();
+            // The calendars of a calendar server, when they are due ([`dav_job`]).
+            self.dav_tick();
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
