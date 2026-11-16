@@ -653,8 +653,8 @@ pub struct EventFields {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wall: Option<EventWall>,
     /// With `time`, for a timed event that has zones of its own ([`Event::start_zone`]): their
-    /// names, for the server to keep the event in. `None` for an event without: it is told as
-    /// it always was (instants, and for a series the clock here).
+    /// names, for the server to keep the event in. `None` for an event without: it is told by
+    /// the clock here ([`EventsUpload::zone`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zones: Option<EventZones>,
     /// How it repeats: for a new series, and for one whose rule or first day changed.
@@ -880,9 +880,9 @@ pub struct EventsUpload {
     pub email: String,
     pub ops: Vec<EventOp>,
     /// The zone the calendar is shown in, by its name (`Europe/Berlin`): the zone the days of a
-    /// whole-day event are days in, and the zone whose clock a series without a zone of its own
-    /// is told by ([`EventFields::wall`]). Empty when it has no name; whoever carries the upload
-    /// out then uses what it knows of this computer's zone.
+    /// whole-day event are days in, and the zone whose clock an event without a zone of its own
+    /// is told by (a series by its clock times, [`EventFields::wall`]). Empty when it has no
+    /// name; whoever carries the upload out then uses what it knows of this computer's zone.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub zone: String,
 }
