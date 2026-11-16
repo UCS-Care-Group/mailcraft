@@ -27,6 +27,8 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
     var thinCalls = 0
     var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
     var setCalls = 0
+    var setGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    var capGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     override fun codes() = OFFLINE_CODES
 
@@ -34,6 +36,7 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
 
     override suspend fun setKeepOffline(account: ULong, code: String): WindowChange? {
         setCalls++
+        setGate?.await()
         if (refuse) return null
         val shorter = OFFLINE_CODES.indexOf(code) < OFFLINE_CODES.indexOf(windows[account])
         windows[account] = code
@@ -71,6 +74,7 @@ private class FakeSettings(var free: Long = 50 * GIB) : SettingsApi {
     }
 
     override suspend fun setStorageCap(megabytes: Long): StorageUse? {
+        capGate?.await()
         if (refuse) return null
         storage = storage.copy(capMb = megabytes)
         return storage
@@ -338,6 +342,53 @@ class SettingsControllerTest {
         api.refuse = false
         c.actions().onStorageCap(2048)
         assertFalse(c.ui.value.storageFailed)
+    }
+
+    @Test
+    fun aCapChosenWhileAnotherIsGoingThroughIsNotLost() {
+        val api = FakeSettings().apply { capGate = kotlinx.coroutines.CompletableDeferred() }
+        val c = controller(api)
+        c.actions().onStorageShown()
+        c.actions().onStorageCap(1024)
+        // The first is still waiting: the cap shown is the old one, and the way back to it is chosen.
+        c.actions().onStorageCap(500)
+        api.capGate?.complete(Unit)
+        assertEquals(500L, api.storage.capMb)
+        assertEquals(500L, c.ui.value.storage?.capMb)
+    }
+
+    @Test
+    fun aWindowChosenWhileAnotherIsGoingThroughIsNotLost() {
+        val api = FakeSettings().apply { setGate = kotlinx.coroutines.CompletableDeferred() }
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onKeepOffline(ada, "3m")
+        c.actions().onKeepOffline(ada, "1m")
+        api.setGate?.complete(Unit)
+        assertEquals("1m", api.windows[1uL])
+        assertEquals("1m", c.ui.value.keepOffline[1uL])
+    }
+
+    @Test
+    fun aLongerWindowEndsTheThinningOfAnEarlierShorterOne() {
+        val api = FakeSettings().apply { gate = kotlinx.coroutines.CompletableDeferred() }
+        val c = controller(api)
+        c.actions().onShown(listOf(ada))
+        c.actions().onKeepOffline(ada, "3d")
+        assertEquals(true, c.ui.value.thinning)
+        c.actions().onKeepOffline(ada, "3m")
+        assertEquals(false, c.ui.value.thinning)
+        assertEquals("3m", c.ui.value.keepOffline[1uL])
+    }
+
+    @Test
+    fun aSignatureIsCutByCharactersAndNeverInTheMiddleOfOne() {
+        val c = controller(FakeSettings())
+        c.actions().onShown(listOf(ada))
+        c.actions().onSignatureDraft(ada, "a".repeat(MAX_SIGNATURE - 1) + "\uD83D\uDE00tail")
+        val draft = c.ui.value.signatures.getValue(1uL).draft
+        assertEquals(MAX_SIGNATURE, draft.codePointCount(0, draft.length))
+        assertTrue(draft.endsWith("\uD83D\uDE00"))
     }
 
     @Test

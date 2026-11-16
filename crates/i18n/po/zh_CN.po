@@ -15476,7 +15476,7 @@ msgstr "发件人列表已满：在“文件” › “选项”中删除一些�
 #: crates/mobile/src/core.rs
 #, fuzzy
 msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
-msgstr "此手机上保存的登录信息列表已损坏，因此可能仍保留一些较早的登录信息。您可以在手机中 MailCraft 的设置里清除其保存的内容。"
+msgstr "此手机上保存的登录信息列表已损坏，因此可能仍保留一些较早的登录信息。您可以在手机系统设置中的 MailCraft 应用设置里清除其保存的内容。"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs

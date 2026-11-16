@@ -248,9 +248,7 @@ impl Core {
             let a = s.mailbox.account(account).ok_or_else(|| bad("there is no such account"))?;
             let sig = s.mailbox.signature(&a.signature);
             Ok(match sig {
-                Some(sig) => {
-                    AccountSignature { text: text::clip(&sig.plain(), MAX_SIGNATURE), editable: sig.html().is_none() && sig.pictures().is_empty() }
-                }
+                Some(sig) => AccountSignature { text: text::clip(&sig.plain(), MAX_SIGNATURE), editable: is_plain(sig) },
                 None => AccountSignature { text: String::new(), editable: true },
             })
         })
@@ -259,24 +257,38 @@ impl Core {
 
     /// Make `text` the signature of `account` for new messages, replies and forwards, or none when
     /// it is only white space. The signature is named by the account's address, unless the account
-    /// already uses one by another name, which is edited as it is.
+    /// already uses one by another name that no other account uses, which is edited as it is; one
+    /// that others use is left to them and the account gets its own, by its address. A signature
+    /// with a picture, its own layout, formatting or a link is never replaced by plain text.
     pub async fn set_account_signature(&self, account: u64, text: String) -> Result<(), CoreError> {
         if text.chars().count() > MAX_SIGNATURE {
             return Err(bad("the signature is too long"));
         }
         self.call(move |s| {
             let a = s.mailbox.account(account).ok_or_else(|| bad("there is no such account"))?;
-            let name = if s.mailbox.signature(&a.signature).is_some() { a.signature.clone() } else { a.email.clone() };
+            let current = s.mailbox.signature(&a.signature);
+            if current.is_some_and(|old| !is_plain(old)) {
+                return Err(bad("that signature has a picture, formatting, a link or its own layout; change it on the computer"));
+            }
+            let (own, email) = (a.signature.clone(), a.email.clone());
+            let shared = current.is_some() && used_by_others(&s.mailbox, &own, account);
+            let name = if current.is_some() && !(shared && !email.trim().is_empty()) { own.clone() } else { email };
             if name.trim().is_empty() {
                 return Err(bad("the account has no address to name the signature by"));
             }
             if let Some(old) = s.mailbox.signature(&name)
-                && (old.html().is_some() || !old.pictures().is_empty())
+                && !is_plain(old)
             {
-                return Err(bad("that signature has a picture or its own layout; change it on the computer"));
+                return Err(bad("that signature has a picture, formatting, a link or its own layout; change it on the computer"));
             }
             if text.trim().is_empty() {
-                if s.mailbox.signature(&name).is_some() {
+                // None for new messages and for replies alike, and the signature itself goes
+                // unless another account has it.
+                let has = !a.signature.trim().is_empty() || !a.reply_signature().trim().is_empty();
+                if has {
+                    s.run("signature.defaults", &json!({"account": account, "new": "", "reply": ""}))?;
+                }
+                if s.mailbox.signature(&name).is_some() && !used_by_others(&s.mailbox, &name, account) {
                     s.run("signature.remove", &json!({"name": name}))?;
                 }
                 return Ok(());
@@ -286,4 +298,14 @@ impl Core {
         })
         .await
     }
+}
+
+/// Whether an account other than `but` starts new messages or replies with the signature `name`.
+fn used_by_others(mailbox: &mailcraft_model::Mailbox, name: &str, but: u64) -> bool {
+    mailbox.accounts.iter().any(|o| o.id != but && (o.signature.eq_ignore_ascii_case(name) || o.reply_signature().eq_ignore_ascii_case(name)))
+}
+
+/// Whether a signature is only plain text, which is all the phone's editor can keep.
+fn is_plain(sig: &mailcraft_model::Signature) -> bool {
+    sig.html().is_none() && sig.pictures().is_empty() && !sig.body().has_formatting()
 }

@@ -24,10 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -40,9 +36,14 @@ private val IconBox = 24.dp
 
 /** About: the version, the licences of what is bundled, and the privacy statement. */
 @Composable
-internal fun AboutScreenPage(texts: Texts, version: String, actions: SettingsActions, startOnLicences: Boolean = false) {
-    var licences by rememberSaveable { mutableStateOf(startOnLicences) }
-    BackHandler(enabled = licences) { licences = false }
+internal fun AboutScreenPage(
+    texts: Texts,
+    version: String,
+    actions: SettingsActions,
+    licences: Boolean = false,
+    onLicences: (Boolean) -> Unit = {},
+) {
+    BackHandler(enabled = licences) { onLicences(false) }
     if (licences) {
         LicencesPage(texts)
         return
@@ -63,7 +64,7 @@ internal fun AboutScreenPage(texts: Texts, version: String, actions: SettingsAct
         )
     }
     HorizontalDivider()
-    LinkRow(texts.t("Licences"), texts.t("What is bundled in this app, and under which licence")) { licences = true }
+    LinkRow(texts.t("Licences"), texts.t("What is bundled in this app, and under which licence")) { onLicences(true) }
     LinkRow(texts.t("Privacy"), texts.t("What MailCraft sends, and to whom")) { actions.onOpenLink(PRIVACY_URL) }
 }
 
@@ -183,5 +184,7 @@ internal fun RemovalDialogs(texts: Texts, removal: Removal, actions: SettingsAct
 
 @Composable
 internal fun SpaceDialog(texts: Texts, ask: SpaceAsk, actions: SettingsActions) {
-    Dialog(onDismissRequest = actions.onSpaceNo) { SpaceCard(texts, ask, actions) }
+    Dialog(onDismissRequest = actions.onSpaceNo) {
+        Box(modifier = Modifier.verticalScroll(rememberScrollState())) { SpaceCard(texts, ask, actions) }
+    }
 }

@@ -69,7 +69,7 @@ internal object SettingsShots {
     @Composable
     fun Licences() = Themed {
         androidx.compose.foundation.layout.Column {
-            AboutScreenPage(EnglishTexts, "0.12.0", SettingsActions(), startOnLicences = true)
+            AboutScreenPage(EnglishTexts, "0.12.0", SettingsActions(), licences = true)
         }
     }
 

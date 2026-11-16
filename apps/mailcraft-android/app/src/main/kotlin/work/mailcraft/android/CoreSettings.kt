@@ -85,6 +85,7 @@ internal fun freeBytesAt(dir: File): Long =
 /** Tells the core the phone's switches that change what it raises (the notification privacy switch). */
 internal fun followSwitches(core: Core, switches: Switches) {
     runCatching { core.setNotifyNewMailOnly(switches.newMailOnly) }
+    runCatching { core.setNotifyPrimaryOnly(switches.primaryOnly) }
 }
 
 internal fun DeviceStorage.toUse() = StorageUse(

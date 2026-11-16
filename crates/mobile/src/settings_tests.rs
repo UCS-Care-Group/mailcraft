@@ -156,9 +156,49 @@ fn a_signature_of_another_name_is_edited_as_it_is_and_a_rich_one_is_left_alone()
     // One with its own layout is shown but never flattened.
     exec(&core, "signature.html", json!({"name": "Work", "html": "<p>Ada <b>in bold</b></p><table><tr><td>x</td></tr></table>"}));
     let shown = block_on(core.account_signature(ada)).unwrap();
-    if !shown.editable {
-        assert!(matches!(block_on(core.set_account_signature(ada, "flat".into())), Err(CoreError::BadRequest { .. })));
-    }
+    assert!(!shown.editable);
+    assert!(matches!(block_on(core.set_account_signature(ada, "flat".into())), Err(CoreError::BadRequest { .. })));
+}
+
+#[test]
+fn a_signature_with_a_link_or_formatting_is_not_flattened() {
+    let core = sample_core();
+    let ada = microsoft(&core, "ada@example.org");
+    let html = "<p>Ada <b>in bold</b> at <a href=\"https://example.org/ada\">her site</a></p>";
+    exec(&core, "signature.set", json!({"name": "Work", "html": html, "default": true, "account": ada}));
+    assert!(!block_on(core.account_signature(ada)).unwrap().editable);
+    assert!(matches!(block_on(core.set_account_signature(ada, "flat".into())), Err(CoreError::BadRequest { .. })));
+    assert!(matches!(block_on(core.set_account_signature(ada, String::new())), Err(CoreError::BadRequest { .. })));
+    let listed = exec(&core, "account.list", json!({})).to_string();
+    assert!(listed.contains("\"signature\":\"Work\""), "{listed}");
+}
+
+#[test]
+fn a_signature_two_accounts_share_is_copied_for_the_one_edited() {
+    let core = sample_core();
+    let ada = microsoft(&core, "ada@example.org");
+    let bo = microsoft(&core, "bo@example.org");
+    exec(&core, "signature.set", json!({"name": "Work", "text": "Shared", "default": true, "account": ada}));
+    exec(&core, "signature.defaults", json!({"account": bo, "new": "Work", "reply": "Work"}));
+    block_on(core.set_account_signature(ada, "Ada only".into())).unwrap();
+    assert_eq!(block_on(core.account_signature(ada)).unwrap().text, "Ada only");
+    assert_eq!(block_on(core.account_signature(bo)).unwrap().text, "Shared");
+    // Clearing it for one leaves the other's.
+    block_on(core.set_account_signature(bo, String::new())).unwrap();
+    assert_eq!(block_on(core.account_signature(bo)).unwrap().text, "");
+    assert_eq!(block_on(core.account_signature(ada)).unwrap().text, "Ada only");
+}
+
+#[test]
+fn clearing_a_signature_clears_the_reply_one_too() {
+    let core = sample_core();
+    let ada = microsoft(&core, "ada@example.org");
+    exec(&core, "signature.set", json!({"name": "Work", "text": "New", "default": true, "account": ada}));
+    exec(&core, "signature.set", json!({"name": "Reply", "text": "Re"}));
+    exec(&core, "signature.defaults", json!({"account": ada, "reply": "Reply"}));
+    block_on(core.set_account_signature(ada, "  ".into())).unwrap();
+    let listed = exec(&core, "account.list", json!({})).to_string();
+    assert!(listed.contains("\"signature\":\"\"") && listed.contains("\"replySignature\":\"\""), "{listed}");
 }
 
 #[test]

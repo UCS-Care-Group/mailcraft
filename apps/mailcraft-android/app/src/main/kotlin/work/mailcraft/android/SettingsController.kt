@@ -80,6 +80,13 @@ internal class SettingsController(
 
     /** One question at a time. */
     private val asking = Mutex()
+
+    /**
+     * The choices of a window and of the cap are made one after another, each against what is kept
+     * by then: a choice made while another is still going through is not lost, whatever it is.
+     */
+    private val windowChoices = Mutex()
+    private val capChoices = Mutex()
     private var answer: CompletableDeferred<Boolean>? = null
 
     /** The one run of thinning older mail: a second window choice, or Stop, ends it. */
@@ -145,11 +152,15 @@ internal class SettingsController(
     }
 
     private fun chooseCap(megabytes: Long) {
-        val current = ui.value.storage ?: return
-        if (megabytes == current.capMb || megabytes !in current.choicesMb) return
+        val offered = ui.value.storage ?: return
+        if (megabytes !in offered.choicesMb) return
         scope.launch {
-            val kept = api.setStorageCap(megabytes)
-            ui.update { state -> state.copy(storage = kept ?: state.storage, storageFailed = kept == null) }
+            capChoices.withLock {
+                // (Against what is kept now, after any choice made before this one has gone through.)
+                if (megabytes == ui.value.storage?.capMb) return@withLock
+                val kept = api.setStorageCap(megabytes)
+                ui.update { state -> state.copy(storage = kept ?: state.storage, storageFailed = kept == null) }
+            }
         }
     }
 
@@ -193,13 +204,19 @@ internal class SettingsController(
 
     /** The owner picked a window: a longer one waits for room, a shorter one is applied at once. */
     private fun chooseWindow(account: ULong, code: String) {
-        val state = ui.value
-        val current = state.keepOffline[account] ?: DEFAULT_OFFLINE
-        if (code == current || code !in state.codes) return
+        val codes = ui.value.codes
+        if (code !in codes) return
         scope.launch {
-            val more = if (keepsMore(state.codes, code, current)) api.estimate(code) - api.estimate(current) else 0L
-            // (A window that fetches nothing needs no room, however little there is.)
-            if (more <= 0 || waitForRoom(account, more, code)) applyWindow(account, code)
+            windowChoices.withLock {
+                // (Against what is kept now, after any choice made before this one has gone through.)
+                val current = ui.value.keepOffline[account] ?: DEFAULT_OFFLINE
+                if (code == current) return@withLock
+                // A run of thinning for an earlier choice ends with the next one.
+                stopThinning()
+                val more = if (keepsMore(codes, code, current)) api.estimate(code) - api.estimate(current) else 0L
+                // (A window that fetches nothing needs no room, however little there is.)
+                if (more <= 0 || waitForRoom(account, more, code)) applyWindow(account, code)
+            }
         }
     }
 
@@ -265,7 +282,7 @@ internal class SettingsController(
     private fun draft(account: ULong, text: String) = ui.update { state ->
         val now = state.signatures[account] ?: return@update state
         if (!now.editable) return@update state
-        val typed = now.copy(draft = text.take(MAX_SIGNATURE), failed = false)
+        val typed = now.copy(draft = text.takeCodePoints(MAX_SIGNATURE), failed = false)
         state.copy(signatures = state.signatures + (account to typed))
     }
 
@@ -282,6 +299,10 @@ internal class SettingsController(
             }
         }
     }
+
+    /** At most [count] code points, as the core counts characters: never half a surrogate pair. */
+    private fun String.takeCodePoints(count: Int): String =
+        if (codePointCount(0, length) <= count) this else substring(0, offsetByCodePoints(0, count))
 
     private companion object {
         /** Calls of a few hundred messages each: a mailbox is far smaller than this reaches. */

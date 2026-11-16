@@ -232,6 +232,7 @@ pub(crate) struct SyncHost {
     notify_mail: AtomicBool,
     /// A notification for new mail says "New mail" and nothing of the message (the owner's switch).
     notify_new_mail_only: AtomicBool,
+    notify_primary_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
     pub(crate) pacer: Pacer,
     /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
@@ -263,6 +264,7 @@ impl SyncHost {
             remember: AtomicBool::new(true),
             notify_mail: AtomicBool::new(true),
             notify_new_mail_only: AtomicBool::new(false),
+            notify_primary_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
             pacer: Pacer::default(),
             fetch_busy: AtomicBool::new(false),
@@ -308,6 +310,10 @@ impl SyncHost {
 
     pub(crate) fn set_notify_new_mail_only(&self, on: bool) {
         self.notify_new_mail_only.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn set_notify_primary_only(&self, on: bool) {
+        self.notify_primary_only.store(on, Ordering::Relaxed);
     }
 
     pub(crate) fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
@@ -779,7 +785,8 @@ impl SyncHost {
         let lang = session.interface_language;
         let found = inner.run_mark.take().map(|mark| arrivals::arrivals(&session.mailbox, &mark)).unwrap_or_default();
         if self.notify_mail.load(Ordering::Relaxed) {
-            for n in plan_notifications(session, &found, &mut inner.next_key, self.notify_new_mail_only.load(Ordering::Relaxed)) {
+            let told = if self.notify_primary_only.load(Ordering::Relaxed) { primary_only(&session.mailbox, &found) } else { found.clone() };
+            for n in plan_notifications(session, &told, &mut inner.next_key, self.notify_new_mail_only.load(Ordering::Relaxed)) {
                 self.sink.push(Event::Notification { notification: n });
             }
         }
@@ -816,6 +823,18 @@ fn add_error(errors: &mut Vec<String>, line: String) {
     if errors.len() < MOST_ERRORS {
         errors.push(line.chars().take(LONGEST_ERROR).collect());
     }
+}
+
+/// The arrivals that are not in a Gmail category other than Primary (the owner's "Primary only"
+/// switch for this phone). Mail whose category is not known yet is kept: better told once too
+/// often than not at all. Microsoft's Focused and Other are not kept by the mailbox, so mail of
+/// those accounts is always kept.
+pub(crate) fn primary_only(mailbox: &mailcraft_model::Mailbox, found: &[Arrival]) -> Vec<Arrival> {
+    found
+        .iter()
+        .filter(|a| mailbox.message(a.message).is_none_or(|m| m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)))
+        .cloned()
+        .collect()
 }
 
 /// The notifications for new mail: one each for up to [`AT_ONCE`], else one that counts them. What

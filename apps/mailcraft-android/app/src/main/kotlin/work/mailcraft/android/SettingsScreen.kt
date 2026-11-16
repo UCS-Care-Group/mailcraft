@@ -23,6 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -47,6 +51,8 @@ internal fun SettingsScreen(
 ) {
     // The pages that hold something for each account read what is kept for them.
     LaunchedEffect(data.accounts) { actions.settings.onShown(data.accounts) }
+    // About's Licences screen is a step inside About: the toolbar's Back and the system's both leave it first.
+    var licences by rememberSaveable(page) { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -58,7 +64,8 @@ internal fun SettingsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    val inLicences = page == SettingsPage.About && licences
+                    IconButton(onClick = { if (inLicences) licences = false else onBack() }) {
                         Icon(AppIcons.Back, contentDescription = texts.t("Back"))
                     }
                 },
@@ -66,21 +73,36 @@ internal fun SettingsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).verticalScroll(rememberScrollState())) {
-            when (page) {
-                null -> SettingsRows(texts, data, onOpen)
-                SettingsPage.Accounts ->
-                    AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
-                SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
-                SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
-                SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
-                SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings)
-                SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
-                SettingsPage.Notifications -> NotificationsPage(texts, data.settingsUi.switches, actions.settings)
-                SettingsPage.Pictures -> PicturesSwitchPage(texts, data.settingsUi.switches, actions.settings)
-                SettingsPage.SenderImages -> SenderImagesSwitchPage(texts, data.settingsUi.switches, actions.settings)
-                SettingsPage.Signatures -> SignaturesPage(texts, data.settingsUi, data.accounts, actions.settings)
-            }
+            SettingsBody(texts, page, data, actions, onOpen, onAddAccount, licences) { licences = it }
         }
+    }
+}
+
+@Composable
+@Suppress("LongParameterList")
+private fun SettingsBody(
+    texts: Texts,
+    page: SettingsPage?,
+    data: ShellData,
+    actions: ShellActions,
+    onOpen: (SettingsPage) -> Unit,
+    onAddAccount: () -> Unit,
+    licences: Boolean,
+    onLicences: (Boolean) -> Unit,
+) {
+    when (page) {
+        null -> SettingsRows(texts, data, onOpen)
+        SettingsPage.Accounts ->
+            AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
+        SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
+        SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+        SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
+        SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
+        SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
+        SettingsPage.Notifications -> NotificationsPage(texts, data.settingsUi.switches, actions.settings)
+        SettingsPage.Pictures -> PicturesSwitchPage(texts, data.settingsUi.switches, actions.settings)
+        SettingsPage.SenderImages -> SenderImagesSwitchPage(texts, data.settingsUi.switches, actions.settings)
+        SettingsPage.Signatures -> SignaturesPage(texts, data.settingsUi, data.accounts, actions.settings)
     }
 }
 
